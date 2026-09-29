@@ -26,8 +26,8 @@ relation when a fork is renamed, and redirects the old URL. Renaming to
 | Branch | Content | Rule |
 |---|---|---|
 | `master` | Exact mirror of `upstream/master` | Never commit here. Only fast-forward to upstream. |
-| `feat/scoutro-*` | Scoutro work (e.g. `feat/scoutro-mobile-ui`) | Branch off the Scoutro line, keep commits small and logical. |
-| `scoutro` (proposed, created after review of phase 1) | Scoutro integration branch = `master` + all Scoutro changes | Default branch for Scoutro releases. Upstream is merged in, never rebased. |
+| `main` | Scoutro main branch = `master` + all Scoutro changes | Default branch for Scoutro development and releases. Feature branches are merged in, upstream is merged in, never rebased. |
+| `feat/scoutro-*` | Scoutro work (e.g. `feat/scoutro-mobile-ui`) | Branch off `main`, keep commits small and logical, merge back into `main`. |
 
 ## Base version
 
@@ -72,17 +72,17 @@ git push origin master
 `master` must never diverge from upstream. If `--ff-only` fails, someone has
 committed to `master`. Move that commit to a feature branch first.
 
-### 2. Merge into the Scoutro line
+### 2. Merge into `main`
 
 ```sh
-git checkout scoutro                     # during phase 1: feat/scoutro-mobile-ui
+git checkout main
 git merge --no-ff master -m "merge: YaCy upstream <commit> (<version>)"
 ```
 
-**Merge, do not rebase** the Scoutro line onto upstream. The branch is public,
+**Merge, do not rebase** `main` onto upstream. The branch is public,
 merges keep the history reproducible, and every conflict resolution stays
 visible in one merge commit. Feature branches that are not yet merged may be
-rebased onto the Scoutro line before they are merged.
+rebased onto `main` before they are merged.
 
 ### 3. Resolve conflicts
 
