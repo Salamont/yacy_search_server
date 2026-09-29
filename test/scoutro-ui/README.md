@@ -24,7 +24,9 @@ Checked on every viewport:
   page and search results: HTTP 200, no horizontal page overflow, no controls
   outside the viewport (unless in a horizontal scroll container), no
   JavaScript errors;
-- the search form submits;
+- the search form submits; on the results page the search field and its
+  button stay on one row, and a search without results shows the empty
+  state with its illustration;
 - admin pages still answer 401 without credentials.
 
 Restart and Shutdown are never triggered (confirm dialogs are dismissed).

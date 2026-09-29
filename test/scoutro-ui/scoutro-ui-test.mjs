@@ -229,6 +229,22 @@ async function checkPublicHeader(page, vp) {
   check((await page.locator('footer.scoutro-attribution', { hasText: 'Powered by' }).count()) === 1, vp.name, 'Status.html attribution footer present');
 }
 
+/* results page: search pill stays on one row; empty state appears for a search without results */
+async function checkResultsPage(page, vp) {
+  await page.goto(BASE + '/yacysearch.html?query=zzqxscoutronoresult&resource=local', { waitUntil: 'load' });
+  const pill = await page.locator('form.search.small .input-group').boundingBox();
+  const button = await page.locator('form.search.small #Enter').boundingBox();
+  check(!!pill && !!button && button.height <= 48 && button.y >= pill.y - 1 && button.y + button.height <= pill.y + pill.height + 1,
+    vp.name, 'results search field and button on one row', button ? `button ${Math.round(button.width)}x${Math.round(button.height)}` : 'missing');
+  const empty = page.locator('#scoutro-empty-results');
+  const shown = await empty.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
+  check(shown, vp.name, 'empty state shown for a search without results');
+  if (shown) {
+    const img = await page.locator('#scoutro-empty-results img').evaluate((i) => i.complete && i.naturalWidth > 0);
+    check(img, vp.name, 'empty state illustration loaded');
+  }
+}
+
 async function checkAuth(browser) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
@@ -257,7 +273,7 @@ try {
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('dialog', (d) => d.dismiss()); /* never confirm restart/shutdown */
-    for (const step of [checkNavigation, checkPublicHeader, checkPages, checkSearchForm]) {
+    for (const step of [checkNavigation, checkPublicHeader, checkPages, checkSearchForm, checkResultsPage]) {
       try {
         await step(page, vp, errors);
       } catch (e) {
