@@ -1,0 +1,1053 @@
+/*
+ * Scoutro theme (GPL-2.0-or-later). Scoutro is an independent community
+ * project based on YaCy.
+ *
+ * Modern look derived from the Scoutro artwork (magnifier blue, glow cyan,
+ * night blue, soft cards, pill shapes). Loaded after the YaCy skin, the
+ * brand tokens (brand/brand.css) and the structural layer (scoutro.css), so it
+ * restyles the upstream markup without touching it. Remove the <link> in
+ * metas.template to fall back to the selected YaCy skin.
+ *
+ * Sections: base, admin bar, navigation, page submenus, cards, forms and
+ * buttons, tables, public search header, search results, search facets,
+ * dark mode for the public search pages.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Base                                                                 */
+/* ------------------------------------------------------------------ */
+
+body {
+  background-color: var(--scoutro-page);
+  color: var(--scoutro-ink-2);
+}
+
+a:link,
+a:visited {
+  color: var(--scoutro-primary-dark);
+}
+
+a:hover,
+a:focus {
+  color: var(--scoutro-primary);
+}
+
+.main h1,
+.main h2,
+.main h3,
+.main h4 {
+  color: var(--scoutro-ink);
+}
+
+.main h2 {
+  margin: 18px 0 10px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -.01em;
+}
+
+::selection {
+  background: rgba(55, 198, 255, .3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--scoutro-accent);
+  outline-offset: 2px;
+}
+
+/* ------------------------------------------------------------------ */
+/* Admin bar (header.template)                                          */
+/* ------------------------------------------------------------------ */
+
+.scoutro-adminbar.navbar-inverse {
+  background: linear-gradient(120deg, var(--scoutro-night) 0%, #0e2a63 60%, var(--scoutro-night-2) 100%);
+  border: 0;
+  box-shadow: 0 1px 0 rgba(55, 198, 255, .35), 0 8px 24px rgba(11, 27, 58, .25);
+}
+
+.scoutro-adminbar .navbar-brand,
+.scoutro-adminbar .navbar-brand:link,
+.scoutro-adminbar .navbar-brand:visited {
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.scoutro-adminbar .navbar-brand:hover {
+  color: #d9ecff;
+}
+
+.scoutro-adminbar #header-search-form .form-control {
+  color: #fff;
+  background: rgba(255, 255, 255, .1);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: var(--scoutro-radius-pill);
+  box-shadow: none;
+}
+
+.scoutro-adminbar #header-search-form .form-control::placeholder {
+  color: rgba(255, 255, 255, .6);
+}
+
+.scoutro-adminbar #header-search-form .form-control:focus {
+  background: rgba(255, 255, 255, .16);
+  border-color: var(--scoutro-accent);
+  box-shadow: var(--scoutro-focus);
+}
+
+/* top-bar actions: one calm button style instead of five colors */
+.scoutro-adminbar .navbar-btn.btn {
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: var(--scoutro-radius-pill);
+  padding: 6px 14px;
+  font-weight: 500;
+  text-shadow: none;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+.scoutro-adminbar .navbar-btn.btn:hover,
+.scoutro-adminbar .navbar-btn.btn:focus {
+  background: rgba(255, 255, 255, .18);
+  border-color: rgba(255, 255, 255, .3);
+}
+
+.scoutro-adminbar #header_shutdown .navbar-btn.btn:hover {
+  background: rgba(255, 90, 90, .35);
+  border-color: rgba(255, 140, 140, .6);
+}
+
+.scoutro-adminbar #header_search .navbar-btn.btn {
+  background: var(--scoutro-primary);
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(22, 115, 255, .45);
+}
+
+.scoutro-adminbar .navbar-toggle {
+  border-color: rgba(255, 255, 255, .25);
+  border-radius: var(--scoutro-radius-sm);
+}
+
+.scoutro-adminbar .navbar-toggle:hover,
+.scoutro-adminbar .navbar-toggle:focus {
+  background: rgba(255, 255, 255, .12);
+}
+
+.navbar .dropdown-menu {
+  padding: 6px;
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius);
+  box-shadow: var(--scoutro-shadow-lg);
+}
+
+.navbar .dropdown-menu > li > a {
+  padding: 8px 12px;
+  border-radius: var(--scoutro-radius-sm);
+  color: var(--scoutro-ink-2);
+}
+
+.navbar .dropdown-menu > li > a:hover,
+.navbar .dropdown-menu > li > a:focus {
+  color: var(--scoutro-primary-dark);
+  background: var(--scoutro-primary-soft);
+}
+
+/* ------------------------------------------------------------------ */
+/* Navigation: admin sidebar and mobile panel                           */
+/* ------------------------------------------------------------------ */
+
+@media (min-width: 768px) {
+  .scoutro-adminnav {
+    top: 60px;
+    margin-left: 0;
+    padding: 16px 10px 32px;
+    background: var(--scoutro-surface);
+    border-right: 1px solid var(--scoutro-border);
+  }
+}
+
+.scoutro-adminnav .nav-sidebar {
+  margin: 0 0 14px;
+}
+
+.scoutro-adminnav .nav-sidebar > li {
+  margin: 0;
+}
+
+.menugroup h3,
+.scoutro-adminnav .nav-sidebar h3 {
+  margin: 0;
+  padding: 10px 12px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--scoutro-muted);
+  background: none;
+  border-radius: 0;
+}
+
+.scoutro-adminnav a.MenuItemLink,
+.scoutro-adminnav .nav-sidebar > li > a {
+  display: block;
+  margin: 1px 0;
+  padding: 7px 12px 7px 34px;
+  color: var(--scoutro-ink-2);
+  background-color: transparent;
+  background-position: 11px center;
+  border-radius: var(--scoutro-radius-sm);
+  transition: background-color .12s ease, color .12s ease;
+}
+
+.scoutro-adminnav a.MenuItemLink:hover,
+.scoutro-adminnav a.MenuItemLink:focus {
+  color: var(--scoutro-primary-dark);
+  background-color: var(--scoutro-surface-2);
+}
+
+.scoutro-adminnav a.MenuItemLink.lock,
+.scoutro-adminnav a.MenuItemLink.unlock {
+  background-size: 14px 14px;
+}
+
+/* current page, marked by scoutro.js */
+.scoutro-adminnav a.scoutro-current,
+.scoutro-adminnav a.scoutro-current:hover {
+  color: var(--scoutro-primary-dark);
+  font-weight: 600;
+  background-color: var(--scoutro-primary-soft);
+  box-shadow: inset 3px 0 0 var(--scoutro-primary);
+}
+
+@media (max-width: 767px) {
+  body.scoutro-nav-open .scoutro-adminnav {
+    padding: 8px 10px 32px;
+    background: var(--scoutro-surface);
+    border-top: 0;
+    box-shadow: 0 12px 32px rgba(11, 27, 58, .25);
+  }
+
+  .scoutro-adminnav .nav-sidebar h3 {
+    padding: 14px 12px 6px;
+  }
+
+  .scoutro-adminnav .nav-sidebar > li > a,
+  .scoutro-adminnav a.MenuItemLink {
+    min-height: 44px;
+    padding: 11px 12px 11px 36px;
+    font-size: 16px;
+    border-bottom: 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Page submenus (submenu*.template): section title + tabs               */
+/* ------------------------------------------------------------------ */
+
+div.SubMenu {
+  margin: 4px 0 18px;
+}
+
+div.SubMenu > h3,
+div.SubMenugroup > h3 {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--scoutro-muted);
+  background: none;
+  border-radius: 0;
+}
+
+div.SubMenugroup {
+  margin: 0 18px 10px 0;
+}
+
+div.SubMenugroup > h3 {
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+
+ul.SubMenu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+ul.SubMenu li {
+  float: none;
+  margin: 0;
+}
+
+ul.SubMenu a.MenuItemLink {
+  display: inline-block;
+  padding: 6px 14px;
+  color: var(--scoutro-ink-2);
+  background-color: var(--scoutro-surface);
+  background-position: 9px center;
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius-pill);
+  box-shadow: var(--scoutro-shadow-sm);
+  transition: border-color .12s ease, color .12s ease, background-color .12s ease;
+}
+
+ul.SubMenu a.MenuItemLink.lock,
+ul.SubMenu a.MenuItemLink.unlock {
+  padding-left: 30px;
+  background-size: 14px 14px;
+}
+
+ul.SubMenu a.MenuItemLink:hover,
+ul.SubMenu a.MenuItemLink:focus {
+  color: var(--scoutro-primary-dark);
+  background-color: var(--scoutro-surface);
+  border-color: var(--scoutro-primary);
+}
+
+ul.SubMenu a.scoutro-current,
+ul.SubMenu a.scoutro-current:hover {
+  color: #fff;
+  background-color: var(--scoutro-primary);
+  border-color: var(--scoutro-primary);
+  box-shadow: 0 4px 12px rgba(22, 115, 255, .3);
+}
+
+ul.SubMenu a.scoutro-current.lock,
+ul.SubMenu a.scoutro-current.unlock {
+  background-color: var(--scoutro-primary);
+}
+
+@media (max-width: 767px) {
+  ul.SubMenu a.MenuItemLink {
+    min-height: 40px;
+    padding: 9px 14px;
+  }
+
+  ul.SubMenu a.MenuItemLink.lock,
+  ul.SubMenu a.MenuItemLink.unlock {
+    padding-left: 30px;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Cards: fieldsets and legends                                        */
+/* ------------------------------------------------------------------ */
+
+.main fieldset {
+  margin: 16px 0;
+  padding: 18px 20px 16px;
+  color: var(--scoutro-ink-2);
+  background: var(--scoutro-surface);
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius-lg);
+  box-shadow: var(--scoutro-shadow-sm);
+}
+
+/* the legend becomes the card title inside the card */
+.main fieldset > legend {
+  float: left;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--scoutro-ink);
+  background: none;
+  border: 0;
+  border-radius: 0;
+}
+
+.main fieldset > legend + * {
+  clear: both;
+}
+
+/* nested cards (e.g. Crawl Start Expert) */
+.main fieldset fieldset {
+  background: var(--scoutro-surface-2);
+  border-color: var(--scoutro-border);
+  box-shadow: none;
+}
+
+.main fieldset fieldset > legend {
+  font-size: 14px;
+  color: var(--scoutro-ink-2);
+}
+
+@media (max-width: 767px) {
+  .main fieldset {
+    padding: 14px 14px 12px;
+    border-radius: var(--scoutro-radius);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Forms and buttons                                                   */
+/* ------------------------------------------------------------------ */
+
+.form-control,
+.main input[type=text],
+.main input[type=password],
+.main input[type=url],
+.main input[type=number],
+.main input[type=email],
+.main input[type=search],
+.main select,
+.main textarea {
+  color: var(--scoutro-ink);
+  background-color: var(--scoutro-surface);
+  border: 1px solid var(--scoutro-border-strong);
+  border-radius: var(--scoutro-radius-sm);
+  box-shadow: none;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+
+.main input[type=text],
+.main input[type=password],
+.main input[type=url],
+.main input[type=number],
+.main input[type=email],
+.main input[type=search],
+.main select {
+  min-height: 34px;
+  padding: 5px 10px;
+}
+
+.form-control:focus,
+.main input:focus,
+.main select:focus,
+.main textarea:focus {
+  border-color: var(--scoutro-primary);
+  box-shadow: var(--scoutro-focus);
+  outline: 0;
+}
+
+.main input[type=checkbox],
+.main input[type=radio] {
+  accent-color: var(--scoutro-primary);
+}
+
+.btn {
+  border-radius: var(--scoutro-radius-sm);
+  font-weight: 500;
+  transition: background-color .12s ease, border-color .12s ease, box-shadow .12s ease;
+}
+
+.btn-primary,
+.main input[type=submit].btn-primary {
+  color: #fff;
+  background: linear-gradient(180deg, #3a8dff 0%, var(--scoutro-primary) 100%);
+  border: 1px solid var(--scoutro-primary-dark);
+  box-shadow: 0 4px 12px rgba(22, 115, 255, .28);
+}
+
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active,
+.main input[type=submit].btn-primary:hover {
+  color: #fff;
+  background: var(--scoutro-primary-dark);
+  border-color: var(--scoutro-primary-dark);
+}
+
+.main .btn-default,
+.main input[type=submit]:not(.btn),
+.main input[type=button]:not(.btn),
+.main input[type=reset]:not(.btn),
+.main button:not(.btn):not(.navbar-toggle) {
+  color: var(--scoutro-ink);
+  background: var(--scoutro-surface);
+  border: 1px solid var(--scoutro-border-strong);
+  border-radius: var(--scoutro-radius-sm);
+  padding: 6px 14px;
+  box-shadow: var(--scoutro-shadow-sm);
+}
+
+.main .btn-default:hover,
+.main input[type=submit]:not(.btn):hover,
+.main input[type=button]:not(.btn):hover,
+.main button:not(.btn):not(.navbar-toggle):hover {
+  color: var(--scoutro-primary-dark);
+  border-color: var(--scoutro-primary);
+  background: var(--scoutro-surface);
+}
+
+.label-success,
+.btn-success {
+  background-color: #1f9d6b;
+  border-color: #1a855b;
+}
+
+.alert {
+  border-radius: var(--scoutro-radius);
+}
+
+/* ------------------------------------------------------------------ */
+/* Tables                                                              */
+/* ------------------------------------------------------------------ */
+
+.TableHeader,
+.TableHeader td,
+.TableHeader th {
+  color: var(--scoutro-ink);
+  font-weight: 600;
+  background-color: var(--scoutro-surface-2);
+}
+
+.TableCellLight {
+  background-color: var(--scoutro-surface);
+}
+
+.TableCellDark {
+  background-color: #f8fbff;
+}
+
+.TableCellSummary {
+  background-color: #fff4e8;
+}
+
+.TableCellActive {
+  background-color: #fde7d3;
+}
+
+.main td,
+.main th {
+  padding: 6px 10px;
+}
+
+.main tr.TableCellLight > td,
+.main tr.TableCellDark > td {
+  border-top: 1px solid #edf2fa;
+}
+
+/* data tables (with a header row) are shown as a card */
+.main .scoutro-scroll:has(.TableHeader) {
+  margin: 12px 0;
+  background: var(--scoutro-surface);
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius);
+  box-shadow: var(--scoutro-shadow-sm);
+}
+
+.main .scoutro-scroll:has(.TableHeader) > table {
+  margin: 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Public search header (simpleSearchHeader.template)                  */
+/* ------------------------------------------------------------------ */
+
+.navbar-default.navbar-fixed-top {
+  background: rgba(255, 255, 255, .82);
+  -webkit-backdrop-filter: saturate(160%) blur(12px);
+  backdrop-filter: saturate(160%) blur(12px);
+  border: 0;
+  box-shadow: 0 1px 0 var(--scoutro-border);
+}
+
+.navbar-default .navbar-brand,
+.navbar-default .navbar-brand:link,
+.navbar-default .navbar-brand:visited {
+  color: var(--scoutro-ink);
+  font-weight: 700;
+}
+
+.navbar-default .navbar-nav > li > a {
+  color: var(--scoutro-ink-2);
+}
+
+.navbar-default #header_administration .btn {
+  color: var(--scoutro-primary-dark);
+  background: var(--scoutro-surface);
+  border: 1px solid var(--scoutro-border-strong);
+  border-radius: var(--scoutro-radius-pill);
+  padding: 6px 16px;
+}
+
+.navbar-default #header_administration .btn:hover {
+  border-color: var(--scoutro-primary);
+  box-shadow: var(--scoutro-focus);
+}
+
+/* ------------------------------------------------------------------ */
+/* Search results (yacysearch.html)                                    */
+/* ------------------------------------------------------------------ */
+
+body#yacysearch form.search.small .input-group {
+  display: flex;
+  align-items: center;
+  max-width: 560px !important;
+  padding: 3px 3px 3px 40px;
+  background: var(--scoutro-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%235b6b85' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3C/svg%3E") no-repeat 15px 50%;
+  border: 1.5px solid rgba(22, 115, 255, .35);
+  border-radius: var(--scoutro-radius-pill);
+  box-shadow: 0 0 0 4px rgba(55, 198, 255, .1), 0 6px 18px var(--scoutro-glow);
+}
+
+body#yacysearch form.search.small .input-group:focus-within {
+  border-color: var(--scoutro-primary);
+}
+
+body#yacysearch form.search.small .twitter-typeahead {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+body#yacysearch form.search.small #search {
+  width: 100%;
+  height: 38px;
+  padding: 0 8px;
+  font-size: 16px;
+  color: var(--scoutro-ink);
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+}
+
+body#yacysearch form.search.small .input-group-btn {
+  display: flex;
+  width: auto;
+  gap: 4px;
+}
+
+body#yacysearch form.search.small .input-group-btn .btn {
+  height: 38px;
+  padding: 0 18px;
+  color: #fff;
+  font-weight: 600;
+  background: linear-gradient(180deg, #3a8dff 0%, var(--scoutro-primary) 100%);
+  border: 0;
+  border-radius: var(--scoutro-radius-pill) !important;
+  box-shadow: 0 3px 10px rgba(22, 115, 255, .35);
+}
+
+body#yacysearch form.search.small .input-group-btn #resortCached {
+  padding: 0 12px;
+  color: var(--scoutro-primary-dark);
+  background: var(--scoutro-primary-soft);
+  box-shadow: none;
+}
+
+body#yacysearch form.search.small label,
+body#yacysearch form.search.small select {
+  color: var(--scoutro-muted) !important;
+}
+
+body#yacysearch form.search.small select {
+  border: 1px solid var(--scoutro-border);
+  border-radius: 6px;
+  background: var(--scoutro-surface);
+}
+
+/* result count / progress: a calm status line with a thin glowing bar */
+body#yacysearch .progress {
+  position: relative;
+  height: 30px;
+  margin-top: 14px !important;
+  overflow: visible;
+  background: none;
+  box-shadow: none;
+}
+
+body#yacysearch .progress-bar {
+  height: 3px;
+  margin-top: 27px;
+  background: linear-gradient(90deg, var(--scoutro-accent), var(--scoutro-primary));
+  border-radius: 3px;
+  box-shadow: 0 0 10px var(--scoutro-glow);
+}
+
+body#yacysearch .progress-bar > span {
+  top: 0;
+  color: var(--scoutro-muted) !important;
+  font-size: 13px;
+  line-height: 24px;
+}
+
+body#yacysearch .progress-bar > span strong {
+  color: var(--scoutro-ink);
+}
+
+body#yacysearch #api {
+  top: 88px !important;
+}
+
+/* result cards */
+.searchresults {
+  position: relative;
+  margin: 12px 0;
+  padding: 16px 20px 12px;
+  background: var(--scoutro-surface);
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius-lg);
+  box-shadow: var(--scoutro-shadow-sm);
+  transition: box-shadow .15s ease, border-color .15s ease, transform .15s ease;
+}
+
+.searchresults:hover {
+  border-color: var(--scoutro-border-strong);
+  box-shadow: var(--scoutro-shadow);
+}
+
+.searchresults h4.linktitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  padding: 0;
+}
+
+.searchresults h4.linktitle img.favicon {
+  flex: none;
+  margin: 0;
+  border-radius: 4px;
+}
+
+.searchresults h4 a,
+.searchresults h4 a:link,
+.searchresults h4 a:visited {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--scoutro-primary-dark);
+  text-decoration: none;
+}
+
+.searchresults h4 a:hover {
+  color: var(--scoutro-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.searchresults .url {
+  margin: 0 0 6px;
+}
+
+.searchresults .url a,
+.searchresults .url a:link,
+.searchresults .url a:visited {
+  font-size: 13px;
+  color: #19805c;
+  word-break: break-all;
+}
+
+.searchresults .snippet {
+  margin: 0 0 8px;
+}
+
+.searchresults .snippetLoaded {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--scoutro-ink-2);
+}
+
+.searchresults .snippetLoaded strong,
+.searchresults .snippetLoaded b {
+  color: var(--scoutro-ink);
+  background: linear-gradient(transparent 62%, rgba(231, 154, 79, .28) 62%); /* warm highlight */
+}
+
+.searchresults .urlinfo {
+  margin: 0;
+  font-size: 12px;
+  color: var(--scoutro-muted);
+}
+
+.searchresults .urlinfo a,
+.searchresults .urlinfo a:link,
+.searchresults .urlinfo a:visited {
+  color: var(--scoutro-muted);
+  text-decoration: none;
+}
+
+.searchresults .urlinfo a:hover {
+  color: var(--scoutro-primary);
+  text-decoration: underline;
+}
+
+.searchresults div.urlactions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  float: none;
+  margin: 0;
+}
+
+@media (max-width: 767px) {
+  .searchresults {
+    margin: 10px 0;
+    padding: 14px 14px 10px;
+    border-radius: var(--scoutro-radius);
+  }
+
+  .searchresults h4 a,
+  .searchresults h4 a:link {
+    font-size: 17px;
+  }
+}
+
+/* pagination */
+.pagination > li > a,
+.pagination > li > span {
+  margin: 0 3px;
+  color: var(--scoutro-primary-dark);
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius-sm) !important;
+}
+
+.pagination > .active > a,
+.pagination > .active > span {
+  background: var(--scoutro-primary);
+  border-color: var(--scoutro-primary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Search facets (yacysearchtrailer.html)                               */
+/* ------------------------------------------------------------------ */
+
+body#yacysearch #sidebar {
+  padding-top: 18px;
+}
+
+body#yacysearch #sidebar .btn-group-justified {
+  margin-bottom: 10px;
+  padding: 3px;
+  background: var(--scoutro-surface-2);
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius-pill);
+}
+
+body#yacysearch #sidebar .btn-group-justified .btn {
+  color: var(--scoutro-ink-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--scoutro-radius-pill) !important;
+  box-shadow: none;
+}
+
+body#yacysearch #sidebar .btn-group-justified .btn.active,
+body#yacysearch #sidebar .btn-group-justified .btn:active {
+  color: var(--scoutro-primary-dark);
+  background: var(--scoutro-surface);
+  box-shadow: var(--scoutro-shadow-sm);
+}
+
+body#yacysearch #sidebar .menugroup {
+  margin: 0 0 12px;
+  padding: 4px 4px 8px;
+  background: var(--scoutro-surface);
+  border: 1px solid var(--scoutro-border);
+  border-radius: var(--scoutro-radius);
+}
+
+body#yacysearch #sidebar .menugroup h3 {
+  color: var(--scoutro-muted);
+}
+
+body#yacysearch #sidebar .menugroup h3 a,
+body#yacysearch #sidebar .menugroup h3 span {
+  color: inherit;
+}
+
+body#yacysearch #sidebar .nav-sidebar > li > a {
+  padding: 5px 10px;
+  color: var(--scoutro-ink-2);
+  background: transparent;
+  border-radius: var(--scoutro-radius-sm);
+}
+
+body#yacysearch #sidebar .nav-sidebar > li > a:hover {
+  background: var(--scoutro-surface-2);
+}
+
+/* ------------------------------------------------------------------ */
+/* Dark mode for the public search pages (start page, results, About)  */
+/* The administration keeps the light theme.                           */
+/* ------------------------------------------------------------------ */
+
+@media (prefers-color-scheme: dark) {
+  body#index,
+  body#yacysearch,
+  body.scoutro-about {
+    --scoutro-ink: #eaf2ff;
+    --scoutro-ink-2: #c9d6ee;
+    --scoutro-muted: #8fa3c4;
+    --scoutro-surface: #0f2147;
+    --scoutro-surface-2: #13295a;
+    --scoutro-page: #07142e;
+    --scoutro-border: rgba(140, 180, 255, .16);
+    --scoutro-border-strong: rgba(140, 180, 255, .28);
+    --scoutro-primary-dark: #7fb6ff;
+    --scoutro-primary-soft: rgba(22, 115, 255, .18);
+    --scoutro-glow: rgba(55, 160, 255, .28);
+    --scoutro-shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+    --scoutro-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+    color-scheme: dark;
+    color: var(--scoutro-ink-2);
+    background-color: var(--scoutro-page);
+  }
+
+  body#index {
+    background: radial-gradient(ellipse at 50% 0, #0f2a5e 0, var(--scoutro-page) 60%, var(--scoutro-page) 100%);
+    background-attachment: fixed;
+  }
+
+  body#index .navbar-default.navbar-fixed-top,
+  body#yacysearch .navbar-default.navbar-fixed-top {
+    background: rgba(7, 20, 46, .78);
+    box-shadow: 0 1px 0 var(--scoutro-border);
+  }
+
+  body#index .navbar-default .navbar-toggle,
+  body#yacysearch .navbar-default .navbar-toggle {
+    border-color: var(--scoutro-border-strong);
+  }
+
+  body#index .navbar-default .navbar-toggle .icon-bar,
+  body#yacysearch .navbar-default .navbar-toggle .icon-bar {
+    background-color: var(--scoutro-ink-2);
+  }
+
+  body#index .navbar-default .navbar-collapse,
+  body#yacysearch .navbar-default .navbar-collapse {
+    border-color: var(--scoutro-border);
+  }
+
+  body#index a:link,
+  body#index a:visited,
+  body#yacysearch a:link,
+  body#yacysearch a:visited,
+  body.scoutro-about a:link,
+  body.scoutro-about a:visited {
+    color: var(--scoutro-primary-dark);
+  }
+
+  body#index .navbar-default .navbar-brand,
+  body#yacysearch .navbar-default .navbar-brand {
+    color: var(--scoutro-ink);
+  }
+
+  body.scoutro-about code {
+    color: var(--scoutro-accent);
+    background: var(--scoutro-surface-2);
+  }
+
+  body#yacysearch .searchresults .url a,
+  body#yacysearch .searchresults .url a:link {
+    color: #5fd3a5;
+  }
+
+  body#yacysearch .searchresults .snippetLoaded strong,
+  body#yacysearch .searchresults .snippetLoaded b {
+    background: linear-gradient(transparent 62%, rgba(231, 154, 79, .35) 62%);
+  }
+
+  body#index form.search .input-group {
+    background-color: var(--scoutro-surface);
+    border-color: rgba(55, 198, 255, .45);
+  }
+
+  body#index .tt-menu,
+  body#index .tt-dropdown-menu,
+  body#yacysearch .tt-menu,
+  body#yacysearch .tt-dropdown-menu {
+    color: var(--scoutro-ink-2);
+    background: var(--scoutro-surface);
+  }
+
+  body#index footer.scoutro-attribution,
+  body#yacysearch footer.scoutro-attribution {
+    border-top-color: var(--scoutro-border);
+  }
+
+  body#index footer.scoutro-attribution a,
+  body#yacysearch footer.scoutro-attribution a {
+    color: var(--scoutro-primary-dark);
+  }
+
+  body#index .dropdown-menu,
+  body#yacysearch .dropdown-menu {
+    background: var(--scoutro-surface);
+  }
+
+  body#index .dropdown-menu > li > a,
+  body#yacysearch .dropdown-menu > li > a {
+    color: var(--scoutro-ink-2);
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Details                                                             */
+/* ------------------------------------------------------------------ */
+
+/* label / value pairs: no tinted blocks, clear label typography */
+form dt,
+dl.pairs dt,
+form dd,
+dl.pairs dd {
+  background-color: transparent;
+}
+
+form dt,
+dl.pairs dt {
+  font-weight: 600;
+  color: var(--scoutro-ink);
+}
+
+legend a:link,
+legend a:visited,
+legend a:hover {
+  color: var(--scoutro-primary-dark);
+}
+
+/* results page: language filter next to the search pill instead of below it */
+@media (min-width: 768px) {
+  body#yacysearch form.search.small > div:not(.input-group) {
+    position: absolute;
+    top: 10px;
+    left: calc(100% + 12px);
+    margin: 0 !important;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 767px) {
+  body#yacysearch .main {
+    padding-top: 36px;
+  }
+}
+
+body#yacysearch form.search.small #Enter {
+  text-transform: capitalize;
+}
+
+body#yacysearch #sidebar .btn-group-justified .btn {
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.main td,
+.main th {
+  padding: 5px 8px;
+}
+
+/* Use Case chooser on ConfigBasic.html in the brand's night blue */
+.usecase-option {
+  background: linear-gradient(160deg, var(--scoutro-night) 0%, var(--scoutro-night-2) 100%) !important;
+  border-radius: var(--scoutro-radius-lg);
+  box-shadow: var(--scoutro-shadow);
+}
+
+.usecase-option img {
+  border-radius: var(--scoutro-radius);
+}
+
+body#yacysearch #sidebar .btn-group-justified .btn {
+  white-space: normal;
+  line-height: 1.2;
+}

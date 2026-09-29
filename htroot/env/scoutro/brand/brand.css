@@ -1,15 +1,41 @@
 /*
- * Scoutro brand tokens (GPL-2.0-or-later). Central place for brand colors.
- * Scoutro is an independent community project based on YaCy.
+ * Scoutro brand tokens (GPL-2.0-or-later). Central place for brand colors,
+ * shapes and type. Scoutro is an independent community project based on YaCy.
+ *
+ * Palette taken from the Scoutro artwork: magnifier blue, glow cyan, night
+ * blue of the dark search bars, and the warm meerkat fur as a sparse accent.
  */
 :root {
+  /* brand */
   --scoutro-primary: #1673ff;        /* magnifier blue */
   --scoutro-primary-dark: #0b4fc4;
+  --scoutro-primary-soft: #e7f0ff;   /* tinted backgrounds, active items */
   --scoutro-accent: #37c6ff;         /* glow cyan */
+  --scoutro-night: #0b1b3a;          /* night blue (dark search bars, admin bar) */
+  --scoutro-night-2: #12357a;
+  --scoutro-warm: #e79a4f;           /* meerkat fur, used sparingly */
+
+  /* surfaces and text */
   --scoutro-ink: #0f1f3d;            /* text on light backgrounds */
+  --scoutro-ink-2: #2f3f5c;          /* body copy */
   --scoutro-muted: #5b6b85;
   --scoutro-surface: #ffffff;
+  --scoutro-surface-2: #f3f7fe;      /* table headers, hover */
   --scoutro-page: #f4f8ff;
+  --scoutro-border: #dbe5f4;
+  --scoutro-border-strong: #c3d3ec;
   --scoutro-glow: rgba(55, 160, 255, .35);
+  --scoutro-focus: 0 0 0 4px rgba(55, 198, 255, .28);
+
+  /* shape and depth */
+  --scoutro-radius-sm: 8px;
+  --scoutro-radius: 12px;
+  --scoutro-radius-lg: 18px;
   --scoutro-radius-pill: 999px;
+  --scoutro-shadow-sm: 0 1px 2px rgba(15, 31, 61, .06), 0 1px 3px rgba(15, 31, 61, .06);
+  --scoutro-shadow: 0 6px 20px rgba(15, 31, 61, .08);
+  --scoutro-shadow-lg: 0 16px 40px rgba(15, 31, 61, .12);
+
+  /* type: Roboto is bundled with YaCy (env/fonts), no external requests */
+  --scoutro-font: "Roboto", system-ui, -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 }

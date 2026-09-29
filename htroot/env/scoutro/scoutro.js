@@ -97,10 +97,38 @@ for the JavaScript code in this page.
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { wrapWideTables(); });
-  } else {
+  /*
+   * Mark the navigation entries of the current page (sidebar and page
+   * submenus) so that the theme can highlight them. Sidebar entries match by
+   * file name (e.g. Status.html?noforward=). In page submenus a link with a
+   * query string only matches the same query (AccessTracker_p.html?page=1).
+   */
+  function markCurrentLinks() {
+    var here = window.location.pathname.replace(/^.*\//, '') || 'index.html';
+    var query = window.location.search;
+    var links = document.querySelectorAll('#scoutro-adminnav a[href], ul.SubMenu a[href]');
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute('href');
+      var q = href.indexOf('?');
+      var file = (q < 0 ? href : href.substring(0, q)).replace(/^.*\//, '');
+      var linkQuery = q < 0 ? '' : href.substring(q);
+      var inSidebar = !!links[i].closest('#scoutro-adminnav');
+      if (file === here && (inSidebar || linkQuery === '' || linkQuery === query)) {
+        links[i].classList.add('scoutro-current');
+        links[i].setAttribute('aria-current', 'page');
+      }
+    }
+  }
+
+  function onReady() {
     wrapWideTables();
+    markCurrentLinks();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', onReady);
+  } else {
+    onReady();
   }
 
   /* leaving the small-screen layout must not keep the page locked */

@@ -59,21 +59,22 @@ get small hooks marked with `Scoutro:`.
 | File | Role |
 |---|---|
 | `htroot/env/scoutro/scoutro.css` | mobile navigation, responsive foundation, branding styles, start page |
-| `htroot/env/scoutro/scoutro.js` | navigation panel (toggle, Escape, close on navigation), scroll wrapper for wide tables |
+| `htroot/env/scoutro/scoutro.js` | navigation panel (toggle, Escape, close on navigation), scroll wrapper for wide tables, marks the current page in the navigation |
+| `htroot/env/scoutro/theme.css` | Scoutro theme: modern look matching the brand artwork, dark mode for the public search pages |
 | `htroot/env/scoutro/brand/` | logo, favicon, icons, color tokens (`brand.css`) |
 | `htroot/env/templates/scoutro/` | product name, attribution footer, start page hero |
 | `htroot/scoutro-about.html` | static About page (origin, license, sources) |
 
 Load order (in `metas.template`): Bootstrap → `bootstrap-base.css` →
 `base.css` → skin (`style.css`) → `brand/brand.css` → `scoutro.css` →
-`scoutro.js`. Scoutro overrides therefore win without `!important` in most
+`theme.css` → `scoutro.js`. Scoutro overrides therefore win without `!important` in most
 cases and work with every skin.
 
 Hooks in upstream files:
 
 | File | Hook |
 |---|---|
-| `metas.template` | favicon/icons, `brand.css`, `scoutro.css`, `scoutro.js` |
+| `metas.template` | favicon/icons, `brand.css`, `scoutro.css`, `theme.css`, `scoutro.js` |
 | `header.template` | `scoutro-adminbar` class, toggle id, sidebar id, mobile-only groups (Configuration, System, Help), brand, Help and Sponsor as `type="button"` |
 | `simpleSearchHeader.template` | brand logo and name, About link |
 | `footer.template`, `simplefooter.template` | attribution include |
@@ -124,6 +125,35 @@ use the brand files instead of `promoteSearchPageGreeting.largeImage`,
 `.smallImage`, `.homepage` and `.imageAlt` (Portal Configuration). The
 greeting text `promoteSearchPageGreeting` is still used as the tagline.
 
+### Theme (design)
+
+`env/scoutro/theme.css` gives the whole interface a modern look derived from
+the Scoutro artwork. All colors, radii and shadows come from the tokens in
+`brand/brand.css`:
+
+- **Palette:** magnifier blue (`--scoutro-primary`), glow cyan
+  (`--scoutro-accent`), the night blue of the dark search bars
+  (`--scoutro-night`), light blue page background, and the warm meerkat fur
+  (`--scoutro-warm`) only as a sparse accent (search term highlight).
+- **Shapes:** pill search fields and buttons, rounded cards (18px), soft
+  shadows and a subtle cyan glow instead of hard colored bars.
+- **Administration:** night-blue top bar with calm pill buttons, a light
+  sidebar with small uppercase group titles and the current page highlighted,
+  page submenus as tabs, fieldsets as cards (the legend becomes the card
+  title), modern form controls with a cyan focus ring, data tables as cards
+  with light header rows, and the Use Case chooser in night blue.
+- **Search:** the results page uses the same pill search field as the start
+  page, results are shown as cards (title, green URL, snippet with a warm
+  highlight, quiet meta line), and the facets appear as cards and segmented
+  controls.
+- **Dark mode:** the start page, results page and About page follow
+  `prefers-color-scheme: dark` (night-blue surfaces, glow, light text). The
+  administration intentionally stays light, because many admin pages use
+  inline colors.
+
+The theme sits on top of the selected YaCy skin. To use a plain YaCy skin
+again, remove the `theme.css` line from `metas.template`.
+
 ### Search start page
 
 `index.html`: mascot, product name and greeting above one large search field
@@ -158,15 +188,16 @@ the search APIs are unchanged.
 
 ## Dark / light mode
 
-- **Status:** Scoutro follows the selected YaCy skin. Upstream already ships
-  dark skins (`dark`, `dark-blue`, `dark-green`, `phosphor`; Portal Design).
+- **Status:** automatic dark mode (`prefers-color-scheme`) is implemented for
+  the public search pages (start page, results, About). The administration
+  stays light. Upstream also ships dark skins for it (`dark`, `dark-blue`,
+  `dark-green`, `phosphor`; Portal Design), but the Scoutro theme sits on top
+  of them.
 - **Effort for automatic `prefers-color-scheme`:** medium. The Scoutro parts
   (brand tokens, mobile panel, start page, footer, About page) can switch via
   the CSS variables in `brand.css` with little effort. The admin pages get
   their colors from `base.css`, the skin and many inline styles; a complete
   automatic dark mode would mean a Scoutro dark skin plus overrides for
   inline colors.
-- **Recommendation:** in phase 2, add `prefers-color-scheme: dark` for the
-  Scoutro-owned parts (start page, panel, footer, About) through the tokens,
-  and offer a Scoutro dark skin for the admin pages as an option instead of
-  forcing it.
+- **Recommendation:** offer a dark variant of the admin theme as an option
+  later, instead of forcing it.

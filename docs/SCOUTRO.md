@@ -74,6 +74,7 @@ files:
 | Mobile navigation | The hamburger menu opens the complete administration menu. Before, the whole left navigation was hidden below 768 px and the toggle was covered by the search field. | `htroot/env/templates/header.template`, `htroot/env/scoutro/` |
 | Responsive admin | Wide tables scroll, form controls fit the screen, form labels stack, touch-sized controls. | `htroot/env/scoutro/scoutro.css`, `htroot/env/scoutro/scoutro.js` |
 | Branding | Product name, logo and favicon configured in one place, Scoutro start page, attribution footer, About page. | `htroot/env/templates/scoutro/`, `htroot/env/scoutro/`, `htroot/scoutro-about.html` |
+| Theme | Modern design derived from the Scoutro artwork for search and administration, dark mode for the public search pages. | `htroot/env/scoutro/theme.css`, `htroot/env/scoutro/brand/brand.css` |
 | Tests | Reproducible mobile UI checks (Playwright). | `test/scoutro-ui/` |
 | Build | Scoutro container image, Scoutro version file. | `docker/Dockerfile.scoutro`, `scoutro.properties` |
 | Docs | This document, upstream workflow, build, UI structure. | `docs/`, top of `README.md` |
