@@ -107,6 +107,15 @@ Hooks in upstream files:
 - Page submenus become touch-sized chips. Buttons ≥ 40px, 16px inputs (no
   zoom on focus).
 - The GitHub ribbon on `Status.html` is hidden on phones (it covered content).
+- Block containers in the content column are limited to its width (catches
+  fixed widths from `base.css`, e.g. `body#Surftips div.searchresults`),
+  flex rows may wrap (`:where()`, specificity 0, so explicit rules win), and
+  button labels may wrap. The results search field is explicitly kept on one
+  row.
+- On every width, form controls with `size`/`cols` never exceed the content
+  column, and `tt` (thread dumps) wraps.
+- Images inside buttons are shown at icon size (upstream embeds a 412px lock
+  image in the Surftips buttons).
 - On desktop, wide tables and images are bounded by the main column
   (`Network.html`, `ConfigBasic.html` no longer overflow).
 
@@ -154,6 +163,21 @@ the Scoutro artwork. All colors, radii and shadows come from the tokens in
 The theme sits on top of the selected YaCy skin. To use a plain YaCy skin
 again, remove the `theme.css` line from `metas.template`.
 
+### Mascot poses
+
+The poses from the Scoutro artwork sheet are used where they explain a state
+and do not get in the way:
+
+| Pose | File | Where |
+|---|---|---|
+| Magnifier mascot | `brand/mascot-*.{png,webp}` | start page hero, logo in the admin bar and the search navbar |
+| Thinking, with question mark | `brand/pose-question.webp` | results page when a finished search has no results (`#scoutro-empty-results`, shown by `scoutro.js`; also the static "No Results." branches) |
+| Waving | `brand/pose-wave.webp` | About page header |
+| With laptop | `brand/pose-laptop.webp` | About page, next to the administration links |
+
+The upstream 404 page is generated in Java (`Jetty12HttpServer.ErrorPageHandler`)
+and is therefore not branded, so that the core stays untouched.
+
 ### Search start page
 
 `index.html`: mascot, product name and greeting above one large search field
@@ -165,22 +189,29 @@ the search APIs are unchanged.
 
 - `test/scoutro-ui/scoutro-ui-test.mjs`: hard checks on 360 / 390 / 412 px
   and desktop (see `test/scoutro-ui/README.md`). YaCy 1.942: 221/318 checks
-  pass (the script aborts two sections on it). Scoutro: 320/320.
+  pass (the script aborts two sections on it). Scoutro: 332/332.
 - `test/scoutro-ui/scan-admin-pages.mjs`: overflow and JavaScript scan of
-  all admin pages. YaCy 1.942: 37/102 pages clean. Scoutro: 96/102.
+  all 102 admin pages.
+
+  | Width | YaCy 1.942 | Scoutro |
+  |---|---|---|
+  | 360px | 37/102 clean | 99/102 clean |
+  | 1280px | 85/102 clean | 100/102 clean |
+
+  The remaining Scoutro findings are the upstream errors listed below.
 - With the German translation active (YaCy translator on the Scoutro
   templates), the navigation, layout and auth checks pass as well. The only
   failures are the upstream JavaScript error listed below.
 
-## Known remaining issues (not part of phase 1)
+## Known remaining issues
+
+Only upstream issues remain; they also occur in YaCy 1.942 and are documented, not patched.
 
 | Page | Issue | Origin |
 |---|---|---|
-| `yacysearch.html` (results) | Not redesigned yet. Usable on phones (no overflow), but still the technical YaCy layout; facets are hidden below 768px. | Phase 3 (Scoutro search UI) |
-| `Surftips.html` | 490px result blocks, overflow on phones | upstream layout |
-| `ToolsConfig_p.html` | fixed-width `.tool-limit` blocks, overflow on phones | upstream layout |
-| `yacychat.html` | button row wider than the screen | upstream layout, own page layout |
-| `IndexPackDownloader_p.html` | HTTP 500 (needs its remote pack list) | upstream / network |
+| `yacysearch.html` (results) | Themed (cards, pill search, empty state); facets are hidden below 768px as upstream does. | phase 3 could add a mobile filter sheet |
+| `IndexPackDownloader_p.html` | HTTP 500 (needs its remote pack list) | upstream / network (also in YaCy 1.942) |
+| 404 error page | Generated in Java, still YaCy-branded | upstream core, intentionally not changed |
 | `ConfigAppearance_p.html`, `WatchWebStructure_p.html` | JavaScript error `$(...).ColorPicker is not a function` | upstream (also in YaCy 1.942) |
 | `yacysearch.html` (also embedded in `ConfigPortal_p.html`) with the German translation | JavaScript error `Cannot read properties of undefined (reading 'substring')` | upstream (same error in YaCy 1.942 with German UI) |
 | All admin pages | `<title>` still reads `YaCy '<peer>': …`; `Status.html` says "Welcome to YaCy!" | upstream texts, kept for now (attribution is not affected) |

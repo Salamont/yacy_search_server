@@ -134,10 +134,11 @@ marked with `Scoutro:`.
 | File | Scoutro change | Upstream change rate |
 |---|---|---|
 | `htroot/env/templates/header.template` | toggle id, sidebar id, mobile-only groups, brand | medium (5 changes since 2023) |
-| `htroot/env/templates/metas.template` | include `env/scoutro/scoutro.css` + `scoutro.js`, favicon | low (1 change since 2023) |
+| `htroot/env/templates/metas.template` | include `brand/brand.css`, `scoutro.css`, `theme.css`, `scoutro.js`, favicon | low (1 change since 2023) |
 | `htroot/env/templates/footer.template`, `simplefooter.template` | attribution include | low |
 | `htroot/env/templates/simpleSearchHeader.template` | brand logo | low (2 changes since 2023) |
 | `htroot/index.html` | Scoutro start page markup | low (2 changes since 2023) |
+| `htroot/yacysearch.html` | empty state markup ("No Results." branches and hidden block after the result count) | low (2 changes since 2023) |
 | `htroot/jslicense.html` | entry for `scoutro.js` | low |
 | `README.md` | Scoutro block at the top | medium |
 
