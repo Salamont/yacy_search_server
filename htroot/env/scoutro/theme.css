@@ -588,6 +588,15 @@ body#yacysearch form.search.small .input-group {
   box-shadow: 0 0 0 4px rgba(55, 198, 255, .1), 0 6px 18px var(--scoutro-glow);
 }
 
+/* the search pill keeps one row (overrides the generic mobile wrapping) */
+body#yacysearch form.search.small .input-group {
+  flex-wrap: nowrap;
+}
+
+body#yacysearch form.search.small .input-group-btn .btn {
+  white-space: nowrap;
+}
+
 body#yacysearch form.search.small .input-group:focus-within {
   border-color: var(--scoutro-primary);
 }
@@ -779,8 +788,12 @@ body#yacysearch #api {
 }
 
 @media (max-width: 767px) {
-  .searchresults {
-    margin: 10px 0;
+  .searchresults,
+  .main div.searchresults {
+    float: none;
+    width: auto;
+    height: auto;
+    margin: 10px 0 !important; /* beats id-scoped upstream margins (body#Surftips) */
     padding: 14px 14px 10px;
     border-radius: var(--scoutro-radius);
   }
@@ -1050,4 +1063,12 @@ body#yacysearch #sidebar .btn-group-justified .btn {
 body#yacysearch #sidebar .btn-group-justified .btn {
   white-space: normal;
   line-height: 1.2;
+}
+
+/* images inside buttons are icons (upstream embeds 412px lock images without a size) */
+.btn > img,
+button > img {
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
 }
