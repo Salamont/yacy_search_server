@@ -358,3 +358,158 @@ body.scoutro-about {
   font-size: 14px;
   color: var(--scoutro-muted, #5b6b85);
 }
+
+/* ------------------------------------------------------------------ */
+/* Scoutro search start page (index.html, body#index)                   */
+/* ------------------------------------------------------------------ */
+
+body#index {
+  background: radial-gradient(ellipse at 50% 0, #e3efff 0, var(--scoutro-page, #f4f8ff) 55%, var(--scoutro-page, #f4f8ff) 100%);
+  background-attachment: fixed;
+}
+
+.scoutro-hero {
+  margin: 16px auto 20px;
+  text-align: center;
+}
+
+.scoutro-hero-mascot {
+  width: 200px;
+  max-width: 55vw;
+  height: auto;
+  filter: drop-shadow(0 14px 28px var(--scoutro-glow, rgba(55, 160, 255, .35)));
+}
+
+.scoutro-wordmark {
+  margin: 6px 0 2px;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  color: var(--scoutro-ink, #0f1f3d);
+}
+
+.scoutro-tagline {
+  margin: 0;
+  font-size: 16px;
+  color: var(--scoutro-muted, #5b6b85);
+}
+
+body#index form.search {
+  display: block;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 0 4px;
+  background: transparent;
+  border: 0;
+}
+
+body#index form.search fieldset,
+body#index form.search fieldset.maininput {
+  display: block;
+  margin: 0;
+  padding: 0;
+  white-space: normal;
+  background: transparent;
+  border: 0;
+}
+
+/* the pill: search icon, input, round search button */
+body#index form.search .input-group {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 5px 5px 5px 18px;
+  background: var(--scoutro-surface, #fff) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='22' viewBox='0 0 24 24' fill='none' stroke='%235b6b85' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3C/svg%3E") no-repeat 18px 50%;
+  border: 2px solid rgba(22, 115, 255, .35);
+  border-radius: var(--scoutro-radius-pill, 999px);
+  box-shadow: 0 0 0 6px rgba(55, 198, 255, .12), 0 12px 32px var(--scoutro-glow, rgba(55, 160, 255, .35));
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+
+body#index form.search .input-group:focus-within {
+  border-color: var(--scoutro-primary, #1673ff);
+  box-shadow: 0 0 0 6px rgba(55, 198, 255, .22), 0 12px 32px var(--scoutro-glow, rgba(55, 160, 255, .35));
+}
+
+body#index form.search .twitter-typeahead {
+  flex: 1 1 auto;
+  min-width: 0;
+  top: 0 !important;
+}
+
+body#index form.search #search {
+  width: 100%;
+  height: 48px;
+  padding: 0 12px 0 32px;
+  font-size: 18px;
+  color: var(--scoutro-ink, #0f1f3d);
+  background: transparent !important;
+  border: 0;
+  box-shadow: none;
+}
+
+body#index form.search .input-group-btn {
+  display: block;
+  width: auto;
+  flex: none;
+}
+
+body#index form.search #Enter {
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 48px;
+  color: #fff;
+  background: linear-gradient(180deg, #3a8dff 0, var(--scoutro-primary, #1673ff) 100%);
+  border: 0;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(22, 115, 255, .4);
+}
+
+body#index form.search #Enter:hover,
+body#index form.search #Enter:focus {
+  background: var(--scoutro-primary-dark, #0b4fc4);
+}
+
+.scoutro-button-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+
+/* autocomplete list below the pill */
+body#index .tt-dropdown-menu,
+body#index .tt-menu {
+  width: 100%;
+  margin-top: 10px;
+  overflow: hidden;
+  background: var(--scoutro-surface, #fff);
+  border: 1px solid rgba(15, 31, 61, .08);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(15, 31, 61, .12);
+}
+
+/* Text / Images / more options: quiet row below the search field */
+body#index form.search div.yacysearch {
+  margin-top: 16px;
+  font-size: 14px;
+  text-align: center;
+  color: var(--scoutro-muted, #5b6b85);
+}
+
+body#index form.search div.yacysearch label {
+  padding: 6px 8px;
+}
+
+@media (max-width: 767px) {
+  .scoutro-hero {
+    margin-top: 8px;
+  }
+
+  .scoutro-wordmark {
+    font-size: 34px;
+  }
+}

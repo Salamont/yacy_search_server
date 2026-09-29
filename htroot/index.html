@@ -57,15 +57,15 @@
     <!-- this is the single exception in page design where we do not want a top-left application icon because we show a big one in the middle of the page -->
 	<script>document.getElementById("greeting-icon").src="env/grafics/invisible.png"</script>
 	
-	<h2 class="yacy"><a href="#[promoteSearchPageGreeting.homepage]#" class="yacylogo"><img src="#[promoteSearchPageGreeting.largeImage]#" alt="#[promoteSearchPageGreeting.imageAlt]#" style="margin: auto;"/></a></h2>
-    <h2 class="yacy">#[promoteSearchPageGreeting]#</h2>
+	<!-- Scoutro: start page hero instead of promoteSearchPageGreeting.largeImage, see env/templates/scoutro/hero.template -->
+	#%env/templates/scoutro/hero.template%#
 
     <form class="search form-inline" action="yacysearch.html" method="get" id="searchform" accept-charset="UTF-8">
       <fieldset class="maininput">
         <div class="input-group">
           <input name="query" id="search" type="text" size="40" maxlength="80" value="#[former]#" #(focus)#::autofocus="autofocus"#(/focus)# onFocus="this.select()" class="form-control searchinput typeahead" />
           <div class="input-group-btn">
-            <button id="Enter" name="Enter" class="btn btn-primary" type="submit">Search</button>
+            <button id="Enter" name="Enter" class="btn btn-primary" type="submit" aria-label="Search"><span class="glyphicon glyphicon-search" aria-hidden="true"></span><span class="scoutro-button-label"> Search</span></button>
           </div>
         </div>
     	#(authSearch)#::
