@@ -141,7 +141,7 @@
  */
 @media (max-width: 767px) {
   .scoutro-scroll {
-    max-width: calc(100vw - 24px);
+    max-width: calc(100vw - 30px);
   }
 }
 
@@ -179,8 +179,8 @@
   }
 
   .main {
-    padding-right: 12px;
-    padding-left: 12px;
+    padding-right: 15px; /* Bootstrap gutter: .row / .form-group use -15px margins */
+    padding-left: 15px;
   }
 
   /* form controls with size/cols attributes must not widen the layout */
@@ -195,6 +195,11 @@
     min-width: 0;
     margin-right: 0;
     margin-left: 0;
+  }
+
+  legend {
+    max-width: 100%;
+    white-space: normal;
   }
 
   img,
@@ -231,6 +236,16 @@
   dl.pairs dt {
     padding-top: 10px;
     font-weight: 600;
+  }
+
+  /* many admin forms set fixed widths inline (e.g. style="width:360px"); max-width wins over width.
+     Tables are excluded: they scroll inside .scoutro-scroll instead of being squeezed. */
+  .main [style*="width"]:not(table):not(td):not(th):not(col):not(colgroup),
+  .main dd,
+  .main dl,
+  .main .input-group,
+  #left {
+    max-width: 100%;
   }
 
   /* absolutely positioned "Fork me on GitHub" ribbon on Status.html covers content on phones */
