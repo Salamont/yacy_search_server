@@ -67,7 +67,8 @@ describe the technical origin.
 Scoutro keeps the YaCy core (Java sources, index format, storage, ranking,
 crawler, P2P protocol, authentication, API contracts) unchanged. The changes
 are limited to the web interface, assets, documentation, tests and build
-files:
+files, plus an additive API adapter (a new Java package registered through
+YaCy's `web.xml` extension point; no existing YaCy class is changed):
 
 | Area | Change | Files |
 |---|---|---|
@@ -77,6 +78,7 @@ files:
 | Theme | Modern design derived from the Scoutro artwork for search and administration, dark mode for the public search pages. | `htroot/env/scoutro/theme.css`, `htroot/env/scoutro/brand/brand.css` |
 | Tests | Reproducible mobile UI checks (Playwright). | `test/scoutro-ui/` |
 | Build | Scoutro container image, Scoutro version file. | `docker/Dockerfile.scoutro`, `scoutro.properties` |
+| Agent API | Stable JSON action layer over existing YaCy endpoints (search, crawls, index, system, allowlisted settings, UI routes), OpenAPI and action catalog, `scoutroctl` CLI. | `source/net/yacy/scoutro/`, `defaults/web.xml` (marked blocks), `htroot/env/scoutro/api/`, `tools/scoutro/`, `docs/API.md`, `docs/ACTIONS.md` |
 | Docs | This document, upstream workflow, build, UI structure. | `docs/`, top of `README.md` |
 
 `docs/UI.md` describes the UI structure and each adjustment in detail.

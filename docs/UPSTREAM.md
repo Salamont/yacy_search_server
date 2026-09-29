@@ -141,6 +141,7 @@ marked with `Scoutro:`.
 | `htroot/yacysearch.html` | empty state markup ("No Results." branches and hidden block after the result count) | low (2 changes since 2023) |
 | `htroot/jslicense.html` | entry for `scoutro.js` | low |
 | `README.md` | Scoutro block at the top | medium |
+| `defaults/web.xml` | Scoutro API servlet mapping and security constraints (two marked blocks) | low (servlet list changes when upstream adds servlets) |
 
 Scoutro-owned files (never touched by upstream):
 
@@ -148,17 +149,32 @@ Scoutro-owned files (never touched by upstream):
 - `htroot/env/templates/scoutro/` — central branding templates
 - `htroot/scoutro-about.html`
 - `docs/SCOUTRO.md`, `docs/UPSTREAM.md`, `docs/BUILD.md`, `docs/UI.md`
-- `test/scoutro-ui/`
-- `docker/Dockerfile.scoutro`, `scoutro.properties`
+- `test/scoutro-ui/`, `test/scoutro-api/`
+- `docker/Dockerfile.scoutro`, `docker/Dockerfile.scoutro.dockerignore`, `scoutro.properties`
+- `source/net/yacy/scoutro/` — Scoutro API (new package, no upstream class changed)
+- `htroot/env/scoutro/api/` — generated `openapi.json`, `actions.json`
+- `tools/scoutro/` — `scoutroctl`, API description generator
+- `docs/API.md`, `docs/ACTIONS.md`
 
 Upstream files Scoutro depends on without changing them (watch them during a
 sync): `htroot/env/bootstrap-base.css` (`.sidebar` rules), `htroot/env/base.css`
 (`dl`/`dt`/`dd`, `SubMenu`), `htroot/yacysearch.html`, and the Bootstrap 3
 version in `htroot/env/bootstrap/`.
 
+The Scoutro API depends on these YaCy HTTP contracts (checked by
+`test/scoutro-api/test_api.py`; run it after every sync):
+`yacysearch.json`, `Crawler_p.json` (parameters of the site crawl start,
+`terminate`/`handle`), `CrawlProfileEditor_p.xml`, `api/status_p.xml`,
+`api/version.xml`, `solr/select` (fields `sku`, `host_s`, `title`,
+`last_modified`, `collection_sxt`), and the admin role `adminRight` with the
+localhost password-hash login used by `bin/apicall.sh`.
+
 ## Checking the current delta
 
 ```sh
 git diff --stat master...HEAD                       # all Scoutro changes
-git diff master...HEAD -- source/ lib/ defaults/    # must stay empty (no core changes)
+# no upstream Java class, library or default changed (only the Scoutro package
+# and the marked web.xml blocks are allowed):
+git diff --stat master...HEAD -- source/ lib/ defaults/ ':!source/net/yacy/scoutro' ':!defaults/web.xml'
+git diff master...HEAD -- defaults/web.xml           # only the two Scoutro blocks
 ```

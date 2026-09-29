@@ -5,7 +5,9 @@
 > YaCy project. See [docs/SCOUTRO.md](docs/SCOUTRO.md) (product, origin,
 > license, differences), [docs/UPSTREAM.md](docs/UPSTREAM.md) (YaCy sync),
 > [docs/BUILD.md](docs/BUILD.md) (build, container) and [docs/UI.md](docs/UI.md)
-> (UI structure). The original YaCy README follows unchanged.
+> (UI structure). Agents and tools use the Scoutro API: [docs/API.md](docs/API.md),
+> [docs/ACTIONS.md](docs/ACTIONS.md), CLI `tools/scoutro/scoutroctl`.
+> The original YaCy README follows unchanged.
 <!-- Scoutro: end of Scoutro block -->
 
 <div align="center">

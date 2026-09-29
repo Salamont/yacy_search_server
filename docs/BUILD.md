@@ -98,8 +98,11 @@ YaCy 1.942 image (`SETTINGS/yacy.conf`, `INDEX`, `HTCACHE`, `LOG`, `QUEUES`,
 2. The same DATA started again with the official image (rollback): index
    documents present, no errors.
 
-Scoutro only adds files under `htroot/`. It does not add files to `DATA`, and
-it does not change configuration defaults or the index schema.
+Scoutro adds UI files under `htroot/` and the API classes (package
+`net.yacy.scoutro.api`, registered in `defaults/web.xml`). It does not add
+files to `DATA`, and it does not change configuration defaults or the index
+schema. The API only writes the two allowlisted settings to `yacy.conf` when
+`config.set` is called.
 
 ## Security notes
 
