@@ -120,9 +120,38 @@ for the JavaScript code in this page.
     }
   }
 
+  /*
+   * Search results are loaded asynchronously, so the server cannot know in
+   * advance that a search ends without results. Show the empty state
+   * (#scoutro-empty-results in yacysearch.html) once the result feed has
+   * finished with a total of 0, and hide it again when results arrive.
+   */
+  function watchEmptyResults() {
+    var empty = document.getElementById('scoutro-empty-results');
+    var total = document.getElementById('totalcount');
+    if (!empty || !total || !window.MutationObserver) {
+      return;
+    }
+    var feeding = document.getElementById('feedingStatus');
+    var started = Date.now();
+    var update = function () {
+      var count = parseInt((total.textContent || '').replace(/[^0-9]/g, ''), 10) || 0;
+      var running = !!feeding && feeding.style.visibility === 'visible';
+      var hasResults = !!document.querySelector('.searchresults');
+      var settled = Date.now() - started > 1200; /* avoid a flash before the first feed update */
+      empty.hidden = !(settled && count === 0 && !running && !hasResults);
+    };
+    new MutationObserver(update).observe(document.body, {
+      subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['style']
+    });
+    window.setTimeout(update, 1300);
+    update();
+  }
+
   function onReady() {
     wrapWideTables();
     markCurrentLinks();
+    watchEmptyResults();
   }
 
   if (document.readyState === 'loading') {
