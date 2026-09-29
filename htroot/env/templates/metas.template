@@ -57,6 +57,9 @@ for the JavaScript code in this page.
   <!-- old css styles -->
   <link rel="stylesheet" type="text/css" media="all" href="#[relativeBase]#env/base.css" />
   <link rel="stylesheet" type="text/css" media="screen" href="#[relativeBase]#env/style.css" />
+  <!-- Scoutro UI layer: must stay after the skin (env/style.css) -->
+  <link rel="stylesheet" type="text/css" href="#[relativeBase]#env/scoutro/scoutro.css" />
+  <script src="#[relativeBase]#env/scoutro/scoutro.js"></script>
   <!--[if lt IE 6]>
    <link rel="stylesheet" type="text/css" media="screen" href="#[relativeBase]#env/oldie.css" />
   <![endif]-->

@@ -1,0 +1,124 @@
+/*
+ * Scoutro UI layer (GPL-2.0-or-later). Scoutro is an independent community
+ * project based on YaCy. Loaded after env/base.css and the selected skin
+ * (env/style.css) by env/templates/metas.template.
+ *
+ * Keep upstream files untouched where possible and put overrides here.
+ */
+
+/* ------------------------------------------------------------------ */
+/* Mobile navigation                                                    */
+/* ------------------------------------------------------------------ */
+
+/* groups that duplicate top-bar functions: only inside the mobile panel */
+.scoutro-mobile-only {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* the top-bar button row is replaced by the System / Help groups of the panel */
+  .scoutro-adminbar .navbar-collapse.collapse {
+    display: none !important;
+  }
+
+  /* toggle and header search share one row; upstream lets the search form cover the toggle */
+  .scoutro-adminbar .navbar-header:not(.navbar-collapse) {
+    display: flex;
+    align-items: center;
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .scoutro-adminbar .navbar-header:not(.navbar-collapse) > .navbar-toggle {
+    order: 2;
+    flex: none;
+    float: none;
+    margin: 0 0 0 8px;
+    padding: 12px 10px;
+  }
+
+  .scoutro-adminbar #header-search-form {
+    order: 1;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .scoutro-adminbar #header-search-form .form-control {
+    width: 100%;
+    height: 40px;
+    font-size: 16px; /* avoids zoom-on-focus in mobile browsers */
+  }
+
+  body.scoutro-nav-open {
+    overflow: hidden;
+  }
+
+  body.scoutro-nav-open .scoutro-adminnav {
+    display: block;
+    position: fixed;
+    top: var(--scoutro-nav-top, 60px);
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 1029; /* below the fixed navbar (1030), above the page */
+    width: auto;
+    margin: 0;
+    padding: 4px 0 32px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    background-color: #fff;
+    border-top: 1px solid #ddd;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .15);
+  }
+
+  body.scoutro-nav-open .scoutro-mobile-only {
+    display: block;
+  }
+
+  .scoutro-adminnav .nav-sidebar {
+    margin: 0 0 8px;
+  }
+
+  .scoutro-adminnav .nav-sidebar > li {
+    margin: 0;
+  }
+
+  .scoutro-adminnav .nav-sidebar h3 {
+    padding: 14px 16px 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .scoutro-adminnav .nav-sidebar > li > a {
+    display: block;
+    min-height: 44px;
+    padding: 11px 16px;
+    font-size: 16px;
+    line-height: 22px;
+    border-bottom: 1px solid #eef0f3;
+  }
+
+  /* hover-triggered "first steps" hints would cover the panel on touch devices */
+  .popover {
+    display: none !important;
+  }
+}
+
+/* dropdowns in the navigation must not depend on hover on touch devices */
+@media (hover: none) {
+  ul.nav li.dropdown:hover ul.dropdown-menu {
+    display: none;
+  }
+
+  ul.nav li.dropdown.open ul.dropdown-menu {
+    display: block;
+  }
+}

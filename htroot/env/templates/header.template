@@ -1,5 +1,5 @@
 <!-- top navigation -->
-<div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+<div class="navbar navbar-inverse navbar-fixed-top scoutro-adminbar" role="navigation">
   <div class="container-fluid">
     <div class="collapse navbar-collapse navbar-header">
       <a class="navbar-brand" id="navbar-brand" href="./">
@@ -8,7 +8,8 @@
       </a>
     </div>
     <div class="navbar-header">
-      <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target=".navbar-collapse">
+      <!-- Scoutro: the toggle opens the complete admin navigation (#scoutro-adminnav) on small screens, see env/scoutro/scoutro.js -->
+      <button type="button" class="navbar-toggle collapsed" id="scoutro-nav-toggle" aria-controls="scoutro-adminnav" aria-expanded="false">
         <span class="sr-only">Toggle navigation</span>
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
@@ -116,7 +117,7 @@
         <li id="header_help" class="dropdown">
           <div href="#" data-toggle="dropdown" class="dropdown-toggle" aria-label="Help" role="button" aria-haspopup="true" aria-expanded="false">
           <form action="#" method="get">
-            <button accesskey="f" type="submit" class="btn btn-inverse navbar-btn label-success" title="Help">
+            <button accesskey="f" type="button" class="btn btn-inverse navbar-btn label-success" title="Help">
                 <span class="glyphicon glyphicon-question-sign"></span>
                 <span class="hidden-sm"> Help</span>
             </button>
@@ -136,7 +137,7 @@
         <li id="header_sponsor" class="dropdown">
           <div href="#" data-toggle="dropdown" class="dropdown-toggle" aria-label="Help" role="button" aria-haspopup="true" aria-expanded="false">
           <form action="#" method="get">
-            <button accesskey="f" type="submit" class="btn btn-inverse navbar-btn label-warning" title="Help">
+            <button accesskey="f" type="button" class="btn btn-inverse navbar-btn label-warning" title="Help">
                 <span class="glyphicon glyphicon-heart"></span>
                 <span class="hidden-sm"> Sponsor</span>
             </button>
@@ -180,7 +181,7 @@
 <!-- left navigation -->
 <div class="container-fluid">
   <div class="row">
-    <div class="col-sm-3 col-md-2 sidebar">
+    <div class="col-sm-3 col-md-2 sidebar scoutro-adminnav" id="scoutro-adminnav">
     
     <ul class="nav nav-sidebar menugroup" id="first-steps"
       data-trigger="hover" data-placement="right" data-container="body"
@@ -232,6 +233,32 @@
       <li><a href="RankingSolr_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Ranking and Heuristics</a></li>
     </ul>
     #(/navigation-advanced)#
+
+    <!-- Scoutro: shortcuts to pages that desktop users reach through the page submenus -->
+    <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-configuration">
+      <li><h3>Configuration</h3></li>
+      <li><a href="ConfigAccounts_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Accounts</a></li>
+      <li><a href="ConfigNetwork_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Network Configuration</a></li>
+      <li><a href="ConfigSearchPage_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Search Page Layout</a></li>
+      <li><a href="ConfigLanguage_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Language</a></li>
+    </ul>
+
+    <!-- Scoutro: functions of the top bar, shown inside the mobile navigation panel only -->
+    <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-system">
+      <li><h3>System</h3></li>
+      <li><a href="index.html#(authorized)#::?auth#(/authorized)#" class="MenuItemLink">Search</a></li>
+      #(navigation-showChatLink)#::<li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>#(/navigation-showChatLink)#
+      <li><a href="Steering.html" class="MenuItemLink" onclick="confirmRestart(); return false;">Re-Start</a></li>
+      <li><a href="Steering.html" class="MenuItemLink" onclick="confirmShutdown(); return false;">Shutdown</a></li>
+    </ul>
+    <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-help">
+      <li><h3>Help</h3></li>
+      <li><a href="ViewProfile.html?hash=localhash" class="MenuItemLink">About This Page</a></li>
+      <li><a href="jslicense.html" data-jslicense="1" class="MenuItemLink">JavaScript information</a></li>
+      <li><a href="https://community.searchlab.eu" target="_blank" class="MenuItemLink">YaCy Community (Web Forums)</a></li>
+      <li><a href="https://github.com/yacy/yacy_search_server" target="_blank" class="MenuItemLink">YaCy Git Repository</a></li>
+      <li><a href="https://github.com/users/Orbiter/sponsorship" target="_blank" class="MenuItemLink">Sponsor YaCy</a></li>
+    </ul>
     </div>
   
     <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">
