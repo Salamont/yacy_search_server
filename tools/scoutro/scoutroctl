@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+# scoutroctl - command line client for the Scoutro API
+#
+# Copyright (C) 2026 Scoutro contributors
+# Scoutro is an independent community project based on YaCy.
+# Licensed under the GNU General Public License, version 2 or (at your option)
+# any later version.
+#
+# A thin client: every command is exactly one call of the Scoutro API
+# (/scoutro/api/v1/...). There is no business logic here; validation and the
+# translation to YaCy happen in the API.
+#
+# Configuration (environment):
+#   SCOUTRO_URL            base URL, default http://127.0.0.1:8090
+#   SCOUTRO_USER           administrator user, default admin
+#   SCOUTRO_PASSWORD       administrator password, or
+#   SCOUTRO_PASSWORD_FILE  file containing the password (first line)
+# The password is never accepted as a command line argument (it would be
+# visible in the process list and shell history).
+#
+# Output: JSON on stdout. Exit codes: 0 success, 1 API error, 2 usage error,
+# 3 Scoutro not reachable.
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+VERSION = "1"
+
+
+def fail(code, message, exit_code):
+    print(json.dumps({"error": {"code": code, "message": message}}, indent=2))
+    sys.exit(exit_code)
+
+
+def password():
+    pw = os.environ.get("SCOUTRO_PASSWORD")
+    if pw:
+        return pw
+    path = os.environ.get("SCOUTRO_PASSWORD_FILE")
+    if path:
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.readline().rstrip("\r\n")
+        except OSError as e:
+            fail("password_file", "cannot read SCOUTRO_PASSWORD_FILE: %s" % e.strerror, 2)
+    return None
+
+
+class Client:
+    def __init__(self, base_url, user, pw, timeout):
+        self.base = base_url.rstrip("/") + "/scoutro/api"
+        self.timeout = timeout
+        handlers = []
+        if pw:
+            manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+            manager.add_password(None, base_url, user, pw)
+            handlers.append(urllib.request.HTTPDigestAuthHandler(manager))
+        self.opener = urllib.request.build_opener(*handlers)
+
+    def call(self, method, path, query=None, body=None):
+        url = self.base + path
+        if query:
+            url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
+        data = None
+        headers = {"Accept": "application/json", "User-Agent": "scoutroctl/" + VERSION}
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        request = urllib.request.Request(url, data=data, method=method, headers=headers)
+        try:
+            with self.opener.open(request, timeout=self.timeout) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", "replace")
+            try:
+                payload = json.loads(raw)
+            except ValueError:
+                payload = None
+            if e.code == 401:
+                fail("unauthorized", "authentication required: set SCOUTRO_PASSWORD or SCOUTRO_PASSWORD_FILE "
+                     "(administrator account)", 1)
+            if isinstance(payload, dict) and "error" in payload:
+                print(json.dumps(payload, indent=2, ensure_ascii=False))
+                sys.exit(1)
+            fail("http_%d" % e.code, "Scoutro answered HTTP %d" % e.code, 1)
+        except urllib.error.URLError as e:
+            fail("unreachable", "Scoutro is not reachable at %s: %s" % (self.base, e.reason), 3)
+
+
+def build_parser():
+    p = argparse.ArgumentParser(prog="scoutroctl", description="Command line client for the Scoutro API.")
+    p.add_argument("--base-url", dest="base_url", default=os.environ.get("SCOUTRO_URL", "http://127.0.0.1:8090"),
+                   help="Scoutro base URL (default: $SCOUTRO_URL or http://127.0.0.1:8090)")
+    p.add_argument("--user", default=os.environ.get("SCOUTRO_USER", "admin"), help="administrator user (default: admin)")
+    p.add_argument("--timeout", type=float, default=90, help="request timeout in seconds")
+    p.add_argument("--compact", action="store_true", help="print compact JSON")
+    sub = p.add_subparsers(dest="command", required=True)
+
+    sub.add_parser("health", help="health check (public)")
+    sub.add_parser("system", help="system status")
+    sub.add_parser("actions", help="print the action catalog (actions.json)")
+    sub.add_parser("openapi", help="print the OpenAPI description")
+
+    s = sub.add_parser("search", help="search the index")
+    s.add_argument("query")
+    s.add_argument("--limit", type=int)
+    s.add_argument("--offset", type=int)
+    s.add_argument("--network", action="store_true", help="also search the peer-to-peer network")
+    s.add_argument("--lang", help="two-letter language code")
+
+    idx = sub.add_parser("index", help="index status and lookup").add_subparsers(dest="index_command", required=True)
+    idx.add_parser("status")
+    lookup = idx.add_parser("lookup")
+    g = lookup.add_mutually_exclusive_group(required=True)
+    g.add_argument("--url")
+    g.add_argument("--host")
+
+    crawl = sub.add_parser("crawl", help="crawls").add_subparsers(dest="crawl_command", required=True)
+    crawl.add_parser("list")
+    start = crawl.add_parser("start")
+    start.add_argument("url")
+    start.add_argument("--depth", type=int)
+    start.add_argument("--scope", choices=["domain", "subpath", "wide"])
+    start.add_argument("--max-pages", type=int, dest="max_pages")
+    start.add_argument("--collection")
+    for name in ("status", "stop"):
+        c = crawl.add_parser(name)
+        c.add_argument("id")
+
+    cfg = sub.add_parser("config", help="allowlisted settings").add_subparsers(dest="config_command", required=True)
+    cfg.add_parser("get")
+    cs = cfg.add_parser("set")
+    cs.add_argument("key")
+    cs.add_argument("value", help="integers are sent as numbers")
+
+    ui = sub.add_parser("ui", help="web interface routes (public)").add_subparsers(dest="ui_command", required=True)
+    ui.add_parser("routes")
+    r = ui.add_parser("route")
+    r.add_argument("name")
+    return p
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    client = Client(args.base_url, args.user, password(), args.timeout)
+    c = args.command
+    if c == "health":
+        result = client.call("GET", "/v1/health")
+    elif c == "system":
+        result = client.call("GET", "/v1/system")
+    elif c == "actions":
+        result = client.call("GET", "/actions.json")
+    elif c == "openapi":
+        result = client.call("GET", "/openapi.json")
+    elif c == "search":
+        result = client.call("GET", "/v1/search", {"q": args.query, "limit": args.limit, "offset": args.offset,
+                                                   "source": "network" if args.network else None, "lang": args.lang})
+    elif c == "index":
+        if args.index_command == "status":
+            result = client.call("GET", "/v1/index")
+        else:
+            result = client.call("GET", "/v1/index/lookup", {"url": args.url, "host": args.host})
+    elif c == "crawl":
+        if args.crawl_command == "list":
+            result = client.call("GET", "/v1/crawls")
+        elif args.crawl_command == "start":
+            body = {"url": args.url}
+            for key, value in (("depth", args.depth), ("scope", args.scope), ("maxPages", args.max_pages),
+                               ("collection", args.collection)):
+                if value is not None:
+                    body[key] = value
+            result = client.call("POST", "/v1/crawls", body=body)
+        elif args.crawl_command == "status":
+            result = client.call("GET", "/v1/crawls/" + urllib.parse.quote(args.id, safe=""))
+        else:
+            result = client.call("POST", "/v1/crawls/" + urllib.parse.quote(args.id, safe="") + "/stop", body={})
+    elif c == "config":
+        if args.config_command == "get":
+            result = client.call("GET", "/v1/config")
+        else:
+            value = int(args.value) if args.value.lstrip("-").isdigit() else args.value
+            result = client.call("PATCH", "/v1/config", body={args.key: value})
+    else:
+        if args.ui_command == "routes":
+            result = client.call("GET", "/v1/ui/routes")
+        else:
+            result = client.call("GET", "/v1/ui/routes/" + urllib.parse.quote(args.name, safe=""))
+    print(json.dumps(result, ensure_ascii=False, separators=(",", ":")) if args.compact
+          else json.dumps(result, indent=2, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
