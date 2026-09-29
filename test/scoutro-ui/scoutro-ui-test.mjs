@@ -201,6 +201,10 @@ async function checkPages(page, vp, errors) {
 
 async function checkSearchForm(page, vp) {
   await page.goto(BASE + '/index.html', { waitUntil: 'domcontentloaded' });
+  const tagline = page.locator('.scoutro-hero .scoutro-tagline');
+  check(await tagline.isVisible(), vp.name, 'start page tagline visible');
+  const taglineText = ((await tagline.textContent()) || '').trim();
+  check(taglineText === 'Search. Crawl. Discover.', vp.name, 'start page tagline text', taglineText);
   const input = page.locator('#search');
   check(await input.isVisible(), vp.name, 'search field visible');
   await input.fill('scoutro');

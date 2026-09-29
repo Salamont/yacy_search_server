@@ -7,7 +7,8 @@ not in the individual pages.
 |---|---|---|
 | `productname.template` | admin header, search navbar, start page, footer, mobile menu | Product name (no trailing newline) |
 | `attribution.template` | `footer.template`, `simplefooter.template` | "Powered by YaCy" footer with license and source links |
-| `hero.template` | `index.html` | Start page logo, product name and greeting (`promoteSearchPageGreeting`) |
+| `tagline.template` | `hero.template` | Tagline under the product name on the start page (no trailing newline) |
+| `hero.template` | `index.html` | Start page logo, product name and tagline |
 | `empty-results.template` | `yacysearch.html` | Illustration of the "no results" state |
 
 Images, favicon and colors live in `htroot/env/scoutro/brand/` (see the

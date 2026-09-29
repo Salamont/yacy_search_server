@@ -124,6 +124,7 @@ Hooks in upstream files:
 Change the brand in one place:
 
 - name: `htroot/env/templates/scoutro/productname.template`
+- tagline ("Search. Crawl. Discover."): `htroot/env/templates/scoutro/tagline.template`
 - logo, favicon, icons: `htroot/env/scoutro/brand/` (keep file names)
 - colors: `htroot/env/scoutro/brand/brand.css`
 - footer / attribution: `htroot/env/templates/scoutro/attribution.template`
@@ -131,8 +132,12 @@ Change the brand in one place:
 
 Deviation from upstream configuration: the start page and the search navbar
 use the brand files instead of `promoteSearchPageGreeting.largeImage`,
-`.smallImage`, `.homepage` and `.imageAlt` (Portal Configuration). The
-greeting text `promoteSearchPageGreeting` is still used as the tagline.
+`.smallImage`, `.homepage` and `.imageAlt` (Portal Configuration). The start
+page tagline comes from `tagline.template`, not from `promoteSearchPageGreeting`:
+existing DATA directories store the upstream greeting ("Your Own Search Engine")
+in `yacy.conf`, so a changed default would not reach upgraded installations.
+`promoteSearchPageGreeting` is still used where upstream uses it (search field
+placeholder, RSS/Atom titles, OpenSearch description).
 
 ### Theme (design)
 

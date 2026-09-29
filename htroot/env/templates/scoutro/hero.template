@@ -1,6 +1,6 @@
-<!-- Scoutro: start page hero; images in env/scoutro/brand/, name in productname.template -->
+<!-- Scoutro: start page hero; images in env/scoutro/brand/, name in productname.template, tagline in tagline.template -->
 <div class="scoutro-hero">
   <img class="scoutro-hero-mascot" src="env/scoutro/brand/mascot-480.webp" width="240" height="240" alt="" />
   <h1 class="scoutro-wordmark">#%env/templates/scoutro/productname.template%#</h1>
-  <p class="scoutro-tagline">#[promoteSearchPageGreeting]#</p>
+  <p class="scoutro-tagline">#%env/templates/scoutro/tagline.template%#</p>
 </div>
