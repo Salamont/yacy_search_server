@@ -1,3 +1,13 @@
+<!-- Scoutro: start of Scoutro block (keep upstream README below unchanged) -->
+> **Scoutro** — this repository is the Scoutro fork of YaCy: a mobile-first
+> search, crawling and indexing application **based on YaCy**. Scoutro is an
+> independent community project and is not affiliated with or endorsed by the
+> YaCy project. See [docs/SCOUTRO.md](docs/SCOUTRO.md) (product, origin,
+> license, differences), [docs/UPSTREAM.md](docs/UPSTREAM.md) (YaCy sync),
+> [docs/BUILD.md](docs/BUILD.md) (build, container) and [docs/UI.md](docs/UI.md)
+> (UI structure). The original YaCy README follows unchanged.
+<!-- Scoutro: end of Scoutro block -->
+
 <div align="center">
 <h1 align="center">YaCy</h1>
 
