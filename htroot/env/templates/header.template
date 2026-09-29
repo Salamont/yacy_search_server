@@ -3,8 +3,9 @@
   <div class="container-fluid">
     <div class="collapse navbar-collapse navbar-header">
       <a class="navbar-brand" id="navbar-brand" href="./">
-        <span><img id="header-greeting-icon" class="yacylogo" src="env/grafics/yacy.png" alt="YaCy"></span>
-        <span>&nbsp;Administration</span>
+        <!-- Scoutro: brand, see env/templates/scoutro/ and env/scoutro/brand/ -->
+        <span><img id="header-greeting-icon" class="yacylogo scoutro-brand-logo" src="env/scoutro/brand/mascot-64.png" alt=""></span>
+        <span>&nbsp;#%env/templates/scoutro/productname.template%# Administration</span>
       </a>
     </div>
     <div class="navbar-header">
@@ -124,6 +125,7 @@
           </form>
           </div>
           <ul class="dropdown-menu">
+          <li id="header_scoutro_about"><a href="scoutro-about.html">About #%env/templates/scoutro/productname.template%#</a></li>
           <li id="header_profile"><a href="ViewProfile.html?hash=localhash">About This Page</a></li>
           <li id="header_jslicense"><a href="jslicense.html" data-jslicense="1">JavaScript information</a></li>
           <li class="divider" role="separator"></li>
@@ -253,6 +255,7 @@
     </ul>
     <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-help">
       <li><h3>Help</h3></li>
+      <li><a href="scoutro-about.html" class="MenuItemLink">About #%env/templates/scoutro/productname.template%#</a></li>
       <li><a href="ViewProfile.html?hash=localhash" class="MenuItemLink">About This Page</a></li>
       <li><a href="jslicense.html" data-jslicense="1" class="MenuItemLink">JavaScript information</a></li>
       <li><a href="https://community.searchlab.eu" target="_blank" class="MenuItemLink">YaCy Community (Web Forums)</a></li>

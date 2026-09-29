@@ -1,5 +1,8 @@
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-  <link rel="shortcut icon" type="image/x-icon" href="#[relativeBase]#favicon.ico" />
+  <!-- Scoutro: brand icons, see env/scoutro/brand/ -->
+  <link rel="icon" type="image/png" sizes="32x32" href="#[relativeBase]#env/scoutro/brand/icon-32.png" />
+  <link rel="apple-touch-icon" href="#[relativeBase]#env/scoutro/brand/icon-180.png" />
+  <meta name="theme-color" content="#1673ff" />
   <meta name="Content-Language" content="English, Englisch" />
   <meta name="keywords" content="YaCy HTTP search engine spider indexer java network open free download Mac Windows Linux Software development" />
   <meta name="description" content="Software HTTP Freeware Home Page" />
@@ -58,6 +61,7 @@ for the JavaScript code in this page.
   <link rel="stylesheet" type="text/css" media="all" href="#[relativeBase]#env/base.css" />
   <link rel="stylesheet" type="text/css" media="screen" href="#[relativeBase]#env/style.css" />
   <!-- Scoutro UI layer: must stay after the skin (env/style.css) -->
+  <link rel="stylesheet" type="text/css" href="#[relativeBase]#env/scoutro/brand/brand.css" />
   <link rel="stylesheet" type="text/css" href="#[relativeBase]#env/scoutro/scoutro.css" />
   <script src="#[relativeBase]#env/scoutro/scoutro.js"></script>
   <!--[if lt IE 6]>

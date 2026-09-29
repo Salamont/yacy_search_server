@@ -1,0 +1,15 @@
+/*
+ * Scoutro brand tokens (GPL-2.0-or-later). Central place for brand colors.
+ * Scoutro is an independent community project based on YaCy.
+ */
+:root {
+  --scoutro-primary: #1673ff;        /* magnifier blue */
+  --scoutro-primary-dark: #0b4fc4;
+  --scoutro-accent: #37c6ff;         /* glow cyan */
+  --scoutro-ink: #0f1f3d;            /* text on light backgrounds */
+  --scoutro-muted: #5b6b85;
+  --scoutro-surface: #ffffff;
+  --scoutro-page: #f4f8ff;
+  --scoutro-glow: rgba(55, 160, 255, .35);
+  --scoutro-radius-pill: 999px;
+}

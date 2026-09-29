@@ -8,10 +8,11 @@
         <span class="icon-bar"></span>
         <span class="icon-bar"></span>
       </button>
-      <a class="navbar-brand hidden-xs" id="navbar-brand" href="#[promoteSearchPageGreeting.homepage]#" style="margin-top:-6px;white-space:nowrap;">
-        <img id="greeting-icon" class="yacylogo" src="#[promoteSearchPageGreeting.smallImage]#" alt="#[promoteSearchPageGreeting.imageAlt]#" 
+      <!-- Scoutro: brand logo and name instead of promoteSearchPageGreeting.smallImage/homepage -->
+      <a class="navbar-brand hidden-xs" id="navbar-brand" href="index.html" style="margin-top:-6px;white-space:nowrap;">
+        <img id="greeting-icon" class="yacylogo scoutro-brand-logo" src="env/scoutro/brand/mascot-64.png" alt=""
         	style="height:auto; width:auto; max-width:200px; max-height:32px;vertical-align:middle;float:left;">&nbsp;
-        <span id="greeting"></span>
+        <span id="greeting" class="scoutro-brand-name">#%env/templates/scoutro/productname.template%#</span>
       </a>
     </div>
     <div class="navbar-collapse collapse">
@@ -56,6 +57,7 @@
       <li id="header_help" class="dropdown">
         <a href="#" data-toggle="dropdown" class="dropdown-toggle" aria-label="Help" role="button" aria-haspopup="true" aria-expanded="false"><span class="glyphicon glyphicon-question-sign"></span></a>
         <ul class="dropdown-menu" role="menu">
+          <li id="header_scoutro_about"><a href="scoutro-about.html">About #%env/templates/scoutro/productname.template%#</a></li>
           <li id="header_profile"><a href="ViewProfile.html?hash=localhash">About This Page</a></li>
           <li id="header_tutorial"><a href="https://yacy.net/tutorials/">YaCy Tutorials</a></li>
           <li id="header_jslicense"><a href="jslicense.html" data-jslicense="1">JavaScript information</a></li>

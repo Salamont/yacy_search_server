@@ -1,0 +1,4 @@
+<!-- Scoutro: attribution, keep it visible (see docs/SCOUTRO.md) -->
+<footer class="scoutro-attribution">
+  <a href="scoutro-about.html">#%env/templates/scoutro/productname.template%#</a> &middot; Powered by <a href="https://yacy.net/" target="_blank" rel="noopener">YaCy</a> &middot; <a href="https://github.com/yacy/yacy_search_server/blob/master/gpl.txt" target="_blank" rel="noopener">GPL-2.0-or-later</a> &middot; <a href="https://github.com/Salamont/yacy_search_server" target="_blank" rel="noopener">Source</a>
+</footer>

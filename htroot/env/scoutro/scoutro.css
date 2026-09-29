@@ -292,3 +292,69 @@
     font-size: 16px; /* avoids zoom-on-focus in mobile browsers */
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Branding (tokens in env/scoutro/brand/brand.css)                     */
+/* ------------------------------------------------------------------ */
+
+img.scoutro-brand-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.navbar-brand .scoutro-brand-name {
+  font-weight: 600;
+}
+
+footer.scoutro-attribution {
+  clear: both;
+  margin: 40px 0 16px;
+  padding: 12px 0 0;
+  border-top: 1px solid rgba(0, 0, 0, .08);
+  font-size: 12px;
+  line-height: 1.8;
+  text-align: center;
+  color: var(--scoutro-muted, #5b6b85);
+}
+
+footer.scoutro-attribution a {
+  color: var(--scoutro-primary-dark, #0b4fc4);
+  text-decoration: none;
+}
+
+footer.scoutro-attribution a:hover,
+footer.scoutro-attribution a:focus {
+  text-decoration: underline;
+}
+
+/* static About page (scoutro-about.html) */
+body.scoutro-about {
+  padding: 0;
+  background: var(--scoutro-page, #f4f8ff);
+  color: var(--scoutro-ink, #0f1f3d);
+}
+
+.scoutro-about-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.scoutro-about-main h1 {
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+.scoutro-about-main h2 {
+  margin-top: 28px;
+  font-size: 20px;
+}
+
+.scoutro-about-meta {
+  margin-top: 32px;
+  font-size: 14px;
+  color: var(--scoutro-muted, #5b6b85);
+}
