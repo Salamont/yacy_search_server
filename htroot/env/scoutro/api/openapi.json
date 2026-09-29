@@ -1,0 +1,1563 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Scoutro API",
+    "version": "1.0.0",
+    "description": "Stable, machine-readable action layer of Scoutro (an independent community project based on YaCy). Every action is translated into existing YaCy functions. Mutating and administrative actions require the Scoutro/YaCy administrator account (HTTP Digest). See docs/API.md.",
+    "license": {
+      "name": "GPL-2.0-or-later",
+      "identifier": "GPL-2.0-or-later"
+    }
+  },
+  "servers": [
+    {
+      "url": "/scoutro/api",
+      "description": "Relative to the Scoutro base URL, e.g. http://scoutro:8090/scoutro/api"
+    }
+  ],
+  "paths": {
+    "/v1/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Health check",
+        "description": "Public. Confirms that Scoutro and YaCy answer.",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Scoutro is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/system": {
+      "get": {
+        "operationId": "system.status",
+        "summary": "System status",
+        "description": "Versions, peer, memory, disk, load and crawler queues.",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "System status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/System"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "search",
+        "summary": "Search the index",
+        "description": "Full-text search (YaCy yacysearch.json).",
+        "tags": [
+          "search"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Search query (YaCy query syntax, e.g. site:example.com).",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of results.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 10
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "Index of the first result.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "local index only, or also the peer-to-peer network.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "local",
+                "network"
+              ],
+              "default": "local"
+            }
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "description": "Restrict to a language (two-letter code).",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Search results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/index": {
+      "get": {
+        "operationId": "index.status",
+        "summary": "Index status",
+        "description": "Document counts and crawler queues.",
+        "tags": [
+          "index"
+        ],
+        "responses": {
+          "200": {
+            "description": "Index status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/index/lookup": {
+      "get": {
+        "operationId": "index.lookup",
+        "summary": "Look up a URL or host",
+        "description": "Whether a URL is indexed, or how many documents a host has. Give exactly one of url or host.",
+        "tags": [
+          "index"
+        ],
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": false,
+            "description": "URL to look up (http or https).",
+            "schema": {
+              "type": "string",
+              "maxLength": 2048
+            }
+          },
+          {
+            "name": "host",
+            "in": "query",
+            "required": false,
+            "description": "Host name to count documents for.",
+            "schema": {
+              "type": "string",
+              "maxLength": 253
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lookup result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexLookup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/crawls": {
+      "get": {
+        "operationId": "crawl.list",
+        "summary": "List crawls",
+        "description": "Running, paused and terminated crawls.",
+        "tags": [
+          "crawls"
+        ],
+        "responses": {
+          "200": {
+            "description": "Crawl list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      },
+      "post": {
+        "operationId": "crawl.start",
+        "summary": "Start a crawl",
+        "description": "Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).",
+        "tags": [
+          "crawls"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrawlStart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Crawl started.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Crawl"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "403": {
+            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "YaCy refused the request (e.g. crawl rejected; message contains YaCy's reason).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/crawls/{id}": {
+      "get": {
+        "operationId": "crawl.status",
+        "summary": "Crawl status",
+        "description": "State of one crawl.",
+        "tags": [
+          "crawls"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Crawl id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Crawl.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Crawl"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/crawls/{id}/stop": {
+      "post": {
+        "operationId": "crawl.stop",
+        "summary": "Stop a crawl",
+        "description": "Terminates a running or paused crawl. YaCy removes the crawl profile; afterwards crawl.status answers 404. Send an empty JSON object as body.",
+        "tags": [
+          "crawls"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Crawl id.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Crawl stopped.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlStopped"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "403": {
+            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/config": {
+      "get": {
+        "operationId": "config.get",
+        "summary": "Read settings",
+        "description": "The allowlisted settings that the API may read and change.",
+        "tags": [
+          "config"
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      },
+      "patch": {
+        "operationId": "config.set",
+        "summary": "Change settings",
+        "description": "All-or-nothing update of allowlisted settings only.",
+        "tags": [
+          "config"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Settings after the update.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "403": {
+            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/ui/routes": {
+      "get": {
+        "operationId": "ui.routes",
+        "summary": "UI routes",
+        "description": "Public. Stable names and paths of the pages of the web interface.",
+        "tags": [
+          "ui"
+        ],
+        "responses": {
+          "200": {
+            "description": "Routes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiRouteList"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/ui/routes/{name}": {
+      "get": {
+        "operationId": "ui.route",
+        "summary": "One UI route",
+        "description": "Public. Path of one page, e.g. config.accounts.",
+        "tags": [
+          "ui"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "Route name, e.g. config.accounts.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Route.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiRoute"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": false
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable error code.",
+                "examples": [
+                  "invalid_request",
+                  "crawl_not_found"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      },
+      "Version": {
+        "type": "object",
+        "properties": {
+          "scoutro": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "examples": [
+              "1.942-scoutro.1"
+            ]
+          },
+          "yacy": {
+            "type": "string",
+            "examples": [
+              "1.942"
+            ]
+          },
+          "build": {
+            "type": "string"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "apiVersion"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "scoutro"
+            ]
+          },
+          "apiVersion": {
+            "type": "string",
+            "enum": [
+              "1"
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          }
+        }
+      },
+      "CrawlerQueues": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "State of the local crawler queue as reported by YaCy (running or paused)."
+          },
+          "localQueue": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "limitQueue": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "remoteQueue": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "noloadQueue": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "loader": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "System": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "$ref": "#/components/schemas/Version"
+          },
+          "peer": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "network": {
+                "type": "string"
+              }
+            }
+          },
+          "resources": {
+            "type": "object",
+            "properties": {
+              "processors": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "load": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "memory": {
+                "type": "object",
+                "properties": {
+                  "usedBytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "freeBytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "totalBytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "maxBytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "disk": {
+                "type": "object",
+                "properties": {
+                  "usedBytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "freeBytes": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "crawler": {
+            "$ref": "#/components/schemas/CrawlerQueues"
+          },
+          "pagesPerMinute": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string",
+            "description": "Plain text, HTML removed."
+          },
+          "host": {
+            "type": "string"
+          },
+          "date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "sizeBytes": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "description": "YaCy URL hash."
+          }
+        }
+      },
+      "SearchResponse": {
+        "type": "object",
+        "required": [
+          "query",
+          "total",
+          "results"
+        ],
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "local",
+              "network"
+            ]
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SearchResult"
+            }
+          }
+        }
+      },
+      "IndexStatus": {
+        "type": "object",
+        "properties": {
+          "documents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Documents in the full-text index."
+          },
+          "webgraphEdges": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "citations": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rwiWords": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "crawler": {
+            "$ref": "#/components/schemas/CrawlerQueues"
+          },
+          "postprocessing": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "remaining": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "IndexLookup": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "url",
+              "indexed"
+            ],
+            "properties": {
+              "url": {
+                "type": "string"
+              },
+              "indexed": {
+                "type": "boolean"
+              },
+              "document": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "host": {
+                    "type": "string"
+                  },
+                  "lastModified": {
+                    "type": "string"
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "host",
+              "documents"
+            ],
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "documents": {
+                "type": "integer"
+              }
+            }
+          }
+        ]
+      },
+      "Crawl": {
+        "type": "object",
+        "required": [
+          "id",
+          "state"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "YaCy crawl profile handle."
+          },
+          "name": {
+            "type": "string",
+            "description": "Crawl name as shown by YaCy (usually the host)."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "paused",
+              "terminated"
+            ]
+          },
+          "depth": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxPages": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "pagesLoaded": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "URLs loaded for this crawl so far (running crawls only)."
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "startUrl": {
+            "type": "string",
+            "description": "Only in the answer of crawl.start."
+          },
+          "scope": {
+            "type": "string",
+            "description": "Only in the answer of crawl.start."
+          },
+          "links": {
+            "type": "object",
+            "properties": {
+              "self": {
+                "type": "string"
+              },
+              "stop": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "CrawlList": {
+        "type": "object",
+        "required": [
+          "crawls"
+        ],
+        "properties": {
+          "crawls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Crawl"
+            }
+          }
+        }
+      },
+      "CrawlStart": {
+        "type": "object",
+        "required": [
+          "url"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "description": "Start URL, http or https."
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10,
+            "default": 2
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "domain",
+              "subpath",
+              "wide"
+            ],
+            "default": "domain",
+            "description": "domain: stay on the host; subpath: stay below the start path; wide: follow links to other hosts."
+          },
+          "maxPages": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000000,
+            "description": "Maximum pages per domain (unlimited if omitted)."
+          },
+          "collection": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "default": "user"
+          }
+        }
+      },
+      "CrawlStopped": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "stopped"
+            ]
+          }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "value": {},
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "string",
+                    "integer"
+                  ]
+                },
+                "description": {
+                  "type": "string"
+                },
+                "writable": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "SettingsUpdate": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "properties": {
+          "search.greeting": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "search.itemsPerPage": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        }
+      },
+      "UiRoute": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "group": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path relative to the Scoutro base URL."
+          },
+          "auth": {
+            "type": "string",
+            "enum": [
+              "public",
+              "admin"
+            ]
+          },
+          "description": {
+            "type": "string"
+          }
+        }
+      },
+      "UiRouteList": {
+        "type": "object",
+        "properties": {
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UiRoute"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "digest": {
+        "type": "http",
+        "scheme": "digest",
+        "description": "YaCy administrator account (user 'admin' by default)."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "system"
+    },
+    {
+      "name": "search"
+    },
+    {
+      "name": "index"
+    },
+    {
+      "name": "crawls"
+    },
+    {
+      "name": "config"
+    },
+    {
+      "name": "ui"
+    }
+  ]
+}

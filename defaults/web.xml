@@ -142,6 +142,18 @@
     </servlet-mapping>
 
     <!-- eof hardcoded mappings --> 
+
+    <!-- Scoutro: API v1 for agents and tools (docs/API.md). Mutating and
+         administrative actions require the administrator account; see the
+         security constraints below. -->
+    <servlet>
+        <servlet-name>ScoutroApiServlet</servlet-name>
+        <servlet-class>net.yacy.scoutro.api.ScoutroApiServlet</servlet-class>
+    </servlet>
+    <servlet-mapping>
+        <servlet-name>ScoutroApiServlet</servlet-name>
+        <url-pattern>/scoutro/api/*</url-pattern>
+    </servlet-mapping>
             
     <!-- additional (optional) mappings --> 
        <!-- you may add individual mappings of standard servlets here also -->     
@@ -171,6 +183,25 @@
         <auth-method>DIGEST</auth-method>
     </login-config>
 
+    <!-- Scoutro: all API v1 actions need the administrator account (HTTP Digest),
+         except the health check and the UI route catalog. openapi.json and
+         actions.json (outside /v1) are public descriptions. -->
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>Scoutro API v1</web-resource-name>
+            <url-pattern>/scoutro/api/v1/*</url-pattern>
+        </web-resource-collection>
+        <auth-constraint>
+            <role-name>adminRight</role-name>
+        </auth-constraint>
+    </security-constraint>
+    <security-constraint>
+        <web-resource-collection>
+            <web-resource-name>Scoutro API v1 public</web-resource-name>
+            <url-pattern>/scoutro/api/v1/health</url-pattern>
+            <url-pattern>/scoutro/api/v1/ui/*</url-pattern>
+        </web-resource-collection>
+    </security-constraint>
     <!-- Roles -->
     <security-role>
         <description>Administrator</description>
