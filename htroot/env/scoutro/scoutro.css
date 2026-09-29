@@ -122,3 +122,173 @@
     display: block;
   }
 }
+
+/* ------------------------------------------------------------------ */
+/* Responsive foundation for the administration pages                   */
+/* ------------------------------------------------------------------ */
+
+/* wrapper added by scoutro.js around wide tables: scroll instead of widening the page */
+.scoutro-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/*
+ * The wrapper's parent is often a float (e.g. div.left on Network.html) that
+ * grows with the table, so percentages do not limit it. Bound it by the
+ * viewport minus the admin sidebar instead.
+ */
+@media (max-width: 767px) {
+  .scoutro-scroll {
+    max-width: calc(100vw - 24px);
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  .main .scoutro-scroll,
+  .main img {
+    max-width: calc(75vw - 40px);
+  }
+}
+
+@media (min-width: 992px) {
+  .main .scoutro-scroll,
+  .main img {
+    max-width: calc(83.333vw - 40px);
+  }
+}
+
+@media (min-width: 768px) {
+  .main img {
+    height: auto; /* keep the aspect ratio of images with width/height attributes */
+  }
+}
+
+/* upstream sets a 15% left margin on .col-md-9 for every width */
+@media (max-width: 991px) {
+  .col-md-9 {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  body {
+    overflow-wrap: break-word;
+  }
+
+  .main {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  /* form controls with size/cols attributes must not widen the layout */
+  input:not([type=checkbox]):not([type=radio]):not([type=hidden]),
+  select,
+  textarea {
+    max-width: 100%;
+  }
+
+  /* fieldsets default to min-width: min-content and would grow with their content */
+  fieldset {
+    min-width: 0;
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  img,
+  canvas,
+  iframe,
+  embed,
+  object,
+  video {
+    max-width: 100%;
+  }
+
+  img {
+    height: auto;
+  }
+
+  pre {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  /* label / field pairs (dl.pairs, form dt/dd) are stacked instead of 24% / 74% */
+  form dt,
+  dl.pairs dt,
+  form dd,
+  dl.pairs dd {
+    float: none;
+    width: auto;
+    margin: 0;
+    padding: 2px 0;
+    text-align: left;
+  }
+
+  form dt,
+  dl.pairs dt {
+    padding-top: 10px;
+    font-weight: 600;
+  }
+
+  /* absolutely positioned "Fork me on GitHub" ribbon on Status.html covers content on phones */
+  a.forceNoExternalIcon > img[src$="forkme_right_green_007200.png"] {
+    display: none;
+  }
+
+  /* fixed-width upstream blocks */
+  div.welcome,
+  fieldset#progress { /* Crawler_p.html, inline width:530px */
+    float: none !important;
+    width: auto !important;
+  }
+
+  /* Use Case chooser on ConfigBasic.html: one option per row */
+  table.usecase-options,
+  table.usecase-options > tbody,
+  table.usecase-options > tbody > tr,
+  table.usecase-options > tbody > tr > td {
+    display: block;
+    width: auto;
+    margin: 0 0 8px;
+  }
+
+  /* page submenus (submenu*.template): wrap as touch-friendly chips */
+  div.SubMenugroup {
+    float: none;
+  }
+
+  ul.SubMenu li {
+    float: none;
+    display: inline-block;
+    margin: 0 2px 4px 0;
+  }
+
+  ul.SubMenu a.MenuItemLink {
+    display: inline-block;
+    min-height: 40px;
+    padding: 10px 12px;
+  }
+
+  /* buttons and inputs large enough to tap */
+  .btn,
+  button,
+  input[type=submit],
+  input[type=button],
+  input[type=reset] {
+    min-height: 40px;
+  }
+
+  input[type=text],
+  input[type=password],
+  input[type=url],
+  input[type=number],
+  input[type=email],
+  input[type=search],
+  select,
+  textarea {
+    font-size: 16px; /* avoids zoom-on-focus in mobile browsers */
+  }
+}

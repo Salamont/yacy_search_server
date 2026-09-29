@@ -76,6 +76,33 @@ for the JavaScript code in this page.
     }
   });
 
+  /*
+   * Wide tables (monitoring lists, crawl profiles, settings) are wrapped into a
+   * horizontal scroll container so that they never widen the page. Only
+   * outermost tables are wrapped; nested tables scroll with their parent.
+   */
+  function wrapWideTables(root) {
+    var tables = (root || document).querySelectorAll('table');
+    for (var i = 0; i < tables.length; i++) {
+      var table = tables[i];
+      var parent = table.parentElement;
+      if (!parent || parent.classList.contains('scoutro-scroll') || parent.closest('table') ||
+          table.closest('.scoutro-adminnav')) {
+        continue;
+      }
+      var wrapper = document.createElement('div');
+      wrapper.className = 'scoutro-scroll';
+      parent.insertBefore(wrapper, table);
+      wrapper.appendChild(table);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () { wrapWideTables(); });
+  } else {
+    wrapWideTables();
+  }
+
   /* leaving the small-screen layout must not keep the page locked */
   if (window.matchMedia) {
     var desktop = window.matchMedia('(min-width: 768px)');
