@@ -1,0 +1,68 @@
+# Scoutro container image (based on YaCy, GPL-2.0-or-later)
+#
+# Same runtime layout as the official YaCy image (docker/Dockerfile), so that
+# existing YaCy DATA directories work unchanged:
+#   application  /opt/yacy_search_server
+#   data volume  /opt/yacy_search_server/DATA
+#   user         yacy (system user, uid 100 / gid 101 as in the official image)
+#   ports        8090 (HTTP), 8443 (HTTPS, off unless enabled in yacy.conf)
+#
+# build (from the repository root, with .git present so that the build records
+# the source revision):
+#   docker build -f docker/Dockerfile.scoutro \
+#     --build-arg SCOUTRO_VERSION=1.942-scoutro.1 \
+#     --build-arg SCOUTRO_REVISION=$(git rev-parse HEAD) \
+#     -t ghcr.io/salamont/scoutro:1.942-scoutro.1 .
+#
+# run:
+#   docker run -d --name scoutro -p 8090:8090 -v scoutro_data:/opt/yacy_search_server/DATA ghcr.io/salamont/scoutro:1.942-scoutro.1
+
+## builder image
+FROM eclipse-temurin:24-jdk-noble AS builder
+
+RUN for i in 1 2 3; do \
+      apt-get update && break || sleep 5; \
+    done && \
+    apt-get install -y --no-install-recommends ant git curl && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt
+COPY . /opt/yacy_search_server/
+# .git is needed during the build to determine the revision, not at runtime
+RUN git config --global --add safe.directory /opt/yacy_search_server \
+    && ant compile -f /opt/yacy_search_server/build.xml \
+    && rm -fr /opt/yacy_search_server/.git
+
+# Same defaults as the official image: admin password "yacy" (to be changed),
+# no unauthenticated admin access from localhost, HTTPS listener enabled.
+RUN sed -i "/adminAccountBase64MD5=/c\adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c" /opt/yacy_search_server/defaults/yacy.init && \
+    sed -i "/adminAccountForLocalhost=/c\adminAccountForLocalhost=false" /opt/yacy_search_server/defaults/yacy.init && \
+    sed -i "/server.https=false/c\server.https=true" /opt/yacy_search_server/defaults/yacy.init
+
+## final image
+FROM eclipse-temurin:24-jdk-noble AS app
+
+ARG SCOUTRO_VERSION=dev
+ARG SCOUTRO_REVISION=unknown
+
+LABEL org.opencontainers.image.title="scoutro" \
+      org.opencontainers.image.description="Scoutro - mobile-first search, crawling and indexing, based on YaCy. Independent community project, not affiliated with the YaCy project." \
+      org.opencontainers.image.version="${SCOUTRO_VERSION}" \
+      org.opencontainers.image.revision="${SCOUTRO_REVISION}" \
+      org.opencontainers.image.source="https://github.com/Salamont/yacy_search_server" \
+      org.opencontainers.image.url="https://github.com/Salamont/yacy_search_server" \
+      org.opencontainers.image.licenses="GPL-2.0-or-later" \
+      org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:24-jdk-noble" \
+      io.github.salamont.scoutro.upstream="https://github.com/yacy/yacy_search_server"
+
+RUN adduser --system --group --no-create-home --disabled-password yacy
+WORKDIR /opt
+COPY --chown=yacy:yacy --from=builder /opt/yacy_search_server /opt/yacy_search_server
+
+EXPOSE 8090 8443
+
+VOLUME ["/opt/yacy_search_server/DATA"]
+
+USER yacy
+
+CMD ["/bin/sh","/opt/yacy_search_server/startYACY.sh","-f"]

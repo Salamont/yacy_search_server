@@ -1,0 +1,15 @@
+# Build context for docker/Dockerfile.scoutro (BuildKit uses this file instead
+# of the root .dockerignore). Same as the root file, but keeps test/jetty,
+# which build.xml needs for the Solr 9 bridge (target build-solr9-bridge).
+.github
+DATA*
+RELEASE
+yacy.log
+classes
+test
+!test/jetty
+snap
+examples
+build.nsi
+README.md
+Heroku.md
