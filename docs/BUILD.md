@@ -26,8 +26,8 @@ Scoutro UI tests: see `test/scoutro-ui/README.md`.
 | What | Value | Where |
 |---|---|---|
 | YaCy version | `1.942` | `build.properties` → `releaseVersion` (unchanged from upstream) |
-| Scoutro release | `4` | `scoutro.properties` → `scoutro.release` |
-| Full Scoutro version | `1.942-scoutro.4` | git tag `v1.942-scoutro.4`, image tag `1.942-scoutro.4` |
+| Scoutro release | `5` | `scoutro.properties` → `scoutro.release` |
+| Full Scoutro version | `1.942-scoutro.5` | git tag `v1.942-scoutro.5`, image tag `1.942-scoutro.5` |
 
 Why not change `releaseVersion`: YaCy parses its version as a number
 (`yacyVersion`, `Seed.getVersion()` use `Double.parseDouble`, and
