@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Salamont/yacy_search_server/tools/scoutro/discovery/schemas/classification.schema.json",
+  "title": "Scoutro discovery topic classification",
+  "description": "Machine-readable topic classification of one crawled domain for one discovery profile (schema version 1). Produced by scoutro-discovery classify; stored in the discovery state and returned by search/export.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "profile", "collection", "domain", "verdict", "confidence", "entity_type",
+               "country", "location", "reasons", "evidence", "classified_at", "classifier"],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "profile": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$"},
+    "collection": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+    "domain": {"type": "string", "minLength": 3, "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$"},
+    "verdict": {"enum": ["PASS", "FAIL", "UNSURE"]},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "entity_type": {"enum": ["company", "care_facility", "coach", "it_provider", "construction_provider",
+                             "association", "authority", "university_research", "news_media",
+                             "directory_portal", "private_person", "other", "unknown"]},
+    "country": {"type": "string", "pattern": "^([A-Z]{2}|unknown)$"},
+    "location": {"type": "string", "maxLength": 200},
+    "reasons": {
+      "type": "array", "maxItems": 10,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["code", "text"],
+        "properties": {
+          "code": {"type": "string", "pattern": "^[a-z][a-z0-9_]{1,63}$"},
+          "text": {"type": "string", "maxLength": 300}
+        }
+      }
+    },
+    "evidence": {
+      "type": "array", "maxItems": 10,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["url", "title", "excerpt"],
+        "properties": {
+          "url": {"type": "string", "maxLength": 2048, "pattern": "^https?://"},
+          "title": {"type": "string", "maxLength": 300},
+          "excerpt": {"type": "string", "maxLength": 400}
+        }
+      }
+    },
+    "classified_at": {"type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"},
+    "classifier": {
+      "type": "object", "additionalProperties": false, "required": ["backend", "model", "criteria_version", "error"],
+      "properties": {
+        "backend": {"enum": ["llm", "heuristic"]},
+        "model": {"type": "string", "maxLength": 200},
+        "criteria_version": {"type": "string", "maxLength": 64},
+        "error": {"type": "string", "enum": ["", "timeout", "invalid_model_output", "llm_unreachable", "llm_http_error", "not_configured"]}
+      }
+    }
+  }
+}

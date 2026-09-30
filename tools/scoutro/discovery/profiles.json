@@ -1,0 +1,83 @@
+{
+  "_comment": "Per-profile settings for scoutro-discovery: target YaCy collection and editable topic classification criteria. Discovery search terms stay in profiles.conf, OSM rules in osm_profiles.json. Changing criteria: bump criteria_version, then run 'classify --reclassify'. This file is trusted configuration (goes into the system prompt); crawled web content never does.",
+  "criteria_version": "2026-09-30.1",
+  "profiles": {
+    "edelsenior": {
+      "collection": "edelsenior-web",
+      "legacy_collections": ["prospect-edelsenior"],
+      "topic": "Pflege- und Senioreneinrichtungen und dazugehörige professionelle Anbieter in Deutschland",
+      "pass_criteria": [
+        "Betreiber oder Website einer Pflege- oder Senioreneinrichtung: Pflegeheim, Seniorenheim, Seniorenresidenz, betreutes Wohnen, Tagespflege, Kurzzeitpflege, ambulanter Pflegedienst, Hospiz",
+        "Träger oder Betreibergesellschaft solcher Einrichtungen (auch gemeinnützige Träger, z. B. e. V. oder gGmbH, die Einrichtungen selbst betreiben)",
+        "Professioneller Dienstleister, dessen Kerngeschäft Pflege- oder Seniorenversorgung ist"
+      ],
+      "fail_criteria": [
+        "Pflegeheim-Verzeichnis, Vergleichs- oder Bewertungsportal, Pflegeplatzbörse",
+        "Krankenkasse, Pflegekasse, Behörde, Pflegestützpunkt, Kommune",
+        "Nachrichten- oder Ratgeberartikel über Pflege",
+        "Hochschule, Pflegeschule als Forschungs- oder Lehrprojekt, Forschungsprojekt",
+        "Verband oder Interessenvertretung ohne eigene Einrichtung",
+        "Website ohne Bezug zu Pflege oder Senioren"
+      ],
+      "entity_types": ["care_facility", "company"],
+      "keywords": ["pflegeheim", "seniorenheim", "seniorenresidenz", "pflegeeinrichtung", "betreutes wohnen", "tagespflege", "kurzzeitpflege", "pflegedienst", "altenpflege", "senioren", "hospiz", "vollstationär"]
+    },
+    "checkthecoach": {
+      "collection": "checkthecoach-web",
+      "legacy_collections": ["prospect-checkthecoach"],
+      "topic": "Professionelle Coaches und Coaching-Anbieter in Deutschland",
+      "pass_criteria": [
+        "Website eines professionellen Coaches (Business-, Executive-, Führungskräfte-, Karriere-, Team- oder Life-Coaching) mit eigenem Angebot",
+        "Coaching-Unternehmen oder -Institut, das Coaching als Dienstleistung verkauft"
+      ],
+      "fail_criteria": [
+        "Coach-Verzeichnis, Vermittlungs- oder Bewertungsportal",
+        "Coaching-Verband oder Zertifizierungsstelle ohne eigenes Coaching-Angebot",
+        "Sport-Trainer oder Sportverein (Fußball-Coach usw.)",
+        "Hochschule, Forschungsprojekt, Nachrichten- oder Ratgeberartikel",
+        "Website ohne Coaching-Bezug"
+      ],
+      "entity_types": ["coach", "company"],
+      "keywords": ["coaching", "coach", "business coach", "executive coach", "führungskräfte", "karriere", "persönlichkeitsentwicklung", "teamcoaching", "supervision", "mentoring"]
+    },
+    "stackfinder": {
+      "collection": "stackfinder-web",
+      "legacy_collections": ["prospect-stackfinder"],
+      "topic": "IT-, Software- und Technologie-Dienstleister oder Technologieanbieter in Deutschland",
+      "pass_criteria": [
+        "IT-Dienstleister, Systemhaus, Managed Service Provider, Softwareentwickler oder -agentur",
+        "Anbieter von Software-, Cloud-, Daten-, Security- oder SAP-/ERP-Beratung",
+        "Hersteller oder Anbieter von Technologieprodukten für Unternehmen"
+      ],
+      "fail_criteria": [
+        "IT-News, Tech-Magazin, Blog- oder Ratgeberartikel",
+        "Software- oder Anbieterverzeichnis, Vergleichsportal, Jobbörse",
+        "Hochschule, Informatik-Lehrstuhl, Forschungsprojekt",
+        "Branchenverband, Kammer, Behörde",
+        "Unternehmen ohne IT-Kerngeschäft (IT nur als interne Abteilung)"
+      ],
+      "entity_types": ["it_provider", "company"],
+      "keywords": ["software", "it-dienstleister", "it dienstleister", "systemhaus", "cloud", "managed service", "sap", "erp", "it-beratung", "it beratung", "rechenzentrum", "it-security", "webentwicklung", "digitalisierung", "hosting"]
+    },
+    "bauteamcheck": {
+      "collection": "bauteamcheck-web",
+      "legacy_collections": ["prospect-bauteamcheck"],
+      "topic": "Professionelle Bau-, Architektur-, Ingenieur-, Planungs- und Projektsteuerungsanbieter in Deutschland",
+      "pass_criteria": [
+        "Bauunternehmen, Generalunternehmer, Generalübernehmer, Bauträger",
+        "Architekturbüro, Ingenieurbüro, Tragwerksplaner, TGA-Planer, Generalplaner",
+        "Projektsteuerer, Projektmanagement oder Bauleitung als Dienstleistung",
+        "Bauhandwerksbetrieb mit eigenem Leistungsangebot (z. B. Rohbau, Zimmerei, Dachdecker)"
+      ],
+      "fail_criteria": [
+        "Handwerker- oder Architektenverzeichnis, Vergleichs- oder Ausschreibungsportal",
+        "Architekten- oder Ingenieurkammer, Innung, Verband, Bauamt, Behörde",
+        "Baumarkt oder reiner Baustoffhandel",
+        "Hochschule, Forschungsprojekt, Fachzeitschrift, Nachrichtenartikel",
+        "Website ohne Bau- oder Planungsbezug"
+      ],
+      "entity_types": ["construction_provider", "company"],
+      "keywords": ["bauunternehmen", "generalunternehmer", "bauträger", "architekt", "architektur", "ingenieurbüro", "tragwerksplanung", "bauplanung", "generalplaner", "projektsteuerung", "rohbau", "hochbau", "tiefbau", "bauleitung", "schlüsselfertig"]
+    }
+  }
+}

@@ -106,7 +106,7 @@ def build_parser():
     sub.add_parser("actions", help="print the action catalog (actions.json)")
     sub.add_parser("openapi", help="print the OpenAPI description")
     sub.add_parser("discovery",
-                   help="Germany-wide prospect discovery (status|start|pause|resume|search); delegates to scoutro-discovery")
+                   help="profile discovery (status|start|pause|resume|classify|search|export|selftest); delegates to scoutro-discovery")
 
     s = sub.add_parser("search", help="search the index")
     s.add_argument("query")
