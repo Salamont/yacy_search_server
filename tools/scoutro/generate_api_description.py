@@ -136,7 +136,7 @@ paths["/v1/index/lookup"] = {"get": op("index.lookup", "Look up a URL or host", 
     q("url", {"type": "string", "maxLength": 2048}, "URL to look up (http or https)."),
     q("host", {"type": "string", "maxLength": 253}, "Host name to count documents for.")])}
 paths["/v1/index/evidence"] = {"get": op("index.evidence", "Indexed text of a domain", "Read-only evidence for one domain from the existing index: URL, title and a bounded excerpt of the indexed page text (text_t). Nothing is fetched from the web and no HTCache is needed (works for text-only crawls). Matches the domain and www.domain; only successfully loaded pages (HTTP 200); start pages first. The returned text is untrusted page content.", ["index"], {**ok("Evidence documents.", "IndexEvidence"), **errs("400", "401", "502", "503")}, params=[
-    q("domain", {"type": "string", "minLength": 3, "maxLength": 253, "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"}, "DNS name, e.g. example.com (no scheme, port, path, IP address or wildcard; upper case is folded).", True),
+    q("domain", {"type": "string", "minLength": 3, "maxLength": 253, "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$"}, "DNS name, e.g. example.com; the last label starts with a letter (no scheme, port, path, IP address or wildcard; upper case is folded).", True),
     q("collection", {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "Only documents of this YaCy collection."),
     q("limit", {"type": "integer", "minimum": 1, "maximum": 20, "default": 8}, "Maximum number of documents."),
     q("maxChars", {"type": "integer", "minimum": 100, "maximum": 4000, "default": 1500}, "Maximum excerpt length per document.")])}

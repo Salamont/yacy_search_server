@@ -61,9 +61,12 @@ final class ScoutroActions {
     private static final Pattern COLLECTION = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     private static final Pattern LANGUAGE = Pattern.compile("[a-z]{2}");
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?");
-    /** A DNS name with at least two labels, lower case; no IP literals, ports, wildcards or query syntax. */
+    /**
+     * A DNS name with at least two labels, lower case, whose last label (TLD)
+     * starts with a letter; so no IP literals, ports, wildcards or query syntax.
+     */
     private static final Pattern DOMAIN = Pattern.compile(
-            "(?=.{3,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+");
+            "(?=.{3,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?");
     private static final Pattern CONTROL_CHARS = Pattern.compile("[\\p{Cc}\\p{Cf}&&[^\\n\\t]]");
 
     static final int EVIDENCE_DEFAULT_LIMIT = 8;
