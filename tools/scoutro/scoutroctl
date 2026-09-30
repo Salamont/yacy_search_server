@@ -105,6 +105,8 @@ def build_parser():
     sub.add_parser("system", help="system status")
     sub.add_parser("actions", help="print the action catalog (actions.json)")
     sub.add_parser("openapi", help="print the OpenAPI description")
+    sub.add_parser("discovery",
+                   help="Germany-wide prospect discovery (status|start|pause|resume|search); delegates to scoutro-discovery")
 
     s = sub.add_parser("search", help="search the index")
     s.add_argument("query")
@@ -146,6 +148,14 @@ def build_parser():
 
 
 def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    # "discovery" is the one Scoutro command that orchestrates several API
+    # calls (search + crawl) plus a filter and a small persistent state; it
+    # lives in the sibling tool scoutro-discovery. Delegate to it.
+    if argv and argv[0] == "discovery":
+        script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scoutro-discovery")
+        os.execv(sys.executable, [sys.executable, script] + argv[1:])
     args = build_parser().parse_args(argv)
     client = Client(args.base_url, args.user, password(), args.timeout)
     c = args.command

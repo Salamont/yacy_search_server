@@ -1,0 +1,536 @@
+#!/usr/bin/env python3
+# scoutro-discovery - Germany-wide, topic-specific prospect discovery for Scoutro/YaCy
+#
+# Copyright (C) 2026 Scoutro contributors
+# Scoutro is an independent community project based on YaCy.
+# Licensed under the GNU General Public License, version 2 or (at your option)
+# any later version.
+#
+# This is the one Scoutro tool that is not a thin API client: prospect
+# discovery needs several API calls (search + crawl) plus a filter and a small
+# persistent state. It still uses only the public Scoutro API - no YaCy core
+# change and no extra service.
+#
+# Pipeline:
+#   DISCOVERY (Freeworld live search) -> FILTER -> ACCEPTED DOMAIN
+#     -> safety/robots pre-check -> crawl.start with collection=prospect-<profile>
+#
+# Only the search index/text/metadata are kept: the Scoutro API crawls are
+# text-only (storeHTCache/storeTXCache/media off, see the Olares package).
+#
+# Configuration (environment):
+#   SCOUTRO_URL            base URL, default http://127.0.0.1:8090
+#   SCOUTRO_USER           administrator user, default admin
+#   SCOUTRO_PASSWORD       administrator password, or
+#   SCOUTRO_PASSWORD_FILE  file containing the password (first line)
+#   SCOUTRO_DISCOVERY_DIR  state directory, default ~/.scoutro-discovery
+#
+# Usage:
+#   scoutro-discovery status
+#   scoutro-discovery start [--profile P] [--dry-run] [--max-domains N]
+#   scoutro-discovery pause | resume
+#   scoutro-discovery search --profile P --query "Pflegeheim Koeln"
+#   scoutro-discovery selftest
+
+import argparse
+import ipaddress
+import json
+import os
+import re
+import socket
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+VERSION = "1"
+
+DEFAULT_CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "discovery")
+
+# ---------------------------------------------------------------------------
+# filtering (DISCOVERY RESULT -> ACCEPTED DOMAIN)
+# ---------------------------------------------------------------------------
+
+# blocked file types (archives, programs, media, documents)
+BLOCKED_EXT = re.compile(
+    r"\.(zip|gz|tgz|tar|bz2|xz|txz|7z|rar|zst|exe|msi|msp|dll|com|scr|bat|cmd|ps1|sh|jar|apk|aab|"
+    r"dmg|pkg|iso|img|deb|rpm|appimage|bin|run|mp3|mp4|m4a|avi|mov|mkv|wav|flac|ogg|opus|webm|wmv|flv|"
+    r"jpg|jpeg|png|gif|webp|svg|bmp|tif|tiff|ico|heic|avif|pdf|doc|docx|xls|xlsx|ppt|pptx|odt|ods|odp|"
+    r"rtf|epub|torrent|dmp|cab|vhd|vmdk)$", re.I)
+
+# blocked host fragments (search engines, wikis, code/package hosts, social,
+# file hosts, major news) - kept deliberately conservative and editable
+BLOCKED_HOST = (
+    "wikipedia.", "wikimedia.", "wiktionary.", "wikiwand.",
+    "github.", "gitlab.", "bitbucket.", "sourceforge.", "gitea.", "codeberg.",
+    "stackoverflow.", "stackexchange.", "superuser.", "askubuntu.",
+    "npmjs.", "pypi.", "crates.io", "packagist.", "rubygems.", "nuget.", "maven.",
+    "docker.com", "hub.docker", "quay.io", "gcr.io",
+    "youtube.", "youtu.be", "vimeo.", "twitch.",
+    "facebook.", "instagram.", "linkedin.", "xing.", "twitter.", "x.com", "reddit.",
+    "pinterest.", "tiktok.", "snapchat.", "tumblr.", "vk.com",
+    "google.", "bing.", "duckduckgo.", "yahoo.", "yandex.", "baidu.", "qwant.",
+    "ecosia.", "startpage.", "brave.com", "mojeek.", "searx.",
+    "archive.org", "scribd.", "slideshare.", "docplayer.", "yumpu.", "studylib.",
+    "researchgate.", "springer.", "sciencedirect.", "jstor.", "academia.edu",
+    "amazon.", "ebay.", "aliexpress.", "etsy.", "idealo.", "check24.",
+    "spiegel.", "bild.", "faz.", "zeit.", "sueddeutsche.", "ntv.", "t-online.",
+    "heise.", "golem.", "chip.", "computerbild.", "focus.", "welt.", "stern.",
+    "handelsblatt.", "manager-magazin.", "wiwo.", "t3n.", "netzwelt.",
+    "abendblatt.", "businessinsider.", "utopia.", "gegen-hartz.", "taz.",
+    "merkur.", "noz.", "ruhrnachrichten.", "wa.de", "come-on.", "giga.",
+    "aok.", "barmer.", "tk.de", "ikk-classic.", "pflege.de", "weisse-liste.",
+)
+
+# blocked path fragments (downloads, file listings, cms uploads)
+BLOCKED_PATH = ("/download", "/downloads", "/wp-content/uploads/", "/fileadmin/",
+                "/files/", "/uploads/", "/dokumente/", "/assets/pdf/", "/media/")
+
+# country/German preference: only these TLDs are accepted as "Deutschlandbezug"
+# (comma-separated, configurable; empty = no TLD restriction)
+REQUIRED_TLDS = tuple(t.strip().lower() for t in
+                      os.environ.get("SCOUTRO_DISCOVERY_TLDS", ".de").split(",") if t.strip())
+
+IPV4_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
+
+# very small public-suffix set relevant for DE prospect discovery
+MULTI_SUFFIX = {"co.uk", "org.uk", "gov.uk", "ac.uk", "com.au", "co.at", "or.at",
+                "com.tr", "co.nz", "com.br", "co.za"}
+
+
+def registrable_domain(host):
+    host = (host or "").strip().lower().rstrip(".")
+    if not host or IPV4_RE.match(host):
+        return host
+    parts = host.split(".")
+    if len(parts) <= 2:
+        return host
+    last2 = ".".join(parts[-2:])
+    if last2 in MULTI_SUFFIX:
+        return ".".join(parts[-3:])
+    return last2
+
+
+def blocked_reason(url, host):
+    """Return a reason string when the candidate must be rejected, else None."""
+    if not host:
+        return "no-host"
+    try:
+        u = urllib.parse.urlsplit(url)
+    except ValueError:
+        return "bad-url"
+    if u.scheme.lower() not in ("http", "https"):
+        return "scheme:" + (u.scheme or "none")
+    if u.username or u.password:
+        return "userinfo"
+    if IPV4_RE.match(host) or ":" in host:
+        return "ip-literal"
+    path = (u.path or "").lower()
+    if BLOCKED_EXT.search(path):
+        return "file-type"
+    for frag in BLOCKED_PATH:
+        if frag in path:
+            return "download-path"
+    for frag in BLOCKED_HOST:
+        if frag in host:
+            return "host:" + frag
+    if "." not in host:
+        return "no-dot"
+    return None
+
+
+def is_public_ip(ip):
+    try:
+        a = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return not (a.is_private or a.is_loopback or a.is_link_local or a.is_multicast
+                or a.is_reserved or a.is_unspecified)
+
+
+def resolve_public(host):
+    """DNS-resolve and reject private/loopback/link-local/cluster targets (SSRF)."""
+    if host.lower() in ("localhost",) or host.lower().endswith(".local"):
+        return False, "localhost"
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror as e:
+        return False, "dns:" + str(e)
+    ips = {i[4][0] for i in infos}
+    for ip in ips:
+        if not is_public_ip(ip):
+            return False, "private-ip:" + ip
+    return True, ",".join(sorted(ips))
+
+
+# ---------------------------------------------------------------------------
+# Scoutro API client (urllib + HTTP Digest, same as scoutroctl)
+# ---------------------------------------------------------------------------
+
+class ApiError(Exception):
+    def __init__(self, status, code, message):
+        super().__init__(f"{status} {code}: {message}")
+        self.status = status
+        self.code = code
+        self.message = message
+
+
+class Client:
+    def __init__(self, base_url, user, pw, timeout=30):
+        self.base = base_url.rstrip("/") + "/scoutro/api"
+        self.timeout = timeout
+        handlers = []
+        if pw:
+            mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+            mgr.add_password(None, base_url, user, pw)
+            handlers.append(urllib.request.HTTPDigestAuthHandler(mgr))
+        self.opener = urllib.request.build_opener(*handlers)
+
+    def call(self, method, path, query=None, body=None):
+        url = self.base + path
+        if query:
+            url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
+        data = None
+        headers = {"Accept": "application/json", "User-Agent": "scoutro-discovery/" + VERSION}
+        if body is not None:
+            data = json.dumps(body).encode("utf-8")
+            headers["Content-Type"] = "application/json"
+        req = urllib.request.Request(url, data=data, method=method, headers=headers)
+        try:
+            with self.opener.open(req, timeout=self.timeout) as r:
+                return json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", "replace")
+            try:
+                j = json.loads(raw)
+                err = j.get("error", {})
+                raise ApiError(e.code, err.get("code", "http_error"), err.get("message", raw[:200]))
+            except (ValueError, AttributeError):
+                raise ApiError(e.code, "http_error", raw[:200])
+        except urllib.error.URLError as e:
+            raise ApiError(0, "unreachable", str(e.reason))
+
+    def search(self, q, source="local", limit=10):
+        return self.call("GET", "/v1/search", {"q": q, "source": source, "limit": limit})
+
+    def crawl_start(self, url, collection, depth=2, max_pages=15, scope="domain"):
+        return self.call("POST", "/v1/crawls", body={
+            "url": url, "depth": depth, "scope": scope,
+            "maxPages": max_pages, "collection": collection})
+
+
+# ---------------------------------------------------------------------------
+# config + state
+# ---------------------------------------------------------------------------
+
+def load_profiles(path):
+    profiles = {}
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            name, rest = line.split("=", 1)
+            terms = [t.strip() for t in rest.split(";") if t.strip()]
+            if name.strip() and terms:
+                profiles[name.strip()] = terms
+    return profiles
+
+
+def load_regions(path):
+    regions = []
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                regions.append(line)
+    return regions
+
+
+class State:
+    def __init__(self, directory):
+        self.dir = directory
+        self.path = os.path.join(directory, "state.json")
+        self.data = {"paused": False, "profiles": {}, "domains": {}}
+        if os.path.isfile(self.path):
+            try:
+                with open(self.path, encoding="utf-8") as f:
+                    self.data.update(json.load(f))
+            except (ValueError, OSError):
+                pass
+
+    def save(self):
+        os.makedirs(self.dir, exist_ok=True)
+        tmp = self.path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, self.path)
+
+    def domain(self, name):
+        return self.data["domains"].get(name)
+
+    def put_domain(self, name, entry):
+        self.data["domains"][name] = entry
+
+
+def env_workdir(explicit):
+    if explicit:
+        return explicit
+    return os.environ.get("SCOUTRO_DISCOVERY_DIR", os.path.expanduser("~/.scoutro-discovery"))
+
+
+def make_client(args):
+    pw = args.password or os.environ.get("SCOUTRO_PASSWORD")
+    if not pw:
+        path = os.environ.get("SCOUTRO_PASSWORD_FILE")
+        if path:
+            with open(path, encoding="utf-8") as f:
+                pw = f.readline().rstrip("\r\n")
+    base = args.url or os.environ.get("SCOUTRO_URL", "http://127.0.0.1:8090")
+    user = args.user or os.environ.get("SCOUTRO_USER", "admin")
+    return Client(base, user, pw)
+
+
+# ---------------------------------------------------------------------------
+# commands
+# ---------------------------------------------------------------------------
+
+def cmd_status(args):
+    st = State(env_workdir(args.workdir))
+    doms = st.data["domains"]
+    by_profile = {}
+    for d, e in doms.items():
+        p = e.get("profile", "?")
+        by_profile.setdefault(p, {"domains": 0, "crawled": 0})
+        by_profile[p]["domains"] += 1
+        if e.get("status") == "crawled":
+            by_profile[p]["crawled"] += 1
+    print(json.dumps({
+        "paused": st.data.get("paused", False),
+        "total_domains": len(doms),
+        "profiles": by_profile,
+        "state_file": st.path,
+    }, indent=2, ensure_ascii=False))
+
+
+def cmd_pause(args):
+    st = State(env_workdir(args.workdir))
+    st.data["paused"] = True
+    st.save()
+    print(json.dumps({"paused": True, "state_file": st.path}, indent=2))
+
+
+def cmd_resume(args):
+    st = State(env_workdir(args.workdir))
+    st.data["paused"] = False
+    st.save()
+    print(json.dumps({"paused": False, "state_file": st.path}, indent=2))
+
+
+def discover_candidates(client, profiles, regions, profile, term_limit, region_limit, region_cursor, net_limit):
+    """Return (candidates, new_cursor). candidates = [{url,host,title,term,region}]."""
+    terms = profiles[profile][:term_limit]
+    regs = regions[region_cursor:] + regions[:region_cursor]
+    regs = regs[:region_limit]
+    out = []
+    for term in terms:
+        for region in regs:
+            q = f"{term} {region}"
+            try:
+                res = client.search(q, source="network", limit=net_limit)
+            except ApiError as e:
+                sys.stderr.write(f"  discovery error for '{q}': {e}\n")
+                continue
+            for r in res.get("results", []):
+                url = r.get("url", "")
+                host = urllib.parse.urlsplit(url).hostname or r.get("host", "")
+                out.append({"url": url, "host": (host or "").lower(), "title": r.get("title", ""),
+                            "term": term, "region": region})
+    new_cursor = (region_cursor + region_limit) % max(1, len(regions))
+    return out, new_cursor
+
+
+def select_domains(candidates, profile, state, force, max_domains, now, recrawl_days):
+    accepted = {}
+    rejected = {}
+    for c in candidates:
+        reason = blocked_reason(c["url"], c["host"])
+        if reason:
+            rejected[reason] = rejected.get(reason, 0) + 1
+            continue
+        rd = registrable_domain(c["host"])
+        if not rd:
+            rejected["no-registrable"] = rejected.get("no-registrable", 0) + 1
+            continue
+        if REQUIRED_TLDS and not rd.endswith(REQUIRED_TLDS):
+            rejected["not-de"] = rejected.get("not-de", 0) + 1
+            continue
+        accepted.setdefault(rd, c)
+    selected = []
+    for rd, c in accepted.items():
+        entry = state.domain(rd)
+        if entry and not force:
+            if entry.get("next_attempt", 0) > now:
+                continue
+            last = entry.get("last_crawl", 0)
+            if entry.get("status") == "crawled" and (now - last) < recrawl_days * 86400:
+                continue
+        selected.append((rd, c))
+        if len(selected) >= max_domains:
+            break
+    return selected, accepted, rejected
+
+
+def cmd_start(args):
+    cfg = args.config_dir or DEFAULT_CONFIG_DIR
+    profiles = load_profiles(os.path.join(cfg, "profiles.conf"))
+    regions = load_regions(os.path.join(cfg, "regions.txt"))
+    if not profiles or not regions:
+        sys.exit("config missing: need profiles.conf and regions.txt in " + cfg)
+    names = [args.profile] if args.profile else list(profiles)
+    for n in names:
+        if n not in profiles:
+            sys.exit("unknown profile: " + n)
+
+    st = State(env_workdir(args.workdir))
+    if st.data.get("paused") and not args.dry_run:
+        sys.exit("discovery is paused (run 'resume' first)")
+    client = make_client(args)
+    now = int(time.time())
+    report = {}
+    for name in names:
+        cursor = st.data["profiles"].get(name, {}).get("region_cursor", 0)
+        candidates, new_cursor = discover_candidates(
+            client, profiles, regions, name, args.limit_terms, args.limit_regions, cursor, args.net_limit)
+        selected, accepted, rejected = select_domains(
+            candidates, name, st, args.force, args.max_domains, now, args.recrawl_days)
+        st.data["profiles"].setdefault(name, {})["region_cursor"] = new_cursor
+
+        started = []
+        for rd, c in selected:
+            entry = st.domain(rd) or {}
+            entry.update({"profile": name, "domain": rd, "candidate_url": c["url"]})
+            entry.setdefault("first_seen", now)
+            if args.dry_run:
+                started.append({"domain": rd, "url": "https://" + c["host"] + "/", "status": "dry-run"})
+                continue
+            ok, info = resolve_public(c["host"])
+            if not ok:
+                entry.update({"status": "blocked", "attempts": entry.get("attempts", 0) + 1,
+                              "last_error": info, "next_attempt": now + 86400})
+                st.put_domain(rd, entry)
+                started.append({"domain": rd, "status": "blocked:" + info})
+                continue
+            target = "https://" + c["host"] + "/"
+            try:
+                res = client.crawl_start(target, "prospect-" + name,
+                                         depth=args.depth, max_pages=args.max_pages)
+                entry.update({"status": "crawled", "last_crawl": now, "attempts": 0,
+                              "last_error": "", "next_attempt": now + args.recrawl_days * 86400,
+                              "crawl_id": res.get("id")})
+                st.put_domain(rd, entry)
+                started.append({"domain": rd, "url": target, "crawl_id": res.get("id"), "status": "started"})
+            except ApiError as e:
+                attempts = entry.get("attempts", 0) + 1
+                backoff = min(args.recrawl_days * 86400, (2 ** attempts) * 3600)
+                entry.update({"status": "error", "attempts": attempts, "last_error": str(e),
+                              "next_attempt": now + backoff})
+                st.put_domain(rd, entry)
+                started.append({"domain": rd, "status": "error:" + str(e)})
+            time.sleep(args.delay)
+        report[name] = {
+            "discovery_candidates": len(candidates),
+            "unique_accepted_domains": len(accepted),
+            "rejected_by_reason": rejected,
+            "processed": started,
+        }
+    if not args.dry_run:
+        st.save()
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+
+
+def cmd_search(args):
+    client = make_client(args)
+    q = "collection:prospect-" + args.profile + " " + args.query
+    print(json.dumps(client.search(q, source="local", limit=args.limit), indent=2, ensure_ascii=False))
+
+
+def cmd_selftest(args):
+    checks = []
+
+    def expect(url, host, blocked):
+        reason = blocked_reason(url, host)
+        ok = (reason is not None) if blocked else (reason is None)
+        checks.append((ok, f"{'block' if blocked else 'allow'} {url} -> {reason}"))
+
+    expect("https://www.example-firma.de/", "www.example-firma.de", False)
+    expect("https://example.de/kontakt", "example.de", False)
+    expect("https://example.com/download/file.zip", "example.com", True)
+    expect("https://example.com/setup.exe", "example.com", True)
+    expect("ftp://example.com/file", "example.com", True)
+    expect("https://de.wikipedia.org/wiki/Pflegeheim", "de.wikipedia.org", True)
+    expect("https://github.com/foo/bar", "github.com", True)
+    expect("https://example.com/a.pdf", "example.com", True)
+    expect("https://example.com/wp-content/uploads/x", "example.com", True)
+    expect("https://example.com:8080/", "example.com", False)
+    # SSRF / private targets
+    ok, info = is_public_ip("127.0.0.1"), "loopback"
+    checks.append((not ok, "private 127.0.0.1 blocked"))
+    checks.append((not is_public_ip("192.168.1.10"), "private 192.168.x.x blocked"))
+    checks.append((not is_public_ip("10.0.0.5"), "private 10.x blocked"))
+    checks.append((not is_public_ip("169.254.1.1"), "link-local blocked"))
+    checks.append((is_public_ip("8.8.8.8"), "public 8.8.8.8 allowed"))
+    checks.append((registrable_domain("www.firma.de") == "firma.de", "registrable www.firma.de"))
+    checks.append((registrable_domain("a.b.example.co.uk") == "example.co.uk", "registrable co.uk"))
+    # content is untrusted data: nothing here executes web content
+    checks.append((True, "no JS execution by design (static HTTP only)"))
+
+    failed = [c for c in checks if not c[0]]
+    for ok, msg in checks:
+        print(("ok   " if ok else "FAIL ") + msg)
+    print(f"\nselftest: {len(checks) - len(failed)}/{len(checks)} passed")
+    sys.exit(1 if failed else 0)
+
+
+def main():
+    p = argparse.ArgumentParser(prog="scoutro-discovery",
+                                description="Germany-wide prospect discovery for Scoutro/YaCy (uses only the Scoutro API).")
+    p.add_argument("--url", help="Scoutro base URL (default $SCOUTRO_URL or http://127.0.0.1:8090)")
+    p.add_argument("--user", help="admin user (default $SCOUTRO_USER or admin)")
+    p.add_argument("--password", help="admin password (prefer $SCOUTRO_PASSWORD_FILE)")
+    p.add_argument("--workdir", help="state directory (default $SCOUTRO_DISCOVERY_DIR or ~/.scoutro-discovery)")
+    p.add_argument("--config-dir", help="directory with profiles.conf and regions.txt")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("status", help="show discovery state").set_defaults(func=cmd_status)
+    sub.add_parser("pause", help="pause discovery").set_defaults(func=cmd_pause)
+    sub.add_parser("resume", help="resume discovery").set_defaults(func=cmd_resume)
+    sub.add_parser("selftest", help="run filter/SSRF self-tests").set_defaults(func=cmd_selftest)
+
+    s = sub.add_parser("start", help="discover and crawl prospect domains")
+    s.add_argument("--profile", help="only this profile (default: all)")
+    s.add_argument("--limit-terms", type=int, default=8)
+    s.add_argument("--limit-regions", type=int, default=5)
+    s.add_argument("--net-limit", type=int, default=20, help="P2P results per query")
+    s.add_argument("--max-domains", type=int, default=5, help="max new domains per profile per run")
+    s.add_argument("--depth", type=int, default=2)
+    s.add_argument("--max-pages", type=int, default=15)
+    s.add_argument("--delay", type=float, default=2.0)
+    s.add_argument("--recrawl-days", type=int, default=30)
+    s.add_argument("--force", action="store_true", help="ignore recrawl/backoff")
+    s.add_argument("--dry-run", action="store_true", help="discover+filter only, do not crawl")
+    s.set_defaults(func=cmd_start)
+
+    q = sub.add_parser("search", help="search one prospect collection locally")
+    q.add_argument("--profile", required=True)
+    q.add_argument("--query", required=True)
+    q.add_argument("--limit", type=int, default=10)
+    q.set_defaults(func=cmd_search)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()
