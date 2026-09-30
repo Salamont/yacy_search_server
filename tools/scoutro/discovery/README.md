@@ -340,6 +340,12 @@ classification per profile. `classifications.jsonl` is the append-only
 history (see "State integrity"). Recrawl after ~30 days; runs are pausable/resumable (`pause` also
 stops `classify`) and never loop aggressively.
 
+## Next version
+
+Open points (not implemented yet, e.g. notifications for crawl/index/LLM/
+security events) are tracked in [`TODO.md`](TODO.md). They are started only
+after this state is merged and tested on Olares.
+
 ## Tests
 
 ```sh
