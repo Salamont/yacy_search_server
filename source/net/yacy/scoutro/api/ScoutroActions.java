@@ -61,6 +61,16 @@ final class ScoutroActions {
     private static final Pattern COLLECTION = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     private static final Pattern LANGUAGE = Pattern.compile("[a-z]{2}");
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?");
+    /** A DNS name with at least two labels, lower case; no IP literals, ports, wildcards or query syntax. */
+    private static final Pattern DOMAIN = Pattern.compile(
+            "(?=.{3,253}$)[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+");
+    private static final Pattern CONTROL_CHARS = Pattern.compile("[\\p{Cc}\\p{Cf}&&[^\\n\\t]]");
+
+    static final int EVIDENCE_DEFAULT_LIMIT = 8;
+    static final int EVIDENCE_MAX_LIMIT = 20;
+    static final int EVIDENCE_DEFAULT_CHARS = 1500;
+    static final int EVIDENCE_MIN_CHARS = 100;
+    static final int EVIDENCE_MAX_CHARS = 4000;
 
     static final int MAX_DEPTH = 10;
     static final int DEFAULT_DEPTH = 2;
@@ -259,6 +269,72 @@ final class ScoutroActions {
             }
         }
         return Json.obj("url", url, "indexed", false, "document", null);
+    }
+
+    /**
+     * Read-only evidence for one domain from the existing full-text index:
+     * URL, title and a bounded plain-text excerpt of the indexed page text
+     * (Solr text_t). Nothing is fetched from the web and no HTCache is needed,
+     * so it works for text-only crawls. The query is built here from validated
+     * values only (no Solr syntax from the caller). Page text is returned as
+     * untrusted data; callers must never treat it as instructions.
+     */
+    JSONObject indexEvidence(final Map<String, String> query) throws ApiException {
+        final String rawDomain = trimToNull(query.get("domain"));
+        if (rawDomain == null) {
+            throw ApiException.invalid("domain", "Parameter 'domain' is required, e.g. 'example.com'.");
+        }
+        final String domain = rawDomain.toLowerCase(Locale.ROOT);
+        if (!DOMAIN.matcher(domain).matches()) {
+            throw ApiException.invalid("domain", "Parameter 'domain' must be a DNS name such as 'example.com' "
+                    + "(no scheme, port, path, IP address or wildcard).");
+        }
+        final String collection = trimToNull(query.get("collection"));
+        if (collection != null && !COLLECTION.matcher(collection).matches()) {
+            throw ApiException.invalid("collection", "Parameter 'collection' must match [A-Za-z0-9_-]{1,64}.");
+        }
+        final int limit = intParam(query, "limit", EVIDENCE_DEFAULT_LIMIT, 1, EVIDENCE_MAX_LIMIT);
+        final int maxChars = intParam(query, "maxChars", EVIDENCE_DEFAULT_CHARS, EVIDENCE_MIN_CHARS, EVIDENCE_MAX_CHARS);
+        final String hostQuery = "host_s:" + phrase(domain)
+                + (domain.startsWith("www.") ? "" : " OR host_s:" + phrase("www." + domain));
+        final YaCyLoopback.Params params = new YaCyLoopback.Params()
+                .add("q", hostQuery)
+                .add("defType", "lucene")
+                .add("fq", collection == null ? "httpstatus_i:200" : "httpstatus_i:200 AND collection_sxt:" + phrase(collection))
+                .add("sort", "crawldepth_i asc,sku asc")
+                .add("rows", limit)
+                .add("wt", "json")
+                .add("fl", "sku,title,text_t");
+        final JSONObject result = Json.parseUpstream(this.yacy.getAdmin("solr/select", params), "solr/select");
+        final JSONObject response = result.optJSONObject("response");
+        final JSONArray docs = response == null ? null : response.optJSONArray("docs");
+        final JSONArray out = Json.arr();
+        if (docs != null) {
+            for (int i = 0; i < docs.length(); i++) {
+                final JSONObject doc = docs.optJSONObject(i);
+                if (doc == null) {
+                    continue;
+                }
+                final String text = excerpt(firstString(doc.opt("text_t")), maxChars);
+                out.put(Json.obj(
+                        "url", doc.optString("sku", ""),
+                        "title", excerpt(firstString(doc.opt("title")), 300),
+                        "excerpt", text));
+            }
+        }
+        return Json.obj(
+                "domain", domain,
+                "collection", collection,
+                "total", response == null ? 0 : response.optLong("numFound", 0),
+                "limit", limit,
+                "maxChars", maxChars,
+                "documents", out);
+    }
+
+    /** Plain text, whitespace collapsed, control/format characters removed, cut at maxChars. */
+    static String excerpt(final String text, final int maxChars) {
+        final String clean = CONTROL_CHARS.matcher(text == null ? "" : text).replaceAll(" ").replaceAll("\\s+", " ").trim();
+        return clean.length() <= maxChars ? clean : clean.substring(0, maxChars);
     }
 
     private JSONObject solr(final String q, final int rows) throws ApiException {

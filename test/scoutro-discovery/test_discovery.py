@@ -417,9 +417,16 @@ class HeuristicTests(unittest.TestCase):
 INDEX = {"sonnenhof-pflege.de": CARE_HOME, "koelner-zeitung.de": NEWS, "uni-koeln.de": UNIVERSITY}
 
 
+EVIDENCE_COLLECTIONS = {"edelsenior-web"}     # collections that hold the INDEX documents in the mock
+
+
 class ApiMock:
-    def __init__(self):
+    """Mock of the Scoutro API. evidence=False simulates a server before 1.942-scoutro.4 (no /v1/index/evidence)."""
+
+    def __init__(self, evidence=True, extra=None):
         self.calls = []
+        self.evidence = evidence
+        self.index = dict(INDEX, **(extra or {}))
         mock = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -440,13 +447,21 @@ class ApiMock:
                 if u.path == "/scoutro/api/v1/search":
                     q = urllib.parse.parse_qs(u.query)["q"][0]
                     results = []
-                    for dom, docs in INDEX.items():
+                    for dom, docs in mock.index.items():
                         site = "site:" + dom in q or "site:www." + dom in q
                         coll = "collection:edelsenior-web" in q and "pflegeheim" in q.lower()
                         if site or coll:
                             results += [{"url": d["url"], "title": d["title"], "snippet": d["snippet"],
                                          "host": urllib.parse.urlsplit(d["url"]).hostname} for d in docs]
                     return self._send(200, {"results": results, "total": len(results)})
+                if u.path == "/scoutro/api/v1/index/evidence" and mock.evidence:
+                    qs = {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+                    docs = mock.index.get(qs["domain"], []) if qs.get("collection") in EVIDENCE_COLLECTIONS else []
+                    limit, max_chars = int(qs.get("limit", 8)), int(qs.get("maxChars", 1500))
+                    return self._send(200, {"domain": qs["domain"], "collection": qs.get("collection"),
+                                            "total": len(docs), "limit": limit, "maxChars": max_chars,
+                                            "documents": [{"url": d["url"], "title": d["title"],
+                                                           "excerpt": d["snippet"][:max_chars]} for d in docs[:limit]]})
                 if u.path.startswith("/scoutro/api/v1/crawls/"):
                     return self._send(404, {"error": {"code": "crawl_not_found", "message": "gone"}})
                 self._send(404, {"error": {"code": "not_found", "message": u.path}})
@@ -603,6 +618,113 @@ class CrawlCollectionTests(unittest.TestCase):
                           "stackfinder": "stackfinder-web", "bauteamcheck": "bauteamcheck-web"})
         conf_profiles = set(disc.load_profiles(os.path.join(CONFIG, "profiles.conf")))
         self.assertEqual(conf_profiles, set(RULES["profiles"]))
+
+
+class EvidenceClientTests(unittest.TestCase):
+    """classify reads indexed page text via /v1/index/evidence (text_t), not search snippets."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = {k: v for k, v in os.environ.items() if not k.startswith("SCOUTRO_")}
+        self.env.update(SCOUTRO_DISCOVERY_DIR=self.tmp.name, SCOUTRO_PASSWORD="test")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_classify(self, api, domains, *extra, env=None):
+        state = {"paused": False, "profiles": {}, "domains": {
+            d: {"profile": "edelsenior", "domain": d, "status": "crawled"} for d in domains}}
+        with open(os.path.join(self.tmp.name, "state.json"), "w", encoding="utf-8") as f:
+            json.dump(state, f)
+        e = dict(self.env, SCOUTRO_URL=api.url, **(env or {}))
+        p = subprocess.run([sys.executable, DISCOVERY, "classify", "--profile", "edelsenior", "--delay", "0",
+                            "--backend", "heuristic", "--reclassify", *extra], env=e, capture_output=True, text=True,
+                           timeout=60)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        with open(os.path.join(self.tmp.name, "state.json"), encoding="utf-8") as f:
+            st = json.load(f)
+        return {d: (st["domains"][d].get("classifications") or {}).get("edelsenior") for d in domains}
+
+    def paths(self, api):
+        return [c[1] for c in api.calls]
+
+    def test_classify_uses_evidence_endpoint(self):
+        api = ApiMock()
+        try:
+            recs = self.run_classify(api, ["sonnenhof-pflege.de"])
+        finally:
+            api.close()
+        self.assertEqual(recs["sonnenhof-pflege.de"]["verdict"], "PASS")
+        self.assertIn("/scoutro/api/v1/index/evidence", self.paths(api))
+        self.assertNotIn("/scoutro/api/v1/search", self.paths(api))
+        q = [c[2] for c in api.calls if c[1] == "/scoutro/api/v1/index/evidence"][0]
+        self.assertEqual({k: v[0] for k, v in q.items()},
+                         {"domain": "sonnenhof-pflege.de", "collection": "edelsenior-web", "limit": "8", "maxChars": "1500"})
+
+    def test_legacy_collection_is_tried_second(self):
+        EVIDENCE_COLLECTIONS.clear()
+        EVIDENCE_COLLECTIONS.add("prospect-edelsenior")
+        api = ApiMock()
+        try:
+            recs = self.run_classify(api, ["sonnenhof-pflege.de"])
+        finally:
+            api.close()
+            EVIDENCE_COLLECTIONS.clear()
+            EVIDENCE_COLLECTIONS.add("edelsenior-web")
+        colls = [c[2]["collection"][0] for c in api.calls if c[1] == "/scoutro/api/v1/index/evidence"]
+        self.assertEqual(colls, ["edelsenior-web", "prospect-edelsenior"])
+        self.assertEqual(recs["sonnenhof-pflege.de"]["verdict"], "PASS")
+
+    def test_limits_are_clamped(self):
+        api = ApiMock()
+        try:
+            self.run_classify(api, ["sonnenhof-pflege.de"], env={"SCOUTRO_CLASSIFY_MAX_DOCS": "500",
+                                                                 "SCOUTRO_CLASSIFY_MAX_DOC_CHARS": "99999"})
+        finally:
+            api.close()
+        q = [c[2] for c in api.calls if c[1] == "/scoutro/api/v1/index/evidence"][0]
+        self.assertEqual((q["limit"][0], q["maxChars"][0]), ("20", "4000"))
+
+    def test_old_server_falls_back_to_search(self):
+        api = ApiMock(evidence=False)
+        try:
+            recs = self.run_classify(api, ["sonnenhof-pflege.de"])
+        finally:
+            api.close()
+        self.assertIn("/scoutro/api/v1/search", self.paths(api))
+        self.assertEqual(recs["sonnenhof-pflege.de"]["verdict"], "PASS")
+
+    def test_missing_text_is_unsure(self):
+        empty = [{"url": "https://www.leer-text.de/", "title": "Pflegeheim Leer GmbH", "snippet": ""},
+                 {"url": "https://www.leer-text.de/impressum", "title": "Impressum", "snippet": "  "}]
+        api = ApiMock(extra={"leer-text.de": empty})
+        try:
+            recs = self.run_classify(api, ["leer-text.de", "nicht-indexiert.de"])
+        finally:
+            api.close()
+        rec = recs["leer-text.de"]
+        self.assertEqual((rec["verdict"], rec["reasons"][0]["code"], rec["confidence"]), ("UNSURE", "no_indexed_text", 0.0))
+        self.assertEqual(sc.validate_record(rec), [])
+        self.assertIsNone(recs["nicht-indexiert.de"])          # nothing indexed: skipped, retried next run
+
+    def test_missing_text_never_calls_the_model(self):
+        mock = LlmMock()
+        mock.reply(model_answer("PASS"))
+        try:
+            rec = llm_classifier(mock).classify("edelsenior", "leer-text.de",
+                                                [{"url": "https://leer-text.de/", "title": "Pflegeheim", "snippet": ""}])
+        finally:
+            mock.close()
+        self.assertEqual((rec["verdict"], rec["reasons"][0]["code"]), ("UNSURE", "no_indexed_text"))
+        self.assertEqual(mock.requests, [])
+
+    def test_long_page_text_is_bounded_in_prompt(self):
+        docs = [{"url": "https://x.de/%d" % i, "title": "t", "snippet": "Pflegeheim " * 1000} for i in range(10)]
+        msgs, _ = sc.build_messages("edelsenior", RULES["profiles"]["edelsenior"], "v", "x.de", docs, max_chars=6000)
+        block = msgs[1]["content"].split("-BEGIN\n")[1].split("\nDATA-")[0]
+        items = json.loads(block)
+        self.assertLessEqual(sum(len(i["text"]) for i in items), 6000)
+        self.assertTrue(all(len(i["text"]) <= 1500 for i in items))
 
 
 class StateIntegrityTests(unittest.TestCase):

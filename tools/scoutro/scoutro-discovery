@@ -343,6 +343,10 @@ class Client:
     def search(self, q, source="local", limit=10):
         return self.call("GET", "/v1/search", {"q": q, "source": source, "limit": limit})
 
+    def evidence(self, domain, collection=None, limit=8, max_chars=1500):
+        return self.call("GET", "/v1/index/evidence", {"domain": domain, "collection": collection,
+                                                      "limit": limit, "maxChars": max_chars})
+
     def crawl_start(self, url, collection, depth=2, max_pages=15, scope="domain"):
         return self.call("POST", "/v1/crawls", body={
             "url": url, "depth": depth, "scope": scope,
@@ -818,12 +822,32 @@ def _profile_rules_or_exit(rules, profile):
     return rules["profiles"][profile]
 
 
-def fetch_documents(client, domain, prules, max_docs=8):
-    """Indexed evidence for one domain from the local index (titles, URLs, plain-text snippets).
+def fetch_documents(client, domain, prules, max_docs=8, max_chars=1500):
+    """Indexed evidence for one domain: URL, title and page text from the index.
 
-    Several small site: queries, so that snippets come from topic-relevant
-    passages. Nothing is fetched from the web here; this only reads the index.
+    Uses the read-only Scoutro endpoint /v1/index/evidence, which reads the
+    indexed page text (Solr text_t) of the domain in the profile collection
+    (then in its legacy collections). Nothing is fetched from the web and no
+    HTCache is needed. Servers without that endpoint (Scoutro < 1.942-scoutro.4)
+    fall back to search results (titles only with text-only crawls).
     """
+    collections = [prules["collection"]] + list(prules.get("legacy_collections", []))
+    for coll in collections:
+        try:
+            res = client.evidence(domain, coll, limit=max_docs, max_chars=max_chars)
+        except ApiError as e:
+            if e.status == 404 and e.code == "not_found":
+                return fetch_documents_search(client, domain, prules, max_docs)
+            raise
+        docs = [{"url": d.get("url", ""), "title": d.get("title", ""), "snippet": d.get("excerpt", "")}
+                for d in res.get("documents", []) if d.get("url")]
+        if docs:
+            return docs[:max_docs]
+    return []
+
+
+def fetch_documents_search(client, domain, prules, max_docs=8):
+    """Fallback for older servers: evidence from search results (title + snippet)."""
     queries = ["site:" + domain]              # YaCy's site: filter also matches www.<domain>
     queries += ["site:%s %s" % (domain, k) for k in prules.get("keywords", [])[:2]]
     queries.append("site:%s impressum" % domain)
@@ -895,7 +919,8 @@ def cmd_classify(args):
         sys.exit("discovery is paused (run 'resume' first)")
     client = make_client(args)
     classifier = make_classifier(args, rules)
-    max_docs = int(os.environ.get("SCOUTRO_CLASSIFY_MAX_DOCS", "8"))
+    max_docs = min(20, max(1, int(os.environ.get("SCOUTRO_CLASSIFY_MAX_DOCS", "8"))))
+    max_doc_chars = min(4000, max(100, int(os.environ.get("SCOUTRO_CLASSIFY_MAX_DOC_CHARS", "1500"))))
     report = {"backend": classifier.backend, "model": classifier.llm.model if classifier.backend == "llm" else "",
               "criteria_version": classifier.criteria_version, "profiles": {}}
     for name in names:
@@ -920,7 +945,7 @@ def cmd_classify(args):
                 counts["skipped"] += 1
                 done.append({"domain": d, "status": "crawl_running", "verdict": None})
                 continue
-            docs = fetch_documents(client, d, prules, max_docs)
+            docs = fetch_documents(client, d, prules, max_docs, max_doc_chars)
             if not docs:
                 counts["skipped"] += 1
                 done.append({"domain": d, "status": "not_indexed", "verdict": None})

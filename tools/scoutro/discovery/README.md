@@ -136,9 +136,16 @@ operator edits it — never content from crawled pages.
 
 `classify` handles domains of the profile whose crawl was started
 (`status=crawled`) and whose crawl is no longer running. Evidence comes only
-from the local index (titles, URLs and plain-text snippets from a few
-`site:<domain>` queries); nothing is fetched from the web. Domains without
-indexed pages are reported as `not_indexed` and tried again next run. Results
+from the local index, through the read-only Scoutro endpoint
+`GET /scoutro/api/v1/index/evidence` (Scoutro `1.942-scoutro.4` or newer):
+URL, title and a bounded excerpt of the **indexed page text** (Solr `text_t`)
+of the domain in the profile collection, then in its legacy collections.
+Nothing is fetched from the web and no HTCache is needed, so classification
+works with text-only crawls. Older servers without that endpoint fall back to
+search results (URL and title only with text-only crawls). Domains without
+indexed pages are reported as `not_indexed` and tried again next run; pages
+that are indexed but carry no text give `UNSURE` (`no_indexed_text`) without
+calling a model. Results
 are stored in `state.json` (`domains.<domain>.classifications.<profile>`) and
 appended to `classifications.jsonl` (audit log). A current result is not
 re-classified unless `--reclassify` is given; results with a classifier error
@@ -285,7 +292,8 @@ was produced with; it is stored in every record as
 | `SCOUTRO_LLM_TIMEOUT` | `60` | seconds per request |
 | `SCOUTRO_LLM_RETRIES` | `2` | extra attempts on timeout, 5xx, network or invalid output (back-off 0.5 s, 1 s, 2 s …) |
 | `SCOUTRO_LLM_MAX_TOKENS` | `800` | answer limit |
-| `SCOUTRO_CLASSIFY_MAX_DOCS` | `8` | indexed pages used as evidence per domain |
+| `SCOUTRO_CLASSIFY_MAX_DOCS` | `8` | indexed pages used as evidence per domain (1–20) |
+| `SCOUTRO_CLASSIFY_MAX_DOC_CHARS` | `1500` | page text per document read from the index (100–4000) |
 | `SCOUTRO_CLASSIFY_MAX_CHARS` | `6000` | evidence text sent to the model per domain |
 
 ### Untrusted content and prompt injection
@@ -351,6 +359,7 @@ after this state is merged and tested on Olares.
 ```sh
 python3 tools/scoutro/scoutro-discovery selftest              # offline filter/SSRF/classifier checks
 python3 test/scoutro-discovery/test_discovery.py -v           # classification, schema, CLI (mock API + mock LLM)
+SCOUTRO_E2E=1 python3 test/scoutro-discovery/test_evidence_e2e.py -v   # real, disposable Scoutro (see file header)
 ```
 
 ## Setup for OpenCode (or another agent)

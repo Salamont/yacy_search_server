@@ -115,12 +115,17 @@ def build_parser():
     s.add_argument("--network", action="store_true", help="also search the peer-to-peer network")
     s.add_argument("--lang", help="two-letter language code")
 
-    idx = sub.add_parser("index", help="index status and lookup").add_subparsers(dest="index_command", required=True)
+    idx = sub.add_parser("index", help="index status, lookup and evidence").add_subparsers(dest="index_command", required=True)
     idx.add_parser("status")
     lookup = idx.add_parser("lookup")
     g = lookup.add_mutually_exclusive_group(required=True)
     g.add_argument("--url")
     g.add_argument("--host")
+    ev = idx.add_parser("evidence", help="indexed text of a domain (URL, title, excerpt from text_t)")
+    ev.add_argument("domain")
+    ev.add_argument("--collection")
+    ev.add_argument("--limit", type=int)
+    ev.add_argument("--max-chars", type=int)
 
     crawl = sub.add_parser("crawl", help="crawls").add_subparsers(dest="crawl_command", required=True)
     crawl.add_parser("list")
@@ -173,6 +178,9 @@ def main(argv=None):
     elif c == "index":
         if args.index_command == "status":
             result = client.call("GET", "/v1/index")
+        elif args.index_command == "evidence":
+            result = client.call("GET", "/v1/index/evidence", {"domain": args.domain, "collection": args.collection,
+                                                               "limit": args.limit, "maxChars": args.max_chars})
         else:
             result = client.call("GET", "/v1/index/lookup", {"url": args.url, "host": args.host})
     elif c == "crawl":

@@ -25,6 +25,7 @@ instance.
 | `crawl.pause` / `crawl.resume` | only for the **whole** local crawler queue (`Crawler_p` pause/continue=localcrawler), not per crawl | – | – | – | – | – | not offered in v1 (not per crawl) |
 | `index.status` | `api/status_p` (dbsize, queues, postprocessing) | `GET api/status_p.xml` | admin | no | XML | low | low |
 | `index.lookup` | embedded Solr (`/solr/select`) | `GET solr/select?q=sku:"…"` / `host_s:"…"` | admin (public if `publicSearchpage`) | no | JSON (Solr) | low | low: stable Solr fields `sku`, `host_s` |
+| `index.evidence` | embedded Solr (`/solr/select`) | `GET solr/select?q=host_s:"…" OR host_s:"www.…"&fq=httpstatus_i:200 [AND collection_sxt:"…"]&fl=sku,title,text_t` | admin | no | JSON (Solr) | low | low: stable Solr fields `sku`, `title`, `text_t`, `host_s`, `httpstatus_i`, `collection_sxt` |
 | `system.status` | `api/status_p`, `api/version` | `GET api/status_p.xml`, `GET api/version.xml` | admin / public | no | XML | low | low |
 | `health` | `api/version` | `GET api/version.xml` | public | no | XML | low | low |
 | `config.get` / `config.set` | YaCy configuration (`Switchboard.getConfig` / `setConfig`, as used by `ConfigPortal_p`) | in-process, **allowlist only** | admin | not needed (JSON API has its own CSRF protection) | – | low | low: two harmless settings |
@@ -60,6 +61,7 @@ Other findings:
 | `search` | `GET /scoutro/api/v1/search?q=…` | no | admin | `search QUERY` | `scoutro_search` |
 | `index.status` | `GET /scoutro/api/v1/index` | no | admin | `index status` | `scoutro_index_status` |
 | `index.lookup` | `GET /scoutro/api/v1/index/lookup?url=…\|host=…` | no | admin | `index lookup --url/--host` | `scoutro_index_lookup` |
+| `index.evidence` | `GET /scoutro/api/v1/index/evidence?domain=…` | no | admin | `index evidence DOMAIN` | `scoutro_index_evidence` |
 | `crawl.list` | `GET /scoutro/api/v1/crawls` | no | admin | `crawl list` | `scoutro_crawl_list` |
 | `crawl.start` | `POST /scoutro/api/v1/crawls` | **yes** | admin | `crawl start URL` | `scoutro_crawl_start` |
 | `crawl.status` | `GET /scoutro/api/v1/crawls/{id}` | no | admin | `crawl status ID` | `scoutro_crawl_status` |

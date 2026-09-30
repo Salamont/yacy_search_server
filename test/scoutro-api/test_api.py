@@ -30,6 +30,7 @@ import sys
 import time
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 
 BASE = os.environ.get("SCOUTRO_URL", "http://127.0.0.1:8090").rstrip("/")
@@ -156,7 +157,7 @@ class Authentication(unittest.TestCase):
 
     def test_admin_reads_require_auth(self):
         for path in ("/v1/system", "/v1/index", "/v1/search?q=test", "/v1/crawls", "/v1/config",
-                     "/v1/crawls/abcdefghijkl"):
+                     "/v1/crawls/abcdefghijkl", "/v1/index/evidence?domain=example.com"):
             status, _, _ = call("GET", path, auth=False)
             self.assertEqual(status, 401, path)
 
@@ -225,6 +226,34 @@ class ReadActions(unittest.TestCase):
         status, data, _ = call("GET", "/v1/index/lookup?host=example.com")
         self.assertEqual(status, 200)
         self.assertIsInstance(data["documents"], int)
+
+    def test_index_evidence_validation(self):
+        q = urllib.parse.quote
+        for query, field in (("", "domain"), ("?domain=", "domain"),
+                             ("?domain=" + q("*.example.com"), "domain"),
+                             ("?domain=" + q('example.com" OR host_s:*'), "domain"),
+                             ("?domain=" + q("example.com OR x"), "domain"),
+                             ("?domain=127.0.0.1", "domain"), ("?domain=localhost", "domain"),
+                             ("?domain=example.com:8080", "domain"), ("?domain=" + q("http://example.com/"), "domain"),
+                             ("?domain=" + q("ex ample.com"), "domain"), ("?domain=" + "a" * 64 + ".com", "domain"),
+                             ("?domain=example.com&collection=" + q("x OR y"), "collection"),
+                             ("?domain=example.com&collection=" + "c" * 65, "collection"),
+                             ("?domain=example.com&limit=0", "limit"), ("?domain=example.com&limit=21", "limit"),
+                             ("?domain=example.com&maxChars=99", "maxChars"),
+                             ("?domain=example.com&maxChars=4001", "maxChars")):
+            status, data, _ = call("GET", "/v1/index/evidence" + query)
+            self.assertEqual(status, 400, query)
+            self.assertEqual(data["error"]["details"]["field"], field, query)
+
+    def test_index_evidence_unknown_domain(self):
+        status, data, _ = call("GET", "/v1/index/evidence?domain=Nothing-Indexed.Example.com&limit=3&maxChars=200")
+        self.assertEqual(status, 200)
+        self.assertEqual((data["domain"], data["total"], data["documents"]), ("nothing-indexed.example.com", 0, []))
+        self.assertEqual((data["limit"], data["maxChars"], data["collection"]), (3, 200, None))
+
+    def test_index_evidence_is_read_only(self):
+        status, data, _ = call("POST", "/v1/index/evidence?domain=example.com", body={})
+        self.assertEqual(status, 405)
 
     def test_config_allowlist(self):
         status, data, _ = call("GET", "/v1/config")

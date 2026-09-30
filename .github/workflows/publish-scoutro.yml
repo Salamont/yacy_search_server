@@ -60,16 +60,16 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/salamont/scoutro:1.942-scoutro.3
-            ghcr.io/salamont/scoutro:0.5.1
+            ghcr.io/salamont/scoutro:1.942-scoutro.4
+            ghcr.io/salamont/scoutro:0.5.2
           build-args: |
-            SCOUTRO_VERSION=1.942-scoutro.3
+            SCOUTRO_VERSION=1.942-scoutro.4
             SCOUTRO_REVISION=${{ github.sha }}
 
       - name: Report published digest
         run: |
           echo "### Scoutro image published" >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.3 | tee /tmp/inspect.txt
+          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.4 | tee /tmp/inspect.txt
           {
             echo '```'
             cat /tmp/inspect.txt

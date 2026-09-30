@@ -288,7 +288,7 @@ def build_messages(profile, rules, criteria_version, domain, documents, max_char
     for d in documents:
         item = {"url": sanitize(d.get("url", ""), 500),
                 "title": sanitize(d.get("title", ""), 200),
-                "text": sanitize(d.get("snippet", ""), 600)}
+                "text": sanitize(d.get("snippet", ""), 1500)}
         size = sum(len(v) for v in item.values())
         if used + size > max_chars:
             break
@@ -556,6 +556,12 @@ class Classifier:
         collection = rules["collection"]
         domain = domain.lower().strip(".")
         sig = signals(domain, documents, rules, self.rules)
+        if documents and not any(sanitize(d.get("snippet", ""), 50) for d in documents):
+            # pages are indexed but carry no text: never guess from titles alone
+            return make_record(profile, collection, domain, "UNSURE", 0.0, "unknown", default_country(domain), location,
+                               [_reason("no_indexed_text", "indexed pages have no text; nothing to classify")],
+                               _evidence(documents, limit=3), self.backend,
+                               self.llm.model if self.backend == "llm" else "", self.criteria_version, ts=ts)
         if self.backend == "heuristic":
             return self._heuristic(profile, collection, domain, documents, location, sig, ts)
         if not self.llm.configured:

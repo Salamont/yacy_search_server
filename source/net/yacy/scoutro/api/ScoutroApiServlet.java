@@ -117,6 +117,10 @@ public class ScoutroApiServlet extends HttpServlet {
                     expect(method, parts, 4, "GET");
                     return this.actions.indexLookup(queryParams(request));
                 }
+                if (parts.length == 4 && "evidence".equals(parts[3])) {
+                    expect(method, parts, 4, "GET");
+                    return this.actions.indexEvidence(queryParams(request));
+                }
                 break;
             case "config":
                 requireAdmin(request);
