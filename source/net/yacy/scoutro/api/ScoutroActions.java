@@ -429,9 +429,13 @@ final class ScoutroActions {
                 .add("followFrames", "on")
                 .add("obeyHtmlRobotsNoindex", "on")
                 .add("indexText", "on")
-                .add("indexMedia", "on")
-                .add("storeHTCache", "on")
-                .add("cachePolicy", "iffresh")
+                // Scoutro is a search index for agents, not a web archive:
+                // index the text only, never store the crawled originals
+                // (HTCache) and never index media. cachePolicy=nocache keeps
+                // the crawler from consulting a response cache.
+                .add("indexMedia", "off")
+                .add("storeHTCache", "off")
+                .add("cachePolicy", "nocache")
                 .add("recrawl", "reload")
                 .add("reloadIfOlderNumber", "3")
                 .add("reloadIfOlderUnit", "day")

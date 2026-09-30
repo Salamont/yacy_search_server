@@ -244,6 +244,11 @@ scoutroctl ui route config.accounts
 scoutroctl actions        # print actions.json
 ```
 
+> `crawl start` builds a **text-only** index: it never stores the crawled
+> originals (HTCache is off) and does not index media, so Scoutro is a search
+> index, not a web archive. Use the YaCy web UI if you explicitly want an
+> archived crawl.
+
 Output is JSON (`--compact` for one line). Exit codes: `0` success, `1` API
 error (the error object is printed), `2` usage error, `3` Scoutro not
 reachable.
