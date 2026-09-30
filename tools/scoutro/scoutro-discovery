@@ -42,10 +42,12 @@
 
 import argparse
 import fcntl
+import hashlib
 import ipaddress
 import json
 import os
 import re
+import secrets
 import shutil
 import socket
 import subprocess
@@ -58,7 +60,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import scoutro_classify as sc  # noqa: E402  (sibling module, stdlib only)
 
-VERSION = "2"
+VERSION = "3"
 
 DEFAULT_CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "discovery")
 
@@ -192,10 +194,13 @@ def resolve_public(host):
 def robots_allows(host):
     """Best-effort robots.txt check for our crawler user-agent (yacybot).
 
-    Returns (allowed, reason). On any fetch error we allow and let YaCy decide
-    (YaCy re-checks robots.txt itself).
+    Returns (allowed, reason). allowed is True/False, or None when the site
+    answered robots.txt with HTTP 5xx on every scheme (a transient site
+    error: do not crawl now, retry later). On any other fetch error we allow
+    and let YaCy decide (YaCy re-checks robots.txt itself).
     """
     body = None
+    server_errors = []
     for scheme in ("https", "http"):
         try:
             req = urllib.request.Request(scheme + "://" + host + "/robots.txt",
@@ -203,9 +208,15 @@ def robots_allows(host):
             with urllib.request.urlopen(req, timeout=8) as r:
                 body = r.read(200000).decode("utf-8", "replace")
                 break
+        except urllib.error.HTTPError as e:
+            if 500 <= e.code <= 599:
+                server_errors.append(e.code)
+            continue
         except Exception:
             continue
     if body is None:
+        if len(server_errors) == 2:
+            return None, "site-5xx:%d" % server_errors[-1]
         return True, "robots-unreachable"
     group = None
     groups = {}
@@ -305,16 +316,98 @@ class ApiError(Exception):
         self.message = message
 
 
+class AuthFailed(ApiError):
+    """Scoutro rejected the administrator credentials (infrastructure/client error, never a domain error)."""
+
+    def __init__(self, message):
+        super().__init__(401, "auth_failed", message)
+
+
+class InfrastructureError(ApiError):
+    """Scoutro itself is unreachable or failing; the current domain is not to blame."""
+
+
+MAX_AUTH_ATTEMPTS = 3
+
+
+def _digest_challenge(header_values):
+    """First Digest challenge among the WWW-Authenticate values, as a dict (or None)."""
+    for value in header_values or []:
+        scheme, _, rest = value.strip().partition(" ")
+        if scheme.lower() == "digest" and rest:
+            try:
+                return urllib.request.parse_keqv_list(urllib.request.parse_http_list(rest))
+            except ValueError:
+                return None
+    return None
+
+
+def _quote(value):
+    return '"' + str(value).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
 class Client:
-    def __init__(self, base_url, user, pw, timeout=30):
+    """Scoutro API client with a stateless HTTP Digest implementation.
+
+    Why not urllib's HTTPDigestAuthHandler: it keeps a retry counter per
+    handler that is only reset when the authenticated retry succeeds. When the
+    authenticated request itself ends in an HTTP error (e.g. 422 for a
+    rejected start URL) the reset is skipped; after six such errors in a row
+    the handler answers every further challenge with "401 digest auth failed"
+    without even trying. That made crawl.start fail with 401 intermittently.
+
+    Here every request is authenticated from scratch: send, and on a 401 with
+    a Digest challenge answer that challenge with a fresh cnonce (nc=1). A 401
+    means Scoutro did not execute the request, so repeating it is safe, also
+    for POST. At most MAX_AUTH_ATTEMPTS authenticated attempts; then
+    AuthFailed ("auth_failed"). Timeouts and network errors are never
+    repeated. Credentials are never logged or put into error messages.
+    """
+
+    def __init__(self, base_url, user, pw, timeout=None):
         self.base = base_url.rstrip("/") + "/scoutro/api"
-        self.timeout = timeout
-        handlers = []
-        if pw:
-            mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
-            mgr.add_password(None, base_url, user, pw)
-            handlers.append(urllib.request.HTTPDigestAuthHandler(mgr))
-        self.opener = urllib.request.build_opener(*handlers)
+        self.timeout = timeout or float(os.environ.get("SCOUTRO_API_TIMEOUT", "60"))
+        self.user = user
+        self._pw = pw
+        self.opener = urllib.request.build_opener()
+
+    def _authorization(self, method, url, chal):
+        realm, nonce = chal.get("realm"), chal.get("nonce")
+        if realm is None or nonce is None:
+            return None
+        algorithm = chal.get("algorithm", "MD5")
+        alg = algorithm.upper()
+        sess = alg.endswith("-SESS")
+        base_alg = alg[:-5] if sess else alg
+        hashes = {"MD5": hashlib.md5, "SHA-256": hashlib.sha256}
+        if base_alg not in hashes:
+            return None
+
+        def H(x):
+            return hashes[base_alg](x.encode("utf-8")).hexdigest()
+
+        qops = [q.strip().lower() for q in chal.get("qop", "").split(",") if q.strip()]
+        if qops and "auth" not in qops:
+            return None
+        u = urllib.parse.urlsplit(url)
+        uri = u.path + ("?" + u.query if u.query else "")
+        cnonce = secrets.token_hex(16)
+        nc = "00000001"
+        ha1 = H("%s:%s:%s" % (self.user, realm, self._pw))
+        if sess:
+            ha1 = H("%s:%s:%s" % (ha1, nonce, cnonce))
+        ha2 = H("%s:%s" % (method, uri))
+        if qops:
+            response = H("%s:%s:%s:%s:auth:%s" % (ha1, nonce, nc, cnonce, ha2))
+        else:
+            response = H("%s:%s:%s" % (ha1, nonce, ha2))
+        parts = ["username=" + _quote(self.user), "realm=" + _quote(realm), "nonce=" + _quote(nonce),
+                 "uri=" + _quote(uri), "algorithm=" + algorithm, "response=" + _quote(response)]
+        if "opaque" in chal:
+            parts.append("opaque=" + _quote(chal["opaque"]))
+        if qops:
+            parts += ["qop=auth", "nc=" + nc, "cnonce=" + _quote(cnonce)]
+        return "Digest " + ", ".join(parts)
 
     def call(self, method, path, query=None, body=None):
         url = self.base + path
@@ -325,20 +418,50 @@ class Client:
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
-        req = urllib.request.Request(url, data=data, method=method, headers=headers)
-        try:
-            with self.opener.open(req, timeout=self.timeout) as r:
-                return json.loads(r.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            raw = e.read().decode("utf-8", "replace")
+        authorization = None
+        auth_attempts = 0
+        while True:
+            h = dict(headers)
+            if authorization:
+                h["Authorization"] = authorization
+            req = urllib.request.Request(url, data=data, method=method, headers=h)
             try:
-                j = json.loads(raw)
-                err = j.get("error", {})
-                raise ApiError(e.code, err.get("code", "http_error"), err.get("message", raw[:200]))
-            except (ValueError, AttributeError):
-                raise ApiError(e.code, "http_error", raw[:200])
-        except urllib.error.URLError as e:
-            raise ApiError(0, "unreachable", str(e.reason))
+                with self.opener.open(req, timeout=self.timeout) as r:
+                    return json.loads(r.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                raw = e.read().decode("utf-8", "replace")
+                if e.code != 401:
+                    raise self._api_error(e.code, raw)
+                # 401: Scoutro did not execute the request -> safe to answer the challenge
+                if not self._pw:
+                    raise AuthFailed("Scoutro requires the administrator login, but no password is configured "
+                                     "(SCOUTRO_PASSWORD_FILE).")
+                if auth_attempts >= MAX_AUTH_ATTEMPTS:
+                    raise AuthFailed("Scoutro rejected the administrator login after %d authentication attempts "
+                                     "(wrong user/password, or an auth problem in front of Scoutro)." % auth_attempts)
+                chal = _digest_challenge(e.headers.get_all("WWW-Authenticate") if e.headers else None)
+                authorization = self._authorization(method, url, chal) if chal else None
+                if chal and authorization is None:
+                    raise AuthFailed("Scoutro sent an unsupported HTTP Digest challenge.")
+                auth_attempts += 1
+            except urllib.error.URLError as e:
+                reason = e.reason
+                kind = "timeout" if isinstance(reason, (socket.timeout, TimeoutError)) else "unreachable"
+                raise InfrastructureError(0, kind, "Scoutro API %s: %s" % (kind, str(reason)[:200]))
+            except (socket.timeout, TimeoutError) as e:
+                raise InfrastructureError(0, "timeout", "Scoutro API timeout: %s" % str(e)[:200])
+
+    @staticmethod
+    def _api_error(status, raw):
+        try:
+            err = json.loads(raw).get("error", {})
+            code, message = err.get("code", "http_error"), err.get("message", raw[:200])
+            details = err.get("details") or {}
+        except (ValueError, AttributeError):
+            code, message, details = "http_error", raw[:200], {}
+        e = ApiError(status, code, message)
+        e.details = details if isinstance(details, dict) else {}
+        return e
 
     def search(self, q, source="local", limit=10):
         return self.call("GET", "/v1/search", {"q": q, "source": source, "limit": limit})
@@ -579,7 +702,43 @@ def discover_candidates(client, profiles, regions, profile, term_limit, region_l
     return out, new_cursor
 
 
+# Selection order for small batches (lower tier first; discovery order inside a tier):
+TIER_NEW = 1        # never tried
+TIER_RECRAWL = 2    # crawled successfully, regular recrawl due
+TIER_RETRY = 3      # transient error (DNS, site 5xx, Scoutro upstream), retry due
+TIER_PROBLEM = 4    # known problematic start URL (rejected by Scoutro, robots, security block), cooldown over
+RETRY_STATUSES = ("retry", "error")        # "error": state written by scoutro-discovery before version 3
+PROBLEM_STATUSES = ("rejected", "robots", "blocked")
+
+
+def legacy_auth_burned(entry):
+    """State of scoutro-discovery < 3: status "error" only because the old urllib Digest
+    handler answered with HTTP 401 (see Client). The start URL was never tried."""
+    return entry.get("status") == "error" and str(entry.get("last_error", "")).split(" ", 1)[0] == "401"
+
+
+def selection_tier(entry, now, recrawl_days, force=False):
+    """Tier of a known domain, or None when it is not due. force: everything is due, one tier."""
+    if force:
+        return TIER_NEW
+    if not entry or not entry.get("status") or legacy_auth_burned(entry):
+        return TIER_NEW
+    if entry.get("next_attempt", 0) > now:
+        return None
+    status = entry.get("status")
+    if status == "crawled":
+        return TIER_RECRAWL if (now - entry.get("last_crawl", 0)) >= recrawl_days * 86400 else None
+    if status in RETRY_STATUSES:
+        return TIER_RETRY
+    return TIER_PROBLEM
+
+
 def select_domains(candidates, profile, state, force, max_domains, now, recrawl_days, require_tld=True):
+    """Filter candidates and pick due domains, new ones first (see TIER_*).
+
+    Returns (selected, accepted, rejected); selected = [(domain, candidate, tier)],
+    ordered by tier, at most max_domains. Nothing is ever removed from the state.
+    """
     accepted = {}
     rejected = {}
     for c in candidates:
@@ -595,19 +754,36 @@ def select_domains(candidates, profile, state, force, max_domains, now, recrawl_
             rejected["not-de"] = rejected.get("not-de", 0) + 1
             continue
         accepted.setdefault(rd, c)
-    selected = []
+    eligible = []
     for rd, c in accepted.items():
-        entry = state.domain(rd)
-        if entry and not force:
-            if entry.get("next_attempt", 0) > now:
-                continue
-            last = entry.get("last_crawl", 0)
-            if entry.get("status") == "crawled" and (now - last) < recrawl_days * 86400:
-                continue
-        selected.append((rd, c))
-        if len(selected) >= max_domains:
-            break
-    return selected, accepted, rejected
+        tier = selection_tier(state.domain(rd), now, recrawl_days, force)
+        if tier is not None:
+            eligible.append((rd, c, tier))
+    eligible.sort(key=lambda x: x[2])       # stable: discovery order inside a tier
+    return eligible[:max_domains], accepted, rejected
+
+
+def classify_api_error(e):
+    """Error class of a failed crawl.start (structured status/code only, never message text).
+
+    rejected   - Scoutro/YaCy refused this start URL (422 crawl_rejected, or 400 for the url field)
+    transient  - Scoutro could not complete the start for this URL right now (502 upstream_error)
+    infrastructure - anything else: Scoutro/API/client problem, not the domain's fault
+    """
+    if e.status == 422 and e.code == "crawl_rejected":
+        return "rejected"
+    if e.status == 400 and getattr(e, "details", {}).get("field") == "url":
+        return "rejected"
+    if e.status == 502 and e.code == "upstream_error":
+        return "transient"
+    return "infrastructure"
+
+
+def mark_retry(entry, error_class, error, now, recrawl_days, http_status=None):
+    attempts = entry.get("attempts", 0) + 1
+    backoff = min(recrawl_days * 86400, (2 ** attempts) * 3600)
+    entry.update({"status": "retry", "error_class": error_class, "attempts": attempts, "last_error": error,
+                  "last_http_status": http_status, "next_attempt": now + backoff})
 
 
 # ---------------------------------------------------------------------------
@@ -725,6 +901,7 @@ def cmd_start(args):
             args.region, names, osm_cfg, env_workdir(args.workdir), args.keep_pbf)
 
     report = {}
+    aborted = None
     for name in names:
         rejected = {}
         selected = []
@@ -751,34 +928,46 @@ def cmd_start(args):
 
         seen = set()
         uniq = []
-        for rd, c in selected:
+        for rd, c, tier in sorted(selected, key=lambda x: x[2]):
             if rd in seen:
                 continue
             seen.add(rd)
-            uniq.append((rd, c))
+            uniq.append((rd, c, tier))
         selected = uniq[:args.max_domains]
 
         started = []
         robots_blocked = 0
-        for rd, c in selected:
-            entry = st.domain(rd) or {}
+        upstream_errors_in_row = 0
+        for rd, c, tier in selected:
+            entry = dict(st.domain(rd) or {})      # only written back when this domain has an outcome
             entry.update({"profile": name, "domain": rd, "candidate_url": c["url"],
                           "collection": collection_for(rules, name), "region": c.get("region", "")})
             entry.setdefault("first_seen", now)
             if args.dry_run:
-                started.append({"domain": rd, "url": c["url"], "source": c.get("source", ""), "status": "dry-run"})
+                started.append({"domain": rd, "url": c["url"], "source": c.get("source", ""), "tier": tier,
+                                "status": "dry-run"})
                 continue
             ok, info = resolve_public(c["host"])
             if not ok:
-                entry.update({"status": "blocked", "attempts": entry.get("attempts", 0) + 1,
-                              "last_error": info, "next_attempt": now + 86400})
+                if info.startswith("dns:"):          # C: DNS / temporary network problem
+                    mark_retry(entry, "dns", info, now, args.recrawl_days)
+                    started.append({"domain": rd, "status": "retry:dns", "error": info})
+                else:                                # E: security block (unchanged)
+                    entry.update({"status": "blocked", "error_class": "security", "attempts": entry.get("attempts", 0) + 1,
+                                  "last_error": info, "next_attempt": now + 86400})
+                    started.append({"domain": rd, "status": "blocked:" + info})
                 st.put_domain(rd, entry)
-                started.append({"domain": rd, "status": "blocked:" + info})
                 continue
             ro, rreason = robots_allows(c["host"])
-            if not ro:
+            if ro is None:                           # D: site answers 5xx
+                mark_retry(entry, "site_5xx", rreason, now, args.recrawl_days,
+                           http_status=int(rreason.rsplit(":", 1)[1]) if rreason.startswith("site-5xx:") else None)
+                st.put_domain(rd, entry)
+                started.append({"domain": rd, "status": "retry:site_5xx", "error": rreason})
+                continue
+            if not ro:                               # E: robots (unchanged)
                 robots_blocked += 1
-                entry.update({"status": "robots", "attempts": entry.get("attempts", 0) + 1,
+                entry.update({"status": "robots", "error_class": "robots", "attempts": entry.get("attempts", 0) + 1,
                               "last_error": rreason, "next_attempt": now + args.recrawl_days * 86400})
                 st.put_domain(rd, entry)
                 started.append({"domain": rd, "status": "robots:" + rreason})
@@ -786,17 +975,40 @@ def cmd_start(args):
             try:
                 res = client.crawl_start(c["url"], collection_for(rules, name),
                                          depth=args.depth, max_pages=args.max_pages)
-                entry.update({"status": "crawled", "last_crawl": now, "attempts": 0, "last_error": "",
+                entry.update({"status": "crawled", "error_class": "", "last_crawl": now, "attempts": 0,
+                              "last_error": "", "last_http_status": None,
                               "next_attempt": now + args.recrawl_days * 86400, "crawl_id": res.get("id")})
                 st.put_domain(rd, entry)
                 started.append({"domain": rd, "url": c["url"], "crawl_id": res.get("id"), "status": "started"})
+                upstream_errors_in_row = 0
+            except AuthFailed as e:                  # A: never the domain's fault
+                aborted = {"code": "auth_failed", "message": e.message, "domain": rd,
+                           "note": "the domain was not changed; fix the Scoutro credentials and run again"}
+            except InfrastructureError as e:         # A: unreachable/timeout - POST is not repeated
+                aborted = {"code": "scoutro_" + e.code, "message": e.message, "domain": rd,
+                           "note": "the domain was not changed; the outcome of this crawl.start is unknown"}
             except ApiError as e:
-                attempts = entry.get("attempts", 0) + 1
-                backoff = min(args.recrawl_days * 86400, (2 ** attempts) * 3600)
-                entry.update({"status": "error", "attempts": attempts, "last_error": str(e),
-                              "next_attempt": now + backoff})
-                st.put_domain(rd, entry)
-                started.append({"domain": rd, "status": "error:" + str(e)})
+                cls = classify_api_error(e)
+                if cls == "rejected":                # B: long cooldown, domain kept
+                    entry.update({"status": "rejected", "error_class": "rejected",
+                                  "attempts": entry.get("attempts", 0) + 1, "last_error": str(e),
+                                  "last_http_status": e.status,
+                                  "next_attempt": now + args.rejected_cooldown_days * 86400})
+                    st.put_domain(rd, entry)
+                    started.append({"domain": rd, "status": "rejected", "error": str(e)})
+                    upstream_errors_in_row = 0
+                elif cls == "transient" and upstream_errors_in_row < 2:
+                    mark_retry(entry, "scoutro_upstream", str(e), now, args.recrawl_days, http_status=e.status)
+                    st.put_domain(rd, entry)
+                    started.append({"domain": rd, "status": "retry:scoutro_upstream", "error": str(e)})
+                    upstream_errors_in_row += 1
+                else:                                # A: infrastructure / client error
+                    aborted = {"code": "scoutro_error", "message": str(e), "domain": rd,
+                               "note": "the domain was not changed (%s)" % (
+                                   "third Scoutro upstream error in a row" if cls == "transient" else "not a domain error")}
+            if aborted:
+                started.append({"domain": rd, "status": "aborted:" + aborted["code"]})
+                break
             time.sleep(args.delay)
         entry_report = {
             "source": source,
@@ -805,14 +1017,24 @@ def cmd_start(args):
             "osm_candidates": n_osm,
             "rejected_by_reason": rejected,
             "robots_blocked": robots_blocked,
+            "selected_by_tier": {t: sum(1 for x in selected if x[2] == n)
+                                 for t, n in (("new", TIER_NEW), ("recrawl", TIER_RECRAWL),
+                                              ("retry", TIER_RETRY), ("problem", TIER_PROBLEM))},
             "processed": started,
         }
         if source in ("osm", "both"):
             entry_report["osm_regions"] = {r: osm_stats.get(r, {}).get(name, {}) for r in (args.region or [])}
         report[name] = entry_report
+        if aborted:
+            break
     if not args.dry_run:
         st.save()
+    if aborted:
+        report["aborted"] = aborted
     print(json.dumps(report, indent=2, ensure_ascii=False))
+    if aborted:
+        print(json.dumps({"error": aborted}), file=sys.stderr)
+        sys.exit(3 if aborted["code"] == "auth_failed" else 4)
 
 
 def _profile_rules_or_exit(rules, profile):
@@ -1121,7 +1343,9 @@ def main():
     s.add_argument("--max-pages", type=int, default=15)
     s.add_argument("--delay", type=float, default=2.0)
     s.add_argument("--recrawl-days", type=int, default=30)
-    s.add_argument("--force", action="store_true", help="ignore recrawl/backoff")
+    s.add_argument("--rejected-cooldown-days", type=int, default=60,
+                   help="cooldown for start URLs that Scoutro rejected (422), default 60")
+    s.add_argument("--force", action="store_true", help="ignore recrawl/backoff/cooldown and the new-first order")
     s.add_argument("--dry-run", action="store_true", help="discover+filter only, do not crawl")
     s.set_defaults(func=cmd_start)
 
@@ -1155,7 +1379,7 @@ def main():
         args.func(args)
     except ApiError as e:
         print(json.dumps({"error": {"status": e.status, "code": e.code, "message": e.message}}), file=sys.stderr)
-        sys.exit(2)
+        sys.exit(3 if isinstance(e, AuthFailed) else 2)
 
 
 if __name__ == "__main__":

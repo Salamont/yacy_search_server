@@ -340,6 +340,70 @@ Host blocklist entries match on DNS label boundaries: `pflege.de` blocks
 `pflege.de` and `www.pflege.de`, but no longer `sonnenhof-pflege.de`;
 `wikipedia.` blocks `de.wikipedia.org` but not `mywikipedia.org`.
 
+## Reliability (start)
+
+### Authentication
+
+`scoutro-discovery` authenticates every Scoutro API request with its own,
+stateless HTTP Digest implementation (MD5/SHA-256, `qop=auth`). The request
+is sent, and a `401` with a Digest challenge is answered with a fresh
+`cnonce` (at most 3 authenticated attempts). A `401` means Scoutro did not
+execute the request, so this is the only case in which a request (also a
+POST) is repeated; timeouts and network errors are never repeated.
+Credentials are never logged or put into error messages.
+
+Why not urllib's `HTTPDigestAuthHandler` (versions ≤ 2): it keeps a retry
+counter that is only reset after a successful authenticated retry. When the
+authenticated request itself ends in an HTTP error (e.g. `422` for a rejected
+start URL), the reset is skipped; after six such errors in a row every further
+request failed with `401` without even trying to authenticate — which then
+marked the following domains as failed.
+
+If authentication still fails, `start` stops the whole run with
+`{"error": {"code": "auth_failed", …}}` (exit status 3). The domain being
+processed and all following domains are **not** changed (no attempts, no
+backoff); progress made before is saved.
+
+### Error classes
+
+| Class | Trigger (structured status/code only) | Effect |
+|---|---|---|
+| A auth | `auth_failed` | run aborted (exit 3), no domain changed |
+| A infrastructure | Scoutro unreachable/timeout, `5xx` other than below, `401/403/404/409/415`, `400` for fields other than `url`, or the third `502 upstream_error` in a row | run aborted (exit 4, `scoutro_*`), no domain changed; after a timeout the outcome of that `crawl.start` is unknown |
+| B rejected | `422 crawl_rejected`, `400 invalid_request` with `details.field=url` | `status=rejected`, domain kept, cooldown `--rejected-cooldown-days` (default 60) |
+| C DNS | DNS resolution failed (own pre-check) | `status=retry`, `error_class=dns`, exponential backoff (2^attempts h, max `--recrawl-days`) |
+| D site 5xx | `robots.txt` answered `5xx` on https and http | `status=retry`, `error_class=site_5xx`, `last_http_status`, exponential backoff |
+| D Scoutro upstream | `502 upstream_error` (e.g. YaCy created no crawl profile) | `status=retry`, `error_class=scoutro_upstream`, exponential backoff |
+| E security | private/loopback/cluster target, `localhost` | `status=blocked` (unchanged logic) |
+| E robots | `robots.txt` disallows everything | `status=robots` (unchanged logic) |
+
+The error class is never guessed from message text. Scoutro's `422` does not
+carry the site's HTTP status (only YaCy's reason text), so 404/403/500 of a
+start URL are not distinguished there, and an automatic fallback from an OSM
+start URL with a path to the site root is **not** implemented (it would need
+a structured status from Scoutro).
+
+### Candidate order
+
+Small batches (`--max-domains`) take due domains in this order (discovery
+order inside a group), so known problematic URLs do not occupy them:
+
+1. never tried (includes entries of versions ≤ 2 that only failed with `401`,
+   i.e. `status=error` and `last_error` starting with `401` — their start URL
+   was never actually tried);
+2. crawled successfully and the regular recrawl is due;
+3. transient errors (`retry`, and `error` of versions ≤ 2) whose backoff is over;
+4. known problematic start URLs (`rejected`, `robots`, `blocked`) whose
+   cooldown is over.
+
+`--force` ignores backoff, cooldown and this order. Nothing is removed from the
+state; problematic domains stay and are tried again after their cooldown.
+The report shows `selected_by_tier` per profile.
+
+Exit status: `0` ok, `2` other Scoutro API error, `3` `auth_failed`,
+`4` run aborted because of a Scoutro/infrastructure error.
+`SCOUTRO_API_TIMEOUT` (default 60 s) sets the timeout per API request.
+
 ## State
 
 `state.json` in `SCOUTRO_DISCOVERY_DIR`: per-domain profile, collection,

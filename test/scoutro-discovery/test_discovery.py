@@ -916,5 +916,383 @@ class VerdictDoesNotAffectCrawlTests(unittest.TestCase):
         self.assertIn("profile_without_collection", p.stdout + p.stderr)
 
 
+# ---------------------------------------------------------------------------
+# discovery reliability: Digest client, error classes, selection order
+# ---------------------------------------------------------------------------
+
+import hashlib  # noqa: E402
+import secrets as _secrets  # noqa: E402
+
+
+class DigestMock:
+    """Scoutro-like API with real HTTP Digest (MD5, qop=auth) validation.
+
+    mode: "ok" | "reject_first_auth" (answers the first valid Authorization with a
+    fresh challenge, like a stale nonce) | "no_challenge" (401 without WWW-Authenticate)
+    status: HTTP status after successful auth for POST /v1/crawls (default 422).
+    """
+
+    REALM = 'Scoutro "test" realm'
+
+    def __init__(self, user="admin", password="s3cret", mode="ok", status=422, delay=0.0):
+        self.user, self.password, self.mode, self.status, self.delay = user, password, mode, status, delay
+        self.requests = []          # (method, path, authorized)
+        self.nonces = set()
+        self.rejected_once = False
+        mock = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def _send(self, status, obj, headers=None):
+                data = json.dumps(obj).encode()
+                try:
+                    self.send_response(status)
+                    for k, v in (headers or {}).items():
+                        self.send_header(k, v)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass                  # client gave up (timeout test)
+
+            def _challenge(self):
+                if mock.mode == "no_challenge":
+                    return self._send(401, {"error": {"code": "unauthorized", "message": "login"}})
+                nonce = _secrets.token_urlsafe(24) + "+/="
+                mock.nonces.add(nonce)
+                hdr = ('Digest realm="%s", domain="", nonce="%s", opaque="op/aque=", stale=false, algorithm=MD5, '
+                       'qop="auth", charset=UTF-8, userhash=false') % (mock.REALM.replace('"', '\\"'), nonce)
+                self._send(401, {"error": {"code": "unauthorized", "message": "login"}}, {"WWW-Authenticate": hdr})
+
+            def _authorized(self):
+                auth = self.headers.get("Authorization", "")
+                if not auth.startswith("Digest "):
+                    return False
+                f = urllib.request.parse_keqv_list(urllib.request.parse_http_list(auth[7:]))
+                if f.get("nonce") not in mock.nonces or f.get("username") != mock.user:
+                    return False
+                H = lambda x: hashlib.md5(x.encode()).hexdigest()  # noqa: E731
+                ha1 = H("%s:%s:%s" % (mock.user, mock.REALM, mock.password))
+                ha2 = H("%s:%s" % (self.command, f.get("uri")))
+                expected = H("%s:%s:%s:%s:%s:%s" % (ha1, f["nonce"], f.get("nc"), f.get("cnonce"), f.get("qop"), ha2))
+                if f.get("uri") != self.path or f.get("response") != expected or f.get("opaque") != "op/aque=":
+                    return False
+                mock.nonces.discard(f["nonce"])                  # one use per nonce, like a strict server
+                if mock.mode == "reject_first_auth" and not mock.rejected_once:
+                    mock.rejected_once = True
+                    return False
+                return True
+
+            def _handle(self):
+                n = int(self.headers.get("Content-Length") or 0)
+                if n:
+                    self.rfile.read(n)
+                ok = self._authorized()
+                mock.requests.append((self.command, self.path, ok))
+                if not ok:
+                    return self._challenge()
+                if mock.delay:
+                    time.sleep(mock.delay)
+                if self.command == "POST":
+                    if mock.status == 201:
+                        return self._send(201, {"id": "c%d" % len(mock.requests)})
+                    if mock.status == 422:
+                        return self._send(422, {"error": {"code": "crawl_rejected", "message": "YaCy did not start the crawl"}})
+                    if mock.status == 400:
+                        return self._send(400, {"error": {"code": "invalid_request", "message": "bad url",
+                                                          "details": {"field": "url"}}})
+                    return self._send(mock.status, {"error": {"code": "upstream_error", "message": "x"}})
+                return self._send(200, {"crawls": []})
+
+            do_GET = do_POST = _handle
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.url = "http://127.0.0.1:%d" % self.server.server_address[1]
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def close(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+
+class DigestClientTests(unittest.TestCase):
+    def client(self, mock, password="s3cret", timeout=5):
+        return disc.Client(mock.url, "admin", password, timeout=timeout)
+
+    def test_many_consecutive_errors_never_turn_into_401(self):
+        # regression: urllib's HTTPDigestAuthHandler answered every challenge with 401
+        # after six authenticated requests in a row had ended in an HTTP error (422)
+        mock = DigestMock(status=422)
+        try:
+            c = self.client(mock)
+            for i in range(12):
+                with self.assertRaises(disc.ApiError) as cm:
+                    c.crawl_start("https://dead%d.de/" % i, "edelsenior-web")
+                self.assertEqual((cm.exception.status, cm.exception.code), (422, "crawl_rejected"))
+            self.assertEqual(c.call("GET", "/v1/crawls"), {"crawls": []})
+        finally:
+            mock.close()
+
+    def test_success_and_fresh_state_per_request(self):
+        mock = DigestMock(status=201)
+        try:
+            c = self.client(mock)
+            for _ in range(3):
+                self.assertIn("id", c.crawl_start("https://ok.de/", "edelsenior-web"))
+        finally:
+            mock.close()
+        self.assertEqual([r[2] for r in mock.requests], [False, True] * 3)   # challenge, then one authenticated send
+
+    def test_rejected_authenticated_attempt_is_answered_again(self):
+        mock = DigestMock(mode="reject_first_auth", status=201)
+        try:
+            self.assertIn("id", self.client(mock).crawl_start("https://ok.de/", "edelsenior-web"))
+        finally:
+            mock.close()
+        self.assertEqual([r[2] for r in mock.requests], [False, False, True])
+
+    def test_wrong_password_gives_auth_failed_after_bounded_attempts(self):
+        mock = DigestMock()
+        try:
+            with self.assertRaises(disc.AuthFailed) as cm:
+                self.client(mock, password="wrong-pass").crawl_start("https://x.de/", "edelsenior-web")
+        finally:
+            mock.close()
+        self.assertEqual((cm.exception.status, cm.exception.code), (401, "auth_failed"))
+        self.assertEqual(len(mock.requests), 1 + disc.MAX_AUTH_ATTEMPTS)
+        self.assertNotIn("wrong-pass", str(cm.exception))
+
+    def test_401_without_challenge_is_bounded(self):
+        mock = DigestMock(mode="no_challenge")
+        try:
+            with self.assertRaises(disc.AuthFailed):
+                self.client(mock).call("GET", "/v1/crawls")
+        finally:
+            mock.close()
+        self.assertEqual(len(mock.requests), 1 + disc.MAX_AUTH_ATTEMPTS)
+
+    def test_no_password_is_auth_failed(self):
+        mock = DigestMock()
+        try:
+            with self.assertRaises(disc.AuthFailed):
+                disc.Client(mock.url, "admin", None).call("GET", "/v1/crawls")
+        finally:
+            mock.close()
+        self.assertEqual(len(mock.requests), 1)
+
+    def test_post_is_not_repeated_on_timeout_or_server_error(self):
+        mock = DigestMock(status=201, delay=1.5)
+        try:
+            with self.assertRaises(disc.InfrastructureError) as cm:
+                self.client(mock, timeout=0.5).crawl_start("https://slow.de/", "edelsenior-web")
+        finally:
+            mock.close()
+        self.assertEqual(cm.exception.code, "timeout")
+        self.assertEqual(sum(1 for r in mock.requests if r[2]), 1)          # exactly one executed POST
+        mock = DigestMock(status=500)
+        try:
+            with self.assertRaises(disc.ApiError) as cm:
+                self.client(mock).crawl_start("https://x.de/", "edelsenior-web")
+        finally:
+            mock.close()
+        self.assertEqual(cm.exception.status, 500)
+        self.assertEqual(sum(1 for r in mock.requests if r[2]), 1)
+
+    def test_unreachable_is_infrastructure(self):
+        with self.assertRaises(disc.InfrastructureError) as cm:
+            disc.Client("http://127.0.0.1:9", "admin", "x", timeout=2).call("GET", "/v1/crawls")
+        self.assertEqual(cm.exception.code, "unreachable")
+
+    def test_error_classes(self):
+        def err(status, code, field=None):
+            e = disc.ApiError(status, code, "m")
+            e.details = {"field": field} if field else {}
+            return e
+        self.assertEqual(disc.classify_api_error(err(422, "crawl_rejected")), "rejected")
+        self.assertEqual(disc.classify_api_error(err(400, "invalid_request", "url")), "rejected")
+        self.assertEqual(disc.classify_api_error(err(400, "invalid_request", "depth")), "infrastructure")
+        self.assertEqual(disc.classify_api_error(err(502, "upstream_error")), "transient")
+        for status, code in ((502, "upstream_unreachable"), (503, "unavailable"), (500, "internal_error"),
+                             (403, "forbidden"), (404, "not_found")):
+            self.assertEqual(disc.classify_api_error(err(status, code)), "infrastructure")
+
+
+class RobotsSiteErrorTests(unittest.TestCase):
+    def test_robots_5xx_is_a_transient_site_error(self):
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_GET(self):
+                self.send_response(503)
+                self.end_headers()
+        srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        orig = disc.urllib.request.urlopen
+
+        def fake(req, timeout=None):     # both schemes to the local 503 server
+            u = urllib.parse.urlsplit(req.full_url)
+            return orig(urllib.request.Request("http://127.0.0.1:%d%s" % (srv.server_address[1], u.path),
+                                               headers=dict(req.header_items())), timeout=timeout)
+        disc.urllib.request.urlopen = fake
+        try:
+            self.assertEqual(disc.robots_allows("site.de"), (None, "site-5xx:503"))
+        finally:
+            disc.urllib.request.urlopen = orig
+            srv.shutdown()
+            srv.server_close()
+
+
+class StartReliabilityTests(unittest.TestCase):
+    """start: auth/infra errors abort without touching domains; B-E are recorded per class."""
+
+    def run_start(self, state, results, dns=None, robots=None, max_domains=10, force=False, candidates=None):
+        calls = []
+        cands = candidates or ["https://www.%s/" % d for d in results]
+
+        class FakeClient:
+            def search(self, q, source="local", limit=10):
+                return {"results": [{"url": u, "title": "t"} for u in cands]}
+
+            def crawl_start(self, url, collection, depth=2, max_pages=15, scope="domain"):
+                calls.append(url)
+                r = results[disc.registrable_domain(urllib.parse.urlsplit(url).hostname)]
+                if isinstance(r, Exception):
+                    raise r
+                return {"id": "c-" + url}
+
+        orig = (disc.make_client, disc.resolve_public, disc.robots_allows)
+        disc.make_client = lambda args: FakeClient()
+        disc.resolve_public = lambda host: (dns or {}).get(disc.registrable_domain(host), (True, "1.2.3.4"))
+        disc.robots_allows = lambda host: (robots or {}).get(disc.registrable_domain(host), (True, "robots-ok"))
+        code = 0
+        out = io.StringIO()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                with open(os.path.join(tmp, "state.json"), "w", encoding="utf-8") as f:
+                    json.dump(state, f)
+                args = argparse.Namespace(config_dir=None, workdir=tmp, profile="edelsenior", source="freeworld",
+                                          region=[], keep_pbf=False, osm_config=None, limit_terms=1, limit_regions=1,
+                                          net_limit=5, max_domains=max_domains, depth=2, max_pages=15, delay=0,
+                                          recrawl_days=30, rejected_cooldown_days=60, force=force, dry_run=False)
+                try:
+                    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+                        disc.cmd_start(args)
+                except SystemExit as e:
+                    code = e.code
+                with open(os.path.join(tmp, "state.json"), encoding="utf-8") as f:
+                    after = json.load(f)
+        finally:
+            disc.make_client, disc.resolve_public, disc.robots_allows = orig
+        return calls, after, json.loads(out.getvalue()), code
+
+    @staticmethod
+    def empty():
+        return {"paused": False, "profiles": {}, "domains": {}}
+
+    def test_auth_failure_aborts_run_without_touching_domains(self):
+        before = self.empty()
+        before["domains"]["alt.de"] = {"profile": "edelsenior", "status": "crawled", "last_crawl": 1, "attempts": 0}
+        results = {"ok-eins.de": {"id": 1}, "auth-kaputt.de": disc.AuthFailed("rejected"),
+                   "nie-erreicht-a.de": {"id": 2}, "nie-erreicht-b.de": {"id": 3}}
+        calls, after, report, code = self.run_start(before, results)
+        self.assertEqual(code, 3)
+        self.assertEqual(report["aborted"]["code"], "auth_failed")
+        self.assertEqual(len(calls), 2)                                    # stopped at the auth failure
+        self.assertEqual(after["domains"]["ok-eins.de"]["status"], "crawled")   # progress before is kept
+        for d in ("auth-kaputt.de", "nie-erreicht-a.de", "nie-erreicht-b.de"):
+            self.assertNotIn(d, after["domains"])                          # no attempts, no backoff, no status
+        self.assertEqual(after["domains"]["alt.de"], before["domains"]["alt.de"])
+
+    def test_infrastructure_error_aborts_without_marking(self):
+        results = {"timeout.de": disc.InfrastructureError(0, "timeout", "t"), "danach.de": {"id": 1}}
+        calls, after, report, code = self.run_start(self.empty(), results)
+        self.assertEqual((code, report["aborted"]["code"]), (4, "scoutro_timeout"))
+        self.assertEqual(calls, ["https://www.timeout.de/"])
+        self.assertEqual(after["domains"], {})
+
+    def test_error_classes_are_recorded_per_domain(self):
+        e422 = disc.ApiError(422, "crawl_rejected", "no")
+        e400 = disc.ApiError(400, "invalid_request", "bad url")
+        e400.details = {"field": "url"}
+        e502 = disc.ApiError(502, "upstream_error", "no profile")
+        results = {"abgelehnt.de": e422, "kaputte-url.de": e400, "upstream.de": e502,
+                   "dns-weg.de": {"id": 1}, "privat.de": {"id": 2}, "site-down.de": {"id": 3},
+                   "robots-nein.de": {"id": 4}, "gut.de": {"id": 5}}
+        now = int(time.time())
+        calls, after, report, code = self.run_start(
+            self.empty(), results,
+            dns={"dns-weg.de": (False, "dns:[Errno -2] Name or service not known"), "privat.de": (False, "private-ip:10.0.0.1")},
+            robots={"site-down.de": (None, "site-5xx:503"), "robots-nein.de": (False, "robots-disallow-all")})
+        self.assertEqual(code, 0)
+        d = after["domains"]
+        self.assertEqual((d["abgelehnt.de"]["status"], d["abgelehnt.de"]["error_class"]), ("rejected", "rejected"))
+        self.assertGreaterEqual(d["abgelehnt.de"]["next_attempt"], now + 59 * 86400)            # B: long cooldown
+        self.assertEqual(d["kaputte-url.de"]["status"], "rejected")
+        self.assertEqual((d["upstream.de"]["status"], d["upstream.de"]["error_class"]), ("retry", "scoutro_upstream"))
+        self.assertEqual((d["dns-weg.de"]["status"], d["dns-weg.de"]["error_class"]), ("retry", "dns"))     # C
+        self.assertLess(d["dns-weg.de"]["next_attempt"], now + 3 * 3600)                          # 2^1 h
+        self.assertEqual((d["site-down.de"]["status"], d["site-down.de"]["last_http_status"]), ("retry", 503))  # D
+        self.assertEqual((d["privat.de"]["status"], d["privat.de"]["error_class"]), ("blocked", "security"))   # E
+        self.assertEqual(d["robots-nein.de"]["status"], "robots")
+        self.assertEqual(d["gut.de"]["status"], "crawled")
+        self.assertEqual(sorted(u for u in calls), sorted(["https://www.abgelehnt.de/", "https://www.kaputte-url.de/",
+                                                           "https://www.upstream.de/", "https://www.gut.de/"]))
+
+    def test_three_upstream_errors_in_a_row_abort(self):
+        e502 = lambda: disc.ApiError(502, "upstream_error", "no profile")   # noqa: E731
+        results = {"u1.de": e502(), "u2.de": e502(), "u3.de": e502(), "u4.de": {"id": 1}}
+        calls, after, report, code = self.run_start(self.empty(), results)
+        self.assertEqual((code, report["aborted"]["code"]), (4, "scoutro_error"))
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sorted(after["domains"]), ["u1.de", "u2.de"])     # the third is not blamed
+
+    def test_new_domains_first_then_recrawl_retry_problem(self):
+        now = int(time.time())
+        old = now - 40 * 86400
+        st = self.empty()
+        st["domains"] = {
+            "recrawl.de": {"profile": "edelsenior", "status": "crawled", "last_crawl": old, "next_attempt": old},
+            "retry.de": {"profile": "edelsenior", "status": "retry", "attempts": 2, "next_attempt": now - 10},
+            "legacy-error.de": {"profile": "edelsenior", "status": "error", "attempts": 3, "next_attempt": now - 10,
+                                "last_error": "422 crawl_rejected: x"},
+            "abgelehnt.de": {"profile": "edelsenior", "status": "rejected", "attempts": 1, "next_attempt": now - 10},
+            "cooldown.de": {"profile": "edelsenior", "status": "rejected", "attempts": 1, "next_attempt": now + 86400},
+            "frisch-gecrawlt.de": {"profile": "edelsenior", "status": "crawled", "last_crawl": now - 3600,
+                                   "next_attempt": now + 86400},
+            "auth-verbrannt.de": {"profile": "edelsenior", "status": "error", "attempts": 5,
+                                  "next_attempt": now + 5 * 86400, "last_error": "401 http_error: digest auth failed"},
+        }
+        order = ["abgelehnt.de", "cooldown.de", "retry.de", "recrawl.de", "neu-a.de", "legacy-error.de",
+                 "frisch-gecrawlt.de", "auth-verbrannt.de", "neu-b.de"]
+        results = {d: {"id": 1} for d in order}
+        cands = ["https://www.%s/" % d for d in order]
+        calls, after, report, _ = self.run_start(json.loads(json.dumps(st)), results, max_domains=10, candidates=cands)
+        self.assertEqual([disc.registrable_domain(urllib.parse.urlsplit(u).hostname) for u in calls],
+                         ["neu-a.de", "auth-verbrannt.de", "neu-b.de",          # 1: never (really) tried
+                          "recrawl.de",                                       # 2: recrawl due
+                          "retry.de", "legacy-error.de",                      # 3: retry due
+                          "abgelehnt.de"])                                    # 4: problematic, cooldown over
+        self.assertEqual(report["edelsenior"]["selected_by_tier"], {"new": 3, "recrawl": 1, "retry": 2, "problem": 1})
+        # small batch: only new candidates
+        calls, _, _, _ = self.run_start(json.loads(json.dumps(st)), results, max_domains=2, candidates=cands)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all("neu-a" in u or "auth-verbrannt" in u for u in calls))
+        # nothing is ever removed from the state
+        self.assertTrue(set(st["domains"]) <= set(after["domains"]))
+
+    def test_force_overrides_order_and_cooldown(self):
+        now = int(time.time())
+        st = self.empty()
+        st["domains"] = {"cooldown.de": {"profile": "edelsenior", "status": "rejected", "next_attempt": now + 86400}}
+        results = {"cooldown.de": {"id": 1}, "neu.de": {"id": 2}}
+        calls, _, _, _ = self.run_start(st, results, force=True,
+                                        candidates=["https://www.cooldown.de/", "https://www.neu.de/"])
+        self.assertEqual(calls, ["https://www.cooldown.de/", "https://www.neu.de/"])
+
+
 if __name__ == "__main__":
     unittest.main()
