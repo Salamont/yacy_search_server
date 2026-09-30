@@ -37,7 +37,9 @@ import ipaddress
 import json
 import os
 import re
+import shutil
 import socket
+import subprocess
 import sys
 import time
 import urllib.error
@@ -162,6 +164,110 @@ def resolve_public(host):
         if not is_public_ip(ip):
             return False, "private-ip:" + ip
     return True, ",".join(sorted(ips))
+
+
+def robots_allows(host):
+    """Best-effort robots.txt check for our crawler user-agent (yacybot).
+
+    Returns (allowed, reason). On any fetch error we allow and let YaCy decide
+    (YaCy re-checks robots.txt itself).
+    """
+    body = None
+    for scheme in ("https", "http"):
+        try:
+            req = urllib.request.Request(scheme + "://" + host + "/robots.txt",
+                                         headers={"User-Agent": "yacybot (scoutro-discovery)"})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                body = r.read(200000).decode("utf-8", "replace")
+                break
+        except Exception:
+            continue
+    if body is None:
+        return True, "robots-unreachable"
+    group = None
+    groups = {}
+    for line in body.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if ":" not in line:
+            continue
+        key, _, val = line.partition(":")
+        key = key.strip().lower()
+        val = val.strip()
+        if key == "user-agent":
+            group = val.lower()
+            groups.setdefault(group, [])
+        elif key in ("disallow", "allow") and group is not None:
+            groups[group].append((key, val))
+    rules = groups.get("yacybot") or groups.get("*") or []
+    for key, val in rules:
+        if key == "allow" and val in ("/", ""):
+            return True, "robots-allow"
+    for key, val in rules:
+        if key == "disallow" and val in ("/", "/*"):
+            return False, "robots-disallow-all"
+    return True, "robots-ok"
+
+
+HSTORE_PAIR = re.compile(r'"((?:[^"\\]|\\.)*)"\s*=>\s*"((?:[^"\\]|\\.)*)"')
+
+
+def parse_hstore(h):
+    out = {}
+    if not h:
+        return out
+    for m in HSTORE_PAIR.finditer(h):
+        out[m.group(1).replace('\\"', '"').replace("\\\\", "\\")] = \
+            m.group(2).replace('\\"', '"').replace("\\\\", "\\")
+    return out
+
+
+def load_osm_config(path):
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    cfg.setdefault("text_fields", ["name", "description"])
+    cfg.setdefault("website_fields", ["website", "contact:website", "url"])
+    return cfg
+
+
+def osm_text_blob(tags, fields):
+    return " ".join(str(tags.get(f, "")) for f in fields).lower()
+
+
+def osm_matches(tags, rule):
+    if rule.get("text_any"):
+        blob = osm_text_blob(tags, rule.get("_text_fields", ["name", "description"]))
+        if any(k.lower() in blob for k in rule["text_any"]):
+            return True
+    for r in rule.get("tags", []):
+        ok = True
+        for key, allowed in r.items():
+            if key == "text_any":
+                blob = osm_text_blob(tags, rule.get("_text_fields", ["name", "description"]))
+                if not any(k.lower() in blob for k in allowed):
+                    ok = False
+                    break
+            elif key.startswith("_"):
+                continue
+            else:
+                if tags.get(key) not in allowed:
+                    ok = False
+                    break
+        if ok and any(not k.startswith("_") for k in r):
+            return True
+    return False
+
+
+def osm_website(tags, fields):
+    for f in fields:
+        v = (tags.get(f) or "").strip()
+        if v:
+            if not v.lower().startswith(("http://", "https://")):
+                v = "https://" + v.lstrip("/")
+            return v
+    return None
+
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +457,7 @@ def discover_candidates(client, profiles, regions, profile, term_limit, region_l
     return out, new_cursor
 
 
-def select_domains(candidates, profile, state, force, max_domains, now, recrawl_days):
+def select_domains(candidates, profile, state, force, max_domains, now, recrawl_days, require_tld=True):
     accepted = {}
     rejected = {}
     for c in candidates:
@@ -363,7 +469,7 @@ def select_domains(candidates, profile, state, force, max_domains, now, recrawl_
         if not rd:
             rejected["no-registrable"] = rejected.get("no-registrable", 0) + 1
             continue
-        if REQUIRED_TLDS and not rd.endswith(REQUIRED_TLDS):
+        if require_tld and REQUIRED_TLDS and not rd.endswith(REQUIRED_TLDS):
             rejected["not-de"] = rejected.get("not-de", 0) + 1
             continue
         accepted.setdefault(rd, c)
@@ -382,12 +488,95 @@ def select_domains(candidates, profile, state, force, max_domains, now, recrawl_
     return selected, accepted, rejected
 
 
+# ---------------------------------------------------------------------------
+# OSM / Geofabrik discovery source
+# ---------------------------------------------------------------------------
+
+OSM_BASE_URL = "https://download.geofabrik.de/europe/germany/%s-latest.osm.pbf"
+
+
+def _ogr2ogr(argv):
+    if shutil.which("ogr2ogr") is None:
+        sys.exit("--source osm needs ogr2ogr (GDAL OSM driver); install the 'gdal-tools' package")
+    subprocess.run(["ogr2ogr"] + argv, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def download_pbf(slug, dest):
+    url = OSM_BASE_URL % slug
+    sys.stderr.write("  downloading " + url + "\n")
+    subprocess.run(["curl", "-sL", "-o", dest, url], check=True)
+
+
+def extract_region(pbf, where, workdir):
+    out = {}
+    for layer in ("points", "multipolygons"):
+        gj = os.path.join(workdir, os.path.basename(pbf) + "." + layer + ".geojson")
+        _ogr2ogr(["-f", "GeoJSON", gj, pbf, layer, "-where", where])
+        out[layer] = gj
+    return out
+
+
+def collect_osm_candidates(regions, profile_names, osm_cfg, workdir, keep_pbf):
+    """Extract candidate websites from Geofabrik PBF extracts (OSM is discovery only)."""
+    osm_dir = os.path.join(workdir, "osm")
+    os.makedirs(osm_dir, exist_ok=True)
+    where = osm_cfg["extract"]
+    text_fields = osm_cfg["text_fields"]
+    web_fields = osm_cfg["website_fields"]
+    rules = osm_cfg["profiles"]
+    candidates = {p: {} for p in profile_names}
+    stats = {}
+    for slug in regions:
+        pbf = os.path.join(osm_dir, slug + ".osm.pbf")
+        if not os.path.isfile(pbf):
+            download_pbf(slug, pbf)
+        stats[slug] = {p: {"objects": 0, "with_website": 0, "missing_website": 0, "domains": 0} for p in profile_names}
+        domains = {p: set() for p in profile_names}
+        geojsons = extract_region(pbf, where, osm_dir)
+        for gj in geojsons.values():
+            with open(gj, encoding="utf-8") as fh:
+                data = json.load(fh)
+            for feat in data.get("features", []):
+                props = feat.get("properties", {}) or {}
+                tags = parse_hstore(props.get("other_tags", ""))
+                if props.get("name"):
+                    tags.setdefault("name", props["name"])
+                for p in profile_names:
+                    rule = dict(rules.get(p, {}))
+                    rule["_text_fields"] = text_fields
+                    if not osm_matches(tags, rule):
+                        continue
+                    st = stats[slug][p]
+                    st["objects"] += 1
+                    web = osm_website(tags, web_fields)
+                    if not web:
+                        st["missing_website"] += 1
+                        continue
+                    st["with_website"] += 1
+                    host = (urllib.parse.urlsplit(web).hostname or "").lower()
+                    rd = registrable_domain(host)
+                    if not rd:
+                        continue
+                    domains[p].add(rd)
+                    candidates[p].setdefault(rd, {"url": web, "host": host, "title": tags.get("name", ""),
+                                                  "source": "osm", "region": tags.get("addr:city", slug)})
+        for p in profile_names:
+            stats[slug][p]["domains"] = len(domains[p])
+        if not keep_pbf:
+            for fp in [pbf] + list(geojsons.values()):
+                try:
+                    os.remove(fp)
+                except OSError:
+                    pass
+    return candidates, stats
+
+
 def cmd_start(args):
     cfg = args.config_dir or DEFAULT_CONFIG_DIR
     profiles = load_profiles(os.path.join(cfg, "profiles.conf"))
     regions = load_regions(os.path.join(cfg, "regions.txt"))
-    if not profiles or not regions:
-        sys.exit("config missing: need profiles.conf and regions.txt in " + cfg)
+    if not profiles:
+        sys.exit("config missing: profiles.conf in " + cfg)
     names = [args.profile] if args.profile else list(profiles)
     for n in names:
         if n not in profiles:
@@ -398,22 +587,58 @@ def cmd_start(args):
         sys.exit("discovery is paused (run 'resume' first)")
     client = make_client(args)
     now = int(time.time())
+    source = args.source
+
+    osm_candidates, osm_stats = {}, {}
+    if source in ("osm", "both"):
+        if not args.region:
+            sys.exit("--source %s needs at least one --region (e.g. --region berlin)" % source)
+        osm_cfg = load_osm_config(args.osm_config or os.path.join(cfg, "osm_profiles.json"))
+        osm_candidates, osm_stats = collect_osm_candidates(
+            args.region, names, osm_cfg, env_workdir(args.workdir), args.keep_pbf)
+
     report = {}
     for name in names:
-        cursor = st.data["profiles"].get(name, {}).get("region_cursor", 0)
-        candidates, new_cursor = discover_candidates(
-            client, profiles, regions, name, args.limit_terms, args.limit_regions, cursor, args.net_limit)
-        selected, accepted, rejected = select_domains(
-            candidates, name, st, args.force, args.max_domains, now, args.recrawl_days)
-        st.data["profiles"].setdefault(name, {})["region_cursor"] = new_cursor
+        rejected = {}
+        selected = []
+        n_fw = n_osm = 0
+        if source in ("freeworld", "both") and regions:
+            cursor = st.data["profiles"].get(name, {}).get("region_cursor", 0)
+            fw, new_cursor = discover_candidates(client, profiles, regions, name,
+                                                 args.limit_terms, args.limit_regions, cursor, args.net_limit)
+            st.data["profiles"].setdefault(name, {})["region_cursor"] = new_cursor
+            n_fw = len(fw)
+            sel, _acc, rej = select_domains(fw, name, st, args.force, args.max_domains, now,
+                                            args.recrawl_days, require_tld=True)
+            selected += sel
+            for k, v in rej.items():
+                rejected[k] = rejected.get(k, 0) + v
+        if source in ("osm", "both"):
+            osm_list = list(osm_candidates.get(name, {}).values())
+            n_osm = len(osm_list)
+            sel, _acc, rej = select_domains(osm_list, name, st, args.force, args.max_domains, now,
+                                            args.recrawl_days, require_tld=False)
+            selected += sel
+            for k, v in rej.items():
+                rejected[k] = rejected.get(k, 0) + v
+
+        seen = set()
+        uniq = []
+        for rd, c in selected:
+            if rd in seen:
+                continue
+            seen.add(rd)
+            uniq.append((rd, c))
+        selected = uniq[:args.max_domains]
 
         started = []
+        robots_blocked = 0
         for rd, c in selected:
             entry = st.domain(rd) or {}
             entry.update({"profile": name, "domain": rd, "candidate_url": c["url"]})
             entry.setdefault("first_seen", now)
             if args.dry_run:
-                started.append({"domain": rd, "url": "https://" + c["host"] + "/", "status": "dry-run"})
+                started.append({"domain": rd, "url": c["url"], "source": c.get("source", ""), "status": "dry-run"})
                 continue
             ok, info = resolve_public(c["host"])
             if not ok:
@@ -422,15 +647,21 @@ def cmd_start(args):
                 st.put_domain(rd, entry)
                 started.append({"domain": rd, "status": "blocked:" + info})
                 continue
-            target = "https://" + c["host"] + "/"
-            try:
-                res = client.crawl_start(target, "prospect-" + name,
-                                         depth=args.depth, max_pages=args.max_pages)
-                entry.update({"status": "crawled", "last_crawl": now, "attempts": 0,
-                              "last_error": "", "next_attempt": now + args.recrawl_days * 86400,
-                              "crawl_id": res.get("id")})
+            ro, rreason = robots_allows(c["host"])
+            if not ro:
+                robots_blocked += 1
+                entry.update({"status": "robots", "attempts": entry.get("attempts", 0) + 1,
+                              "last_error": rreason, "next_attempt": now + args.recrawl_days * 86400})
                 st.put_domain(rd, entry)
-                started.append({"domain": rd, "url": target, "crawl_id": res.get("id"), "status": "started"})
+                started.append({"domain": rd, "status": "robots:" + rreason})
+                continue
+            try:
+                res = client.crawl_start(c["url"], "prospect-" + name,
+                                         depth=args.depth, max_pages=args.max_pages)
+                entry.update({"status": "crawled", "last_crawl": now, "attempts": 0, "last_error": "",
+                              "next_attempt": now + args.recrawl_days * 86400, "crawl_id": res.get("id")})
+                st.put_domain(rd, entry)
+                started.append({"domain": rd, "url": c["url"], "crawl_id": res.get("id"), "status": "started"})
             except ApiError as e:
                 attempts = entry.get("attempts", 0) + 1
                 backoff = min(args.recrawl_days * 86400, (2 ** attempts) * 3600)
@@ -439,12 +670,17 @@ def cmd_start(args):
                 st.put_domain(rd, entry)
                 started.append({"domain": rd, "status": "error:" + str(e)})
             time.sleep(args.delay)
-        report[name] = {
-            "discovery_candidates": len(candidates),
-            "unique_accepted_domains": len(accepted),
+        entry_report = {
+            "source": source,
+            "freeworld_candidates": n_fw,
+            "osm_candidates": n_osm,
             "rejected_by_reason": rejected,
+            "robots_blocked": robots_blocked,
             "processed": started,
         }
+        if source in ("osm", "both"):
+            entry_report["osm_regions"] = {r: osm_stats.get(r, {}).get(name, {}) for r in (args.region or [])}
+        report[name] = entry_report
     if not args.dry_run:
         st.save()
     print(json.dumps(report, indent=2, ensure_ascii=False))
@@ -510,6 +746,11 @@ def main():
 
     s = sub.add_parser("start", help="discover and crawl prospect domains")
     s.add_argument("--profile", help="only this profile (default: all)")
+    s.add_argument("--source", choices=["freeworld", "osm", "both"], default="freeworld",
+                   help="discovery source (default freeworld; osm uses Geofabrik PBF extracts)")
+    s.add_argument("--region", action="append", default=[], help="OSM region slug, repeatable (e.g. --region berlin)")
+    s.add_argument("--keep-pbf", action="store_true", help="keep downloaded PBF and GeoJSON (default: delete)")
+    s.add_argument("--osm-config", help="path to osm_profiles.json")
     s.add_argument("--limit-terms", type=int, default=8)
     s.add_argument("--limit-regions", type=int, default=5)
     s.add_argument("--net-limit", type=int, default=20, help="P2P results per query")

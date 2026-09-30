@@ -1,0 +1,19 @@
+# Geofabrik region slugs (https://download.geofabrik.de/europe/germany/<slug>-latest.osm.pbf).
+# scoutro-discovery processes regions one at a time and deletes the PBF afterwards.
+# '#' = comment.
+berlin
+nordrhein-westfalen
+baden-wuerttemberg
+bayern
+brandenburg
+bremen
+hamburg
+hessen
+mecklenburg-vorpommern
+niedersachsen
+rheinland-pfalz
+saarland
+sachsen
+sachsen-anhalt
+schleswig-holstein
+thueringen

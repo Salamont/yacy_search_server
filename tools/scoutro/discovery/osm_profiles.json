@@ -1,0 +1,34 @@
+{
+  "_comment": "OSM/Geofabrik discovery rules for scoutro-discovery. Edit freely.",
+  "extract": "other_tags LIKE '%social_facility%' OR other_tags LIKE '%\"office\"%' OR other_tags LIKE '%\"company\"%' OR other_tags LIKE '%\"craft\"%' OR other_tags LIKE '%coach%' OR other_tags LIKE '%\"consulting\"%' OR other_tags LIKE '%training%'",
+  "text_fields": ["name", "operator", "brand", "description", "service", "consulting", "training", "office", "company", "craft", "healthcare:speciality", "social_facility"],
+  "website_fields": ["website", "contact:website", "url"],
+  "profiles": {
+    "edelsenior": {
+      "tags": [
+        {"amenity": ["social_facility"], "social_facility": ["nursing_home", "assisted_living", "day_care", "group_home", "residential", "hospice", "ambulatory_care"]},
+        {"amenity": ["nursing_home", "retirement_home", "assisted_living", "day_care"]},
+        {"social_facility": ["nursing_home", "assisted_living", "day_care", "group_home"]}
+      ]
+    },
+    "stackfinder": {
+      "tags": [
+        {"office": ["it"]},
+        {"company": ["it", "software"]},
+        {"consulting": ["it", "software", "security"]},
+        {"office": ["company", "consulting"], "text_any": ["it ", "software", "consulting", "cloud", "systemhaus", "digital", "daten", "managed service", "edv", "computer"]}
+      ]
+    },
+    "bauteamcheck": {
+      "tags": [
+        {"office": ["construction_company", "architect", "engineer"]},
+        {"company": ["construction", "civil_engineering"]},
+        {"craft": ["builder", "construction", "carpenter", "roofer", "plumber"]}
+      ]
+    },
+    "checkthecoach": {
+      "tags": [],
+      "text_any": ["coach", "coaching", "business coach", "executive coach", "karriere", "führungskräfte", "personal coach", "unternehmenscoach"]
+    }
+  }
+}

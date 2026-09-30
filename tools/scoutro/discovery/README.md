@@ -16,6 +16,32 @@ Only index/text/metadata are kept: the Scoutro API crawls are text-only
 (`storeHTCache`/`storeTXCache`/media off, see the Olares package), so no HTML
 copy, no media and no web cache is stored.
 
+## Discovery sources
+
+- `freeworld` (default) — YaCy peer-to-peer live search (`source=network`).
+  For German B2B this is weak (documented): it mostly returns news/media/
+  foreign hosts, not company homepages.
+- `osm` — **Geofabrik OpenStreetMap extracts**, the primary structured
+  Germany-wide source. Requires `ogr2ogr` (GDAL OSM driver; Alpine package
+  `gdal-tools`). OSM is **discovery/seed only**: only the extracted website is
+  crawled; the OSM data itself is never stored in the YaCy index.
+
+```sh
+# OSM discovery for one or more federal states (region slugs from osm_regions.txt)
+scoutro-discovery start --source osm --region berlin --region nordrhein-westfalen --dry-run
+scoutro-discovery start --source osm --region berlin --max-domains 5
+```
+
+Per region the tool downloads the PBF, extracts `points` + `multipolygons`
+matching `osm_profiles.json`, keeps objects with a website (`website` /
+`contact:website` / `url`), and **deletes the PBF and intermediate GeoJSON**
+afterwards. `--keep-pbf` keeps them. Objects without a website are counted as
+`missing_website` and are not researched further.
+
+Edit `osm_profiles.json` (tag rules per profile) and `osm_regions.txt` (region
+slugs). Coaching is intentionally keyword-based: OSM has no reliable standard
+category for it.
+
 ## Usage
 
 ```sh
