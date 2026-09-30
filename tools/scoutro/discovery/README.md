@@ -385,20 +385,30 @@ a structured status from Scoutro).
 
 ### Candidate order
 
-Small batches (`--max-domains`) take due domains in this order (discovery
-order inside a group), so known problematic URLs do not occupy them:
+Selection, recrawl, backoff, cooldown and retry work per **(domain, profile)**:
+a domain can be crawled for `edelsenior` and still be fresh for `stackfinder`,
+and a backoff or recrawl of one profile never blocks or changes another.
 
-1. never tried (includes entries of versions ≤ 2 that only failed with `401`,
-   i.e. `status=error` and `last_error` starting with `401` — their start URL
-   was never actually tried);
-2. crawled successfully and the regular recrawl is due;
-3. transient errors (`retry`, and `error` of versions ≤ 2) whose backoff is over;
-4. known problematic start URLs (`rejected`, `robots`, `blocked`) whose
-   cooldown is over.
+Small batches (`--max-domains`) take due pairs in this order (discovery
+order inside a group), so known problematic URLs do not occupy them. The
+report names the group of each selected domain (`selected_by_tier`, and
+`tier` per processed domain):
+
+1. `fresh` - never tried for this profile; `legacy_auth_retry` - entries of
+   versions ≤ 2 that only failed with `401` (`status=error`, `last_error`
+   starting with `401`; the start URL was never actually tried), selected
+   like `fresh`;
+2. `recrawl` - crawled successfully and the regular recrawl is due;
+3. `retry` - transient errors (`retry`, and `error` of versions ≤ 2) whose
+   backoff is over;
+4. `problematic` - known problematic start URLs (`rejected`, `robots`,
+   `blocked`) whose cooldown is over.
+
+`globally_new` (per processed domain) and `selected_globally_new` say
+whether the domain was not in the state at all, for any profile.
 
 `--force` ignores backoff, cooldown and this order. Nothing is removed from the
 state; problematic domains stay and are tried again after their cooldown.
-The report shows `selected_by_tier` per profile.
 
 Exit status: `0` ok, `2` other Scoutro API error, `3` `auth_failed`,
 `4` run aborted because of a Scoutro/infrastructure error.
@@ -406,11 +416,69 @@ Exit status: `0` ok, `2` other Scoutro API error, `3` `auth_failed`,
 
 ## State
 
-`state.json` in `SCOUTRO_DISCOVERY_DIR`: per-domain profile, collection,
-region, last crawl, attempts, status, next attempt (backoff) and the active
-classification per profile. `classifications.jsonl` is the append-only
-history (see "State integrity"). Recrawl after ~30 days; runs are pausable/resumable (`pause` also
-stops `classify`) and never loop aggressively.
+`state.json` in `SCOUTRO_DISCOVERY_DIR` (`state_version` 2). One entry per
+registrable domain; the crawl state is kept per profile, the classification
+too:
+
+```json
+"domains": {
+  "example.de": {
+    "domain": "example.de",
+    "first_seen": 1767225600,
+    "profiles": {
+      "edelsenior":  {"collection": "edelsenior-web", "status": "crawled", "last_crawl": 1767225600,
+                      "attempts": 0, "last_error": "", "error_class": "", "last_http_status": null,
+                      "next_attempt": 1769817600, "crawl_id": "...", "candidate_url": "https://www.example.de/",
+                      "region": "Köln", "first_seen": 1767225600},
+      "stackfinder": {"collection": "stackfinder-web", "status": "retry", "attempts": 1, "...": "..."}
+    },
+    "classifications": {"edelsenior": {"verdict": "PASS", "...": "..."}}
+  }
+}
+```
+
+`classifications.jsonl` is the append-only history (see "State integrity").
+Recrawl after ~30 days; runs are pausable/resumable (`pause` also stops
+`classify`) and never loop aggressively.
+
+`classify --profile P` takes the domains crawled for `P`; `classify --domain D`
+still classifies any domain for the given profile.
+
+### Migration from the old layout
+
+The state of scoutro-discovery ≤ 3 (`state_version` 1) kept one flat crawl
+state per domain next to `profile`, so a crawl for a second profile
+overwrote the first. It is migrated automatically, without manual steps:
+
+- on reading, every old entry is moved in memory: all crawl fields go to
+  `profiles.<profile>` (`profile`; if missing, the collection `<p>-web` or
+  `prospect-<p>`; else the only classification profile). `domain`,
+  `first_seen` and `classifications` stay on the domain. Unknown fields move
+  with the crawl state; fields without any determinable profile are kept
+  under `unassigned`. No domain, classification or field is dropped, and
+  the selection result is the same as before (nothing is re-crawled because
+  of the migration);
+- reading alone (`status`, `search`, `export`, dry runs) never writes;
+- the next regular write (`start`, `classify`, `pause`, `resume`) stores the
+  new layout atomically and first keeps the original file once as
+  `state.v1.json` (also atomic, never overwritten);
+- `scoutro-discovery migrate-state --dry-run` shows the result and checks
+  that every old value is still present (`"lossless": true`) without writing;
+  `migrate-state` writes it. It refuses to write if a value would be lost.
+
+Information that the old layout had already overwritten (the state of a
+profile that crawled a domain before another profile did) was never stored
+and cannot be restored; the classifications of both profiles were kept then
+and are kept now.
+
+A downgrade to scoutro-discovery ≤ 3 after the migration is not supported
+(it would see no crawl state and treat all domains as new): restore
+`state.v1.json` instead.
+
+`status` reports the unique domains, the (domain, profile) pairs and per
+profile: `domains`, `crawled`, `retry`, `legacy_auth_retry`, `rejected`,
+`robots`, `blocked`, `fresh`, `due` (with the default 30-day recrawl) and
+`classified` (PASS/FAIL/UNSURE).
 
 ## Next version
 
@@ -423,6 +491,8 @@ after this state is merged and tested on Olares.
 ```sh
 python3 tools/scoutro/scoutro-discovery selftest              # offline filter/SSRF/classifier checks
 python3 test/scoutro-discovery/test_discovery.py -v           # classification, schema, CLI (mock API + mock LLM)
+python3 test/scoutro-discovery/test_state_multiprofile.py -v  # multi-profile state, migration (199-domain v1 state)
+SCOUTRO_STATE_COPY=/path/to/COPY/state.json python3 test/scoutro-discovery/test_state_multiprofile.py -v
 SCOUTRO_E2E=1 python3 test/scoutro-discovery/test_evidence_e2e.py -v   # real, disposable Scoutro (see file header)
 ```
 

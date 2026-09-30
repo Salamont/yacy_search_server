@@ -33,6 +33,7 @@
 #
 # Usage:
 #   scoutro-discovery status
+#   scoutro-discovery migrate-state [--dry-run]
 #   scoutro-discovery start [--profile P] [--dry-run] [--max-domains N]
 #   scoutro-discovery pause | resume
 #   scoutro-discovery classify [--profile P] [--domain D] [--backend auto|llm|heuristic]
@@ -60,7 +61,7 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import scoutro_classify as sc  # noqa: E402  (sibling module, stdlib only)
 
-VERSION = "3"
+VERSION = "4"
 
 DEFAULT_CONFIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "discovery")
 
@@ -520,6 +521,120 @@ class StateError(Exception):
     pass
 
 
+# ---------------------------------------------------------------------------
+# state model
+# ---------------------------------------------------------------------------
+#
+# state_version 2 (multi-profile). One entry per registrable domain:
+#
+#   domains.<domain> = {
+#     "domain": ..., "first_seen": ...,              domain-wide
+#     "profiles": {                                  one crawl state per profile
+#       "<profile>": {"collection", "status", "last_crawl", "attempts", "last_error",
+#                     "error_class", "last_http_status", "next_attempt", "crawl_id",
+#                     "candidate_url", "region", "first_seen"}},
+#     "classifications": {"<profile>": <record>}     unchanged (one active record per profile)
+#   }
+#
+# state_version 1 (scoutro-discovery <= 3) kept all crawl fields flat on the
+# domain entry next to "profile", so a crawl for a second profile overwrote the
+# first one. normalize_entry() moves those fields to profiles[<profile>]; no
+# field is dropped. Entries whose profile cannot be determined keep their flat
+# fields under "unassigned".
+
+STATE_VERSION = 2
+DOMAIN_FIELDS = ("domain", "first_seen", "classifications", "profiles", "unassigned")
+
+
+def _profile_from_collection(collection):
+    c = str(collection or "")
+    if c.endswith("-web") and len(c) > 4:
+        return c[:-4]
+    if c.startswith("prospect-") and len(c) > 9:
+        return c[9:]
+    return ""
+
+
+def normalize_entry(name, entry):
+    """Return (entry in the version 2 layout, migrated?). Pure: the argument is not changed.
+
+    Flat (version 1) crawl fields go to profiles[<profile>]; "profile" names the
+    profile (else the collection "<p>-web"/"prospect-<p>", else the only
+    classification profile). Flat fields of an entry that also has "profiles"
+    (written by an older tool after the migration) are newer and overwrite the
+    fields of that profile. Nothing is dropped.
+    """
+    if not isinstance(entry, dict):
+        return entry, False
+    flat = {k: v for k, v in entry.items() if k not in DOMAIN_FIELDS}
+    if not flat and isinstance(entry.get("profiles"), dict):
+        return entry, False
+    out = {k: v for k, v in entry.items() if k in DOMAIN_FIELDS}
+    out["domain"] = entry.get("domain") or name
+    profiles = {p: dict(v) for p, v in (entry.get("profiles") or {}).items()}
+    profile = flat.pop("profile", "") or _profile_from_collection(flat.get("collection"))
+    if not profile and len(entry.get("classifications") or {}) == 1:
+        profile = next(iter(entry["classifications"]))
+    if profile:
+        pe = profiles.setdefault(profile, {})
+        pe.update(flat)
+        if "first_seen" in entry:
+            pe.setdefault("first_seen", entry["first_seen"])
+    elif flat:
+        unassigned = dict(out.get("unassigned") or {})
+        unassigned.update(flat)
+        out["unassigned"] = unassigned
+    out["profiles"] = profiles
+    return out, True
+
+
+def migration_losses(old_domains, new_domains):
+    """Every value of the old entries must be found in the new ones; returns the problems (empty = lossless)."""
+    problems = []
+    for name, old in old_domains.items():
+        new = new_domains.get(name)
+        if not isinstance(new, dict):
+            problems.append("%s: domain missing" % name)
+            continue
+        if not isinstance(old, dict):
+            continue
+        if old.get("classifications", {}) != new.get("classifications", {}):
+            problems.append("%s: classifications changed" % name)
+        if "first_seen" in old and old["first_seen"] != new.get("first_seen"):
+            problems.append("%s: first_seen changed" % name)
+        if old.get("profile"):
+            if old["profile"] not in new.get("profiles", {}):
+                problems.append("%s: profile %s missing" % (name, old["profile"]))
+                continue
+        for k, v in old.items():
+            if k in DOMAIN_FIELDS or k == "profile":
+                continue
+            found = [pe for pe in new.get("profiles", {}).values() if pe.get(k) == v]
+            if not found and (new.get("unassigned") or {}).get(k) != v:
+                problems.append("%s: field %s lost" % (name, k))
+        for p, pe in (old.get("profiles") or {}).items():
+            target = new.get("profiles", {}).get(p, {})
+            for k, v in pe.items():
+                if k not in target:
+                    problems.append("%s: %s.%s lost" % (name, p, k))
+    return problems
+
+
+def normalize_state(data):
+    """Normalize all domain entries in place; returns the number of migrated entries."""
+    migrated = 0
+    domains = data.get("domains")
+    if not isinstance(domains, dict):
+        domains = data["domains"] = {}
+    for name in list(domains):
+        entry, changed = normalize_entry(name, domains[name])
+        if changed:
+            domains[name] = entry
+            migrated += 1
+    data["state_version"] = STATE_VERSION
+    return migrated
+
+
 class State:
     """Persistent discovery state (state.json).
 
@@ -531,16 +646,21 @@ class State:
       - the "paused" flag is owned by pause/resume: other commands keep the
         value that is on disk, so a pause during a running start is not lost;
       - start and classify take a run lock (run.lock) so that two runs never
-        overwrite each other's domain updates.
+        overwrite each other's domain updates;
+      - a state of an older layout is migrated in memory when it is read; the
+        file is rewritten only by the next regular write, and before that first
+        write the original file is kept once as state.v1.json (atomically).
     """
+
+    BACKUP = "state.v1.json"
 
     def __init__(self, directory):
         self.dir = directory
         self.path = os.path.join(directory, "state.json")
-        self.data = self._read()
+        self.data, self.disk_version, self.migrated = self._read()
         self._run_lock = None
 
-    def _read(self):
+    def _load_raw(self):
         data = {"paused": False, "profiles": {}, "domains": {}}
         if os.path.isfile(self.path):
             try:
@@ -553,6 +673,13 @@ class State:
                 raise StateError("state file %s is unreadable (%s); it is left untouched - "
                                  "restore it from backup or move it away explicitly" % (self.path, e))
         return data
+
+    def _read(self):
+        """(normalized data, state_version on disk, number of entries migrated in memory)."""
+        data = self._load_raw()
+        version = data.get("state_version", 1)
+        migrated = normalize_state(data)
+        return data, version, migrated
 
     def _lock(self, name, blocking=True):
         os.makedirs(self.dir, exist_ok=True)
@@ -569,7 +696,31 @@ class State:
         self._run_lock = self._lock("run.lock", blocking=False)
         return self._run_lock is not None
 
+    def _atomic_write(self, path, text):
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+        _fsync_dir(self.dir)
+
+    def _backup_old_layout(self):
+        """Keep the pre-migration file once (state.v1.json), before it is rewritten."""
+        backup = os.path.join(self.dir, self.BACKUP)
+        if os.path.exists(backup) or not os.path.isfile(self.path):
+            return
+        with open(self.path, encoding="utf-8") as f:
+            raw = f.read()
+        try:
+            on_disk = json.loads(raw)
+        except ValueError:
+            return
+        if isinstance(on_disk, dict) and on_disk.get("state_version", 1) != STATE_VERSION:
+            self._atomic_write(backup, raw)
+
     def _write(self, data):
+        self._backup_old_layout()
         tmp = self.path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
@@ -581,7 +732,8 @@ class State:
     def save(self):
         lock = self._lock("state.lock")
         try:
-            self.data["paused"] = self._read().get("paused", False)
+            self.data["paused"] = self._load_raw().get("paused", False)
+            normalize_state(self.data)
             self._write(self.data)
         finally:
             lock.close()
@@ -589,7 +741,7 @@ class State:
     def set_paused(self, value):
         lock = self._lock("state.lock")
         try:
-            data = self._read()
+            data, _, _ = self._read()
             data["paused"] = bool(value)
             self._write(data)
             self.data = data
@@ -601,6 +753,24 @@ class State:
 
     def put_domain(self, name, entry):
         self.data["domains"][name] = entry
+
+    def profile_entry(self, name, profile):
+        """Crawl state of (domain, profile), or None if this pair is unknown."""
+        entry = self.domain(name)
+        if not entry:
+            return None
+        return (entry.get("profiles") or {}).get(profile)
+
+    def put_profile_entry(self, name, profile, pentry, now):
+        """Store the crawl state of (domain, profile); other profiles and classifications stay."""
+        entry = self.data["domains"].setdefault(name, {"domain": name, "profiles": {}})
+        entry.setdefault("domain", name)
+        entry.setdefault("first_seen", pentry.get("first_seen", now))
+        entry.setdefault("profiles", {})[profile] = pentry
+
+    def migrate(self):
+        """Write the normalized state now (explicit migration)."""
+        self.save()
 
 
 def _fsync_dir(path):
@@ -649,22 +819,74 @@ def make_client(args):
 # commands
 # ---------------------------------------------------------------------------
 
+def state_summary(data, now=None):
+    """Counts for status: unique domains, (domain, profile) pairs and per-profile states."""
+    now = int(time.time()) if now is None else now
+    doms = data.get("domains", {})
+    profiles = {}
+
+    def prof(p):
+        return profiles.setdefault(p, {"domains": 0, "crawled": 0, "retry": 0, "legacy_auth_retry": 0,
+                                       "rejected": 0, "robots": 0, "blocked": 0, "fresh": 0, "other": 0,
+                                       "due": 0, "classified": {"PASS": 0, "FAIL": 0, "UNSURE": 0}})
+    pairs = unassigned = 0
+    for e in doms.values():
+        if not isinstance(e, dict):
+            continue
+        if e.get("unassigned"):
+            unassigned += 1
+        for p, pe in (e.get("profiles") or {}).items():
+            pairs += 1
+            c = prof(p)
+            c["domains"] += 1
+            status = pe.get("status") or ""
+            if legacy_auth_burned(pe):
+                c["legacy_auth_retry"] += 1
+            elif status == "crawled":
+                c["crawled"] += 1
+            elif status in RETRY_STATUSES:
+                c["retry"] += 1
+            elif status in PROBLEM_STATUSES:
+                c[status] += 1
+            elif not status:
+                c["fresh"] += 1
+            else:
+                c["other"] += 1
+            if selection_kind(pe, now, 30) is not None:
+                c["due"] += 1
+        for p, rec in (e.get("classifications") or {}).items():
+            v = (rec or {}).get("verdict")
+            if v in ("PASS", "FAIL", "UNSURE"):
+                prof(p)["classified"][v] += 1
+    return {"unique_domains": len(doms), "domain_profile_pairs": pairs,
+            "unassigned_domains": unassigned, "profiles": dict(sorted(profiles.items()))}
+
+
 def cmd_status(args):
     st = open_state(args)
-    doms = st.data["domains"]
-    by_profile = {}
-    for d, e in doms.items():
-        p = e.get("profile", "?")
-        by_profile.setdefault(p, {"domains": 0, "crawled": 0})
-        by_profile[p]["domains"] += 1
-        if e.get("status") == "crawled":
-            by_profile[p]["crawled"] += 1
-    print(json.dumps({
+    summary = state_summary(st.data)
+    print(json.dumps(dict({
         "paused": st.data.get("paused", False),
-        "total_domains": len(doms),
-        "profiles": by_profile,
-        "state_file": st.path,
-    }, indent=2, ensure_ascii=False))
+        "state_version": STATE_VERSION,
+        "state_version_on_disk": st.disk_version,
+        "migration_pending": st.disk_version != STATE_VERSION,
+        "total_domains": summary["unique_domains"],          # name before state_version 2
+    }, **summary, state_file=st.path), indent=2, ensure_ascii=False))
+
+
+def cmd_migrate(args):
+    """Rewrite state.json in the current layout (also done by any regular write)."""
+    st = open_state(args, run=not args.dry_run)
+    losses = migration_losses(st._load_raw().get("domains", {}), st.data["domains"])
+    if losses:
+        sys.exit(json.dumps({"error": {"code": "migration_would_lose_data", "problems": losses[:20]}}))
+    report = {"state_version_on_disk": st.disk_version, "state_version": STATE_VERSION,
+              "entries_migrated": st.migrated, "lossless": True, "dry_run": bool(args.dry_run),
+              "summary": state_summary(st.data), "state_file": st.path}
+    if not args.dry_run and (st.migrated or st.disk_version != STATE_VERSION):
+        st.migrate()
+        report["backup"] = os.path.join(st.dir, State.BACKUP)
+    print(json.dumps(report, indent=2, ensure_ascii=False))
 
 
 def cmd_pause(args):
@@ -702,41 +924,73 @@ def discover_candidates(client, profiles, regions, profile, term_limit, region_l
     return out, new_cursor
 
 
+# Selection works per (domain, profile): the crawl state of one profile never
+# changes the selection for another profile of the same domain.
+#
 # Selection order for small batches (lower tier first; discovery order inside a tier):
-TIER_NEW = 1        # never tried
+TIER_NEW = 1        # fresh for this profile (or a legacy 401 entry, treated as fresh)
 TIER_RECRAWL = 2    # crawled successfully, regular recrawl due
 TIER_RETRY = 3      # transient error (DNS, site 5xx, Scoutro upstream), retry due
 TIER_PROBLEM = 4    # known problematic start URL (rejected by Scoutro, robots, security block), cooldown over
 RETRY_STATUSES = ("retry", "error")        # "error": state written by scoutro-discovery before version 3
 PROBLEM_STATUSES = ("rejected", "robots", "blocked")
 
+# report names of the selection reasons, in selection order
+KIND_FRESH = "fresh"                        # never really tried for this profile
+KIND_LEGACY_AUTH = "legacy_auth_retry"      # old bogus-401 entry, selected like fresh
+KIND_RECRAWL = "recrawl"
+KIND_RETRY = "retry"
+KIND_PROBLEM = "problematic"
+KINDS = (KIND_FRESH, KIND_LEGACY_AUTH, KIND_RECRAWL, KIND_RETRY, KIND_PROBLEM)
+KIND_TIER = {KIND_FRESH: TIER_NEW, KIND_LEGACY_AUTH: TIER_NEW, KIND_RECRAWL: TIER_RECRAWL,
+             KIND_RETRY: TIER_RETRY, KIND_PROBLEM: TIER_PROBLEM}
+
 
 def legacy_auth_burned(entry):
     """State of scoutro-discovery < 3: status "error" only because the old urllib Digest
     handler answered with HTTP 401 (see Client). The start URL was never tried."""
-    return entry.get("status") == "error" and str(entry.get("last_error", "")).split(" ", 1)[0] == "401"
+    return bool(entry) and entry.get("status") == "error" \
+        and str(entry.get("last_error", "")).split(" ", 1)[0] == "401"
 
 
-def selection_tier(entry, now, recrawl_days, force=False):
-    """Tier of a known domain, or None when it is not due. force: everything is due, one tier."""
-    if force:
-        return TIER_NEW
-    if not entry or not entry.get("status") or legacy_auth_burned(entry):
-        return TIER_NEW
-    if entry.get("next_attempt", 0) > now:
-        return None
-    status = entry.get("status")
+def selection_kind(pentry, now, recrawl_days, force=False):
+    """Selection reason of one (domain, profile) crawl state (KIND_*), or None when not due.
+
+    force: everything is due; the reason is still reported.
+    """
+    if not pentry or not pentry.get("status"):
+        return KIND_FRESH
+    if legacy_auth_burned(pentry):
+        return KIND_LEGACY_AUTH
+    status = pentry.get("status")
     if status == "crawled":
-        return TIER_RECRAWL if (now - entry.get("last_crawl", 0)) >= recrawl_days * 86400 else None
-    if status in RETRY_STATUSES:
-        return TIER_RETRY
-    return TIER_PROBLEM
+        kind = KIND_RECRAWL
+    elif status in RETRY_STATUSES:
+        kind = KIND_RETRY
+    else:
+        kind = KIND_PROBLEM
+    if force:
+        return kind
+    if pentry.get("next_attempt", 0) > now:
+        return None
+    if kind == KIND_RECRAWL and (now - pentry.get("last_crawl", 0)) < recrawl_days * 86400:
+        return None
+    return kind
+
+
+def selection_tier(pentry, now, recrawl_days, force=False):
+    """Tier of a (domain, profile) crawl state, or None when it is not due. force: one tier."""
+    kind = selection_kind(pentry, now, recrawl_days, force)
+    if kind is None:
+        return None
+    return TIER_NEW if force else KIND_TIER[kind]
 
 
 def select_domains(candidates, profile, state, force, max_domains, now, recrawl_days, require_tld=True):
-    """Filter candidates and pick due domains, new ones first (see TIER_*).
+    """Filter candidates and pick domains that are due for this profile, fresh ones first (see TIER_*).
 
-    Returns (selected, accepted, rejected); selected = [(domain, candidate, tier)],
+    Returns (selected, accepted, rejected); selected = [(domain, candidate, tier, info)],
+    info = {"kind": KIND_*, "globally_new": the domain is not in the state at all},
     ordered by tier, at most max_domains. Nothing is ever removed from the state.
     """
     accepted = {}
@@ -756,9 +1010,11 @@ def select_domains(candidates, profile, state, force, max_domains, now, recrawl_
         accepted.setdefault(rd, c)
     eligible = []
     for rd, c in accepted.items():
-        tier = selection_tier(state.domain(rd), now, recrawl_days, force)
-        if tier is not None:
-            eligible.append((rd, c, tier))
+        pentry = state.profile_entry(rd, profile)
+        kind = selection_kind(pentry, now, recrawl_days, force)
+        if kind is not None:
+            tier = TIER_NEW if force else KIND_TIER[kind]
+            eligible.append((rd, c, tier, {"kind": kind, "globally_new": state.domain(rd) is None}))
     eligible.sort(key=lambda x: x[2])       # stable: discovery order inside a tier
     return eligible[:max_domains], accepted, rejected
 
@@ -928,24 +1184,26 @@ def cmd_start(args):
 
         seen = set()
         uniq = []
-        for rd, c, tier in sorted(selected, key=lambda x: x[2]):
+        for rd, c, tier, info in sorted(selected, key=lambda x: x[2]):
             if rd in seen:
                 continue
             seen.add(rd)
-            uniq.append((rd, c, tier))
+            uniq.append((rd, c, tier, info))
         selected = uniq[:args.max_domains]
 
+        sel_info = {x[0]: x[3] for x in selected}
         started = []
         robots_blocked = 0
         upstream_errors_in_row = 0
-        for rd, c, tier in selected:
-            entry = dict(st.domain(rd) or {})      # only written back when this domain has an outcome
-            entry.update({"profile": name, "domain": rd, "candidate_url": c["url"],
-                          "collection": collection_for(rules, name), "region": c.get("region", "")})
+        for rd, c, tier, sel in selected:
+            # crawl state of this (domain, profile) only; written back only when it has an outcome.
+            # Other profiles of the domain and the domain-wide fields are never touched here.
+            entry = dict(st.profile_entry(rd, name) or {})
+            entry.update({"candidate_url": c["url"], "collection": collection_for(rules, name),
+                          "region": c.get("region", "")})
             entry.setdefault("first_seen", now)
             if args.dry_run:
-                started.append({"domain": rd, "url": c["url"], "source": c.get("source", ""), "tier": tier,
-                                "status": "dry-run"})
+                started.append({"domain": rd, "url": c["url"], "source": c.get("source", ""), "status": "dry-run"})
                 continue
             ok, info = resolve_public(c["host"])
             if not ok:
@@ -956,20 +1214,20 @@ def cmd_start(args):
                     entry.update({"status": "blocked", "error_class": "security", "attempts": entry.get("attempts", 0) + 1,
                                   "last_error": info, "next_attempt": now + 86400})
                     started.append({"domain": rd, "status": "blocked:" + info})
-                st.put_domain(rd, entry)
+                st.put_profile_entry(rd, name, entry, now)
                 continue
             ro, rreason = robots_allows(c["host"])
             if ro is None:                           # D: site answers 5xx
                 mark_retry(entry, "site_5xx", rreason, now, args.recrawl_days,
                            http_status=int(rreason.rsplit(":", 1)[1]) if rreason.startswith("site-5xx:") else None)
-                st.put_domain(rd, entry)
+                st.put_profile_entry(rd, name, entry, now)
                 started.append({"domain": rd, "status": "retry:site_5xx", "error": rreason})
                 continue
             if not ro:                               # E: robots (unchanged)
                 robots_blocked += 1
                 entry.update({"status": "robots", "error_class": "robots", "attempts": entry.get("attempts", 0) + 1,
                               "last_error": rreason, "next_attempt": now + args.recrawl_days * 86400})
-                st.put_domain(rd, entry)
+                st.put_profile_entry(rd, name, entry, now)
                 started.append({"domain": rd, "status": "robots:" + rreason})
                 continue
             try:
@@ -978,7 +1236,7 @@ def cmd_start(args):
                 entry.update({"status": "crawled", "error_class": "", "last_crawl": now, "attempts": 0,
                               "last_error": "", "last_http_status": None,
                               "next_attempt": now + args.recrawl_days * 86400, "crawl_id": res.get("id")})
-                st.put_domain(rd, entry)
+                st.put_profile_entry(rd, name, entry, now)
                 started.append({"domain": rd, "url": c["url"], "crawl_id": res.get("id"), "status": "started"})
                 upstream_errors_in_row = 0
             except AuthFailed as e:                  # A: never the domain's fault
@@ -994,12 +1252,12 @@ def cmd_start(args):
                                   "attempts": entry.get("attempts", 0) + 1, "last_error": str(e),
                                   "last_http_status": e.status,
                                   "next_attempt": now + args.rejected_cooldown_days * 86400})
-                    st.put_domain(rd, entry)
+                    st.put_profile_entry(rd, name, entry, now)
                     started.append({"domain": rd, "status": "rejected", "error": str(e)})
                     upstream_errors_in_row = 0
                 elif cls == "transient" and upstream_errors_in_row < 2:
                     mark_retry(entry, "scoutro_upstream", str(e), now, args.recrawl_days, http_status=e.status)
-                    st.put_domain(rd, entry)
+                    st.put_profile_entry(rd, name, entry, now)
                     started.append({"domain": rd, "status": "retry:scoutro_upstream", "error": str(e)})
                     upstream_errors_in_row += 1
                 else:                                # A: infrastructure / client error
@@ -1017,10 +1275,10 @@ def cmd_start(args):
             "osm_candidates": n_osm,
             "rejected_by_reason": rejected,
             "robots_blocked": robots_blocked,
-            "selected_by_tier": {t: sum(1 for x in selected if x[2] == n)
-                                 for t, n in (("new", TIER_NEW), ("recrawl", TIER_RECRAWL),
-                                              ("retry", TIER_RETRY), ("problem", TIER_PROBLEM))},
-            "processed": started,
+            "selected_by_tier": {k: sum(1 for x in selected if x[3]["kind"] == k) for k in KINDS},
+            "selected_globally_new": sum(1 for x in selected if x[3]["globally_new"]),
+            "processed": [dict(r, tier=sel_info[r["domain"]]["kind"],
+                               globally_new=sel_info[r["domain"]]["globally_new"]) for r in started],
         }
         if source in ("osm", "both"):
             entry_report["osm_regions"] = {r: osm_stats.get(r, {}).get(name, {}) for r in (args.region or [])}
@@ -1151,19 +1409,20 @@ def cmd_classify(args):
             domains = [registrable_domain(d) for d in args.domain]
         else:
             domains = sorted(d for d, e in st.data["domains"].items()
-                             if e.get("profile") == name and e.get("status") == "crawled")
+                             if ((e.get("profiles") or {}).get(name) or {}).get("status") == "crawled")
         done, counts = [], {"PASS": 0, "FAIL": 0, "UNSURE": 0, "skipped": 0}
         for d in domains:
             if len([x for x in done if x.get("verdict")]) >= args.max:
                 break
-            entry = st.domain(d) or {"domain": d, "profile": name}
+            entry = st.domain(d) or {"domain": d, "profiles": {}}
+            pentry = (entry.get("profiles") or {}).get(name) or {}
             prev = (entry.get("classifications") or {}).get(name)
             if prev and not args.reclassify and not prev["classifier"]["error"] \
                     and prev["classifier"]["criteria_version"] == classifier.criteria_version:
                 counts["skipped"] += 1
                 done.append({"domain": d, "status": "already_classified", "verdict": None})
                 continue
-            if entry.get("profile") == name and crawl_running(client, entry):
+            if crawl_running(client, pentry):
                 counts["skipped"] += 1
                 done.append({"domain": d, "status": "crawl_running", "verdict": None})
                 continue
@@ -1175,7 +1434,7 @@ def cmd_classify(args):
             if args.dry_run:
                 done.append({"domain": d, "status": "dry-run", "documents": len(docs), "verdict": None})
                 continue
-            rec = classifier.classify(name, d, docs, location=entry.get("region", "") or "")
+            rec = classifier.classify(name, d, docs, location=pentry.get("region", "") or "")
             entry.setdefault("classifications", {})[name] = rec
             st.put_domain(d, entry)
             st.save()
@@ -1327,6 +1586,10 @@ def main():
     sub.add_parser("pause", help="pause discovery").set_defaults(func=cmd_pause)
     sub.add_parser("resume", help="resume discovery").set_defaults(func=cmd_resume)
     sub.add_parser("selftest", help="run filter/SSRF self-tests").set_defaults(func=cmd_selftest)
+    m = sub.add_parser("migrate-state", help="rewrite state.json in the current multi-profile layout "
+                                             "(any regular write does this too; keeps state.v1.json)")
+    m.add_argument("--dry-run", action="store_true", help="only report what the migration would do")
+    m.set_defaults(func=cmd_migrate)
 
     s = sub.add_parser("start", help="discover and crawl prospect domains")
     s.add_argument("--profile", help="only this profile (default: all)")

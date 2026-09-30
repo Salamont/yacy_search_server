@@ -45,6 +45,11 @@ loader.exec_module(disc)
 
 RULES = sc.load_profile_rules(os.path.join(CONFIG, "profiles.json"))
 
+
+def pstate(state, domain, profile="edelsenior"):
+    """Crawl state of (domain, profile) in a state_version 2 state.json."""
+    return state["domains"][domain]["profiles"][profile]
+
 # ---------------------------------------------------------------------------
 # fixtures: indexed documents (as returned by the Scoutro search API)
 # ---------------------------------------------------------------------------
@@ -607,9 +612,9 @@ class CrawlCollectionTests(unittest.TestCase):
         finally:
             disc.make_client, disc.resolve_public, disc.robots_allows = orig
         self.assertEqual(crawled, [("https://www.sonnenhof-pflege.de/", "edelsenior-web", 2, 15, "domain")])
-        self.assertEqual(st["domains"]["sonnenhof-pflege.de"]["collection"], "edelsenior-web")
-        self.assertEqual(st["domains"]["robots-block.de"]["status"], "robots")
-        self.assertEqual(st["domains"]["private-target.de"]["status"], "blocked")
+        self.assertEqual(pstate(st, "sonnenhof-pflege.de")["collection"], "edelsenior-web")
+        self.assertEqual(pstate(st, "robots-block.de")["status"], "robots")
+        self.assertEqual(pstate(st, "private-target.de")["status"], "blocked")
         self.assertNotIn("wikipedia.org", st["domains"])
 
     def test_four_profile_collections(self):
@@ -1202,10 +1207,10 @@ class StartReliabilityTests(unittest.TestCase):
         self.assertEqual(code, 3)
         self.assertEqual(report["aborted"]["code"], "auth_failed")
         self.assertEqual(len(calls), 2)                                    # stopped at the auth failure
-        self.assertEqual(after["domains"]["ok-eins.de"]["status"], "crawled")   # progress before is kept
+        self.assertEqual(pstate(after, "ok-eins.de")["status"], "crawled")       # progress before is kept
         for d in ("auth-kaputt.de", "nie-erreicht-a.de", "nie-erreicht-b.de"):
             self.assertNotIn(d, after["domains"])                          # no attempts, no backoff, no status
-        self.assertEqual(after["domains"]["alt.de"], before["domains"]["alt.de"])
+        self.assertEqual(after["domains"]["alt.de"], disc.normalize_entry("alt.de", before["domains"]["alt.de"])[0])
 
     def test_infrastructure_error_aborts_without_marking(self):
         results = {"timeout.de": disc.InfrastructureError(0, "timeout", "t"), "danach.de": {"id": 1}}
@@ -1228,7 +1233,7 @@ class StartReliabilityTests(unittest.TestCase):
             dns={"dns-weg.de": (False, "dns:[Errno -2] Name or service not known"), "privat.de": (False, "private-ip:10.0.0.1")},
             robots={"site-down.de": (None, "site-5xx:503"), "robots-nein.de": (False, "robots-disallow-all")})
         self.assertEqual(code, 0)
-        d = after["domains"]
+        d = {k: v["profiles"]["edelsenior"] for k, v in after["domains"].items()}
         self.assertEqual((d["abgelehnt.de"]["status"], d["abgelehnt.de"]["error_class"]), ("rejected", "rejected"))
         self.assertGreaterEqual(d["abgelehnt.de"]["next_attempt"], now + 59 * 86400)            # B: long cooldown
         self.assertEqual(d["kaputte-url.de"]["status"], "rejected")
@@ -1276,7 +1281,7 @@ class StartReliabilityTests(unittest.TestCase):
                           "recrawl.de",                                       # 2: recrawl due
                           "retry.de", "legacy-error.de",                      # 3: retry due
                           "abgelehnt.de"])                                    # 4: problematic, cooldown over
-        self.assertEqual(report["edelsenior"]["selected_by_tier"], {"new": 3, "recrawl": 1, "retry": 2, "problem": 1})
+        self.assertEqual(report["edelsenior"]["selected_by_tier"], {"fresh": 2, "legacy_auth_retry": 1, "recrawl": 1, "retry": 2, "problematic": 1})
         # small batch: only new candidates
         calls, _, _, _ = self.run_start(json.loads(json.dumps(st)), results, max_domains=2, candidates=cands)
         self.assertEqual(len(calls), 2)
