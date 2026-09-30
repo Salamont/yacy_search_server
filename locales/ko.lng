@@ -4439,7 +4439,7 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost(); false를 반환;
 "Stop all"=="모두 중지"
 Click the RSS icon to see this search result as RSS message stream.==이 검색 결과를 RSS 메시지 스트림으로 보려면 RSS 아이콘을 클릭하세요.
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==RSS 검색 결과 형식을 사용하여 RSS 리더에 정적 검색을 추가합니다(사용하는 경우).
-search==찾다
+>Search<==>찾다<
 No Results.==결과가 없습니다.
 No Results. (length of search words must be at least 1 character)==결과가 없습니다. (검색어 길이는 1자 이상이어야 합니다)
 You are not allowed to search the web with this peer.==이 피어를 사용하여 웹을 검색할 수 없습니다.

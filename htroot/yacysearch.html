@@ -117,9 +117,10 @@ Use the RSS search result format to add static searches to your RSS reader, if y
 
   <div class="input-group" style="max-width:445px;">
     <input name="query" id="search" type="text" class="form-control searchinput typeahead" size="40" maxlength="200" 
-    	placeholder="#[promoteSearchPageGreeting]#" value="#[former]#" #(focus)#::autofocus="autofocus"#(/focus)# onFocus="this.select()" onclick="document.getElementById('Enter').innerHTML = 'search'"/>
+    	placeholder="#[promoteSearchPageGreeting]#" value="#[former]#" #(focus)#::autofocus="autofocus"#(/focus)# onFocus="this.select()"/>
     <div class="input-group-btn">
-       <button id="Enter" name="Enter" class="btn btn-default" type="submit">search</button>
+       <!-- Scoutro: icon button; the visually hidden label keeps the accessible name -->
+       <button id="Enter" name="Enter" class="btn btn-default" type="submit"><span class="glyphicon glyphicon-search" aria-hidden="true"></span><span class="scoutro-button-label">Search</span></button>
        #(resortEnabled)#::
        <a id="resortCached" class="btn btn-default" style="visibility: hidden;" role="button" href="#[url]#" 
        		title="Refresh sorting. Depending on their rank, some results fetched in background may then appear on this page.">
@@ -210,9 +211,7 @@ Use the RSS search result format to add static searches to your RSS reader, if y
 
 #(searchagain)#
 ::
-<script type="text/javascript">
-document.getElementById("Enter").innerHTML = "search again";
-</script>
+<!-- Scoutro: the icon button has no text state for a repeated query -->
 #(/searchagain)#
 
 <!-- show information about search key handling -->

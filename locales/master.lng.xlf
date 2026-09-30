@@ -12241,8 +12241,8 @@
     <trans-unit id="218e1204" xml:space="preserve" approved="no" translate="yes">
        <source>Use the RSS search result format to add static searches to your RSS reader, if you use one.</source>
     </trans-unit>
-    <trans-unit id="c9fa65a8" xml:space="preserve" approved="no" translate="yes">
-       <source>search</source>
+    <trans-unit id="935f51c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Search</source>
     </trans-unit>
     <trans-unit id="c1eb0a77" xml:space="preserve" approved="no" translate="yes">
        <source>No Results.</source>

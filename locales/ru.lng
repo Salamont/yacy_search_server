@@ -3417,7 +3417,7 @@ Location -- click on map to enlarge==Местоположение -- Нажми�
 "Stop all"=="Остановить все"
 Click the RSS icon to see this search result as RSS message stream.==Щелкните значок RSS, чтобы просмотреть этот результат поиска в виде потока сообщений RSS.
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==Используйте формат результатов поиска RSS, чтобы добавить статические результаты поиска в программу чтения RSS, если вы ее используете.
-search==поиск
+>Search<==>поиск<
 No Results. (length of search words must be at least 1 character)==Нет результатов. (длина искомых слов должна быть не менее 1 символа)
 You are not allowed to search the web with this peer.==Вам не разрешено осуществлять поиск в Интернете с помощью этого узла.
 You have reached the maximum allowed number of accesses to this search page within ten minutes.==Вы достигли максимально разрешенного количества посещений этой страницы поиска в течение десяти минут.

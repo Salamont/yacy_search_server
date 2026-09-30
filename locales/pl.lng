@@ -4454,7 +4454,7 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost(); return false;"
 "Stop all"=="Zatrzymaj wszystkie"
 Click the RSS icon to see this search result as RSS message stream.==Kliknij ikonę RSS, aby zobaczyć ten wynik wyszukiwania jako strumień wiadomości RSS.
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==Użyj formatu wyników wyszukiwania RSS, aby dodać statyczne wyszukiwania do czytnika RSS, jeśli go używasz.
-search==szukaj
+>Search<==>szukaj<
 No Results.==Brak wyników.
 No Results. (length of search words must be at least 1 character)==Brak wyników. (długość słów wyszukiwania musi wynosić co najmniej 1 znak)
 You are not allowed to search the web with this peer.==Nie masz uprawnień do przeszukiwania sieci za pomocą tego peera.

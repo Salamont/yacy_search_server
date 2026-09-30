@@ -2928,7 +2928,7 @@ No Results.==Результати відсутні.
 "Stop all"=="Зупинити все"
 Click the RSS icon to see this search result as RSS message stream.==Натисніть піктограму RSS, щоб побачити цей результат пошуку як потік повідомлень RSS.
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==Використовуйте формат результатів пошуку RSS, щоб додати статичні пошукові запити до програми для читання RSS, якщо ви її використовуєте.
-search==пошук
+>Search<==>пошук<
 No Results. (length of search words must be at least 1 character)==Немає результатів. (довжина пошукових слів має бути не менше 1 символу)
 You are not allowed to search the web with this peer.==Вам заборонено здійснювати пошук в Інтернеті з цим однорангом.
 You have reached the maximum allowed number of accesses to this search page within ten minutes.==Ви досягли максимально дозволеної кількості доступів до цієї сторінки пошуку протягом десяти хвилин.

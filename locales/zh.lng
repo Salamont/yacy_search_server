@@ -4449,7 +4449,7 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost()；返回 false；
 "Stop all"=="全部停止"
 Click the RSS icon to see this search result as RSS message stream.==单击 RSS 图标可将此搜索结果视为 RSS 消息流。
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==使用 RSS 搜索结果格式将静态搜索添加到你的 RSS 阅读器（如果你使用的话）。
-search==搜索
+>Search<==>搜索<
 No Results.==未找到.
 No Results. (length of search words must be at least 1 character)==没有结果。 （搜索词长度必须至少为1个字符）
 You are not allowed to search the web with this peer.==您不能与该同伴一起搜索网络。

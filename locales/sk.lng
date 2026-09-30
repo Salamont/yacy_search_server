@@ -4448,7 +4448,7 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost(); return false;"
 "Stop all"=="Zastavte všetko"
 Click the RSS icon to see this search result as RSS message stream.==Kliknutím na ikonu RSS zobrazíte tento výsledok vyhľadávania ako prúd správ RSS.
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==Pomocou formátu výsledkov vyhľadávania RSS pridajte statické vyhľadávania do čítačky RSS, ak ju používate.
-search==hľadať
+>Search<==>hľadať<
 No Results.==Ziadne vysledky
 No Results. (length of search words must be at least 1 character)==Žiadne výsledky. (dĺžka hľadaných slov musí byť aspoň 1 znak)
 You are not allowed to search the web with this peer.==S týmto partnerom nemáte povolené hľadať na webe.

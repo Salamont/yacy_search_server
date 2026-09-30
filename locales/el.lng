@@ -4449,7 +4449,7 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost(); return false;"
 "Stop all"=="Σταματήστε όλα"
 Click the RSS icon to see this search result as RSS message stream.==Κάντε κλικ στο εικονίδιο RSS για να δείτε αυτό το αποτέλεσμα αναζήτησης ως ροή μηνυμάτων RSS.
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==Χρησιμοποιήστε τη μορφή αποτελεσμάτων αναζήτησης RSS για να προσθέσετε στατικές αναζητήσεις στον αναγνώστη RSS, εάν χρησιμοποιείτε έναν.
-search==έρευνα
+>Search<==>έρευνα<
 No Results.==Κανένα αποτέλεσμα.
 No Results. (length of search words must be at least 1 character)==Κανένα αποτέλεσμα. (το μήκος των λέξεων αναζήτησης πρέπει να είναι τουλάχιστον 1 χαρακτήρα)
 You are not allowed to search the web with this peer.==Δεν επιτρέπεται να κάνετε αναζήτηση στον ιστό με αυτόν τον ομότιμο.

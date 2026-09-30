@@ -1894,7 +1894,7 @@ You are not allowed to search the web with this peer.==Vous n'êtes pas autoris�
 You have reached the maximum allowed number of accesses to this search page within one minute.==Vous avez atteint le nombre maximum autorisé d'accès à cette page de recherche en une minute.
 You have reached the maximum allowed number of accesses to this search page within ten minutes.==Vous avez atteint le nombre maximum autorisé d'accès à cette page de recherche dans les dix minutes.
 You have reached the maximum allowed number of accesses to this search page within three seconds.==Vous avez atteint le nombre maximum autorisé d'accès à cette page de recherche en trois secondes.
-search==recherche
+>Search<==>recherche<
 #-----------------------------
 
 #File: yacysearchitem.html

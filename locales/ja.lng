@@ -4444,7 +4444,7 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost(); false を返し�
 "Stop all"=="全部やめて"
 Click the RSS icon to see this search result as RSS message stream.==RSS アイコンをクリックすると、この検索結果が RSS メッセージ ストリームとして表示されます。
 Use the RSS search result format to add static searches to your RSS reader, if you use one.==RSS リーダーを使用している場合は、RSS 検索結果形式を使用して静的検索を追加します。
-search==検索
+>Search<==>検索<
 No Results.==結果がありません.
 No Results. (length of search words must be at least 1 character)==結果はありません。 (検索ワードの長さは 1 文字以上である必要があります)
 You are not allowed to search the web with this peer.==このピアを使用して Web を検索することはできません。

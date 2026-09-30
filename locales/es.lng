@@ -3329,7 +3329,7 @@ No Results.==Sin resultados.
 Location -- click on map to enlarge==Ubicación -- haga clic en el mapa para ampliar
 Show==Mostrar
 URL==URL
-search==buscar
+>Search<==>buscar<
 "Hide links to images that could not be rendered"=="Ocultar enlaces a imágenes que no pudieron ser renderizadas"
 "Play all"=="Tocar todo"
 "Refresh sorting. Depending on their rank, some results fetched in background may then appear on this page."=="Refrescar la clasificación. Dependiendo de su rango, algunos resultados obtenidos en segundo plano pueden aparecer en esta página."

@@ -236,10 +236,22 @@ async function checkPublicHeader(page, vp) {
 /* results page: search pill stays on one row; empty state appears for a search without results */
 async function checkResultsPage(page, vp) {
   await page.goto(BASE + '/yacysearch.html?query=zzqxscoutronoresult&resource=local', { waitUntil: 'load' });
-  const pill = await page.locator('form.search.small .input-group').boundingBox();
-  const button = await page.locator('form.search.small #Enter').boundingBox();
+  const pill = await page.locator('form[name="searchform"] .input-group').boundingBox();
+  const button = await page.locator('form[name="searchform"] #Enter').boundingBox();
   check(!!pill && !!button && button.height <= 48 && button.y >= pill.y - 1 && button.y + button.height <= pill.y + pill.height + 1,
     vp.name, 'results search field and button on one row', button ? `button ${Math.round(button.width)}x${Math.round(button.height)}` : 'missing');
+  /* the search button is a round icon button (no wrapping text); the label only serves screen readers */
+  const enter = page.locator('form[name="searchform"] #Enter');
+  check((await enter.locator('.glyphicon-search').count()) === 1, vp.name, 'results search button shows the search icon');
+  check(!!button && Math.abs(button.width - button.height) <= 2 && button.width <= 48, vp.name, 'results search button is a round icon',
+    button ? `${Math.round(button.width)}x${Math.round(button.height)}` : 'missing');
+  const label = await enter.locator('.scoutro-button-label').boundingBox();
+  check(!label || (label.width <= 1 && label.height <= 1), vp.name, 'results search button label is visually hidden',
+    label ? `${label.width}x${label.height}` : 'no box');
+  check(((await enter.getAttribute('aria-label')) || (await enter.textContent()) || '').trim().length > 0, vp.name,
+    'results search button has an accessible name');
+  const bg = await page.locator('form[name="searchform"] .input-group').evaluate(e => getComputedStyle(e).backgroundImage);
+  check(/mascot-64\.png/.test(bg), vp.name, 'results search pill shows the mascot asset', bg.slice(0, 60));
   const empty = page.locator('#scoutro-empty-results');
   const shown = await empty.waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false);
   check(shown, vp.name, 'empty state shown for a search without results');

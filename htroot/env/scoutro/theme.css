@@ -576,37 +576,41 @@ ul.SubMenu a.scoutro-current.unlock {
 /* ------------------------------------------------------------------ */
 /* Search results (yacysearch.html)                                    */
 /* ------------------------------------------------------------------ */
+/* Selectors use form[name="searchform"] and input[name="query"], not the
+   class "search" / id "search": the locale files translate the word
+   "search", which would rename a class or id in the translated copy. */
 
-body#yacysearch form.search.small .input-group {
+body#yacysearch form[name="searchform"] .input-group {
   display: flex;
   align-items: center;
   max-width: 560px !important;
-  padding: 3px 3px 3px 40px;
-  background: var(--scoutro-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%235b6b85' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M15.5 15.5 21 21'/%3E%3C/svg%3E") no-repeat 15px 50%;
+  padding: 3px 3px 3px 44px;
+  /* small brand asset: the mascot in the magnifier (the search icon sits on the button) */
+  background: var(--scoutro-surface) url("brand/mascot-64.png") no-repeat 9px 50% / 30px 30px;
   border: 1.5px solid rgba(22, 115, 255, .35);
   border-radius: var(--scoutro-radius-pill);
   box-shadow: 0 0 0 4px rgba(55, 198, 255, .1), 0 6px 18px var(--scoutro-glow);
 }
 
 /* the search pill keeps one row (overrides the generic mobile wrapping) */
-body#yacysearch form.search.small .input-group {
+body#yacysearch form[name="searchform"] .input-group {
   flex-wrap: nowrap;
 }
 
-body#yacysearch form.search.small .input-group-btn .btn {
+body#yacysearch form[name="searchform"] .input-group-btn .btn {
   white-space: nowrap;
 }
 
-body#yacysearch form.search.small .input-group:focus-within {
+body#yacysearch form[name="searchform"] .input-group:focus-within {
   border-color: var(--scoutro-primary);
 }
 
-body#yacysearch form.search.small .twitter-typeahead {
+body#yacysearch form[name="searchform"] .twitter-typeahead {
   flex: 1 1 auto;
   min-width: 0;
 }
 
-body#yacysearch form.search.small #search {
+body#yacysearch form[name="searchform"] input[name="query"] {
   width: 100%;
   height: 38px;
   padding: 0 8px;
@@ -617,15 +621,15 @@ body#yacysearch form.search.small #search {
   box-shadow: none;
 }
 
-body#yacysearch form.search.small .input-group-btn {
+body#yacysearch form[name="searchform"] .input-group-btn {
   display: flex;
   width: auto;
   gap: 4px;
 }
 
-body#yacysearch form.search.small .input-group-btn .btn {
+body#yacysearch form[name="searchform"] .input-group-btn .btn {
   height: 38px;
-  padding: 0 18px;
+  padding: 0 14px;
   color: #fff;
   font-weight: 600;
   background: linear-gradient(180deg, #3a8dff 0%, var(--scoutro-primary) 100%);
@@ -634,19 +638,39 @@ body#yacysearch form.search.small .input-group-btn .btn {
   box-shadow: 0 3px 10px rgba(22, 115, 255, .35);
 }
 
-body#yacysearch form.search.small .input-group-btn #resortCached {
+/* search: round icon button like on the start page (label only for screen readers) */
+body#yacysearch form[name="searchform"] .input-group-btn #Enter {
+  width: 38px;
+  min-width: 38px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 38px;
+  text-align: center;
+  border-radius: 50% !important;
+}
+
+body#yacysearch form[name="searchform"] .input-group-btn #Enter .glyphicon {
+  top: 1px;
+}
+
+body#yacysearch form[name="searchform"] .input-group-btn #Enter:hover,
+body#yacysearch form[name="searchform"] .input-group-btn #Enter:focus {
+  background: var(--scoutro-primary-dark, #0b4fc4);
+}
+
+body#yacysearch form[name="searchform"] .input-group-btn #resortCached {
   padding: 0 12px;
   color: var(--scoutro-primary-dark);
   background: var(--scoutro-primary-soft);
   box-shadow: none;
 }
 
-body#yacysearch form.search.small label,
-body#yacysearch form.search.small select {
+body#yacysearch form[name="searchform"] label,
+body#yacysearch form[name="searchform"] select {
   color: var(--scoutro-muted) !important;
 }
 
-body#yacysearch form.search.small select {
+body#yacysearch form[name="searchform"] select {
   border: 1px solid var(--scoutro-border);
   border-radius: 6px;
   background: var(--scoutro-surface);
@@ -1020,7 +1044,7 @@ legend a:hover {
 
 /* results page: language filter next to the search pill instead of below it */
 @media (min-width: 768px) {
-  body#yacysearch form.search.small > div:not(.input-group) {
+  body#yacysearch form[name="searchform"] > div:not(.input-group) {
     position: absolute;
     top: 10px;
     left: calc(100% + 12px);
@@ -1033,10 +1057,6 @@ legend a:hover {
   body#yacysearch .main {
     padding-top: 36px;
   }
-}
-
-body#yacysearch form.search.small #Enter {
-  text-transform: capitalize;
 }
 
 body#yacysearch #sidebar .btn-group-justified .btn {

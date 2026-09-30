@@ -25,6 +25,8 @@ Checked on every viewport:
   outside the viewport (unless in a horizontal scroll container), no
   JavaScript errors;
 - the start page shows the tagline "Search. Crawl. Discover.";
+- on the results page the search button is a round icon button (label only
+  for screen readers) and the search pill shows the mascot asset;
 - the search form submits; on the results page the search field and its
   button stay on one row, and a search without results shows the empty
   state with its illustration;
@@ -54,3 +56,15 @@ node test/scoutro-ui/scoutro-ui-test.mjs --screenshots /tmp/scoutro-shots
 The script exits with status 1 and lists every failed check. Against an
 unmodified YaCy 1.942 it fails (hidden navigation, covered toggle, page
 overflow); against Scoutro all checks pass.
+
+## Locale guard
+
+YaCy translates the raw HTML by word replacement. A locale key that equals a
+class, id or name token renames it in the translated copy (e.g. `search` turned
+`class="search"` into `class="suchen"` and broke the results search pill in all
+languages). Check the search pages with:
+
+```sh
+python3 test/scoutro-ui/check-locale-identifiers.py
+```
+

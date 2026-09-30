@@ -3335,7 +3335,7 @@ No Results.==Nessun risultato.
 Location -- click on map to enlarge==Posizione -- clicca sulla mappa per ingrandire
 Show==Mostra
 URL==URL
-search==ricerca
+>Search<==>ricerca<
 "Hide links to images that could not be rendered"=="Nascondere i collegamenti alle immagini che non possono essere rese"
 "Play all"=="Gioca tutto"
 "Refresh sorting. Depending on their rank, some results fetched in background may then appear on this page."=="Aggiorna l'ordinamento. A seconda del loro rango, alcuni risultati recuperati in background possono poi appare in questa pagina."

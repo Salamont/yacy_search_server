@@ -157,7 +157,13 @@ the Scoutro artwork. All colors, radii and shadows come from the tokens in
   title), modern form controls with a cyan focus ring, data tables as cards
   with light header rows, and the Use Case chooser in night blue.
 - **Search:** the results page uses the same pill search field as the start
-  page, results are shown as cards (title, green URL, snippet with a warm
+  page: the small magnifier mascot (`brand/mascot-64.png`) sits inside the
+  pill on the left and the submit button is a round search icon
+  (`glyphicon-search`; its "Search" label stays for screen readers and is
+  translated). The theme targets the form by `form[name="searchform"]` and
+  `input[name="query"]`, because the locale files translate plain words and
+  must never rename `class`/`id` values (`test/scoutro-ui/check-locale-identifiers.py`
+  guards this). Results are shown as cards (title, green URL, snippet with a warm
   highlight, quiet meta line), and the facets appear as cards and segmented
   controls.
 - **Dark mode:** the start page, results page and About page follow
@@ -175,7 +181,7 @@ and do not get in the way:
 
 | Pose | File | Where |
 |---|---|---|
-| Magnifier mascot | `brand/mascot-*.{png,webp}` | start page hero, logo in the admin bar and the search navbar |
+| Magnifier mascot | `brand/mascot-*.{png,webp}` | start page hero, logo in the admin bar and the search navbar; the 64 px mascot inside the results page search pill |
 | Thinking, with question mark | `brand/pose-question.webp` | results page when a finished search has no results (`#scoutro-empty-results`, shown by `scoutro.js`; also the static "No Results." branches) |
 | Waving | `brand/pose-wave.webp` | About page header |
 | With laptop | `brand/pose-laptop.webp` | About page, next to the administration links |

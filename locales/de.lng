@@ -3421,7 +3421,7 @@ No Results.==Keine Ergebnisse.
 Location -- click on map to enlarge==Ort -- Auf die Karte klicken, um zu vergrößern
 Show==Zeige
 URL==URL
-search==suchen
+>Search<==>Suchen<
 "Hide links to images that could not be rendered"=="Links zu Bildern ausblenden, die nicht gerendert werden konnten"
 "Play all"=="Alle abspielen"
 "Refresh sorting. Depending on their rank, some results fetched in background may then appear on this page."=="Sortierung aktualisieren. Je nach Rang können einige im Hintergrund geladene Ergebnisse dann auf dieser Seite erscheinen."
