@@ -466,7 +466,7 @@ class ApiMock:
         self.server.server_close()
 
 
-class CliTests(unittest.TestCase):
+class CliBase(unittest.TestCase):
     def setUp(self):
         self.api = ApiMock()
         self.tmp = tempfile.TemporaryDirectory()
@@ -496,6 +496,9 @@ class CliTests(unittest.TestCase):
         with open(os.path.join(self.tmp.name, "state.json"), encoding="utf-8") as f:
             return json.load(f)
 
+
+
+class CliTests(CliBase):
     def test_classify_search_export(self):
         out = json.loads(self.run_cli("classify", "--profile", "edelsenior", "--backend", "heuristic",
                                       "--delay", "0").stdout)
@@ -600,6 +603,195 @@ class CrawlCollectionTests(unittest.TestCase):
                           "stackfinder": "stackfinder-web", "bauteamcheck": "bauteamcheck-web"})
         conf_profiles = set(disc.load_profiles(os.path.join(CONFIG, "profiles.conf")))
         self.assertEqual(conf_profiles, set(RULES["profiles"]))
+
+
+class StateIntegrityTests(unittest.TestCase):
+    """state.json / classifications.jsonl integrity (merge-readiness checks 7 and 8)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = self.tmp.name
+        self.path = os.path.join(self.dir, "state.json")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_unreadable_state_is_not_replaced(self):
+        with open(self.path, "w", encoding="utf-8") as f:
+            f.write('{"domains": {"a.de": ')          # half-written by some other tool
+        with self.assertRaises(disc.StateError):
+            disc.State(self.dir)
+        with open(self.path, encoding="utf-8") as f:
+            self.assertEqual(f.read(), '{"domains": {"a.de": ')
+
+    def test_aborted_write_keeps_previous_state(self):
+        st = disc.State(self.dir)
+        st.put_domain("a.de", {"status": "crawled"})
+        st.save()
+        before = open(self.path, encoding="utf-8").read()
+        st.put_domain("b.de", {"status": "crawled"})
+        orig = disc.json.dump
+
+        def crash(*a, **k):
+            a[1].write('{"partial": ')
+            raise KeyboardInterrupt("container killed")
+        disc.json.dump = crash
+        try:
+            with self.assertRaises(KeyboardInterrupt):
+                st.save()
+        finally:
+            disc.json.dump = orig
+        self.assertEqual(open(self.path, encoding="utf-8").read(), before)
+        self.assertEqual(set(disc.State(self.dir).data["domains"]), {"a.de"})
+
+    def test_pause_during_run_is_not_overwritten(self):
+        running = disc.State(self.dir)                 # e.g. a long start run
+        disc.State(self.dir).set_paused(True)          # operator pauses meanwhile
+        running.put_domain("a.de", {"status": "crawled"})
+        running.save()
+        st = disc.State(self.dir)
+        self.assertTrue(st.data["paused"])
+        self.assertIn("a.de", st.data["domains"])
+
+    def test_run_lock_is_exclusive(self):
+        a, b = disc.State(self.dir), disc.State(self.dir)
+        self.assertTrue(a.acquire_run_lock())
+        self.assertFalse(b.acquire_run_lock())
+        a._run_lock.close()
+        self.assertTrue(b.acquire_run_lock())
+        b._run_lock.close()
+
+    def test_jsonl_lines_are_complete_json(self):
+        rec = sc.Classifier(RULES, backend="heuristic").classify("edelsenior", "sonnenhof-pflege.de", CARE_HOME)
+        for _ in range(3):
+            disc.append_log(self.dir, rec)
+        with open(os.path.join(self.dir, "classifications.jsonl"), encoding="utf-8") as f:
+            lines = f.read().split("\n")
+        self.assertEqual(lines[-1], "")
+        self.assertEqual([json.loads(line)["verdict"] for line in lines[:-1]], ["PASS"] * 3)
+
+
+class ReclassificationTests(CliBase):
+    """criteria_version handling and one active result per domain and profile (check 8 and 9)."""
+
+    def classify(self, *extra):
+        return json.loads(self.run_cli("classify", "--profile", "edelsenior", "--backend", "heuristic",
+                                       "--delay", "0", *extra).stdout)["profiles"]["edelsenior"]["counts"]
+
+    def test_criteria_version_change_reclassifies_and_replaces(self):
+        self.classify()
+        st = self.state()
+        st["domains"]["uni-koeln.de"]["classifications"]["edelsenior"]["classifier"]["criteria_version"] = "old"
+        with open(os.path.join(self.tmp.name, "state.json"), "w", encoding="utf-8") as f:
+            json.dump(st, f)
+        counts = self.classify()
+        self.assertEqual((counts["skipped"], counts["FAIL"]), (2, 1))   # only the outdated one
+        st = self.state()
+        rec = st["domains"]["uni-koeln.de"]["classifications"]
+        self.assertEqual(list(rec), ["edelsenior"])                       # exactly one active record
+        self.assertEqual(rec["edelsenior"]["classifier"]["criteria_version"], RULES["criteria_version"])
+        with open(os.path.join(self.tmp.name, "classifications.jsonl"), encoding="utf-8") as f:
+            history = [json.loads(line) for line in f if line.strip()]
+        self.assertEqual(len([h for h in history if h["domain"] == "uni-koeln.de"]), 2)   # history kept
+        exp = json.loads(self.run_cli("export", "--profile", "edelsenior").stdout)
+        self.assertEqual(len([r for r in exp["classifications"] if r["domain"] == "uni-koeln.de"]), 1)
+
+    def test_reclassify_flag_replaces_all(self):
+        self.classify()
+        counts = self.classify("--reclassify")
+        self.assertEqual(counts["skipped"], 0)
+        self.assertEqual(len(self.state()["domains"]["sonnenhof-pflege.de"]["classifications"]), 1)
+
+    def test_classify_busy_while_other_run_active(self):
+        holder = disc.State(self.tmp.name)
+        self.assertTrue(holder.acquire_run_lock())
+        try:
+            p = self.run_cli("classify", "--profile", "edelsenior", "--backend", "heuristic", ok=False)
+            self.assertIn("busy", p.stdout + p.stderr)
+        finally:
+            holder._run_lock.close()
+
+
+class VerdictDoesNotAffectCrawlTests(unittest.TestCase):
+    """PASS/FAIL/UNSURE is a downstream assessment only (checks 3 and 4)."""
+
+    def run_start(self, state, profile="edelsenior"):
+        crawled = []
+
+        class FakeClient:
+            def search(self, q, source="local", limit=10):
+                return {"results": [{"url": "https://www.sonnenhof-pflege.de/", "title": "t"},
+                                    {"url": "https://www.koelner-zeitung.de/", "title": "t"}]}
+
+            def crawl_start(self, url, collection, depth=2, max_pages=15, scope="domain"):
+                crawled.append((url, collection))
+                return {"id": "c"}
+
+        orig = (disc.make_client, disc.resolve_public, disc.robots_allows)
+        disc.make_client = lambda args: FakeClient()
+        disc.resolve_public = lambda host: (True, "1.2.3.4")
+        disc.robots_allows = lambda host: (True, "robots-ok")
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                with open(os.path.join(tmp, "state.json"), "w", encoding="utf-8") as f:
+                    json.dump(state, f)
+                args = argparse.Namespace(config_dir=None, workdir=tmp, profile=profile, source="freeworld",
+                                          region=[], keep_pbf=False, osm_config=None, limit_terms=1, limit_regions=1,
+                                          net_limit=5, max_domains=5, depth=2, max_pages=15, delay=0,
+                                          recrawl_days=30, force=False, dry_run=False)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    disc.cmd_start(args)
+                with open(os.path.join(tmp, "state.json"), encoding="utf-8") as f:
+                    after = json.load(f)
+        finally:
+            disc.make_client, disc.resolve_public, disc.robots_allows = orig
+        return crawled, after
+
+    def test_fail_and_pass_are_crawled_alike(self):
+        clf = sc.Classifier(RULES, backend="heuristic")
+        fail = clf.classify("edelsenior", "koelner-zeitung.de", NEWS)
+        ok = clf.classify("edelsenior", "sonnenhof-pflege.de", CARE_HOME)
+        self.assertEqual((fail["verdict"], ok["verdict"]), ("FAIL", "PASS"))
+        old = int(time.time()) - 40 * 86400                      # recrawl due for both
+        state = {"paused": False, "profiles": {}, "domains": {
+            "koelner-zeitung.de": {"profile": "edelsenior", "status": "crawled", "last_crawl": old,
+                                   "classifications": {"edelsenior": fail}},
+            "sonnenhof-pflege.de": {"profile": "edelsenior", "status": "crawled", "last_crawl": old,
+                                    "classifications": {"edelsenior": ok}}}}
+        crawled, after = self.run_start(state)
+        self.assertEqual(sorted(u for u, _ in crawled),
+                         ["https://www.koelner-zeitung.de/", "https://www.sonnenhof-pflege.de/"])
+        self.assertTrue(all(c == "edelsenior-web" for _, c in crawled))
+        # FAIL is neither deleted nor dropped from the state
+        self.assertEqual(after["domains"]["koelner-zeitung.de"]["classifications"]["edelsenior"]["verdict"], "FAIL")
+
+    def test_start_code_does_not_read_verdicts(self):
+        import inspect
+        for fn in (disc.cmd_start, disc.select_domains, disc.discover_candidates, disc.collect_osm_candidates):
+            src = inspect.getsource(fn)
+            self.assertNotIn("classification", src)
+            self.assertNotIn("verdict", src)
+
+    def test_no_delete_anywhere(self):
+        for path in (DISCOVERY, os.path.join(TOOLS, "scoutro_classify.py")):
+            with open(path, encoding="utf-8") as f:
+                src = f.read()
+            self.assertNotIn('"DELETE"', src)
+            self.assertNotIn("deleteold", src)
+
+    def test_profile_without_collection_is_refused(self):
+        with tempfile.TemporaryDirectory() as cfg:
+            for name in ("profiles.conf", "regions.txt"):
+                with open(os.path.join(CONFIG, name), encoding="utf-8") as src, \
+                        open(os.path.join(cfg, name), "w", encoding="utf-8") as dst:
+                    dst.write(src.read() + ("\nextraprofile = Test\n" if name == "profiles.conf" else ""))
+            with open(os.path.join(CONFIG, "profiles.json"), encoding="utf-8") as src, \
+                    open(os.path.join(cfg, "profiles.json"), "w", encoding="utf-8") as dst:
+                dst.write(src.read())
+            p = subprocess.run([sys.executable, DISCOVERY, "--config-dir", cfg, "--workdir", cfg,
+                                "start", "--profile", "extraprofile"], capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(p.returncode, 0)
+        self.assertIn("profile_without_collection", p.stdout + p.stderr)
 
 
 if __name__ == "__main__":

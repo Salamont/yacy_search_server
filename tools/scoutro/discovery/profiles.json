@@ -1,5 +1,5 @@
 {
-  "_comment": "Per-profile settings for scoutro-discovery: target YaCy collection and editable topic classification criteria. Discovery search terms stay in profiles.conf, OSM rules in osm_profiles.json. Changing criteria: bump criteria_version, then run 'classify --reclassify'. This file is trusted configuration (goes into the system prompt); crawled web content never does.",
+  "_comment": "Per-profile settings for scoutro-discovery: target YaCy collection and editable topic classification criteria. Discovery search terms stay in profiles.conf, OSM rules in osm_profiles.json. Changing criteria: set a new criteria_version, then run 'classify' - only results with an older criteria_version are re-classified. legacy_collections (prospect-*) are a temporary migration source for search only; set them to [] to stop searching them (nothing is deleted). This file is trusted configuration (goes into the system prompt); crawled web content never does.",
   "criteria_version": "2026-09-30.1",
   "profiles": {
     "edelsenior": {

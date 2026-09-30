@@ -41,6 +41,7 @@
 #   scoutro-discovery selftest
 
 import argparse
+import fcntl
 import ipaddress
 import json
 import os
@@ -375,7 +376,7 @@ def load_rules(cfg_dir):
 
 
 def collection_for(rules, profile):
-    return rules["profiles"].get(profile, {}).get("collection", profile + "-web")
+    return rules["profiles"][profile]["collection"]
 
 
 def load_regions(path):
@@ -388,30 +389,115 @@ def load_regions(path):
     return regions
 
 
+class StateError(Exception):
+    pass
+
+
 class State:
+    """Persistent discovery state (state.json).
+
+    Integrity rules:
+      - writes are atomic: temp file + fsync + os.replace + directory fsync, so
+        an aborted container leaves either the old or the new file, never half;
+      - an unreadable state.json is never silently replaced by an empty state;
+      - every write happens under an exclusive file lock (state.lock);
+      - the "paused" flag is owned by pause/resume: other commands keep the
+        value that is on disk, so a pause during a running start is not lost;
+      - start and classify take a run lock (run.lock) so that two runs never
+        overwrite each other's domain updates.
+    """
+
     def __init__(self, directory):
         self.dir = directory
         self.path = os.path.join(directory, "state.json")
-        self.data = {"paused": False, "profiles": {}, "domains": {}}
+        self.data = self._read()
+        self._run_lock = None
+
+    def _read(self):
+        data = {"paused": False, "profiles": {}, "domains": {}}
         if os.path.isfile(self.path):
             try:
                 with open(self.path, encoding="utf-8") as f:
-                    self.data.update(json.load(f))
-            except (ValueError, OSError):
-                pass
+                    loaded = json.load(f)
+                if not isinstance(loaded, dict):
+                    raise ValueError("not a JSON object")
+                data.update(loaded)
+            except (ValueError, OSError) as e:
+                raise StateError("state file %s is unreadable (%s); it is left untouched - "
+                                 "restore it from backup or move it away explicitly" % (self.path, e))
+        return data
 
-    def save(self):
+    def _lock(self, name, blocking=True):
         os.makedirs(self.dir, exist_ok=True)
+        fh = open(os.path.join(self.dir, name), "a")
+        try:
+            fcntl.flock(fh, fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB))
+        except OSError:
+            fh.close()
+            return None
+        return fh
+
+    def acquire_run_lock(self):
+        """Exclusive lock for a mutating run (start/classify); False if another run holds it."""
+        self._run_lock = self._lock("run.lock", blocking=False)
+        return self._run_lock is not None
+
+    def _write(self, data):
         tmp = self.path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp, self.path)
+        _fsync_dir(self.dir)
+
+    def save(self):
+        lock = self._lock("state.lock")
+        try:
+            self.data["paused"] = self._read().get("paused", False)
+            self._write(self.data)
+        finally:
+            lock.close()
+
+    def set_paused(self, value):
+        lock = self._lock("state.lock")
+        try:
+            data = self._read()
+            data["paused"] = bool(value)
+            self._write(data)
+            self.data = data
+        finally:
+            lock.close()
 
     def domain(self, name):
         return self.data["domains"].get(name)
 
     def put_domain(self, name, entry):
         self.data["domains"][name] = entry
+
+
+def _fsync_dir(path):
+    try:
+        fd = os.open(path, os.O_RDONLY)
+    except OSError:
+        return
+    try:
+        os.fsync(fd)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
+def open_state(args, run=False):
+    """State for a command; run=True takes the run lock (start/classify, not for dry runs)."""
+    try:
+        st = State(env_workdir(args.workdir))
+    except StateError as e:
+        sys.exit(json.dumps({"error": {"code": "state_unreadable", "message": str(e)}}))
+    if run and not st.acquire_run_lock():
+        sys.exit(json.dumps({"error": {"code": "busy", "message": "another start/classify run is active"}}))
+    return st
 
 
 def env_workdir(explicit):
@@ -437,7 +523,7 @@ def make_client(args):
 # ---------------------------------------------------------------------------
 
 def cmd_status(args):
-    st = State(env_workdir(args.workdir))
+    st = open_state(args)
     doms = st.data["domains"]
     by_profile = {}
     for d, e in doms.items():
@@ -455,16 +541,14 @@ def cmd_status(args):
 
 
 def cmd_pause(args):
-    st = State(env_workdir(args.workdir))
-    st.data["paused"] = True
-    st.save()
+    st = open_state(args)
+    st.set_paused(True)
     print(json.dumps({"paused": True, "state_file": st.path}, indent=2))
 
 
 def cmd_resume(args):
-    st = State(env_workdir(args.workdir))
-    st.data["paused"] = False
-    st.save()
+    st = open_state(args)
+    st.set_paused(False)
     print(json.dumps({"paused": False, "state_file": st.path}, indent=2))
 
 
@@ -617,7 +701,11 @@ def cmd_start(args):
             sys.exit("unknown profile: " + n)
 
     rules = load_rules(cfg)
-    st = State(env_workdir(args.workdir))
+    missing = [n for n in names if n not in rules["profiles"]]
+    if missing:
+        sys.exit(json.dumps({"error": {"code": "profile_without_collection",
+                                       "message": "not configured in profiles.json: " + ", ".join(missing)}}))
+    st = open_state(args, run=not args.dry_run)
     if st.data.get("paused") and not args.dry_run:
         sys.exit("discovery is paused (run 'resume' first)")
     client = make_client(args)
@@ -773,9 +861,20 @@ def crawl_running(client, entry):
 
 
 def append_log(workdir, record):
+    """Append one history line: a single O_APPEND write + fsync.
+
+    classifications.jsonl is an audit history only; the active result per
+    domain and profile is state.json. After a hard abort the last line can at
+    worst be incomplete; readers skip lines that are not valid JSON.
+    """
     os.makedirs(workdir, exist_ok=True)
-    with open(os.path.join(workdir, "classifications.jsonl"), "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n")
+    line = (json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
+    fd = os.open(os.path.join(workdir, "classifications.jsonl"), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        os.write(fd, line)
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def make_classifier(args, rules, opener=None):
@@ -791,7 +890,7 @@ def cmd_classify(args):
     for n in names:
         _profile_rules_or_exit(rules, n)
     workdir = env_workdir(args.workdir)
-    st = State(workdir)
+    st = open_state(args, run=not args.dry_run)
     if st.data.get("paused") and not args.dry_run:
         sys.exit("discovery is paused (run 'resume' first)")
     client = make_client(args)
@@ -884,7 +983,7 @@ def build_search_output(client, st, rules, profile, query, verdicts, limit):
 def cmd_search(args):
     rules = load_rules(args.config_dir or DEFAULT_CONFIG_DIR)
     _profile_rules_or_exit(rules, args.profile)
-    st = State(env_workdir(args.workdir))
+    st = open_state(args)
     client = make_client(args)
     out = build_search_output(client, st, rules, args.profile, args.query, set(args.verdict), args.limit)
     print(json.dumps(out, indent=2, ensure_ascii=False))
@@ -893,7 +992,7 @@ def cmd_search(args):
 def cmd_export(args):
     rules = load_rules(args.config_dir or DEFAULT_CONFIG_DIR)
     _profile_rules_or_exit(rules, args.profile)
-    st = State(env_workdir(args.workdir))
+    st = open_state(args)
     recs = []
     for d in sorted(st.data["domains"]):
         rec = _stored(st, args.profile, d)

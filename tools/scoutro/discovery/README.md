@@ -20,9 +20,15 @@ DISCOVERY (Freeworld live search / OSM)  ->  FILTER  ->  ACCEPTED DOMAIN
    ->  (after the crawl) classify  ->  PASS | FAIL | UNSURE  ->  machine-readable metadata
 ```
 
-The classification **never decides whether a crawl happens** (a technically
-allowed topic crawl always runs) and **never deletes anything**: FAIL domains
-stay in the index and in the state; agents filter by verdict when they read.
+Guarantees:
+
+- PASS/FAIL/UNSURE **never influences crawling or indexing**. It is only a
+  downstream assessment: `start` (discovery, filters, SSRF/robots, crawl) does
+  not read classifications at all, and a FAIL domain is recrawled on the same
+  schedule as a PASS domain.
+- **FAIL is never deleted automatically.** The tools contain no delete call;
+  FAIL domains stay in the YaCy index, in `state.json` and in the history.
+  Agents filter by verdict when they read.
 
 Only index/text/metadata are kept: the Scoutro API crawls are text-only
 (`storeHTCache`/`storeTXCache`/media off), so no HTML copy, no media and no web
@@ -30,11 +36,33 @@ cache is stored.
 
 ### Collections and migration
 
-The collection per profile is set in `profiles.json` (`collection`). Domains
-crawled before this change live in `prospect-<profile>`; they are listed in
-`legacy_collections` and are still searched by `search`. Nothing is moved or
-deleted. They move into the new collection when they are recrawled (after
-`--recrawl-days`, or with `start --force`).
+The **only main collections** are `edelsenior-web`, `checkthecoach-web`,
+`stackfinder-web` and `bauteamcheck-web` (`collection` in `profiles.json`).
+`start` crawls exclusively into them; a profile that has search terms in
+`profiles.conf` but no entry in `profiles.json` is refused
+(`profile_without_collection`) instead of getting an implicit collection.
+
+`prospect-<profile>` (the collections of the first discovery version) are a
+**temporary migration/compatibility source only**. They are listed as
+`legacy_collections` in `profiles.json`, so `search` still finds domains that
+were crawled before the switch. Nothing is crawled into them any more, and
+nothing is moved or deleted. A domain moves into the new collection when it
+is recrawled (after `--recrawl-days`, default 30, or with `start --force`).
+
+Removing a legacy collection from the search later (no content is deleted):
+
+1. Check that the old content has been recrawled, e.g. compare
+   `scoutroctl search "collection:prospect-edelsenior" --limit 100` with the
+   same query for `collection:edelsenior-web`, or wait at least one recrawl
+   period after the switch.
+2. Edit `profiles.json`: set `"legacy_collections": []` for the profile (and
+   bump nothing else — this is not a criteria change).
+3. Run `scoutro-discovery search …` once and check that `collections` in the
+   output lists only `<profile>-web`.
+
+The documents stay in the YaCy index under `prospect-<profile>`. Deleting them
+is a separate, manual operator decision in the YaCy administration (Index
+Administration); no Scoutro tool does it.
 
 ## Discovery sources
 
@@ -66,7 +94,7 @@ category for it.
 
 ```sh
 export SCOUTRO_URL=https://<scoutro-api-entrance>
-export SCOUTRO_PASSWORD_FILE=/run/secrets/scoutro-admin      # or SCOUTRO_PASSWORD
+export SCOUTRO_PASSWORD_FILE=/run/secrets/scoutro/admin-password   # mounted secret; SCOUTRO_PASSWORD only for tests
 export SCOUTRO_DISCOVERY_DIR=$HOME/.scoutro-discovery
 
 scoutro-discovery status
@@ -179,6 +207,70 @@ scoutro-discovery search --profile edelsenior --query "Pflegeheim Köln" --verdi
 #  "results":[{"domain":"sonnenhof-pflege.de","verdict":"PASS","classification":{…},"hits":[{"url":…,"title":…,"snippet":…}]}]}
 ```
 
+### Recommended agent access
+
+Agents read results through `scoutro-discovery search` / `export` (or
+`scoutroctl discovery search|export`) with a verdict filter, **not** through
+YaCy directly (Solr, `yacysearch.json`, `/v1/search`): the classification is
+stored outside the YaCy/Solr documents (in `state.json` of the discovery
+tool), so a direct YaCy query returns FAIL and PASS domains alike and without
+any verdict.
+
+```sh
+scoutroctl discovery search --profile edelsenior --query "Pflegeheim Köln" --verdict PASS
+scoutroctl discovery export --profile edelsenior --verdict PASS
+```
+
+### One active result per domain and profile
+
+`state.json` holds exactly one active record per domain and profile
+(`domains.<domain>.classifications.<profile>`). A new classification
+**replaces** it as a whole; `search`/`export` only read these active records,
+so contradictory PASS/FAIL results for the same domain and profile cannot be
+active at the same time. The same domain may legitimately have different
+verdicts for different profiles (e.g. PASS for `stackfinder`, FAIL for
+`edelsenior`). Every classification is also appended to
+`classifications.jsonl` — that file is the version history (audit), never the
+active state.
+
+### criteria_version and targeted re-classification
+
+`criteria_version` (top of `profiles.json`) identifies the criteria a result
+was produced with; it is stored in every record as
+`classifier.criteria_version`.
+
+- A result is re-classified automatically by `classify` when its stored
+  `criteria_version` differs from the current one, or when it has a
+  `classifier.error` (fail-safe UNSURE). Current results are skipped.
+- After editing `pass_criteria`, `fail_criteria`, `topic`, `entity_types` or
+  `keywords`: set a new `criteria_version` (e.g. `2026-11-15.1`), then run
+  `classify --profile <p>` (repeat with `--max` until `counts.skipped` covers
+  all domains). Only outdated results are replaced.
+- Only one profile changed: `classify --profile <that profile>`; other profiles
+  are untouched until they are classified again. (`criteria_version` is
+  shared by all profiles, so the next `classify` of another profile also
+  re-classifies it — bump it only for real criteria changes.)
+- Single domains: `classify --profile <p> --domain <d> --reclassify`;
+  everything of a profile regardless of version: `--reclassify`.
+- Which records are outdated: `export --profile <p>` and compare
+  `classifier.criteria_version`.
+
+### State integrity
+
+- `state.json` is written atomically (temp file, `fsync`, `os.replace`,
+  directory `fsync`): after an aborted container it is either the old or the
+  new version, never half written.
+- An unreadable `state.json` is never replaced by an empty state; the command
+  stops with `state_unreadable` and leaves the file untouched.
+- Writes happen under a file lock (`state.lock`); `start` and `classify` hold
+  a run lock (`run.lock`), so two runs cannot overwrite each other (`busy`).
+  `pause`/`resume` only change the pause flag and are never overwritten by a
+  run that is still active.
+- `classifications.jsonl` is appended with one `O_APPEND` write plus `fsync`
+  per record. After a hard abort only the last line can be incomplete; readers
+  skip lines that are not valid JSON. It is history only, the active results
+  are in `state.json`.
+
 ### Model configuration (environment)
 
 | Variable | Default | Meaning |
@@ -243,9 +335,9 @@ Host blocklist entries match on DNS label boundaries: `pflege.de` blocks
 ## State
 
 `state.json` in `SCOUTRO_DISCOVERY_DIR`: per-domain profile, collection,
-region, last crawl, attempts, status, next attempt (backoff) and the
-classifications per profile. `classifications.jsonl` is the append-only
-history. Recrawl after ~30 days; runs are pausable/resumable (`pause` also
+region, last crawl, attempts, status, next attempt (backoff) and the active
+classification per profile. `classifications.jsonl` is the append-only
+history (see "State integrity"). Recrawl after ~30 days; runs are pausable/resumable (`pause` also
 stops `classify`) and never loop aggressively.
 
 ## Tests
@@ -266,9 +358,13 @@ shell and a checkout of this repository (Python 3.9+, standard library only;
    the API works.
 2. **Scoutro API access** (read + crawl): `SCOUTRO_URL` pointing at the Scoutro
    API as reachable from the agent (see the Olares package docs
-   `docs/OPENCODE-OLARES.md` for app-to-app access), admin password in a file:
-   `SCOUTRO_PASSWORD_FILE=/path/to/secret` (mode 600, never in the repository or
-   in chat/logs).
+   `docs/OPENCODE-OLARES.md` for app-to-app access).
+   **In production `SCOUTRO_PASSWORD_FILE` must point to a mounted
+   Olares/Kubernetes Secret** (a read-only secret volume, e.g.
+   `/run/secrets/scoutro/admin-password`). Never a normal plain-text file in
+   Home/Documents, in the repository, in `SCOUTRO_DISCOVERY_DIR` or in any
+   other persistent app storage, and never `SCOUTRO_PASSWORD` in a shell
+   profile. The same applies to `SCOUTRO_LLM_API_KEY_FILE`.
 3. **State directory**: `SCOUTRO_DISCOVERY_DIR` on persistent storage; back it
    up — it holds the discovery state and all classifications.
 4. **Model (optional)**: `SCOUTRO_LLM_BASE_URL`, `SCOUTRO_LLM_MODEL`, and if
@@ -280,7 +376,7 @@ shell and a checkout of this repository (Python 3.9+, standard library only;
    `scoutroctl discovery classify --profile edelsenior --dry-run` (evidence
    only, no model call, no state change), then one real run with `--max 3`.
 
-Agent loop (JSON in, JSON out):
+Agent loop (JSON in, JSON out; read results only via `search`/`export`):
 
 ```
 scoutroctl discovery start --profile <p> --max-domains 5          # discovery + gates + crawl
