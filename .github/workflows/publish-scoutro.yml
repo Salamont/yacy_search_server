@@ -33,6 +33,7 @@ jobs:
         run: |
           python3 tools/scoutro/scoutro-discovery selftest
           python3 test/scoutro-discovery/test_discovery.py
+          python3 test/scoutro-discovery/test_state_multiprofile.py
 
       # BuildKit may use <Dockerfile>.dockerignore automatically; copy it over
       # the root .dockerignore as well so the Scoutro build context keeps
@@ -60,16 +61,16 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/salamont/scoutro:1.942-scoutro.5
-            ghcr.io/salamont/scoutro:0.5.4
+            ghcr.io/salamont/scoutro:1.942-scoutro.6
+            ghcr.io/salamont/scoutro:0.5.5
           build-args: |
-            SCOUTRO_VERSION=1.942-scoutro.5
+            SCOUTRO_VERSION=1.942-scoutro.6
             SCOUTRO_REVISION=${{ github.sha }}
 
       - name: Report published digest
         run: |
           echo "### Scoutro image published" >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.5 | tee /tmp/inspect.txt
+          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.6 | tee /tmp/inspect.txt
           {
             echo '```'
             cat /tmp/inspect.txt
