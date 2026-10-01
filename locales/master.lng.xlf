@@ -10894,6 +10894,12 @@
     <trans-unit id="935f51c8" xml:space="preserve" approved="no" translate="yes">
        <source>Search</source>
     </trans-unit>
+    <trans-unit id="d5e81d9b" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro</source>
+    </trans-unit>
+    <trans-unit id="38fd0a74" xml:space="preserve" approved="no" translate="yes">
+       <source>Dashboard</source>
+    </trans-unit>
     <trans-unit id="ccfead77" xml:space="preserve" approved="no" translate="yes">
        <source>First Steps</source>
     </trans-unit>
@@ -13088,4 +13094,174 @@
     </trans-unit>
   </body>
 </file>
+<file original="scoutro-dashboard.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="6c9f6c91" xml:space="preserve" approved="no" translate="yes">
+       <source>"Index and system overview"</source>
+    </trans-unit>
+    <trans-unit id="8a843b83" xml:space="preserve" approved="no" translate="yes">
+       <source>"Service status"</source>
+    </trans-unit>
+    <trans-unit id="64cb462f" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro Dashboard</source>
+    </trans-unit>
+    <trans-unit id="1182da3" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro Administration</source>
+    </trans-unit>
+    <trans-unit id="e04d1b02" xml:space="preserve" approved="no" translate="yes">
+       <source>Search &amp;amp; Index Overview</source>
+    </trans-unit>
+    <trans-unit id="da1c9758" xml:space="preserve" approved="no" translate="yes">
+       <source>Websites</source>
+    </trans-unit>
+    <trans-unit id="4cb721cd" xml:space="preserve" approved="no" translate="yes">
+       <source>unique indexed hosts</source>
+    </trans-unit>
+    <trans-unit id="3d0b5395" xml:space="preserve" approved="no" translate="yes">
+       <source>Indexed Pages</source>
+    </trans-unit>
+    <trans-unit id="cdb9f4ac" xml:space="preserve" approved="no" translate="yes">
+       <source>successfully indexed URLs</source>
+    </trans-unit>
+    <trans-unit id="9baa5386" xml:space="preserve" approved="no" translate="yes">
+       <source>Active Crawls</source>
+    </trans-unit>
+    <trans-unit id="9e64001d" xml:space="preserve" approved="no" translate="yes">
+       <source>active crawl profiles</source>
+    </trans-unit>
+    <trans-unit id="9fd3aacf" xml:space="preserve" approved="no" translate="yes">
+       <source>Index Size</source>
+    </trans-unit>
+    <trans-unit id="a96ada27" xml:space="preserve" approved="no" translate="yes">
+       <source>local Solr index on disk</source>
+    </trans-unit>
+    <trans-unit id="d0e18da0" xml:space="preserve" approved="no" translate="yes">
+       <source>JVM Memory</source>
+    </trans-unit>
+    <trans-unit id="a34ade32" xml:space="preserve" approved="no" translate="yes">
+       <source>Index statistics refresh within 30 seconds. Hosts are counted separately from pages.</source>
+    </trans-unit>
+    <trans-unit id="9dc638cd" xml:space="preserve" approved="no" translate="yes">
+       <source>Some index statistics are temporarily unavailable. Other sections and detail links remain available.</source>
+    </trans-unit>
+    <trans-unit id="43180670" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro Collections</source>
+    </trans-unit>
+    <trans-unit id="9f0ec78d" xml:space="preserve" approved="no" translate="yes">
+       <source>Share of indexed pages</source>
+    </trans-unit>
+    <trans-unit id="657efc4" xml:space="preserve" approved="no" translate="yes">
+       <source>pages</source>
+    </trans-unit>
+    <trans-unit id="d6423338" xml:space="preserve" approved="no" translate="yes">
+       <source>websites</source>
+    </trans-unit>
+    <trans-unit id="a8b55b39" xml:space="preserve" approved="no" translate="yes">
+       <source>No documents</source>
+    </trans-unit>
+    <trans-unit id="5af44d49" xml:space="preserve" approved="no" translate="yes">
+       <source>of index</source>
+    </trans-unit>
+    <trans-unit id="27690bb7" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections can overlap. Links open the standard Index Browser.</source>
+    </trans-unit>
+    <trans-unit id="a0589af4" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawler</source>
+    </trans-unit>
+    <trans-unit id="3bbf8030" xml:space="preserve" approved="no" translate="yes">
+       <source>Unavailable</source>
+    </trans-unit>
+    <trans-unit id="22b3f4" xml:space="preserve" approved="no" translate="yes">
+       <source>Idle</source>
+    </trans-unit>
+    <trans-unit id="bfa7ad9f" xml:space="preserve" approved="no" translate="yes">
+       <source>Running</source>
+    </trans-unit>
+    <trans-unit id="b3eb4ba4" xml:space="preserve" approved="no" translate="yes">
+       <source>Active profiles</source>
+    </trans-unit>
+    <trans-unit id="74b5b31c" xml:space="preserve" approved="no" translate="yes">
+       <source>Fetching URLs</source>
+    </trans-unit>
+    <trans-unit id="463b5f71" xml:space="preserve" approved="no" translate="yes">
+       <source>Queued URLs</source>
+    </trans-unit>
+    <trans-unit id="3c617d27" xml:space="preserve" approved="no" translate="yes">
+       <source>Terminated profiles</source>
+    </trans-unit>
+    <trans-unit id="62a34c36" xml:space="preserve" approved="no" translate="yes">
+       <source>Retained profiles are not necessarily running.</source>
+    </trans-unit>
+    <trans-unit id="43838b2" xml:space="preserve" approved="no" translate="yes">
+       <source>Index</source>
+    </trans-unit>
+    <trans-unit id="d119f20e" xml:space="preserve" approved="no" translate="yes">
+       <source>Network</source>
+    </trans-unit>
+    <trans-unit id="4f603968" xml:space="preserve" approved="no" translate="yes">
+       <source>Local Solr core</source>
+    </trans-unit>
+    <trans-unit id="afaf7298" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents</source>
+    </trans-unit>
+    <trans-unit id="42acfab" xml:space="preserve" approved="no" translate="yes">
+       <source>Hosts</source>
+    </trans-unit>
+    <trans-unit id="94815e4f" xml:space="preserve" approved="no" translate="yes">
+       <source>System</source>
+    </trans-unit>
+    <trans-unit id="683da333" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro Version</source>
+    </trans-unit>
+    <trans-unit id="8f4e9c56" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Version</source>
+    </trans-unit>
+    <trans-unit id="3d8d64e" xml:space="preserve" approved="no" translate="yes">
+       <source>Build</source>
+    </trans-unit>
+    <trans-unit id="976c8808" xml:space="preserve" approved="no" translate="yes">
+       <source>Uptime</source>
+    </trans-unit>
+    <trans-unit id="51b93a4b" xml:space="preserve" approved="no" translate="yes">
+       <source>JVM Heap</source>
+    </trans-unit>
+    <trans-unit id="80c32337" xml:space="preserve" approved="no" translate="yes">
+       <source>Quick Access</source>
+    </trans-unit>
+    <trans-unit id="c472c59a" xml:space="preserve" approved="no" translate="yes">
+       <source>Index Browser</source>
+    </trans-unit>
+    <trans-unit id="c3bc662a" xml:space="preserve" approved="no" translate="yes">
+       <source>&amp;rsaquo;</source>
+    </trans-unit>
+    <trans-unit id="ed67580e" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawler Monitor</source>
+    </trans-unit>
+    <trans-unit id="9a74a2a9" xml:space="preserve" approved="no" translate="yes">
+       <source>Start Crawl</source>
+    </trans-unit>
+    <trans-unit id="f49a1ac" xml:space="preserve" approved="no" translate="yes">
+       <source>Index Administration</source>
+    </trans-unit>
+    <trans-unit id="764fdf03" xml:space="preserve" approved="no" translate="yes">
+       <source>System Status</source>
+    </trans-unit>
+    <trans-unit id="da9a1709" xml:space="preserve" approved="no" translate="yes">
+       <source>RAM / Disk / Updates</source>
+    </trans-unit>
+    <trans-unit id="15e2d716" xml:space="preserve" approved="no" translate="yes">
+       <source>Blacklists</source>
+    </trans-unit>
+    <trans-unit id="2f66ee6f" xml:space="preserve" approved="no" translate="yes">
+       <source>System Administration</source>
+    </trans-unit>
+    <trans-unit id="ea66da65" xml:space="preserve" approved="no" translate="yes">
+       <source>Autocrawler</source>
+    </trans-unit>
+    <trans-unit id="8b55f137" xml:space="preserve" approved="no" translate="yes">
+       <source>Automation</source>
+    </trans-unit>
+  </body>
+</file>
+
 </xliff>

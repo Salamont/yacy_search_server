@@ -3888,6 +3888,7 @@ gracious: 50 &euro;==亲切：50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>仪表板<
 #---------------------------
 "YaCy"=="YaCy"
 "Search..."=="搜索..."

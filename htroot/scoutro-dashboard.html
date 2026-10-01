@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Scoutro Dashboard</title>
+    #%env/templates/metas.template%#
+    <link rel="stylesheet" href="env/scoutro/dashboard.css" />
+  </head>
+  <body id="scoutro-dashboard">
+    #%env/templates/header.template%#
+    <main class="scoutro-dash" aria-labelledby="scoutro-dash-title">
+      <header class="scoutro-dash-heading">
+        <div><p class="scoutro-dash-eyebrow">Scoutro Administration</p>
+          <h1 id="scoutro-dash-title">Scoutro Dashboard</h1>
+          <p class="scoutro-dash-subtitle">Search &amp; Index Overview</p>
+        </div>
+        <img src="env/scoutro/brand/pose-laptop.webp" width="80" height="88" alt="" />
+      </header>
+
+      <section class="scoutro-dash-kpis" aria-label="Index and system overview">
+        <a class="scoutro-dash-card scoutro-dash-kpi" href="IndexBrowser_p.html?admin=true&amp;hosts=">
+          <span class="scoutro-dash-label">Websites</span><strong data-metric="hosts">#[hosts]#</strong>
+          <span class="scoutro-dash-caption">unique indexed hosts</span>
+        </a>
+        <a class="scoutro-dash-card scoutro-dash-kpi" href="IndexBrowser_p.html?admin=true&amp;hosts=">
+          <span class="scoutro-dash-label">Indexed Pages</span><strong data-metric="pages">#[pages]#</strong>
+          <span class="scoutro-dash-caption">successfully indexed URLs</span>
+        </a>
+        <a class="scoutro-dash-card scoutro-dash-kpi" href="Crawler_p.html">
+          <span class="scoutro-dash-label">Active Crawls</span><strong data-metric="active">#[active]#</strong>
+          <span class="scoutro-dash-caption">active crawl profiles</span>
+        </a>
+        <a class="scoutro-dash-card scoutro-dash-kpi" href="IndexControlURLs_p.html">
+          <span class="scoutro-dash-label">Index Size</span><strong data-metric="size">#[indexSize]#</strong>
+          <span class="scoutro-dash-caption">local Solr index on disk</span>
+        </a>
+        <a class="scoutro-dash-card scoutro-dash-kpi" href="Performance_p.html">
+          <span class="scoutro-dash-label">JVM Memory</span><strong data-metric="heap">#[heapUsed]#</strong>
+          <span class="scoutro-dash-caption">of #[heapMax]# maximum heap</span>
+        </a>
+      </section>
+      <p class="scoutro-dash-note">Index statistics refresh within 30 seconds. Hosts are counted separately from pages.</p>
+      #(indexUnavailable)#::<p class="scoutro-dash-notice" role="status">Some index statistics are temporarily unavailable. Other sections and detail links remain available.</p>#(/indexUnavailable)#
+
+      <section aria-labelledby="scoutro-dash-collections">
+        <div class="scoutro-dash-section-heading"><h2 id="scoutro-dash-collections">Scoutro Collections</h2>
+          <span class="scoutro-dash-caption">Share of indexed pages</span></div>
+        <div class="scoutro-dash-collections">
+          #{collections}#
+          <a class="scoutro-dash-card scoutro-dash-collection" data-collection="#[id]#" href="IndexBrowser_p.html?admin=true&amp;hosts=">
+            <h3>#[name]#</h3><span class="scoutro-dash-code">#[id]#</span>
+            <p><strong data-metric="collection-pages">#[pages]#</strong> <span>pages</span></p>
+            #(hasHosts)#::<p class="scoutro-dash-caption"><span data-metric="collection-hosts">#[hosts]#</span> websites</p>#(/hasHosts)#
+            #(empty)#::<p class="scoutro-dash-caption">No documents</p>#(/empty)#
+            <div class="scoutro-dash-share"><span>#[share]#</span><span class="scoutro-dash-caption">of index</span></div>
+            <span class="scoutro-dash-track" aria-hidden="true"><span style="width: #[bar]#%"></span></span>
+          </a>
+          #{/collections}#
+        </div>
+        <p class="scoutro-dash-note">Collections can overlap. Links open the standard Index Browser.</p>
+      </section>
+
+      <section class="scoutro-dash-status" aria-label="Service status">
+        <a class="scoutro-dash-card" href="Crawler_p.html">
+          <div class="scoutro-dash-section-heading"><h2>Crawler</h2>
+            <span class="scoutro-dash-badge" data-running="#[running]#">#(crawlerState)#Unavailable::Idle::Running#(/crawlerState)#</span></div>
+          <dl><div><dt>Active profiles</dt><dd>#[active]#</dd></div>
+            <div><dt>Fetching URLs</dt><dd>#[workers]#</dd></div>
+            <div><dt>Queued URLs</dt><dd>#[pending]#</dd></div>
+            <div><dt>Terminated profiles</dt><dd>#[terminated]#</dd></div></dl>
+          <p class="scoutro-dash-caption">Retained profiles are not necessarily running.</p>
+        </a>
+        <a class="scoutro-dash-card" href="IndexBrowser_p.html?admin=true&amp;hosts=">
+          <h2>Index</h2>
+          <dl><div><dt>Network</dt><dd>#[network]#</dd></div>
+            <div><dt>Local Solr core</dt><dd>#[core]#</dd></div>
+            <div><dt>Documents</dt><dd>#[pages]#</dd></div>
+            <div><dt>Hosts</dt><dd>#[hosts]#</dd></div>
+            <div><dt>Index Size</dt><dd>#[indexSize]#</dd></div></dl>
+        </a>
+        <div class="scoutro-dash-card scoutro-dash-system">
+          <h2><a href="Status.html?noforward=">System</a></h2>
+          <a class="scoutro-dash-system-link" href="Status.html?noforward=">
+            <dl><div><dt>Scoutro Version</dt><dd>#[scoutroVersion]#</dd></div>
+              <div><dt>YaCy Version</dt><dd>#[yacyVersion]#</dd></div>
+              <div><dt>Build</dt><dd class="scoutro-dash-build">#[build]#</dd></div>
+              <div><dt>Uptime</dt><dd data-metric="uptime">#[dashboardUptime]#</dd></div></dl>
+          </a>
+          <a class="scoutro-dash-memory" href="Performance_p.html"><span>JVM Heap</span><strong>#[heapUsed]# / #[heapMax]#</strong></a>
+        </div>
+      </section>
+
+      <section aria-labelledby="scoutro-dash-access">
+        <h2 id="scoutro-dash-access">Quick Access</h2>
+        <div class="scoutro-dash-links">
+          <a class="scoutro-dash-card" href="IndexBrowser_p.html?admin=true&amp;hosts=">Index Browser <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="Crawler_p.html">Crawler Monitor <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="CrawlStartExpert.html">Start Crawl <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="IndexControlURLs_p.html">Index Administration <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="Status.html?noforward=">System Status <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="Performance_p.html">RAM / Disk / Updates <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="Blacklist_p.html">Blacklists <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="Settings_p.html">System Administration <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="Autocrawl_p.html">Autocrawler <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="Automation_p.html?sort=-date_recording">Automation <span aria-hidden="true">&rsaquo;</span></a>
+        </div>
+      </section>
+    </main>
+    #%env/templates/footer.template%#
+  </body>
+</html>

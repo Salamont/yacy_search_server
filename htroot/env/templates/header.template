@@ -184,6 +184,10 @@
 <div class="container-fluid">
   <div class="row">
     <div class="col-sm-3 col-md-2 sidebar scoutro-adminnav" id="scoutro-adminnav">
+    <ul class="nav nav-sidebar menugroup" id="scoutro-overview">
+      <li><h3>Scoutro</h3></li>
+      <li><a href="scoutro-dashboard.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Dashboard</a></li>
+    </ul>
     
     <ul class="nav nav-sidebar menugroup" id="first-steps"
       data-trigger="hover" data-placement="right" data-container="body"

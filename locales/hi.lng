@@ -3878,6 +3878,7 @@ gracious: 50 &euro;==दयालु: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>डैशबोर्ड<
 #---------------------------
 "YaCy"=="YaCy"
 "Search..."=="खोज..."

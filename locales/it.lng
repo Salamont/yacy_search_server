@@ -3470,6 +3470,7 @@ YaCy Identifier==Identifier YaCy
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>Panoramica<
 #---------------------------
 Toggle navigation==Commuta navigazione
 About This Page==Informazioni su questa pagina

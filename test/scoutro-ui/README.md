@@ -57,6 +57,29 @@ The script exits with status 1 and lists every failed check. Against an
 unmodified YaCy 1.942 it fails (hidden navigation, covered toggle, page
 overflow); against Scoutro all checks pass.
 
+## Dashboard smoke
+
+`ant scoutro-dashboard-test` checks counts, failure isolation, existing detail
+links, shared desktop/mobile navigation and the explicit administrator policy.
+
+After `ant compile`, the disposable harness seeds a new temporary local Solr
+index offline and starts YaCy on a free loopback port:
+
+```sh
+JAVA=/path/to/jdk/bin/java \
+NODE_PATH=/path/to/node_modules SCOUTRO_CHROMIUM_PATH=/usr/bin/chromium \
+SCOUTRO_SCREENSHOTS=/tmp/scoutro-dashboard-shots \
+python3 test/scoutro-ui/dashboard-live-smoke.py
+```
+
+It checks the empty index and four collection counts, seven successful pages on
+two hosts, exclusion of two failed/excluded records, and unchanged settings,
+index and crawl files during cold/cached dashboard GETs (including ignored
+action parameters). It then runs `dashboard-ui-test.mjs` and the existing UI
+suite at 360/390/412/1280 px, captures screenshots and stops/removes the peer.
+Fixtures never start a crawl or use existing DATA. `SCOUTRO_CHROMIUM_PATH` is
+optional when Playwright's bundled browser is installed.
+
 ## Locale guard
 
 YaCy translates the raw HTML by word replacement. A locale key that equals a
@@ -67,4 +90,3 @@ languages). Check the search pages with:
 ```sh
 python3 test/scoutro-ui/check-locale-identifiers.py
 ```
-

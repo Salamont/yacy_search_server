@@ -61,6 +61,7 @@ const VIEWPORTS = [
 
 /* navigation entries that must be reachable on every viewport */
 const REQUIRED_NAV = [
+  'scoutro-dashboard.html',
   'ConfigBasic.html', 'CrawlStartSite.html', 'Status.html', 'IndexBrowser_p.html',
   'AccessGrid_p.html', 'Crawler_p.html', 'CrawlStartExpert.html', 'IndexControlURLs_p.html',
   'Settings_p.html', 'Blacklist_p.html', 'Performance_p.html', 'ConfigPortal_p.html',
@@ -74,6 +75,7 @@ const REQUIRED_MOBILE_NAV = [
 
 /* pages checked for layout problems (Status / Accounts / Crawl Start / Crawler / Network / Search config / search) */
 const PAGES = [
+  'scoutro-dashboard.html',
   'Status.html', 'ConfigBasic.html', 'ConfigAccounts_p.html', 'ConfigNetwork_p.html',
   'CrawlStartSite.html', 'CrawlStartExpert.html', 'Crawler_p.html', 'IndexControlURLs_p.html',
   'ConfigSearchPage_p.html', 'ConfigPortal_p.html', 'Performance_p.html', 'Settings_p.html',
@@ -181,7 +183,9 @@ async function checkNavigation(page, vp) {
   check(navigated && /ConfigBasic\.html/.test(page.url()), vp.name, 'menu link navigates');
   if (!navigated) await page.goto(BASE + '/ConfigBasic.html', { waitUntil: 'domcontentloaded' });
   /* page submenus (e.g. Accounts, Network Configuration) are reachable */
+  await page.waitForLoadState('domcontentloaded');
   const sub = page.locator('.SubMenu a[href^="ConfigNetwork_p.html"]:visible').first();
+  await sub.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {});
   check((await sub.count()) === 1, vp.name, 'page submenu entry visible (ConfigNetwork_p.html)');
 }
 
@@ -264,8 +268,8 @@ async function checkResultsPage(page, vp) {
 async function checkAuth(browser) {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
-  for (const p of ['ConfigAccounts_p.html', 'ConfigNetwork_p.html', 'Settings_p.html', 'ConfigPortal_p.html']) {
-    const r = await page.goto(BASE + '/' + p);
+  for (const p of ['scoutro-dashboard.html', 'ConfigAccounts_p.html', 'ConfigNetwork_p.html', 'Settings_p.html', 'ConfigPortal_p.html']) {
+    const r = await ctx.request.get(BASE + '/' + p);
     check(r.status() === 401, 'anonymous', `${p} requires authentication`, String(r.status()));
   }
   const r = await page.goto(BASE + '/index.html');
@@ -273,7 +277,10 @@ async function checkAuth(browser) {
   await ctx.close();
 }
 
-const browser = await chromium.launch({ args: ['--no-proxy-server'] });
+const browser = await chromium.launch({
+  ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
+  args: ['--no-proxy-server'],
+});
 try {
   if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
   await checkAuth(browser);

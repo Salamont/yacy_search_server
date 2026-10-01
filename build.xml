@@ -329,6 +329,21 @@
     </junit>
   </target>
 
+  <target name="scoutro-dashboard-test" depends="compile" description="run focused Scoutro dashboard tests">
+    <mkdir dir="build/scoutro-dashboard-tests" />
+    <javac srcdir="${test}" destdir="build/scoutro-dashboard-tests" release="${javacRelease}"
+           encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/dashboard/*Test.java" />
+      <include name="net/yacy/http/AdminSecurityTest.java" />
+      <classpath><pathelement location="${build}" /><fileset dir="${lib}" includes="*.jar" /><fileset dir="${libt}" includes="*.jar" /></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true">
+      <classpath><pathelement location="build/scoutro-dashboard-tests" /><pathelement location="${build}" /><fileset dir="${lib}" includes="*.jar" /><fileset dir="${libt}" includes="*.jar" /></classpath>
+      <arg value="net.yacy.scoutro.dashboard.DashboardMetricsTest" />
+      <arg value="net.yacy.http.AdminSecurityTest" />
+    </java>
+  </target>
+
   <target name="all" depends="jetty12-server-test">
   </target>
 

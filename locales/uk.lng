@@ -2969,6 +2969,7 @@ Not supported==Не підтримується
 "Table"=="Таблиця"
 PK==ПК
 #File: env/templates/header.template
+>Dashboard<==>Панель керування<
 "Search"=="Пошук"
 Search==Пошук
 System Status==Стан системи

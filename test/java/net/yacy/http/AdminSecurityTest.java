@@ -19,6 +19,8 @@ public class AdminSecurityTest {
     public void testIsProtectedPath() {
         // pages suffixed with "_p" are always protected
         Assert.assertTrue(AdminSecurity.isProtectedPath("/Settings_p.html", false, false, true));
+        Assert.assertTrue(AdminSecurity.isProtectedPath("/scoutro-dashboard.html", false, false, true));
+        Assert.assertFalse(AdminSecurity.isProtectedPath("/scoutro-about.html", false, false, true));
         Assert.assertTrue(AdminSecurity.isProtectedPath("/api/table_p.xml", false, false, true));
         // normal pages are public by default
         Assert.assertFalse(AdminSecurity.isProtectedPath("/index.html", false, false, true));

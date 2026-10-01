@@ -3878,6 +3878,7 @@ gracious: 50 &euro;==은혜로운: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>대시보드<
 #---------------------------
 "YaCy"=="YaCy"
 "Search..."=="찾다..."

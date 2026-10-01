@@ -3464,6 +3464,7 @@ YaCy Identifier==Identificador YaCy
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>Panel de control<
 #---------------------------
 Toggle navigation==Conmutar la navegación
 About This Page==Acerca de esta página

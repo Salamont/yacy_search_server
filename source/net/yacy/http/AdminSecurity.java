@@ -83,7 +83,8 @@ public final class AdminSecurity {
         }
         boolean protectedPage = adminForAllPages && (privateRobinsonMode ||
                 !(pathInContext.startsWith("/yacy/") || pathInContext.startsWith("/solr/")));
-        protectedPage = protectedPage || (pathInContext.indexOf("_p.") > 0);
+        protectedPage = protectedPage || (pathInContext.indexOf("_p.") > 0)
+                || "/scoutro-dashboard.html".equals(pathInContext);
         if (!protectedPage && !publicSearchpage) {
             protectedPage = pathInContext.startsWith("/solr/") || pathInContext.startsWith("/gsa/");
         }

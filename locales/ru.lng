@@ -3495,6 +3495,7 @@ Strict==Строгий
 "Table"=="Стол"
 PK==ПК
 #File: env/templates/header.template
+>Dashboard<==>Панель управления<
 Search==Поиск
 #---------------------------
 Toggle navigation==Переключение управления

@@ -3557,6 +3557,7 @@ YaCy Identifier==YaCy-Identifizierer
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>Dashboard<
 #---------------------------
 Agents &amp; Access==Agenten &amp; Zugriffe
 Toggle navigation==Navigation umschalten
@@ -4800,3 +4801,49 @@ External access==Externer Zugriff
 >Revoke<==>Widerrufen<
 Agents &amp; Access==Agenten &amp; Zugriffe
 #-----------------------------
+
+#File: scoutro-dashboard.html
+# Scoutro read-only overview. Preserve technical identifiers.
+>Some index statistics are temporarily unavailable. Other sections and detail links remain available.<==>Einige Indexstatistiken sind vorübergehend nicht verfügbar. Andere Bereiche und Detaillinks bleiben verfügbar.<
+>Index statistics refresh within 30 seconds. Hosts are counted separately from pages.<==>Indexstatistiken werden innerhalb von 30 Sekunden aktualisiert. Hosts werden getrennt von Seiten gezählt.<
+>Collections can overlap. Links open the standard Index Browser.<==>Collections können sich überschneiden. Die Links öffnen den normalen Index Browser.<
+>Retained profiles are not necessarily running.<==>Gespeicherte Profile laufen nicht zwingend.<
+>Search &amp; Index Overview<==>Suche &amp; Indexübersicht<
+"Index and system overview"=="Index- und Systemübersicht"
+>successfully indexed URLs<==>erfolgreich indexierte URLs<
+>local Solr index on disk<==>lokaler Solr-Index auf Datenträger<
+>Scoutro Administration<==>Scoutro Administration<
+>Share of indexed pages<==>Anteil der indexierten Seiten<
+>active crawl profiles<==>aktive Crawl-Profile<
+>unique indexed hosts<==>eindeutige indexierte Hosts<
+>Scoutro Collections<==>Scoutro Collections<
+>Terminated profiles<==>Beendete Profile<
+>Scoutro Dashboard<==>Scoutro Dashboard<
+>Active profiles<==>Aktive Profile<
+>Local Solr core<==>Lokaler Solr-Kern<
+>Scoutro Version<==>Scoutro-Version<
+"Service status"=="Dienststatus"
+>Indexed Pages<==>Indexierte Seiten<
+>Active Crawls<==>Aktive Crawls<
+>Fetching URLs<==>URLs im Abruf<
+>No documents<==>Keine Dokumente<
+>YaCy Version<==>YaCy-Version<
+>Quick Access<==>Schnellzugriff<
+Unavailable==Nicht verfügbar
+>Queued URLs<==>URLs in Warteschlange<
+>Index Size<==>Indexgröße<
+>JVM Memory<==>JVM-Speicher<
+>Documents<==>Dokumente<
+>Websites<==>Websites<
+>of index<==>des Index<
+>JVM Heap<==>JVM-Heap<
+>Crawler<==>Crawler<
+Running==Läuft
+>Network<==>Netzwerk<
+>System<==>System<
+>Uptime<==>Laufzeit<
+>pages<==>Seiten<
+>Index<==>Index<
+>Hosts<==>Hosts<
+>Build<==>Build<
+Idle==Inaktiv

@@ -3893,6 +3893,7 @@ gracious: 50 &euro;==łaskawy: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>Panel<
 #---------------------------
 "YaCy"=="YaCy"
 "Search..."=="Szukaj..."

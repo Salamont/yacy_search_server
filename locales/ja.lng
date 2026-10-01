@@ -3883,6 +3883,7 @@ gracious: 50 &euro;==親切です: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>ダッシュボード<
 #---------------------------
 "YaCy"=="YaCy"
 "Search..."=="検索..."

@@ -851,7 +851,10 @@ public class YaCyDefaultServlet extends HttpServlet  {
         if (p < 0) {
             return null;
         }
-        final String classname = "net.yacy.htroot" + target.substring(0, p).replace('/', '.');
+        // A Java class name cannot contain the hyphen in this public UI route.
+        final String classname = "/scoutro-dashboard.html".equals(target)
+                ? "net.yacy.htroot.ScoutroDashboard"
+                : "net.yacy.htroot" + target.substring(0, p).replace('/', '.');
         try {
             final Class<?> servletClass = Class.forName(classname);
             final Method rewriteMethod = rewriteMethod(servletClass);
@@ -1094,9 +1097,12 @@ public class YaCyDefaultServlet extends HttpServlet  {
 
             if (targetLocalizedFile.exists() && targetLocalizedFile.isFile() && targetLocalizedFile.canRead()) {
 
-                sb.setConfig(SwitchboardConstants.SERVER_SERVLETS_CALLED, this.appendPath(sb.getConfig(SwitchboardConstants.SERVER_SERVLETS_CALLED, ""), target));
-                if (args != null && !args.isEmpty()) {
-                    sb.setConfig("server.servlets.submitted", this.appendPath(sb.getConfig("server.servlets.submitted", ""), target));
+                // The read-only overview must not change navigation history/configuration.
+                if (!"/scoutro-dashboard.html".equals(target)) {
+                    sb.setConfig(SwitchboardConstants.SERVER_SERVLETS_CALLED, this.appendPath(sb.getConfig(SwitchboardConstants.SERVER_SERVLETS_CALLED, ""), target));
+                    if (args != null && !args.isEmpty()) {
+                        sb.setConfig("server.servlets.submitted", this.appendPath(sb.getConfig("server.servlets.submitted", ""), target));
+                    }
                 }
 
                 // add the application version, the uptime and the client name to every rewrite table

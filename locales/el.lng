@@ -3888,6 +3888,7 @@ gracious: 50 &euro;==ευγενικό: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>Dashboard<==>Πίνακας ελέγχου<
 #---------------------------
 "YaCy"=="YaCy"
 "Search..."=="Ερευνα..."
