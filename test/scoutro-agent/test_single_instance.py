@@ -57,7 +57,7 @@ class SingleInstanceTest(unittest.TestCase):
         scoutro.results["edelsenior-web"] = [("https://a.example/", "A", "Pflege")]
         self.servers.append(scoutro.server)
         log = open(os.path.join(self.tmp, name + ".log"), "w", encoding="utf-8")
-        env = dict(os.environ, SCOUTRO_AGENT_URL=scoutro.server.url, SCOUTRO_AGENT_LOCK_DIR=self.locks,
+        env = dict(os.environ, SCOUTRO_AGENT_URL=scoutro.server.url + bridge.AGENT_PATH, SCOUTRO_AGENT_LOCK_DIR=self.locks,
                    SCOUTRO_AGENT_STATE_DIR=os.path.join(self.tmp, name + ".state"), SCOUTRO_AGENT_POLL="0.5")
         cmd = [sys.executable, BRIDGE, "--secret-file", secret] + (["--once"] if once else [])
         p = subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=log)

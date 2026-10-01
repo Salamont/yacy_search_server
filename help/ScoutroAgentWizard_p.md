@@ -23,7 +23,7 @@ The wizard has six steps:
 3. **Actions**: preset "Research" (search, text evidence, lookup, index size), "Research and crawl" (also start, list, read and stop own crawls) or "Custom". Actions that are not limited to the data scope must be checked individually.
 4. **Limits**: allowed crawl domains (required for crawl rights; subdomains included), crawl depth, pages per crawl, parallel crawls, requests per minute; for the research worker also the time per task and whether it may use the configured language model.
 5. **Access**: summary, token lifetime (30, 90, 180 or 365 days); for a research worker the Clustro base URL, workspace id, connection id and Clustro agent key.
-6. **Connection**: the token (shown once), the agent API base URL and a `curl` check of `/capabilities`.
+6. **Connection**: the token (shown once), the agent API base URL as seen from the page and a `curl` check of `/capabilities`. Agents on other hosts get the agent listener of the reverse proxy, never the address of the web interface (server operation: `docs/SERVER_AGENT_ACCESS.md`). For a research worker the page shows the start command; `SCOUTRO_AGENT_URL` is required and has no default.
 
 ## Page Architecture
 

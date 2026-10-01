@@ -150,6 +150,8 @@ class FakeScoutro:
     def handle(self, method, path, query, headers, body):
         if self.down:
             return 503, {}, "{}"
+        if path.startswith(bridge.AGENT_PATH):   # the worker as configured (SCOUTRO_AGENT_URL)
+            path = path[len(bridge.AGENT_PATH):]
         if headers.get("Authorization") != "Bearer " + TOKEN:
             return 401, {}, json.dumps({"error": {"code": "invalid_token", "message": "x"}})
         self.calls.append((method, path, query, dict(headers)))
@@ -509,6 +511,31 @@ class BridgeTest(unittest.TestCase):
         w.poll_once()
         self.assertIn("outside the worker's data scope", self.clustro.runs["run1"]["error"])
 
+    def test_agent_url_is_required_and_checked(self):
+        """No silent default: without SCOUTRO_AGENT_URL the worker refuses to start and says what to set,
+        before it takes the connection lock."""
+        path = os.path.join(self.tmp, "agt_aaaaaaaaaaaa.secret")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"scoutroToken": TOKEN, "clustroBaseUrl": "https://c.example", "clustroWorkspaceId": "ws1",
+                       "clustroConnectionId": "conn1", "clustroAgentKey": KEY}, f)
+        args = type("A", (), {"secret_file": path, "agent": None})()
+        locks = os.path.join(self.tmp, "locks")
+        for value, needle in ((None, "is not set"), ("", "is not set"),
+                              ("ftp://127.0.0.1/scoutro/api/agent/v1", "not a plain http(s) URL"),
+                              ("http://user:pw@127.0.0.1/scoutro/api/agent/v1", "not a plain http(s) URL"),
+                              ("http://127.0.0.1:8090/scoutro/api/agent/v1?x=1", "not a plain http(s) URL"),
+                              ("http://127.0.0.1:8090/", "does not end with /scoutro/api/agent/v1"),
+                              ("http://127.0.0.1:8090/scoutro/api/v1", "does not end with /scoutro/api/agent/v1")):
+            env = {"SCOUTRO_AGENT_LOCK_DIR": locks}
+            if value is not None:
+                env["SCOUTRO_AGENT_URL"] = value
+            with self.assertRaises(SystemExit) as cm:
+                bridge.build_worker(args, environ=env)
+            self.assertIn(needle, str(cm.exception), value)
+            self.assertIn("http://127.0.0.1:8090/scoutro/api/agent/v1", str(cm.exception))
+            self.assertNotIn("8091", str(cm.exception))
+        self.assertFalse(os.path.isdir(locks) and os.listdir(locks), "no lock taken for a refused configuration")
+
     def test_configuration_from_runtime_secret(self):
         path = os.path.join(self.tmp, "agt_aaaaaaaaaaaa.secret")
         with open(path, "w", encoding="utf-8") as f:
@@ -516,10 +543,11 @@ class BridgeTest(unittest.TestCase):
                        "clustroConnectionId": "conn1", "clustroAgentKey": KEY}, f)
         args = type("A", (), {"secret_file": path, "agent": None})()
         locks = os.path.join(self.tmp, "locks")
-        w = bridge.build_worker(args, environ={"SCOUTRO_AGENT_URL": "http://127.0.0.1:9/x", "SCOUTRO_AGENT_LOCK_DIR": locks})
+        url = "http://127.0.0.1:9/scoutro/api/agent/v1"
+        w = bridge.build_worker(args, environ={"SCOUTRO_AGENT_URL": url + "/", "SCOUTRO_AGENT_LOCK_DIR": locks})
         self.assertTrue(w.lock.path.startswith(locks))
         w.lock.release()
-        self.assertEqual(w.scoutro.base, "http://127.0.0.1:9/x")
+        self.assertEqual(w.scoutro.base, url)
         self.assertEqual(w.clustro.workspace, "ws1")
         self.assertFalse(w.llm.configured)
         with open(path, "w", encoding="utf-8") as f:

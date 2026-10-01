@@ -169,13 +169,14 @@
           <dt>Connection status</dt><dd><code>#[created_state]#</code> &ndash; changes to "connected" when the agent has fetched its capabilities.</dd>
         </dl>
         <h4>Connect the agent</h4>
-        <p>Base URL of the agent API as seen from this page (agents on Olares use the internal API entrance of Scoutro instead of this host):</p>
+        <p>Base URL of the agent API as seen from this page. Agents on other hosts get the agent listener of the reverse proxy instead, never the address of the web interface:</p>
         <pre>#[created_baseUrl]#</pre>
         <p>Check the connection; the answer lists exactly the actions, collections and limits granted here:</p>
         <pre>curl -H "Authorization: Bearer $SCOUTRO_AGENT_TOKEN" #[created_baseUrl]#/capabilities</pre>
         <p>Command line: <code>SCOUTRO_TOKEN=... tools/scoutro/scoutroctl capabilities</code></p>
         #(created_worker)#::
-        <p>The research worker reads its Scoutro token and its Clustro settings from <code>#[secretFile]#</code>. Start it with <code>tools/scoutro/agent/scoutro-agent-bridge --agent #[id]#</code>; its state appears on the management page.</p>
+        <p>The research worker reads its Scoutro token and its Clustro settings from <code>#[secretFile]#</code>. Start it with <code>SCOUTRO_AGENT_URL=... tools/scoutro/agent/scoutro-agent-bridge --agent #[id]#</code>; its state appears on the management page.</p>
+        <p>SCOUTRO_AGENT_URL has no default: on this host use the agent API on 127.0.0.1 (port of this YaCy, path /scoutro/api/agent/v1), on another host the agent listener of the reverse proxy.</p>
         #(/created_worker)#
         <p><a class="btn btn-primary" href="ScoutroAgents_p.html?agent=#[created_id]#">Manage this agent</a></p>
       </fieldset>

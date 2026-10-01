@@ -209,10 +209,13 @@ Task and result formats, set-up and guarantees: `tools/scoutro/agent/README.md`.
 YaCy's own AI functions — the native MCP server `/tools`, `/v1/chat/completions`
 (RAG), the AI Lab tools such as `http_json` and `webfetch` — search the whole
 index or reach arbitrary hosts and carry no agent identity. They are not
-offered to agents. On Olares, agents reach Scoutro only through the internal
-API entrance (port 8091), whose proxy forwards nothing but `/scoutro/api/`;
-`/solr/` (public on 8090 by default) and these endpoints stay unreachable for
-them.
+offered to agents. They are not protected by agent tokens either: with the
+defaults, the YaCy port answers `/solr/select`, the native search and `/tools`
+without any login. Agents must therefore never reach the YaCy port. The
+server operating path (YaCy on `127.0.0.1` only, an nginx agent listener that
+forwards nothing but `/scoutro/api/agent/v1/`, and a check script run from the
+agent's position) and the trust boundary of the research worker are described
+in `docs/SERVER_AGENT_ACCESS.md`.
 
 ## Endpoints
 

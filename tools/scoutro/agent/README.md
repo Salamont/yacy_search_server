@@ -49,13 +49,13 @@ Clustro run  ◀──complete_run / fail_run (MCP)──────┘
 
 ```sh
 SCOUTRO_AGENT_SECRETS_DIR=/opt/yacy_search_server/DATA/SETTINGS/agent-runtime \
-SCOUTRO_AGENT_URL=http://127.0.0.1:8091/scoutro/api/agent/v1 \
+SCOUTRO_AGENT_URL=http://127.0.0.1:8090/scoutro/api/agent/v1 \
 tools/scoutro/agent/scoutro-agent-bridge --agent agt_xxxxxxxxxxxx
 ```
 
 | Variable | Meaning | Default |
 |---|---|---|
-| `SCOUTRO_AGENT_URL` | agent API base | `http://127.0.0.1:8091/scoutro/api/agent/v1` (API proxy of the Olares package; use port 8090 without the proxy) |
+| `SCOUTRO_AGENT_URL` | agent API base, must end with `/scoutro/api/agent/v1` | **required, no default**: on the Scoutro host `http://127.0.0.1:8090/scoutro/api/agent/v1`, on another host the agent listener of the reverse proxy (`docs/SERVER_AGENT_ACCESS.md`). Without it the worker exits with a message naming both |
 | `SCOUTRO_AGENT_SECRETS_DIR` | directory of the runtime secrets | `DATA/SETTINGS/agent-runtime` (relative to the working directory) |
 | `SCOUTRO_AGENT_STATE_DIR` | journal of runs | `<secrets dir>/<agent>.state` |
 | `SCOUTRO_DISCOVERY_DIR` | discovery state for stored classifications (read only) | `<state dir>/discovery` |
@@ -145,6 +145,17 @@ credential can reach another origin and no https→http downgrade can happen.
 Configure the canonical URLs (`SCOUTRO_AGENT_URL`, the Clustro base URL,
 `SCOUTRO_LLM_BASE_URL`). The same rule applies to the model client of
 `scoutro_classify.py`, which `scoutro-discovery` uses as well.
+
+## Trust boundary
+
+The worker is a program of the operator, not an agent. On the Scoutro host
+it can technically reach everything on `127.0.0.1:8090` (including the public
+`/solr/` and native search); its restriction to the agent's grant comes from
+its code, which calls only the agent API. Clustro tasks are untrusted input
+and validated against `schemas/task.schema.json`; the model gets no tools.
+For network-enforced separation run it on another host with
+`SCOUTRO_AGENT_URL` set to the agent listener of the reverse proxy. Details:
+`docs/SERVER_AGENT_ACCESS.md`.
 
 ## Reliability
 

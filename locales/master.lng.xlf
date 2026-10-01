@@ -12750,10 +12750,13 @@
        <source>Connect the agent</source>
     </trans-unit>
     <trans-unit id="ded4c13" xml:space="preserve" approved="no" translate="yes">
-       <source>Base URL of the agent API as seen from this page (agents on Olares use the internal API entrance of Scoutro instead of this host):</source>
+       <source>Base URL of the agent API as seen from this page. Agents on other hosts get the agent listener of the reverse proxy instead, never the address of the web interface:</source>
     </trans-unit>
     <trans-unit id="37bd76b" xml:space="preserve" approved="no" translate="yes">
        <source>Check the connection; the answer lists exactly the actions, collections and limits granted here:</source>
+    </trans-unit>
+    <trans-unit id="5c0a9e1" xml:space="preserve" approved="no" translate="yes">
+       <source>SCOUTRO_AGENT_URL has no default: on this host use the agent API on 127.0.0.1 (port of this YaCy, path /scoutro/api/agent/v1), on another host the agent listener of the reverse proxy.</source>
     </trans-unit>
     <trans-unit id="e2538d91" xml:space="preserve" approved="no" translate="yes">
        <source>Command line:</source>

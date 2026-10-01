@@ -22,9 +22,10 @@
 #        (DATA/SETTINGS/agent-runtime/<agent>.secret): scoutroToken,
 #        clustroBaseUrl, clustroWorkspaceId, clustroConnectionId,
 #        clustroAgentKey. SCOUTRO_AGENT_SECRETS_DIR sets the directory.
-#   SCOUTRO_AGENT_URL        agent API base, default
-#                            http://127.0.0.1:8091/scoutro/api/agent/v1
-#                            (the API proxy of the Olares package)
+#   SCOUTRO_AGENT_URL        agent API base, required, no default: e.g.
+#                            http://127.0.0.1:8090/scoutro/api/agent/v1 on the
+#                            Scoutro host, or the agent listener of the reverse
+#                            proxy (docs/SERVER_AGENT_ACCESS.md)
 #   SCOUTRO_AGENT_STATE_DIR  journal of runs (default: <secret dir>/<agent>.state)
 #   SCOUTRO_DISCOVERY_DIR    discovery state read for stored classifications
 #                            (default: <state dir>/discovery; never written)
@@ -71,7 +72,7 @@ import scoutro_classify as sc  # noqa: E402  (shared schema validation, sanitizi
 VERSION = "1.0"
 RESULT_BUDGET = 30000          # Clustro truncates output silently at 32 000 characters
 MAX_ATTEMPTS = 3               # restarts of the same run before it is failed
-DEFAULT_URL = "http://127.0.0.1:8091/scoutro/api/agent/v1"
+AGENT_PATH = "/scoutro/api/agent/v1"
 SCHEMA_DIR = os.path.join(HERE, "schemas")
 COLLECTION_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
@@ -897,6 +898,24 @@ def read_secret(path):
     return secret
 
 
+def agent_url(environ):
+    """The agent API base from SCOUTRO_AGENT_URL. There is no default: a guessed
+    address could send the worker's token to a different service."""
+    url = (environ.get("SCOUTRO_AGENT_URL") or "").strip().rstrip("/")
+    hint = ("Set SCOUTRO_AGENT_URL to the Scoutro agent API, e.g. http://127.0.0.1:8090%s when the worker runs "
+            "on the Scoutro host, or the agent listener of the reverse proxy (docs/SERVER_AGENT_ACCESS.md)."
+            % AGENT_PATH)
+    if not url:
+        raise SystemExit("SCOUTRO_AGENT_URL is not set. " + hint)
+    u = urllib.parse.urlsplit(url)
+    if u.scheme not in ("http", "https") or not u.hostname or u.query or u.fragment or u.username or u.password:
+        raise SystemExit("SCOUTRO_AGENT_URL %r is not a plain http(s) URL. %s" % (url, hint))
+    if not u.path.endswith(AGENT_PATH):
+        raise SystemExit("SCOUTRO_AGENT_URL %r does not end with %s; the worker only uses the agent API. %s"
+                         % (url, AGENT_PATH, hint))
+    return url
+
+
 def build_worker(args, environ=os.environ):
     if args.secret_file:
         secret_path = args.secret_file
@@ -908,12 +927,13 @@ def build_worker(args, environ=os.environ):
     else:
         raise SystemExit("give --agent ID or --secret-file PATH")
     secret = read_secret(secret_path)
+    scoutro_url = agent_url(environ)
     # exclusive per Clustro connection, before the journal is opened or anything is polled
     lock = ConnectionLock(environ.get("SCOUTRO_AGENT_LOCK_DIR", DEFAULT_LOCK_DIR), secret["clustroBaseUrl"],
                           secret["clustroWorkspaceId"], secret["clustroConnectionId"]).acquire()
     state_dir = environ.get("SCOUTRO_AGENT_STATE_DIR") or os.path.splitext(secret_path)[0] + ".state"
     discovery_dir = environ.get("SCOUTRO_DISCOVERY_DIR") or os.path.join(state_dir, "discovery")
-    scoutro = Scoutro(environ.get("SCOUTRO_AGENT_URL", DEFAULT_URL), secret["scoutroToken"])
+    scoutro = Scoutro(scoutro_url, secret["scoutroToken"])
     clustro = Clustro(secret["clustroBaseUrl"], secret["clustroAgentKey"], secret["clustroWorkspaceId"],
                       secret["clustroConnectionId"])
     llm = sc.LlmConfig.from_env(environ)

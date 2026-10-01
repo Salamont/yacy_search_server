@@ -4699,7 +4699,8 @@ Valid until==Gültig bis
 Connection status==Verbindungsstatus
 changes to "connected" when the agent has fetched its capabilities.==wechselt zu „connected“, sobald der Agent seine Fähigkeiten abgerufen hat.
 Connect the agent==Agent anschließen
-Base URL of the agent API as seen from this page (agents on Olares use the internal API entrance of Scoutro instead of this host):==Basis-URL der Agenten-API aus Sicht dieser Seite (Agenten auf Olares verwenden statt dieses Hosts die interne API-Entrance von Scoutro):
+Base URL of the agent API as seen from this page. Agents on other hosts get the agent listener of the reverse proxy instead, never the address of the web interface:==Basis-URL der Agenten-API aus Sicht dieser Seite. Agenten auf anderen Hosts erhalten stattdessen den Agenten-Listener des Reverse Proxy, nie die Adresse der Weboberfläche:
+SCOUTRO_AGENT_URL has no default: on this host use the agent API on 127.0.0.1 (port of this YaCy, path /scoutro/api/agent/v1), on another host the agent listener of the reverse proxy.==SCOUTRO_AGENT_URL hat keinen Standardwert: auf diesem Host die Agenten-API auf 127.0.0.1 (Port dieses YaCy, Pfad /scoutro/api/agent/v1), auf einem anderen Host den Agenten-Listener des Reverse Proxy.
 Check the connection; the answer lists exactly the actions, collections and limits granted here:==Verbindung prüfen; die Antwort listet genau die hier freigegebenen Actions, Collections und Grenzen:
 Command line:==Kommandozeile:
 The research worker reads its Scoutro token and its Clustro settings from==Der Rechercheworker liest seinen Scoutro-Token und seine Clustro-Einstellungen aus
