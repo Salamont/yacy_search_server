@@ -292,6 +292,22 @@ public class ScopedActionsTest {
     }
 
     @Test
+    public void crawlCannotMoveDocumentsOutOfForeignCollections() throws Exception {
+        final String t = agent("A", Arrays.asList("edelsenior-web"), false, "crawl.start");
+        this.yacy.outsideNumFound = 4;
+        final AgentApi.Response r = call(t, "POST", "crawls", null, crawl("https://www.example.com/", "edelsenior-web"), null);
+        Assert.assertEquals(409, r.status);
+        Assert.assertEquals("host_indexed_elsewhere", code(r));
+        final FakeUpstream.Call check = this.yacy.last("solr/select");
+        Assert.assertEquals("host_s:\"example.com\" OR host_s:\"www.example.com\"", check.get("q"));
+        Assert.assertEquals("-(collection_sxt:\"edelsenior-web\")", check.get("fq"));
+        Assert.assertTrue(this.yacy.calls("Crawler_p.json").isEmpty());
+
+        this.yacy.outsideNumFound = 0;
+        Assert.assertEquals(201, call(t, "POST", "crawls", null, crawl("https://www.example.com/", "edelsenior-web"), null).status);
+    }
+
+    @Test
     public void foreignCrawlsAreInvisibleAndCannotBeStopped() throws Exception {
         final String a = agent("A", Arrays.asList("edelsenior-web"), false, "crawl.start", "crawl.list", "crawl.status", "crawl.stop");
         final String b = agent("B", Arrays.asList("edelsenior-web"), false, "crawl.list", "crawl.status", "crawl.stop");

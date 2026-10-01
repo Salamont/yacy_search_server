@@ -105,10 +105,13 @@ class Wizard:
 
 
 def create_agent(name, kind="external", collections=(COLLECTION,), preset="research", extra_actions=(),
-                 domains="", max_pages="20"):
+                 domains="", max_pages="20", all_collections=False):
     w = Wizard()
     w.post(1, {"name": name, "description": "end-to-end test", "kind": kind})
-    w.post(2, dict({"scopeForm": "1", "extraCollections": ",".join(collections)}))
+    scope = {"scopeForm": "1", "extraCollections": ",".join(collections)}
+    if all_collections:
+        scope.update({"allCollections": "on", "confirmAllCollections": "on"})
+    w.post(2, scope)
     w.post(3, dict({"actionsForm": "1", "preset": preset}, **{"act_" + a: "on" for a in extra_actions}))
     w.post(4, {"limitsForm": "1", "domains": domains, "maxDepth": "1", "maxPages": max_pages,
                "maxParallelCrawls": "1", "requestsPerMinute": "120", "maxTaskSeconds": "300"})
@@ -249,6 +252,13 @@ class Crawls(unittest.TestCase):
         other, _, _ = create_agent("e2e crawl other " + RUN, preset="research_crawl", domains=host, max_pages="5")
         body = {"url": CRAWL_URL, "collection": COLLECTION, "depth": 1, "maxPages": 5}
         status, data, headers = agent_call(token, "POST", "/crawls", body=body, headers={"Idempotency-Key": "e2e-" + RUN})
+        if status == 409:
+            # the test host already has documents in other collections (earlier runs): a scoped
+            # agent must not re-index them into its own collection
+            self.assertEqual(error_code(data), "host_indexed_elsewhere")
+            token, _, _ = create_agent("e2e crawl all " + RUN, preset="research_crawl", domains=host, max_pages="5",
+                                       all_collections=True)
+            status, data, headers = agent_call(token, "POST", "/crawls", body=body, headers={"Idempotency-Key": "e2e-" + RUN})
         self.assertEqual(status, 201, data)
         crawl_id = data["id"]
         status, again, _ = agent_call(token, "POST", "/crawls", body=body, headers={"Idempotency-Key": "e2e-" + RUN})

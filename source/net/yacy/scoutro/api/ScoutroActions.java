@@ -406,6 +406,25 @@ final class ScoutroActions {
         return response == null ? 0 : response.optLong("numFound", 0);
     }
 
+    /**
+     * Number of indexed documents of a host (and www.host) that belong to none
+     * of the given collections. Used before an agent crawl: YaCy re-indexes
+     * crawled pages with the collection of the new crawl, which would move
+     * documents out of collections the agent may not touch.
+     */
+    long countHostOutside(final String host, final List<String> collections) throws ApiException {
+        final String h = host.toLowerCase(Locale.ROOT);
+        final String bare = h.startsWith("www.") ? h.substring(4) : h;
+        final String body = this.yacy.getAdmin("solr/select", new YaCyLoopback.Params()
+                .add("q", "host_s:" + phrase(bare) + " OR host_s:" + phrase("www." + bare))
+                .add("fq", "-" + collectionFilter(collections))
+                .add("defType", "lucene")
+                .add("rows", 0)
+                .add("wt", "json"));
+        final JSONObject response = Json.parseUpstream(body, "solr/select").optJSONObject("response");
+        return response == null ? 0 : response.optLong("numFound", 0);
+    }
+
     /** Solr filter on collection_sxt for validated collection names; null for no restriction. */
     static String collectionFilter(final List<String> collections) {
         if (collections == null) {

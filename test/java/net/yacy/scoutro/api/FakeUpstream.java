@@ -51,6 +51,8 @@ class FakeUpstream implements Upstream {
     final Map<String, List<String>> searchResults = new LinkedHashMap<>();
     final Map<String, Crawl> crawls = new LinkedHashMap<>();
     long solrNumFound = 3;
+    /** numFound for negative collection filters (documents outside a scope). */
+    long outsideNumFound = 0;
     private int nextCrawl = 1;
 
     List<Call> calls(final String path) {
@@ -86,7 +88,9 @@ class FakeUpstream implements Upstream {
             docs.put(Json.obj("sku", "https://example.com/", "title", new JSONArray().put("Example"),
                     "host_s", "example.com", "text_t", "Some text", "collection_sxt",
                     new JSONArray().put("edelsenior-web").put("checkthecoach-web")));
-            return Json.obj("response", Json.obj("numFound", this.solrNumFound, "docs", docs)).toString();
+            final String fq = params.get("fq");
+            final long found = fq != null && fq.startsWith("-") ? this.outsideNumFound : this.solrNumFound;
+            return Json.obj("response", Json.obj("numFound", found, "docs", docs)).toString();
         }
         throw new ApiException(502, "upstream_error", "unexpected GET " + path);
     }

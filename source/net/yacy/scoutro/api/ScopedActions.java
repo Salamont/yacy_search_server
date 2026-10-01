@@ -325,6 +325,14 @@ class ScopedActions {
                             + "'; start this crawl when it has finished.");
                 }
             }
+            // YaCy re-indexes crawled pages with the collection of the new crawl; an agent
+            // must not move documents of collections outside its scope into its own.
+            if (!agent.scope.allCollections
+                    && this.actions.countHostOutside(host, new ArrayList<>(agent.scope.collections)) > 0) {
+                throw new ApiException(409, "host_indexed_elsewhere", "The host '" + host + "' already has indexed "
+                        + "documents in collections outside the data scope of this agent; a crawl would re-index them "
+                        + "into your collection. Ask the administrator to crawl it or to extend the scope.");
+            }
             final JSONObject start = Json.obj("url", url, "depth", depth, "scope", scope, "maxPages", maxPages,
                     "collection", collection);
             final JSONObject created = this.actions.crawlStart(start);
