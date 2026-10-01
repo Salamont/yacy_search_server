@@ -40,6 +40,29 @@ public class AdminSecurityTest {
     }
 
     /**
+     * The Scoutro agent path authenticates agent tokens in its servlet; the
+     * container must not demand admin rights there, in any configuration,
+     * while the admin API v1 stays protected.
+     */
+    @Test
+    public void testScoutroAgentPathIsSelfAuthenticated() {
+        for (final boolean all : new boolean[] {false, true}) {
+            for (final boolean robinson : new boolean[] {false, true}) {
+                for (final boolean publicSearch : new boolean[] {false, true}) {
+                    Assert.assertFalse(AdminSecurity.isProtectedPath("/scoutro/api/agent/v1/capabilities", all, robinson, publicSearch));
+                    Assert.assertFalse(AdminSecurity.isProtectedPath("/scoutro/api/agent/v1/crawls/abc/stop", all, robinson, publicSearch));
+                    // pages with _p and path tricks are never exempt
+                    Assert.assertTrue(AdminSecurity.isProtectedPath("/scoutro/api/agent/v1/x_p.html", all, robinson, publicSearch));
+                    Assert.assertEquals(all, AdminSecurity.isProtectedPath("/scoutro/api/agent/../v1/config", all, robinson, publicSearch));
+                    // the admin API keeps its behaviour (container constraint in web.xml)
+                    Assert.assertEquals(all, AdminSecurity.isProtectedPath("/scoutro/api/v1/search", all, robinson, publicSearch));
+                    Assert.assertEquals(all, AdminSecurity.isProtectedPath("/scoutro/api/agentx/v1/search", all, robinson, publicSearch));
+                }
+            }
+        }
+    }
+
+    /**
      * Test the Base64 based admin password hash format MD5Hex(Base64(user:password)).
      */
     @Test

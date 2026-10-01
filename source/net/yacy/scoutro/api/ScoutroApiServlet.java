@@ -24,7 +24,9 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -34,7 +36,10 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.json.JSONObject;
 
+import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.cora.util.ConcurrentLog;
+import net.yacy.scoutro.agents.AgentException;
+import net.yacy.scoutro.agents.ScoutroAgents;
 import net.yacy.search.Switchboard;
 import net.yacy.search.SwitchboardConstants;
 
@@ -46,12 +51,18 @@ import net.yacy.search.SwitchboardConstants;
  * servlet additionally checks the administrator role for every protected
  * route, rejects cross-site requests to mutating routes (JSON content type
  * and same-origin check) and answers only in JSON.
+ * <p>
+ * The agent path {@code /scoutro/api/agent/v1/*} is outside the container
+ * constraint; {@link AgentApi} authenticates it with agent tokens (Bearer)
+ * and authorizes every call against the agent's grant. It never accepts or
+ * grants the administrator account.
  */
 public class ScoutroApiServlet extends HttpServlet {
 
     private static final long serialVersionUID = 1L;
     private static final ConcurrentLog LOG = new ConcurrentLog("SCOUTRO-API");
     private static final int MAX_BODY_BYTES = 16 * 1024;
+    private static final String AGENT_PREFIX = "/agent/v1/";
 
     private final transient ScoutroActions actions = new ScoutroActions();
 
@@ -67,6 +78,10 @@ public class ScoutroApiServlet extends HttpServlet {
                 sendStatic(response, path.substring(1));
                 return;
             }
+            if (path.startsWith(AGENT_PREFIX) || path.equals("/agent") || path.equals("/agent/v1")) {
+                serviceAgent(method, path, request, response);
+                return;
+            }
             final JSONObject result = route(method, path, request, response);
             send(response, response.getStatus() == 0 ? 200 : response.getStatus(), result);
         } catch (final ApiException e) {
@@ -75,6 +90,44 @@ public class ScoutroApiServlet extends HttpServlet {
             LOG.warn("internal error for " + method + " " + path + ": " + e);
             send(response, 500, new ApiException(500, "internal_error", "Internal error in the Scoutro API.").toJson());
         }
+    }
+
+    /**
+     * Agent path: authenticated by this servlet with an agent token (no
+     * container constraint applies to it, see defaults/web.xml and
+     * AdminSecurity). Never grants the administrator role.
+     */
+    private void serviceAgent(final String method, final String path, final HttpServletRequest request,
+            final HttpServletResponse response) throws IOException {
+        final ScoutroAgents agents;
+        try {
+            agents = ScoutroAgents.get();
+        } catch (final AgentException e) {
+            final ApiException a = AgentApi.toApi(e);
+            send(response, a.status(), a.toJson());
+            return;
+        }
+        final String rest = path.startsWith(AGENT_PREFIX) ? path.substring(AGENT_PREFIX.length()) : "";
+        final List<String> segments = new ArrayList<>();
+        for (final String seg : rest.replaceAll("/+$", "").split("/")) {
+            if (!seg.isEmpty()) {
+                segments.add(seg);
+            }
+        }
+        final AgentApi.Request r = new AgentApi.Request(method, segments, queryParams(request),
+                request.getHeader("Authorization"), RequestHeader.client(request), request.getHeader("Idempotency-Key"),
+                () -> {
+                    try {
+                        return jsonBody(request);
+                    } catch (final IOException e) {
+                        throw new ApiException(400, "invalid_body", "The request body could not be read.");
+                    }
+                });
+        final AgentApi.Response resp = new AgentApi(agents, new ScopedActions()).handle(r);
+        for (final Map.Entry<String, String> h : resp.headers.entrySet()) {
+            response.setHeader(h.getKey(), h.getValue());
+        }
+        send(response, resp.status, resp.body);
     }
 
     private JSONObject route(final String method, final String path, final HttpServletRequest request,

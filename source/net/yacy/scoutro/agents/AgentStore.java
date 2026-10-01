@@ -64,6 +64,8 @@ public final class AgentStore {
     private final Map<String, Agent> agents = new LinkedHashMap<>();
     private final Map<String, TokenRecord> tokens = new LinkedHashMap<>();
     private final List<CrawlRecord> crawls = new ArrayList<>();
+    /** Per agent: last capabilities handshake (time, fingerprint) and last heartbeat of a runtime. */
+    private final Map<String, JSONObject> connections = new LinkedHashMap<>();
 
     public AgentStore(final File settingsDir, final LongSupplier clock) throws IOException, AgentException {
         if (!settingsDir.isDirectory() && !settingsDir.mkdirs()) {
@@ -164,6 +166,7 @@ public final class AgentStore {
         draft.updatedAt = now;
         final Agent agent = draft.build();
         agent.validate();
+        AgentActionRegistry.validateGrant(agent.kind, agent.actions, agent.limits);
         checkUniqueName(agent);
         this.agents.put(id, agent);
         save();
@@ -191,6 +194,7 @@ public final class AgentStore {
         b.updatedAt = this.clock.getAsLong();
         final Agent agent = b.build();
         agent.validate();
+        AgentActionRegistry.validateGrant(agent.kind, agent.actions, agent.limits);
         checkUniqueName(agent);
         this.agents.put(id, agent);
         save();
@@ -380,6 +384,40 @@ public final class AgentStore {
         return null;
     }
 
+    // ------------------------------------------------------------------
+    // connection state (handshake and runtime heartbeat)
+    // ------------------------------------------------------------------
+
+    /** Record a successful capabilities handshake with the fingerprint of the grant the agent saw. */
+    public synchronized void recordHandshake(final String agentId, final String fingerprint) throws IOException {
+        final JSONObject c = connectionObject(agentId);
+        JsonUtil.put(c, "handshakeAt", this.clock.getAsLong());
+        JsonUtil.put(c, "fingerprint", fingerprint);
+        save();
+    }
+
+    /** Record a runtime heartbeat (already validated); persisted at most once per minute. */
+    public synchronized void recordHeartbeat(final String agentId, final JSONObject heartbeat) {
+        final JSONObject c = connectionObject(agentId);
+        final long now = this.clock.getAsLong();
+        final long previous = c.optLong("heartbeatAt", 0);
+        JsonUtil.put(c, "heartbeatAt", now);
+        JsonUtil.put(c, "heartbeat", heartbeat);
+        if (now - previous >= LAST_USED_RESOLUTION) {
+            saveQuietly();
+        }
+    }
+
+    /** Copy of the connection state of an agent (empty object if none). */
+    public synchronized JSONObject connection(final String agentId) {
+        final JSONObject c = this.connections.get(agentId);
+        return c == null ? new JSONObject(true) : JsonUtil.copy(c);
+    }
+
+    private JSONObject connectionObject(final String agentId) {
+        return this.connections.computeIfAbsent(agentId, k -> new JSONObject(true));
+    }
+
     public long now() {
         return this.clock.getAsLong();
     }
@@ -407,6 +445,15 @@ public final class AgentStore {
         for (int i = 0; c != null && i < c.length(); i++) {
             this.crawls.add(CrawlRecord.fromJson(c.optJSONObject(i)));
         }
+        final JSONObject conn = root.optJSONObject("connections");
+        if (conn != null) {
+            for (final String key : conn.keySet()) {
+                final JSONObject v = conn.optJSONObject(key);
+                if (v != null && this.agents.containsKey(key)) {
+                    this.connections.put(key, v);
+                }
+            }
+        }
     }
 
     private void save() throws IOException {
@@ -422,7 +469,11 @@ public final class AgentStore {
         for (final CrawlRecord crawl : this.crawls) {
             c.put(crawl.toJson());
         }
-        final JSONObject root = JsonUtil.obj("version", 1, "agents", a, "tokens", t, "crawls", c);
+        final JSONObject conn = new JSONObject(true);
+        for (final Map.Entry<String, JSONObject> e : this.connections.entrySet()) {
+            JsonUtil.put(conn, e.getKey(), e.getValue());
+        }
+        final JSONObject root = JsonUtil.obj("version", 1, "agents", a, "tokens", t, "crawls", c, "connections", conn);
         writeAtomically(this.storeFile, root.toString().getBytes(StandardCharsets.UTF_8));
     }
 

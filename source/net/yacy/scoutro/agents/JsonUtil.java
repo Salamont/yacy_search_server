@@ -59,6 +59,14 @@ final class JsonUtil {
         return out;
     }
 
+    static JSONObject copy(final JSONObject o) {
+        try {
+            return new JSONObject(o.toString());
+        } catch (final JSONException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     static JSONObject parse(final String text) throws AgentException {
         try {
             return new JSONObject(text);

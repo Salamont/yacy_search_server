@@ -48,6 +48,21 @@ public final class AdminSecurity {
     private AdminSecurity() {
     }
 
+    /** Scoutro agent API: authenticated by its servlet with agent tokens, never with the admin account. */
+    public static final String SCOUTRO_AGENT_PATH = "/scoutro/api/agent/";
+
+    /**
+     * Paths whose servlet authenticates every request itself with a credential
+     * other than the administrator account. The container must not demand
+     * admin rights there, also not with "admin for all pages", because that
+     * would turn an agent request into a Digest challenge for the admin.
+     * Paths containing "_p." are never exempt.
+     */
+    static boolean isSelfAuthenticatedPath(final String pathInContext) {
+        return pathInContext != null && pathInContext.startsWith(SCOUTRO_AGENT_PATH)
+                && pathInContext.indexOf("_p.") < 0 && pathInContext.indexOf("..") < 0;
+    }
+
     /**
      * Decide whether a path may only be accessed with admin rights.
      * Pages suffixed with "_p" are always considered protected. When all pages
@@ -63,6 +78,9 @@ public final class AdminSecurity {
      */
     public static boolean isProtectedPath(final String pathInContext, final boolean adminForAllPages,
             final boolean privateRobinsonMode, final boolean publicSearchpage) {
+        if (isSelfAuthenticatedPath(pathInContext)) {
+            return false;
+        }
         boolean protectedPage = adminForAllPages && (privateRobinsonMode ||
                 !(pathInContext.startsWith("/yacy/") || pathInContext.startsWith("/solr/")));
         protectedPage = protectedPage || (pathInContext.indexOf("_p.") > 0);
