@@ -19,6 +19,10 @@ permissions:
   contents: read
   packages: write
 
+concurrency:
+  group: publish-scoutro-image
+  cancel-in-progress: false
+
 jobs:
   build-push:
     runs-on: ubuntu-latest
@@ -27,6 +31,32 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Refuse to overwrite existing release tags
+        run: |
+          python3 - <<'PY'
+          import json, urllib.error, urllib.request
+          registry = "https://ghcr.io"
+          repository = "salamont/scoutro"
+          with urllib.request.urlopen(registry + "/token?service=ghcr.io&scope=repository:" + repository + ":pull") as response:
+              token = json.load(response)["token"]
+          headers = {"Authorization": "Bearer " + token,
+                     "Accept": "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"}
+          for tag in ("1.942-scoutro.7", "0.5.7"):
+              request = urllib.request.Request(registry + "/v2/" + repository + "/manifests/" + tag, headers=headers)
+              try:
+                  with urllib.request.urlopen(request):
+                      pass
+              except urllib.error.HTTPError as error:
+                  if error.code != 404:
+                      raise
+                  errors = json.load(error).get("errors", [])
+                  if not any(item.get("code") == "MANIFEST_UNKNOWN" for item in errors):
+                      raise
+                  print("New release tag available:", tag)
+              else:
+                  raise SystemExit("Refusing to overwrite existing release tag: " + tag)
+          PY
 
       # Offline tests of the Scoutro tools shipped in the image (stdlib only).
       - name: Test scoutro-discovery / scoutro_classify
@@ -61,16 +91,16 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/salamont/scoutro:1.942-scoutro.6
-            ghcr.io/salamont/scoutro:0.5.5
+            ghcr.io/salamont/scoutro:1.942-scoutro.7
+            ghcr.io/salamont/scoutro:0.5.7
           build-args: |
-            SCOUTRO_VERSION=1.942-scoutro.6
+            SCOUTRO_VERSION=1.942-scoutro.7
             SCOUTRO_REVISION=${{ github.sha }}
 
       - name: Report published digest
         run: |
           echo "### Scoutro image published" >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.6 | tee /tmp/inspect.txt
+          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.7 | tee /tmp/inspect.txt
           {
             echo '```'
             cat /tmp/inspect.txt
