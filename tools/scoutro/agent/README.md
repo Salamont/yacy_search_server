@@ -43,8 +43,9 @@ Clustro run  ◀──complete_run / fail_run (MCP)──────┘
    `DATA/SETTINGS/agent-runtime/<agent>.secret` (0600): the worker's own
    Scoutro token and the Clustro settings. A stored hash cannot authenticate
    outgoing calls, so this file is the only plain copy of the token.
-3. Start the worker (one process per Clustro connection; Clustro has no
-   claim/lease for pulled runs):
+3. Start the worker. Only one worker process may serve a Clustro connection
+   (Clustro has no claim/lease for pulled runs); the worker enforces this
+   itself, see "Single worker per connection":
 
 ```sh
 SCOUTRO_AGENT_SECRETS_DIR=/opt/yacy_search_server/DATA/SETTINGS/agent-runtime \
@@ -60,6 +61,7 @@ tools/scoutro/agent/scoutro-agent-bridge --agent agt_xxxxxxxxxxxx
 | `SCOUTRO_DISCOVERY_DIR` | discovery state for stored classifications (read only) | `<state dir>/discovery` |
 | `SCOUTRO_LLM_BASE_URL`, `SCOUTRO_LLM_MODEL`, `SCOUTRO_LLM_API_KEY[_FILE]`, … | OpenAI-compatible model, as for `scoutro-discovery` | not set: no model |
 | `SCOUTRO_AGENT_POLL` | poll interval in seconds | 15 |
+| `SCOUTRO_AGENT_LOCK_DIR` | directory of the per-connection worker locks; must belong to the worker's user and not be writable by others | `/tmp/scoutro-agent-locks` |
 
 `--once` handles the waiting runs once and exits (for tests and cron);
 `--secret-file PATH` names a runtime secret directly. Logs are JSON lines on
@@ -113,6 +115,26 @@ excerpts first and sets `truncated`):
 - Errors (invalid task, collection outside the scope, refused by Scoutro) end
   the run with `fail_run` and a readable message.
 
+## Single worker per connection
+
+Before it opens its journal or calls anything, the worker takes an exclusive
+`flock` on `<SCOUTRO_AGENT_LOCK_DIR>/<sha256>.lock`. The hash covers the
+normalized Clustro base URL (scheme, host, port, path; default ports and a
+trailing slash removed, case folded), the workspace id and the connection id,
+so another secret file, another Scoutro agent or a different spelling of the
+same URL cannot run a second worker for the same connection. The second
+process exits with code 3 and the message "another Scoutro research worker
+already serves the Clustro connection …" before it polls, works or crawls.
+
+- The kernel releases the lock when the process ends, also on a crash or
+  `SIGKILL`; the lock file stays but carries no meaning (only for the holder's
+  pid in messages). No stale-file handling is needed.
+- Scope: all worker processes on **one host that use the same lock
+  directory**. Processes that do not share `/tmp` (separate containers,
+  systemd `PrivateTmp`) must set the same `SCOUTRO_AGENT_LOCK_DIR` on a shared
+  local file system. It is not a distributed lock: do not run workers for the
+  same connection on several servers.
+
 ## HTTP and credentials
 
 Every request of the worker carries a credential (Scoutro token, Clustro agent
@@ -141,6 +163,8 @@ Configure the canonical URLs (`SCOUTRO_AGENT_URL`, the Clustro base URL,
 
 ```sh
 python3 test/scoutro-agent/test_bridge.py -v          # offline: fake Clustro, Scoutro and model
+python3 test/scoutro-agent/test_single_instance.py -v # real processes: lock, crash, restart
+python3 test/scoutro-agent/test_redirects.py -v       # credentials never follow redirects
 CLUSTRO_URL=… CLUSTER_ADMIN_KEY=… SCOUTRO_URL=… SCOUTRO_ADMIN_PASSWORD=… \
 SCOUTRO_DATA_DIR=…/DATA E2E_COLLECTION=… E2E_QUERY=… \
 python3 test/scoutro-agent/e2e_clustro.py             # disposable Clustro API + Scoutro instance

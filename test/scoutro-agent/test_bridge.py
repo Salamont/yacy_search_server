@@ -515,14 +515,17 @@ class BridgeTest(unittest.TestCase):
             json.dump({"scoutroToken": TOKEN, "clustroBaseUrl": "https://c.example", "clustroWorkspaceId": "ws1",
                        "clustroConnectionId": "conn1", "clustroAgentKey": KEY}, f)
         args = type("A", (), {"secret_file": path, "agent": None})()
-        w = bridge.build_worker(args, environ={"SCOUTRO_AGENT_URL": "http://127.0.0.1:9/x"})
+        locks = os.path.join(self.tmp, "locks")
+        w = bridge.build_worker(args, environ={"SCOUTRO_AGENT_URL": "http://127.0.0.1:9/x", "SCOUTRO_AGENT_LOCK_DIR": locks})
+        self.assertTrue(w.lock.path.startswith(locks))
+        w.lock.release()
         self.assertEqual(w.scoutro.base, "http://127.0.0.1:9/x")
         self.assertEqual(w.clustro.workspace, "ws1")
         self.assertFalse(w.llm.configured)
         with open(path, "w", encoding="utf-8") as f:
             json.dump({"scoutroToken": TOKEN}, f)
         with self.assertRaises(SystemExit):
-            bridge.build_worker(args, environ={})
+            bridge.build_worker(args, environ={"SCOUTRO_AGENT_LOCK_DIR": locks})
 
 
 if __name__ == "__main__":

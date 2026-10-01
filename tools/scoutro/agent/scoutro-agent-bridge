@@ -32,12 +32,24 @@
 #                            when the agent grant allows the model
 #   SCOUTRO_AGENT_POLL       poll interval in seconds (default 15)
 #
-# Only one worker process may serve a Clustro connection (Clustro has no
-# claim/lease for pulled runs).
+#   SCOUTRO_AGENT_LOCK_DIR   directory of the per-connection worker locks
+#                            (default /tmp/scoutro-agent-locks)
 #
-# Exit codes: 0 normal end (--once), 2 configuration error.
+# Only one worker process may serve a Clustro connection (Clustro has no
+# claim/lease for pulled runs). This is enforced with an exclusive flock on
+# <lock dir>/<sha256 of normalized Clustro base URL, workspace, connection>.lock
+# before anything is polled: a second worker for the same connection exits
+# with code 3, whichever secret file or Scoutro agent it uses. The kernel
+# releases the lock when the process ends or crashes. The lock covers the
+# processes of one host that share the lock directory; it is not a
+# distributed lock across servers.
+#
+# Exit codes: 0 normal end (--once or SIGTERM), 2 configuration error,
+# 3 another worker holds the lock of this Clustro connection.
 
 import argparse
+import fcntl
+import hashlib
 import importlib.machinery
 import importlib.util
 import json
@@ -237,6 +249,82 @@ class Clustro:
 
 
 # ---------------------------------------------------------------------------
+# single worker per Clustro connection
+# ---------------------------------------------------------------------------
+
+DEFAULT_LOCK_DIR = "/tmp/scoutro-agent-locks"
+
+
+class WorkerLocked(Exception):
+    pass
+
+
+def normalize_base_url(url):
+    """Canonical form of a Clustro base URL: lower-case scheme and host, default port removed, no trailing slash."""
+    u = urllib.parse.urlsplit((url or "").strip())
+    scheme = u.scheme.lower()
+    if scheme not in ("http", "https") or not u.hostname:
+        raise SystemExit("the Clustro base URL must be an http or https URL: %r" % url)
+    host = u.hostname.lower()
+    if ":" in host:  # IPv6 literal
+        host = "[" + host + "]"
+    port = u.port
+    if port is not None and (scheme, port) not in (("http", 80), ("https", 443)):
+        host += ":%d" % port
+    return "%s://%s%s" % (scheme, host, u.path.rstrip("/"))
+
+
+def connection_identity(base_url, workspace, connection):
+    material = "\n".join((normalize_base_url(base_url), workspace, connection))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+class ConnectionLock:
+    """Exclusive, crash-safe lock (flock) for one Clustro connection on this host."""
+
+    def __init__(self, directory, base_url, workspace, connection):
+        self.directory = directory
+        self.identity = connection_identity(base_url, workspace, connection)
+        self.path = os.path.join(directory, self.identity + ".lock")
+        self.label = "%s workspace=%s connection=%s" % (normalize_base_url(base_url), workspace, connection)
+        self.fd = None
+
+    def acquire(self):
+        os.makedirs(self.directory, mode=0o700, exist_ok=True)
+        st = os.stat(self.directory)
+        if st.st_uid != os.getuid() or st.st_mode & 0o022:
+            raise WorkerLocked("the lock directory %s must belong to this user and must not be writable by others; "
+                               "set SCOUTRO_AGENT_LOCK_DIR" % self.directory)
+        try:
+            fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+        except OSError as e:
+            raise WorkerLocked("cannot open the worker lock %s: %s" % (self.path, e.strerror))
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            holder = ""
+            try:
+                holder = os.read(fd, 400).decode("utf-8", "replace").strip()
+            except OSError:
+                pass
+            os.close(fd)
+            raise WorkerLocked("another Scoutro research worker already serves the Clustro connection %s (%s); "
+                               "only one worker per connection may run" % (self.label, holder or "holder unknown"))
+        os.ftruncate(fd, 0)
+        os.write(fd, json.dumps({"pid": os.getpid(), "since": int(time.time()), "connection": self.label}).encode())
+        self.fd = fd
+        return self
+
+    def release(self):
+        if self.fd is not None:
+            try:
+                fcntl.flock(self.fd, fcntl.LOCK_UN)
+            finally:
+                os.close(self.fd)
+                self.fd = None
+
+
+# ---------------------------------------------------------------------------
 # journal (restart safety, no double work)
 # ---------------------------------------------------------------------------
 
@@ -259,7 +347,7 @@ class Journal:
         entry.update(fields)
         entry["updatedAt"] = int(time.time())
         self._prune()
-        tmp = self.path + ".tmp"
+        tmp = "%s.%d.tmp" % (self.path, os.getpid())
         fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump({"version": 1, "runs": self.runs}, f)
@@ -395,6 +483,7 @@ class Worker:
         self.last_error = ""
         self.last_poll = 0
         self._discovery = None
+        self.lock = None  # ConnectionLock, set by build_worker
 
     # --- capabilities -------------------------------------------------------
 
@@ -819,14 +908,19 @@ def build_worker(args, environ=os.environ):
     else:
         raise SystemExit("give --agent ID or --secret-file PATH")
     secret = read_secret(secret_path)
+    # exclusive per Clustro connection, before the journal is opened or anything is polled
+    lock = ConnectionLock(environ.get("SCOUTRO_AGENT_LOCK_DIR", DEFAULT_LOCK_DIR), secret["clustroBaseUrl"],
+                          secret["clustroWorkspaceId"], secret["clustroConnectionId"]).acquire()
     state_dir = environ.get("SCOUTRO_AGENT_STATE_DIR") or os.path.splitext(secret_path)[0] + ".state"
     discovery_dir = environ.get("SCOUTRO_DISCOVERY_DIR") or os.path.join(state_dir, "discovery")
     scoutro = Scoutro(environ.get("SCOUTRO_AGENT_URL", DEFAULT_URL), secret["scoutroToken"])
     clustro = Clustro(secret["clustroBaseUrl"], secret["clustroAgentKey"], secret["clustroWorkspaceId"],
                       secret["clustroConnectionId"])
     llm = sc.LlmConfig.from_env(environ)
-    return Worker(scoutro, clustro, Journal(state_dir), llm, discovery_dir,
-                  poll=float(environ.get("SCOUTRO_AGENT_POLL", "15")))
+    worker = Worker(scoutro, clustro, Journal(state_dir), llm, discovery_dir,
+                    poll=float(environ.get("SCOUTRO_AGENT_POLL", "15")))
+    worker.lock = lock
+    return worker
 
 
 def main(argv=None):
@@ -835,11 +929,23 @@ def main(argv=None):
     p.add_argument("--secret-file", help="path of the runtime secret")
     p.add_argument("--once", action="store_true", help="handle the waiting runs once and exit")
     args = p.parse_args(argv)
-    worker = build_worker(args)
+    try:
+        worker = build_worker(args)
+    except WorkerLocked as e:
+        log("worker_locked", error=str(e))
+        sys.stderr.write("scoutro-agent-bridge: %s\n" % e)
+        return 3
     stop = {"now": False}
     signal.signal(signal.SIGTERM, lambda *a: stop.update(now=True))
     log("worker_started", version=VERSION, scoutro=worker.scoutro.base, clustro=worker.clustro.base,
-        modelConfigured=bool(worker.llm.configured))
+        modelConfigured=bool(worker.llm.configured), lock=worker.lock.path)
+    try:
+        return run_loop(worker, args, stop)
+    finally:
+        worker.lock.release()
+
+
+def run_loop(worker, args, stop):
     while True:
         worker.poll_once()
         if args.once or stop["now"]:
