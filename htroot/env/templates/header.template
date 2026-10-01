@@ -225,6 +225,7 @@
       <li><h3>Administration</h3></li>
       <li><a href="IndexControlURLs_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Index Administration</a></li>
       <li><a href="Settings_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">System Administration</a></li>
+      <li><a href="ScoutroAgents_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Agents &amp; Access</a></li>
       <li><a href="Blacklist_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Filter &amp; Blacklists</a></li>
       <li><a href="Performance_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">RAM/Disk Usage &amp; Updates</a></li>
     </ul>
@@ -240,6 +241,7 @@
     <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-configuration">
       <li><h3>Configuration</h3></li>
       <li><a href="ConfigAccounts_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Accounts</a></li>
+      <li><a href="ScoutroAgents_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Agents &amp; Access</a></li>
       <li><a href="ConfigNetwork_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Network Configuration</a></li>
       <li><a href="ConfigSearchPage_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Search Page Layout</a></li>
       <li><a href="ConfigLanguage_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Language</a></li>

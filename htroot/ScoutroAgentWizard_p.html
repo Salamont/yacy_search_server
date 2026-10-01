@@ -1,0 +1,187 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <title>YaCy '#[clientname]#': New Agent</title>
+    #%env/templates/metas.template%#
+  </head>
+<body>
+    #%env/templates/header.template%#
+    #%env/templates/submenuUseCaseAccount.template%#
+    <h2>New Agent</h2>
+    <p><a href="ScoutroAgents_p.html">Back to Agents &amp; Access</a></p>
+
+    #(unavailable)#::<p class="error">The agent store is not available: #[message]#</p>#(/unavailable)#
+
+    <ol class="scoutro-wizard-progress">
+      #{progress}#<li class="#(active)#scoutro-step::scoutro-step scoutro-step-active#(/active)#">#[n]#. #(label)#Identity::Data scope::Actions::Limits::Access::Connection#(/label)#</li>#{/progress}#
+    </ol>
+
+    #(error)#::<div class="alert alert-danger" role="alert">#[message]#</div>#(/error)#
+
+    <form action="ScoutroAgentWizard_p.html" method="post" accept-charset="UTF-8" autocomplete="off">
+      <input type="hidden" name="transactionToken" value="#[transactionToken]#"/>
+      <input type="hidden" name="draft" value="#[draft]#"/>
+      <input type="hidden" name="step" value="#[stepNumber]#"/>
+#(step)#
+::
+      <fieldset><legend>Step 1 of 6: Identity and kind</legend>
+        <dl class="userConfig">
+          <dt><label for="agentName">Name</label></dt>
+          <dd><input type="text" name="name" id="agentName" value="#[name]#" size="40" maxlength="80" required="required"/></dd>
+          <dt><label for="agentDescription">Description</label></dt>
+          <dd><textarea name="description" id="agentDescription" rows="3" cols="40" maxlength="500">#[description]#</textarea></dd>
+          <dt>Kind</dt>
+          <dd>
+            <label><input type="radio" name="kind" value="external"#(kindExternal)#:: checked="checked"#(/kindExternal)#/> External access</label>
+            <p class="help-block">An agent outside Scoutro (for example OpenCode) gets its own token for the agent API.</p>
+            <label><input type="radio" name="kind" value="research_worker"#(kindWorker)#:: checked="checked"#(/kindWorker)#/> Scoutro research agent (Clustro worker)</label>
+            <p class="help-block">The Scoutro research worker receives research tasks from Clustro and uses only the rights granted here.</p>
+          </dd>
+        </dl>
+        <input type="submit" name="next" value="Next" class="btn btn-primary"/>
+      </fieldset>
+::
+      <fieldset><legend>Step 2 of 6: Data scope</legend>
+        <input type="hidden" name="scopeForm" value="1"/>
+        <p>The agent can only read and crawl in the selected collections. Searches, text evidence, lookups and crawls outside them are refused.</p>
+        <dl class="userConfig">
+          <dt>Collections</dt>
+          <dd>
+            #{cols}#<label class="scoutro-check"><input type="checkbox" name="col_#[name]#"#(checked)#:: checked="checked"#(/checked)#/> <code>#[name]#</code>#(indexed)# (no documents yet)::#(/indexed)#</label><br/>#{/cols}#
+          </dd>
+          <dt><label for="extraCollections">Further collections</label></dt>
+          <dd><input type="text" name="extraCollections" id="extraCollections" value="" size="40" placeholder="collection-a, collection-b"/></dd>
+          <dt>Complete index</dt>
+          <dd>
+            <label><input type="checkbox" name="allCollections"#(all)#:: checked="checked"#(/all)#/> Grant the complete local index</label><br/>
+            <label><input type="checkbox" name="confirmAllCollections"/> I confirm that this agent may read all collections of this Scoutro instance.</label>
+            <p class="help-block">Network search of other peers is never part of a data scope; it is a separate action.</p>
+          </dd>
+        </dl>
+        <input type="submit" name="back" value="Back" class="btn btn-default" formnovalidate="formnovalidate"/>
+        <input type="submit" name="next" value="Next" class="btn btn-primary"/>
+      </fieldset>
+::
+      <fieldset><legend>Step 3 of 6: Actions</legend>
+        <input type="hidden" name="actionsForm" value="1"/>
+        <dl class="userConfig">
+          <dt>Preset</dt>
+          <dd>
+            <label><input type="radio" name="preset" value="research"#(presetResearch)#:: checked="checked"#(/presetResearch)#/> Research: search, text evidence, lookup, index size</label><br/>
+            <label><input type="radio" name="preset" value="research_crawl"#(presetResearchCrawl)#:: checked="checked"#(/presetResearchCrawl)#/> Research and crawl: also start, list and stop own crawls</label><br/>
+            <label><input type="radio" name="preset" value="custom"#(presetCustom)#:: checked="checked"#(/presetCustom)#/> Custom: exactly the actions checked below</label>
+          </dd>
+          <dt>Actions</dt>
+          <dd>
+            <table class="table table-condensed">
+              <thead><tr><th></th><th>Action</th><th>Description</th><th>Risk</th></tr></thead>
+              <tbody>
+              #{actions}#
+              <tr>
+                <td><input type="checkbox" name="act_#[id]#" id="act_#[id]#"#(checked)#:: checked="checked"#(/checked)#/></td>
+                <td><label for="act_#[id]#">#[label]#</label><br/><code>#[id]#</code></td>
+                <td>#[description]##(warning)#::<br/><strong>Not limited to the data scope; grant only deliberately.</strong>#(/warning)#</td>
+                <td>#[risk]#</td>
+              </tr>
+              #{/actions}#
+              </tbody>
+            </table>
+            <p class="help-block">With a preset, only the actions marked "not limited to the data scope" are added from the checkboxes. The stored grant is a fixed list: actions added to Scoutro later are never granted automatically.</p>
+          </dd>
+        </dl>
+        <input type="submit" name="back" value="Back" class="btn btn-default" formnovalidate="formnovalidate"/>
+        <input type="submit" name="next" value="Next" class="btn btn-primary"/>
+      </fieldset>
+::
+      <fieldset><legend>Step 4 of 6: Limits</legend>
+        <input type="hidden" name="limitsForm" value="1"/>
+        <dl class="userConfig">
+          <dt><label for="domains">Allowed crawl domains</label></dt>
+          <dd><textarea name="domains" id="domains" rows="4" cols="40" placeholder="example.com">#[domains]#</textarea>
+            <p class="help-block">One domain per line; subdomains are included. Required for crawl rights. Agents never start wide crawls.</p></dd>
+          <dt><label for="maxDepth">Maximum crawl depth</label></dt>
+          <dd><input type="number" name="maxDepth" id="maxDepth" min="0" max="#[limitDepth]#" value="#[maxDepth]#"/></dd>
+          <dt><label for="maxPages">Maximum pages per crawl</label></dt>
+          <dd><input type="number" name="maxPages" id="maxPages" min="1" max="#[limitPages]#" value="#[maxPages]#"/></dd>
+          <dt><label for="maxParallelCrawls">Parallel crawls</label></dt>
+          <dd><input type="number" name="maxParallelCrawls" id="maxParallelCrawls" min="1" max="#[limitParallel]#" value="#[maxParallelCrawls]#"/></dd>
+          <dt><label for="requestsPerMinute">Requests per minute</label></dt>
+          <dd><input type="number" name="requestsPerMinute" id="requestsPerMinute" min="1" max="#[limitRpm]#" value="#[requestsPerMinute]#"/></dd>
+          <dt><label for="maxTaskSeconds">Maximum time per task (seconds)</label></dt>
+          <dd><input type="number" name="maxTaskSeconds" id="maxTaskSeconds" min="30" max="3600" value="#[maxTaskSeconds]#"/>
+            <p class="help-block">Used by the Scoutro research worker.</p></dd>
+          <dt>Language model</dt>
+          <dd><label><input type="checkbox" name="modelAllowed"#(modelAllowed)#:: checked="checked"#(/modelAllowed)#/> The research worker may use the configured language model</label>
+            <p class="help-block">Without a model, search and text evidence still work; summaries and classifications report that no model is configured. No model is chosen automatically.</p></dd>
+        </dl>
+        <input type="submit" name="back" value="Back" class="btn btn-default" formnovalidate="formnovalidate"/>
+        <input type="submit" name="next" value="Next" class="btn btn-primary"/>
+      </fieldset>
+::
+      <fieldset><legend>Step 5 of 6: Access</legend>
+        <h4>Summary</h4>
+        <dl class="userConfig">
+          <dt>Name</dt><dd>#[summary_name]#</dd>
+          <dt>Kind</dt><dd>#[summary_kind]#</dd>
+          <dt>Data scope</dt><dd>#[summary_scope]#</dd>
+          <dt>Actions</dt><dd><code>#[summary_actions]#</code></dd>
+          <dt>Crawl domains</dt><dd>#[summary_domains]#</dd>
+          <dt>Crawl limits</dt><dd>depth #[summary_maxDepth]#, #[summary_maxPages]# pages, #[summary_maxParallelCrawls]# parallel</dd>
+          <dt>Requests per minute</dt><dd>#[summary_requestsPerMinute]#</dd>
+        </dl>
+        <dl class="userConfig">
+          <dt><label for="expiresInDays">Token validity</label></dt>
+          <dd><select name="expiresInDays" id="expiresInDays">
+            <option value="30">30 days</option>
+            <option value="90" selected="selected">90 days</option>
+            <option value="180">180 days</option>
+            <option value="365">365 days</option>
+          </select></dd>
+        </dl>
+        #(worker)#::
+        <h4>Clustro connection of the research worker</h4>
+        <p>Create the connection in Clustro first (adapter "custom", without endpoint URL, not primary). Clustro shows its agent key once; enter it here. Scoutro stores it only in the runtime secret of this worker and never shows it again.</p>
+        <dl class="userConfig">
+          <dt><label for="clustroBaseUrl">Clustro base URL</label></dt>
+          <dd><input type="url" name="clustroBaseUrl" id="clustroBaseUrl" size="50" placeholder="https://clustro.example"/></dd>
+          <dt><label for="clustroWorkspaceId">Workspace id</label></dt>
+          <dd><input type="text" name="clustroWorkspaceId" id="clustroWorkspaceId" size="40"/></dd>
+          <dt><label for="clustroConnectionId">Connection id</label></dt>
+          <dd><input type="text" name="clustroConnectionId" id="clustroConnectionId" size="40"/></dd>
+          <dt><label for="clustroAgentKey">Clustro agent key</label></dt>
+          <dd><input type="password" name="clustroAgentKey" id="clustroAgentKey" size="50" placeholder="ak_..." autocomplete="new-password"/></dd>
+        </dl>
+        #(/worker)#
+        <input type="submit" name="back" value="Back" class="btn btn-default" formnovalidate="formnovalidate"/>
+        <input type="submit" name="next" value="Create agent and token" class="btn btn-primary"/>
+      </fieldset>
+::
+      <fieldset><legend>Step 6 of 6: Connection</legend>
+        <div class="alert alert-warning" role="alert">
+          <strong>Copy the token now.</strong> It is shown only on this page and is stored by Scoutro only as a keyed hash. If it is lost, rotate it on the management page.
+        </div>
+        <dl class="userConfig">
+          <dt>Agent</dt><dd>#[created_name]# (<code>#[created_id]#</code>)</dd>
+          <dt><label for="createdToken">Agent token</label></dt>
+          <dd><input type="text" id="createdToken" readonly="readonly" size="70" value="#[created_token]#" onfocus="this.select()"/></dd>
+          <dt>Token id</dt><dd><code>#[created_tokenId]#</code></dd>
+          <dt>Valid until</dt><dd>#[created_expires]#</dd>
+          <dt>Connection status</dt><dd><code>#[created_state]#</code> &ndash; changes to "connected" when the agent has fetched its capabilities.</dd>
+        </dl>
+        <h4>Connect the agent</h4>
+        <p>Base URL of the agent API as seen from this page (agents on Olares use the internal API entrance of Scoutro instead of this host):</p>
+        <pre>#[created_baseUrl]#</pre>
+        <p>Check the connection; the answer lists exactly the actions, collections and limits granted here:</p>
+        <pre>curl -H "Authorization: Bearer $SCOUTRO_AGENT_TOKEN" #[created_baseUrl]#/capabilities</pre>
+        <p>Command line: <code>SCOUTRO_TOKEN=... tools/scoutro/scoutroctl capabilities</code></p>
+        #(created_worker)#::
+        <p>The research worker reads its Scoutro token and its Clustro settings from <code>#[secretFile]#</code>. Start it with <code>tools/scoutro/agent/scoutro-agent-bridge --agent #[id]#</code>; its state appears on the management page.</p>
+        #(/created_worker)#
+        <p><a class="btn btn-primary" href="ScoutroAgents_p.html?agent=#[created_id]#">Manage this agent</a></p>
+      </fieldset>
+#(/step)#
+    </form>
+
+#%env/templates/footer.template%#
+</body>
+</html>
