@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scoutro-agent-task.schema.json",
+  "title": "Scoutro research worker task (Clustro run content as JSON)",
+  "description": "A Clustro run whose content is a JSON object with \"scoutro_task\": \"1\". Free text content is treated as {\"type\": \"research\", \"query\": <content>}.",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["scoutro_task", "type", "query"],
+      "additionalProperties": false,
+      "properties": {
+        "scoutro_task": {"const": "1"},
+        "type": {"const": "research"},
+        "query": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Search query; must not contain collection:."},
+        "collections": {"type": "array", "maxItems": 10, "items": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+                        "description": "Subset of the worker's collections; default: all of them."},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 20, "description": "Number of sources (default 8)."},
+        "maxChars": {"type": "integer", "minimum": 100, "maximum": 4000, "description": "Excerpt length per source (default 1200)."},
+        "summarize": {"type": "boolean", "description": "Ask the language model for a summary with source references (default true; only if the model is allowed and configured)."}
+      }
+    },
+    {
+      "type": "object",
+      "required": ["scoutro_task", "type", "profile"],
+      "additionalProperties": false,
+      "properties": {
+        "scoutro_task": {"const": "1"},
+        "type": {"const": "portal_evaluation"},
+        "profile": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,31}$", "description": "Discovery profile, e.g. edelsenior."},
+        "query": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Find providers by search in the profile collections (either query or domains)."},
+        "domains": {"type": "array", "minItems": 1, "maxItems": 20,
+                    "items": {"type": "string", "pattern": "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$"}},
+        "verdicts": {"type": "array", "maxItems": 4, "items": {"type": "string", "enum": ["PASS", "FAIL", "UNSURE", "UNCLASSIFIED"]}},
+        "mode": {"type": "string", "enum": ["stored", "classify"], "description": "stored: classifications from the discovery state; classify: classify now with the language model."},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50, "description": "Maximum number of domains (default 20)."}
+      }
+    },
+    {
+      "type": "object",
+      "required": ["scoutro_task", "type", "url", "collection"],
+      "additionalProperties": false,
+      "properties": {
+        "scoutro_task": {"const": "1"},
+        "type": {"const": "crawl"},
+        "url": {"type": "string", "minLength": 8, "maxLength": 2048, "pattern": "^https?://"},
+        "collection": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"},
+        "depth": {"type": "integer", "minimum": 0, "maximum": 3},
+        "maxPages": {"type": "integer", "minimum": 1, "maximum": 1000},
+        "waitSeconds": {"type": "integer", "minimum": 0, "maximum": 3600, "description": "How long to follow the crawl before reporting (default and maximum: the worker's task time)."}
+      }
+    }
+  ]
+}

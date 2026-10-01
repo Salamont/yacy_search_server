@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "scoutro-agent-result.schema.json",
+  "title": "Scoutro research worker result (Clustro run output, JSON text)",
+  "type": "object",
+  "required": ["scoutro_result", "type", "status", "warnings", "truncated"],
+  "additionalProperties": false,
+  "properties": {
+    "scoutro_result": {"const": "1"},
+    "type": {"type": "string", "enum": ["research", "portal_evaluation", "crawl"]},
+    "status": {"type": "string", "enum": ["ok", "partial", "no_evidence", "model_unavailable", "invalid_model_output"]},
+    "query": {"type": "string"},
+    "profile": {"type": "string"},
+    "summary": {"type": "string", "description": "Statements with [n] references to sources; only when generated."},
+    "summaryStatus": {"type": "string", "enum": ["generated", "not_requested", "model_not_allowed", "model_not_configured", "invalid_model_output", "model_error", "no_evidence"]},
+    "sources": {"type": "array", "items": {
+      "type": "object", "required": ["id", "url", "title", "excerpt"], "additionalProperties": false,
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "url": {"type": "string"},
+        "title": {"type": "string"},
+        "collection": {"type": "string"},
+        "excerpt": {"type": "string", "description": "Untrusted page text from the index."}
+      }}},
+    "classifications": {"type": "array", "items": {
+      "type": "object", "required": ["domain", "verdict"],
+      "properties": {
+        "domain": {"type": "string"},
+        "verdict": {"type": "string", "enum": ["PASS", "FAIL", "UNSURE", "UNCLASSIFIED"]},
+        "source": {"type": "string", "enum": ["stored", "classified", "none"]},
+        "record": {"type": "object", "description": "Discovery classification record (classification.schema.json)."}
+      }}},
+    "crawl": {"type": "object"},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "truncated": {"type": "boolean"}
+  }
+}

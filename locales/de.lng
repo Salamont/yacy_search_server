@@ -3558,6 +3558,7 @@ YaCy Identifier==YaCy-Identifizierer
 
 #File: env/templates/header.template
 #---------------------------
+Agents &amp; Access==Agenten &amp; Zugriffe
 Toggle navigation==Navigation umschalten
 About This Page==Über diese Seite
 Portal Configuration==Portal-Konfiguration
@@ -3798,6 +3799,7 @@ Regex Test==Regulärer Ausdruck Test
 
 #File: env/templates/submenuUseCaseAccount.template
 #---------------------------
+Agents &amp; Access==Agenten &amp; Zugriffe
 Use Case &amp; Accounts==Anwendungsfall &amp; Zugangsdaten
 Basic Configuration==Grundkonfiguration
 Network Configuration==Netzwerk Einstellungen
@@ -4643,4 +4645,158 @@ YaCy Portalsearch:==YaCy-Portalsuche:
 #File: rssTerminal.html
 #---------------------------
 rss terminal==RSS-Terminal
+#-----------------------------
+
+#File: ScoutroAgentWizard_p.html
+#---------------------------
+Identity::Data scope::Actions::Limits::Access::Connection==Identität::Datenbereich::Actions::Grenzen::Zugang::Verbindung
+Step 1 of 6: Identity and kind==Schritt 1 von 6: Identität und Art
+Step 2 of 6: Data scope==Schritt 2 von 6: Datenbereich
+Step 3 of 6: Actions==Schritt 3 von 6: Actions
+Step 4 of 6: Limits==Schritt 4 von 6: Grenzen
+Step 5 of 6: Access==Schritt 5 von 6: Zugang
+Step 6 of 6: Connection==Schritt 6 von 6: Verbindung
+An agent outside Scoutro (for example OpenCode) gets its own token for the agent API.==Ein Agent außerhalb von Scoutro (zum Beispiel OpenCode) erhält einen eigenen Token für die Agenten-API.
+The Scoutro research worker receives research tasks from Clustro and uses only the rights granted here.==Der Scoutro-Rechercheworker erhält Rechercheaufträge von Clustro und nutzt nur die hier freigegebenen Rechte.
+Scoutro research agent (Clustro worker)==Scoutro-Rechercheagent (Clustro-Worker)
+The agent can only read and crawl in the selected collections. Searches, text evidence, lookups and crawls outside them are refused.==Der Agent kann nur in den ausgewählten Collections lesen und crawlen. Suchen, Textbelege, Abfragen und Crawls außerhalb davon werden abgelehnt.
+(no documents yet)==(noch keine Dokumente)
+Further collections==Weitere Collections
+Grant the complete local index==Gesamten lokalen Index freigeben
+I confirm that this agent may read all collections of this Scoutro instance.==Ich bestätige, dass dieser Agent alle Collections dieser Scoutro-Instanz lesen darf.
+Network search of other peers is never part of a data scope; it is a separate action.==Die Netzwerksuche bei anderen Peers ist nie Teil eines Datenbereichs; sie ist eine eigene Action.
+Research: search, text evidence, lookup, index size==Recherche: Suche, Textbelege, Abfrage, Indexgröße
+Research and crawl: also start, list and stop own crawls==Recherche und Crawl: zusätzlich eigene Crawls starten, auflisten und stoppen
+Custom: exactly the actions checked below==Benutzerdefiniert: genau die unten angehakten Actions
+Not limited to the data scope; grant only deliberately.==Nicht auf den Datenbereich begrenzt; nur bewusst freigeben.
+With a preset, only the actions marked "not limited to the data scope" are added from the checkboxes. The stored grant is a fixed list: actions added to Scoutro later are never granted automatically.==Mit einem Preset werden aus den Checkboxen nur die als „nicht auf den Datenbereich begrenzt“ markierten Actions ergänzt. Die gespeicherte Freigabe ist eine feste Liste: später zu Scoutro hinzugefügte Actions werden nie automatisch freigegeben.
+Allowed crawl domains==Erlaubte Crawl-Domains
+One domain per line; subdomains are included. Required for crawl rights. Agents never start wide crawls.==Eine Domain pro Zeile; Subdomains sind eingeschlossen. Pflicht für Crawl-Rechte. Agenten starten nie weite Crawls.
+Maximum crawl depth==Maximale Crawl-Tiefe
+Maximum pages per crawl==Maximale Seiten pro Crawl
+Parallel crawls==Parallele Crawls
+Requests per minute==Anfragen pro Minute
+Maximum time per task (seconds)==Maximale Zeit pro Auftrag (Sekunden)
+Used by the Scoutro research worker.==Wird vom Scoutro-Rechercheworker verwendet.
+Language model==Sprachmodell
+The research worker may use the configured language model==Der Rechercheworker darf das konfigurierte Sprachmodell verwenden
+Without a model, search and text evidence still work; summaries and classifications report that no model is configured. No model is chosen automatically.==Ohne Modell funktionieren Suche und Textbelege weiterhin; Zusammenfassungen und Klassifizierungen melden, dass kein Modell konfiguriert ist. Es wird nie automatisch ein Modell gewählt.
+Crawl limits==Crawl-Grenzen
+Crawl domains==Crawl-Domains
+Token validity==Gültigkeit des Tokens
+Clustro connection of the research worker==Clustro-Verbindung des Rechercheworkers
+Create the connection in Clustro first (adapter "custom", without endpoint URL, not primary). Clustro shows its agent key once; enter it here. Scoutro stores it only in the runtime secret of this worker and never shows it again.==Legen Sie die Verbindung zuerst in Clustro an (Adapter „custom“, ohne Endpunkt-URL, nicht primär). Clustro zeigt den Agent-Key einmal an; tragen Sie ihn hier ein. Scoutro speichert ihn nur im Runtime-Secret dieses Workers und zeigt ihn nie wieder an.
+Clustro base URL==Clustro-Basis-URL
+Workspace id==Workspace-ID
+Connection id==Connection-ID
+Clustro agent key==Clustro-Agent-Key
+"Create agent and token"=="Agent und Token anlegen"
+Copy the token now.==Kopieren Sie den Token jetzt.
+It is shown only on this page and is stored by Scoutro only as a keyed hash. If it is lost, rotate it on the management page.==Er wird nur auf dieser Seite angezeigt und von Scoutro nur als verschlüsselter Hash gespeichert. Geht er verloren, rotieren Sie ihn auf der Verwaltungsseite.
+Agent token==Agenten-Token
+Token id==Token-ID
+Valid until==Gültig bis
+Connection status==Verbindungsstatus
+changes to "connected" when the agent has fetched its capabilities.==wechselt zu „connected“, sobald der Agent seine Fähigkeiten abgerufen hat.
+Connect the agent==Agent anschließen
+Base URL of the agent API as seen from this page. Agents on other hosts get the agent listener of the reverse proxy instead, never the address of the web interface:==Basis-URL der Agenten-API aus Sicht dieser Seite. Agenten auf anderen Hosts erhalten stattdessen den Agenten-Listener des Reverse Proxy, nie die Adresse der Weboberfläche:
+SCOUTRO_AGENT_URL has no default: on this host use the agent API on 127.0.0.1 (port of this YaCy, path /scoutro/api/agent/v1), on another host the agent listener of the reverse proxy.==SCOUTRO_AGENT_URL hat keinen Standardwert: auf diesem Host die Agenten-API auf 127.0.0.1 (Port dieses YaCy, Pfad /scoutro/api/agent/v1), auf einem anderen Host den Agenten-Listener des Reverse Proxy.
+Check the connection; the answer lists exactly the actions, collections and limits granted here:==Verbindung prüfen; die Antwort listet genau die hier freigegebenen Actions, Collections und Grenzen:
+Command line:==Kommandozeile:
+The research worker reads its Scoutro token and its Clustro settings from==Der Rechercheworker liest seinen Scoutro-Token und seine Clustro-Einstellungen aus
+Start it with==Starten Sie ihn mit
+its state appears on the management page.==sein Zustand erscheint auf der Verwaltungsseite.
+Manage this agent==Diesen Agenten verwalten
+Back to Agents &amp; Access==Zurück zu Agenten &amp; Zugriffe
+The agent store is not available:==Der Agentenspeicher ist nicht verfügbar:
+New Agent==Neuer Agent
+External access==Externer Zugriff
+Description==Beschreibung
+Collections==Collections
+Complete index==Gesamtindex
+Preset==Preset
+Summary==Zusammenfassung
+Data scope==Datenbereich
+30 days==30 Tage
+90 days==90 Tage
+180 days==180 Tage
+365 days==365 Tage
+"Back"=="Zurück"
+"Next"=="Weiter"
+#-----------------------------
+
+#File: ScoutroAgents_p.html
+#---------------------------
+These crawl starts were recorded, but no crawl profile carries their start marker (for example after a crash between the start and storing its id, when the crawl has meanwhile finished and YaCy removed its profile). Scoutro never repeats them automatically. Check the Crawler monitor and the index; if the start should be repeated, mark it as not started.==Diese Crawlstarts wurden protokolliert, aber kein Crawl-Profil trägt ihren Start-Marker (zum Beispiel nach einem Absturz zwischen Start und Speichern der ID, wenn der Crawl inzwischen beendet ist und YaCy sein Profil entfernt hat). Scoutro wiederholt sie nie automatisch. Prüfen Sie Crawler-Monitor und Index; soll der Start wiederholt werden, markieren Sie ihn als nicht gestartet.
+Unconfirmed crawl starts==Unbestätigte Crawlstarts
+Mark as not started==Als nicht gestartet markieren
+Idempotency-Key==Idempotency-Key
+Recorded==Protokolliert
+> checked<==> geprüft<
+Agents get their own token, a fixed list of actions and a data scope of collections. They use the agent API==Agenten erhalten einen eigenen Token, eine feste Liste von Actions und einen Datenbereich aus Collections. Sie nutzen die Agenten-API
+and never the administrator account.==und nie das Administratorkonto.
+New token &ndash; copy it now.==Neuer Token &ndash; jetzt kopieren.
+It is shown only on this page and is stored by Scoutro only as a keyed hash.==Er wird nur auf dieser Seite angezeigt und von Scoutro nur als verschlüsselter Hash gespeichert.
+Check it with:==Prüfen mit:
+The runtime secret of the research worker was updated with the new token.==Das Runtime-Secret des Rechercheworkers wurde mit dem neuen Token aktualisiert.
+No agents yet.==Noch keine Agenten.
+Token valid until==Token gültig bis
+Last used==Zuletzt genutzt
+Recent activity==Letzte Aktivitäten
+Research worker==Rechercheworker
+All agents==Alle Agenten
+Scoutro research agent (Clustro worker)==Scoutro-Rechercheagent (Clustro-Worker)
+last capabilities handshake:==letzter Capabilities-Abruf:
+Agent API==Agenten-API
+"connected" means that a valid token fetched the capabilities of the current grant within the last 24 hours. After every change of the grant the status is "stale" until the agent fetches its capabilities again.==„connected“ bedeutet: Ein gültiger Token hat die Fähigkeiten der aktuellen Freigabe in den letzten 24 Stunden abgerufen. Nach jeder Änderung der Freigabe ist der Status „stale“, bis der Agent seine Fähigkeiten erneut abruft.
+Lifecycle==Lebenszyklus
+Revoke permanently (cannot be undone)==Endgültig widerrufen (nicht rückgängig zu machen)
+Grant the complete local index==Gesamten lokalen Index freigeben
+Not limited to the data scope.==Nicht auf den Datenbereich begrenzt.
+Allowed crawl domains==Erlaubte Crawl-Domains
+Requests/min==Anfragen/Min.
+Task seconds==Sekunden pro Auftrag
+language model allowed==Sprachmodell erlaubt
+Save grant==Freigabe speichern
+Changes apply to the next request of the agent.==Änderungen gelten ab der nächsten Anfrage des Agenten.
+Revoke token==Token widerrufen
+New token valid for==Neuer Token gültig für
+Old tokens stay valid for==Alte Tokens bleiben gültig für
+Rotate token==Token rotieren
+Worker reports==Worker meldet sich
+no current heartbeat==kein aktuelles Lebenszeichen
+not confirmed by the worker==vom Worker nicht bestätigt
+yes, confirmed by the worker within 5 minutes==ja, vom Worker innerhalb von 5 Minuten bestätigt
+Clustro reachable==Clustro erreichbar
+not configured==nicht konfiguriert
+Open runs==Offene Runs
+Worker version==Worker-Version
+Last error==Letzter Fehler
+Runtime secret==Runtime-Secret
+stored; leave empty to keep it==gespeichert; leer lassen, um ihn zu behalten
+Save Clustro settings==Clustro-Einstellungen speichern
+Clustro base URL==Clustro-Basis-URL
+Workspace id==Workspace-ID
+Connection id==Connection-ID
+Clustro agent key==Clustro-Agent-Key
+Language model==Sprachmodell
+Crawl domains==Crawl-Domains
+Data scope==Datenbereich
+Last client==Letzter Client
+Activity==Aktivität
+Decision==Entscheidung
+Reason==Grund
+New agent==Neuer Agent
+External access==Externer Zugriff
+30 days==30 Tage
+90 days==90 Tage
+180 days==180 Tage
+365 days==365 Tage
+0 minutes==0 Minuten
+15 minutes==15 Minuten
+60 minutes==60 Minuten
+>Pause<==>Pausieren<
+>Resume<==>Fortsetzen<
+>Revoke<==>Widerrufen<
+Agents &amp; Access==Agenten &amp; Zugriffe
 #-----------------------------

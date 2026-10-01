@@ -26,9 +26,10 @@ forms, historic YaCy form parameters or browser automation.
 ```
 
 - The servlet is registered through YaCy's own extension point,
-  `defaults/web.xml`, next to the existing Solr, RAG and MCP servlets. No
-  existing YaCy Java file is modified. Scoutro adds new classes in the
-  package `net.yacy.scoutro.api` and a marked hunk in `defaults/web.xml`.
+  `defaults/web.xml`, next to the existing Solr, RAG and MCP servlets.
+  Scoutro adds new classes in the packages `net.yacy.scoutro.api` and
+  `net.yacy.scoutro.agents`, marked hunks in `defaults/web.xml`, and one
+  marked exemption for the agent path in `net.yacy.http.AdminSecurity`.
 - The API translates the stable Scoutro model into the historic YaCy
   parameters in one place (`ScoutroActions`). When YaCy changes, only this
   translation has to follow; agents keep working.
@@ -72,22 +73,149 @@ forms, historic YaCy form parameters or browser automation.
   in `openapi.json` (`x-scoutro-mutating`). All mutating actions require the
   admin account.
 
-### Proposal: separate agent key (not implemented)
+## Agent access (`/scoutro/api/agent/v1`)
 
-For agents on Olares, a dedicated credential is better than sharing the admin
-password:
+Agents get their own identity instead of the administrator password. The
+administrator creates them in **Administration → Agents & Access**
+(`ScoutroAgents_p.html`, wizard `ScoutroAgentWizard_p.html`, see
+`help/ScoutroAgents_p.md`). Every agent has:
 
-- A random API key, stored only as a hash in `DATA/SETTINGS/yacy.conf`
-  (`scoutro.api.keyHash`), created and rotated on an admin page or by
-  `scoutroctl` with the admin account.
-- Sent as `Authorization: Bearer <key>`, checked by the servlet with a
-  constant-time comparison.
-- Optional scopes (`read`, `crawl`) so that an agent can search and crawl but
-  not change settings.
-- Deployed to OpenCode as an Olares secret.
+- a **token** `sca_<publicId>.<secret>` (shown once; Scoutro stores only the
+  public id and `HMAC-SHA256(pepper, secret)`, compared in constant time;
+  lifetime 30–365 days; rotation with an optional grace period of up to one
+  hour; single tokens can be revoked);
+- a fixed **action list** (presets `research` and `research_crawl` are
+  resolved into explicit lists when saved, so actions added later never
+  extend an existing agent);
+- a **data scope**: a list of collections, or explicitly the complete local
+  index;
+- **limits**: crawl domains (allowlist, subdomains included), crawl depth
+  (≤ 3), pages per crawl (≤ 1000), parallel crawls (≤ 5), requests per minute,
+  task time and model use (research worker);
+- a **status**: `active`, `paused` (all requests refused until resumed) or
+  `revoked` (final).
 
-This is deliberately left for later: v1 reuses the existing admin
-authentication and adds no new secret store.
+### Authentication
+
+| Path | Credential |
+|---|---|
+| `/scoutro/api/v1/*` (unchanged) | administrator account, HTTP Digest; agent tokens are **not** accepted (container constraint in `defaults/web.xml`) |
+| `/scoutro/api/agent/v1/*` | `Authorization: Bearer sca_...`; Digest/Basic are refused (`bearer_required`), a token in the URL is refused (`token_in_url`) |
+
+The agent path has no container constraint; `ScoutroApiServlet` authenticates
+it and never grants the administrator role. `AdminSecurity` keeps the path
+free of the admin challenge also when "admin for all pages" is on (never for
+paths with `_p.` or `..`). Answers to unauthenticated or invalid requests are
+JSON with `WWW-Authenticate: Bearer realm="scoutro-agent"`. After 30 failed
+authentications per minute a client gets `429 too_many_failures`.
+
+### Authorization
+
+One decision per request, deny by default, in this order (first failure wins,
+stable `error.code`):
+
+1. token valid (`invalid_token`, `token_expired`, `token_revoked` → 401)
+2. agent active (`agent_paused`, `agent_revoked` → 403)
+3. action known and granted (`unknown_action`, `action_not_granted`,
+   `action_not_allowed_for_kind` → 403)
+4. named collection inside the scope (`collection_not_in_scope` → 403)
+5. requests per minute (`rate_limited` → 429)
+6. action limits in the scoped action (`limit_exceeded:<limit>` → 403/429,
+   `host_busy`/`host_indexed_elsewhere` → 409)
+
+The grant is read on every request, so changes apply to the next call. Every
+decision is written to the activity log (`DATA/SETTINGS/scoutro-agent-audit.jsonl`,
+newest 20 000 entries) with agent, public token id, action, decision, reason,
+HTTP status and client — never bodies, queries, page text or secrets.
+
+### Actions and data scope
+
+| Grant | Agent path | Scope enforcement |
+|---|---|---|
+| `search` | `GET /agent/v1/search?q=…[&collection=…]` | Always local. Scoutro sends YaCy's request parameter `collection`, which overrides inline query syntax; `collection:` in `q` is refused (`query_modifier_not_allowed`). With several collections each one is searched and the results are merged (`totalIsApproximate`). |
+| `search.network` | `GET /agent/v1/search?source=network` | Separate grant, never in a preset; not limited to collections. |
+| `index.evidence` | `GET /agent/v1/index/evidence?domain=…` | Solr filter on the scope (or the named collection). |
+| `index.lookup` | `GET /agent/v1/index/lookup?url=…\|host=…` | Solr filter on the scope; documents elsewhere are "not indexed"; only scope collections are reported. |
+| `index.status` | `GET /agent/v1/index` | Documents per scope collection; no global queues or counters. |
+| `index.status.global` | `GET /agent/v1/index?global=true` | Separate grant, global values. |
+| `crawl.start` | `POST /agent/v1/crawls` | `collection` required and in scope; host on the domain allowlist; `scope` `domain`/`subpath` only (no wide crawls); `depth`/`maxPages` within the limits (`maxPages` defaults to the limit); parallel crawl limit; `409 host_busy` while another crawl runs on the host (YaCy's crawl start drops queued URLs of that host from other crawls); `409 host_indexed_elsewhere` when the host already has documents outside the scope (a crawl would re-index them into the agent's collection). Optional `Idempotency-Key` header: the same key returns the existing crawl (200); see "Crawl starts and crashes" below. Crawls stay text-only (`indexText=on`, `indexMedia=off`, no HTCache, `cachePolicy=nocache`, `deleteold=off`). |
+| `crawl.list`, `crawl.status`, `crawl.stop` | `GET /agent/v1/crawls`, `GET …/{id}`, `POST …/{id}/stop` | Only crawls this agent started; other ids answer `404 crawl_not_found`. A crawl whose profile YaCy has removed is reported as `removed`. |
+| `system.status`, `config.get`, `config.set` | `GET /agent/v1/system`, `GET`/`PATCH /agent/v1/config` | Not scoped; individual grants with a warning, external agents only. |
+
+Always allowed for a valid token: `GET /agent/v1/capabilities` (the actions,
+collections and limits of this agent, plus a fingerprint; records the
+handshake behind the "connected" status) and `POST /agent/v1/heartbeat`
+(runtime state of the research worker; fields `version`, `status`,
+`lastError`, `clustroReachable`, `clustroCheckedAt`, `modelConfigured`,
+`lastPollAt`, `activeRuns`).
+
+```sh
+export SCOUTRO_TOKEN=sca_...            # from the wizard, shown once
+curl -H "Authorization: Bearer $SCOUTRO_TOKEN" http://scoutro:8090/scoutro/api/agent/v1/capabilities
+curl -H "Authorization: Bearer $SCOUTRO_TOKEN" 'http://scoutro:8090/scoutro/api/agent/v1/search?q=pflegeheim'
+tools/scoutro/scoutroctl capabilities   # scoutroctl uses the agent path when SCOUTRO_TOKEN is set
+```
+
+### Crawl starts and crashes
+
+A crawl start changes YaCy and the agent store; there is no transaction
+spanning both. Scoutro therefore records every start attempt **before** it
+asks YaCy (state `starting`, with the Idempotency-Key, the parameters and a
+random 32-hex start marker) and stores the crawl id afterwards (`started`).
+The marker travels in the crawl profile as the URL must-not-match filter
+`.*/scoutro-start-<marker>/.*`, which excludes no real page; it ties a
+profile to its attempt.
+
+| Situation | Result |
+|---|---|
+| The attempt cannot be recorded | `503 agent_store_unavailable`; YaCy is not asked, nothing started |
+| Any failure answer: Scoutro looks for the marker first. YaCy's `Crawler_p` reports "Crawling of … failed" also **after** it has activated the profile (e.g. when start URLs cannot be stacked); found on a real instance | a profile with the marker exists: the crawl is assigned (`started`), the error answer names it in `details.id` |
+| YaCy refuses the start (400/422) and no profile carries the marker | the attempt becomes `rejected`; the same key may start again |
+| YaCy's answer is lost (e.g. 502) and no profile carries the marker | `502 crawl_start_unconfirmed`; the attempt stays `starting` |
+| The crawl id cannot be stored after the start | `500 agent_store_unavailable` with the crawl id |
+| Crash after the start, before the id is stored | the attempt stays `starting` |
+| A `starting` attempt whose marker is found in a crawl profile (on the next crawl request, status, list or replay of the key, also after a restart and after the crawl has terminated) | assigned (`started`); a replay of the key answers `200` with `idempotentReplay` — no second crawl |
+| A `starting` attempt without a profile carrying its marker (it never ran, or it ran and YaCy has removed its profile) | `409 crawl_start_unconfirmed` for every replay of the key; listed with state `unconfirmed`; counted as running for the parallel limit; never started again automatically |
+
+Recovery of an unconfirmed start: the administrator checks the Crawler
+monitor and the index, then uses "Mark as not started" in Agents & Access
+(the attempt becomes `abandoned` and its key may start a new crawl). Limits:
+the marker is only as durable as YaCy's crawl profile; a start lost together
+with its profile cannot be told apart from one that never ran, which is why
+it needs this human decision.
+
+### Storage
+
+`DATA/SETTINGS/scoutro-agents.json` (agents, token hashes, crawl ownership,
+connection state), `DATA/SETTINGS/scoutro-agent-pepper` (back it up with the
+data; without it every token is invalid), `DATA/SETTINGS/scoutro-agent-audit.jsonl`
+and, for research workers only, `DATA/SETTINGS/agent-runtime/<agent>.secret`
+(its own Scoutro token and its Clustro settings, because a stored hash cannot
+authenticate outgoing calls). All files are 0600 (directory 0700), written
+atomically; nothing is kept in `yacy.conf`, which the administrator pages can
+display. Existing index data and the discovery state are not touched.
+
+### Research worker for Clustro
+
+An agent of kind `research_worker` is the Scoutro research agent for Clustro:
+`tools/scoutro/agent/scoutro-agent-bridge` pulls the runs of its Clustro
+connection over Clustro's MCP endpoint, answers them through this agent path
+with its own token (so the same grant, scope and limits apply) and reports
+results with sources (`complete_run`/`fail_run`). It needs no inbound route.
+Task and result formats, set-up and guarantees: `tools/scoutro/agent/README.md`.
+
+### Not part of the agent path
+
+YaCy's own AI functions — the native MCP server `/tools`, `/v1/chat/completions`
+(RAG), the AI Lab tools such as `http_json` and `webfetch` — search the whole
+index or reach arbitrary hosts and carry no agent identity. They are not
+offered to agents. They are not protected by agent tokens either: with the
+defaults, the YaCy port answers `/solr/select`, the native search and `/tools`
+without any login. Agents must therefore never reach the YaCy port. The
+server operating path (YaCy on `127.0.0.1` only, an nginx agent listener that
+forwards nothing but `/scoutro/api/agent/v1/`, and a check script run from the
+agent's position) and the trust boundary of the research worker are described
+in `docs/SERVER_AGENT_ACCESS.md`.
 
 ## Endpoints
 
@@ -286,9 +414,9 @@ Scoutro is packaged as `scoutro-olares`:
   cluster-internal Service (port 8090, path `/scoutro/api`) or through the
   mechanism Olares provides for app-to-app access (to be verified against the
   Olares documentation). Do not expose it publicly.
-- Give the agent app (OpenCode) the credential as an Olares secret
-  (environment variable or mounted file for `SCOUTRO_PASSWORD_FILE`). Later,
-  use the dedicated agent key proposed above.
+- Give the agent app (OpenCode) its own agent token as an Olares secret
+  (environment variable `SCOUTRO_TOKEN` or a mounted file for
+  `SCOUTRO_TOKEN_FILE`) instead of the administrator password.
 - Use `/scoutro/api/v1/health` for readiness and liveness probes.
 - The Olares entrance proxy may reach YaCy from `127.0.0.1` (sidecar). This
   does not weaken the API: the API constraints always require Digest
@@ -315,3 +443,16 @@ crawl list, invalid URLs and depths, unknown fields, invalid JSON, unknown and
 invalid crawl ids, the full crawl lifecycle against a local test site,
 optionally a crawl rejected by YaCy (`SCOUTRO_TEST_REJECTED_URL`), and the
 CLI. Crawl tests must only use disposable local test sites.
+
+Agent access:
+
+- `ant scoutro-agents-test` runs the Java unit tests of the agent store,
+  tokens, authorizer, agent path, scoped actions (with a fake YaCy upstream
+  that records the exact parameters sent to YaCy), the administration logic,
+  the catalog consistency with `AgentActionRegistry`, and `AdminSecurityTest`.
+- `test/scoutro-api/test_agent_api.py` runs end to end against a disposable
+  instance: it drives the wizard with the administrator account, takes the
+  token from the one-time page and checks `no-store`, credentials, scope
+  enforcement, lifecycle (pause, resume, rotation, grant change, revocation)
+  and, with `SCOUTRO_TEST_CRAWL_URL` on a DNS name, crawl ownership and
+  idempotency.

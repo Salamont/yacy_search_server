@@ -307,6 +307,30 @@ def build_messages(profile, rules, criteria_version, domain, documents, max_char
 # LLM client (OpenAI-compatible /chat/completions)
 # ---------------------------------------------------------------------------
 
+class RedirectRefused(urllib.error.HTTPError):
+    """A 3xx answer on a request that carries credentials; never followed."""
+
+
+class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Refuse every redirect.
+
+    Requests to the model endpoint (and the Scoutro / Clustro APIs of the
+    research worker) carry an API key or token in the Authorization header.
+    urllib's default handler would resend that header to whatever origin a
+    301/302/303/307/308 points to, including a change from https to http.
+    Configure the canonical URL instead; a redirect is reported as an error.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise RedirectRefused(req.full_url, code, "redirect to %s refused: credentials are never forwarded; "
+                              "configure the canonical URL" % (newurl or "")[:200], headers, fp)
+
+
+def no_redirect_opener(*handlers):
+    """urllib opener that never follows redirects (proxy settings from the environment still apply)."""
+    return urllib.request.build_opener(NoRedirectHandler(), *handlers)
+
+
 class LlmError(Exception):
     def __init__(self, kind, message):
         super().__init__(f"{kind}: {message}")
@@ -344,7 +368,7 @@ def call_llm(cfg, messages, opener=None):
     headers = {"Content-Type": "application/json", "Accept": "application/json"}
     if cfg.api_key:
         headers["Authorization"] = "Bearer " + cfg.api_key
-    opener = opener or urllib.request.build_opener()
+    opener = opener or no_redirect_opener()
     last = LlmError("llm_unreachable", "no attempt made")
     for attempt in range(cfg.retries + 1):
         if attempt:
@@ -354,9 +378,9 @@ def call_llm(cfg, messages, opener=None):
             with opener.open(req, timeout=cfg.timeout) as r:
                 raw = r.read(1_000_000).decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
-            last = LlmError("llm_http_error", f"HTTP {e.code}")
-            if e.code in (400, 401, 403, 404):
-                break          # not retryable
+            last = LlmError("llm_http_error", f"HTTP {e.code}" + (" (redirect refused)" if 300 <= e.code < 400 else ""))
+            if e.code in (400, 401, 403, 404) or 300 <= e.code < 400:
+                break          # not retryable; redirects are never followed
             continue
         except (socket.timeout, TimeoutError) as e:
             last = LlmError("timeout", str(e) or "timeout")

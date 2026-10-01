@@ -10813,9 +10813,6 @@
 
 <file original="env/templates/header.template"  source-language="en"  datatype="html">
   <body>
-    <trans-unit id="3f181342" xml:space="preserve" approved="no" translate="yes">
-       <source>"YaCy"</source>
-    </trans-unit>
     <trans-unit id="12c686de" xml:space="preserve" approved="no" translate="yes">
        <source>"Search..."</source>
     </trans-unit>
@@ -10854,6 +10851,9 @@
     </trans-unit>
     <trans-unit id="224361" xml:space="preserve" approved="no" translate="yes">
        <source>Help</source>
+    </trans-unit>
+    <trans-unit id="3c2336d" xml:space="preserve" approved="no" translate="yes">
+       <source>About</source>
     </trans-unit>
     <trans-unit id="89efbdde" xml:space="preserve" approved="no" translate="yes">
        <source>About This Page</source>
@@ -10948,6 +10948,9 @@
     <trans-unit id="2f66ee6f" xml:space="preserve" approved="no" translate="yes">
        <source>System Administration</source>
     </trans-unit>
+    <trans-unit id="7f8aa399" xml:space="preserve" approved="no" translate="yes">
+       <source>Agents &amp;amp; Access</source>
+    </trans-unit>
     <trans-unit id="3a75a81" xml:space="preserve" approved="no" translate="yes">
        <source>Filter &amp;amp; Blacklists</source>
     </trans-unit>
@@ -10965,6 +10968,33 @@
     </trans-unit>
     <trans-unit id="459cd1fc" xml:space="preserve" approved="no" translate="yes">
        <source>Ranking and Heuristics</source>
+    </trans-unit>
+    <trans-unit id="a2d2a4d6" xml:space="preserve" approved="no" translate="yes">
+       <source>Configuration</source>
+    </trans-unit>
+    <trans-unit id="84782006" xml:space="preserve" approved="no" translate="yes">
+       <source>Accounts</source>
+    </trans-unit>
+    <trans-unit id="a4561a44" xml:space="preserve" approved="no" translate="yes">
+       <source>Network Configuration</source>
+    </trans-unit>
+    <trans-unit id="1d31f783" xml:space="preserve" approved="no" translate="yes">
+       <source>Search Page Layout</source>
+    </trans-unit>
+    <trans-unit id="a3acf778" xml:space="preserve" approved="no" translate="yes">
+       <source>Language</source>
+    </trans-unit>
+    <trans-unit id="94815e4f" xml:space="preserve" approved="no" translate="yes">
+       <source>System</source>
+    </trans-unit>
+    <trans-unit id="eea8185c" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Community (Web Forums)</source>
+    </trans-unit>
+    <trans-unit id="6dc57f3a" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Git Repository</source>
+    </trans-unit>
+    <trans-unit id="a256bb24" xml:space="preserve" approved="no" translate="yes">
+       <source>Sponsor YaCy</source>
     </trans-unit>
   </body>
 </file>
@@ -11624,6 +11654,9 @@
     </trans-unit>
     <trans-unit id="84782006" xml:space="preserve" approved="no" translate="yes">
        <source>Accounts</source>
+    </trans-unit>
+    <trans-unit id="7f8aa399" xml:space="preserve" approved="no" translate="yes">
+       <source>Agents &amp;amp; Access</source>
     </trans-unit>
     <trans-unit id="a4561a44" xml:space="preserve" approved="no" translate="yes">
        <source>Network Configuration</source>
@@ -12486,4 +12519,573 @@
   </body>
 </file>
 
+<file original="ScoutroAgentWizard_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="3e7fa88d" xml:space="preserve" approved="no" translate="yes">
+       <source>"Next"</source>
+    </trans-unit>
+    <trans-unit id="d0854407" xml:space="preserve" approved="no" translate="yes">
+       <source>"collection-a, collection-b"</source>
+    </trans-unit>
+    <trans-unit id="3dd46d19" xml:space="preserve" approved="no" translate="yes">
+       <source>"Back"</source>
+    </trans-unit>
+    <trans-unit id="e279bccd" xml:space="preserve" approved="no" translate="yes">
+       <source>"https://clustro.example"</source>
+    </trans-unit>
+    <trans-unit id="930b4807" xml:space="preserve" approved="no" translate="yes">
+       <source>"ak_..."</source>
+    </trans-unit>
+    <trans-unit id="ef0efbcf" xml:space="preserve" approved="no" translate="yes">
+       <source>"Create agent and token"</source>
+    </trans-unit>
+    <trans-unit id="fa157845" xml:space="preserve" approved="no" translate="yes">
+       <source>New Agent</source>
+    </trans-unit>
+    <trans-unit id="1276e9ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Back to Agents &amp;amp; Access</source>
+    </trans-unit>
+    <trans-unit id="fbc2d4de" xml:space="preserve" approved="no" translate="yes">
+       <source>Identity</source>
+    </trans-unit>
+    <trans-unit id="6bd3367e" xml:space="preserve" approved="no" translate="yes">
+       <source>Data scope</source>
+    </trans-unit>
+    <trans-unit id="1df8e0dd" xml:space="preserve" approved="no" translate="yes">
+       <source>Actions</source>
+    </trans-unit>
+    <trans-unit id="87ab1838" xml:space="preserve" approved="no" translate="yes">
+       <source>Limits</source>
+    </trans-unit>
+    <trans-unit id="748ca184" xml:space="preserve" approved="no" translate="yes">
+       <source>Access</source>
+    </trans-unit>
+    <trans-unit id="48965afe" xml:space="preserve" approved="no" translate="yes">
+       <source>Connection</source>
+    </trans-unit>
+    <trans-unit id="81de6e69" xml:space="preserve" approved="no" translate="yes">
+       <source>Step 1 of 6: Identity and kind</source>
+    </trans-unit>
+    <trans-unit id="24eeab" xml:space="preserve" approved="no" translate="yes">
+       <source>Name</source>
+    </trans-unit>
+    <trans-unit id="fc9f2bdc" xml:space="preserve" approved="no" translate="yes">
+       <source>Description</source>
+    </trans-unit>
+    <trans-unit id="23afb4" xml:space="preserve" approved="no" translate="yes">
+       <source>Kind</source>
+    </trans-unit>
+    <trans-unit id="c2d1a739" xml:space="preserve" approved="no" translate="yes">
+       <source>External access</source>
+    </trans-unit>
+    <trans-unit id="8986b3dc" xml:space="preserve" approved="no" translate="yes">
+       <source>An agent outside Scoutro (for example OpenCode) gets its own token for the agent API.</source>
+    </trans-unit>
+    <trans-unit id="ab2401e8" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro research agent (Clustro worker)</source>
+    </trans-unit>
+    <trans-unit id="35ebb09c" xml:space="preserve" approved="no" translate="yes">
+       <source>The Scoutro research worker receives research tasks from Clustro and uses only the rights granted here.</source>
+    </trans-unit>
+    <trans-unit id="6e8b2ab3" xml:space="preserve" approved="no" translate="yes">
+       <source>Step 2 of 6: Data scope</source>
+    </trans-unit>
+    <trans-unit id="e6e55f09" xml:space="preserve" approved="no" translate="yes">
+       <source>The agent can only read and crawl in the selected collections. Searches, text evidence, lookups and crawls outside them are refused.</source>
+    </trans-unit>
+    <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections</source>
+    </trans-unit>
+    <trans-unit id="f8b24fc0" xml:space="preserve" approved="no" translate="yes">
+       <source>(no documents yet)</source>
+    </trans-unit>
+    <trans-unit id="6db1e579" xml:space="preserve" approved="no" translate="yes">
+       <source>Further collections</source>
+    </trans-unit>
+    <trans-unit id="adfcab4b" xml:space="preserve" approved="no" translate="yes">
+       <source>Complete index</source>
+    </trans-unit>
+    <trans-unit id="8bf86269" xml:space="preserve" approved="no" translate="yes">
+       <source>Grant the complete local index</source>
+    </trans-unit>
+    <trans-unit id="3df18a7d" xml:space="preserve" approved="no" translate="yes">
+       <source>I confirm that this agent may read all collections of this Scoutro instance.</source>
+    </trans-unit>
+    <trans-unit id="5a885a1" xml:space="preserve" approved="no" translate="yes">
+       <source>Network search of other peers is never part of a data scope; it is a separate action.</source>
+    </trans-unit>
+    <trans-unit id="c882cb09" xml:space="preserve" approved="no" translate="yes">
+       <source>Step 3 of 6: Actions</source>
+    </trans-unit>
+    <trans-unit id="8ef9ceff" xml:space="preserve" approved="no" translate="yes">
+       <source>Preset</source>
+    </trans-unit>
+    <trans-unit id="5049763e" xml:space="preserve" approved="no" translate="yes">
+       <source>Research: search, text evidence, lookup, index size</source>
+    </trans-unit>
+    <trans-unit id="cadb07f5" xml:space="preserve" approved="no" translate="yes">
+       <source>Research and crawl: also start, list and stop own crawls</source>
+    </trans-unit>
+    <trans-unit id="bcd86c3b" xml:space="preserve" approved="no" translate="yes">
+       <source>Custom: exactly the actions checked below</source>
+    </trans-unit>
+    <trans-unit id="74946a56" xml:space="preserve" approved="no" translate="yes">
+       <source>Action</source>
+    </trans-unit>
+    <trans-unit id="26deef" xml:space="preserve" approved="no" translate="yes">
+       <source>Risk</source>
+    </trans-unit>
+    <trans-unit id="473906d4" xml:space="preserve" approved="no" translate="yes">
+       <source>Not limited to the data scope; grant only deliberately.</source>
+    </trans-unit>
+    <trans-unit id="cde9b191" xml:space="preserve" approved="no" translate="yes">
+       <source>With a preset, only the actions marked "not limited to the data scope" are added from the checkboxes. The stored grant is a fixed list: actions added to Scoutro later are never granted automatically.</source>
+    </trans-unit>
+    <trans-unit id="5643022b" xml:space="preserve" approved="no" translate="yes">
+       <source>Step 4 of 6: Limits</source>
+    </trans-unit>
+    <trans-unit id="564e2c9e" xml:space="preserve" approved="no" translate="yes">
+       <source>Allowed crawl domains</source>
+    </trans-unit>
+    <trans-unit id="e1c324c" xml:space="preserve" approved="no" translate="yes">
+       <source>One domain per line; subdomains are included. Required for crawl rights. Agents never start wide crawls.</source>
+    </trans-unit>
+    <trans-unit id="eee436a" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum crawl depth</source>
+    </trans-unit>
+    <trans-unit id="1ac357e8" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum pages per crawl</source>
+    </trans-unit>
+    <trans-unit id="47e48d45" xml:space="preserve" approved="no" translate="yes">
+       <source>Parallel crawls</source>
+    </trans-unit>
+    <trans-unit id="2de65033" xml:space="preserve" approved="no" translate="yes">
+       <source>Requests per minute</source>
+    </trans-unit>
+    <trans-unit id="cdb1684d" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum time per task (seconds)</source>
+    </trans-unit>
+    <trans-unit id="4edc6a85" xml:space="preserve" approved="no" translate="yes">
+       <source>Used by the Scoutro research worker.</source>
+    </trans-unit>
+    <trans-unit id="5e928c81" xml:space="preserve" approved="no" translate="yes">
+       <source>Language model</source>
+    </trans-unit>
+    <trans-unit id="78a41374" xml:space="preserve" approved="no" translate="yes">
+       <source>The research worker may use the configured language model</source>
+    </trans-unit>
+    <trans-unit id="e1c35fe5" xml:space="preserve" approved="no" translate="yes">
+       <source>Without a model, search and text evidence still work; summaries and classifications report that no model is configured. No model is chosen automatically.</source>
+    </trans-unit>
+    <trans-unit id="25025516" xml:space="preserve" approved="no" translate="yes">
+       <source>Step 5 of 6: Access</source>
+    </trans-unit>
+    <trans-unit id="f47f3f86" xml:space="preserve" approved="no" translate="yes">
+       <source>Summary</source>
+    </trans-unit>
+    <trans-unit id="c8bcdd16" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl domains</source>
+    </trans-unit>
+    <trans-unit id="fb05da51" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl limits</source>
+    </trans-unit>
+    <trans-unit id="a8765199" xml:space="preserve" approved="no" translate="yes">
+       <source>Token validity</source>
+    </trans-unit>
+    <trans-unit id="ddb84c3a" xml:space="preserve" approved="no" translate="yes">
+       <source>30 days</source>
+    </trans-unit>
+    <trans-unit id="1b1dafc0" xml:space="preserve" approved="no" translate="yes">
+       <source>90 days</source>
+    </trans-unit>
+    <trans-unit id="c8510b2e" xml:space="preserve" approved="no" translate="yes">
+       <source>180 days</source>
+    </trans-unit>
+    <trans-unit id="36cf2985" xml:space="preserve" approved="no" translate="yes">
+       <source>365 days</source>
+    </trans-unit>
+    <trans-unit id="ea5bac77" xml:space="preserve" approved="no" translate="yes">
+       <source>Clustro connection of the research worker</source>
+    </trans-unit>
+    <trans-unit id="72d95c4" xml:space="preserve" approved="no" translate="yes">
+       <source>Create the connection in Clustro first (adapter "custom", without endpoint URL, not primary). Clustro shows its agent key once; enter it here. Scoutro stores it only in the runtime secret of this worker and never shows it again.</source>
+    </trans-unit>
+    <trans-unit id="28ff7776" xml:space="preserve" approved="no" translate="yes">
+       <source>Clustro base URL</source>
+    </trans-unit>
+    <trans-unit id="67e028a6" xml:space="preserve" approved="no" translate="yes">
+       <source>Workspace id</source>
+    </trans-unit>
+    <trans-unit id="1107617d" xml:space="preserve" approved="no" translate="yes">
+       <source>Connection id</source>
+    </trans-unit>
+    <trans-unit id="13e758e" xml:space="preserve" approved="no" translate="yes">
+       <source>Clustro agent key</source>
+    </trans-unit>
+    <trans-unit id="5d95d7af" xml:space="preserve" approved="no" translate="yes">
+       <source>Step 6 of 6: Connection</source>
+    </trans-unit>
+    <trans-unit id="6a203ed9" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;strong&gt;Copy the token now.&lt;/strong&gt; It is shown only on this page and is stored by Scoutro only as a keyed hash. If it is lost, rotate it on the management page.</source>
+    </trans-unit>
+    <trans-unit id="3c452e5" xml:space="preserve" approved="no" translate="yes">
+       <source>Agent</source>
+    </trans-unit>
+    <trans-unit id="6ee3a0fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Agent token</source>
+    </trans-unit>
+    <trans-unit id="c20ec0c2" xml:space="preserve" approved="no" translate="yes">
+       <source>Token id</source>
+    </trans-unit>
+    <trans-unit id="a410de1a" xml:space="preserve" approved="no" translate="yes">
+       <source>Valid until</source>
+    </trans-unit>
+    <trans-unit id="a5702354" xml:space="preserve" approved="no" translate="yes">
+       <source>Connection status</source>
+    </trans-unit>
+    <trans-unit id="9b4529d1" xml:space="preserve" approved="no" translate="yes">
+       <source>&amp;ndash; changes to "connected" when the agent has fetched its capabilities.</source>
+    </trans-unit>
+    <trans-unit id="25f07ec0" xml:space="preserve" approved="no" translate="yes">
+       <source>Connect the agent</source>
+    </trans-unit>
+    <trans-unit id="ded4c13" xml:space="preserve" approved="no" translate="yes">
+       <source>Base URL of the agent API as seen from this page. Agents on other hosts get the agent listener of the reverse proxy instead, never the address of the web interface:</source>
+    </trans-unit>
+    <trans-unit id="37bd76b" xml:space="preserve" approved="no" translate="yes">
+       <source>Check the connection; the answer lists exactly the actions, collections and limits granted here:</source>
+    </trans-unit>
+    <trans-unit id="5c0a9e1" xml:space="preserve" approved="no" translate="yes">
+       <source>SCOUTRO_AGENT_URL has no default: on this host use the agent API on 127.0.0.1 (port of this YaCy, path /scoutro/api/agent/v1), on another host the agent listener of the reverse proxy.</source>
+    </trans-unit>
+    <trans-unit id="e2538d91" xml:space="preserve" approved="no" translate="yes">
+       <source>Command line:</source>
+    </trans-unit>
+    <trans-unit id="1110d07e" xml:space="preserve" approved="no" translate="yes">
+       <source>Manage this agent</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="ScoutroAgents_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="16d0b586" xml:space="preserve" approved="no" translate="yes">
+       <source>"New agent token"</source>
+    </trans-unit>
+    <trans-unit id="cb40778e" xml:space="preserve" approved="no" translate="yes">
+       <source>"pause"</source>
+    </trans-unit>
+    <trans-unit id="d533333" xml:space="preserve" approved="no" translate="yes">
+       <source>"resume"</source>
+    </trans-unit>
+    <trans-unit id="d7ab7fa" xml:space="preserve" approved="no" translate="yes">
+       <source>"revoke"</source>
+    </trans-unit>
+    <trans-unit id="e91630cb" xml:space="preserve" approved="no" translate="yes">
+       <source>"further collections"</source>
+    </trans-unit>
+    <trans-unit id="f4db64eb" xml:space="preserve" approved="no" translate="yes">
+       <source>"Further collections"</source>
+    </trans-unit>
+    <trans-unit id="bdeed617" xml:space="preserve" approved="no" translate="yes">
+       <source>"update"</source>
+    </trans-unit>
+    <trans-unit id="9bdbe091" xml:space="preserve" approved="no" translate="yes">
+       <source>"revokeToken"</source>
+    </trans-unit>
+    <trans-unit id="1e68c3c5" xml:space="preserve" approved="no" translate="yes">
+       <source>"rotate"</source>
+    </trans-unit>
+    <trans-unit id="d2bfc8f4" xml:space="preserve" approved="no" translate="yes">
+       <source>"abandonCrawlStart"</source>
+    </trans-unit>
+    <trans-unit id="fc7e1bfa" xml:space="preserve" approved="no" translate="yes">
+       <source>"clustro"</source>
+    </trans-unit>
+    <trans-unit id="7f8aa399" xml:space="preserve" approved="no" translate="yes">
+       <source>Agents &amp;amp; Access</source>
+    </trans-unit>
+    <trans-unit id="824b7b2" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;strong&gt;New token &amp;ndash; copy it now.&lt;/strong&gt; It is shown only on this page and is stored by Scoutro only as a keyed hash.</source>
+    </trans-unit>
+    <trans-unit id="774d0286" xml:space="preserve" approved="no" translate="yes">
+       <source>The runtime secret of the research worker was updated with the new token.</source>
+    </trans-unit>
+    <trans-unit id="fbd86865" xml:space="preserve" approved="no" translate="yes">
+       <source>New agent</source>
+    </trans-unit>
+    <trans-unit id="c718e159" xml:space="preserve" approved="no" translate="yes">
+       <source>No agents yet.</source>
+    </trans-unit>
+    <trans-unit id="24eeab" xml:space="preserve" approved="no" translate="yes">
+       <source>Name</source>
+    </trans-unit>
+    <trans-unit id="23afb4" xml:space="preserve" approved="no" translate="yes">
+       <source>Kind</source>
+    </trans-unit>
+    <trans-unit id="9432bc12" xml:space="preserve" approved="no" translate="yes">
+       <source>Status</source>
+    </trans-unit>
+    <trans-unit id="48965afe" xml:space="preserve" approved="no" translate="yes">
+       <source>Connection</source>
+    </trans-unit>
+    <trans-unit id="6bd3367e" xml:space="preserve" approved="no" translate="yes">
+       <source>Data scope</source>
+    </trans-unit>
+    <trans-unit id="1df8e0dd" xml:space="preserve" approved="no" translate="yes">
+       <source>Actions</source>
+    </trans-unit>
+    <trans-unit id="a45aae73" xml:space="preserve" approved="no" translate="yes">
+       <source>Token valid until</source>
+    </trans-unit>
+    <trans-unit id="ebfb96e7" xml:space="preserve" approved="no" translate="yes">
+       <source>Last used</source>
+    </trans-unit>
+    <trans-unit id="c2d1a739" xml:space="preserve" approved="no" translate="yes">
+       <source>External access</source>
+    </trans-unit>
+    <trans-unit id="3e31bd83" xml:space="preserve" approved="no" translate="yes">
+       <source>Research worker</source>
+    </trans-unit>
+    <trans-unit id="fbf03b14" xml:space="preserve" approved="no" translate="yes">
+       <source>Recent activity</source>
+    </trans-unit>
+    <trans-unit id="27c6ed" xml:space="preserve" approved="no" translate="yes">
+       <source>Time</source>
+    </trans-unit>
+    <trans-unit id="3c452e5" xml:space="preserve" approved="no" translate="yes">
+       <source>Agent</source>
+    </trans-unit>
+    <trans-unit id="74946a56" xml:space="preserve" approved="no" translate="yes">
+       <source>Action</source>
+    </trans-unit>
+    <trans-unit id="259293fc" xml:space="preserve" approved="no" translate="yes">
+       <source>Decision</source>
+    </trans-unit>
+    <trans-unit id="91aa7e64" xml:space="preserve" approved="no" translate="yes">
+       <source>Reason</source>
+    </trans-unit>
+    <trans-unit id="220088" xml:space="preserve" approved="no" translate="yes">
+       <source>HTTP</source>
+    </trans-unit>
+    <trans-unit id="7877dfeb" xml:space="preserve" approved="no" translate="yes">
+       <source>Client</source>
+    </trans-unit>
+    <trans-unit id="aeac018d" xml:space="preserve" approved="no" translate="yes">
+       <source>All agents</source>
+    </trans-unit>
+    <trans-unit id="ab2401e8" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro research agent (Clustro worker)</source>
+    </trans-unit>
+    <trans-unit id="c8bcdd16" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl domains</source>
+    </trans-unit>
+    <trans-unit id="11f5e23f" xml:space="preserve" approved="no" translate="yes">
+       <source>Agent API</source>
+    </trans-unit>
+    <trans-unit id="e635c057" xml:space="preserve" approved="no" translate="yes">
+       <source>"connected" means that a valid token fetched the capabilities of the current grant within the last 24 hours. After every change of the grant the status is "stale" until the agent fetches its capabilities again.</source>
+    </trans-unit>
+    <trans-unit id="656d074a" xml:space="preserve" approved="no" translate="yes">
+       <source>Lifecycle</source>
+    </trans-unit>
+    <trans-unit id="49535d6" xml:space="preserve" approved="no" translate="yes">
+       <source>Pause</source>
+    </trans-unit>
+    <trans-unit id="91b2b44d" xml:space="preserve" approved="no" translate="yes">
+       <source>Resume</source>
+    </trans-unit>
+    <trans-unit id="ff6b2965" xml:space="preserve" approved="no" translate="yes">
+       <source>Revoke permanently (cannot be undone)</source>
+    </trans-unit>
+    <trans-unit id="91b3faa6" xml:space="preserve" approved="no" translate="yes">
+       <source>Revoke</source>
+    </trans-unit>
+    <trans-unit id="41dd0fc" xml:space="preserve" approved="no" translate="yes">
+       <source>Grant</source>
+    </trans-unit>
+    <trans-unit id="fc9f2bdc" xml:space="preserve" approved="no" translate="yes">
+       <source>Description</source>
+    </trans-unit>
+    <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections</source>
+    </trans-unit>
+    <trans-unit id="8bf86269" xml:space="preserve" approved="no" translate="yes">
+       <source>Grant the complete local index</source>
+    </trans-unit>
+    <trans-unit id="d012435f" xml:space="preserve" approved="no" translate="yes">
+       <source>confirmed</source>
+    </trans-unit>
+    <trans-unit id="b1a3368f" xml:space="preserve" approved="no" translate="yes">
+       <source>Not limited to the data scope.</source>
+    </trans-unit>
+    <trans-unit id="564e2c9e" xml:space="preserve" approved="no" translate="yes">
+       <source>Allowed crawl domains</source>
+    </trans-unit>
+    <trans-unit id="87ab1838" xml:space="preserve" approved="no" translate="yes">
+       <source>Limits</source>
+    </trans-unit>
+    <trans-unit id="3eddaa3" xml:space="preserve" approved="no" translate="yes">
+       <source>Depth</source>
+    </trans-unit>
+    <trans-unit id="494ffa4" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages</source>
+    </trans-unit>
+    <trans-unit id="49ac9227" xml:space="preserve" approved="no" translate="yes">
+       <source>Parallel</source>
+    </trans-unit>
+    <trans-unit id="587435a7" xml:space="preserve" approved="no" translate="yes">
+       <source>Requests/min</source>
+    </trans-unit>
+    <trans-unit id="181d1b04" xml:space="preserve" approved="no" translate="yes">
+       <source>Task seconds</source>
+    </trans-unit>
+    <trans-unit id="664d6ce9" xml:space="preserve" approved="no" translate="yes">
+       <source>language model allowed</source>
+    </trans-unit>
+    <trans-unit id="5ed9a0d9" xml:space="preserve" approved="no" translate="yes">
+       <source>Save grant</source>
+    </trans-unit>
+    <trans-unit id="c13a1fa8" xml:space="preserve" approved="no" translate="yes">
+       <source>Changes apply to the next request of the agent.</source>
+    </trans-unit>
+    <trans-unit id="95a571ba" xml:space="preserve" approved="no" translate="yes">
+       <source>Tokens</source>
+    </trans-unit>
+    <trans-unit id="c20ec0c2" xml:space="preserve" approved="no" translate="yes">
+       <source>Token id</source>
+    </trans-unit>
+    <trans-unit id="4c7d471" xml:space="preserve" approved="no" translate="yes">
+       <source>State</source>
+    </trans-unit>
+    <trans-unit id="a08716c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Created</source>
+    </trans-unit>
+    <trans-unit id="a410de1a" xml:space="preserve" approved="no" translate="yes">
+       <source>Valid until</source>
+    </trans-unit>
+    <trans-unit id="bc597c75" xml:space="preserve" approved="no" translate="yes">
+       <source>Last client</source>
+    </trans-unit>
+    <trans-unit id="9fccb3ff" xml:space="preserve" approved="no" translate="yes">
+       <source>Revoke token</source>
+    </trans-unit>
+    <trans-unit id="8a49b29e" xml:space="preserve" approved="no" translate="yes">
+       <source>New token valid for</source>
+    </trans-unit>
+    <trans-unit id="ddb84c3a" xml:space="preserve" approved="no" translate="yes">
+       <source>30 days</source>
+    </trans-unit>
+    <trans-unit id="1b1dafc0" xml:space="preserve" approved="no" translate="yes">
+       <source>90 days</source>
+    </trans-unit>
+    <trans-unit id="c8510b2e" xml:space="preserve" approved="no" translate="yes">
+       <source>180 days</source>
+    </trans-unit>
+    <trans-unit id="36cf2985" xml:space="preserve" approved="no" translate="yes">
+       <source>365 days</source>
+    </trans-unit>
+    <trans-unit id="e42bef8b" xml:space="preserve" approved="no" translate="yes">
+       <source>Old tokens stay valid for</source>
+    </trans-unit>
+    <trans-unit id="87388ef" xml:space="preserve" approved="no" translate="yes">
+       <source>0 minutes</source>
+    </trans-unit>
+    <trans-unit id="afd85ae3" xml:space="preserve" approved="no" translate="yes">
+       <source>15 minutes</source>
+    </trans-unit>
+    <trans-unit id="8ff16579" xml:space="preserve" approved="no" translate="yes">
+       <source>60 minutes</source>
+    </trans-unit>
+    <trans-unit id="13554f14" xml:space="preserve" approved="no" translate="yes">
+       <source>Rotate token</source>
+    </trans-unit>
+    <trans-unit id="9637ab84" xml:space="preserve" approved="no" translate="yes">
+       <source>Unconfirmed crawl starts</source>
+    </trans-unit>
+    <trans-unit id="b9b9b062" xml:space="preserve" approved="no" translate="yes">
+       <source>These crawl starts were recorded, but no crawl profile carries their start marker (for example after a crash between the start and storing its id, when the crawl has meanwhile finished and YaCy removed its profile). Scoutro never repeats them automatically. Check the Crawler monitor and the index; if the start should be repeated, mark it as not started.</source>
+    </trans-unit>
+    <trans-unit id="1494f" xml:space="preserve" approved="no" translate="yes">
+       <source>URL</source>
+    </trans-unit>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="dfe43ca3" xml:space="preserve" approved="no" translate="yes">
+       <source>Idempotency-Key</source>
+    </trans-unit>
+    <trans-unit id="d4370cd0" xml:space="preserve" approved="no" translate="yes">
+       <source>Recorded</source>
+    </trans-unit>
+    <trans-unit id="2c3ecfa7" xml:space="preserve" approved="no" translate="yes">
+       <source>checked</source>
+    </trans-unit>
+    <trans-unit id="16d9f6d9" xml:space="preserve" approved="no" translate="yes">
+       <source>Mark as not started</source>
+    </trans-unit>
+    <trans-unit id="7ab8af3d" xml:space="preserve" approved="no" translate="yes">
+       <source>Worker reports</source>
+    </trans-unit>
+    <trans-unit id="9d4a5276" xml:space="preserve" approved="no" translate="yes">
+       <source>no current heartbeat</source>
+    </trans-unit>
+    <trans-unit id="1d2e7" xml:space="preserve" approved="no" translate="yes">
+       <source>yes</source>
+    </trans-unit>
+    <trans-unit id="231d9017" xml:space="preserve" approved="no" translate="yes">
+       <source>Clustro reachable</source>
+    </trans-unit>
+    <trans-unit id="2766c28" xml:space="preserve" approved="no" translate="yes">
+       <source>not confirmed by the worker</source>
+    </trans-unit>
+    <trans-unit id="18916065" xml:space="preserve" approved="no" translate="yes">
+       <source>yes, confirmed by the worker within 5 minutes</source>
+    </trans-unit>
+    <trans-unit id="5e928c81" xml:space="preserve" approved="no" translate="yes">
+       <source>Language model</source>
+    </trans-unit>
+    <trans-unit id="c2d0b5ab" xml:space="preserve" approved="no" translate="yes">
+       <source>not configured</source>
+    </trans-unit>
+    <trans-unit id="319efa3e" xml:space="preserve" approved="no" translate="yes">
+       <source>configured</source>
+    </trans-unit>
+    <trans-unit id="d024df3e" xml:space="preserve" approved="no" translate="yes">
+       <source>Open runs</source>
+    </trans-unit>
+    <trans-unit id="4e6f7a56" xml:space="preserve" approved="no" translate="yes">
+       <source>Worker version</source>
+    </trans-unit>
+    <trans-unit id="92958c1e" xml:space="preserve" approved="no" translate="yes">
+       <source>Last error</source>
+    </trans-unit>
+    <trans-unit id="d6beb018" xml:space="preserve" approved="no" translate="yes">
+       <source>Runtime secret</source>
+    </trans-unit>
+    <trans-unit id="3fbe8166" xml:space="preserve" approved="no" translate="yes">
+       <source>missing</source>
+    </trans-unit>
+    <trans-unit id="ed0778bb" xml:space="preserve" approved="no" translate="yes">
+       <source>present</source>
+    </trans-unit>
+    <trans-unit id="28ff7776" xml:space="preserve" approved="no" translate="yes">
+       <source>Clustro base URL</source>
+    </trans-unit>
+    <trans-unit id="67e028a6" xml:space="preserve" approved="no" translate="yes">
+       <source>Workspace id</source>
+    </trans-unit>
+    <trans-unit id="1107617d" xml:space="preserve" approved="no" translate="yes">
+       <source>Connection id</source>
+    </trans-unit>
+    <trans-unit id="13e758e" xml:space="preserve" approved="no" translate="yes">
+       <source>Clustro agent key</source>
+    </trans-unit>
+    <trans-unit id="2e73003c" xml:space="preserve" approved="no" translate="yes">
+       <source>Save Clustro settings</source>
+    </trans-unit>
+    <trans-unit id="a126572f" xml:space="preserve" approved="no" translate="yes">
+       <source>Activity</source>
+    </trans-unit>
+  </body>
+</file>
 </xliff>

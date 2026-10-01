@@ -565,3 +565,26 @@ body#index form.search div.yacysearch label {
     font-size: 34px;
   }
 }
+
+/* Agents & Access: wizard progress (ScoutroAgentWizard_p.html) */
+.scoutro-wizard-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 12px 0 16px;
+  padding: 0;
+}
+.scoutro-wizard-progress .scoutro-step {
+  padding: 4px 12px;
+  border: 1px solid var(--scoutro-line, #d6e2f5);
+  border-radius: var(--scoutro-radius-pill, 999px);
+  background: var(--scoutro-surface, #fff);
+  color: var(--scoutro-muted, #5b6b85);
+  font-size: 13px;
+}
+.scoutro-wizard-progress .scoutro-step-active {
+  border-color: var(--scoutro-primary, #1673ff);
+  background: var(--scoutro-primary, #1673ff);
+  color: #fff;
+}

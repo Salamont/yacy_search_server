@@ -294,6 +294,41 @@
     </java>
   </target>
 
+  <!-- Scoutro: agent identities, authorization and data scopes (docs/API.md "Agent access") -->
+  <target name="scoutro-agents-test" depends="compile" description="run focused Scoutro agent access tests">
+    <property name="scoutro.test.classes" location="${build}/../scoutro-test-classes" />
+    <delete dir="${scoutro.test.classes}" failonerror="false" />
+    <mkdir dir="${scoutro.test.classes}" />
+    <javac srcdir="${test}" destdir="${scoutro.test.classes}"
+           debug="true" debuglevel="lines,vars,source" includeantruntime="false"
+           release="${javacRelease}" encoding="UTF-8">
+      <include name="net/yacy/scoutro/**/*Test.java" />
+      <include name="net/yacy/http/AdminSecurityTest.java" />
+      <classpath>
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </javac>
+    <junit printsummary="yes" haltonfailure="yes" fork="true" dir="${yacyroot}">
+      <formatter type="plain" usefile="false" />
+      <batchtest>
+        <fileset dir="${test}">
+          <include name="net/yacy/scoutro/**/*Test.java" />
+          <include name="net/yacy/http/AdminSecurityTest.java" />
+        </fileset>
+      </batchtest>
+      <classpath>
+        <pathelement location="${scoutro.test.classes}" />
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </junit>
+  </target>
+
   <target name="all" depends="jetty12-server-test">
   </target>
 

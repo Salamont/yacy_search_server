@@ -65,6 +65,10 @@ final class UiRoutes {
         route("system.administration", "administration", "System Administration", "/Settings_p.html", true, "Advanced settings.");
         route("system.performance", "administration", "RAM/Disk Usage & Updates", "/Performance_p.html", true, "Memory, disk and performance.");
         route("blacklists", "administration", "Filter & Blacklists", "/Blacklist_p.html", true, "URL filters and blacklists.");
+        route("config.agents", "administration", "Agents & Access", "/ScoutroAgents_p.html", true,
+                "Agent identities, their tokens, actions, data scopes and activity.");
+        route("config.agentWizard", "administration", "New agent", "/ScoutroAgentWizard_p.html", true,
+                "Wizard for a new agent: identity, data scope, actions, limits, token, connection.");
         route("ranking", "administration", "Ranking and Heuristics", "/RankingSolr_p.html", true, "Search ranking settings.");
         route("api.openapi", "api", "Scoutro API description", "/scoutro/api/openapi.json", false, "OpenAPI description of this API.");
         route("api.actions", "api", "Scoutro action catalog", "/scoutro/api/actions.json", false, "Machine-readable list of actions.");

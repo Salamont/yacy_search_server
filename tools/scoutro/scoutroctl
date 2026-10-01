@@ -7,7 +7,7 @@
 # any later version.
 #
 # A thin client: every command is exactly one call of the Scoutro API
-# (/scoutro/api/v1/...). There is no business logic here; validation and the
+# (/scoutro/api/v1/..., or /scoutro/api/agent/v1/... with an agent token). There is no business logic here; validation and the
 # translation to YaCy happen in the API.
 #
 # Configuration (environment):
@@ -15,8 +15,13 @@
 #   SCOUTRO_USER           administrator user, default admin
 #   SCOUTRO_PASSWORD       administrator password, or
 #   SCOUTRO_PASSWORD_FILE  file containing the password (first line)
-# The password is never accepted as a command line argument (it would be
-# visible in the process list and shell history).
+#   SCOUTRO_TOKEN          agent token (sca_...) from Administration > Agents &
+#                          Access, or
+#   SCOUTRO_TOKEN_FILE     file containing the agent token (first line)
+# With an agent token, the commands use the agent path /scoutro/api/agent/v1
+# with "Authorization: Bearer" and the agent's own rights; the administrator
+# password is not used then. Neither the password nor the token is ever
+# accepted as a command line argument (process list, shell history).
 #
 # Output: JSON on stdout. Exit codes: 0 success, 1 API error, 2 usage error,
 # 3 Scoutro not reachable.
@@ -51,23 +56,44 @@ def password():
     return None
 
 
+def agent_token():
+    token = os.environ.get("SCOUTRO_TOKEN")
+    if token:
+        return token.strip()
+    path = os.environ.get("SCOUTRO_TOKEN_FILE")
+    if path:
+        try:
+            with open(path, encoding="utf-8") as f:
+                return f.readline().strip()
+        except OSError as e:
+            fail("token_file", "cannot read SCOUTRO_TOKEN_FILE: %s" % e.strerror, 2)
+    return None
+
+
 class Client:
-    def __init__(self, base_url, user, pw, timeout):
+    def __init__(self, base_url, user, pw, timeout, token=None):
         self.base = base_url.rstrip("/") + "/scoutro/api"
         self.timeout = timeout
+        self.token = token
+        # data actions: admin API v1, or the agent path with an agent token
+        self.v1 = "/agent/v1" if token else "/v1"
         handlers = []
-        if pw:
+        if pw and not token:
             manager = urllib.request.HTTPPasswordMgrWithDefaultRealm()
             manager.add_password(None, base_url, user, pw)
             handlers.append(urllib.request.HTTPDigestAuthHandler(manager))
         self.opener = urllib.request.build_opener(*handlers)
 
-    def call(self, method, path, query=None, body=None):
+    def call(self, method, path, query=None, body=None, extra_headers=None):
         url = self.base + path
         if query:
             url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
         data = None
         headers = {"Accept": "application/json", "User-Agent": "scoutroctl/" + VERSION}
+        if self.token and path.startswith("/agent/"):
+            headers["Authorization"] = "Bearer " + self.token
+        if extra_headers:
+            headers.update(extra_headers)
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
@@ -81,9 +107,9 @@ class Client:
                 payload = json.loads(raw)
             except ValueError:
                 payload = None
-            if e.code == 401:
+            if e.code == 401 and not (isinstance(payload, dict) and "error" in payload):
                 fail("unauthorized", "authentication required: set SCOUTRO_PASSWORD or SCOUTRO_PASSWORD_FILE "
-                     "(administrator account)", 1)
+                     "(administrator account), or SCOUTRO_TOKEN / SCOUTRO_TOKEN_FILE (agent token)", 1)
             if isinstance(payload, dict) and "error" in payload:
                 print(json.dumps(payload, indent=2, ensure_ascii=False))
                 sys.exit(1)
@@ -103,6 +129,7 @@ def build_parser():
 
     sub.add_parser("health", help="health check (public)")
     sub.add_parser("system", help="system status")
+    sub.add_parser("capabilities", help="actions, collections and limits of the agent token (needs SCOUTRO_TOKEN)")
     sub.add_parser("actions", help="print the action catalog (actions.json)")
     sub.add_parser("openapi", help="print the OpenAPI description")
     sub.add_parser("discovery",
@@ -114,13 +141,17 @@ def build_parser():
     s.add_argument("--offset", type=int)
     s.add_argument("--network", action="store_true", help="also search the peer-to-peer network")
     s.add_argument("--lang", help="two-letter language code")
+    s.add_argument("--collection", help="agent token only: one of the agent's collections")
 
     idx = sub.add_parser("index", help="index status, lookup and evidence").add_subparsers(dest="index_command", required=True)
-    idx.add_parser("status")
+    ist = idx.add_parser("status")
+    ist.add_argument("--global", dest="global_status", action="store_true",
+                     help="agent token only: global index status (needs the grant index.status.global)")
     lookup = idx.add_parser("lookup")
     g = lookup.add_mutually_exclusive_group(required=True)
     g.add_argument("--url")
     g.add_argument("--host")
+    lookup.add_argument("--collection", help="agent token only: one of the agent's collections")
     ev = idx.add_parser("evidence", help="indexed text of a domain (URL, title, excerpt from text_t)")
     ev.add_argument("domain")
     ev.add_argument("--collection")
@@ -135,6 +166,8 @@ def build_parser():
     start.add_argument("--scope", choices=["domain", "subpath", "wide"])
     start.add_argument("--max-pages", type=int, dest="max_pages")
     start.add_argument("--collection")
+    start.add_argument("--idempotency-key", dest="idempotency_key",
+                       help="agent token only: a repeated start with the same key returns the existing crawl")
     for name in ("status", "stop"):
         c = crawl.add_parser(name)
         c.add_argument("id")
@@ -162,47 +195,56 @@ def main(argv=None):
         script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scoutro-discovery")
         os.execv(sys.executable, [sys.executable, script] + argv[1:])
     args = build_parser().parse_args(argv)
-    client = Client(args.base_url, args.user, password(), args.timeout)
+    token = agent_token()
+    client = Client(args.base_url, args.user, password(), args.timeout, token)
+    v1 = client.v1
     c = args.command
     if c == "health":
         result = client.call("GET", "/v1/health")
+    elif c == "capabilities":
+        if not token:
+            fail("no_token", "capabilities needs an agent token in SCOUTRO_TOKEN or SCOUTRO_TOKEN_FILE", 2)
+        result = client.call("GET", "/agent/v1/capabilities")
     elif c == "system":
-        result = client.call("GET", "/v1/system")
+        result = client.call("GET", v1 + "/system")
     elif c == "actions":
         result = client.call("GET", "/actions.json")
     elif c == "openapi":
         result = client.call("GET", "/openapi.json")
     elif c == "search":
-        result = client.call("GET", "/v1/search", {"q": args.query, "limit": args.limit, "offset": args.offset,
-                                                   "source": "network" if args.network else None, "lang": args.lang})
+        result = client.call("GET", v1 + "/search", {"q": args.query, "limit": args.limit, "offset": args.offset,
+                                                     "source": "network" if args.network else None, "lang": args.lang,
+                                                     "collection": args.collection})
     elif c == "index":
         if args.index_command == "status":
-            result = client.call("GET", "/v1/index")
+            result = client.call("GET", v1 + "/index", {"global": "true" if args.global_status else None})
         elif args.index_command == "evidence":
-            result = client.call("GET", "/v1/index/evidence", {"domain": args.domain, "collection": args.collection,
+            result = client.call("GET", v1 + "/index/evidence", {"domain": args.domain, "collection": args.collection,
                                                                "limit": args.limit, "maxChars": args.max_chars})
         else:
-            result = client.call("GET", "/v1/index/lookup", {"url": args.url, "host": args.host})
+            result = client.call("GET", v1 + "/index/lookup", {"url": args.url, "host": args.host,
+                                                               "collection": args.collection})
     elif c == "crawl":
         if args.crawl_command == "list":
-            result = client.call("GET", "/v1/crawls")
+            result = client.call("GET", v1 + "/crawls")
         elif args.crawl_command == "start":
             body = {"url": args.url}
             for key, value in (("depth", args.depth), ("scope", args.scope), ("maxPages", args.max_pages),
                                ("collection", args.collection)):
                 if value is not None:
                     body[key] = value
-            result = client.call("POST", "/v1/crawls", body=body)
+            result = client.call("POST", v1 + "/crawls", body=body,
+                                 extra_headers={"Idempotency-Key": args.idempotency_key} if args.idempotency_key else None)
         elif args.crawl_command == "status":
-            result = client.call("GET", "/v1/crawls/" + urllib.parse.quote(args.id, safe=""))
+            result = client.call("GET", v1 + "/crawls/" + urllib.parse.quote(args.id, safe=""))
         else:
-            result = client.call("POST", "/v1/crawls/" + urllib.parse.quote(args.id, safe="") + "/stop", body={})
+            result = client.call("POST", v1 + "/crawls/" + urllib.parse.quote(args.id, safe="") + "/stop", body={})
     elif c == "config":
         if args.config_command == "get":
-            result = client.call("GET", "/v1/config")
+            result = client.call("GET", v1 + "/config")
         else:
             value = int(args.value) if args.value.lstrip("-").isdigit() else args.value
-            result = client.call("PATCH", "/v1/config", body={args.key: value})
+            result = client.call("PATCH", v1 + "/config", body={args.key: value})
     else:
         if args.ui_command == "routes":
             result = client.call("GET", "/v1/ui/routes")

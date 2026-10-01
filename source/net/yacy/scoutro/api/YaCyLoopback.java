@@ -48,7 +48,7 @@ import net.yacy.search.SwitchboardConstants;
  * which YaCy only accepts on connections from localhost. The credential is
  * built in memory for each call and is never logged or returned.
  */
-final class YaCyLoopback {
+final class YaCyLoopback implements Upstream {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
@@ -69,6 +69,11 @@ final class YaCyLoopback {
             return this;
         }
 
+        /** The value of a parameter, or null (for tests and checks). */
+        String get(final String key) {
+            return this.values.get(key);
+        }
+
         String encode() {
             final StringJoiner joiner = new StringJoiner("&");
             for (final Map.Entry<String, String> e : this.values.entrySet()) {
@@ -80,12 +85,14 @@ final class YaCyLoopback {
     }
 
     /** GET a YaCy path as the administrator. */
-    String getAdmin(final String path, final Params params) throws ApiException {
+    @Override
+    public String getAdmin(final String path, final Params params) throws ApiException {
         return send(path, params, false, true);
     }
 
     /** POST form parameters to a YaCy path as the administrator. */
-    String postAdmin(final String path, final Params params) throws ApiException {
+    @Override
+    public String postAdmin(final String path, final Params params) throws ApiException {
         return send(path, params, true, true);
     }
 
@@ -94,11 +101,13 @@ final class YaCyLoopback {
         return send(path, params, false, false);
     }
 
-    Document getAdminXml(final String path, final Params params) throws ApiException {
+    @Override
+    public Document getAdminXml(final String path, final Params params) throws ApiException {
         return parseXml(getAdmin(path, params), path);
     }
 
-    Document getPublicXml(final String path, final Params params) throws ApiException {
+    @Override
+    public Document getPublicXml(final String path, final Params params) throws ApiException {
         return parseXml(getPublic(path, params), path);
     }
 
