@@ -74,8 +74,36 @@ Other findings:
 Each entry in `actions.json` contains `name`, `description`, `mutating`,
 `auth`, `http` (method, path, success status), `parameters` (JSON Schema per
 parameter with `in`, `required`, `default`, `enum`, limits), `returns` (schema
-name, defined under `schemas`), `errors` (possible HTTP status codes), `cli`
-and `mcpTool`.
+name, defined under `schemas`), `errors` (possible HTTP status codes), `cli`,
+`mcpTool` and `agent` (whether the action can be granted to an agent, its
+risk, scope flag, presets and the agent path).
+
+## Agent grants (`/scoutro/api/agent/v1`)
+
+Agents created in Administration → Agents & Access call the agent path with
+their own token (see `docs/API.md`, "Agent access"). `actions.json` lists the
+grants under `agentAccess.grants`; `GET /scoutro/api/agent/v1/capabilities`
+returns those of the calling agent. The list mirrors
+`source/net/yacy/scoutro/agents/AgentActionRegistry.java`
+(`AgentCatalogTest` checks both).
+
+| Grant | Agent path | Risk | Limited to the data scope | Preset | `scoutroctl` with `SCOUTRO_TOKEN` |
+|---|---|---|---|---|---|
+| `search` | `GET /agent/v1/search` | read | yes | research, research_crawl | `search QUERY [--collection C]` |
+| `index.evidence` | `GET /agent/v1/index/evidence` | read | yes | research, research_crawl | `index evidence DOMAIN` |
+| `index.lookup` | `GET /agent/v1/index/lookup` | read | yes | research, research_crawl | `index lookup --url/--host` |
+| `index.status` | `GET /agent/v1/index` | read | yes (per collection) | research, research_crawl | `index status` |
+| `crawl.start` | `POST /agent/v1/crawls` | write | yes (+ domains, limits) | research_crawl | `crawl start URL --collection C [--idempotency-key K]` |
+| `crawl.list` / `crawl.status` | `GET /agent/v1/crawls[/{id}]` | read | own crawls only | research_crawl | `crawl list`, `crawl status ID` |
+| `crawl.stop` | `POST /agent/v1/crawls/{id}/stop` | write | own crawls only | research_crawl | `crawl stop ID` |
+| `search.network` | `GET /agent/v1/search?source=network` | admin | **no** | – | `search QUERY --network` |
+| `index.status.global` | `GET /agent/v1/index?global=true` | admin | **no** | – | `index status --global` |
+| `system.status` | `GET /agent/v1/system` | admin | **no** | – | `system` |
+| `config.get` / `config.set` | `GET`/`PATCH /agent/v1/config` | admin | **no** | – | `config get`, `config set KEY VALUE` |
+
+Always available with a valid token: `agent.capabilities`
+(`scoutroctl capabilities`) and `agent.heartbeat`. Research workers can only
+be granted the scoped grants.
 
 ## Not offered in v1 (on purpose)
 
@@ -100,6 +128,8 @@ pause/resume. `config.set` only accepts the allowlist
 The action catalog is designed so that an MCP server can be a thin wrapper:
 one tool per action (`mcpTool`), the tool input schema is the `parameters`
 object of the action, the tool result is the JSON answer, and errors are the
-`error` objects. The MCP server should call the Scoutro API over HTTP with its
-own credentials. It must not access YaCy directly, so that the API stays the
-only place where YaCy is translated.
+`error` objects. The MCP server should call the agent path
+`/scoutro/api/agent/v1` over HTTP with its own agent token, so that the same
+authorization and data scope apply as for every other agent; its tool list
+should come from `/capabilities`. It must not access YaCy directly, so that
+the API stays the only place where YaCy is translated.

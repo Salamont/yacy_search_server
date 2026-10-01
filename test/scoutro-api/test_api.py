@@ -115,9 +115,10 @@ class Descriptions(unittest.TestCase):
         spec = self.openapi
         self.assertTrue(spec["openapi"].startswith("3.1"))
         self.assertIn("digest", spec["components"]["securitySchemes"])
+        self.assertIn("agentBearer", spec["components"]["securitySchemes"])
         operation_ids = set()
         for path, methods in spec["paths"].items():
-            self.assertTrue(path.startswith("/v1/"))
+            self.assertTrue(path.startswith("/v1/") or path.startswith("/agent/v1/"), path)
             for method, operation in methods.items():
                 self.assertIn(method, ("get", "post", "patch"))
                 self.assertNotIn(operation["operationId"], operation_ids)

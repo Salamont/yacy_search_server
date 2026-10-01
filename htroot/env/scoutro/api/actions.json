@@ -19,6 +19,265 @@
       "details": "object (optional)"
     }
   },
+  "agentAccess": {
+    "description": "Agents created in Administration > Agents & Access call /scoutro/api/agent/v1 with their own token. Every call is authorized against the agent's fixed action list, its collections (data scope) and its limits; GET /scoutro/api/agent/v1/capabilities lists what the agent may use.",
+    "authentication": {
+      "type": "http-bearer",
+      "header": "Authorization: Bearer sca_<publicId>.<secret>",
+      "basePath": "/scoutro/api/agent/v1"
+    },
+    "implicitActions": [
+      "agent.capabilities",
+      "agent.heartbeat"
+    ],
+    "presets": {
+      "research": [
+        "search",
+        "index.evidence",
+        "index.lookup",
+        "index.status"
+      ],
+      "research_crawl": [
+        "search",
+        "index.evidence",
+        "index.lookup",
+        "index.status",
+        "crawl.start",
+        "crawl.list",
+        "crawl.status",
+        "crawl.stop"
+      ]
+    },
+    "grants": [
+      {
+        "name": "search",
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/search",
+          "query": {}
+        }
+      },
+      {
+        "name": "index.evidence",
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/evidence",
+          "query": {}
+        }
+      },
+      {
+        "name": "index.lookup",
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/lookup",
+          "query": {}
+        }
+      },
+      {
+        "name": "index.status",
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index",
+          "query": {}
+        }
+      },
+      {
+        "name": "crawl.start",
+        "risk": "write",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "POST",
+          "path": "/scoutro/api/agent/v1/crawls",
+          "query": {}
+        }
+      },
+      {
+        "name": "crawl.list",
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/crawls",
+          "query": {}
+        }
+      },
+      {
+        "name": "crawl.status",
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/crawls/{id}",
+          "query": {}
+        }
+      },
+      {
+        "name": "crawl.stop",
+        "risk": "write",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "POST",
+          "path": "/scoutro/api/agent/v1/crawls/{id}/stop",
+          "query": {}
+        }
+      },
+      {
+        "name": "search.network",
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/search",
+          "query": {
+            "source": "network"
+          }
+        }
+      },
+      {
+        "name": "index.status.global",
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index",
+          "query": {
+            "global": "true"
+          }
+        }
+      },
+      {
+        "name": "system.status",
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/system",
+          "query": {}
+        }
+      },
+      {
+        "name": "config.get",
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/config",
+          "query": {}
+        }
+      },
+      {
+        "name": "config.set",
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "PATCH",
+          "path": "/scoutro/api/agent/v1/config",
+          "query": {}
+        }
+      }
+    ]
+  },
   "actions": [
     {
       "name": "health",
@@ -36,7 +295,10 @@
         503
       ],
       "cli": "scoutroctl health",
-      "mcpTool": "scoutro_health"
+      "mcpTool": "scoutro_health",
+      "agent": {
+        "grantable": false
+      }
     },
     {
       "name": "system.status",
@@ -56,7 +318,21 @@
         503
       ],
       "cli": "scoutroctl system",
-      "mcpTool": "scoutro_system_status"
+      "mcpTool": "scoutro_system_status",
+      "agent": {
+        "grantable": true,
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/system"
+        }
+      }
     },
     {
       "name": "search",
@@ -121,8 +397,26 @@
         502,
         503
       ],
-      "cli": "scoutroctl search QUERY [--limit N] [--network] [--lang de]",
-      "mcpTool": "scoutro_search"
+      "cli": "scoutroctl search QUERY [--limit N] [--network] [--lang de] [--collection NAME (agent token)]",
+      "mcpTool": "scoutro_search",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/search"
+        }
+      }
     },
     {
       "name": "index.status",
@@ -141,8 +435,26 @@
         502,
         503
       ],
-      "cli": "scoutroctl index status",
-      "mcpTool": "scoutro_index_status"
+      "cli": "scoutroctl index status [--global (agent token)]",
+      "mcpTool": "scoutro_index_status",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index"
+        }
+      }
     },
     {
       "name": "index.lookup",
@@ -178,7 +490,25 @@
         503
       ],
       "cli": "scoutroctl index lookup (--url URL | --host HOST)",
-      "mcpTool": "scoutro_index_lookup"
+      "mcpTool": "scoutro_index_lookup",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/lookup"
+        }
+      }
     },
     {
       "name": "index.evidence",
@@ -234,7 +564,25 @@
         503
       ],
       "cli": "scoutroctl index evidence DOMAIN [--collection NAME] [--limit N] [--max-chars N]",
-      "mcpTool": "scoutro_index_evidence"
+      "mcpTool": "scoutro_index_evidence",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research",
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/evidence"
+        }
+      }
     },
     {
       "name": "crawl.list",
@@ -254,7 +602,24 @@
         503
       ],
       "cli": "scoutroctl crawl list",
-      "mcpTool": "scoutro_crawl_list"
+      "mcpTool": "scoutro_crawl_list",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/crawls"
+        }
+      }
     },
     {
       "name": "crawl.start",
@@ -322,8 +687,25 @@
         502,
         503
       ],
-      "cli": "scoutroctl crawl start URL [--depth N] [--scope domain|subpath|wide] [--max-pages N] [--collection NAME]",
-      "mcpTool": "scoutro_crawl_start"
+      "cli": "scoutroctl crawl start URL [--depth N] [--scope domain|subpath|wide] [--max-pages N] [--collection NAME] [--idempotency-key KEY (agent token)]",
+      "mcpTool": "scoutro_crawl_start",
+      "agent": {
+        "grantable": true,
+        "risk": "write",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "POST",
+          "path": "/scoutro/api/agent/v1/crawls"
+        }
+      }
     },
     {
       "name": "crawl.status",
@@ -353,7 +735,24 @@
         503
       ],
       "cli": "scoutroctl crawl status ID",
-      "mcpTool": "scoutro_crawl_status"
+      "mcpTool": "scoutro_crawl_status",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/crawls/{id}"
+        }
+      }
     },
     {
       "name": "crawl.stop",
@@ -386,7 +785,24 @@
         503
       ],
       "cli": "scoutroctl crawl stop ID",
-      "mcpTool": "scoutro_crawl_stop"
+      "mcpTool": "scoutro_crawl_stop",
+      "agent": {
+        "grantable": true,
+        "risk": "write",
+        "scoped": true,
+        "presetable": true,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [
+          "research_crawl"
+        ],
+        "http": {
+          "method": "POST",
+          "path": "/scoutro/api/agent/v1/crawls/{id}/stop"
+        }
+      }
     },
     {
       "name": "config.get",
@@ -405,7 +821,21 @@
         503
       ],
       "cli": "scoutroctl config get",
-      "mcpTool": "scoutro_config_get"
+      "mcpTool": "scoutro_config_get",
+      "agent": {
+        "grantable": true,
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/config"
+        }
+      }
     },
     {
       "name": "config.set",
@@ -442,7 +872,21 @@
         503
       ],
       "cli": "scoutroctl config set KEY VALUE",
-      "mcpTool": "scoutro_config_set"
+      "mcpTool": "scoutro_config_set",
+      "agent": {
+        "grantable": true,
+        "risk": "admin",
+        "scoped": false,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "PATCH",
+          "path": "/scoutro/api/agent/v1/config"
+        }
+      }
     },
     {
       "name": "ui.routes",
@@ -458,7 +902,10 @@
       "returns": "UiRouteList",
       "errors": [],
       "cli": "scoutroctl ui routes",
-      "mcpTool": "scoutro_ui_routes"
+      "mcpTool": "scoutro_ui_routes",
+      "agent": {
+        "grantable": false
+      }
     },
     {
       "name": "ui.route",
@@ -483,7 +930,10 @@
         404
       ],
       "cli": "scoutroctl ui route NAME",
-      "mcpTool": "scoutro_ui_route"
+      "mcpTool": "scoutro_ui_route",
+      "agent": {
+        "grantable": false
+      }
     }
   ],
   "schemas": {
@@ -1155,6 +1605,369 @@
           "items": {
             "$ref": "#/components/schemas/UiRoute"
           }
+        }
+      }
+    },
+    "AgentCapabilities": {
+      "type": "object",
+      "required": [
+        "agent",
+        "scope",
+        "limits",
+        "actions",
+        "fingerprint"
+      ],
+      "properties": {
+        "agent": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "external",
+                "research_worker"
+              ]
+            },
+            "status": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "integer"
+            }
+          }
+        },
+        "token": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Public token id."
+            },
+            "expiresAt": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "scope": {
+          "type": "object",
+          "properties": {
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allCollections": {
+              "type": "boolean"
+            },
+            "networkSearch": {
+              "type": "boolean"
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "domains": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "maxDepth": {
+              "type": "integer"
+            },
+            "maxPages": {
+              "type": "integer"
+            },
+            "maxParallelCrawls": {
+              "type": "integer"
+            },
+            "requestsPerMinute": {
+              "type": "integer"
+            },
+            "maxTaskSeconds": {
+              "type": "integer"
+            },
+            "modelAllowed": {
+              "type": "boolean"
+            }
+          }
+        },
+        "actions": {
+          "type": "array",
+          "description": "Only the actions this agent can use.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "risk": {
+                "type": "string",
+                "enum": [
+                  "read",
+                  "write",
+                  "admin"
+                ]
+              },
+              "scoped": {
+                "type": "boolean"
+              },
+              "http": {
+                "type": "object",
+                "properties": {
+                  "method": {
+                    "type": "string"
+                  },
+                  "path": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "fingerprint": {
+          "type": "string",
+          "description": "Changes whenever the grant or the token changes."
+        },
+        "apiVersion": {
+          "type": "string"
+        }
+      }
+    },
+    "AgentHeartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "status": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "lastError": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "clustroReachable": {
+          "type": "boolean"
+        },
+        "clustroCheckedAt": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Unix time in ms of the last successful Clustro call."
+        },
+        "modelConfigured": {
+          "type": "boolean"
+        },
+        "lastPollAt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "activeRuns": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "AgentHeartbeatAck": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ok"
+          ]
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AgentIndexStatus": {
+      "type": "object",
+      "properties": {
+        "allCollections": {
+          "type": "boolean"
+        },
+        "documents": {
+          "type": "integer",
+          "description": "Only with the complete-index scope."
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "documents": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "AgentCrawlStart": {
+      "type": "object",
+      "required": [
+        "url",
+        "collection"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "description": "Start URL; its host must be on the agent's domain allowlist (subdomains included)."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "description": "One of the agent's collections."
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3,
+          "description": "At most the agent's maxDepth; default min(2, maxDepth)."
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "domain",
+            "subpath"
+          ],
+          "default": "domain",
+          "description": "Agents never start wide crawls."
+        },
+        "maxPages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "description": "At most the agent's maxPages (also the default)."
+        }
+      }
+    },
+    "AgentCrawl": {
+      "type": "object",
+      "required": [
+        "id",
+        "state"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "YaCy crawl profile handle."
+        },
+        "name": {
+          "type": "string",
+          "description": "Crawl name as shown by YaCy (usually the host)."
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "running",
+            "paused",
+            "terminated",
+            "removed"
+          ],
+          "description": "removed: YaCy has deleted the crawl profile (finished or stopped)."
+        },
+        "depth": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "maxPages": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "pagesLoaded": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "URLs loaded for this crawl so far (running crawls only)."
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "startUrl": {
+          "type": "string",
+          "description": "Only in the answer of crawl.start."
+        },
+        "scope": {
+          "type": "string",
+          "description": "Only in the answer of crawl.start."
+        },
+        "links": {
+          "type": "object",
+          "properties": {
+            "self": {
+              "type": "string"
+            },
+            "stop": {
+              "type": "string"
+            }
+          }
+        },
+        "host": {
+          "type": "string"
+        },
+        "collection": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "clientRef": {
+          "type": "string",
+          "description": "Idempotency-Key of the start request."
+        },
+        "idempotentReplay": {
+          "type": "boolean",
+          "description": "True when an Idempotency-Key returned an existing crawl."
+        }
+      }
+    },
+    "AgentCrawlList": {
+      "type": "object",
+      "required": [
+        "crawls"
+      ],
+      "properties": {
+        "crawls": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/AgentCrawl"
+          },
+          "description": "Only crawls this agent started (newest first, at most 100)."
         }
       }
     }

@@ -79,6 +79,7 @@ YaCy's `web.xml` extension point; no existing YaCy class is changed):
 | Tests | Reproducible mobile UI checks (Playwright). | `test/scoutro-ui/` |
 | Build | Scoutro container image, Scoutro version file. | `docker/Dockerfile.scoutro`, `scoutro.properties` |
 | Agent API | Stable JSON action layer over existing YaCy endpoints (search, crawls, index, system, allowlisted settings, UI routes), OpenAPI and action catalog, `scoutroctl` CLI. | `source/net/yacy/scoutro/`, `defaults/web.xml` (marked blocks), `htroot/env/scoutro/api/`, `tools/scoutro/`, `docs/API.md`, `docs/ACTIONS.md` |
+| Agent access | Agent identities with own tokens, fixed action grants, collection scopes and limits; agent path `/scoutro/api/agent/v1` with server-side scope enforcement; "Agents & Access" pages with wizard; activity log. | `source/net/yacy/scoutro/agents/`, `source/net/yacy/scoutro/api/{AgentApi,ScopedActions,AgentAdmin}.java`, `htroot/Scoutro*_p.html`, `source/net/yacy/http/AdminSecurity.java` (marked exemption), `docs/API.md` |
 | Docs | This document, upstream workflow, build, UI structure. | `docs/`, top of `README.md` |
 
 `docs/UI.md` describes the UI structure and each adjustment in detail.

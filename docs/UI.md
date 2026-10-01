@@ -64,6 +64,7 @@ get small hooks marked with `Scoutro:`.
 | `htroot/env/scoutro/brand/` | logo, favicon, icons, color tokens (`brand.css`) |
 | `htroot/env/templates/scoutro/` | product name, attribution footer, start page hero |
 | `htroot/scoutro-about.html` | static About page (origin, license, sources) |
+| `htroot/ScoutroAgents_p.html`, `htroot/ScoutroAgentWizard_p.html` | Administration → Agents & Access: agent list and management, six-step wizard (`help/ScoutroAgents_p.md`) |
 
 Load order (in `metas.template`): Bootstrap → `bootstrap-base.css` →
 `base.css` → skin (`style.css`) → `brand/brand.css` → `scoutro.css` →
@@ -75,7 +76,8 @@ Hooks in upstream files:
 | File | Hook |
 |---|---|
 | `metas.template` | favicon/icons, `brand.css`, `scoutro.css`, `theme.css`, `scoutro.js` |
-| `header.template` | `scoutro-adminbar` class, toggle id, sidebar id, mobile-only groups (Configuration, System, Help), brand, Help and Sponsor as `type="button"` |
+| `header.template` | `scoutro-adminbar` class, toggle id, sidebar id, mobile-only groups (Configuration, System, Help), brand, Help and Sponsor as `type="button"`, "Agents & Access" in Administration and in the mobile Configuration group |
+| `submenuUseCaseAccount.template` | "Agents & Access" next to Accounts |
 | `simpleSearchHeader.template` | brand logo and name, About link |
 | `footer.template`, `simplefooter.template` | attribution include |
 | `index.html` | hero include, search icon in the button |
