@@ -64,6 +64,20 @@ public class AgentAdminTest {
                 "allCollections", "on", "confirmAllCollections", "on", "col_a", "on"));
         Assert.assertTrue(b.scope.allCollections);
         Assert.assertTrue(b.scope.collections.isEmpty());
+
+        // editing an agent that already has the complete index needs no new confirmation
+        final Agent.Builder existing = new Agent.Builder();
+        existing.scope = new Agent.Scope(new LinkedHashSet<>(), true);
+        Assert.assertTrue(AgentAdmin.parseGrant(existing, form("scopeForm", "1", "allCollections", "on")).scope.allCollections);
+        // ... but granting it anew does
+        final Agent.Builder narrow = new Agent.Builder();
+        narrow.scope = new Agent.Scope(Set.of("a"), false);
+        try {
+            AgentAdmin.parseGrant(narrow, form("scopeForm", "1", "allCollections", "on"));
+            Assert.fail("extending a scope to the complete index needs a confirmation");
+        } catch (final AgentException e) {
+            Assert.assertEquals("allCollections", e.field());
+        }
     }
 
     @Test

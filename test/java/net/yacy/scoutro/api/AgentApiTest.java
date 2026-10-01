@@ -232,6 +232,22 @@ public class AgentApiTest {
     }
 
     @Test
+    public void unexpectedErrorsAreAnsweredAndAudited() {
+        final AgentApi failing = new AgentApi(this.agents, new ScopedActions(null, null) {
+            @Override
+            AgentApi.Response execute(final String action, final String id, final AgentApi.Call call) {
+                throw new IllegalStateException("boom");
+            }
+        });
+        final AgentApi.Response r = failing.handle(new AgentApi.Request("GET", Arrays.asList("search"), new HashMap<>(),
+                "Bearer " + this.token, "10.1.2.3", null, JSONObject::new));
+        Assert.assertEquals(500, r.status);
+        Assert.assertEquals("internal_error", code(r));
+        Assert.assertFalse(r.body.toString().contains("boom"));
+        Assert.assertEquals("internal_error", this.agents.audit.recent(null, null, 1).get(0).optString("reason"));
+    }
+
+    @Test
     public void auditRecordsDecisionsWithoutSecrets() {
         get("search");
         get("config");

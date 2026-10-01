@@ -167,8 +167,12 @@ class ScopedActions {
         }
         // YaCy's RWI filter compares a single collection name, so search each collection
         // separately and merge: fetch offset+limit from each, interleave, drop duplicate URLs.
-        final int limit = parseInt(q.get("limit"), 10);
-        final int offset = parseInt(q.get("offset"), 0);
+        final int limit = intParam(q, "limit", 10, 1, 100);
+        final int offset = intParam(q, "offset", 0, 0, 10_000);
+        if (offset + limit > 100) {
+            throw ApiException.invalid("offset", "With several collections, offset + limit must not exceed 100; "
+                    + "name one collection with the parameter 'collection' to page further.");
+        }
         final Map<String, String> each = new HashMap<>(local);
         each.put("offset", "0");
         each.put("limit", Integer.toString(Math.min(100, offset + limit)));
@@ -218,12 +222,23 @@ class ScopedActions {
         return r;
     }
 
-    private static int parseInt(final String s, final int dflt) {
-        try {
-            return s == null ? dflt : Integer.parseInt(s.trim());
-        } catch (final NumberFormatException e) {
-            return dflt; // ScoutroActions.search validates and reports the parameter
+    /** Same rules and messages as the single-collection search (ScoutroActions). */
+    private static int intParam(final Map<String, String> q, final String name, final int dflt, final int min,
+            final int max) throws ApiException {
+        final String raw = q.get(name) == null ? "" : q.get(name).trim();
+        if (raw.isEmpty()) {
+            return dflt;
         }
+        final long v;
+        try {
+            v = Long.parseLong(raw);
+        } catch (final NumberFormatException e) {
+            throw ApiException.invalid(name, "Parameter '" + name + "' must be an integer.");
+        }
+        if (v < min || v > max) {
+            throw ApiException.invalid(name, "Parameter '" + name + "' must be between " + min + " and " + max + ".");
+        }
+        return (int) v;
     }
 
     // ------------------------------------------------------------------

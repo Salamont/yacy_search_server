@@ -86,7 +86,9 @@ public final class AgentAdmin {
                 collections.add(c);
             }
             final boolean all = isOn(form.get("allCollections"));
-            if (all && !isOn(form.get("confirmAllCollections"))) {
+            // confirmation only when the complete index is granted newly, not when an agent keeps it
+            final boolean alreadyGranted = into.scope != null && into.scope.allCollections;
+            if (all && !alreadyGranted && !isOn(form.get("confirmAllCollections"))) {
                 throw AgentException.invalid("allCollections",
                         "Confirm that this agent may read the complete local index.");
             }

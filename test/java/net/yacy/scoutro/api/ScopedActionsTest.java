@@ -157,6 +157,21 @@ public class ScopedActionsTest {
     }
 
     @Test
+    public void multiCollectionPagingIsValidated() throws Exception {
+        final String t = agent("A", Arrays.asList("edelsenior-web", "prospect-edelsenior"), false, "search");
+        for (final String[] p : new String[][] {{"offset", "-5"}, {"offset", "x"}, {"limit", "0"}, {"limit", "101"},
+                {"offset", "95"}}) {
+            final AgentApi.Response r = call(t, "GET", "search", q("q", "pflege", p[0], p[1]), null, null);
+            Assert.assertEquals(Arrays.toString(p), 400, r.status);
+            Assert.assertEquals(Arrays.toString(p), "invalid_request", code(r));
+        }
+        Assert.assertTrue(this.yacy.calls("yacysearch.json").isEmpty());
+        // the refusal is audited like every other decision
+        Assert.assertEquals("invalid_request", this.agents.audit.recent(null, null, 1).get(0).optString("reason"));
+        Assert.assertEquals(200, call(t, "GET", "search", q("q", "pflege", "offset", "90", "limit", "10"), null, null).status);
+    }
+
+    @Test
     public void allCollectionsScopeHasNoFilterButStaysLocal() throws Exception {
         final String t = agent("A", new ArrayList<>(), true, "search");
         Assert.assertEquals(200, call(t, "GET", "search", q("q", "x"), null, null).status);

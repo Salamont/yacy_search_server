@@ -172,6 +172,10 @@ final class AgentApi {
         } catch (final AgentException e) {
             final ApiException a = toApi(e);
             return audited(r, agent, token, route.action, new Response(a.status(), a.toJson()), e.code());
+        } catch (final RuntimeException e) {
+            // unexpected: answer like the admin API, but keep the decision in the activity log
+            final ApiException a = new ApiException(500, "internal_error", "Internal error in the Scoutro API.");
+            return audited(r, agent, token, route.action, new Response(500, a.toJson()), "internal_error");
         }
     }
 
