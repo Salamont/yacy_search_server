@@ -88,6 +88,13 @@ def load_discovery():
 # HTTP clients
 # ---------------------------------------------------------------------------
 
+class RedirectRefusedError(Exception):
+    def __init__(self, status, location):
+        super().__init__("redirect %d to %s refused" % (status, location))
+        self.status = status
+        self.location = location
+
+
 class RemoteError(Exception):
     def __init__(self, service, status, code, message):
         super().__init__("%s %s %s: %s" % (service, status, code, message))
@@ -98,17 +105,24 @@ class RemoteError(Exception):
 
 
 def _http(method, url, body=None, headers=None, timeout=60):
+    """One request without following redirects: every caller sends a token or key, and a
+    redirect would carry it to another origin (or from https to http). Raises
+    RedirectRefusedError for 3xx answers."""
     data = None
     hdrs = dict(headers or {})
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         hdrs.setdefault("Content-Type", "application/json")
     request = urllib.request.Request(url, data=data, method=method, headers=hdrs)
-    opener = urllib.request.build_opener(urllib.request.HTTPRedirectHandler())
+    opener = sc.no_redirect_opener()
     try:
         with opener.open(request, timeout=timeout) as response:
+            if 300 <= response.status < 400:
+                raise RedirectRefusedError(response.status, response.headers.get("Location", ""))
             return response.status, response.headers, response.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
+        if 300 <= e.code < 400:
+            raise RedirectRefusedError(e.code, (e.headers or {}).get("Location", "") if e.headers else "")
         return e.code, e.headers, e.read().decode("utf-8", "replace")
 
 
@@ -129,6 +143,9 @@ class Scoutro:
         hdrs.update(headers or {})
         try:
             status, _, text = _http(method, url, body, hdrs, self.timeout)
+        except RedirectRefusedError as e:
+            raise RemoteError("scoutro", e.status, "redirect_refused", "Scoutro answered with a redirect; the token "
+                              "is not forwarded. Set SCOUTRO_AGENT_URL to the canonical agent API URL.")
         except (urllib.error.URLError, OSError) as e:
             raise RemoteError("scoutro", 0, "unreachable", "Scoutro is not reachable: %s" % getattr(e, "reason", e))
         try:
@@ -160,6 +177,9 @@ class Clustro:
         headers = {"Authorization": "Bearer " + self.key, "Accept": "application/json, text/event-stream"}
         try:
             status, _, text = _http("POST", self.base + "/mcp", body, headers, self.timeout)
+        except RedirectRefusedError as e:
+            raise RemoteError("clustro", e.status, "redirect_refused", "Clustro answered with a redirect; the agent "
+                              "key is not forwarded. Configure the canonical Clustro base URL.")
         except (urllib.error.URLError, OSError) as e:
             raise RemoteError("clustro", 0, "unreachable", "Clustro is not reachable: %s" % getattr(e, "reason", e))
         if status >= 400:
@@ -190,8 +210,12 @@ class Clustro:
         body = {"event": event, "runId": run_id}
         if data is not None:
             body["data"] = data
-        status, _, text = _http("POST", self.base + "/webhook", body,
-                                {"Authorization": "Bearer " + self.key}, self.timeout)
+        try:
+            status, _, text = _http("POST", self.base + "/webhook", body,
+                                    {"Authorization": "Bearer " + self.key}, self.timeout)
+        except RedirectRefusedError as e:
+            raise RemoteError("clustro", e.status, "redirect_refused", "Clustro webhook answered with a redirect; "
+                              "the agent key is not forwarded.")
         if status >= 400:
             raise RemoteError("clustro", status, "webhook_%d" % status, text[:300])
 
@@ -272,13 +296,19 @@ def chat_json(cfg, messages, opener=None):
     last = None
     for attempt in range(cfg.retries + 1):
         try:
-            status, _, text = _http("POST", cfg.base_url + "/chat/completions", body, headers, cfg.timeout)
+            try:
+                status, _, text = _http("POST", cfg.base_url + "/chat/completions", body, headers, cfg.timeout)
+            except RedirectRefusedError as e:
+                raise sc.LlmError("llm_http_error", "model endpoint answered with redirect %d; the API key is "
+                                  "not forwarded (configure the canonical SCOUTRO_LLM_BASE_URL)" % e.status)
             if status >= 400:
                 raise sc.LlmError("llm_http_error", "model endpoint answered HTTP %d" % status)
             content = json.loads(text)["choices"][0]["message"]["content"]
             return sc._extract_json(content)
         except sc.LlmError as e:
             last = e
+            if "redirect" in str(e):
+                break  # never retried, never followed
         except (ValueError, KeyError, IndexError, TypeError):
             last = sc.LlmError("invalid_model_output", "the model did not answer with JSON")
         except (urllib.error.URLError, OSError) as e:

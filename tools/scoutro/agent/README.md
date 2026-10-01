@@ -113,6 +113,17 @@ excerpts first and sets `truncated`):
 - Errors (invalid task, collection outside the scope, refused by Scoutro) end
   the run with `fail_run` and a readable message.
 
+## HTTP and credentials
+
+Every request of the worker carries a credential (Scoutro token, Clustro agent
+key or model API key). The worker therefore **never follows redirects**: a
+301/302/303/307/308 answer is reported as an error (`redirect_refused`, or a
+model error) and the request is not repeated at the new location, so no
+credential can reach another origin and no https→http downgrade can happen.
+Configure the canonical URLs (`SCOUTRO_AGENT_URL`, the Clustro base URL,
+`SCOUTRO_LLM_BASE_URL`). The same rule applies to the model client of
+`scoutro_classify.py`, which `scoutro-discovery` uses as well.
+
 ## Reliability
 
 - Clustro delivers at least once; the worker keeps a journal
