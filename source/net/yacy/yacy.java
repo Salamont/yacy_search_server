@@ -24,22 +24,15 @@
 
 package net.yacy;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
@@ -65,7 +58,6 @@ import net.yacy.cora.protocol.http.HTTPClient;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.ai.LogReportService;
 import net.yacy.data.TransactionManager;
-import net.yacy.data.Translator;
 import net.yacy.gui.YaCyApp;
 import net.yacy.gui.framework.Browser;
 import net.yacy.http.Jetty12HttpServer;
@@ -80,7 +72,7 @@ import net.yacy.peers.operation.yacyRelease;
 import net.yacy.search.Switchboard;
 import net.yacy.search.SwitchboardConstants;
 import net.yacy.server.serverSwitch;
-import net.yacy.utils.translation.TranslatorXliff;
+import net.yacy.utils.translation.LocaleRefresh;
 
 
 /**
@@ -298,6 +290,9 @@ public final class yacy {
             final String host = sb.getLocalHost();
             ScheduledExecutorService logReportScheduler = null;
             try {
+                // Refresh generated translations before serving the first HTTP request.
+                LocaleRefresh.refreshGeneratedTranslations(sb);
+
                 // start http server
                 YaCyHttpServer httpServer;
                 ConnectionInfo.setServerMaxcount(sb.getConfigInt(
@@ -332,50 +327,7 @@ public final class yacy {
                 // enable browser popup, http server is ready now
                 sb.tray.setReady();
 
-                //regenerate Locales from Translationlist, if needed
-                final File locale_source = sb.getAppPath("locale.source", "locales");
-                final String lang = sb.getConfig("locale.language", "");
-                // on lang=browser all active translation should be checked (because any could be requested by client)
-                List<String> langlist;
-                if (lang.endsWith("browser"))
-                    langlist = Translator.activeTranslations(); // get all translated languages
-                else {
-                    langlist = new ArrayList<>();
-                    langlist.add(lang);
-                }
-                for (final String tmplang : langlist) {
-                    if (!tmplang.equals("") && !tmplang.equals("default") && !tmplang.equals("browser")) { //locale is used
-                        String currentRev = null;
-                        BufferedReader br = null;
-                        try {
-                            br = new BufferedReader(new InputStreamReader(new FileInputStream(new File(sb.getDataPath("locale.translated_html", "DATA/LOCALE/htroot"), tmplang + "/version"))));
-                            currentRev = br.readLine(); // may return null
-                        } catch (final IOException e) {
-                            //Error
-                        } finally {
-                            try {
-                                br.close();
-                            } catch(final IOException ioe) {
-                                ConcurrentLog.warn("STARTUP", "Could not close " + tmplang + " version file");
-                            }
-                        }
-
-                        if (currentRev == null || !currentRev.equals(sb.getConfig(Seed.VERSION, ""))) {
-                            try { //is this another version?!
-                                final File sourceDir = new File(sb.getConfig(SwitchboardConstants.HTROOT_PATH, SwitchboardConstants.HTROOT_PATH_DEFAULT));
-                                final File destDir = new File(sb.getDataPath("locale.translated_html", "DATA/LOCALE/htroot"), tmplang);
-                                FileUtils.deletedelete(destDir);
-                                if (new TranslatorXliff().translateFilesRecursive(sourceDir, destDir, new File(locale_source, tmplang + ".lng"), "html,template,inc", "locale")) { //translate it
-                                    //write the new Versionnumber
-                                    final BufferedWriter bw = new BufferedWriter(new PrintWriter(new FileWriter(new File(destDir, "version"))));
-                                    bw.write(sb.getConfig(Seed.VERSION, "Error getting Version"));
-                                    bw.close();
-                                }
-                            } catch (final IOException e) {
-                            }
-                        }
-                    }
-                }
+                final String lang = sb.getConfig("locale.language", "default");
                 // initialize number formatter with this locale
                 if (!lang.equals("browser")) // "default" is handled by .setLocale()
                     Formatter.setLocale(lang);

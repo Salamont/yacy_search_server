@@ -294,6 +294,22 @@
     </java>
   </target>
 
+  <target name="locale-refresh-test" depends="compile" description="test generated locale refresh against temporary DATA">
+    <mkdir dir="build/locale-refresh-tests" />
+    <javac srcdir="${test}" destdir="build/locale-refresh-tests" release="${javacRelease}"
+           encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/data/TranslatorTest.java" />
+      <include name="net/yacy/utils/translation/*Test.java" />
+      <classpath><pathelement location="${build}" /><fileset dir="${lib}" includes="*.jar" /><fileset dir="${libt}" includes="*.jar" /></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true">
+      <classpath><pathelement location="build/locale-refresh-tests" /><pathelement location="${build}" /><fileset dir="${lib}" includes="*.jar" /><fileset dir="${libt}" includes="*.jar" /></classpath>
+      <arg value="net.yacy.data.TranslatorTest" />
+      <arg value="net.yacy.utils.translation.TranslatorXliffTest" />
+      <arg value="net.yacy.utils.translation.LocaleRefreshTest" />
+    </java>
+  </target>
+
   <!-- Scoutro: agent identities, authorization and data scopes (docs/API.md "Agent access") -->
   <target name="scoutro-agents-test" depends="compile" description="run focused Scoutro agent access tests">
     <property name="scoutro.test.classes" location="${build}/../scoutro-test-classes" />

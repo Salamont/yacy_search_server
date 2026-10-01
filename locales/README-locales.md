@@ -19,6 +19,33 @@ Dieses Dokument beschreibt, wie das Übersetzungssystem funktioniert und wie
   **kein** Template-System. Das hat wichtige Konsequenzen für die Syntax der
   Schlüssel (siehe Abschnitt 6).
 
+### Erzeugte Kopien nach Scoutro-Updates
+
+Beim Start prüft Scoutro **alle bereits erzeugten Sprachverzeichnisse** unter
+`locale.translated_html` (standardmäßig `DATA/LOCALE/htroot`), auch wenn
+`locale.language=default` oder `browser` gewählt ist. Eine fest gewählte Sprache
+wird bei fehlenden Kopien ebenfalls erzeugt. Die `version`-Datei jeder Sprache
+enthält einen gemeinsamen `locale-v2:`-Marker aus YaCy-Version,
+ReleaseStub/RepositoryVersionHash und Scoutro-Version/Release. Damit lösen auch
+Scoutro-Updates innerhalb derselben YaCy-Basisversion eine Aktualisierung aus.
+Ein unveränderter Source-Build löst beim Start keine erneute Übersetzung aus.
+
+Alte numerische, fehlende oder abweichende Marker führen zur Regeneration mit
+`TranslatorXliff`. Benutzerübersetzungen aus `<Elternverzeichnis von
+locale.translated_html>/<code>.lng` werden wie bisher mit der ausgelieferten
+Sprachdatei zusammengeführt und bleiben unverändert. Direkt bearbeitete
+erzeugte HTML-Kopien sind keine Benutzerübersetzungen und werden ersetzt.
+
+Scoutro übersetzt zuerst in ein temporäres Verzeichnis. Erst nach erfolgreicher
+Übersetzung wird der neue Marker geschrieben und das Sprachverzeichnis ersetzt.
+Bei Fehlern bleiben die alten Kopien und Marker erhalten; der Start läuft weiter
+und protokolliert eine Warnung unter `TRANSLATOR`. Der gewählte Sprachmodus wird
+dabei nicht geändert. Die Sprachverwaltung verwendet beim expliziten Anwenden
+einer Sprache denselben Marker und Übersetzungsweg; diese bewusste Regeneration
+übernimmt auch zwischenzeitlich bearbeitete Benutzerübersetzungen.
+
+Regressionstests und lokaler Live-Smoke: [test/scoutro-ui/README.md](../test/scoutro-ui/README.md).
+
 Vorhandene Sprachdateien:
 
 ```
