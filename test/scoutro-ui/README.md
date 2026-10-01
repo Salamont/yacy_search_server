@@ -82,6 +82,34 @@ optional when Playwright's bundled browser is installed.
 
 ## Locale guard
 
+### Locale refresh regression
+
+```sh
+ant locale-refresh-test scoutro-dashboard-test jetty12-server-test
+JAVA=/path/to/jdk/bin/java \
+NODE_PATH=/path/to/node_modules SCOUTRO_CHROMIUM_PATH=/usr/bin/chromium \
+SCOUTRO_SCREENSHOTS=/tmp/scoutro-locale-refresh-shots \
+python3 test/scoutro-ui/locale-refresh-live-smoke.py
+```
+
+`LocaleRefreshTest` uses temporary application/DATA directories and real Scoutro
+templates/dictionaries. It covers legacy/missing/current markers, Scoutro release
+and source-build changes, all three language modes (`de`, `default`, `browser`),
+relative/absolute cache paths, preserved user overrides, write/read failures and
+per-language failure isolation. Navigation, Wizard and template markers are
+checked against the source. Unchanged copies must retain their modification time;
+failed copies must not acquire the new marker or lose the old files.
+
+The live harness starts disposable offline peers on free loopback ports in each
+mode with stale German and unmarked French copies. It checks real startup,
+German Dashboard/Agents/Wizard pages and desktop/mobile navigation, language
+management's shared marker, a second unchanged startup, and a startup with a
+broken translation source. It warms YaCy's existing first-visit responder history
+before comparing index/crawl/settings files and all configuration values around
+page GETs, keeps user translation overrides, restores any temporary language selection,
+and removes all temporary DATA in `finally`. It accepts no existing DATA or
+production URL, starts no crawls and creates no agents. Screenshots are optional.
+
 YaCy translates the raw HTML by word replacement. A locale key that equals a
 class, id or name token renames it in the translated copy (e.g. `search` turned
 `class="search"` into `class="suchen"` and broke the results search pill in all

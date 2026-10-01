@@ -34,12 +34,12 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -54,11 +54,11 @@ import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.document.SentenceReader;
 import net.yacy.kelondro.util.FileUtils;
 import net.yacy.kelondro.util.Formatter;
-import net.yacy.peers.Seed;
 import net.yacy.search.Switchboard;
 import net.yacy.search.SwitchboardConstants;
 import net.yacy.server.serverSwitch;
 import net.yacy.utils.translation.ExtensionsFileFilter;
+import net.yacy.utils.translation.LocaleRefresh;
 
 /**
  * Wordlist based translator
@@ -173,7 +173,12 @@ public class Translator {
         final Map<String, Map<String, String>> lists = new HashMap<String, Map<String, String>>(); //list of translationLists for different files.
         Map<String, String> translationList = new LinkedHashMap<String, String>(); //current Translation Table (maintaining input order)
 
-        final List<String> list = FileUtils.getListArray(translationFile);
+        final List<String> list;
+        try {
+            list = Files.readAllLines(translationFile.toPath(), StandardCharsets.UTF_8);
+        } catch (final IOException e) {
+            throw new UncheckedIOException("Could not read translation file " + translationFile, e);
+        }
         String forFile = "";
 
         for (final String line : list) {
@@ -253,9 +258,11 @@ public class Translator {
      * @return
      */
     public boolean translateFiles(final File sourceDir, final File destDir, final File baseDir, final Map<String, Map<String, String>> translationLists, final String extensions){
-        destDir.mkdirs();
+        if (!destDir.isDirectory() && !destDir.mkdirs()) return false;
         final List<String> exts = ListManager.string2vector(extensions);
         final File[] sourceFiles = sourceDir.listFiles(new ExtensionsFileFilter(exts));
+        if (sourceFiles == null) return false;
+        boolean success = true;
         String relativePath;
         for (final File sourceFile : sourceFiles) {
             try {
@@ -273,12 +280,13 @@ public class Translator {
                                   translationLists.get(relativePath)))
                 {
                     ConcurrentLog.severe("TRANSLATOR", "File error while translating file "+relativePath);
+                    success = false;
                 }
                 //}else{
                     //serverLog.logInfo("TRANSLATOR", "No translation for file: "+relativePath);
             }
         }
-        return true;
+        return success;
     }
 
     /**
@@ -292,6 +300,7 @@ public class Translator {
      * @return true if all files translated (or none)
      */
     public boolean translateFilesRecursive(final File sourceDir, final File destDir, final File translationFile, final String extensions, final String notdir) {
+        if (!sourceDir.isDirectory() || !translationFile.isFile() || !translationFile.canRead()) return false;
         final List<File> dirList = FileUtils.getDirsRecursive(sourceDir, notdir);
         dirList.add(sourceDir);
         final Map<String, Map<String, String>> translationLists = loadTranslationsLists(translationFile);
@@ -333,22 +342,10 @@ public class Translator {
             env.setConfig("locale.language", "browser");
             ret = true;
         } else {
-            final String htRootPath = env.getConfig(SwitchboardConstants.HTROOT_PATH, SwitchboardConstants.HTROOT_PATH_DEFAULT);
-            final File sourceDir = new File(env.getAppPath(), htRootPath);
-            final File destDir = new File(env.getDataPath("locale.translated_html", "DATA/LOCALE/htroot"), lang.substring(0, lang.length() - 4));// cut .lng
-            final File translationFile = new File(langPath, lang);
-
-            FileUtils.deletedelete(destDir);
-            if (translateFilesRecursive(sourceDir, destDir, translationFile, "html,template,inc", "locale")) {
-                env.setConfig("locale.language", lang.substring(0, lang.length() - 4));
-                Formatter.setLocale(env.getConfig("locale.language", "en"));
-                try {
-                    final BufferedWriter bw = new BufferedWriter(new PrintWriter(new FileWriter(new File(destDir, "version"))));
-                    bw.write(env.getConfig(Seed.VERSION, "Error getting Version"));
-                    bw.close();
-                } catch (final IOException e) {
-                    // Error
-                }
+            final String language = lang.endsWith(".lng") ? lang.substring(0, lang.length() - 4) : lang;
+            if (LocaleRefresh.regenerate(env, langPath, language, this)) {
+                env.setConfig("locale.language", language);
+                Formatter.setLocale(language);
                 ret = true;
             }
         }

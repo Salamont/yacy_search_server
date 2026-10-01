@@ -48,6 +48,7 @@ import javax.xml.stream.XMLStreamReader;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.data.Translator;
 import net.yacy.search.Switchboard;
+import net.yacy.server.serverSwitch;
 
 
 /**
@@ -61,6 +62,16 @@ import net.yacy.search.Switchboard;
  * translation data in DATA/LOCALE/
  */
 public class TranslatorXliff extends Translator {
+
+    private final serverSwitch environment;
+
+    public TranslatorXliff() {
+        this(Switchboard.getSwitchboard());
+    }
+
+    public TranslatorXliff(final serverSwitch environment) {
+        this.environment = environment;
+    }
 
     /**
      * Load translationLists for one language from a Xliff File.
@@ -382,8 +393,8 @@ public class TranslatorXliff extends Translator {
      * @return a path to DATA/LOCALE/langFile.filename()
      */
     public File getScratchFile(final File langFile) {
-        if (Switchboard.getSwitchboard() != null) { // for debug and testing were switchboard is null
-            File f = Switchboard.getSwitchboard().getDataPath("locale.translated_html", "DATA/LOCALE");
+        if (this.environment != null) { // CLI tools without a peer use their supplied language file.
+            File f = this.environment.getDataPath("locale.translated_html", "DATA/LOCALE/htroot");
             return new File(f.getParentFile(), langFile.getName());
         }
 		return langFile;

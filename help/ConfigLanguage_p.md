@@ -16,6 +16,21 @@ Language selection changes the interface translation.
 
 Use it when operators or users need YaCy pages in another language.
 
+Applying a language regenerates its generated pages through YaCy's existing
+translator, including user translations in the parent directory of
+`locale.translated_html` (normally `DATA/LOCALE/<code>.lng`). These override files
+are preserved. The selected language changes only after successful generation.
+`default` selects English; `browser` retains browser language negotiation.
+
+At startup, Scoutro checks all existing generated languages in the configured
+`locale.translated_html` directory, even in `default` or `browser` mode. A shared
+release/build marker detects Scoutro updates within the same YaCy version.
+Current copies are left untouched. Outdated copies are replaced only after
+successful translation; failures keep the old copies and marker, log a
+`TRANSLATOR` warning and do not prevent startup or change the selected mode.
+Do not edit generated HTML copies to customize translations: use the language
+override files instead. No index, crawl or agent data is involved in this refresh.
+
 ## What You Can Do Here
 
 - Language selection changes the interface translation.

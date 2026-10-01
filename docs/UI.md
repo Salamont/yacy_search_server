@@ -12,6 +12,12 @@ what Scoutro changes.
   loop, `#%path%#` include. Pages without a class are served as static files.
 - **Template lookup order** for a page or include: `DATA/LOCALE/htroot/<lang>/`
   (translations) → `DATA/HTDOCS/` → `htroot/`.
+  Generated language copies can therefore hide updated source templates.
+  `LocaleRefresh` checks every generated language before HTTP startup using a
+  shared Scoutro release/YaCy source-build marker, also in English or browser
+  mode. Staged regeneration keeps user translation overrides and leaves old
+  copies intact on failure. Language selection uses the same marker and
+  translation path. See [locale documentation](../locales/README-locales.md).
 - **Shared templates** in `htroot/env/templates/`:
   - `metas.template`: `<head>` for all pages (Bootstrap, jQuery, CSS, LibreJS license block),
   - `header.template`: administration header (top bar) and left navigation (sidebar),
