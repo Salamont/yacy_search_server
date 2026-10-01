@@ -166,6 +166,28 @@
     </form>
     #(/rotatable)#
 
+    #(hasPending)#::
+    <h4>Unconfirmed crawl starts</h4>
+    <p>These crawl starts were recorded, but no crawl profile carries their start marker (for example after a crash between the start and storing its id, when the crawl has meanwhile finished and YaCy removed its profile). Scoutro never repeats them automatically. Check the Crawler monitor and the index; if the start should be repeated, mark it as not started.</p>
+    <div class="table-responsive">
+    <table class="table table-condensed">
+      <thead><tr><th>URL</th><th>Collection</th><th>Idempotency-Key</th><th>Recorded</th><th></th></tr></thead>
+      <tbody>
+      #{pending}#
+      <tr><td>#[url]#</td><td><code>#[collection]#</code></td><td><code>#[clientRef]#</code></td><td>#[recorded]#</td>
+        <td><form action="ScoutroAgents_p.html" method="post" accept-charset="UTF-8">
+          <input type="hidden" name="transactionToken" value="#[transactionToken]#"/>
+          <input type="hidden" name="agent" value="#[agent]#"/>
+          <input type="hidden" name="startMarker" value="#[marker]#"/>
+          <label><input type="checkbox" name="confirmAbandon"/> checked</label>
+          <button type="submit" name="op" value="abandonCrawlStart" class="btn btn-default btn-xs">Mark as not started</button>
+        </form></td></tr>
+      #{/pending}#
+      </tbody>
+    </table>
+    </div>
+    #(/hasPending)#
+
     #(worker)#::
     <h4>Research worker</h4>
     <dl class="userConfig">

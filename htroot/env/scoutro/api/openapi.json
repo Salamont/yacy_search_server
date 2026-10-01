@@ -1061,7 +1061,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1290,7 +1290,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1300,7 +1300,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1383,7 +1383,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1393,7 +1393,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1507,7 +1507,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1517,7 +1517,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1645,7 +1645,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1655,7 +1655,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1726,7 +1726,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1736,7 +1736,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1837,7 +1837,7 @@
             }
           },
           "409": {
-            "description": "Conflict: crawl not running, or host_busy (another crawl runs on the same host).",
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1886,8 +1886,18 @@
               }
             }
           },
+          "500": {
+            "description": "Internal error; for a crawl start agent_store_unavailable after YaCy started the crawl (details.id names it; a replay of the Idempotency-Key assigns it without a second start).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1897,7 +1907,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2000,7 +2010,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2010,7 +2020,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2103,7 +2113,7 @@
             }
           },
           "409": {
-            "description": "Conflict: crawl not running, or host_busy (another crawl runs on the same host).",
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2133,7 +2143,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2143,7 +2153,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2214,7 +2224,7 @@
             }
           },
           "502": {
-            "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
+            "description": "YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2224,7 +2234,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2295,7 +2305,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2404,7 +2414,7 @@
             }
           },
           "503": {
-            "description": "Scoutro or the agent store is not available yet.",
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
             "content": {
               "application/json": {
                 "schema": {
@@ -3379,9 +3389,10 @@
               "running",
               "paused",
               "terminated",
-              "removed"
+              "removed",
+              "unconfirmed"
             ],
-            "description": "removed: YaCy has deleted the crawl profile (finished or stopped)."
+            "description": "removed: YaCy has deleted the crawl profile (finished or stopped). unconfirmed: a recorded start attempt without a crawl profile (id is null); see docs/API.md, 'Crawl starts and crashes'."
           },
           "depth": {
             "type": [

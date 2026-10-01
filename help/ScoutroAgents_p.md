@@ -32,7 +32,7 @@ Without the `agent` parameter the page shows the list and the recent activity of
 | Control | Meaning | Values or examples |
 | --- | --- | --- |
 | `agent` | Agent id. | `agt_` followed by 12 characters. |
-| `op` | Operation. | `update`, `pause`, `resume`, `revoke`, `rotate`, `revokeToken`, `clustro`. |
+| `op` | Operation. | `update`, `pause`, `resume`, `revoke`, `rotate`, `revokeToken`, `clustro`, `abandonCrawlStart`. |
 | `name`, `description` | Identity (with `op=update`). | 1–80 and at most 500 characters. |
 | `col_<collection>`, `extraCollections` | Data scope (with `op=update`). | Checkbox per collection; further names separated by commas. |
 | `allCollections`, `confirmAllCollections` | Complete local index (with `op=update`). | Both checkboxes are required together. |
@@ -41,6 +41,7 @@ Without the `agent` parameter the page shows the list and the recent activity of
 | `confirmRevoke` | Confirmation for `op=revoke`. | Checkbox. |
 | `expiresInDays`, `graceMinutes` | New token lifetime and grace period of old tokens (with `op=rotate`). | 30/90/180/365 days; 0/15/60 minutes. |
 | `token` | Public token id (with `op=revokeToken`). | 16 characters. |
+| `startMarker`, `confirmAbandon` | Unconfirmed crawl start to mark as not started (with `op=abandonCrawlStart`). | 32 hex characters; the checkbox is required. |
 | `clustroBaseUrl`, `clustroWorkspaceId`, `clustroConnectionId`, `clustroAgentKey` | Clustro settings of a research worker (with `op=clustro`). | An empty key keeps the stored key. |
 
 ## Correct Use
@@ -49,6 +50,7 @@ Without the `agent` parameter the page shows the list and the recent activity of
 - Actions marked "not limited to the data scope" (`search.network`, `index.status.global`, `system.status`, `config.get`, `config.set`) are never part of a preset. Grant them only deliberately.
 - A stored grant is a fixed list. Actions added to Scoutro later are never granted automatically.
 - The connection state is computed: `connected` means that a usable token fetched `/capabilities` of the current grant within the last 24 hours. After any change of the grant the state is `stale` until the agent fetches its capabilities again. `never_connected`, `paused`, `revoked`, `expired` and `no_token` are shown as such.
+- "Unconfirmed crawl starts" lists starts that were recorded before YaCy was asked but whose crawl profile cannot be found (a crash or storage fault between the start and storing the crawl id, followed by the end and removal of the crawl). Scoutro never repeats them. Check the Crawler monitor and the index; "Mark as not started" frees the agent's Idempotency-Key for a new start. Details: `docs/API.md`, "Crawl starts and crashes".
 - For a research worker, "Clustro reachable" is only shown when the worker itself reported a successful Clustro call within the last five minutes. A stored Clustro URL is not a proof of a connection.
 
 ## Access And Safety

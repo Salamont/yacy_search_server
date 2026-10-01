@@ -12792,6 +12792,9 @@
     <trans-unit id="1e68c3c5" xml:space="preserve" approved="no" translate="yes">
        <source>"rotate"</source>
     </trans-unit>
+    <trans-unit id="d2bfc8f4" xml:space="preserve" approved="no" translate="yes">
+       <source>"abandonCrawlStart"</source>
+    </trans-unit>
     <trans-unit id="fc7e1bfa" xml:space="preserve" approved="no" translate="yes">
        <source>"clustro"</source>
     </trans-unit>
@@ -12992,6 +12995,30 @@
     </trans-unit>
     <trans-unit id="13554f14" xml:space="preserve" approved="no" translate="yes">
        <source>Rotate token</source>
+    </trans-unit>
+    <trans-unit id="9637ab84" xml:space="preserve" approved="no" translate="yes">
+       <source>Unconfirmed crawl starts</source>
+    </trans-unit>
+    <trans-unit id="b9b9b062" xml:space="preserve" approved="no" translate="yes">
+       <source>These crawl starts were recorded, but no crawl profile carries their start marker (for example after a crash between the start and storing its id, when the crawl has meanwhile finished and YaCy removed its profile). Scoutro never repeats them automatically. Check the Crawler monitor and the index; if the start should be repeated, mark it as not started.</source>
+    </trans-unit>
+    <trans-unit id="1494f" xml:space="preserve" approved="no" translate="yes">
+       <source>URL</source>
+    </trans-unit>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="dfe43ca3" xml:space="preserve" approved="no" translate="yes">
+       <source>Idempotency-Key</source>
+    </trans-unit>
+    <trans-unit id="d4370cd0" xml:space="preserve" approved="no" translate="yes">
+       <source>Recorded</source>
+    </trans-unit>
+    <trans-unit id="2c3ecfa7" xml:space="preserve" approved="no" translate="yes">
+       <source>checked</source>
+    </trans-unit>
+    <trans-unit id="16d9f6d9" xml:space="preserve" approved="no" translate="yes">
+       <source>Mark as not started</source>
     </trans-unit>
     <trans-unit id="7ab8af3d" xml:space="preserve" approved="no" translate="yes">
        <source>Worker reports</source>

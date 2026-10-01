@@ -4726,6 +4726,12 @@ Data scope==Datenbereich
 
 #File: ScoutroAgents_p.html
 #---------------------------
+These crawl starts were recorded, but no crawl profile carries their start marker (for example after a crash between the start and storing its id, when the crawl has meanwhile finished and YaCy removed its profile). Scoutro never repeats them automatically. Check the Crawler monitor and the index; if the start should be repeated, mark it as not started.==Diese Crawlstarts wurden protokolliert, aber kein Crawl-Profil trägt ihren Start-Marker (zum Beispiel nach einem Absturz zwischen Start und Speichern der ID, wenn der Crawl inzwischen beendet ist und YaCy sein Profil entfernt hat). Scoutro wiederholt sie nie automatisch. Prüfen Sie Crawler-Monitor und Index; soll der Start wiederholt werden, markieren Sie ihn als nicht gestartet.
+Unconfirmed crawl starts==Unbestätigte Crawlstarts
+Mark as not started==Als nicht gestartet markieren
+Idempotency-Key==Idempotency-Key
+Recorded==Protokolliert
+> checked<==> geprüft<
 Agents get their own token, a fixed list of actions and a data scope of collections. They use the agent API==Agenten erhalten einen eigenen Token, eine feste Liste von Actions und einen Datenbereich aus Collections. Sie nutzen die Agenten-API
 and never the administrator account.==und nie das Administratorkonto.
 New token &ndash; copy it now.==Neuer Token &ndash; jetzt kopieren.

@@ -38,6 +38,7 @@ class FakeUpstream implements Upstream {
         final String name;
         String status = "active";
         final String collection;
+        String mustNotMatch = "";
 
         Crawl(final String id, final String name, final String collection) {
             this.id = id;
@@ -51,6 +52,8 @@ class FakeUpstream implements Upstream {
     final Map<String, List<String>> searchResults = new LinkedHashMap<>();
     final Map<String, Crawl> crawls = new LinkedHashMap<>();
     long solrNumFound = 3;
+    /** Fault injection for crawl starts: "reject" (YaCy refuses), "crash" (error after the profile exists), "lost" (connection lost before YaCy answered, profile exists). */
+    String crawlStartFault = null;
     /** numFound for negative collection filters (documents outside a scope). */
     long outsideNumFound = 0;
     private int nextCrawl = 1;
@@ -100,9 +103,29 @@ class FakeUpstream implements Upstream {
         this.calls.add(new Call(path, params));
         if ("Crawler_p.json".equals(path)) {
             if ("1".equals(params.get("crawlingstart"))) {
-                final String id = "crawl" + (this.nextCrawl++);
+                final String fault = this.crawlStartFault;
+                this.crawlStartFault = null;
                 final String host = java.net.URI.create(params.get("crawlingURL")).getHost();
-                this.crawls.put(id, new Crawl(id, host, params.get("collection")));
+                if ("reject".equals(fault)) {
+                    return Json.obj("success", false, "comment", "Crawling of " + host + " failed. Reason: test").toString();
+                }
+                if ("lostNoProfile".equals(fault)) {
+                    throw new ApiException(502, "upstream_unreachable", "YaCy did not answer on the loopback interface.");
+                }
+                final String id = "crawl" + (this.nextCrawl++);
+                final Crawl c = new Crawl(id, host, params.get("collection"));
+                c.mustNotMatch = params.get("mustnotmatch") == null ? "" : params.get("mustnotmatch");
+                this.crawls.put(id, c);
+                if ("crash".equals(fault)) {
+                    throw new IllegalStateException("simulated crash after YaCy started the crawl");
+                }
+                if ("failedButActive".equals(fault)) {
+                    // Crawler_p reports a failure after it has activated the profile (start URL not stacked)
+                    return Json.obj("success", true, "comment", "Crawling of '" + host + "' failed. Reason: double").toString();
+                }
+                if ("lost".equals(fault)) {
+                    throw new ApiException(502, "upstream_unreachable", "YaCy did not answer on the loopback interface.");
+                }
                 return Json.obj("success", true, "comment", "Crawl of " + host + " started.").toString();
             }
             if ("1".equals(params.get("terminate"))) {
@@ -123,7 +146,9 @@ class FakeUpstream implements Upstream {
                 sb.append("<crawlProfile><handle>").append(c.id).append("</handle><name>").append(c.name)
                         .append("</name><status>").append(c.status).append("</status><depth>1</depth>")
                         .append("<domMaxPages>50</domMaxPages><collections>").append(c.collection)
-                        .append("</collections></crawlProfile>");
+                        .append("</collections><crawlerURLMustNotMatch>")
+                        .append(c.mustNotMatch.replace("&", "&amp;").replace("<", "&lt;"))
+                        .append("</crawlerURLMustNotMatch></crawlProfile>");
             }
             sb.append("</crawlProfiles>");
         } else if ("api/status_p.xml".equals(path)) {

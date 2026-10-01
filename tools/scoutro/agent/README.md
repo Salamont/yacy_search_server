@@ -86,7 +86,7 @@ validated strictly (unknown fields or types fail the run with a message).
 |---|---|---|
 | `research` | scoped search per granted collection, text evidence from the index per domain, optional summary whose statements must cite source ids | `search` (+ `index.evidence` for excerpts), model optional |
 | `portal_evaluation` | providers by query (registrable domains of the hits) or a domain list; `stored`: classifications from the discovery state, `classify`: classification now with `scoutro_classify` (PASS/FAIL/UNSURE, evidence-bound) | profile collections inside the worker's scope; `classify` needs the model |
-| `crawl` | text-only crawl within the worker's limits; the run id is the `Idempotency-Key`, so a restart never starts a second crawl; the crawl is followed until it ends or the task time is up | `crawl.start` (+ `crawl.status`, `crawl.stop`) |
+| `crawl` | text-only crawl within the worker's limits; the run id is the `Idempotency-Key`: Scoutro records the start before YaCy is asked and matches it to its crawl profile afterwards, so a restart of the worker or of Scoutro never starts a second crawl (an unconfirmed start fails the run with `crawl_start_unconfirmed` until the administrator resolves it); the crawl is followed until it ends or the task time is up | `crawl.start` (+ `crawl.status`, `crawl.stop`) |
 
 ## Result
 

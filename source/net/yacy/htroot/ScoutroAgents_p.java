@@ -159,6 +159,17 @@ public class ScoutroAgents_p {
                 notice(prop, "The token is revoked.");
                 break;
             }
+            case "abandonCrawlStart": {
+                final String marker = form.getOrDefault("startMarker", "");
+                if (!marker.matches("[0-9a-f]{32}") || !"on".equals(form.get("confirmAbandon"))) {
+                    throw AgentException.invalid("confirmAbandon", "Confirm that you checked the crawl monitor and "
+                            + "that this start did not lead to a crawl that should be kept.");
+                }
+                agents.store.abandonCrawlStart(agent.id, marker);
+                agents.audit.record(agent.id, "", "admin.crawl.start_abandoned", "event", null, null, 200, client);
+                notice(prop, "The unconfirmed crawl start is marked as not started; its Idempotency-Key can start a crawl again.");
+                break;
+            }
             case "clustro": {
                 if (agent.kind != Agent.Kind.RESEARCH_WORKER) {
                     throw AgentException.invalid("op", "Only research workers have Clustro settings.");
@@ -301,6 +312,25 @@ public class ScoutroAgents_p {
             i++;
         }
         prop.put(p + "tokens", i);
+
+        // crawl starts whose outcome is not confirmed (crash or storage fault between start and record)
+        i = 0;
+        for (final net.yacy.scoutro.agents.CrawlRecord c : agents.store.crawls(a.id)) {
+            if (!c.isStarting()) {
+                continue;
+            }
+            final String cp = p + "hasPending_pending_" + i + "_";
+            prop.putHTML(cp + "url", c.url);
+            prop.putHTML(cp + "collection", c.collection);
+            prop.putHTML(cp + "clientRef", c.clientRef.isEmpty() ? "-" : c.clientRef);
+            prop.putHTML(cp + "recorded", iso(c.createdAt));
+            prop.putHTML(cp + "marker", c.startMarker);
+            prop.putHTML(cp + "agent", a.id);
+            prop.putHTML(cp + "transactionToken", tt);
+            i++;
+        }
+        prop.put(p + "hasPending_pending", i);
+        prop.put(p + "hasPending", i > 0 ? 1 : 0);
         prop.put(p + "rotatable", a.status != Agent.Status.REVOKED ? 1 : 0);
 
         // research worker runtime

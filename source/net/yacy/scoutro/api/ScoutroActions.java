@@ -583,8 +583,30 @@ final class ScoutroActions {
         return crawl;
     }
 
+    /** URL filter carrying a start marker; it can only match URLs that contain the marker itself. */
+    static final Pattern START_MARKER_FILTER = Pattern.compile("\\.\\*/scoutro-start-([0-9a-f]{32})/\\.\\*");
+
+    static String startMarkerFilter(final String marker) {
+        return ".*/scoutro-start-" + marker + "/.*";
+    }
+
     /** crawl.start: translated to the site crawl of Crawler_p. */
     JSONObject crawlStart(final JSONObject body) throws ApiException {
+        return crawlStart(body, null);
+    }
+
+    /**
+     * crawl.start with an optional start marker (32 hex characters). The
+     * marker is written into the crawl profile as the URL must-not-match
+     * filter {@code .*}{@code /scoutro-start-<marker>/.*}, which excludes no
+     * real page, and is reported as {@code startMarker} by the crawl list.
+     * It ties a crawl profile to the start attempt that created it, also
+     * when the caller crashed before it could store the crawl id.
+     */
+    JSONObject crawlStart(final JSONObject body, final String marker) throws ApiException {
+        if (marker != null && !marker.matches("[0-9a-f]{32}")) {
+            throw new IllegalArgumentException("invalid start marker");
+        }
         final java.util.List<String> allowed = java.util.List.of("url", "depth", "scope", "maxPages", "collection");
         for (final String key : body.keySet()) {
             if (!allowed.contains(key)) {
@@ -609,7 +631,7 @@ final class ScoutroActions {
                 .add("crawlingDepth", depth)
                 .add("range", scope)
                 .add("mustmatch", ".*")
-                .add("mustnotmatch", "")
+                .add("mustnotmatch", marker == null ? "" : startMarkerFilter(marker))
                 .add("crawlingDomMaxCheck", maxPages == null ? "off" : "on")
                 .add("crawlingDomMaxPages", maxPages == null ? null : maxPages)
                 .add("collection", collection)
@@ -644,7 +666,8 @@ final class ScoutroActions {
             final Map<String, JSONObject> after = loadCrawls();
             JSONObject created = null;
             for (final Map.Entry<String, JSONObject> e : after.entrySet()) {
-                if (!before.contains(e.getKey())) {
+                if (marker != null ? marker.equals(e.getValue().optString("startMarker"))
+                        : !before.contains(e.getKey())) {
                     created = e.getValue();
                     break;
                 }
@@ -717,11 +740,18 @@ final class ScoutroActions {
                     "maxPages", domMaxPages > 0 && domMaxPages < Integer.MAX_VALUE ? domMaxPages : null,
                     "pagesLoaded", loaded.containsKey(id) ? longOrNull(loaded.get(id)) : null,
                     "collections", collections,
+                    "startMarker", startMarker(childText(p, "crawlerURLMustNotMatch")),
                     "links", Json.obj(
                             "self", "/scoutro/api/v1/crawls/" + id,
                             "stop", "/scoutro/api/v1/crawls/" + id + "/stop")));
         }
         return crawls;
+    }
+
+    /** The start marker of a crawl profile's must-not-match filter, or null. */
+    static String startMarker(final String mustNotMatch) {
+        final java.util.regex.Matcher m = START_MARKER_FILTER.matcher(mustNotMatch == null ? "" : mustNotMatch.trim());
+        return m.matches() ? m.group(1) : null;
     }
 
     private static JSONObject crawlerQueues(final Document status) {

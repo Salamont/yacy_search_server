@@ -138,7 +138,7 @@ HTTP status and client — never bodies, queries, page text or secrets.
 | `index.lookup` | `GET /agent/v1/index/lookup?url=…\|host=…` | Solr filter on the scope; documents elsewhere are "not indexed"; only scope collections are reported. |
 | `index.status` | `GET /agent/v1/index` | Documents per scope collection; no global queues or counters. |
 | `index.status.global` | `GET /agent/v1/index?global=true` | Separate grant, global values. |
-| `crawl.start` | `POST /agent/v1/crawls` | `collection` required and in scope; host on the domain allowlist; `scope` `domain`/`subpath` only (no wide crawls); `depth`/`maxPages` within the limits (`maxPages` defaults to the limit); parallel crawl limit; `409 host_busy` while another crawl runs on the host (YaCy's crawl start drops queued URLs of that host from other crawls); `409 host_indexed_elsewhere` when the host already has documents outside the scope (a crawl would re-index them into the agent's collection). Optional `Idempotency-Key` header: the same key returns the existing crawl (200). Crawls stay text-only (`indexText=on`, `indexMedia=off`, no HTCache, `cachePolicy=nocache`, `deleteold=off`). |
+| `crawl.start` | `POST /agent/v1/crawls` | `collection` required and in scope; host on the domain allowlist; `scope` `domain`/`subpath` only (no wide crawls); `depth`/`maxPages` within the limits (`maxPages` defaults to the limit); parallel crawl limit; `409 host_busy` while another crawl runs on the host (YaCy's crawl start drops queued URLs of that host from other crawls); `409 host_indexed_elsewhere` when the host already has documents outside the scope (a crawl would re-index them into the agent's collection). Optional `Idempotency-Key` header: the same key returns the existing crawl (200); see "Crawl starts and crashes" below. Crawls stay text-only (`indexText=on`, `indexMedia=off`, no HTCache, `cachePolicy=nocache`, `deleteold=off`). |
 | `crawl.list`, `crawl.status`, `crawl.stop` | `GET /agent/v1/crawls`, `GET …/{id}`, `POST …/{id}/stop` | Only crawls this agent started; other ids answer `404 crawl_not_found`. A crawl whose profile YaCy has removed is reported as `removed`. |
 | `system.status`, `config.get`, `config.set` | `GET /agent/v1/system`, `GET`/`PATCH /agent/v1/config` | Not scoped; individual grants with a warning, external agents only. |
 
@@ -155,6 +155,34 @@ curl -H "Authorization: Bearer $SCOUTRO_TOKEN" http://scoutro:8090/scoutro/api/a
 curl -H "Authorization: Bearer $SCOUTRO_TOKEN" 'http://scoutro:8090/scoutro/api/agent/v1/search?q=pflegeheim'
 tools/scoutro/scoutroctl capabilities   # scoutroctl uses the agent path when SCOUTRO_TOKEN is set
 ```
+
+### Crawl starts and crashes
+
+A crawl start changes YaCy and the agent store; there is no transaction
+spanning both. Scoutro therefore records every start attempt **before** it
+asks YaCy (state `starting`, with the Idempotency-Key, the parameters and a
+random 32-hex start marker) and stores the crawl id afterwards (`started`).
+The marker travels in the crawl profile as the URL must-not-match filter
+`.*/scoutro-start-<marker>/.*`, which excludes no real page; it ties a
+profile to its attempt.
+
+| Situation | Result |
+|---|---|
+| The attempt cannot be recorded | `503 agent_store_unavailable`; YaCy is not asked, nothing started |
+| Any failure answer: Scoutro looks for the marker first. YaCy's `Crawler_p` reports "Crawling of … failed" also **after** it has activated the profile (e.g. when start URLs cannot be stacked); found on a real instance | a profile with the marker exists: the crawl is assigned (`started`), the error answer names it in `details.id` |
+| YaCy refuses the start (400/422) and no profile carries the marker | the attempt becomes `rejected`; the same key may start again |
+| YaCy's answer is lost (e.g. 502) and no profile carries the marker | `502 crawl_start_unconfirmed`; the attempt stays `starting` |
+| The crawl id cannot be stored after the start | `500 agent_store_unavailable` with the crawl id |
+| Crash after the start, before the id is stored | the attempt stays `starting` |
+| A `starting` attempt whose marker is found in a crawl profile (on the next crawl request, status, list or replay of the key, also after a restart and after the crawl has terminated) | assigned (`started`); a replay of the key answers `200` with `idempotentReplay` — no second crawl |
+| A `starting` attempt without a profile carrying its marker (it never ran, or it ran and YaCy has removed its profile) | `409 crawl_start_unconfirmed` for every replay of the key; listed with state `unconfirmed`; counted as running for the parallel limit; never started again automatically |
+
+Recovery of an unconfirmed start: the administrator checks the Crawler
+monitor and the index, then uses "Mark as not started" in Agents & Access
+(the attempt becomes `abandoned` and its key may start a new crawl). Limits:
+the marker is only as durable as YaCy's crawl profile; a start lost together
+with its profile cannot be told apart from one that never ran, which is why
+it needs this human decision.
 
 ### Storage
 

@@ -58,6 +58,7 @@ class ScopedActions {
     private static final Pattern COLLECTION = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     /** Agent crawl starts are serialized so that the parallelism limit holds. */
     private static final Object CRAWL_LOCK = new Object();
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
     private final ScoutroActions actions;
     private final AgentStore store;
@@ -307,23 +308,30 @@ class ScopedActions {
         }
 
         synchronized (CRAWL_LOCK) {
+            final Map<String, JSONObject> all = this.actions.loadCrawls();
+            reconcile(agent, all);
             final CrawlRecord existing = this.store.crawlByClientRef(agent.id, clientRef);
-            if (existing != null) {
-                final JSONObject crawl = describe(existing, this.actions.loadCrawls());
+            if (existing != null && existing.isStarted()) {
+                final JSONObject crawl = describe(existing, all);
                 Json.put(crawl, "idempotentReplay", true);
                 return new AgentApi.Response(200, crawl);
             }
-            final Map<String, JSONObject> all = this.actions.loadCrawls();
+            if (existing != null) {
+                // recorded before YaCy was asked, and no crawl profile carries its marker: it may have run
+                // (and finished) or not - never start it blindly a second time
+                throw unconfirmed(existing);
+            }
             int running = 0;
             for (final CrawlRecord own : this.store.crawls(agent.id)) {
-                final JSONObject c = all.get(own.crawlId);
-                if (c != null && !"terminated".equals(c.optString("state"))) {
-                    running++;
+                final JSONObject c = own.isStarted() ? all.get(own.crawlId) : null;
+                if (own.isStarting() || c != null && !"terminated".equals(c.optString("state"))) {
+                    running++; // an unconfirmed start counts as running until it is resolved
                 }
             }
             if (running >= limits.maxParallelCrawls) {
                 throw new ApiException(429, "limit_exceeded:maxParallelCrawls", "This agent already runs " + running
-                        + " crawl(s); at most " + limits.maxParallelCrawls + " may run at the same time.");
+                        + " crawl(s) (unconfirmed starts included); at most " + limits.maxParallelCrawls
+                        + " may run at the same time.");
             }
             // YaCy's crawl start drops queued URLs of the same host from other crawls,
             // so an agent must not start a crawl on a host a foreign crawl is busy with.
@@ -348,16 +356,67 @@ class ScopedActions {
                         + "documents in collections outside the data scope of this agent; a crawl would re-index them "
                         + "into your collection. Ask the administrator to crawl it or to extend the scope.");
             }
+
+            // 1. record the attempt (with its marker and parameters) before YaCy is asked
+            final String marker = newMarker();
+            try {
+                this.store.recordCrawl(CrawlRecord.starting(agent.id, collection, host, clientRef, this.store.now(),
+                        marker, url, depth, maxPages, scope));
+            } catch (final IOException e) {
+                throw new ApiException(503, "agent_store_unavailable",
+                        "The crawl start could not be recorded, so it was not started. Nothing changed in YaCy.");
+            }
+            // 2. the side effect
             final JSONObject start = Json.obj("url", url, "depth", depth, "scope", scope, "maxPages", maxPages,
                     "collection", collection);
-            final JSONObject created = this.actions.crawlStart(start);
-            final String crawlId = created.optString("id");
+            final JSONObject created;
             try {
-                this.store.recordCrawl(new CrawlRecord(crawlId, agent.id, collection, host, clientRef, this.store.now()));
-            } catch (final IOException e) {
-                throw new ApiException(500, "agent_store_unavailable",
-                        "The crawl was started (id " + crawlId + ") but its ownership could not be stored.");
+                created = this.actions.crawlStart(start, marker);
+            } catch (final ApiException e) {
+                // The answer alone does not tell whether a crawl runs: Crawler_p reports "failed" also after it
+                // has activated the profile (e.g. when start URLs cannot be stacked). Decide by the marker.
+                String profileId = null;
+                boolean profilesKnown = true;
+                try {
+                    for (final Map.Entry<String, JSONObject> c : this.actions.loadCrawls().entrySet()) {
+                        if (marker.equals(c.getValue().optString("startMarker", null))) {
+                            profileId = c.getKey();
+                        }
+                    }
+                } catch (final ApiException ex) {
+                    profilesKnown = false;
+                }
+                if (profileId != null) {
+                    try {
+                        this.store.updateCrawl(agent.id, marker, CrawlRecord.STARTED, profileId);
+                    } catch (final IOException ex) {
+                        // stays "starting"; reconciled by marker on the next request
+                    }
+                    throw new ApiException(e.status(), e.code(), e.getMessage() + " YaCy nevertheless created the crawl "
+                            + "profile " + profileId + "; it is assigned to this agent (crawl.status, crawl.stop) and "
+                            + "this Idempotency-Key will not start another crawl.", Json.obj("id", profileId));
+                }
+                if (profilesKnown && (e.status() == 400 || e.status() == 422)) {
+                    // YaCy refused and no profile carries the marker: not started, the key is free again
+                    markQuietly(agent, marker, CrawlRecord.REJECTED);
+                    throw e;
+                }
+                throw new ApiException(e.status() >= 500 ? e.status() : 502, "crawl_start_unconfirmed", e.getMessage()
+                        + " Whether YaCy started the crawl is not known; the attempt stays recorded and is matched to its "
+                        + "crawl profile when the request is repeated with the same Idempotency-Key. It is never "
+                        + "started twice.", Json.obj("startMarker", marker));
             }
+            final String crawlId = created.optString("id");
+            // 3. record the crawl id; on failure the marker still ties the profile to this attempt
+            try {
+                this.store.updateCrawl(agent.id, marker, CrawlRecord.STARTED, crawlId);
+            } catch (final IOException e) {
+                throw new ApiException(500, "agent_store_unavailable", "The crawl was started (id " + crawlId
+                        + ") but its id could not be stored. Repeat the request with the same Idempotency-Key: the "
+                        + "start marker in the crawl profile assigns it to you without a second start.",
+                        Json.obj("id", crawlId));
+            }
+            created.remove("startMarker");
             agentLinks(created);
             final AgentApi.Response resp = new AgentApi.Response(201, created);
             resp.headers.put("Location", AgentActionRegistry.BASE_PATH + "/crawls/" + crawlId);
@@ -365,12 +424,73 @@ class ScopedActions {
         }
     }
 
+    /**
+     * Assign pending start attempts of the agent to the crawl profiles that
+     * carry their marker. Attempts without a matching profile stay pending
+     * (unconfirmed).
+     */
+    private void reconcile(final Agent agent, final Map<String, JSONObject> all) {
+        for (final CrawlRecord own : this.store.crawls(agent.id)) {
+            // also a "rejected" attempt whose profile exists after all is a running crawl of this agent
+            if (!(own.isStarting() || CrawlRecord.REJECTED.equals(own.state)) || own.startMarker.isEmpty()) {
+                continue;
+            }
+            for (final Map.Entry<String, JSONObject> e : all.entrySet()) {
+                if (own.startMarker.equals(e.getValue().optString("startMarker", null))) {
+                    try {
+                        this.store.updateCrawl(agent.id, own.startMarker, CrawlRecord.STARTED, e.getKey());
+                    } catch (final IOException | AgentException ex) {
+                        // stays pending; reconciled on the next request
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    private ApiException unconfirmed(final CrawlRecord attempt) {
+        return new ApiException(409, "crawl_start_unconfirmed", "A crawl start with this Idempotency-Key ("
+                + attempt.url + " into " + attempt.collection + ") was recorded, but YaCy has no crawl profile for it: "
+                + "it may have run and finished, or never started. It is not started again automatically; the "
+                + "administrator can resolve it in Agents & Access.",
+                Json.obj("startMarker", attempt.startMarker, "url", attempt.url, "collection", attempt.collection,
+                        "recordedAt", AgentApi.iso(attempt.createdAt)));
+    }
+
+    private void markQuietly(final Agent agent, final String marker, final String state) {
+        try {
+            this.store.updateCrawl(agent.id, marker, state, "");
+        } catch (final IOException | AgentException e) {
+            // stays "starting": a later request reports it as unconfirmed, which is the safe side
+        }
+    }
+
+    private static String newMarker() {
+        final byte[] b = new byte[16];
+        RANDOM.nextBytes(b);
+        final StringBuilder sb = new StringBuilder();
+        for (final byte x : b) {
+            sb.append(Character.forDigit((x >> 4) & 0xf, 16)).append(Character.forDigit(x & 0xf, 16));
+        }
+        return sb.toString();
+    }
+
     private JSONObject crawlList(final Agent agent) throws ApiException {
         final Map<String, JSONObject> all = this.actions.loadCrawls();
+        synchronized (CRAWL_LOCK) {
+            reconcile(agent, all);
+        }
         final JSONArray out = new JSONArray();
         final List<CrawlRecord> own = this.store.crawls(agent.id);
         for (int i = own.size() - 1; i >= 0 && out.length() < 100; i--) {
-            out.put(describe(own.get(i), all));
+            final CrawlRecord r = own.get(i);
+            if (r.isStarted()) {
+                out.put(describe(r, all));
+            } else if (r.isStarting()) {
+                out.put(Json.obj("id", null, "state", "unconfirmed", "host", r.host, "collection", r.collection,
+                        "url", r.url, "startedAt", AgentApi.iso(r.createdAt), "startMarker", r.startMarker,
+                        "clientRef", r.clientRef.isEmpty() ? null : r.clientRef));
+            }
         }
         return Json.obj("crawls", out);
     }
@@ -388,7 +508,14 @@ class ScopedActions {
 
     /** Foreign or unknown crawl ids are reported as not found, so ids cannot be probed. */
     private CrawlRecord requireOwn(final Agent agent, final String id) throws ApiException {
-        final CrawlRecord own = this.store.crawl(agent.id, id);
+        CrawlRecord own = this.store.crawl(agent.id, id);
+        if (own == null) {
+            // a crawl whose id could not be stored after its start becomes visible once reconciled
+            synchronized (CRAWL_LOCK) {
+                reconcile(agent, this.actions.loadCrawls());
+            }
+            own = this.store.crawl(agent.id, id);
+        }
         if (own == null) {
             throw new ApiException(404, "crawl_not_found", "There is no crawl with the id '" + id + "'.",
                     Json.obj("id", id));
@@ -403,7 +530,9 @@ class ScopedActions {
         if (live != null) {
             out = Json.obj();
             for (final String key : live.keySet()) {
-                Json.put(out, key, live.opt(key));
+                if (!"startMarker".equals(key)) {
+                    Json.put(out, key, live.opt(key));
+                }
             }
         } else {
             out = Json.obj("id", own.crawlId, "state", "removed", "collections", new JSONArray().put(own.collection));

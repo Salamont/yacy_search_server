@@ -35,14 +35,15 @@ EA = {
  "403": err("Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>."),
  "404": err("Not found; for crawls also every crawl this agent did not start (crawl_not_found)."),
  "405": err("Method not allowed."),
- "409": err("Conflict: crawl not running, or host_busy (another crawl runs on the same host)."),
+ "409": err("Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically)."),
  "413": err("Request body too large (max 16 KiB)."),
  "415": err("Request body must be application/json."),
  "422": err("YaCy refused the request."),
  "429": err("rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client)."),
+ "500": err("Internal error; for a crawl start agent_store_unavailable after YaCy started the crawl (details.id names it; a replay of the Idempotency-Key assigns it without a second start)."),
  "501": err("Not available."),
- "502": err("YaCy returned an error or an unreadable answer on the loopback interface."),
- "503": err("Scoutro or the agent store is not available yet."),
+ "502": err("YaCy returned an error or an unreadable answer on the loopback interface; for a crawl start crawl_start_unconfirmed (the start is reconciled on a replay of the Idempotency-Key)."),
+ "503": err("Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started)."),
 }
 def aerrs(*codes): return {c: EA[c] for c in codes}
 
@@ -156,7 +157,7 @@ schemas["AgentCrawlStart"] = {"type": "object", "required": ["url", "collection"
     "maxPages": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "At most the agent's maxPages (also the default)."}}}
 schemas["AgentCrawl"] = {"type": "object", "required": ["id", "state"], "properties": {
     **schemas["Crawl"]["properties"],
-    "state": {"type": "string", "enum": ["running", "paused", "terminated", "removed"], "description": "removed: YaCy has deleted the crawl profile (finished or stopped)."},
+    "state": {"type": "string", "enum": ["running", "paused", "terminated", "removed", "unconfirmed"], "description": "removed: YaCy has deleted the crawl profile (finished or stopped). unconfirmed: a recorded start attempt without a crawl profile (id is null); see docs/API.md, 'Crawl starts and crashes'."},
     "host": {"type": "string"}, "collection": {"type": "string"}, "startedAt": {"type": "string", "format": "date-time"},
     "clientRef": {"type": "string", "description": "Idempotency-Key of the start request."},
     "idempotentReplay": {"type": "boolean", "description": "True when an Idempotency-Key returned an existing crawl."}}}
@@ -258,7 +259,7 @@ paths["/agent/v1/index/evidence"] = {"get": aop("agent.index.evidence", "Indexed
     q("maxChars", {"type": "integer", "minimum": 100, "maximum": 4000, "default": 1500}, "Maximum excerpt length per document.")], grants=["index.evidence"])}
 paths["/agent/v1/crawls"] = {
     "get": aop("agent.crawl.list", "List own crawls", "Only crawls this agent started.", ["agent"], {**ok("Own crawls.", "AgentCrawlList"), **aerrs("401", "403", "429", "502", "503")}, grants=["crawl.list"]),
-    "post": aop("agent.crawl.start", "Start a crawl (limited)", "Text-only crawl (indexText on, indexMedia off, no HTCache) of an allowed domain into a granted collection, within the agent's depth, page and parallelism limits; refused with 409 host_busy while another crawl runs on the same host (YaCy's crawl start would drop that crawl's queued URLs).", ["agent"], {**ok("Crawl started.", "AgentCrawl", "201"), **ok("Existing crawl for this Idempotency-Key.", "AgentCrawl"), **aerrs("400", "401", "403", "409", "413", "415", "422", "429", "502", "503")}, params=[idemp], body="AgentCrawlStart", mutating=True, grants=["crawl.start"])}
+    "post": aop("agent.crawl.start", "Start a crawl (limited)", "Text-only crawl (indexText on, indexMedia off, no HTCache) of an allowed domain into a granted collection, within the agent's depth, page and parallelism limits; refused with 409 host_busy while another crawl runs on the same host (YaCy's crawl start would drop that crawl's queued URLs).", ["agent"], {**ok("Crawl started.", "AgentCrawl", "201"), **ok("Existing crawl for this Idempotency-Key.", "AgentCrawl"), **aerrs("400", "401", "403", "409", "413", "415", "422", "429", "500", "502", "503")}, params=[idemp], body="AgentCrawlStart", mutating=True, grants=["crawl.start"])}
 paths["/agent/v1/crawls/{id}"] = {"get": aop("agent.crawl.status", "Status of an own crawl", "Crawls of other agents or of the administrator answer 404.", ["agent"], {**ok("Crawl.", "AgentCrawl"), **aerrs("400", "401", "403", "404", "429", "502", "503")}, params=[idp], grants=["crawl.status"])}
 paths["/agent/v1/crawls/{id}/stop"] = {"post": aop("agent.crawl.stop", "Stop an own crawl", "Crawls of other agents or of the administrator answer 404. Send an empty JSON object as body.", ["agent"], {**ok("Crawl stopped.", "CrawlStopped"), **aerrs("400", "401", "403", "404", "409", "415", "429", "502", "503")}, params=[idp], mutating=True, grants=["crawl.stop"])}
 paths["/agent/v1/system"] = {"get": aop("agent.system.status", "System status (not scoped)", "As /v1/system; needs the individual grant system.status.", ["agent"], {**ok("System status.", "System"), **aerrs("401", "403", "429", "502", "503")}, grants=["system.status"])}

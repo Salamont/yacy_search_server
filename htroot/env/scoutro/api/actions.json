@@ -1888,9 +1888,10 @@
             "running",
             "paused",
             "terminated",
-            "removed"
+            "removed",
+            "unconfirmed"
           ],
-          "description": "removed: YaCy has deleted the crawl profile (finished or stopped)."
+          "description": "removed: YaCy has deleted the crawl profile (finished or stopped). unconfirmed: a recorded start attempt without a crawl profile (id is null); see docs/API.md, 'Crawl starts and crashes'."
         },
         "depth": {
           "type": [

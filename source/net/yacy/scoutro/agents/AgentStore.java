@@ -342,11 +342,18 @@ public final class AgentStore {
     // ------------------------------------------------------------------
 
     public synchronized void recordCrawl(final CrawlRecord crawl) throws IOException {
+        final List<CrawlRecord> before = new ArrayList<>(this.crawls);
         this.crawls.add(crawl);
         while (this.crawls.size() > MAX_CRAWL_RECORDS) {
             this.crawls.remove(0);
         }
-        save();
+        try {
+            save();
+        } catch (final IOException e) {
+            this.crawls.clear(); // memory never claims what the file does not hold
+            this.crawls.addAll(before);
+            throw e;
+        }
     }
 
     public synchronized List<CrawlRecord> crawls(final String agentId) {
@@ -363,25 +370,69 @@ public final class AgentStore {
         return new ArrayList<>(this.crawls);
     }
 
+    /** A started crawl of the agent by its YaCy id (never a pending or refused attempt). */
     public synchronized CrawlRecord crawl(final String agentId, final String crawlId) {
+        if (crawlId == null || crawlId.isEmpty()) {
+            return null;
+        }
         for (final CrawlRecord c : this.crawls) {
-            if (c.agentId.equals(agentId) && c.crawlId.equals(crawlId)) {
+            if (c.agentId.equals(agentId) && c.isStarted() && c.crawlId.equals(crawlId)) {
                 return c;
             }
         }
         return null;
     }
 
+    /**
+     * The attempt that holds an idempotency key: the newest record with this
+     * key that is started or still starting; rejected and abandoned attempts
+     * release the key.
+     */
     public synchronized CrawlRecord crawlByClientRef(final String agentId, final String clientRef) {
         if (clientRef == null || clientRef.isEmpty()) {
             return null;
         }
-        for (final CrawlRecord c : this.crawls) {
-            if (c.agentId.equals(agentId) && c.clientRef.equals(clientRef)) {
+        for (int i = this.crawls.size() - 1; i >= 0; i--) {
+            final CrawlRecord c = this.crawls.get(i);
+            if (c.agentId.equals(agentId) && c.clientRef.equals(clientRef) && (c.isStarted() || c.isStarting())) {
                 return c;
             }
         }
         return null;
+    }
+
+    /** Replace the record of a start attempt (identified by its marker) with a new state. */
+    public synchronized CrawlRecord updateCrawl(final String agentId, final String startMarker, final String state,
+            final String crawlId) throws IOException, AgentException {
+        for (int i = 0; i < this.crawls.size(); i++) {
+            final CrawlRecord c = this.crawls.get(i);
+            if (c.agentId.equals(agentId) && !startMarker.isEmpty() && startMarker.equals(c.startMarker)) {
+                final CrawlRecord updated = c.withState(state, crawlId);
+                this.crawls.set(i, updated);
+                try {
+                    save();
+                } catch (final IOException e) {
+                    this.crawls.set(i, c);
+                    throw e;
+                }
+                return updated;
+            }
+        }
+        throw AgentException.notFound("The crawl start '" + startMarker + "'");
+    }
+
+    /**
+     * Administrator decision for an unconfirmed start: it did not run (or is
+     * no longer wanted), so its idempotency key may start a new crawl.
+     */
+    public synchronized CrawlRecord abandonCrawlStart(final String agentId, final String startMarker)
+            throws IOException, AgentException {
+        for (final CrawlRecord c : this.crawls) {
+            if (c.agentId.equals(agentId) && startMarker.equals(c.startMarker) && !c.isStarting()) {
+                throw new AgentException(409, "invalid_transition", "Only an unconfirmed crawl start can be abandoned.");
+            }
+        }
+        return updateCrawl(agentId, startMarker, CrawlRecord.ABANDONED, "");
     }
 
     // ------------------------------------------------------------------
@@ -456,7 +507,27 @@ public final class AgentStore {
         }
     }
 
+    private int savesBeforeFault;
+    private int failingSaves;
+
+    /**
+     * Test hook (storage fault injection): after {@code skip} successful
+     * writes, the next {@code n} writes of the store fail with an IOException.
+     */
+    public synchronized void failSaves(final int skip, final int n) {
+        this.savesBeforeFault = skip;
+        this.failingSaves = n;
+    }
+
     private void save() throws IOException {
+        if (this.failingSaves > 0) {
+            if (this.savesBeforeFault > 0) {
+                this.savesBeforeFault--;
+            } else {
+                this.failingSaves--;
+                throw new IOException("injected storage fault");
+            }
+        }
         final JSONArray a = new JSONArray();
         for (final Agent agent : this.agents.values()) {
             a.put(agent.toJson());
