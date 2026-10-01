@@ -37,7 +37,7 @@ public class AgentApiTest {
     @Before
     public void setUp() throws Exception {
         this.agents = ScoutroAgents.createForTest(this.tmp.newFolder("SETTINGS"), this.now::get);
-        this.api = new AgentApi(this.agents, new ScopedActions() {
+        this.api = new AgentApi(this.agents, new ScopedActions(null, null) {
             @Override
             AgentApi.Response execute(final String action, final String id, final AgentApi.Call call) {
                 AgentApiTest.this.executed.add(action + (id == null ? "" : ":" + id));
@@ -177,6 +177,16 @@ public class AgentApiTest {
         Assert.assertEquals("crawl.status", AgentApi.route("GET", Arrays.asList("crawls", "c1")).action);
         Assert.assertEquals("crawl.stop", AgentApi.route("POST", Arrays.asList("crawls", "c1", "stop")).action);
         Assert.assertEquals("config.set", AgentApi.route("PATCH", Arrays.asList("config")).action);
+        // parameters that broaden a request select a separate action that needs its own grant
+        final Map<String, String> network = new HashMap<>();
+        network.put("source", "network");
+        final AgentApi.Response r = call("GET", "search", "Bearer " + this.token, network, null);
+        Assert.assertEquals(403, r.status);
+        Assert.assertEquals("action_not_granted", code(r));
+        final Map<String, String> global = new HashMap<>();
+        global.put("global", "true");
+        Assert.assertEquals("index.status.global",
+                AgentApi.refine(AgentApi.route("GET", Arrays.asList("index")), global).action);
     }
 
     @Test

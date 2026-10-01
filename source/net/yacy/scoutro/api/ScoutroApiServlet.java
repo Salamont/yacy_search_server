@@ -123,7 +123,7 @@ public class ScoutroApiServlet extends HttpServlet {
                         throw new ApiException(400, "invalid_body", "The request body could not be read.");
                     }
                 });
-        final AgentApi.Response resp = new AgentApi(agents, new ScopedActions()).handle(r);
+        final AgentApi.Response resp = new AgentApi(agents, new ScopedActions(this.actions, agents.store)).handle(r);
         for (final Map.Entry<String, String> h : resp.headers.entrySet()) {
             response.setHeader(h.getKey(), h.getValue());
         }

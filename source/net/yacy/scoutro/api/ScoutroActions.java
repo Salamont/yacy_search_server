@@ -27,6 +27,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
@@ -84,7 +85,15 @@ final class ScoutroActions {
     /** Crawl starts are serialized so that the new crawl profile can be identified reliably. */
     private static final Object CRAWL_START_LOCK = new Object();
 
-    private final YaCyLoopback yacy = new YaCyLoopback();
+    private final Upstream yacy;
+
+    ScoutroActions() {
+        this(new YaCyLoopback());
+    }
+
+    ScoutroActions(final Upstream upstream) {
+        this.yacy = upstream;
+    }
 
     // ------------------------------------------------------------------
     // health, system, version
@@ -163,6 +172,16 @@ final class ScoutroActions {
 
     /** search: yacysearch.json with a small, validated parameter set. */
     JSONObject search(final Map<String, String> query) throws ApiException {
+        return search(query, null);
+    }
+
+    /**
+     * search, optionally restricted to one collection. The collection is sent
+     * as the request parameter "collection", which YaCy applies after parsing
+     * the query and which overrides any "collection:" written in the query
+     * (yacysearch.java). Used for agents; null means no restriction.
+     */
+    JSONObject search(final Map<String, String> query, final String collection) throws ApiException {
         final String q = trimToNull(query.get("q"));
         if (q == null) {
             throw ApiException.invalid("q", "Parameter 'q' (the search query) is required.");
@@ -185,7 +204,8 @@ final class ScoutroActions {
                 .add("resource", "network".equals(source) ? "global" : "local")
                 .add("contentdom", "text")
                 .add("nav", "none")
-                .add("lr", lang == null ? null : "lang_" + lang));
+                .add("lr", lang == null ? null : "lang_" + lang)
+                .add("collection", collection));
         final JSONObject json = Json.parseUpstream(body, "yacysearch.json");
         final JSONArray channels = json.optJSONArray("channels");
         final JSONObject channel = channels == null ? null : channels.optJSONObject(0);
@@ -240,6 +260,16 @@ final class ScoutroActions {
 
     /** index.lookup: is a URL indexed, or how many documents does a host have (embedded Solr). */
     JSONObject indexLookup(final Map<String, String> query) throws ApiException {
+        return indexLookup(query, null);
+    }
+
+    /**
+     * index.lookup limited to the given collections (null: complete index).
+     * Documents outside the collections count as not indexed, and only the
+     * given collections are reported for a found document.
+     */
+    JSONObject indexLookup(final Map<String, String> query, final List<String> collections) throws ApiException {
+        final String fq = collectionFilter(collections);
         final String url = trimToNull(query.get("url"));
         final String host = trimToNull(query.get("host"));
         if ((url == null) == (host == null)) {
@@ -249,13 +279,13 @@ final class ScoutroActions {
             if (!HOST.matcher(host).matches()) {
                 throw ApiException.invalid("host", "Parameter 'host' must be a host name such as 'example.com'.");
             }
-            final JSONObject result = solr("host_s:" + phrase(host.toLowerCase(Locale.ROOT)), 0);
+            final JSONObject result = solr("host_s:" + phrase(host.toLowerCase(Locale.ROOT)), 0, fq);
             final JSONObject response = result.optJSONObject("response");
             return Json.obj("host", host, "documents", response == null ? 0 : response.optLong("numFound", 0));
         }
         final String normalized = validateHttpUrl(url, "url");
         for (final String candidate : urlVariants(normalized)) {
-            final JSONObject result = solr("sku:" + phrase(candidate), 1);
+            final JSONObject result = solr("sku:" + phrase(candidate), 1, fq);
             final JSONObject response = result.optJSONObject("response");
             final JSONArray docs = response == null ? null : response.optJSONArray("docs");
             final JSONObject doc = docs == null ? null : docs.optJSONObject(0);
@@ -268,7 +298,7 @@ final class ScoutroActions {
                                 "title", firstString(doc.opt("title")),
                                 "host", doc.optString("host_s", ""),
                                 "lastModified", doc.optString("last_modified", ""),
-                                "collections", doc.opt("collection_sxt") == null ? Json.arr() : doc.opt("collection_sxt")));
+                                "collections", visibleCollections(doc.optJSONArray("collection_sxt"), collections)));
             }
         }
         return Json.obj("url", url, "indexed", false, "document", null);
@@ -283,6 +313,15 @@ final class ScoutroActions {
      * untrusted data; callers must never treat it as instructions.
      */
     JSONObject indexEvidence(final Map<String, String> query) throws ApiException {
+        return indexEvidence(query, null);
+    }
+
+    /**
+     * index.evidence; with a non-null collection list the filter is exactly
+     * these collections and a 'collection' parameter is ignored (the agent
+     * layer has resolved and checked it already).
+     */
+    JSONObject indexEvidence(final Map<String, String> query, final List<String> scope) throws ApiException {
         final String rawDomain = trimToNull(query.get("domain"));
         if (rawDomain == null) {
             throw ApiException.invalid("domain", "Parameter 'domain' is required, e.g. 'example.com'.");
@@ -292,10 +331,12 @@ final class ScoutroActions {
             throw ApiException.invalid("domain", "Parameter 'domain' must be a DNS name such as 'example.com' "
                     + "(no scheme, port, path, IP address or wildcard).");
         }
-        final String collection = trimToNull(query.get("collection"));
+        final String collection = scope != null ? (scope.size() == 1 ? scope.get(0) : null) : trimToNull(query.get("collection"));
         if (collection != null && !COLLECTION.matcher(collection).matches()) {
             throw ApiException.invalid("collection", "Parameter 'collection' must match [A-Za-z0-9_-]{1,64}.");
         }
+        final List<String> filter = scope != null ? scope
+                : collection == null ? null : java.util.Collections.singletonList(collection);
         final int limit = intParam(query, "limit", EVIDENCE_DEFAULT_LIMIT, 1, EVIDENCE_MAX_LIMIT);
         final int maxChars = intParam(query, "maxChars", EVIDENCE_DEFAULT_CHARS, EVIDENCE_MIN_CHARS, EVIDENCE_MAX_CHARS);
         final String hostQuery = "host_s:" + phrase(domain)
@@ -303,7 +344,7 @@ final class ScoutroActions {
         final YaCyLoopback.Params params = new YaCyLoopback.Params()
                 .add("q", hostQuery)
                 .add("defType", "lucene")
-                .add("fq", collection == null ? "httpstatus_i:200" : "httpstatus_i:200 AND collection_sxt:" + phrase(collection))
+                .add("fq", filter == null ? "httpstatus_i:200" : "httpstatus_i:200 AND " + collectionFilter(filter))
                 .add("sort", "crawldepth_i asc,sku asc")
                 .add("rows", limit)
                 .add("wt", "json")
@@ -328,6 +369,7 @@ final class ScoutroActions {
         return Json.obj(
                 "domain", domain,
                 "collection", collection,
+                "collections", filter == null ? null : new JSONArray(filter),
                 "total", response == null ? 0 : response.optLong("numFound", 0),
                 "limit", limit,
                 "maxChars", maxChars,
@@ -340,14 +382,63 @@ final class ScoutroActions {
         return clean.length() <= maxChars ? clean : clean.substring(0, maxChars);
     }
 
-    private JSONObject solr(final String q, final int rows) throws ApiException {
+    private JSONObject solr(final String q, final int rows, final String fq) throws ApiException {
         final String body = this.yacy.getAdmin("solr/select", new YaCyLoopback.Params()
                 .add("q", q)
+                .add("fq", fq)
                 .add("defType", "lucene")
                 .add("rows", rows)
                 .add("wt", "json")
                 .add("fl", "sku,title,host_s,last_modified,collection_sxt"));
         return Json.parseUpstream(body, "solr/select");
+    }
+
+    /** Number of indexed documents (HTTP 200) per collection, for the scoped index status. */
+    long countDocuments(final String collection) throws ApiException {
+        final String body = this.yacy.getAdmin("solr/select", new YaCyLoopback.Params()
+                .add("q", "*:*")
+                .add("fq", collection == null ? "httpstatus_i:200"
+                        : "httpstatus_i:200 AND " + collectionFilter(java.util.Collections.singletonList(collection)))
+                .add("defType", "lucene")
+                .add("rows", 0)
+                .add("wt", "json"));
+        final JSONObject response = Json.parseUpstream(body, "solr/select").optJSONObject("response");
+        return response == null ? 0 : response.optLong("numFound", 0);
+    }
+
+    /** Solr filter on collection_sxt for validated collection names; null for no restriction. */
+    static String collectionFilter(final List<String> collections) {
+        if (collections == null) {
+            return null;
+        }
+        if (collections.isEmpty()) {
+            return "-*:*"; // an empty scope matches nothing
+        }
+        final StringBuilder sb = new StringBuilder("(");
+        for (final String c : collections) {
+            if (!COLLECTION.matcher(c).matches()) {
+                throw new IllegalArgumentException("invalid collection name");
+            }
+            if (sb.length() > 1) {
+                sb.append(" OR ");
+            }
+            sb.append("collection_sxt:").append(phrase(c));
+        }
+        return sb.append(')').toString();
+    }
+
+    private static JSONArray visibleCollections(final JSONArray docCollections, final List<String> scope) {
+        final JSONArray out = Json.arr();
+        if (docCollections == null) {
+            return out;
+        }
+        for (int i = 0; i < docCollections.length(); i++) {
+            final String c = docCollections.optString(i, "");
+            if (!c.isEmpty() && (scope == null || scope.contains(c))) {
+                out.put(c);
+            }
+        }
+        return out;
     }
 
     private static String phrase(final String value) {
@@ -570,7 +661,7 @@ final class ScoutroActions {
      * Read all non-system crawl profiles (CrawlProfileEditor_p.xml: active and
      * terminated) and merge the per-crawl counters of api/status_p.xml.
      */
-    private Map<String, JSONObject> loadCrawls() throws ApiException {
+    Map<String, JSONObject> loadCrawls() throws ApiException {
         final Document profiles = this.yacy.getAdminXml("CrawlProfileEditor_p.xml", null);
         final Document status = this.yacy.getAdminXml("api/status_p.xml", null);
         final boolean paused = "paused".equalsIgnoreCase(text(status, "localcrawlerqueue", "state"));

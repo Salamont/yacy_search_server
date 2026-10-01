@@ -307,6 +307,7 @@
       <classpath>
         <pathelement location="${build}" />
         <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
         <fileset dir="${libt}" includes="**/*.jar" />
       </classpath>
     </javac>
@@ -322,6 +323,7 @@
         <pathelement location="${scoutro.test.classes}" />
         <pathelement location="${build}" />
         <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
         <fileset dir="${libt}" includes="**/*.jar" />
       </classpath>
     </junit>

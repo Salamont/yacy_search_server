@@ -153,7 +153,7 @@ final class AgentApi {
         }
         final Agent agent = auth2.agent;
         final TokenRecord token = auth2.token;
-        final Route route = route(r.method, r.path);
+        final Route route = refine(route(r.method, r.path), r.query);
         if (route.error != null) {
             return audited(r, agent, token, "-", new Response(route.error.status(), route.error.toJson()),
                     route.error.code());
@@ -214,6 +214,20 @@ final class AgentApi {
         return new Route(null, null, new ApiException(405, "method_not_allowed", "Method " + method
                 + " is not allowed here. Allowed: " + String.join(", ", allowed) + ".",
                 Json.obj("allowed", String.join(", ", allowed))));
+    }
+
+    /**
+     * Requests whose parameters select a broader action: network search and
+     * the global index status are separate grants, never part of a scope.
+     */
+    static Route refine(final Route route, final Map<String, String> query) {
+        if ("search".equals(route.action) && "network".equals(query.get("source"))) {
+            return ok("search.network");
+        }
+        if ("index.status".equals(route.action) && "true".equals(query.get("global"))) {
+            return ok("index.status.global");
+        }
+        return route;
     }
 
     static Route route(final String method, final List<String> p) {
