@@ -167,6 +167,15 @@ authenticate outgoing calls). All files are 0600 (directory 0700), written
 atomically; nothing is kept in `yacy.conf`, which the administrator pages can
 display. Existing index data and the discovery state are not touched.
 
+### Research worker for Clustro
+
+An agent of kind `research_worker` is the Scoutro research agent for Clustro:
+`tools/scoutro/agent/scoutro-agent-bridge` pulls the runs of its Clustro
+connection over Clustro's MCP endpoint, answers them through this agent path
+with its own token (so the same grant, scope and limits apply) and reports
+results with sources (`complete_run`/`fail_run`). It needs no inbound route.
+Task and result formats, set-up and guarantees: `tools/scoutro/agent/README.md`.
+
 ### Not part of the agent path
 
 YaCy's own AI functions — the native MCP server `/tools`, `/v1/chat/completions`
