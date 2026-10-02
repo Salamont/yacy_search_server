@@ -42,7 +42,7 @@ jobs:
               token = json.load(response)["token"]
           headers = {"Authorization": "Bearer " + token,
                      "Accept": "application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json"}
-          for tag in ("1.942-scoutro.8", "0.5.8"):
+          for tag in ("1.942-scoutro.9", "0.5.9"):
               request = urllib.request.Request(registry + "/v2/" + repository + "/manifests/" + tag, headers=headers)
               try:
                   with urllib.request.urlopen(request):
@@ -91,16 +91,16 @@ jobs:
           push: true
           provenance: false
           tags: |
-            ghcr.io/salamont/scoutro:1.942-scoutro.8
-            ghcr.io/salamont/scoutro:0.5.8
+            ghcr.io/salamont/scoutro:1.942-scoutro.9
+            ghcr.io/salamont/scoutro:0.5.9
           build-args: |
-            SCOUTRO_VERSION=1.942-scoutro.8
+            SCOUTRO_VERSION=1.942-scoutro.9
             SCOUTRO_REVISION=${{ github.sha }}
 
       - name: Report published digest
         run: |
           echo "### Scoutro image published" >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.8 | tee /tmp/inspect.txt
+          docker buildx imagetools inspect ghcr.io/salamont/scoutro:1.942-scoutro.9 | tee /tmp/inspect.txt
           {
             echo '```'
             cat /tmp/inspect.txt
