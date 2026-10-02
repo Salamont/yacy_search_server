@@ -70,7 +70,7 @@ try {
     }
     check(await page.evaluate(w => document.documentElement.scrollWidth <= w + 1, width), `${width}: no horizontal overflow`);
     const targets = await page.locator('main a[href]').evaluateAll(links => [...new Set(links.map(a => a.getAttribute('href')))]);
-    check(targets.length === 10, `${width}: ten standard YaCy destinations`);
+    check(targets.length === 11, `${width}: ten standard YaCy destinations plus Discovery Automation`);
     // Use a browser page for YaCy's Digest authentication, not Playwright's
     // API request client (which only sends Basic credentials).
     const detailPage = await context.newPage();

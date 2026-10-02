@@ -67,6 +67,8 @@ final class UiRoutes {
         route("blacklists", "administration", "Filter & Blacklists", "/Blacklist_p.html", true, "URL filters and blacklists.");
         route("config.agents", "administration", "Agents & Access", "/ScoutroAgents_p.html", true,
                 "Agent identities, their tokens, actions, data scopes and activity.");
+        route("discovery.automation", "administration", "Discovery Automation", "/ScoutroDiscovery_p.html", true,
+                "Discovery jobs, persistent candidate backlog, schedules and batch status.");
         route("config.agentWizard", "administration", "New agent", "/ScoutroAgentWizard_p.html", true,
                 "Wizard for a new agent: identity, data scope, actions, limits, token, connection.");
         route("ranking", "administration", "Ranking and Heuristics", "/RankingSolr_p.html", true, "Search ranking settings.");

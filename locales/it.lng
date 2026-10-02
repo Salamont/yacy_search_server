@@ -3470,6 +3470,7 @@ YaCy Identifier==Identifier YaCy
 #-----------------------------
 
 #File: env/templates/header.template
+>Discovery Automation<==>Automazione della scoperta<
 >Dashboard<==>Panoramica<
 #---------------------------
 Toggle navigation==Commuta navigazione
@@ -3524,6 +3525,7 @@ Sponsor==Sponsor
 YaCy Packs &amp; Import/Export==YaCy Packs &amp; Import/Export
 YaCy is free software, so we need the help of many to support the development.<br/><b>You</b> can help by joining a sponsoring plan:==YaCy is free software, so we need the help of many to support the development.<br/><b>You</b> can help by joining a sponsoring plan:
 #-----------------------------
+
 
 #File: env/templates/simpleheader.template
 #---------------------------
@@ -4547,3 +4549,93 @@ YaCy Portalsearch:==Ricerca portale YaCy:
 #---------------------------
 rss terminal==terminale rss
 #-----------------------------
+
+
+#File: ScoutroDiscovery_p.html
+>Scoutro Discovery Automation<==>Scoutro Automazione della scoperta<
+>Discovery Automation<==>Automazione della scoperta<
+>Discover websites and process a persistent backlog with the YaCy crawler.<==>Discover websites and process a persistent backlog with the YaCy crawler.<
+>Automation overview<==>Automation overview<
+>Global status<==>Global status<
+>Disabled<==>Disabled<
+>Heartbeat<==>Heartbeat<
+>Jobs<==>Jobs<
+>Current batch<==>Current batch<
+>Fresh Backlog<==>Fresh Backlog<
+>Next heartbeat<==>Next heartbeat<
+>Waiting reason<==>Waiting reason<
+>Enable automation<==>Enable automation<
+>Disable automation<==>Disable automation<
+>Pause automation<==>Pause automation<
+>Resume automation<==>Resume automation<
+>YaCy Automation<==>YaCy Automation<
+>Crawler Monitor<==>Crawler Monitor<
+>Pausing prevents new seeds. Crawls already accepted by YaCy continue.<==>Pausing prevents new seeds. Crawls already accepted by YaCy continue.<
+>Discovery jobs<==>Discovery jobs<
+>Add Job<==>Add Job<
+>Export jobs<==>Export jobs<
+>No discovery jobs configured.<==>No discovery jobs configured.<
+>Job editor<==>Job editor<
+>Job name<==>Job name<
+>Profile<==>Profile<
+>Candidate scope<==>Candidate scope<
+>Selected source regions<==>Selected source regions<
+>Entire profile backlog<==>Entire profile backlog<
+>Batch size<==>Batch size<
+>Max pages per website<==>Max pages per website<
+>Crawl depth<==>Crawl depth<
+>Delay between seeds (seconds)<==>Delay between seeds (seconds)<
+>Schedule (minutes)<==>Schedule (minutes)<
+>Discovery refresh (hours)<==>Discovery refresh (hours)<
+>Recrawl after (days)<==>Recrawl after (days)<
+> Enabled<==> Enabled<
+> Paused<==> Paused<
+> Discover new candidates<==> Discover new candidates<
+> Process fresh candidates<==> Process fresh candidates<
+> Retry after backoff or cooldown<==> Retry after backoff or cooldown<
+> Recrawl indexed websites<==> Recrawl indexed websites<
+>Entire profile backlog includes older entries without source provenance. Regional jobs use recorded source regions.<==>Entire profile backlog includes older entries without source provenance. Regional jobs use recorded source regions.<
+>Save job<==>Save job<
+>Cancel<==>Cancel<
+>Paused<==>Paused<
+>Running<==>Running<
+>Idle<==>Idle<
+>Due<==>Due<
+>Error<==>Error<
+>Needs review<==>Needs review<
+>Needs reconciliation<==>Needs reconciliation<
+>Waiting for crawler<==>Waiting for crawler<
+>Waiting for capacity<==>Waiting for capacity<
+>No job is due<==>No job is due<
+>Heartbeat missing, disabled or duplicated<==>Heartbeat missing, disabled or duplicated<
+>YaCy crawler is paused<==>YaCy crawler is paused<
+>Index unavailable<==>Index unavailable<
+>Waiting for system resources<==>Waiting for system resources<
+>Unconfirmed crawl start; review required<==>Unconfirmed crawl start; review required<
+>Runtime configuration is missing or invalid<==>Runtime configuration is missing or invalid<
+>Edit<==>Edit<
+>Delete<==>Delete<
+>Enable<==>Enable<
+>Disable<==>Disable<
+>Pause<==>Pause<
+>Resume<==>Resume<
+>Run once<==>Run once<
+>Last run<==>Last run<
+>Next run<==>Next run<
+>Fresh remaining<==>Fresh remaining<
+>Regions<==>Regions<
+>Search regions<==>Search regions<
+>All configured regions<==>All configured regions<
+>Unsupported by this profile<==>Unsupported by this profile<
+>Unavailable<==>Unavailable<
+>minutes<==>minutes<
+>Delete this job? Candidate state and existing crawls are retained.<==>Delete this job? Candidate state and existing crawls are retained.<
+>Job saved<==>Job saved<
+>OpenStreetMap / Geofabrik<==>OpenStreetMap / Geofabrik<
+>YaCy Network Search<==>YaCy Network Search<
+
+
+#File: scoutro-dashboard.html
+>Discovery Automation<==>Automazione della scoperta<
+>Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
+>Disabled<==>Disabled<

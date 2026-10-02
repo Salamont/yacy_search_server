@@ -456,3 +456,7 @@ Agent access:
   enforcement, lifecycle (pause, resume, rotation, grant change, revocation)
   and, with `SCOUTRO_TEST_CRAWL_URL` on a DNS name, crawl ownership and
   idempotency.
+
+## Discovery Automation V1
+
+Administrator-only `/scoutro/api/v1/discovery/` endpoints provide dynamic catalog, status, job CRUD/export, run-once and global enable/disable/pause/resume. No agent grants are added. Mutations use JSON and the existing origin guard; edits/delete/global controls require `If-Match` with the numeric store revision. Complete parameters, responses and side effects: [Discovery help](../help/ScoutroDiscovery_p.md), OpenAPI/action catalog. WorkTables calls the separate transaction-protected `ScoutroDiscoveryTick_p.json` responder, not the JSON mutation API. All scheduling/discovery is deterministic; Classification remains separate.

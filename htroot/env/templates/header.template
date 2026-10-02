@@ -187,6 +187,7 @@
     <ul class="nav nav-sidebar menugroup" id="scoutro-overview">
       <li><h3>Scoutro</h3></li>
       <li><a href="scoutro-dashboard.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Dashboard</a></li>
+      <li><a href="ScoutroDiscovery_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Discovery Automation</a></li>
     </ul>
     
     <ul class="nav nav-sidebar menugroup" id="first-steps"

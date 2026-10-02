@@ -89,3 +89,7 @@ Run `ant scoutro-dashboard-test` for focused metrics/security/static checks.
 Against a disposable local peer, run the existing `test/scoutro-ui/scoutro-ui-test.mjs`
 and `test/scoutro-ui/dashboard-ui-test.mjs` with `SCOUTRO_URL`,
 `SCOUTRO_ADMIN_USER`, `SCOUTRO_ADMIN_PASSWORD` and optional `--screenshots DIR`.
+
+## Discovery overview
+
+The compact Discovery Automation card links to `ScoutroDiscovery_p.html`. A read-only request to the administrator Discovery status API displays disabled/paused/enabled and job count. This neither enables the heartbeat nor creates candidate state. If status is unavailable, the existing dashboard metrics remain usable. See [Discovery Automation](ScoutroDiscovery_p.md).

@@ -133,3 +133,7 @@ object of the action, the tool result is the JSON answer, and errors are the
 authorization and data scope apply as for every other agent; its tool list
 should come from `/capabilities`. It must not access YaCy directly, so that
 the API stays the only place where YaCy is translated.
+
+## Discovery administration
+
+The action catalog now describes `discovery.catalog`, `discovery.status`, `discovery.export`, `discovery.jobs.list/create/get/update/delete/run`, `discovery.enable/disable/pause/resume`. All require administrator Digest authentication and are **not grantable to agents**. Job paths/commands/secrets/collection overrides/force are rejected. See [Discovery help](../help/ScoutroDiscovery_p.md) for revisions, dynamic source regions, persisted backlog and unknown-start recovery. No CLI/MCP wrapper is advertised for these new actions in V1.

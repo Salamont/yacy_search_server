@@ -55,7 +55,9 @@ LABEL org.opencontainers.image.title="scoutro" \
       org.opencontainers.image.base.name="docker.io/library/eclipse-temurin:24-jdk-noble" \
       io.github.salamont.scoutro.upstream="https://github.com/yacy/yacy_search_server"
 
-RUN adduser --system --group --no-create-home --disabled-password yacy
+RUN apt-get update && apt-get install -y --no-install-recommends python3 curl gdal-bin \
+    && rm -rf /var/lib/apt/lists/* \
+    && adduser --system --group --no-create-home --disabled-password yacy
 WORKDIR /opt
 COPY --chown=yacy:yacy --from=builder /opt/yacy_search_server /opt/yacy_search_server
 

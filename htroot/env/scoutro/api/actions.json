@@ -934,6 +934,528 @@
       "agent": {
         "grantable": false
       }
+    },
+    {
+      "name": "discovery.catalog",
+      "description": "Discovery automation catalog. Administrator only; no agent grants.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/discovery/catalog",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.status",
+      "description": "Discovery automation status. Administrator only; no agent grants.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/discovery/status",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.export",
+      "description": "Discovery automation export. Administrator only; no agent grants.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/discovery/export",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.jobs.list",
+      "description": "Discovery automation jobs.list. Administrator only; no agent grants.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/discovery/jobs",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.jobs.create",
+      "description": "Discovery automation jobs.create. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/discovery/jobs",
+        "successStatus": 201
+      },
+      "parameters": {
+        "body": {
+          "$ref": "#/components/schemas/DiscoveryJob"
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.jobs.get",
+      "description": "Discovery automation jobs.get. Administrator only; no agent grants.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/discovery/jobs/{id}",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.jobs.update",
+      "description": "Discovery automation jobs.update. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "PATCH",
+        "path": "/scoutro/api/v1/discovery/jobs/{id}",
+        "successStatus": 200
+      },
+      "parameters": {
+        "body": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [],
+          "properties": {
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "readOnly": true
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "enabled": {
+              "type": "boolean",
+              "default": false
+            },
+            "paused": {
+              "type": "boolean",
+              "default": false
+            },
+            "profile": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+            },
+            "candidate_scope": {
+              "type": "string",
+              "enum": [
+                "source_regions",
+                "profile_backlog"
+              ],
+              "default": "source_regions"
+            },
+            "sources": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "regions"
+                ],
+                "properties": {
+                  "mode": {
+                    "type": "string",
+                    "enum": [
+                      "selected",
+                      "all"
+                    ],
+                    "default": "selected"
+                  },
+                  "regions": {
+                    "type": "array",
+                    "maxItems": 256,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "description": "Registered provider IDs. V1: osm, freeworld. Regions are source-specific; both is not a source ID."
+            },
+            "discovery": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "replenish": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "replenish_interval_hours": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 8760,
+                  "default": 24
+                }
+              }
+            },
+            "batch": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "max_domains": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 500,
+                  "default": 50
+                },
+                "max_pages": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 10000,
+                  "default": 15
+                },
+                "depth": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 10,
+                  "default": 2
+                },
+                "seed_delay_seconds": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 300,
+                  "default": 10
+                }
+              }
+            },
+            "processing": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "fresh": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "retry": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "recrawl": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "enabled": {
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "days": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 3650,
+                      "default": 30
+                    }
+                  }
+                }
+              }
+            },
+            "schedule": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "every_minutes": {
+                  "type": "integer",
+                  "minimum": 10,
+                  "maximum": 525600,
+                  "default": 60
+                }
+              }
+            }
+          }
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.jobs.delete",
+      "description": "Discovery automation jobs.delete. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "DELETE",
+        "path": "/scoutro/api/v1/discovery/jobs/{id}",
+        "successStatus": 200
+      },
+      "parameters": {
+        "body": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.jobs.run",
+      "description": "Discovery automation jobs.run. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/discovery/jobs/{id}/run",
+        "successStatus": 202
+      },
+      "parameters": {
+        "body": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "request_id"
+          ],
+          "properties": {
+            "request_id": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,80}$"
+            }
+          }
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.enable",
+      "description": "Discovery automation enable. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/discovery/enable",
+        "successStatus": 200
+      },
+      "parameters": {
+        "body": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.disable",
+      "description": "Discovery automation disable. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/discovery/disable",
+        "successStatus": 200
+      },
+      "parameters": {
+        "body": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.pause",
+      "description": "Discovery automation pause. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/discovery/pause",
+        "successStatus": 200
+      },
+      "parameters": {
+        "body": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "discovery.resume",
+      "description": "Discovery automation resume. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/discovery/resume",
+        "successStatus": 200
+      },
+      "parameters": {
+        "body": {
+          "type": "object",
+          "maxProperties": 0
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      }
     }
   ],
   "schemas": {
@@ -1969,6 +2491,162 @@
             "$ref": "#/components/schemas/AgentCrawl"
           },
           "description": "Only crawls this agent started (newest first, at most 100)."
+        }
+      }
+    },
+    "DiscoveryJob": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "profile"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid",
+          "readOnly": true
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "paused": {
+          "type": "boolean",
+          "default": false
+        },
+        "profile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,31}$"
+        },
+        "candidate_scope": {
+          "type": "string",
+          "enum": [
+            "source_regions",
+            "profile_backlog"
+          ],
+          "default": "source_regions"
+        },
+        "sources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "regions"
+            ],
+            "properties": {
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "selected",
+                  "all"
+                ],
+                "default": "selected"
+              },
+              "regions": {
+                "type": "array",
+                "maxItems": 256,
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "description": "Registered provider IDs. V1: osm, freeworld. Regions are source-specific; both is not a source ID."
+        },
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "replenish": {
+              "type": "boolean",
+              "default": true
+            },
+            "replenish_interval_hours": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8760,
+              "default": 24
+            }
+          }
+        },
+        "batch": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "max_domains": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 50
+            },
+            "max_pages": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000,
+              "default": 15
+            },
+            "depth": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10,
+              "default": 2
+            },
+            "seed_delay_seconds": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 300,
+              "default": 10
+            }
+          }
+        },
+        "processing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fresh": {
+              "type": "boolean",
+              "default": true
+            },
+            "retry": {
+              "type": "boolean",
+              "default": false
+            },
+            "recrawl": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": false
+                },
+                "days": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3650,
+                  "default": 30
+                }
+              }
+            }
+          }
+        },
+        "schedule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "every_minutes": {
+              "type": "integer",
+              "minimum": 10,
+              "maximum": 525600,
+              "default": 60
+            }
+          }
         }
       }
     }

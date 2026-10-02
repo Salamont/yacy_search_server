@@ -1,0 +1,34 @@
+/* Scoutro contributors, GPL-2.0-or-later. No new UI dependency. */
+.scd-main { max-width: 1160px; padding: 24px 28px 48px; margin-left: 18%; }
+.scd-intro, .scd-note { color: #61718a; }
+.scd-panel, .scd-job { background: #fff; border: 1px solid #dce6ef; border-radius: 14px; padding: 20px; margin: 18px 0; }
+.scd-overview, .scd-form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.scd-overview dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.scd-overview dt { color: #61718a; font-weight: 500; }
+.scd-heading, .scd-actions, .scd-checks { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.scd-heading h2 { margin-right: auto; }
+.scd-actions { margin-top: 16px; }
+.scd-actions .btn { min-height: 42px; }
+.scd-jobs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.scd-job { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.scd-job h3 { margin-top: 0; }
+.scd-job dl { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 6px; }
+.scd-job dd { margin: 0; }
+.scd-form-grid label { display: grid; gap: 5px; min-width: 0; }
+.scd-checks { margin: 20px 0; }
+.scd-checks label { padding: 8px 4px; }
+.scd-source { border: 1px solid #dce6ef; padding: 15px; border-radius: 10px; margin: 14px 0; min-width: 0; }
+.scd-source legend { font-size: 16px; padding: 0 8px; width: auto; margin-bottom: 4px; }
+.scd-region-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-height: 280px; overflow: auto; gap: 8px; padding: 12px 0; }
+.scd-region-list label { margin: 0; padding: 8px 4px; font-weight: 400; overflow-wrap: anywhere; }
+.scd-message { white-space: pre-wrap; overflow-wrap: anywhere; color: #9d322b; }
+.scd-main [hidden] { display: none !important; }
+@media (max-width: 767px) {
+  .scd-main { margin-left: 0; padding: 18px 12px 36px; }
+  .scd-overview, .scd-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .scd-jobs, .scd-region-list { grid-template-columns: minmax(0, 1fr); }
+  .scd-panel, .scd-job { padding: 15px; }
+}
+@media (max-width: 390px) { .scd-form-grid { grid-template-columns: minmax(0, 1fr); } }
+
+@media (min-width: 768px) and (max-width: 991px) { .scd-main { margin-left: 25%; } }

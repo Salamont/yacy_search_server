@@ -156,6 +156,10 @@ public class ScoutroApiServlet extends HttpServlet {
                 requireAdmin(request);
                 expect(method, parts, 3, "GET");
                 return this.actions.system();
+            case "discovery":
+                requireAdmin(request);
+                return DiscoveryApi.route(method, parts, request, response,
+                        "GET".equals(method) ? null : new net.yacy.scoutro.discovery.JsonObject(jsonBody(request)));
             case "search":
                 requireAdmin(request);
                 expect(method, parts, 3, "GET");
@@ -212,6 +216,12 @@ public class ScoutroApiServlet extends HttpServlet {
                 break;
         }
         throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+    }
+
+    @Override
+    public void destroy() {
+        net.yacy.scoutro.discovery.DiscoveryService.closeCurrent();
+        super.destroy();
     }
 
     /** 405 unless the method is allowed; also rejects extra path segments. */

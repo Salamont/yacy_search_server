@@ -83,7 +83,7 @@ final class ScoutroActions {
     static final int MAX_URL_LENGTH = 2048;
 
     /** Crawl starts are serialized so that the new crawl profile can be identified reliably. */
-    private static final Object CRAWL_START_LOCK = new Object();
+    static final Object CRAWL_START_LOCK = new Object();
 
     private final Upstream yacy;
 
@@ -460,7 +460,7 @@ final class ScoutroActions {
         return out;
     }
 
-    private static String phrase(final String value) {
+    static String phrase(final String value) {
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 

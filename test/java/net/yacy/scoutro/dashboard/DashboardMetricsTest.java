@@ -139,7 +139,7 @@ public class DashboardMetricsTest {
             Assert.assertTrue(path, Files.isRegularFile(Path.of("htroot", path)));
             count++;
         }
-        Assert.assertEquals(22, count);
+        Assert.assertEquals(23, count);
         Assert.assertFalse(html.contains("<form"));
     }
 

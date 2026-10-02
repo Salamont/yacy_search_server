@@ -91,3 +91,7 @@ Successful changes update the automation table: selected rows may run immediatel
 ## Related Pages
 
 - Related search work usually continues on `yacysearch.html`, `index.html`, `ViewFile.html`, quick crawl, or the search integration pages.
+
+## Scoutro Discovery heartbeat
+
+Scoutro Discovery Automation owns at most one `ScoutroDiscoveryTick_p.json` row, installed/enabled only by explicit admin action on `ScoutroDiscovery_p.html` or its API. Job definitions and schedules remain in Scoutro's DATA-based jobstore; do not create one WorkTables row per job. Removing/disabling the heartbeat here blocks new automation batches; reads/restarts do not recreate it. [Discovery help](ScoutroDiscovery_p.md).

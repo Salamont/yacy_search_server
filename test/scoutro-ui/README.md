@@ -118,3 +118,9 @@ languages). Check the search pages with:
 ```sh
 python3 test/scoutro-ui/check-locale-identifiers.py
 ```
+
+## Discovery Automation V1
+
+`ant scoutro-agents-test` includes the Discovery catalog/store/scheduling/recovery and real Java–Python RPC tests (network-free fake backend). `python3 -m unittest discover -s test/scoutro-discovery` includes persistent-backlog/provenance/cooldown/lock and provider tests.
+
+After `ant compile`, run `discovery-live-smoke.py` with the same JAVA/NODE_PATH/SCOUTRO_CHROMIUM_PATH settings as above. It creates a new offline index, synthetic runtime profiles/regions and State V2 in temporary DATA. It verifies admin auth, JSON/origin/revision guards, CRUD, default disabled state, explicit **paused temporary** heartbeat controls, token-protected tick, export, dynamic German/mobile editor and non-mutation of candidate state, runtime config, agents, index and queues. It accepts no production URL or DATA root. No crawl, Classification or LLM is started. Optional SCOUTRO_SCREENSHOTS saves desktop/mobile screenshots.

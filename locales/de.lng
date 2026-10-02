@@ -3557,6 +3557,7 @@ YaCy Identifier==YaCy-Identifizierer
 #-----------------------------
 
 #File: env/templates/header.template
+>Discovery Automation<==>Discovery-Automatisierung<
 >Dashboard<==>Dashboard<
 #---------------------------
 Agents &amp; Access==Agenten &amp; Zugriffe
@@ -3617,6 +3618,7 @@ Sponsor==Sponsor
 YaCy Packs &amp; Import/Export==YaCy-Packs &amp; Import/Export
 YaCy is free software, so we need the help of many to support the development.<br/><b>You</b> can help by joining a sponsoring plan:==YaCy ist freie Software, deshalb brauchen wir die Hilfe vieler, um die Entwicklung zu unterstützen.<br/><b>Sie</b> können helfen, indem Sie einem Sponsoring-Plan beitreten:
 #-----------------------------
+
 
 #File: env/templates/simpleheader.template
 #---------------------------
@@ -4847,3 +4849,91 @@ Running==Läuft
 >Hosts<==>Hosts<
 >Build<==>Build<
 Idle==Inaktiv
+
+
+>Discovery Automation<==>Discovery-Automatisierung<
+>Jobs, schedules and persistent discovery backlog<==>Jobs, Zeitpläne und persistenter Discovery-Kandidatenbestand<
+>Disabled<==>Deaktiviert<
+
+#File: ScoutroDiscovery_p.html
+>Scoutro Discovery Automation<==>Scoutro Discovery-Automatisierung<
+>Discovery Automation<==>Discovery-Automatisierung<
+>Discover websites and process a persistent backlog with the YaCy crawler.<==>Websites entdecken und einen persistenten Kandidatenbestand mit dem YaCy-Crawler abarbeiten.<
+>Automation overview<==>Automatisierungsübersicht<
+>Global status<==>Globaler Status<
+>Disabled<==>Deaktiviert<
+>Heartbeat<==>Taktgeber<
+>Jobs<==>Jobs<
+>Current batch<==>Aktueller Batch<
+>Fresh Backlog<==>Frischer Kandidatenbestand<
+>Next heartbeat<==>Nächster Takt<
+>Waiting reason<==>Wartegrund<
+>Enable automation<==>Automatisierung aktivieren<
+>Disable automation<==>Automatisierung deaktivieren<
+>Pause automation<==>Automatisierung pausieren<
+>Resume automation<==>Automatisierung fortsetzen<
+>YaCy Automation<==>YaCy-Automatisierung<
+>Crawler Monitor<==>Crawler-Monitor<
+>Pausing prevents new seeds. Crawls already accepted by YaCy continue.<==>Pausieren verhindert neue Seeds. Bereits von YaCy angenommene Crawls laufen weiter.<
+>Discovery jobs<==>Discovery-Jobs<
+>Add Job<==>Job hinzufügen<
+>Export jobs<==>Jobs exportieren<
+>No discovery jobs configured.<==>Keine Discovery-Jobs konfiguriert.<
+>Job editor<==>Job-Editor<
+>Job name<==>Jobname<
+>Profile<==>Profil<
+>Candidate scope<==>Kandidatenbereich<
+>Selected source regions<==>Ausgewählte Quellregionen<
+>Entire profile backlog<==>Gesamter Profilbestand<
+>Batch size<==>Batchgröße<
+>Max pages per website<==>Maximale Seiten pro Website<
+>Crawl depth<==>Crawl-Tiefe<
+>Delay between seeds (seconds)<==>Abstand zwischen Seeds (Sekunden)<
+>Schedule (minutes)<==>Intervall (Minuten)<
+>Discovery refresh (hours)<==>Discovery-Aktualisierung (Stunden)<
+>Recrawl after (days)<==>Erneuter Crawl nach (Tagen)<
+> Enabled<==> Aktiviert<
+> Paused<==> Pausiert<
+> Discover new candidates<==> Neue Kandidaten entdecken<
+> Process fresh candidates<==> Frische Kandidaten verarbeiten<
+> Retry after backoff or cooldown<==> Wiederholen nach Backoff oder Sperrfrist<
+> Recrawl indexed websites<==> Indexierte Websites erneut crawlen<
+>Entire profile backlog includes older entries without source provenance. Regional jobs use recorded source regions.<==>Der gesamte Profilbestand umfasst auch ältere Einträge ohne gesicherte Herkunft. Regionale Jobs verwenden gespeicherte Quellregionen.<
+>Save job<==>Job speichern<
+>Cancel<==>Abbrechen<
+>Paused<==>Pausiert<
+>Running<==>Läuft<
+>Idle<==>Bereit<
+>Due<==>Fällig<
+>Error<==>Fehler<
+>Needs review<==>Prüfung erforderlich<
+>Needs reconciliation<==>Abgleich erforderlich<
+>Waiting for crawler<==>Warten auf Crawler<
+>Waiting for capacity<==>Warten auf Kapazität<
+>No job is due<==>Kein Job ist fällig<
+>Heartbeat missing, disabled or duplicated<==>Taktgeber fehlt, ist deaktiviert oder mehrfach vorhanden<
+>YaCy crawler is paused<==>YaCy-Crawler ist pausiert<
+>Index unavailable<==>Index nicht verfügbar<
+>Waiting for system resources<==>Warten auf Systemressourcen<
+>Unconfirmed crawl start; review required<==>Unbestätigter Crawl-Start; Prüfung erforderlich<
+>Runtime configuration is missing or invalid<==>Runtime-Konfiguration fehlt oder ist ungültig<
+>Edit<==>Bearbeiten<
+>Delete<==>Löschen<
+>Enable<==>Aktivieren<
+>Disable<==>Deaktivieren<
+>Pause<==>Pausieren<
+>Resume<==>Fortsetzen<
+>Run once<==>Einmal ausführen<
+>Last run<==>Letzter Lauf<
+>Next run<==>Nächster Lauf<
+>Fresh remaining<==>Verbleibende frische Kandidaten<
+>Regions<==>Regionen<
+>Search regions<==>Suchregionen<
+>All configured regions<==>Alle konfigurierten Regionen<
+>Unsupported by this profile<==>Von diesem Profil nicht unterstützt<
+>Unavailable<==>Nicht verfügbar<
+>minutes<==>Minuten<
+>Delete this job? Candidate state and existing crawls are retained.<==>Diesen Job löschen? Kandidatenbestand und bestehende Crawls bleiben erhalten.<
+>Job saved<==>Job gespeichert<
+>OpenStreetMap / Geofabrik<==>OpenStreetMap / Geofabrik<
+>YaCy Network Search<==>YaCy-Netzwerksuche<

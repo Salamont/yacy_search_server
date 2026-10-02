@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Scoutro Discovery Automation</title>
+    #%env/templates/metas.template%#
+    <link rel="stylesheet" href="env/scoutro/discovery.css" />
+  </head>
+  <body id="ScoutroDiscovery">
+    #%env/templates/header.template%#
+    <main class="scd-main">
+      <h1>Discovery Automation</h1>
+      <p class="scd-intro">Discover websites and process a persistent backlog with the YaCy crawler.</p>
+      <p class="scd-message" id="scd-message" role="status"></p>
+      <section class="scd-panel" aria-labelledby="scd-overview-title">
+        <h2 id="scd-overview-title">Automation overview</h2>
+        <dl class="scd-overview">
+          <div><dt>Global status</dt><dd id="scd-global-status">Disabled</dd></div>
+          <div><dt>Heartbeat</dt><dd id="scd-heartbeat">—</dd></div>
+          <div><dt>Jobs</dt><dd id="scd-job-count">—</dd></div>
+          <div><dt>Current batch</dt><dd id="scd-current-batch">—</dd></div>
+          <div><dt>Fresh Backlog</dt><dd id="scd-fresh">—</dd></div>
+          <div><dt>Last run</dt><dd id="scd-last-run">—</dd></div>
+          <div><dt>Next heartbeat</dt><dd id="scd-next-heartbeat">—</dd></div>
+          <div><dt>Waiting reason</dt><dd id="scd-waiting">—</dd></div>
+        </dl>
+        <div class="scd-actions">
+          <button type="button" class="btn btn-primary" data-scd-global="enable">Enable automation</button>
+          <button type="button" class="btn btn-default" data-scd-global="disable">Disable automation</button>
+          <button type="button" class="btn btn-default" data-scd-global="pause">Pause automation</button>
+          <button type="button" class="btn btn-default" data-scd-global="resume">Resume automation</button>
+          <a href="Automation_p.html?sort=-date_recording">YaCy Automation</a>
+          <a href="Crawler_p.html">Crawler Monitor</a>
+        </div>
+        <p class="scd-note">Pausing prevents new seeds. Crawls already accepted by YaCy continue.</p>
+      </section>
+      <section aria-labelledby="scd-jobs-title">
+        <div class="scd-heading"><h2 id="scd-jobs-title">Discovery jobs</h2>
+          <button class="btn btn-primary" type="button" id="scd-add">Add Job</button>
+          <a href="scoutro/api/v1/discovery/export" download="scoutro-discovery-jobs.json">Export jobs</a>
+        </div>
+        <p id="scd-empty">No discovery jobs configured.</p>
+        <div class="scd-jobs" id="scd-jobs"></div>
+      </section>
+      <section id="scd-editor" class="scd-panel" hidden aria-labelledby="scd-editor-title">
+        <h2 id="scd-editor-title">Job editor</h2>
+        <form id="scd-job-form">
+          <div class="scd-form-grid">
+            <label>Job name<input class="form-control" id="scd-name" required maxlength="120" /></label>
+            <label>Profile<select class="form-control" id="scd-profile" required></select></label>
+            <label>Candidate scope<select class="form-control" id="scd-scope">
+              <option value="source_regions">Selected source regions</option>
+              <option value="profile_backlog">Entire profile backlog</option>
+            </select></label>
+            <label>Batch size<input class="form-control" id="scd-domains" type="number" min="1" required /></label>
+            <label>Max pages per website<input class="form-control" id="scd-pages" type="number" min="1" required /></label>
+            <label>Crawl depth<input class="form-control" id="scd-depth" type="number" min="0" required /></label>
+            <label>Delay between seeds (seconds)<input class="form-control" id="scd-delay" type="number" min="0" max="300" step="0.1" required /></label>
+            <label>Schedule (minutes)<input class="form-control" id="scd-schedule" type="number" min="10" max="525600" required /></label>
+            <label>Discovery refresh (hours)<input class="form-control" id="scd-refresh" type="number" min="1" max="8760" required /></label>
+            <label>Recrawl after (days)<input class="form-control" id="scd-recrawl-days" type="number" min="1" max="3650" required /></label>
+          </div>
+          <div class="scd-checks">
+            <label><input id="scd-enabled" type="checkbox" /> Enabled</label>
+            <label><input id="scd-paused" type="checkbox" /> Paused</label>
+            <label><input id="scd-replenish" type="checkbox" /> Discover new candidates</label>
+            <label><input id="scd-process-fresh" type="checkbox" /> Process fresh candidates</label>
+            <label><input id="scd-process-retry" type="checkbox" /> Retry after backoff or cooldown</label>
+            <label><input id="scd-process-recrawl" type="checkbox" /> Recrawl indexed websites</label>
+          </div>
+          <p class="scd-note">Entire profile backlog includes older entries without source provenance. Regional jobs use recorded source regions.</p>
+          <div id="scd-sources"></div>
+          <div class="scd-actions"><button class="btn btn-primary" type="submit">Save job</button>
+            <button class="btn btn-default" type="button" id="scd-cancel">Cancel</button></div>
+        </form>
+      </section>
+      <div id="scd-text" hidden>
+        <span data-scd-label="disabled">Disabled</span><span data-scd-label="paused">Paused</span>
+        <span data-scd-label="running">Running</span><span data-scd-label="idle">Idle</span>
+        <span data-scd-label="due">Due</span><span data-scd-label="error">Error</span>
+        <span data-scd-label="needs_review">Needs review</span><span data-scd-label="needs_reconcile">Needs reconciliation</span>
+        <span data-scd-label="waiting_for_crawler">Waiting for crawler</span><span data-scd-label="capacity">Waiting for capacity</span>
+        <span data-scd-label="no_due_job">No job is due</span><span data-scd-label="heartbeat_disabled_or_duplicate">Heartbeat missing, disabled or duplicated</span>
+        <span data-scd-label="crawler_paused">YaCy crawler is paused</span><span data-scd-label="index_unavailable">Index unavailable</span>
+        <span data-scd-label="resources">Waiting for system resources</span><span data-scd-label="submitted_unknown">Unconfirmed crawl start; review required</span>
+        <span data-scd-label="runtime_config_invalid">Runtime configuration is missing or invalid</span>
+        <span data-scd-label="edit">Edit</span><span data-scd-label="delete">Delete</span>
+        <span data-scd-label="enable">Enable</span><span data-scd-label="disable">Disable</span>
+        <span data-scd-label="pause">Pause</span><span data-scd-label="resume">Resume</span>
+        <span data-scd-label="run">Run once</span><span data-scd-label="last">Last run</span><span data-scd-label="next">Next run</span>
+        <span data-scd-label="fresh">Fresh remaining</span><span data-scd-label="profile">Profile</span>
+        <span data-scd-label="regions">Regions</span><span data-scd-label="search_regions">Search regions</span>
+        <span data-scd-label="all">All configured regions</span><span data-scd-label="unsupported">Unsupported by this profile</span>
+        <span data-scd-label="missing">Unavailable</span><span data-scd-label="minutes">minutes</span>
+        <span data-scd-label="confirm_delete">Delete this job? Candidate state and existing crawls are retained.</span>
+        <span data-scd-label="saved">Job saved</span><span data-scd-label="no_jobs">No discovery jobs configured.</span>
+        <span data-scd-label="profile_backlog">Entire profile backlog</span><span data-scd-label="osm">OpenStreetMap / Geofabrik</span><span data-scd-label="freeworld">YaCy Network Search</span>
+      </div>
+    </main>
+    <script src="env/scoutro/discovery.js"></script>
+    #%env/templates/footer.template%#
+  </body>
+</html>

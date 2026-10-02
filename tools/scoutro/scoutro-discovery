@@ -654,10 +654,10 @@ class State:
 
     BACKUP = "state.v1.json"
 
-    def __init__(self, directory):
+    def __init__(self, directory, read=True):
         self.dir = directory
         self.path = os.path.join(directory, "state.json")
-        self.data, self.disk_version, self.migrated = self._read()
+        self.data, self.disk_version, self.migrated = self._read() if read else ({}, 2, 0)
         self._run_lock = None
 
     def _load_raw(self):
@@ -789,11 +789,17 @@ def _fsync_dir(path):
 def open_state(args, run=False):
     """State for a command; run=True takes the run lock (start/classify, not for dry runs)."""
     try:
-        st = State(env_workdir(args.workdir))
+        st = State(env_workdir(args.workdir), read=not run)
+        if run:
+            if not st.acquire_run_lock():
+                sys.exit(json.dumps({"error": {"code": "busy", "message": "another start/classify run is active"}}))
+            try:
+                st.data, st.disk_version, st.migrated = st._read()
+            except BaseException:
+                st._run_lock.close()
+                raise
     except StateError as e:
         sys.exit(json.dumps({"error": {"code": "state_unreadable", "message": str(e)}}))
-    if run and not st.acquire_run_lock():
-        sys.exit(json.dumps({"error": {"code": "busy", "message": "another start/classify run is active"}}))
     return st
 
 
@@ -901,7 +907,7 @@ def cmd_resume(args):
     print(json.dumps({"paused": False, "state_file": st.path}, indent=2))
 
 
-def discover_candidates(client, profiles, regions, profile, term_limit, region_limit, region_cursor, net_limit):
+def discover_candidates(client, profiles, regions, profile, term_limit, region_limit, region_cursor, net_limit, strict=False):
     """Return (candidates, new_cursor). candidates = [{url,host,title,term,region}]."""
     terms = profiles[profile][:term_limit]
     regs = regions[region_cursor:] + regions[:region_cursor]
@@ -913,13 +919,15 @@ def discover_candidates(client, profiles, regions, profile, term_limit, region_l
             try:
                 res = client.search(q, source="network", limit=net_limit)
             except ApiError as e:
+                if strict:
+                    raise
                 sys.stderr.write(f"  discovery error for '{q}': {e}\n")
                 continue
             for r in res.get("results", []):
                 url = r.get("url", "")
                 host = urllib.parse.urlsplit(url).hostname or r.get("host", "")
                 out.append({"url": url, "host": (host or "").lower(), "title": r.get("title", ""),
-                            "term": term, "region": region})
+                            "term": term, "region": region, "source": "freeworld", "source_region": region})
     new_cursor = (region_cursor + region_limit) % max(1, len(regions))
     return out, new_cursor
 
@@ -1049,25 +1057,81 @@ def mark_retry(entry, error_class, error, now, recrawl_days, http_status=None):
 OSM_BASE_URL = "https://download.geofabrik.de/europe/germany/%s-latest.osm.pbf"
 
 
+def precheck_candidate(candidate, entry, now, recrawl_days):
+    """Shared manual/automation DNS and robots policy. None means eligible to submit."""
+    ok, info = resolve_public(candidate["host"])
+    if not ok:
+        if info.startswith("dns:"):
+            mark_retry(entry, "dns", info, now, recrawl_days)
+            return {"status": "retry:dns", "error": info}
+        entry.update({"status": "blocked", "error_class": "security",
+                      "attempts": entry.get("attempts", 0) + 1,
+                      "last_error": info, "next_attempt": now + 86400})
+        return {"status": "blocked:" + info}
+    allowed, reason = robots_allows(candidate["host"])
+    if allowed is None:
+        mark_retry(entry, "site_5xx", reason, now, recrawl_days,
+                   http_status=int(reason.rsplit(":", 1)[1]) if reason.startswith("site-5xx:") else None)
+        return {"status": "retry:site_5xx", "error": reason}
+    if not allowed:
+        entry.update({"status": "robots", "error_class": "robots", "attempts": entry.get("attempts", 0) + 1,
+                      "last_error": reason, "next_attempt": now + recrawl_days * 86400})
+        return {"status": "robots:" + reason}
+    return None
+
+
+def confirm_start(entry, result, now, recrawl_days):
+    """Legacy last_crawl means accepted submission, not successful indexing."""
+    entry.update({"status": "crawled", "error_class": "", "last_crawl": now, "attempts": 0,
+                  "last_error": "", "last_http_status": None,
+                  "next_attempt": now + recrawl_days * 86400, "crawl_id": result.get("id")})
+
+
 def _ogr2ogr(argv):
     if shutil.which("ogr2ogr") is None:
-        sys.exit("--source osm needs ogr2ogr (GDAL OSM driver); install the 'gdal-tools' package")
-    subprocess.run(["ogr2ogr"] + argv, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        sys.exit("--source osm needs ogr2ogr (GDAL OSM driver); install the 'gdal-bin' package")
+    subprocess.run(["ogr2ogr"] + argv, check=True, timeout=900,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def download_pbf(slug, dest):
     url = OSM_BASE_URL % slug
     sys.stderr.write("  downloading " + url + "\n")
-    subprocess.run(["curl", "-sL", "-o", dest, url], check=True)
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,99}", slug):
+        raise ValueError("invalid OSM region")
+    part = dest + ".part"
+    try:
+        subprocess.run(["curl", "--fail", "--silent", "--show-error", "--location",
+                        "--proto", "=https", "--proto-redir", "=https", "--connect-timeout", "20",
+                        "--max-time", "600", "--max-filesize", "5368709120", "-o", part, url],
+                       check=True, timeout=610, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if not os.path.getsize(part):
+            raise ValueError("empty OSM download")
+        with open(part, "rb") as fh:
+            os.fsync(fh.fileno())
+        os.replace(part, dest)
+        _fsync_dir(os.path.dirname(dest))
+    finally:
+        if os.path.exists(part):
+            os.remove(part)
 
 
 def extract_region(pbf, where, workdir):
     out = {}
     for layer in ("points", "multipolygons"):
-        gj = os.path.join(workdir, os.path.basename(pbf) + "." + layer + ".geojson")
-        _ogr2ogr(["-f", "GeoJSON", gj, pbf, layer, "-where", where])
+        gj = os.path.join(workdir, os.path.basename(pbf) + "." + layer + ".geojsons")
+        _ogr2ogr(["-overwrite", "-f", "GeoJSONSeq", gj, pbf, layer, "-where", where])
         out[layer] = gj
     return out
+
+
+def osm_features(path):
+    """GDAL GeoJSONSeq: one feature at a time instead of a whole extract in RAM."""
+    with open(path, encoding="utf-8") as stream:
+        for line in stream:
+            line = line.lstrip("\x1e").strip()
+            if line:
+                yield json.loads(line)
 
 
 def collect_osm_candidates(regions, profile_names, osm_cfg, workdir, keep_pbf):
@@ -1088,9 +1152,7 @@ def collect_osm_candidates(regions, profile_names, osm_cfg, workdir, keep_pbf):
         domains = {p: set() for p in profile_names}
         geojsons = extract_region(pbf, where, osm_dir)
         for gj in geojsons.values():
-            with open(gj, encoding="utf-8") as fh:
-                data = json.load(fh)
-            for feat in data.get("features", []):
+            for feat in osm_features(gj):
                 props = feat.get("properties", {}) or {}
                 tags = parse_hstore(props.get("other_tags", ""))
                 if props.get("name"):
@@ -1113,7 +1175,11 @@ def collect_osm_candidates(regions, profile_names, osm_cfg, workdir, keep_pbf):
                         continue
                     domains[p].add(rd)
                     candidates[p].setdefault(rd, {"url": web, "host": host, "title": tags.get("name", ""),
-                                                  "source": "osm", "region": tags.get("addr:city", slug)})
+                                                  "source": "osm", "source_region": slug,
+                                                  "region": tags.get("addr:city", slug), "origins": []})
+                    origin = {"source": "osm", "source_region": slug}
+                    if origin not in candidates[p][rd]["origins"]:
+                        candidates[p][rd]["origins"].append(origin)
         for p in profile_names:
             stats[slug][p]["domains"] = len(domains[p])
         if not keep_pbf:
@@ -1126,7 +1192,7 @@ def collect_osm_candidates(regions, profile_names, osm_cfg, workdir, keep_pbf):
 
 
 def cmd_start(args):
-    cfg = args.config_dir or DEFAULT_CONFIG_DIR
+    cfg = args.config_dir or os.environ.get("SCOUTRO_CONFIG_ROOT") or DEFAULT_CONFIG_DIR
     profiles = load_profiles(os.path.join(cfg, "profiles.conf"))
     regions = load_regions(os.path.join(cfg, "regions.txt"))
     if not profiles:
@@ -1205,37 +1271,17 @@ def cmd_start(args):
             if args.dry_run:
                 started.append({"domain": rd, "url": c["url"], "source": c.get("source", ""), "status": "dry-run"})
                 continue
-            ok, info = resolve_public(c["host"])
-            if not ok:
-                if info.startswith("dns:"):          # C: DNS / temporary network problem
-                    mark_retry(entry, "dns", info, now, args.recrawl_days)
-                    started.append({"domain": rd, "status": "retry:dns", "error": info})
-                else:                                # E: security block (unchanged)
-                    entry.update({"status": "blocked", "error_class": "security", "attempts": entry.get("attempts", 0) + 1,
-                                  "last_error": info, "next_attempt": now + 86400})
-                    started.append({"domain": rd, "status": "blocked:" + info})
+            preliminary = precheck_candidate(c, entry, now, args.recrawl_days)
+            if preliminary is not None:
+                if entry.get("status") == "robots":
+                    robots_blocked += 1
                 st.put_profile_entry(rd, name, entry, now)
-                continue
-            ro, rreason = robots_allows(c["host"])
-            if ro is None:                           # D: site answers 5xx
-                mark_retry(entry, "site_5xx", rreason, now, args.recrawl_days,
-                           http_status=int(rreason.rsplit(":", 1)[1]) if rreason.startswith("site-5xx:") else None)
-                st.put_profile_entry(rd, name, entry, now)
-                started.append({"domain": rd, "status": "retry:site_5xx", "error": rreason})
-                continue
-            if not ro:                               # E: robots (unchanged)
-                robots_blocked += 1
-                entry.update({"status": "robots", "error_class": "robots", "attempts": entry.get("attempts", 0) + 1,
-                              "last_error": rreason, "next_attempt": now + args.recrawl_days * 86400})
-                st.put_profile_entry(rd, name, entry, now)
-                started.append({"domain": rd, "status": "robots:" + rreason})
+                started.append(dict(preliminary, domain=rd))
                 continue
             try:
                 res = client.crawl_start(c["url"], collection_for(rules, name),
                                          depth=args.depth, max_pages=args.max_pages)
-                entry.update({"status": "crawled", "error_class": "", "last_crawl": now, "attempts": 0,
-                              "last_error": "", "last_http_status": None,
-                              "next_attempt": now + args.recrawl_days * 86400, "crawl_id": res.get("id")})
+                confirm_start(entry, res, now, args.recrawl_days)
                 st.put_profile_entry(rd, name, entry, now)
                 started.append({"domain": rd, "url": c["url"], "crawl_id": res.get("id"), "status": "started"})
                 upstream_errors_in_row = 0
@@ -1388,7 +1434,7 @@ def make_classifier(args, rules, opener=None):
 
 
 def cmd_classify(args):
-    cfg = args.config_dir or DEFAULT_CONFIG_DIR
+    cfg = args.config_dir or os.environ.get("SCOUTRO_CONFIG_ROOT") or DEFAULT_CONFIG_DIR
     rules = load_rules(cfg)
     names = [args.profile] if args.profile else sorted(rules["profiles"])
     for n in names:
@@ -1582,6 +1628,11 @@ def main():
     p.add_argument("--config-dir", help="directory with profiles.conf, profiles.json and regions.txt")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    automation = sub.add_parser("automation", help="controlled stdin/stdout automation protocol; no credentials")
+    def automation_command(args):
+        import scoutro_automation
+        scoutro_automation.run(args, sys.modules[__name__])
+    automation.set_defaults(func=automation_command)
     sub.add_parser("status", help="show discovery state").set_defaults(func=cmd_status)
     sub.add_parser("pause", help="pause discovery").set_defaults(func=cmd_pause)
     sub.add_parser("resume", help="resume discovery").set_defaults(func=cmd_resume)
