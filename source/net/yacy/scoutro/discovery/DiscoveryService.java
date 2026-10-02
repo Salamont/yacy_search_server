@@ -11,6 +11,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
+import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.scoutro.discovery.JsonArray;
 import net.yacy.scoutro.discovery.JsonObject;
 import net.yacy.scoutro.api.ApiException;
@@ -229,6 +230,8 @@ public final class DiscoveryService implements AutoCloseable {
         this.executor.execute(() -> {
             try { advance(); }
             catch (final Exception e) {
+                if (!(e instanceof ApiException)) ConcurrentLog.severe("ScoutroDiscovery",
+                        "Unexpected coordinator failure (exception messages redacted)", diagnostic(e, 0));
                 this.waiting = e instanceof ApiException ? ((ApiException) e).code() : "coordinator_error";
                 try {
                     change(null, next -> {
@@ -239,6 +242,13 @@ public final class DiscoveryService implements AutoCloseable {
             } finally { this.busy.set(false); }
         });
         return new JsonObject().put("accepted", true);
+    }
+    /** Preserve exception types, causes and call sites without external URLs, credentials or payloads. */
+    private static Throwable diagnostic(final Throwable failure, final int depth) {
+        final Throwable safe = new Throwable(failure.getClass().getName());
+        safe.setStackTrace(failure.getStackTrace());
+        if (failure.getCause() != null && depth < 8) safe.initCause(diagnostic(failure.getCause(), depth + 1));
+        return safe;
     }
     /** Public for deterministic tests; production only executes it on the single coordinator. */
     public void advance() throws Exception {
@@ -400,7 +410,7 @@ public final class DiscoveryService implements AutoCloseable {
         for (final Object value : crawls) {
             final JsonObject crawl = (JsonObject) value;
             ids.put(crawl.getString("id"), crawl);
-            if (!crawl.optString("startMarker").isEmpty()) markers.put(crawl.getString("startMarker"), crawl);
+            if (!crawl.isNull("startMarker") && !crawl.optString("startMarker").isEmpty()) markers.put(crawl.getString("startMarker"), crawl);
         }
         final AtomicBoolean unresolved = new AtomicBoolean();
         change(null, root -> {

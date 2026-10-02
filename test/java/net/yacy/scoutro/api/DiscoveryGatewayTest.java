@@ -22,6 +22,18 @@ public class DiscoveryGatewayTest {
     }
     private JsonObject seed() { return new JsonObject().put("url","https://example.com/").put("collection","custom-index").put("scope","domain").put("maxPages",15).put("depth",2); }
     private static final String MARKER="0123456789abcdef0123456789abcdef";
+    @Test public void ordinaryYaCyCrawlHasJsonNullStartMarker() throws Exception {
+        final Bridge bridge = new Bridge();
+        final FakeUpstream.Crawl ordinary = new FakeUpstream.Crawl("ordinary", "example.org", "custom-index");
+        ordinary.status = "passive";
+        bridge.yacy.crawls.put(ordinary.id, ordinary);
+        final JsonObject crawl = new DiscoveryGateway(bridge).crawls().getJSONObject(0);
+        assertEquals("ordinary", crawl.getString("id")); assertEquals("terminated", crawl.getString("state"));
+        assertTrue(crawl.has("startMarker")); assertTrue(crawl.isNull("startMarker"));
+        // The bundled org.json coerces JSON null to "null", not the empty fallback.
+        assertEquals("null", crawl.optString("startMarker"));
+        assertEquals(0, bridge.yacy.calls("Crawler_p.json").size());
+    }
     @Test public void actualStartUsesExistingCrawlerApiAndMarker() throws Exception {
         Bridge bridge=new Bridge(); JsonObject result=new DiscoveryGateway(bridge).start(seed(),MARKER);
         assertEquals(MARKER,result.getString("startMarker")); assertEquals(1,bridge.yacy.calls("Crawler_p.json").size());

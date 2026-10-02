@@ -8,6 +8,12 @@ import java.nio.file.Path;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
+import java.util.logging.SimpleFormatter;
 import org.junit.*;
 import org.junit.rules.TemporaryFolder;
 import net.yacy.data.WorkTables;
@@ -158,6 +164,125 @@ public class DiscoveryAutomationTest {
         assertEquals(1, this.backend.starts); this.backend.crawls.getJSONObject(0).put("state", "terminated"); this.service.advance();
         assertTrue(this.service.store.read().isNull("active_run")); assertEquals(1, this.backend.starts);
     }
+    @Test public void threeTerminatedCrawlsConfirmAndCompleteThroughRealPython() throws Exception {
+        final int[] acknowledgements = {0};
+        this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
+            if ("confirm".equals(init.getString("operation"))) {
+                assertEquals(3, init.getJSONArray("confirmations").length());
+                assertEquals(active().getString("config_revision"), RuntimeCatalog.load(snapshot).revision());
+                return DiscoveryProcess.run(script, stateDir, snapshot, init, (action, params) -> {
+                    assertEquals("ack", action);
+                    final JsonObject persisted = new JsonObject(Files.readString(stateDir.resolve("state.json")));
+                    assertEquals(3, persisted.getJSONObject("domains").length());
+                    final JsonObject reply = handler.request(action, params);
+                    for (final Object value : active().getJSONArray("attempts")) {
+                        final JsonObject attempt = (JsonObject) value;
+                        if (params.getString("attempt_id").equals(attempt.getString("id"))) assertTrue(attempt.getBoolean("state_applied"));
+                    }
+                    acknowledgements[0]++;
+                    return reply;
+                }, timeout);
+            }
+            assertEquals("run", init.getString("operation"));
+            for (final String domain : java.util.List.of("example.com", "example.org", "example.net")) {
+                handler.request("crawl", new JsonObject().put("domain", domain).put("url", "https://" + domain + "/"));
+            }
+            return new JsonObject().put("report", new JsonObject().put("processed", 5));
+        };
+        Files.createDirectories(this.state);
+        Files.writeString(this.state.resolve("state.json"), "{\"state_version\":2,\"paused\":true,\"domains\":{\"example.com\":{\"profiles\":{\"other\":{\"classification\":\"KEEP\"}}}}}");
+        open(); final String jobId = create("Three crawls"); enable();
+        this.service.advance();
+        final String runId = active().getString("id");
+        assertEquals("waiting_for_crawler", active().getString("phase"));
+        for (final Object value : active().getJSONArray("attempts")) {
+            final JsonObject attempt = (JsonObject) value;
+            assertEquals("accepted", attempt.getString("state"));
+            assertFalse(attempt.getBoolean("state_applied"));
+        }
+        for (final Object value : this.backend.crawls) ((JsonObject) value).put("state", "terminated");
+        // Existing YaCy profiles without a Scoutro marker are returned as JSON null.
+        this.backend.crawls.put(new JsonObject().put("id", "ordinary-yacy-crawl").put("state", "terminated")
+                .put("startMarker", JsonObject.NULL));
+        this.backend.crawls.put(new JsonObject().put("id", "empty-marker-crawl").put("state", "running").put("startMarker", ""));
+        this.backend.crawls.put(new JsonObject().put("id", "missing-marker-crawl").put("state", "running"));
+        Files.writeString(this.config.resolve("profiles.json"), "{}"); // Recovery uses the reserved snapshot.
+        this.service.store.change(null, root -> root.put("enabled", false)); this.heartbeat.disable();
+        this.service.close(); open();
+        this.service.advance();
+        final JsonObject root = this.service.store.read();
+        assertEquals(3, acknowledgements[0]);
+        assertTrue(root.isNull("active_run"));
+        assertEquals(1, root.getJSONArray("history").length());
+        final JsonObject last = JobStore.job(root, jobId).getJSONObject("runtime").getJSONObject("last_run");
+        assertEquals(runId, last.getString("id"));
+        assertEquals(3, last.getInt("attempt_count"));
+        assertEquals(5, last.getJSONObject("report").getInt("processed"));
+        assertTrue(last.has("finished_at"));
+        assertEquals(last.toString(), root.getJSONArray("history").getJSONObject(0).toString());
+        final JsonObject persisted = new JsonObject(Files.readString(this.state.resolve("state.json")));
+        assertTrue(persisted.getBoolean("paused"));
+        assertEquals("KEEP", persisted.getJSONObject("domains").getJSONObject("example.com").getJSONObject("profiles")
+                .getJSONObject("other").getString("classification"));
+        for (final Object value : this.backend.crawls) {
+            final JsonObject crawl = (JsonObject) value;
+            if (crawl.getString("id").startsWith("crawl-")) assertTrue(Files.readString(this.state.resolve("state.json")).contains(crawl.getString("id")));
+        }
+        assertEquals(3, this.backend.starts);
+        this.service.advance();
+        assertEquals(3, this.backend.starts);
+        assertEquals(1, this.service.store.read().getJSONArray("history").length());
+    }
+    @Test public void unexpectedReconcileFailureLogsSafeCauseAndStackWithoutLeakingToApi() throws Exception {
+        open(); create("Job"); enable(); this.service.advance();
+        this.backend.crawlFailure = new IllegalStateException("https://secret-user:secret-password@private.invalid/",
+                new IOException("secret-token"));
+        final Logger logger = Logger.getLogger("ScoutroDiscovery");
+        final boolean parents = logger.getUseParentHandlers(); final Level level = logger.getLevel();
+        final AtomicReference<LogRecord> diagnostic = new AtomicReference<>();
+        final CountDownLatch logged = new CountDownLatch(1);
+        final Handler handler = new Handler() {
+            @Override public void publish(final LogRecord record) { diagnostic.set(record); logged.countDown(); }
+            @Override public void flush() { }
+            @Override public void close() { }
+        };
+        logger.setUseParentHandlers(false); logger.setLevel(Level.ALL); logger.addHandler(handler);
+        try {
+            assertTrue(this.service.tick().getBoolean("accepted")); assertTrue(logged.await(5, TimeUnit.SECONDS));
+            final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            while (!"needs_reconcile".equals(active().getString("phase")) && System.nanoTime() < deadline) Thread.sleep(10);
+            assertEquals("needs_reconcile", active().getString("phase"));
+            assertEquals("coordinator_error", active().getString("error"));
+            final JsonObject status = this.service.status();
+            assertEquals("coordinator_error", status.getString("waiting_reason"));
+            assertFalse(status.toString().contains("secret-")); assertFalse(status.toString().contains("IllegalStateException"));
+            assertFalse(status.toString().contains("DiscoveryService.reconcile"));
+            final LogRecord record = diagnostic.get(); assertEquals(Level.SEVERE, record.getLevel());
+            assertNotNull(record.getThrown());
+            final String rendered = new SimpleFormatter().format(record);
+            assertTrue(rendered.contains("java.lang.IllegalStateException")); assertTrue(rendered.contains("java.io.IOException"));
+            assertTrue(rendered.contains("DiscoveryService.reconcile")); assertTrue(rendered.contains("FakeBackend.crawls"));
+            assertFalse(rendered.contains("secret-")); assertFalse(rendered.contains("private.invalid"));
+            assertEquals(1, this.backend.starts);
+            assertTrue(this.service.store.read().getJSONArray("history").isEmpty());
+        } finally { logger.removeHandler(handler); logger.setUseParentHandlers(parents); logger.setLevel(level); }
+    }
+    @Test public void unmarkedCrawlCannotResolveUnknownStart() throws Exception {
+        open(); create("Job"); enable(); this.backend.loseReply = true; this.backend.retain = false; this.service.advance();
+        this.backend.crawls.put(new JsonObject().put("id", "ordinary").put("state", "terminated").put("startMarker", JsonObject.NULL));
+        this.service.advance(); this.service.advance();
+        assertEquals("needs_review", active().getString("phase")); assertEquals("submitted_unknown", active().getString("error"));
+        assertEquals("submitted_unknown", active().getJSONArray("attempts").getJSONObject(0).getString("state"));
+        assertEquals(1, this.backend.starts); assertTrue(this.service.store.read().getJSONArray("history").isEmpty());
+    }
+    @Test public void acceptedMissingCrawlStaysNeedsReviewWithoutResubmitting() throws Exception {
+        open(); create("Job"); enable(); this.service.advance(); this.backend.crawls = new JsonArray();
+        this.service.advance(); this.service.advance();
+        assertEquals("needs_review", active().getString("phase")); assertEquals("crawl_status_unknown", active().getString("error"));
+        assertEquals("accepted", active().getJSONArray("attempts").getJSONObject(0).getString("state"));
+        assertTrue(active().getJSONArray("attempts").getJSONObject(0).getBoolean("state_applied"));
+        assertEquals(1, this.backend.starts); assertTrue(this.service.store.read().getJSONArray("history").isEmpty());
+    }
     @Test public void unknownStartReconcilesByMarkerAndDoesNotDoubleStart() throws Exception {
         open(); create("Job"); enable(); this.backend.loseReply = true; this.service.advance();
         assertEquals("submitted_unknown", active().getJSONArray("attempts").getJSONObject(0).getString("state"));
@@ -247,10 +372,13 @@ public class DiscoveryAutomationTest {
         assertTrue(Files.readString(this.state.resolve("state.json")).contains("submitted_unknown"));
     }
     private static class FakeBackend implements DiscoveryService.Backend {
-        int starts; boolean allowed = true, loseReply, retain = true; Runnable before;
+        int starts; boolean allowed = true, loseReply, retain = true; Runnable before; RuntimeException crawlFailure;
         JsonArray crawls = new JsonArray();
         public JsonObject capacity() { return new JsonObject().put("allowed", allowed).put("reason", "capacity"); }
-        public JsonArray crawls() { return crawls; }
+        public JsonArray crawls() {
+            if (crawlFailure != null) { crawlFailure.fillInStackTrace(); throw crawlFailure; }
+            return crawls;
+        }
         public JsonObject search(JsonObject p) { throw new AssertionError("Unexpected source call"); }
         public JsonObject start(JsonObject p, String marker) throws ApiException {
             if (before != null) before.run(); starts++;
