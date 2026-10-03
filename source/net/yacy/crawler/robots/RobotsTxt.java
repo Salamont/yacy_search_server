@@ -182,7 +182,7 @@ public class RobotsTxt {
                     if (log.isFine()) log.fine("Trying to download the robots.txt file from URL '" + robotsURL + "'.");
                     final Request request = new Request(robotsURL, null);
                     try {
-                        response = RobotsTxt.this.loader.load(request, CacheStrategy.NOCACHE, null, agent);
+                        response = RobotsTxt.this.loader.loadRobots(request, agent);
                     } catch (final Throwable e) {
                         log.info("Trying to download the robots.txt file from URL '" + robotsURL.toNormalform(false) + "' failed - " + e.getMessage());
                         response = null;
@@ -244,7 +244,7 @@ public class RobotsTxt {
                         if (log.isFine()) log.fine("Trying to download the robots.txt file from URL '" + robotsURL + "'.");
                         final Request request = new Request(robotsURL, null);
                         try {
-                            response = RobotsTxt.this.loader.load(request, CacheStrategy.NOCACHE, null, agent);
+                            response = RobotsTxt.this.loader.loadRobots(request, agent);
                         } catch (final IOException e) {
                             response = null;
                         }

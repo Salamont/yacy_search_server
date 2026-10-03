@@ -162,6 +162,15 @@ public final class LoaderDispatcher {
     	return this.load(request, cacheStrategy, this.protocolMaxFileSize(request.url()), blacklistType, agent);
     }
 
+    /** Fetch robots with an explicit context that survives every HTTP redirect. */
+    public Response loadRobots(final Request request, final ClientIdentification.Agent agent) throws IOException {
+        final String protocol = request.url().getProtocol();
+        if (!"http".equals(protocol) && !"https".equals(protocol)) {
+            throw new IOException("robots target requires HTTP or HTTPS");
+        }
+        return this.load(request, CacheStrategy.NOCACHE, this.protocolMaxFileSize(request.url()), null, agent, true);
+    }
+
     /**
      * loads a resource from cache or web/ftp/smb/file
      * on concurrent execution waits max 5 sec for the prev. loader to fill the cache (except for CacheStrategy.NOCACHE)
@@ -175,6 +184,11 @@ public final class LoaderDispatcher {
      * @throws IOException
      */
     public Response load(final Request request, final CacheStrategy cacheStrategy, final int maxFileSize, final BlacklistType blacklistType, ClientIdentification.Agent agent) throws IOException {
+        return this.load(request, cacheStrategy, maxFileSize, blacklistType, agent, false);
+    }
+
+    private Response load(final Request request, final CacheStrategy cacheStrategy, final int maxFileSize,
+            final BlacklistType blacklistType, final ClientIdentification.Agent agent, final boolean robots) throws IOException {
         Semaphore check = this.loaderSteering.get(request.url());
         if (check != null && cacheStrategy != CacheStrategy.NOCACHE) {
             // a loading process is going on for that url
@@ -188,7 +202,7 @@ public final class LoaderDispatcher {
 
         this.loaderSteering.put(request.url(), new Semaphore(0));
         try {
-            final Response response = this.loadInternal(request, cacheStrategy, maxFileSize, blacklistType, agent);
+            final Response response = this.loadInternal(request, cacheStrategy, maxFileSize, blacklistType, agent, robots);
             // finally block cleans up loaderSteering and semaphore
             return response;
         } catch (final IOException e) {
@@ -210,7 +224,7 @@ public final class LoaderDispatcher {
      * @return the loaded entity in a Response object
      * @throws IOException
      */
-    private Response loadInternal(final Request request, CacheStrategy cacheStrategy, final int maxFileSize, final BlacklistType blacklistType, ClientIdentification.Agent agent) throws IOException {
+    private Response loadInternal(final Request request, CacheStrategy cacheStrategy, final int maxFileSize, final BlacklistType blacklistType, ClientIdentification.Agent agent, final boolean robots) throws IOException {
         // get the protocol of the next URL
         final DigestURL url = request.url();
         if (url.isFile() || url.isSMB()) cacheStrategy = CacheStrategy.NOCACHE; // load just from the file system
@@ -252,7 +266,8 @@ public final class LoaderDispatcher {
 
         // load resource from the internet
         if (protocol.equals("http") || protocol.equals("https")) {
-            response = this.httpLoader.load(request, crawlProfile, maxFileSize, blacklistType, agent);
+            response = robots ? this.httpLoader.loadRobots(request, maxFileSize, agent)
+                    : this.httpLoader.load(request, crawlProfile, maxFileSize, blacklistType, agent);
         } else if (protocol.equals("ftp")) {
             response = this.ftpLoader.load(request, true);
         } else if (protocol.equals("smb")) {

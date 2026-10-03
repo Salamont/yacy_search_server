@@ -294,6 +294,40 @@
     </java>
   </target>
 
+  <target name="robots-redirect-security-test" depends="compile" description="offline robots HTTP/DNS redirect security and compatibility tests">
+    <mkdir dir="build/robots-security-tests" />
+    <!-- Keep even Domains' local-interface initialization off real DNS. -->
+    <echo file="build/robots-security-tests/hosts">127.0.0.1 localhost
+::1 localhost
+</echo>
+    <javac srcdir="${test}" destdir="build/robots-security-tests" release="${javacRelease}"
+           encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/crawler/retrieval/RobotsRedirectSecurityTest.java" />
+      <include name="net/yacy/crawler/robots/RobotsTxtTest.java" />
+      <include name="net/yacy/cora/protocol/Domains*Test.java" />
+      <classpath>
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true">
+      <jvmarg value="-Djdk.net.hosts.file=${yacyroot}/build/robots-security-tests/hosts" />
+      <arg value="net.yacy.crawler.retrieval.RobotsRedirectSecurityTest" />
+      <arg value="net.yacy.crawler.robots.RobotsTxtTest" />
+      <arg value="net.yacy.cora.protocol.DomainsTest" />
+      <arg value="net.yacy.cora.protocol.DomainsPublicAddressTest" />
+      <classpath>
+        <pathelement location="build/robots-security-tests" />
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </java>
+  </target>
+
   <target name="locale-refresh-test" depends="compile" description="test generated locale refresh against temporary DATA">
     <mkdir dir="build/locale-refresh-tests" />
     <javac srcdir="${test}" destdir="build/locale-refresh-tests" release="${javacRelease}"

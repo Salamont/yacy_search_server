@@ -28,6 +28,7 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest.mock import Mock, patch
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -1127,28 +1128,14 @@ class DigestClientTests(unittest.TestCase):
 
 class RobotsSiteErrorTests(unittest.TestCase):
     def test_robots_5xx_is_a_transient_site_error(self):
-        class H(BaseHTTPRequestHandler):
-            def log_message(self, *a):
-                pass
-
-            def do_GET(self):
-                self.send_response(503)
-                self.end_headers()
-        srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
-        orig = disc.urllib.request.urlopen
-
-        def fake(req, timeout=None):     # both schemes to the local 503 server
-            u = urllib.parse.urlsplit(req.full_url)
-            return orig(urllib.request.Request("http://127.0.0.1:%d%s" % (srv.server_address[1], u.path),
-                                               headers=dict(req.header_items())), timeout=timeout)
-        disc.urllib.request.urlopen = fake
-        try:
+        # Fake both HTTP schemes and DNS; robots uses its guarded opener.
+        error = disc.urllib.error.HTTPError("https://site.de/robots.txt", 503, "unavailable", {}, None)
+        opener = Mock()
+        opener.open.side_effect = error
+        with patch.object(disc.urllib.request, "build_opener", return_value=opener), \
+                patch.object(disc, "resolve_public", return_value=(True, "8.8.8.8")):
             self.assertEqual(disc.robots_allows("site.de"), (None, "site-5xx:503"))
-        finally:
-            disc.urllib.request.urlopen = orig
-            srv.shutdown()
-            srv.server_close()
+        self.assertEqual(opener.open.call_count, 2)
 
 
 class StartReliabilityTests(unittest.TestCase):
