@@ -2,8 +2,12 @@ package net.yacy.data;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -75,6 +79,50 @@ public class TranslatorTest {
                 translator.translate(new StringBuilder("servlet share.json"), translationTable));
         assertEquals("http://localhost:8090/Network.html",
                 translator.translate(new StringBuilder("http://localhost:8090/Network.html"), translationTable));
+    }
+
+    @Test
+    public void testLlmSelectionLocalesPreserveIdentifiersAndModelDiscovery() throws Exception {
+        final Translator translator = new Translator();
+        final String source = Files.readString(Path.of("htroot/LLMSelection_p.html"));
+        try (java.util.stream.Stream<Path> locales = Files.list(Path.of("locales"))) {
+            for (final Path locale : locales.filter(path -> path.toString().endsWith(".lng")).toList()) {
+                final Map<String, String> dictionary = translator.loadTranslationsLists(locale.toFile())
+                        .get("LLMSelection_p.html");
+                if (dictionary == null) continue;
+                final String translated = translator.translate(new StringBuilder(source), dictionary);
+                assertEquals(locale.toString(), htmlIdentifiers(source), htmlIdentifiers(translated));
+                for (final String invariant : new String[] {
+                        "function ensureServiceRow(service, hoststub)", "tdService.textContent = service ||",
+                        "document.getElementById(\"service\")", "service === \"OLLAMA\"",
+                        "function modelIdForService(service, model)", "payload.models", "payload.data",
+                        "model.model || model.name", "serviceSelect.value", "service-num-ctx",
+                        "\"service\"", "\"model\"", "proxyUrl(hoststub, endpoint)"}) {
+                    assertTrue(locale + " changed executable identifier: " + invariant, translated.contains(invariant));
+                }
+                assertTrue(locale + " missing discovery message", dictionary.containsKey("Failed to load models."));
+            }
+        }
+    }
+
+    @Test
+    public void testLlmSelectionGermanLabelsAreScopedToVisibleMarkup() throws Exception {
+        final Translator translator = new Translator();
+        final Map<String, String> dictionary = translator.loadTranslationsLists(Path.of("locales/de.lng").toFile())
+                .get("LLMSelection_p.html");
+        final String translated = translator.translate(new StringBuilder(
+                "<td>service</td><td>model</td><span class=\"info\"><img alt=\"info\"/></span>"), dictionary);
+        assertEquals("<td>Dienst</td><td>Modell</td><span class=\"info\"><img alt=\"Info\"/></span>", translated);
+        assertFalse(dictionary.containsKey("service"));
+        assertFalse(dictionary.containsKey("model"));
+        assertFalse(dictionary.containsKey("\"info\""));
+    }
+
+    private static Set<String> htmlIdentifiers(final String html) {
+        final Set<String> identifiers = new HashSet<>();
+        final Matcher matcher = Pattern.compile("\\b(?:class|id|name|for)\\s*=\\s*\"([^\"#]*)\"").matcher(html);
+        while (matcher.find()) identifiers.add(matcher.group());
+        return identifiers;
     }
 
 }

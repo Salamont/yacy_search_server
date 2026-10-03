@@ -13,8 +13,8 @@ page renames that token in the translated copy: e.g. "search==suchen" turned
 into id="suchen", so the Scoutro styles and the autocomplete no longer matched.
 
 Usage:  python3 test/scoutro-ui/check-locale-identifiers.py [page.html ...]
-Without arguments the Scoutro search pages are checked (index.html,
-yacysearch.html). Exit status 1 lists every collision.
+Without arguments the Scoutro search pages and LLM selection are checked
+(index.html, yacysearch.html, LLMSelection_p.html). Exit status 1 lists every collision.
 """
 
 import re
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PAGES = sys.argv[1:] or ["index.html", "yacysearch.html"]
+PAGES = sys.argv[1:] or ["index.html", "yacysearch.html", "LLMSelection_p.html"]
 ATTR = re.compile(r'\b(?:class|id|name|for)\s*=\s*"([^"#]*)"')
 
 

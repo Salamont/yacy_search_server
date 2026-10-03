@@ -2101,20 +2101,20 @@ words/minute==言葉/minute
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="情報"
+alt="info"==alt="情報"
 LLM Selection==LLM 選択
 Here you can pick models from an LLM model service to select them as production model.==ここでは、LLM モデル サービスからモデルを選択して、実稼働モデルとして選択できます。
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==「運用モデル マトリックス」では、選択した各モデルに YaCy 内の機能を割り当てることができます。
 Service Selection==サービスの選択
-service==サービス
+>service<==>サービス<
 Ollama==Ollama
 LMStudio==LMスタジオ
 OpenAI==OpenAI
 Open Router==オープンルーター
 This makes a preset to the Hoststub value==これにより、ホストスタブ値がプリセットされます。
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==おそらくこれをデフォルト値のままにしておくことができます
-api_key==API_キー
+>api_key<==>API_キー<
 (not required for Ollama or LMStudio)==(Ollama または LMStudio には必要ありません)
 Services==サービス
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> は、サービスごとの推論サービス &mdash; のコンテキスト ウィンドウ (トークン単位) です。
@@ -2123,18 +2123,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==上で選択したサービスが、保存された (またはデフォルトの) ウィンドウとともに自動的にここに表示されます。
 This value is <b>advisory</b>: set it to match the window your backend actually serves==この値は <b>advisory</b> です。バックエンドが実際に提供するウィンドウと一致するように設定します。
 Context Length setting). YaCy does not enforce it on the backend.==コンテキストの長さの設定)。 YaCy はバックエンドに強制しません。
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==モデルのダウンロード
 Production Models Matrix==運用モデル マトリックス
-model==モデル
-max_tokens==max_tokens
+>model<==>モデル<
+>max_tokens<==>max_tokens<
 search-answers==検索回答
 This model creates answers for search requests==このモデルは検索リクエストに対する回答を作成します
-chat==チャット
+>chat<==>チャット<
 This model is used in the chat interface and as default for the RAG proxy==このモデルはチャット インターフェイスで使用され、RAG プロキシのデフォルトとして使用されます。
-translation==翻訳
+>translation<==>翻訳<
 This model can be used to make translations of the web UI==このモデルは、Web UI の翻訳に使用できます。
-classification==分類
+>classification<==>分類<
 This model is used to classify prompts to find out what they demand==このモデルは、プロンプトを分類してプロンプトが要求するものを見つけるために使用されます。
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==このモデルは、RAG またはチャットのプロンプトから YaCy 検索するための検索クエリを生成します。
@@ -2144,17 +2144,25 @@ tldr-shortener==tldr-短縮者
 This model is used to make summaries from web content==このモデルは、Web コンテンツから要約を作成するために使用されます
 log-report==ログレポート
 This model evaluates YaCy runtime logs and creates self-enhancement reports==このモデルは YaCy ランタイム ログを評価し、自己拡張レポートを作成します
-thinking==考え
+>thinking<==>考え<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==私たちは思考を検出するだけで、思考を抑制することができます。 YaCy では思考は使用されません
-tooling==ツーリング
+>tooling<==>ツーリング<
 tooling is required for agentic abilities.==エージェントの能力にはツールが必要です。
-vision==ビジョン
+>vision<==>ビジョン<
 this enables image recognition in the chat==これによりチャットでの画像認識が可能になります
-format==形式
+>format<==>形式<
 this is required for classification==これは分類に必要です
 Actions==アクション
 #-----------------------------
 
+Loading models...==モデルを読み込み中...
+Failed to load models.==モデルを読み込めませんでした。
+HTTP status:==HTTP ステータス:
+The endpoint returned an invalid model list.==エンドポイントが無効なモデル一覧を返しました。
+Check administrator login and endpoint credentials.==管理者ログインとエンドポイントの認証情報を確認してください。
+Check the hoststub and endpoint availability from the Scoutro server.==hoststub と Scoutro サーバーからエンドポイントへの接続を確認してください。
+Check the hoststub and try again.==hoststub を確認して再試行してください。
+No models found on this endpoint. Load a model in the service, then retry.==このエンドポイントにモデルが見つかりません。サービスにモデルを読み込んでから再試行してください。
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="Wiki のコンテンツを取得する: Wiki ページをクロールする"

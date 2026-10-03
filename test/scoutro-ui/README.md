@@ -82,6 +82,27 @@ optional when Playwright's bundled browser is installed.
 
 ## Locale guard
 
+### LLM selection and discovery
+
+```sh
+ant locale-refresh-test jetty12-server-test
+python3 test/scoutro-ui/check-locale-identifiers.py
+JAVA=/path/to/jdk/bin/java \
+NODE_PATH=/path/to/node_modules SCOUTRO_CHROMIUM_PATH=/usr/bin/chromium \
+SCOUTRO_SCREENSHOTS=/tmp/scoutro-llm-shots \
+python3 test/scoutro-ui/llm-selection-live-smoke.py
+```
+
+The LLM smoke creates a new temporary peer and local fake Ollama server. It
+checks real admin `/api/tags?hoststub=...` forwarding/statuses, public virtual
+usage names, model selection in English and all 14 translations, German
+desktop/mobile, empty/invalid responses, 401/502/503, network failure and
+retry. Discovery errors retain the production matrix and expose no upstream
+body. Browser saves are intercepted, so the peer's AI settings remain
+unchanged. No inference, model pull/delete, discovery processing or crawl is
+started; disposable DATA is removed. `TranslatorTest` additionally guards
+the page's identifiers and scoped labels using the actual locale dictionaries.
+
 ### Locale refresh regression
 
 ```sh

@@ -21,6 +21,7 @@ Use it before RAG or AI analysis work so later pages know which model endpoint a
 - Choose the LLM service family YaCy should use for AI-assisted workflows.
 - Set the host or endpoint stub so later RAG and AI pages know where to send model requests.
 - Verify the selected service before troubleshooting model-assisted answers elsewhere.
+- Load available models and use **Deploy** to add one to the Production Models Matrix.
 
 ## Page Architecture
 
@@ -35,6 +36,27 @@ Select the service that matches the running model endpoint. For local tools such
 Administrator access is required. YaCy protects `_p` pages as administration pages.
 
 Protected related endpoint(s): `/LLMSelection_p.html`.
+
+Model discovery uses the authenticated, same-origin YaCy admin passthrough.
+Ollama is read through `GET /api/tags?hoststub=<encoded-base-url>`; other
+OpenAI-compatible services use `GET /v1/models?hoststub=<encoded-base-url>`.
+YaCy requests the corresponding path on the selected hoststub and returns the
+upstream status/body. Calling `/api/tags` without a hoststub lists YaCy's
+virtual usage names, not the Ollama models. Discovery does not pull/delete
+models or start a crawl. The existing UI saves the inference selection after
+a successful load and saves production assignments when Deploy is clicked.
+
+The model status above Services shows loading, an empty model list, or a
+persistent error with the discovery path and HTTP status. A 401/403 requires
+checking the administrator login and endpoint credentials; 502/504 or a
+connection failure requires checking reachability from the Scoutro server.
+An HTTP 200 response with invalid JSON or a missing/invalid model array is
+reported as an invalid model list. Response bodies and credentials are not
+shown in this error. Existing production rows are retained on discovery
+failure; retry with **Load Model Name List** after correcting the endpoint.
+The production matrix uses the existing Scoutro horizontal scroll container,
+cleared below its card heading so the table remains visible even when the
+capability-test activity block is hidden.
 
 ## Automation And API
 
@@ -56,7 +78,7 @@ The table explains values that an agent or script must set deliberately. Paramet
 Example request shape:
 
 ```http
-GET /LLMSelection_p.html?service=...&hoststub=...&apikey=...&llmselection=...&BODY=...
+GET /api/tags?hoststub=<URL-encoded-Ollama-base-URL>
 ```
 
 ## What To Expect

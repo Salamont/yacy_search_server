@@ -2111,20 +2111,20 @@ words/minute==słowa/minutę
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="Info"
+alt="info"==alt="Info"
 LLM Selection==Wybór LLM
 Here you can pick models from an LLM model service to select them as production model.==Tutaj możesz wybrać modele z usługi modeli LLM, aby ustawić je jako model roboczy.
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==W "Macierzy modeli produkcyjnych" możesz następnie przypisać każdemu wybranemu modelowi funkcję w YaCy
 Service Selection==Wybór usługi
-service==usługa
+>service<==>usługa<
 Ollama==Ollama
 LMStudio==LMStudio
 OpenAI==OpenAI
 Open Router==Open Router
 This makes a preset to the Hoststub value==Ustawia to wartość wstępną dla Hoststub
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==prawdopodobnie możesz pozostawić wartość domyślną
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==(niewymagane dla Ollama lub LMStudio)
 Services==Usługi
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> to okno kontekstu (w tokenach) usługi wnioskowania &mdash; wartość zależna od usługi
@@ -2133,18 +2133,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==usługi wybranej powyżej pojawia się tutaj automatycznie z zapisanym (lub domyślnym) oknem.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Ta wartość jest <b>orientacyjna</b>: ustaw ją tak, aby odpowiadała oknu, które faktycznie udostępnia Twój backend
 Context Length setting). YaCy does not enforce it on the backend.==ustawienie Context Length). YaCy nie wymusza go w backendzie.
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==Pobieranie modeli
 Production Models Matrix==Macierz modeli produkcyjnych
-model==model
-max_tokens==max_tokens
+>model<==>model<
+>max_tokens<==>max_tokens<
 search-answers==search-answers
 This model creates answers for search requests==Ten model tworzy odpowiedzi na żądania wyszukiwania
-chat==chat
+>chat<==>chat<
 This model is used in the chat interface and as default for the RAG proxy==Ten model jest używany w interfejsie czatu i jako domyślny dla proxy RAG
-translation==translation
+>translation<==>translation<
 This model can be used to make translations of the web UI==Ten model może być używany do tworzenia tłumaczeń interfejsu webowego
-classification==classification
+>classification<==>classification<
 This model is used to classify prompts to find out what they demand==Ten model służy do klasyfikowania promptów w celu ustalenia, czego wymagają
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==Ten model tworzy zapytania wyszukiwania do wyszukiwarki YaCy z promptów w RAG lub czacie
@@ -2154,17 +2154,25 @@ tldr-shortener==tldr-shortener
 This model is used to make summaries from web content==Ten model służy do tworzenia streszczeń z treści internetowych
 log-report==log-report
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Ten model analizuje logi działania YaCy i tworzy raporty samodoskonalenia
-thinking==thinking
+>thinking<==>thinking<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==wykrywamy thinking tylko po to, aby móc je stłumić. thinking nie jest używane w YaCy
-tooling==tooling
+>tooling<==>tooling<
 tooling is required for agentic abilities.==tooling jest wymagany dla zdolności agentowych.
-vision==vision
+>vision<==>vision<
 this enables image recognition in the chat==włącza rozpoznawanie obrazów w czacie
-format==format
+>format<==>format<
 this is required for classification==jest to wymagane do klasyfikacji
 Actions==Akcje
 #-----------------------------
 
+Loading models...==Ładowanie modeli...
+Failed to load models.==Nie udało się załadować modeli.
+HTTP status:==Status HTTP:
+The endpoint returned an invalid model list.==Endpoint zwrócił nieprawidłową listę modeli.
+Check administrator login and endpoint credentials.==Sprawdź logowanie administratora i dane dostępowe endpointu.
+Check the hoststub and endpoint availability from the Scoutro server.==Sprawdź hoststub i dostępność endpointu z serwera Scoutro.
+Check the hoststub and try again.==Sprawdź hoststub i spróbuj ponownie.
+No models found on this endpoint. Load a model in the service, then retry.==Nie znaleziono modeli w tym endpoincie. Załaduj model w usłudze i spróbuj ponownie.
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="Pobierz treść wiki: crawluj strony wiki"

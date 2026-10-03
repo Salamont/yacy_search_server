@@ -4038,20 +4038,20 @@ Packs: Loaded List==Пакети: завантажений список
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="інформація"
+alt="info"==alt="інформація"
 LLM Selection==LLM Вибір
 Here you can pick models from an LLM model service to select them as production model.==Тут ви можете вибрати моделі зі служби моделювання LLM, щоб вибрати їх як модель виробництва.
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==У «Матриці виробничих моделей» ви можете призначити кожній вибраній моделі функцію всередині YaCy
 Service Selection==Вибір послуги
-service==обслуговування
+>service<==>обслуговування<
 Ollama==Ollama
 LMStudio==LMStudio
 OpenAI==OpenAI
 Open Router==Відкрийте маршрутизатор
 This makes a preset to the Hoststub value==Це робить попереднім налаштуванням значення Hoststub
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==можливо, ви можете залишити це значення за замовчуванням
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==(не потрібно для Ollama або LMStudio)
 Services==Послуги
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> — контекстне вікно (у маркерах) служби висновків &mdash; для кожної служби
@@ -4060,18 +4060,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==Вибрана вище служба автоматично з’являється тут із збереженим (або типовим) вікном.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Це значення є <b>порадою</b>: установіть його так, щоб воно відповідало вікну, яке фактично обслуговує ваш сервер
 Context Length setting). YaCy does not enforce it on the backend.==налаштування довжини контексту). YaCy не застосовує його на серверній частині.
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==Завантаження моделей
 Production Models Matrix==Матриця виробничих моделей
-model==модель
-max_tokens==max_tokens
+>model<==>модель<
+>max_tokens<==>max_tokens<
 search-answers==пошук-відповіді
 This model creates answers for search requests==Ця модель створює відповіді на пошукові запити
-chat==чат
+>chat<==>чат<
 This model is used in the chat interface and as default for the RAG proxy==Ця модель використовується в інтерфейсі чату та за замовчуванням для проксі-сервера RAG
-translation==переклад
+>translation<==>переклад<
 This model can be used to make translations of the web UI==Цю модель можна використовувати для перекладу веб-інтерфейсу користувача
-classification==класифікація
+>classification<==>класифікація<
 This model is used to classify prompts to find out what they demand==Ця модель використовується для класифікації підказок, щоб дізнатися, що вони вимагають
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==Ця модель створює пошукові запити для YaCy пошуку з підказок у RAG або чаті
@@ -4081,17 +4081,25 @@ tldr-shortener==tldr-скоротник
 This model is used to make summaries from web content==Ця модель використовується для створення підсумків із веб-вмісту
 log-report==журнал-звіт
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Ця модель оцінює YaCy журнали виконання та створює звіти про самопокращення
-thinking==мислення
+>thinking<==>мислення<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==ми виявляємо мислення лише для того, щоб мати можливість придушити мислення. мислення не використовується в YaCy
-tooling==оснащення
+>tooling<==>оснащення<
 tooling is required for agentic abilities.==інструменти необхідні для агентських здібностей.
-vision==бачення
+>vision<==>бачення<
 this enables image recognition in the chat==це дозволяє розпізнавати зображення в чаті
-format==формат
+>format<==>формат<
 this is required for classification==це потрібно для класифікації
 Actions==Дії
 #-----------------------------
 
+Loading models...==Завантаження моделей...
+Failed to load models.==Не вдалося завантажити моделі.
+HTTP status:==Статус HTTP:
+The endpoint returned an invalid model list.==Кінцева точка повернула некоректний список моделей.
+Check administrator login and endpoint credentials.==Перевірте вхід адміністратора та облікові дані кінцевої точки.
+Check the hoststub and endpoint availability from the Scoutro server.==Перевірте hoststub і доступність кінцевої точки із сервера Scoutro.
+Check the hoststub and try again.==Перевірте hoststub і спробуйте знову.
+No models found on this endpoint. Load a model in the service, then retry.==Моделей на цій кінцевій точці не знайдено. Завантажте модель у сервісі та спробуйте знову.
 #File: LogReports_p.html
 #---------------------------
 "delete this report"=="видалити цей звіт"

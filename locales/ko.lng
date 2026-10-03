@@ -2096,20 +2096,20 @@ words/minute==단어/minute
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="정보"
+alt="info"==alt="정보"
 LLM Selection==LLM 선택
 Here you can pick models from an LLM model service to select them as production model.==여기서는 LLM 모델 서비스에서 모델을 선택하여 운영 모델로 사용할 수 있습니다.
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==그런 다음 "운영 모델 매트릭스"에서 선택한 각 모델에 YaCy 내부 기능을 할당할 수 있습니다.
 Service Selection==서비스 선택
-service==서비스
+>service<==>서비스<
 Ollama==Ollama
 LMStudio==LM스튜디오
 OpenAI==OpenAI
 Open Router==오픈 라우터
 This makes a preset to the Hoststub value==이렇게 하면 Hoststub 값이 사전 설정됩니다.
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==이 값을 기본값으로 놔둬도 됩니다.
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==(Ollama 또는 LMStudio에는 필요하지 않음)
 Services==서비스
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b>은 추론 서비스의 컨텍스트 창(토큰)입니다. &mdash; 서비스별
@@ -2118,18 +2118,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==위에서 선택한 서비스는 저장된(또는 기본) 창과 함께 여기에 자동으로 나타납니다.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==이 값은 <b>advisory</b>입니다. 백엔드가 실제로 제공하는 기간과 일치하도록 설정하세요.
 Context Length setting). YaCy does not enforce it on the backend.==컨텍스트 길이 설정). YaCy은 이를 백엔드에 적용하지 않습니다.
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==모델 다운로드
 Production Models Matrix==운영 모델 매트릭스
-model==모델
-max_tokens==max_tokens
+>model<==>모델<
+>max_tokens<==>max_tokens<
 search-answers==검색 답변
 This model creates answers for search requests==이 모델은 검색 요청에 대한 답변을 생성합니다.
-chat==채팅
+>chat<==>채팅<
 This model is used in the chat interface and as default for the RAG proxy==이 모델은 채팅 인터페이스에서 사용되며 RAG 프록시의 기본값으로 사용됩니다.
-translation==번역
+>translation<==>번역<
 This model can be used to make translations of the web UI==이 모델은 웹 UI를 번역하는 데 사용될 수 있습니다.
-classification==분류
+>classification<==>분류<
 This model is used to classify prompts to find out what they demand==이 모델은 프롬프트를 분류하여 요구 사항이 무엇인지 알아내는 데 사용됩니다.
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==이 모델은 RAG 또는 채팅의 프롬프트에서 YaCy 검색에 대한 검색어를 생성합니다.
@@ -2139,17 +2139,25 @@ tldr-shortener==tldr 단축기
 This model is used to make summaries from web content==이 모델은 웹 콘텐츠를 요약하는 데 사용됩니다.
 log-report==로그 보고서
 This model evaluates YaCy runtime logs and creates self-enhancement reports==이 모델은 YaCy 런타임 로그를 평가하고 자체 개선 보고서를 생성합니다.
-thinking==생각
+>thinking<==>생각<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==우리는 생각을 억제할 수 있기 위해서만 생각을 감지합니다. YaCy에서는 사고가 사용되지 않습니다.
-tooling==압형
+>tooling<==>압형<
 tooling is required for agentic abilities.==에이전트 능력에는 도구가 필요합니다.
-vision==비전
+>vision<==>비전<
 this enables image recognition in the chat==이를 통해 채팅에서 이미지 인식이 가능해집니다.
-format==체재
+>format<==>체재<
 this is required for classification==이는 분류에 필요합니다.
 Actions==행위
 #-----------------------------
 
+Loading models...==모델을 불러오는 중...
+Failed to load models.==모델을 불러오지 못했습니다.
+HTTP status:==HTTP 상태:
+The endpoint returned an invalid model list.==엔드포인트가 잘못된 모델 목록을 반환했습니다.
+Check administrator login and endpoint credentials.==관리자 로그인과 엔드포인트 인증 정보를 확인하세요.
+Check the hoststub and endpoint availability from the Scoutro server.==hoststub과 Scoutro 서버에서 엔드포인트에 접근할 수 있는지 확인하세요.
+Check the hoststub and try again.==hoststub을 확인하고 다시 시도하세요.
+No models found on this endpoint. Load a model in the service, then retry.==이 엔드포인트에서 모델을 찾을 수 없습니다. 서비스에서 모델을 불러온 후 다시 시도하세요.
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="Wiki 콘텐츠 가져오기: Wiki 페이지 크롤링"

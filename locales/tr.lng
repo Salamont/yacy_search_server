@@ -2113,20 +2113,20 @@ words/minute==kelimeler/minute
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="bilgi"
+alt="info"==alt="bilgi"
 LLM Selection==LLM Seçim
 Here you can pick models from an LLM model service to select them as production model.==Burada LLM model hizmetinden modeller seçip çalışma modeli olarak kullanabilirsiniz.
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy=="Üretim Modelleri Matrisi"nde seçilen her modele YaCy içinde bir işlev atayabilirsiniz.
 Service Selection==Hizmet Seçimi
-service==hizmet
+>service<==>hizmet<
 Ollama==Ollama
 LMStudio==LMStudio
 OpenAI==OpenAI
 Open Router==Yönlendiriciyi Aç
 This makes a preset to the Hoststub value==Bu, Hoststub değerine bir ön ayar yapar
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==muhtemelen bunu varsayılan değere bırakabilirsiniz
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==(Ollama veya LMStudio için gerekli değildir)
 Services==Hizmetler
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b>, hizmet başına &mdash; çıkarım hizmetinin bağlam penceresidir (belirteç cinsinden)
@@ -2135,18 +2135,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==yukarıda seçilen hizmet, burada kayıtlı (veya varsayılan) penceresiyle otomatik olarak görünür.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Bu değer <b>advisory</b>: arka ucunuzun gerçekte hizmet verdiği pencereyle eşleşecek şekilde ayarlayın
 Context Length setting). YaCy does not enforce it on the backend.==Bağlam Uzunluğu ayarı). YaCy arka uçta bunu zorunlu kılmaz.
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==Model İndirmeleri
 Production Models Matrix==Üretim Modelleri Matrisi
-model==modeli
-max_tokens==max_tokens
+>model<==>modeli<
+>max_tokens<==>max_tokens<
 search-answers==arama-cevaplar
 This model creates answers for search requests==Bu model, arama isteklerine yanıtlar oluşturur
-chat==sohbet
+>chat<==>sohbet<
 This model is used in the chat interface and as default for the RAG proxy==Bu model sohbet arayüzünde ve RAG proxy'si için varsayılan olarak kullanılır
-translation==çeviri
+>translation<==>çeviri<
 This model can be used to make translations of the web UI==Bu model web kullanıcı arayüzünün çevirilerini yapmak için kullanılabilir
-classification==sınıflandırma
+>classification<==>sınıflandırma<
 This model is used to classify prompts to find out what they demand==Bu model, ne talep ettiklerini bulmak için istemleri sınıflandırmak için kullanılır.
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==Bu model, RAG veya sohbetteki istemlerden YaCy aramaya yönelik arama sorguları üretir
@@ -2156,17 +2156,25 @@ tldr-shortener==tldr kısaltıcı
 This model is used to make summaries from web content==Bu model web içeriğinden özetler yapmak için kullanılır
 log-report==günlük raporu
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Bu model, YaCy çalışma zamanı günlüklerini değerlendirir ve kendini geliştirme raporları oluşturur
-thinking==düşünme
+>thinking<==>düşünme<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==Düşünceyi ancak düşünceyi bastırabilmek için tespit ederiz. YaCy'de düşünme kullanılmaz
-tooling==takımlama
+>tooling<==>takımlama<
 tooling is required for agentic abilities.==Ajanlık yetenekleri için aletler gereklidir.
-vision==görüş
+>vision<==>görüş<
 this enables image recognition in the chat==bu, sohbette görüntü tanımayı etkinleştirir
-format==biçim
+>format<==>biçim<
 this is required for classification==sınıflandırma için bu gereklidir
 Actions==Eylemler
 #-----------------------------
 
+Loading models...==Modeller yükleniyor...
+Failed to load models.==Modeller yüklenemedi.
+HTTP status:==HTTP durumu:
+The endpoint returned an invalid model list.==Uç nokta geçersiz bir model listesi döndürdü.
+Check administrator login and endpoint credentials.==Yönetici oturumunu ve uç nokta kimlik bilgilerini kontrol edin.
+Check the hoststub and endpoint availability from the Scoutro server.==hoststub ve Scoutro sunucusundan uç noktaya erişimi kontrol edin.
+Check the hoststub and try again.==hoststub değerini kontrol edip yeniden deneyin.
+No models found on this endpoint. Load a model in the service, then retry.==Bu uç noktada model bulunamadı. Hizmette bir model yükleyip yeniden deneyin.
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="Wiki içeriğini al: wiki sayfalarını tara"

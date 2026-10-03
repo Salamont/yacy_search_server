@@ -146,7 +146,14 @@
           error.status = response.status;
           throw error;
         }
-        return response.json();
+        try {
+          return await response.json();
+        } catch (cause) {
+          const error = new Error("Invalid model list response");
+          error.status = response.status;
+          error.invalidModelList = true;
+          throw error;
+        }
       }
 
       function modelCapabilityKey(service, hoststub, modelName) {
@@ -295,7 +302,8 @@
       }
 
       async function requestModelsForService(service, hoststub) {
-        const url = service === "OLLAMA" ? proxyUrl(hoststub, "/api/tags") : proxyUrl(hoststub, "/v1/models");
+        const endpoint = service === "OLLAMA" ? "/api/tags" : "/v1/models";
+        const url = proxyUrl(hoststub, endpoint);
         const options = {};
         const apikeyEl = document.getElementById("apikey");
         const apikey = apikeyEl ? apikeyEl.value.trim() : "";
@@ -303,33 +311,70 @@
           // for endpoints which are not saved yet the proxy cannot look up the key itself
           options.headers = { "Authorization": `Bearer ${apikey}` };
         }
-        return fetchJsonOrThrow(url, options);
+        try {
+          const payload = await fetchJsonOrThrow(url, options);
+          const models = payload && (service === "OLLAMA" ? payload.models : payload.data);
+          if (!Array.isArray(models) || models.some(model => {
+            const id = modelIdForService(service, model);
+            return typeof id !== "string" || !id.trim();
+          })) {
+            const error = new Error("Invalid model list response");
+            error.status = 200;
+            error.invalidModelList = true;
+            throw error;
+          }
+          return payload;
+        } catch (error) {
+          error.endpoint = endpoint;
+          throw error;
+        }
       }
 
-      function handleModelLoadError(service, error) {
+      function modelIdForService(service, model) {
+        return model && (service === "OLLAMA" ? (model.model || model.name) : model.id);
+      }
+
+      function setModelDiscoveryStatus(message, failed = false) {
+        const status = document.getElementById("modelDiscoveryStatus");
+        if (!status) return;
+        status.textContent = message;
+        status.className = failed ? "alert alert-warning" : "alert alert-info";
+        status.setAttribute("role", failed ? "alert" : "status");
+        status.style.display = message ? "block" : "none";
+      }
+
+      function handleModelLoadError(error) {
         console.error("Error fetching models:", error);
         const status = error && typeof error.status === "number" ? error.status : null;
-        if (status) {
-          const apikeyEl = document.getElementById("apikey");
-          apiKeyValue = apikeyEl ? apikeyEl.value.trim() : "";
-          if (service !== "OLLAMA" && service !== "LMSTUDIO" && !apiKeyValue) {
-            alert("an api_key is required for this service");
-          } else {
-            alert(`Failed to load models. HTTP status: ${status}`);
-          }
+        let message = "Failed to load models.";
+        if (error && error.endpoint) message += ` ${error.endpoint}`;
+        if (status) message += " HTTP status:" + ` ${status}.`;
+        if (error && error.invalidModelList) {
+          message += " The endpoint returned an invalid model list.";
+        } else if (status === 401 || status === 403) {
+          message += " Check administrator login and endpoint credentials.";
+        } else if (status === 502 || status === 504 || !status) {
+          message += " Check the hoststub and endpoint availability from the Scoutro server.";
         } else {
-          alert("Failed to load models. Check the hoststub and console for errors.");
+          message += " Check the hoststub and try again.";
         }
+        setModelDiscoveryStatus(message, true);
       }
 
       async function loadModelList(fromPreset = false) {
         availableModels = [];
         const service = document.getElementById("service").value;
         const hoststub = document.getElementById("hoststub").value;
+        setModelDiscoveryStatus("Loading models...");
+        for (const id of ["availableModelsContainer", "loadModelContainer"]) {
+          const container = document.getElementById(id);
+          if (container) container.style.display = "none";
+        }
 
         try {
           const responsej = await requestModelsForService(service, hoststub);
           renderAvailableModels(service, responsej);
+          setModelDiscoveryStatus(availableModels.length ? "" : "No models found on this endpoint. Load a model in the service, then retry.");
           if (service === "OLLAMA") {
             renderRecommendedModels(hoststub);
           } else {
@@ -340,7 +385,7 @@
           }
           persistInferenceSystem();
         } catch (error) {
-          handleModelLoadError(service, error);
+          handleModelLoadError(error);
           if (fromPreset) {
             console.warn("Auto-load of model list failed for preset inference system.");
           }
@@ -655,7 +700,7 @@
         const hoststub = hoststubField ? hoststubField.value.trim() : "";
 
         const models = service === "OLLAMA" ? (payload.models || []) : (payload.data || []);
-        const getId = service === "OLLAMA" ? m => m.model : m => m.id;
+        const getId = m => modelIdForService(service, m);
         const rows = [];
 
         models.forEach(m => {
@@ -2144,6 +2189,8 @@
     </fieldset>
     </form>
 
+    <p id="modelDiscoveryStatus" class="alert alert-info" role="status" aria-live="polite" style="display:none"></p>
+
     <fieldset id="servicesContainer" style="display: block;"><a name="services"></a><legend>Services</legend>
         <p>
             <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service
@@ -2186,6 +2233,7 @@
         <div id="testActivityContainer" style="display:none; margin-bottom:12px;">
             <div id="testActivityList"></div>
         </div>
+        <div class="scoutro-scroll" style="clear:both">
         <table class="table table-striped" id="productionModelsTable">
             <thead class="thead-dark">
                 <tr>
@@ -2238,6 +2286,7 @@
         #{/productionmodels}#
             </tbody>
         </table>
+        </div>
     </fieldset>
 
     #%env/templates/footer.template%#

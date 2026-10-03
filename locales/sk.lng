@@ -2105,20 +2105,20 @@ words/minute==slová/minute
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="info"
+alt="info"==alt="info"
 LLM Selection==Výber LLM
 Here you can pick models from an LLM model service to select them as production model.==Tu si môžete vybrať modely zo služby LLM a použiť ich ako pracovný model.
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==V „matici výrobných modelov“ potom môžete každému vybranému modelu priradiť funkciu v YaCy
 Service Selection==Výber služby
-service==služby
+>service<==>služby<
 Ollama==Ollama
 LMStudio==LMStudio
 OpenAI==OpenAI
 Open Router==Otvorte smerovač
 This makes a preset to the Hoststub value==Tým sa prednastaví hodnota Hoststub
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==pravdepodobne to môžete nechať na predvolenú hodnotu
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==(nevyžaduje sa pre Ollama alebo LMStudio)
 Services==Služby
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> je kontextové okno (v tokenoch) inferenčnej služby &mdash; pre každú službu
@@ -2127,18 +2127,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==služba vybratá vyššie sa tu automaticky zobrazí s jej uloženým (alebo predvoleným) oknom.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Táto hodnota je <b>advisory</b>: nastavte ju tak, aby zodpovedala oknu, ktoré váš backend skutočne zobrazuje
 Context Length setting). YaCy does not enforce it on the backend.==Nastavenie dĺžky kontextu). YaCy ho nevynucuje na serveri.
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==Model na stiahnutie
 Production Models Matrix==Matica výrobných modelov
-model==model
-max_tokens==max_tokens
+>model<==>model<
+>max_tokens<==>max_tokens<
 search-answers==hľadanie-odpovedí
 This model creates answers for search requests==Tento model vytvára odpovede na požiadavky vyhľadávania
-chat==chatovať
+>chat<==>chatovať<
 This model is used in the chat interface and as default for the RAG proxy==Tento model sa používa v rozhraní rozhovoru a ako predvolený pre server proxy RAG
-translation==preklad
+>translation<==>preklad<
 This model can be used to make translations of the web UI==Tento model možno použiť na preklady webového používateľského rozhrania
-classification==klasifikácia
+>classification<==>klasifikácia<
 This model is used to classify prompts to find out what they demand==Tento model sa používa na klasifikáciu výziev s cieľom zistiť, čo požadujú
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==Tento model vytvára vyhľadávacie dopyty na YaCy vyhľadávanie z výziev v RAG alebo chatu
@@ -2148,17 +2148,25 @@ tldr-shortener==tldr-skracovač
 This model is used to make summaries from web content==Tento model sa používa na vytváranie súhrnov z webového obsahu
 log-report==log-report
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Tento model vyhodnocuje YaCy denníky spustenia a vytvára prehľady vlastného vylepšenia
-thinking==myslenie
+>thinking<==>myslenie<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==myslenie zisťujeme len preto, aby sme mohli myslenie potlačiť. myslenie sa nepoužíva v YaCy
-tooling==náradia
+>tooling<==>náradia<
 tooling is required for agentic abilities.==pre agentské schopnosti sú potrebné nástroje.
-vision==vízie
+>vision<==>vízie<
 this enables image recognition in the chat==to umožňuje rozpoznávanie obrázkov v chate
-format==formát
+>format<==>formát<
 this is required for classification==je to potrebné na klasifikáciu
 Actions==Akcie
 #-----------------------------
 
+Loading models...==Načítavajú sa modely...
+Failed to load models.==Modely sa nepodarilo načítať.
+HTTP status:==Stav HTTP:
+The endpoint returned an invalid model list.==Koncový bod vrátil neplatný zoznam modelov.
+Check administrator login and endpoint credentials.==Skontrolujte prihlásenie správcu a prihlasovacie údaje koncového bodu.
+Check the hoststub and endpoint availability from the Scoutro server.==Skontrolujte hoststub a dostupnosť koncového bodu zo servera Scoutro.
+Check the hoststub and try again.==Skontrolujte hoststub a skúste to znova.
+No models found on this endpoint. Load a model in the service, then retry.==Na tomto koncovom bode sa nenašli modely. Načítajte model v službe a skúste to znova.
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="Získajte obsah Wiki: prehľadávajte stránky wiki"

@@ -2106,20 +2106,20 @@ words/minute==字/minute
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="信息"
+alt="info"==alt="信息"
 LLM Selection==LLM 选择
 Here you can pick models from an LLM model service to select them as production model.==你可以在这里从 LLM 模型服务中选择模型，并将其作为工作模型使用。
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==随后可在“工作模型矩阵”中为每个选定模型分配 YaCy 内部功能
 Service Selection==服务选择
-service==服务
+>service<==>服务<
 Ollama==Ollama
 LMStudio==LM工作室
 OpenAI==OpenAI
 Open Router==打开路由器
 This makes a preset to the Hoststub value==这会预设 Hoststub 值
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==您可以将其保留为默认值
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==（Ollama 或 LMStudio 不需要）
 Services==服务
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> 是推理服务 &mdash; 每个服务的上下文窗口（以标记为单位）
@@ -2128,18 +2128,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==上面选择的服务及其存储（或默认）窗口自动出现在此处。
 This value is <b>advisory</b>: set it to match the window your backend actually serves==该值为 <b>advisory</b>：将其设置为与后端实际服务的窗口相匹配
 Context Length setting). YaCy does not enforce it on the backend.==上下文长度设置）。 YaCy 不会在后端强制执行。
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==模型下载
 Production Models Matrix==工作模型矩阵
-model==模型
-max_tokens==最大令牌数
+>model<==>模型<
+>max_tokens<==>最大令牌数<
 search-answers==搜索答案
 This model creates answers for search requests==该模型为搜索请求创建答案
-chat==聊天
+>chat<==>聊天<
 This model is used in the chat interface and as default for the RAG proxy==该模型用于聊天界面，并作为 RAG 代理的默认模型
-translation==翻译
+>translation<==>翻译<
 This model can be used to make translations of the web UI==该模型可用于翻译 Web UI
-classification==分类
+>classification<==>分类<
 This model is used to classify prompts to find out what they demand==该模型用于对提示进行分类，找出他们的需求
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==此模型根据 RAG 或聊天中的提示生成对 YaCy 搜索的搜索查询
@@ -2149,17 +2149,25 @@ tldr-shortener==tldr-缩短剂
 This model is used to make summaries from web content==该模型用于对网页内容进行摘要
 log-report==日志报告
 This model evaluates YaCy runtime logs and creates self-enhancement reports==该模型评估 YaCy 运行时日志并创建自我增强报告
-thinking==思维
+>thinking<==>思维<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==我们发现思考只是为了能够抑制思考。 YaCy 中不使用思维
-tooling==工装
+>tooling<==>工装<
 tooling is required for agentic abilities.==代理能力需要工具。
-vision==想象
+>vision<==>想象<
 this enables image recognition in the chat==这可以在聊天中进行图像识别
-format==格式
+>format<==>格式<
 this is required for classification==这是分类所必需的
 Actions==行动
 #-----------------------------
 
+Loading models...==正在加载模型...
+Failed to load models.==无法加载模型。
+HTTP status:==HTTP 状态：
+The endpoint returned an invalid model list.==端点返回了无效的模型列表。
+Check administrator login and endpoint credentials.==请检查管理员登录和端点凭据。
+Check the hoststub and endpoint availability from the Scoutro server.==请检查 hoststub 以及 Scoutro 服务器是否能够访问端点。
+Check the hoststub and try again.==请检查 hoststub 并重试。
+No models found on this endpoint. Load a model in the service, then retry.==此端点未找到模型。请在服务中加载模型后重试。
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="获取百科内容: 爬取百科页面"

@@ -3807,7 +3807,7 @@ YaCy Pack Manager==Gestionnaire de paquets YaCy
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="info"
+alt="info"==alt="info"
 (not required for Ollama or LMStudio)==(non requis pour Ollama ou LMStudio)
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b>est la fenêtre contextuelle (en jetons) du service d'inférence &mdash; par service
 Actions==Actions
@@ -3833,34 +3833,42 @@ This model is used to classify prompts to find out what they demand==Ce modèle 
 This model is used to make summaries from web content==Ce modèle est utilisé pour faire des résumés à partir de contenu web
 This model produces search queries to YaCy search from prompts in RAG or chat==Ce modèle produit des requêtes de recherche à la recherche YaCy à partir d'invites dans RAG ou chat
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Cette valeur est<b>avis</b>: définissez-la pour correspondre à la fenêtre de votre moteur de recherche.
-api_key==api_key
-chat==chat
-classification==classification
-format==format
+>api_key<==>api_key<
+>chat<==>chat<
+>classification<==>classification<
+>format<==>format<
 generated output; YaCy uses it to size prompts so they leave room to generate. The row for the==sortie générée; YaCy l'utilise pour dimensionner les invites afin qu'ils laissent de la place pour générer.
-hoststub==hoststub
+>hoststub<==>hoststub<
 log-report==log-report
-max_tokens==max_tokens
-model==model
-num_ctx==num_ctx
+>max_tokens<==>max_tokens<
+>model<==>model<
+>num_ctx<==>num_ctx<
 qa-pairs==qa-pairs
 search-answers==search-answers
 search-query==search-query
-service==service
+>service<==>service<
 service selected above appears here automatically with its stored (or default) window.==Le service sélectionné ci-dessus apparaît ici automatiquement avec sa fenêtre stockée (ou par défaut).
-thinking==thinking
+>thinking<==>thinking<
 this enables image recognition in the chat==cela permet la reconnaissance d'image dans le chat
 this is required for classification==Ceci est nécessaire pour la classification
 tldr-shortener==tldr-shortener
-tooling==tooling
+>tooling<==>tooling<
 tooling is required for agentic abilities.==l'outillage est nécessaire pour les capacités d'agent.
-translation==traduction
+>translation<==>traduction<
 value, shared by all models on that endpoint. It is the total budget for prompt <i>plus</i>==valeur, partagée par tous les modèles sur ce paramètre. C'est le budget total pour<i>rapide plus</i>
-vision==vision
+>vision<==>vision<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==nous décelons la pensée seulement pour pouvoir supprimer la pensée. la pensée n'est pas utilisée dans YaCy
 you can probably leave this to the default value==vous pouvez probablement laisser cela à la valeur par défaut
 #-----------------------------
 
+Loading models...==Chargement des modèles...
+Failed to load models.==Impossible de charger les modèles.
+HTTP status:==Statut HTTP :
+The endpoint returned an invalid model list.==Le point de terminaison a renvoyé une liste de modèles invalide.
+Check administrator login and endpoint credentials.==Vérifiez la connexion administrateur et les identifiants du point de terminaison.
+Check the hoststub and endpoint availability from the Scoutro server.==Vérifiez le hoststub et la disponibilité du point de terminaison depuis le serveur Scoutro.
+Check the hoststub and try again.==Vérifiez le hoststub et réessayez.
+No models found on this endpoint. Load a model in the service, then retry.==Aucun modèle trouvé sur ce point de terminaison. Chargez un modèle dans le service, puis réessayez.
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="Obtenir le contenu de Wiki: les pages wikis crawl"

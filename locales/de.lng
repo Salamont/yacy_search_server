@@ -4103,12 +4103,12 @@ Context Length setting). YaCy does not enforce it on the backend.==Context-Lengt
 Service Selection==Dienst-Auswahl
 Model Downloads==Modell-Downloads
 LLM Selection==LLM-Auswahl
-service==Dienst
+>service<==>Dienst<
 Actions==Aktionen
-model==Modell
+>model<==>Modell<
 #-----------------------------
 
-"info"=="Info"
+alt="info"==alt="Info"
 (not required for Ollama or LMStudio)==(für Ollama oder LMStudio nicht erforderlich)
 LMStudio==LMStudio
 Ollama==Ollama
@@ -4125,27 +4125,35 @@ This model is used in the chat interface and as default for the RAG proxy==Diese
 This model is used to classify prompts to find out what they demand==Dieses Modell klassifiziert Prompts, um deren Absicht zu erkennen
 This model is used to make summaries from web content==Dieses Modell erstellt Zusammenfassungen aus Webinhalten
 This model produces search queries to YaCy search from prompts in RAG or chat==Dieses Modell erzeugt Suchanfragen an die YaCy-Suche aus Prompts in RAG oder Chat
-api_key==api_key
-chat==chat
-classification==classification
-format==format
-hoststub==hoststub
+>api_key<==>api_key<
+>chat<==>chat<
+>classification<==>classification<
+>format<==>format<
+>hoststub<==>hoststub<
 log-report==log-report
-max_tokens==max_tokens
-num_ctx==num_ctx
+>max_tokens<==>max_tokens<
+>num_ctx<==>num_ctx<
 qa-pairs==qa-pairs
 search-answers==search-answers
 search-query==search-query
-thinking==thinking
+>thinking<==>thinking<
 this enables image recognition in the chat==aktiviert Bilderkennung im Chat
 this is required for classification==wird für Klassifizierung benötigt
 tldr-shortener==tldr-shortener
-tooling==tooling
+>tooling<==>tooling<
 tooling is required for agentic abilities.==Tooling wird für agentische Fähigkeiten benötigt.
-translation==translation
-vision==vision
+>translation<==>translation<
+>vision<==>vision<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==Wir erkennen Thinking nur, um Thinking unterdrücken zu können. Thinking wird in YaCy nicht verwendet.
 you can probably leave this to the default value==Sie können dies wahrscheinlich beim Standardwert belassen
+Loading models...==Modelle werden geladen...
+Failed to load models.==Modelle konnten nicht geladen werden.
+HTTP status:==HTTP-Status:
+The endpoint returned an invalid model list.==Der Endpunkt lieferte eine ungültige Modellliste.
+Check administrator login and endpoint credentials.==Prüfen Sie die Admin-Anmeldung und die Zugangsdaten des Endpunkts.
+Check the hoststub and endpoint availability from the Scoutro server.==Prüfen Sie den hoststub und die Erreichbarkeit des Endpunkts vom Scoutro-Server aus.
+Check the hoststub and try again.==Prüfen Sie den hoststub und versuchen Sie es erneut.
+No models found on this endpoint. Load a model in the service, then retry.==An diesem Endpunkt wurden keine Modelle gefunden. Laden Sie ein Modell im Dienst und versuchen Sie es erneut.
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier, nachdem der Scheduler den ersten vollständigen Stundenbericht erzeugt hat.

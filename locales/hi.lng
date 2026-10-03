@@ -2096,20 +2096,20 @@ words/minute==शब्द/minute
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="जानकारी"
+alt="info"==alt="जानकारी"
 LLM Selection==LLM चयन
 Here you can pick models from an LLM model service to select them as production model.==यहां आप संचालन मॉडल के रूप में चयन करने के लिए LLM मॉडल सेवा से मॉडल चुन सकते हैं।
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy=="संचालन मॉडल मैट्रिक्स" में आप प्रत्येक चयनित मॉडल को YaCy के भीतर एक फ़ंक्शन असाइन कर सकते हैं
 Service Selection==सेवा चयन
-service==सेवा
+>service<==>सेवा<
 Ollama==Ollama
 LMStudio==एलएमस्टूडियो
 OpenAI==OpenAI
 Open Router==राउटर खोलें
 This makes a preset to the Hoststub value==यह होस्टस्टब मान को प्रीसेट बनाता है
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==आप संभवतः इसे डिफ़ॉल्ट मान पर छोड़ सकते हैं
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==(Ollama या LMStudio के लिए आवश्यक नहीं)
 Services==सेवाएं
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==<b>num_ctx</b> प्रति-सेवा अनुमान सेवा &mdash; की संदर्भ विंडो (टोकन में) है
@@ -2118,18 +2118,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==ऊपर चयनित सेवा अपनी संग्रहीत (या डिफ़ॉल्ट) विंडो के साथ स्वचालित रूप से यहां दिखाई देती है।
 This value is <b>advisory</b>: set it to match the window your backend actually serves==यह मान <b>advisory</b> है: इसे उस विंडो से मिलान करने के लिए सेट करें जो आपका बैकएंड वास्तव में प्रस्तुत करता है
 Context Length setting). YaCy does not enforce it on the backend.==संदर्भ लंबाई सेटिंग)। YaCy इसे बैकएंड पर लागू नहीं करता है।
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==मॉडल डाउनलोड
 Production Models Matrix==संचालन मॉडल मैट्रिक्स
-model==नमूना
-max_tokens==max_tokens
+>model<==>नमूना<
+>max_tokens<==>max_tokens<
 search-answers==खोज-उत्तर
 This model creates answers for search requests==यह मॉडल खोज अनुरोधों के लिए उत्तर बनाता है
-chat==बात करना
+>chat<==>बात करना<
 This model is used in the chat interface and as default for the RAG proxy==इस मॉडल का उपयोग चैट इंटरफ़ेस में और RAG प्रॉक्सी के लिए डिफ़ॉल्ट के रूप में किया जाता है
-translation==अनुवाद
+>translation<==>अनुवाद<
 This model can be used to make translations of the web UI==इस मॉडल का उपयोग वेब यूआई का अनुवाद करने के लिए किया जा सकता है
-classification==वर्गीकरण
+>classification<==>वर्गीकरण<
 This model is used to classify prompts to find out what they demand==इस मॉडल का उपयोग संकेतों को वर्गीकृत करने के लिए किया जाता है ताकि यह पता लगाया जा सके कि वे क्या मांग करते हैं
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==यह मॉडल RAG या चैट में संकेतों से YaCy खोज के लिए खोज क्वेरी तैयार करता है
@@ -2139,17 +2139,25 @@ tldr-shortener==tldr-शॉर्टनर
 This model is used to make summaries from web content==इस मॉडल का उपयोग वेब सामग्री से सारांश बनाने के लिए किया जाता है
 log-report==लॉग-रिपोर्ट
 This model evaluates YaCy runtime logs and creates self-enhancement reports==यह मॉडल YaCy रनटाइम लॉग का मूल्यांकन करता है और स्व-वृद्धि रिपोर्ट बनाता है
-thinking==सोच
+>thinking<==>सोच<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==हम सोच का पता केवल इसलिए लगाते हैं ताकि सोच को दबाने में सक्षम हो सकें। YaCy में सोच का उपयोग नहीं किया जाता है
-tooling==टूलींग
+>tooling<==>टूलींग<
 tooling is required for agentic abilities.==एजेंटिक क्षमताओं के लिए टूलींग की आवश्यकता होती है।
-vision==दृष्टि
+>vision<==>दृष्टि<
 this enables image recognition in the chat==यह चैट में छवि पहचान को सक्षम बनाता है
-format==प्रारूप
+>format<==>प्रारूप<
 this is required for classification==वर्गीकरण के लिए यह आवश्यक है
 Actions==कार्रवाई
 #-----------------------------
 
+Loading models...==मॉडल लोड हो रहे हैं...
+Failed to load models.==मॉडल लोड नहीं हो सके।
+HTTP status:==HTTP स्थिति:
+The endpoint returned an invalid model list.==एंडपॉइंट ने अमान्य मॉडल सूची लौटाई।
+Check administrator login and endpoint credentials.==व्यवस्थापक लॉगिन और एंडपॉइंट के क्रेडेंशियल जाँचें।
+Check the hoststub and endpoint availability from the Scoutro server.==hoststub और Scoutro सर्वर से एंडपॉइंट की उपलब्धता जाँचें।
+Check the hoststub and try again.==hoststub जाँचें और फिर प्रयास करें।
+No models found on this endpoint. Load a model in the service, then retry.==इस एंडपॉइंट पर कोई मॉडल नहीं मिला। सेवा में मॉडल लोड करें और फिर प्रयास करें।
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="विकी की सामग्री प्राप्त करें: विकि पृष्ठों को क्रॉल करें"

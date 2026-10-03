@@ -3999,10 +3999,10 @@ Context Length setting). YaCy does not enforce it on the backend.==Configuració
 Service Selection==Selección de servicios
 Model Downloads==Descargas de modelos
 LLM Selection==LLM Selection
-service==servicio
+>service<==>servicio<
 Actions==Medidas adoptadas
-model==modelo
-"info"=="info"
+>model<==>modelo<
+alt="info"==alt="info"
 (not required for Ollama or LMStudio)==(no es necesario paraOllamaoLMStudio)
 LMStudio==LMStudio
 Ollama==Ollama
@@ -4019,29 +4019,37 @@ This model is used in the chat interface and as default for the RAG proxy==Este 
 This model is used to classify prompts to find out what they demand==Este modelo se utiliza para clasificar los avisos para averiguar lo que exigen
 This model is used to make summaries from web content==Este modelo se utiliza para hacer resúmenes de contenido web
 This model produces search queries to YaCy search from prompts in RAG or chat==Este modelo produce consultas de búsqueda a la búsqueda de YaCy desde consultas en RAG o chat
-api_key==api_key
-chat==chat
-classification==Clasificación
-format==formato
-hoststub==hosttub
+>api_key<==>api_key<
+>chat<==>chat<
+>classification<==>Clasificación<
+>format<==>formato<
+>hoststub<==>hosttub<
 log-report==log-report
-max_tokens==max_tokens
-num_ctx==num_ctx
+>max_tokens<==>max_tokens<
+>num_ctx<==>num_ctx<
 qa-pairs==Pares de qa
 search-answers==respuestas de búsqueda
 search-query==búsqueda
-thinking==pensando
+>thinking<==>pensando<
 this enables image recognition in the chat==esto permite el reconocimiento de imágenes en el chat
 this is required for classification==esto es necesario para la clasificación
 tldr-shortener==Acortador de tldr
-tooling==herramientas
+>tooling<==>herramientas<
 tooling is required for agentic abilities.==la herramienta es necesaria para las habilidades agentic.
-translation==traducción
-vision==visión
+>translation<==>traducción<
+>vision<==>visión<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==detectamos el pensamiento sólo para poder suprimir el pensamiento. el pensamiento no se utiliza en YaCy
 you can probably leave this to the default value==probablemente puede dejar esto al valor predeterminado
 #-----------------------------
 
+Loading models...==Cargando modelos...
+Failed to load models.==No se pudieron cargar los modelos.
+HTTP status:==Estado HTTP:
+The endpoint returned an invalid model list.==El endpoint devolvió una lista de modelos no válida.
+Check administrator login and endpoint credentials.==Compruebe el acceso de administrador y las credenciales del endpoint.
+Check the hoststub and endpoint availability from the Scoutro server.==Compruebe el hoststub y la disponibilidad del endpoint desde el servidor Scoutro.
+Check the hoststub and try again.==Compruebe el hoststub e inténtelo de nuevo.
+No models found on this endpoint. Load a model in the service, then retry.==No se encontraron modelos en este endpoint. Cargue un modelo en el servicio y vuelva a intentarlo.
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==El directorio de informes aún no existe. Los informes aparecerán aquí después de que el planificador haya generado el primer informe por hora completado.

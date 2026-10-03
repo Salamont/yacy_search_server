@@ -2106,20 +2106,20 @@ words/minute==λέξεις/minute
 
 #File: LLMSelection_p.html
 #---------------------------
-"info"=="πληροφορίες"
+alt="info"==alt="πληροφορίες"
 LLM Selection==LLM Επιλογή
 Here you can pick models from an LLM model service to select them as production model.==Εδώ μπορείτε να επιλέξετε μοντέλα από μια υπηρεσία LLM και να τα ορίσετε ως λειτουργικά μοντέλα.
 In the "Production Models Matrix" you can then assign each selected model a function inside YaCy==Στη "Μήτρα μοντέλων παραγωγής" μπορείτε στη συνέχεια να αντιστοιχίσετε σε κάθε επιλεγμένο μοντέλο μια συνάρτηση εντός YaCy
 Service Selection==Επιλογή υπηρεσίας
-service==υπηρεσία
+>service<==>υπηρεσία<
 Ollama==Ollama
 LMStudio==LMStudio
 OpenAI==OpenAI
 Open Router==Ανοίξτε το δρομολογητή
 This makes a preset to the Hoststub value==Αυτό δημιουργεί μια προεπιλογή στην τιμή Hoststub
-hoststub==hoststub
+>hoststub<==>hoststub<
 you can probably leave this to the default value==μπορείτε πιθανώς να το αφήσετε στην προεπιλεγμένη τιμή
-api_key==api_key
+>api_key<==>api_key<
 (not required for Ollama or LMStudio)==(δεν απαιτείται για Ollama ή LMStudio)
 Services==Υπηρεσίες
 <b>num_ctx</b> is the context window (in tokens) of the inference service &mdash; a per-service==Το <b>num_ctx</b> είναι το παράθυρο περιβάλλοντος (σε διακριτικά) της υπηρεσίας συμπερασμάτων &mdash; ανά υπηρεσία
@@ -2128,18 +2128,18 @@ generated output; YaCy uses it to size prompts so they leave room to generate. T
 service selected above appears here automatically with its stored (or default) window.==Η υπηρεσία που επιλέχθηκε παραπάνω εμφανίζεται εδώ αυτόματα με το αποθηκευμένο (ή προεπιλεγμένο) παράθυρο.
 This value is <b>advisory</b>: set it to match the window your backend actually serves==Αυτή η τιμή είναι <b>advisory</b>: ορίστε την ώστε να ταιριάζει με το παράθυρο που εξυπηρετεί πραγματικά το backend σας
 Context Length setting). YaCy does not enforce it on the backend.==Ρύθμιση μήκους περιβάλλοντος). Το YaCy δεν το επιβάλλει στο backend.
-num_ctx==num_ctx
+>num_ctx<==>num_ctx<
 Model Downloads==Λήψεις μοντέλων
 Production Models Matrix==Matrix Μοντέλων Παραγωγής
-model==μοντέλο
-max_tokens==max_tokens
+>model<==>μοντέλο<
+>max_tokens<==>max_tokens<
 search-answers==αναζήτηση-απαντήσεις
 This model creates answers for search requests==Αυτό το μοντέλο δημιουργεί απαντήσεις για αιτήματα αναζήτησης
-chat==κουβέντα
+>chat<==>κουβέντα<
 This model is used in the chat interface and as default for the RAG proxy==Αυτό το μοντέλο χρησιμοποιείται στη διεπαφή συνομιλίας και ως προεπιλογή για τον διακομιστή μεσολάβησης RAG
-translation==μετάφραση
+>translation<==>μετάφραση<
 This model can be used to make translations of the web UI==Αυτό το μοντέλο μπορεί να χρησιμοποιηθεί για την πραγματοποίηση μεταφράσεων της διεπαφής χρήστη ιστού
-classification==ταξινόμηση
+>classification<==>ταξινόμηση<
 This model is used to classify prompts to find out what they demand==Αυτό το μοντέλο χρησιμοποιείται για την ταξινόμηση των προτροπών για να μάθετε τι απαιτούν
 search-query==search-query
 This model produces search queries to YaCy search from prompts in RAG or chat==Αυτό το μοντέλο παράγει ερωτήματα αναζήτησης για YaCy αναζήτηση από μηνύματα στο RAG ή συνομιλία
@@ -2149,17 +2149,25 @@ tldr-shortener==tldr-shortener
 This model is used to make summaries from web content==Αυτό το μοντέλο χρησιμοποιείται για τη δημιουργία περιλήψεων από περιεχόμενο ιστού
 log-report==ημερολόγιο-αναφορά
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Αυτό το μοντέλο αξιολογεί YaCy αρχεία καταγραφής χρόνου εκτέλεσης και δημιουργεί αναφορές αυτοβελτίωσης
-thinking==σκέψη
+>thinking<==>σκέψη<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==ανιχνεύουμε τη σκέψη μόνο για να είμαστε σε θέση να καταστείλουμε τη σκέψη. η σκέψη δεν χρησιμοποιείται στο YaCy
-tooling==εργαλεία
+>tooling<==>εργαλεία<
 tooling is required for agentic abilities.==απαιτείται εργαλειοθήκη για πρακτορικές ικανότητες.
-vision==όραμα
+>vision<==>όραμα<
 this enables image recognition in the chat==Αυτό επιτρέπει την αναγνώριση εικόνας στη συνομιλία
-format==σχήμα και διάταξις βιβλίου
+>format<==>σχήμα και διάταξις βιβλίου<
 this is required for classification==αυτό απαιτείται για την ταξινόμηση
 Actions==Δράσεις
 #-----------------------------
 
+Loading models...==Φόρτωση μοντέλων...
+Failed to load models.==Αποτυχία φόρτωσης μοντέλων.
+HTTP status:==Κατάσταση HTTP:
+The endpoint returned an invalid model list.==Το τελικό σημείο επέστρεψε μη έγκυρη λίστα μοντέλων.
+Check administrator login and endpoint credentials.==Ελέγξτε τη σύνδεση διαχειριστή και τα διαπιστευτήρια του τελικού σημείου.
+Check the hoststub and endpoint availability from the Scoutro server.==Ελέγξτε το hoststub και τη διαθεσιμότητα του τελικού σημείου από τον διακομιστή Scoutro.
+Check the hoststub and try again.==Ελέγξτε το hoststub και δοκιμάστε ξανά.
+No models found on this endpoint. Load a model in the service, then retry.==Δεν βρέθηκαν μοντέλα σε αυτό το τελικό σημείο. Φορτώστε ένα μοντέλο στην υπηρεσία και δοκιμάστε ξανά.
 #File: Load_MediawikiWiki.html
 #---------------------------
 "Get content of Wiki: crawl wiki pages"=="Λάβετε περιεχόμενο του Wiki: ανιχνεύστε σελίδες wiki"

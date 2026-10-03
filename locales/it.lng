@@ -4005,10 +4005,10 @@ Context Length setting). YaCy does not enforce it on the backend.==Impostazione 
 Service Selection==Selezione servizio
 Model Downloads==Download di modelli
 LLM Selection==LLM Selection
-service==servizio
+>service<==>servizio<
 Actions==Azioni
-model==modello
-"info"=="info"
+>model<==>modello<
+alt="info"==alt="info"
 (not required for Ollama or LMStudio)==(non richiesto perOllamaoLMStudio)
 LMStudio==LMStudio
 Ollama==Ollama
@@ -4025,29 +4025,37 @@ This model is used in the chat interface and as default for the RAG proxy==Quest
 This model is used to classify prompts to find out what they demand==Questo modello è usato per classificare i prompt per scoprire cosa richiedono
 This model is used to make summaries from web content==Questo modello è usato per fare riassunti dai contenuti web
 This model produces search queries to YaCy search from prompts in RAG or chat==Questo modello produce query per la ricerca YaCy dai prompt in RAG o chat
-api_key==api_key
-chat==chat
-classification==classificazione
-format==formato
-hoststub==hoststub
+>api_key<==>api_key<
+>chat<==>chat<
+>classification<==>classificazione<
+>format<==>formato<
+>hoststub<==>hoststub<
 log-report==log-report
-max_tokens==max_tokens
-num_ctx==num_ctx
+>max_tokens<==>max_tokens<
+>num_ctx<==>num_ctx<
 qa-pairs==qa-pairs
 search-answers==risposte di ricerca
 search-query==ricerca-query
-thinking==Pensare
+>thinking<==>Pensare<
 this enables image recognition in the chat==Questo consente il riconoscimento dell'immagine nella chat
 this is required for classification==ciò è necessario per la classificazione
 tldr-shortener==tldr-shortener
-tooling==utensile
+>tooling<==>utensile<
 tooling is required for agentic abilities.==l'utensile è necessario per le capacità agentiche.
-translation==traduzione
-vision==vista
+>translation<==>traduzione<
+>vision<==>vista<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==we detect thinking only to be able to suppress thinking. thinking is not used in YaCy
 you can probably leave this to the default value==puoi probabilmente lasciare questo al valore predefinito
 #-----------------------------
 
+Loading models...==Caricamento dei modelli...
+Failed to load models.==Impossibile caricare i modelli.
+HTTP status:==Stato HTTP:
+The endpoint returned an invalid model list.==L’endpoint ha restituito un elenco di modelli non valido.
+Check administrator login and endpoint credentials.==Verificare l’accesso amministratore e le credenziali dell’endpoint.
+Check the hoststub and endpoint availability from the Scoutro server.==Verificare il hoststub e la disponibilità dell’endpoint dal server Scoutro.
+Check the hoststub and try again.==Verificare il hoststub e riprovare.
+No models found on this endpoint. Load a model in the service, then retry.==Nessun modello trovato su questo endpoint. Caricare un modello nel servizio e riprovare.
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==La directory dei report non esiste ancora. I report apparanno qui dopo che lo scheduler avra generato il primo report orario completato.
