@@ -1374,6 +1374,8 @@ federated.service.solr.indexing.authenticated.allowSelfSigned = false
 # It can be switched off if only a remote solr index is used.
 core.service.fulltext = true
 core.service.rwi.tmp = true
+# Citation-only references are supported; connecting Citation enables its required
+# collection fields (process_sxt, references_*, host_extent_i). Webgraph stays optional.
 core.service.citation.tmp = false
 core.service.webgraph.tmp = false
 

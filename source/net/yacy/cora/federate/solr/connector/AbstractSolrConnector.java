@@ -441,7 +441,7 @@ public abstract class AbstractSolrConnector implements SolrConnector {
         //    params.setQuery("*:*");
         //    params.addFilterQuery(querystring);
         //} else {
-            params.setQuery(querystring);
+            params.setQuery(startsWithLocalParams(querystring) ? querystring.stripLeading() : querystring);
         //}
         params.clearSorts();
         if (sort != null) {
@@ -452,11 +452,16 @@ public abstract class AbstractSolrConnector implements SolrConnector {
         params.setFacet(false);
         if (fields != null && fields.length > 0) params.setFields(fields);
         params.setIncludeScore(false);
-        if (count > 1) {
+        if (count > 1 && !startsWithLocalParams(querystring)) {
             params.setParam("defType", "edismax");
             params.setParam(DisMaxParams.QF, CollectionSchema.text_t.getSolrFieldName() + "^1.0");
         }
         return params;
+    }
+
+    /** Leading Solr LocalParams own the parser selection, including cache-only parameters. */
+    public static boolean startsWithLocalParams(final String query) {
+        return query != null && query.stripLeading().startsWith("{!");
     }
 
     /**

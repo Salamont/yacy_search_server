@@ -154,6 +154,39 @@ public class CollectionConfiguration extends SchemaConfiguration implements Seri
     }
 
     /**
+     * Enable only the fields required to write and finalize Citation references.
+     * Called when Citation is connected, including startup with existing DATA.
+     * An empty field selection keeps its existing all-fields semantics.
+     */
+    public synchronized void ensureCitationFields() throws IOException {
+        if (this.isEmpty()) return;
+        final List<Entry> enabled = new ArrayList<>();
+        final List<String> added = new ArrayList<>();
+        for (final CollectionSchema field : new CollectionSchema[] {
+                CollectionSchema.process_sxt,
+                CollectionSchema.references_i, CollectionSchema.references_internal_i,
+                CollectionSchema.references_external_i, CollectionSchema.references_exthosts_i,
+                CollectionSchema.host_extent_i}) {
+            final Entry entry = this.get(field.name());
+            if (entry == null) {
+                this.put(field.name(), new Entry(field.name(), true));
+                added.add(field.name());
+            } else if (!entry.enabled()) {
+                entry.setEnable(true);
+                enabled.add(entry);
+            }
+        }
+        // Do not swallow persistence errors or leave an in-memory-only activation.
+        if (!enabled.isEmpty() || !added.isEmpty()) try {
+            super.commit();
+        } catch (final IOException failure) {
+            for (final Entry entry : enabled) entry.setEnable(false);
+            for (final String name : added) this.remove(name);
+            throw failure;
+        }
+    }
+
+    /**
      * Check and update schema configuration with required related fields.
      * If a specific field is enabled, there might be a other field internal
      * processes rely on. Enable these required fields.
@@ -475,8 +508,9 @@ public class CollectionConfiguration extends SchemaConfiguration implements Seri
             CollectionSchema.crawldepth_i.add(doc, crawldepth);
         }
 
-        if (allAttr || (this.contains(CollectionSchema.cr_host_chance_d) && this.contains(CollectionSchema.cr_host_count_i) && this.contains(CollectionSchema.cr_host_norm_i))) {
-            processTypes.add(ProcessType.CITATION); // postprocessing needed
+        if (allAttr || (this.contains(CollectionSchema.cr_host_chance_d) && this.contains(CollectionSchema.cr_host_count_i) && this.contains(CollectionSchema.cr_host_norm_i))
+                || (segment.connectedCitation() && this.contains(CollectionSchema.references_i))) {
+            processTypes.add(ProcessType.CITATION); // references also need postprocessing without CitationRank fields
         }
 
         if (allAttr || this.contains(CollectionSchema.collection_sxt) && collections != null && collections.size() > 0) {
