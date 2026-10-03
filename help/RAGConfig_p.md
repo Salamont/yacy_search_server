@@ -72,3 +72,5 @@ Expect configuration values, diagnostics, or changed result behavior. The effect
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.
+
+Scoutro system questions use structured authorized Actions before RAG/model selection and do not depend on a model's Function Calling support. They do not search the web as a fallback. See [System questions and MCP](../docs/SCOUTRO_SYSTEM_QUESTIONS_MCP.md) for supported DE/EN questions, authentication, collection scopes and errors.

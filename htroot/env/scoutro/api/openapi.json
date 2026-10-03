@@ -371,6 +371,152 @@
         "x-scoutro-mutating": false
       }
     },
+    "/v1/index/metrics": {
+      "get": {
+        "operationId": "index.metrics",
+        "summary": "Scoped index metrics",
+        "description": "Bounded local counts. Collection intersection deduplicates documents/hosts. Partial data returns 503, never an estimate.",
+        "tags": [
+          "index"
+        ],
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Optional exact collection filter; server enforced.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexMetrics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/system/questions": {
+      "get": {
+        "operationId": "system.questions",
+        "summary": "Structured system question",
+        "description": "Routes a DE/EN system question to index.metrics, crawl.list, discovery.status, collections.list or seo.read. No web fallback. Collection applies to index/SEO; crawls retain ownership and Discovery remains global.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "DE/EN system question; no content search.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Optional exact collection filter; server enforced.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized facts and answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemQuestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "403": {
+            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
     "/v1/index/lookup": {
       "get": {
         "operationId": "index.lookup",
@@ -1668,6 +1814,216 @@
         "x-scoutro-mutating": false,
         "x-scoutro-agent-grants": [
           "index.browse"
+        ]
+      }
+    },
+    "/agent/v1/index/metrics": {
+      "get": {
+        "operationId": "agent.index.metrics",
+        "summary": "Index metrics (scoped)",
+        "description": "Same counts, constrained to server-resolved granted collections; explicit grant, absent from presets.",
+        "tags": [
+          "agent"
+        ],
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Optional exact collection filter; server enforced.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Counts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexMetrics"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "index.metrics"
+        ]
+      }
+    },
+    "/agent/v1/system/questions": {
+      "get": {
+        "operationId": "agent.system.questions",
+        "summary": "System question (authorized underlying action)",
+        "description": "No broad grant: the selected underlying action is authorized, audited, rate-limited and collection scoped exactly as its direct endpoint. Discovery requires explicit global discovery.status; crawl ownership is unchanged.",
+        "tags": [
+          "agent"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "DE/EN system question; no content search.",
+            "schema": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Optional exact collection filter; server enforced.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized facts and answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemQuestion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "index.metrics",
+          "crawl.list",
+          "discovery.status",
+          "collections.list",
+          "seo.read"
         ]
       }
     },
@@ -5646,6 +6002,109 @@
           "discovery.status"
         ]
       }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "operationId": "chat.completions",
+        "x-scoutro-mutating": false,
+        "servers": [
+          {
+            "url": "/",
+            "description": "Root chat servlet, outside /scoutro/api."
+          }
+        ],
+        "summary": "Chat with structured Scoutro system questions",
+        "tags": [
+          "system"
+        ],
+        "description": "Content chat retains existing AIShield/model/RAG behavior. Supported DE/EN system questions run authorized Actions before model/search/tool selection and work without Function Calling. No missing-rights/data web fallback. System questions require Digest admin role or authorized agent Bearer; no localhost bypass. Agent rights, collection scopes, crawl ownership, audit and limits remain enforced. Metadata attributes exact facts/action/time; stream=true sends OpenAI SSE chunks and terminal [DONE].",
+        "security": [
+          {},
+          {
+            "digest": []
+          },
+          {
+            "agentBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing content completion or structured system completion/SSE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemChatCompletion"
+                }
+              },
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5979,6 +6438,77 @@
                 ]
               }
             }
+          }
+        }
+      },
+      "IndexMetrics": {
+        "type": "object",
+        "required": [
+          "documents",
+          "pages",
+          "hosts",
+          "collections",
+          "observedAt",
+          "definition"
+        ],
+        "properties": {
+          "documents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pages": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "hosts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "collections": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "definition": {
+            "type": "string",
+            "description": "All records versus HTTP-200 pages without failtype; distinct host_s is not registrable domains."
+          }
+        }
+      },
+      "SystemQuestion": {
+        "type": "object",
+        "required": [
+          "kind",
+          "action",
+          "observedAt",
+          "facts",
+          "answer"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "facts": {
+            "type": "object"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Deterministic rendering of authorized action data; no web or LLM fallback."
           }
         }
       },
@@ -7855,6 +8385,74 @@
             }
           }
         }
+      },
+      "ChatRequest": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "stream": {
+            "type": "boolean",
+            "default": false
+          },
+          "collection": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$",
+            "description": "System index/SEO scope; intersected with authorized collections."
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "role",
+                "content"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": [
+                    "string",
+                    "array"
+                  ],
+                  "description": "Text or OpenAI content parts. Only latest user text selects a system action."
+                }
+              }
+            }
+          }
+        }
+      },
+      "SystemChatCompletion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "scoutro": {
+            "$ref": "#/components/schemas/SystemQuestion"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -7867,7 +8465,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "sca_<publicId>.<secret>",
-        "description": "Agent token issued in Administration > Agents & Access. Only valid on /scoutro/api/agent/v1/*; never an administrator credential."
+        "description": "Agent token issued in Administration > Agents & Access. Only valid on /scoutro/api/agent/v1/*; never an administrator credential. Also accepted by root /v1/chat/completions for structured system questions only, with the same selected action authorization."
       }
     }
   },

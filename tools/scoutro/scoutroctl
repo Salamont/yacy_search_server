@@ -149,6 +149,9 @@ def build_parser():
     s.add_argument("--lang", help="two-letter language code")
     s.add_argument("--collection", help="agent token only: one of the agent's collections")
 
+    ask = sub.add_parser("ask", help="structured DE/EN Scoutro system question; no web fallback")
+    ask.add_argument("question")
+    ask.add_argument("--collection")
     idx = sub.add_parser("index", help="index status, lookup and evidence").add_subparsers(dest="index_command", required=True)
     browse = idx.add_parser("browse", help="read-only literal host/URL search")
     browse.add_argument("query", nargs="?", default="")
@@ -158,6 +161,8 @@ def build_parser():
     ist = idx.add_parser("status")
     ist.add_argument("--global", dest="global_status", action="store_true",
                      help="agent token only: global index status (needs the grant index.status.global)")
+    metric = idx.add_parser("metrics", help="scoped document/page/host counts")
+    metric.add_argument("--collection")
     lookup = idx.add_parser("lookup")
     g = lookup.add_mutually_exclusive_group(required=True)
     g.add_argument("--url")
@@ -216,6 +221,8 @@ def main(argv=None):
         if not token:
             fail("no_token", "capabilities needs an agent token in SCOUTRO_TOKEN or SCOUTRO_TOKEN_FILE", 2)
         result = client.call("GET", "/agent/v1/capabilities")
+    elif c == "ask":
+        result = client.call("GET", v1 + "/system/questions", {"q":args.question,"collection":args.collection})
     elif c == "system":
         result = client.call("GET", v1 + "/system")
     elif c == "actions":
@@ -237,6 +244,8 @@ def main(argv=None):
             result = client.call("GET", v1 + "/index/browse", {"q": args.query, "collection": args.collection, "limit": args.limit, "offset": args.offset})
         elif args.index_command == "status":
             result = client.call("GET", v1 + "/index", {"global": "true" if args.global_status else None})
+        elif args.index_command == "metrics":
+            result = client.call("GET", v1 + "/index/metrics", {"collection":args.collection})
         elif args.index_command == "evidence":
             result = client.call("GET", v1 + "/index/evidence", {"domain": args.domain, "collection": args.collection,
                                                                "limit": args.limit, "maxChars": args.max_chars})

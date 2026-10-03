@@ -160,6 +160,10 @@ public class RAGProxyServlet extends HttpServlet {
         try {
             // get system message and user prompt
             bodyObject = new JSONObject(body);
+            if (net.yacy.scoutro.api.SystemQuestionChat.handle(hrequest, hresponse, bodyObject)) {
+                ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=system-question phase=end status=" + hresponse.getStatus());
+                return;
+            }
             // get chat functions
             String model = bodyObject.optString("model", LLM.LLMUsage.chat.name());
             //Double temperature = bodyObject.optDouble("temperature", 0.0);

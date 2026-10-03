@@ -106,3 +106,5 @@ are not pinned to the HTTP client's subsequent connection; a hostile DNS change
 between validation and connection remains a separate transport-hardening topic.
 This is not a blanket SSRF guarantee for unrelated loaders or other Discovery
 source downloads.
+
+The bounded fake-DNS reproduction and a concrete transport-hardening plan are now recorded in [DNS_REBINDING_ANALYSIS.md](DNS_REBINDING_ANALYSIS.md). This follow-up does not change network behavior or claim to close the remaining validation/connect race.

@@ -3,6 +3,13 @@
   "apiVersion": "1",
   "description": "Actions an agent can perform on Scoutro. Every action maps to one HTTP call of the Scoutro API; parameter schemas follow JSON Schema. Details: openapi.json.",
   "openapi": "/scoutro/api/openapi.json",
+  "mcpAdapter": {
+    "transport": "stdio",
+    "command": "tools/scoutro/scoutro-mcp",
+    "authentication": "agent Bearer only",
+    "readOnly": true,
+    "description": "mcpTool names are mappings. The adapter exposes only catalogued GET actions authorized by current agent capabilities; admin-only mappings are not runnable tools."
+  },
   "authentication": {
     "type": "http-digest",
     "account": "Scoutro/YaCy administrator",
@@ -163,6 +170,22 @@
         "http": {
           "method": "GET",
           "path": "/scoutro/api/agent/v1/index/browse",
+          "query": {}
+        }
+      },
+      {
+        "name": "index.metrics",
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/metrics",
           "query": {}
         }
       },
@@ -600,6 +623,99 @@
         "http": {
           "method": "GET",
           "path": "/scoutro/api/agent/v1/index"
+        }
+      }
+    },
+    {
+      "name": "index.metrics",
+      "description": "Bounded local counts. Collection intersection deduplicates documents/hosts. Partial data returns 503, never an estimate.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/index/metrics",
+        "successStatus": 200
+      },
+      "parameters": {
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Optional exact collection filter; server enforced."
+        }
+      },
+      "returns": "IndexMetrics",
+      "errors": [
+        400,
+        401,
+        503
+      ],
+      "cli": "scoutroctl index metrics [--collection NAME]",
+      "mcpTool": "scoutro_index_metrics",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/metrics"
+        }
+      }
+    },
+    {
+      "name": "system.questions",
+      "description": "Routes a DE/EN system question to index.metrics, crawl.list, discovery.status, collections.list or seo.read. No web fallback. Collection applies to index/SEO; crawls retain ownership and Discovery remains global.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/system/questions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "q": {
+          "type": "string",
+          "maxLength": 1000,
+          "in": "query",
+          "required": true,
+          "description": "DE/EN system question; no content search."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Optional exact collection filter; server enforced."
+        }
+      },
+      "returns": "SystemQuestion",
+      "errors": [
+        400,
+        401,
+        403,
+        503
+      ],
+      "cli": "scoutroctl ask QUESTION [--collection NAME]",
+      "mcpTool": "scoutro_system_questions",
+      "agent": {
+        "grantable": false,
+        "delegatesTo": [
+          "index.metrics",
+          "crawl.list",
+          "discovery.status",
+          "collections.list",
+          "seo.read"
+        ],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/system/questions"
         }
       }
     },
@@ -2329,6 +2445,77 @@
               ]
             }
           }
+        }
+      }
+    },
+    "IndexMetrics": {
+      "type": "object",
+      "required": [
+        "documents",
+        "pages",
+        "hosts",
+        "collections",
+        "observedAt",
+        "definition"
+      ],
+      "properties": {
+        "documents": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pages": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "hosts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "collections": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "definition": {
+          "type": "string",
+          "description": "All records versus HTTP-200 pages without failtype; distinct host_s is not registrable domains."
+        }
+      }
+    },
+    "SystemQuestion": {
+      "type": "object",
+      "required": [
+        "kind",
+        "action",
+        "observedAt",
+        "facts",
+        "answer"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "facts": {
+          "type": "object"
+        },
+        "answer": {
+          "type": "string",
+          "description": "Deterministic rendering of authorized action data; no web or LLM fallback."
         }
       }
     },
@@ -4203,6 +4390,74 @@
               "type": "integer"
             }
           }
+        }
+      }
+    },
+    "ChatRequest": {
+      "type": "object",
+      "required": [
+        "messages"
+      ],
+      "properties": {
+        "model": {
+          "type": "string"
+        },
+        "stream": {
+          "type": "boolean",
+          "default": false
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "description": "System index/SEO scope; intersected with authorized collections."
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "role",
+              "content"
+            ],
+            "properties": {
+              "role": {
+                "type": "string"
+              },
+              "content": {
+                "type": [
+                  "string",
+                  "array"
+                ],
+                "description": "Text or OpenAI content parts. Only latest user text selects a system action."
+              }
+            }
+          }
+        }
+      }
+    },
+    "SystemChatCompletion": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "object": {
+          "type": "string"
+        },
+        "created": {
+          "type": "integer"
+        },
+        "model": {
+          "type": "string"
+        },
+        "choices": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "scoutro": {
+          "$ref": "#/components/schemas/SystemQuestion"
         }
       }
     }
