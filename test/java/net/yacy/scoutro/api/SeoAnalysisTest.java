@@ -169,8 +169,11 @@ public class SeoAnalysisTest {
     }
 
     @Test
-    public void unknownHostIs404() throws Exception {
-        error(404, "hosts/absent.example", Map.of(), null);
+    public void unknownHostIsAValidEmptySummary() throws Exception {
+        JSONObject result = call("hosts/absent.example", Map.of(), null);
+        assertFalse(result.getBoolean("indexed"));
+        assertFalse(result.getBoolean("analysisAvailable"));
+        assertEquals(0, result.getInt("indexed_pages"));
     }
 
     @Test
@@ -294,7 +297,6 @@ public class SeoAnalysisTest {
     public void hostValidationNeverFetches() throws Exception {
         for (String s :
                 List.of(
-                        "http://a.example",
                         "localhost",
                         "127.0.0.1",
                         "a.example:80",
@@ -308,6 +310,7 @@ public class SeoAnalysisTest {
             }
         }
         assertEquals("xn--bcher-kva.example", SeoAnalysis.host("BÜCHER.example"));
+        assertEquals("a.example", SeoAnalysis.host("https://A.EXAMPLE/path"));
         assertEquals(0, queries.get());
     }
 

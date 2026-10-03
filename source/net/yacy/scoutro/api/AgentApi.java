@@ -238,6 +238,15 @@ final class AgentApi {
         final int n = p.size();
         final String first = n == 0 ? "" : p.get(0);
         switch (first) {
+            case "hosts":
+                if (n != 2 || !"resolve".equals(p.get(1))) return notFound();
+                return "GET".equals(method) ? ok("host.resolve") : method(method, "GET");
+            case "collections":
+                if (n != 1) return notFound();
+                return "GET".equals(method) ? ok("collections.list") : method(method, "GET");
+            case "discovery":
+                if (n != 2 || !"status".equals(p.get(1))) return notFound();
+                return "GET".equals(method) ? ok("discovery.status") : method(method, "GET");
             case "capabilities":
                 if (n != 1) return notFound();
                 return "GET".equals(method) ? ok(AgentActionRegistry.CAPABILITIES) : method(method, "GET");

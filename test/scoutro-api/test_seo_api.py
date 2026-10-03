@@ -24,14 +24,14 @@ class SeoApi(unittest.TestCase):
         zero=next(p for p in data['items'] if p['url'].endswith('/zero')); self.assertEqual(zero['citation']['references_total'],0)
     def test_controlled_queries_and_auth(self):
         for q in [{'fq':'*:*'},{'fl':'*'},{'sort':'random()'},{'limit':101}]: self.assertEqual(self.get('hosts/a.example/pages',q)[0],400)
-        self.assertEqual(self.get('hosts/absent.example')[0],404)
+        status,data=self.get('hosts/absent.example'); self.assertEqual(status,200); self.assertFalse(data['indexed'])
         self.assertEqual(http('GET',BASE+'/scoutro/api/v1/seo/hosts')[0],401)
         self.assertEqual(http('POST',BASE+'/scoutro/api/v1/seo/hosts',opener=admin_opener())[0],405)
     def test_explicit_agent_grant_and_scope(self):
         token,_,_=create_agent('SEO disposable',collections=('visible',),extra_actions=('seo.read',))
         status,data,_=agent_call(token,'GET','/seo/hosts'); self.assertEqual(status,200); self.assertEqual([p['host'] for p in data['items']],['a.example'])
         status,data,_=agent_call(token,'GET','/seo/hosts/a.example'); self.assertEqual(status,200); self.assertEqual(data['indexed_pages'],28)
-        self.assertEqual(agent_call(token,'GET','/seo/hosts/b.example')[0],404)
+        status,unseen,_=agent_call(token,'GET','/seo/hosts/b.example'); self.assertEqual(status,200); self.assertFalse(unseen['indexed'])
         self.assertEqual(agent_call(token,'GET','/seo/hosts',{'collection':'secret'})[0],403)
         _,data=self.get('hosts/a.example/pages',{'limit':100})
         private=next(p for p in data['items'] if p['url'].endswith('/inconsistent'))

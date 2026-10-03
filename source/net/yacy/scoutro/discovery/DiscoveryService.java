@@ -92,7 +92,7 @@ public final class DiscoveryService implements AutoCloseable {
                 .put("active_run", publicRun(root.optJSONObject("active_run")))
                 .put("capacity", this.backend.capacity()).put("job_count", root.getJSONArray("jobs").length())
                 .put("last_run", root.getJSONArray("history").isEmpty() ? JsonObject.NULL
-                        : root.getJSONArray("history").get(root.getJSONArray("history").length() - 1));
+                        : publicRun(root.getJSONArray("history").getJSONObject(root.getJSONArray("history").length() - 1)));
         if (root.optJSONObject("active_run") == null && (!root.getBoolean("enabled") || root.getBoolean("paused"))) {
             result.put("waiting_reason", root.getBoolean("paused") ? "paused" : "disabled");
         }
@@ -101,16 +101,10 @@ public final class DiscoveryService implements AutoCloseable {
         try { result.put("config_revision", catalog().revision()); }
         catch (final ApiException e) { result.put("config_error", e.code()); }
         if (this.clock.getAsLong() - this.snapshotAt > 30000) refreshState();
-        return result;
+        return DiscoveryStatus.project(root, result);
     }
     private static Object publicRun(final JsonObject run) {
-        if (run == null) return JsonObject.NULL;
-        final JsonObject out = new JsonObject();
-        for (final String field : java.util.List.of("id", "job_id", "phase", "started_at", "finished_at", "error", "report")) {
-            if (run.has(field)) out.put(field, run.get(field));
-        }
-        out.put("attempt_count", run.getJSONArray("attempts").length());
-        return out;
+        return DiscoveryStatus.batch(run);
     }
     public JsonObject jobs(final String id) throws ApiException {
         final JsonObject root = this.store.read();

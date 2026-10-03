@@ -30,3 +30,6 @@
  .sseo-stats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
  .sseo-controls label { flex: 1 1 100%; }
 }
+
+.sseo-empty { border:1px solid #dce6ef; border-radius:14px; padding:20px; margin:18px 0; overflow-wrap:anywhere; }
+.sseo-empty .btn { min-height:44px; display:inline-flex; align-items:center; }

@@ -1,7 +1,7 @@
 /* Scoutro contributors, GPL-2.0-or-later. */
 package net.yacy.scoutro.api;
-
 import java.net.URI;
+
 import java.util.List;
 import java.util.Map;
 import net.yacy.scoutro.discovery.JsonArray;
@@ -24,10 +24,8 @@ public final class DiscoveryGateway implements DiscoveryService.Backend {
     }
     @Override public JsonArray crawls() throws ApiException { return new JsonObject(this.actions.crawlList()).getJSONArray("crawls"); }
     @Override public JsonObject start(final JsonObject parameters, final String marker) throws ApiException {
-        final String host;
-        try { host = new URI(parameters.getString("url")).getHost(); }
-        catch (final Exception e) { throw ApiException.invalid("url", "Invalid crawl URL."); }
-        if (host == null) throw ApiException.invalid("url", "Expected DNS hostname.");
+        final CrawlRequest contract = CrawlRequest.parse(parameters);
+        final String host = contract.host;
         synchronized (ScoutroActions.CRAWL_START_LOCK) {
             for (final org.json.JSONObject raw : this.actions.loadCrawls().values()) {
                 final JsonObject crawl = new JsonObject(raw);

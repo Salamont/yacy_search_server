@@ -89,6 +89,15 @@ public final class AgentActionRegistry {
     static {
         final Agent.Kind ext = Agent.Kind.EXTERNAL;
         final Agent.Kind worker = Agent.Kind.RESEARCH_WORKER;
+        add(new Action("host.resolve", "Resolve host",
+                "Normalize a host or HTTP/HTTPS URL and check index visibility in granted collections; does not fetch or crawl.",
+                Risk.READ, true, "GET", "/hosts/resolve", false, ext, worker));
+        add(new Action("collections.list", "Available collections",
+                "List granted collections; never exposes collections outside the data scope.",
+                Risk.READ, true, "GET", "/collections", false, ext, worker));
+        add(new Action("discovery.status", "Global Discovery status",
+                "Read global automation and batch/job metadata across all collections; explicit global grant, never allows mutations.",
+                Risk.ADMIN, false, "GET", "/discovery/status", false, ext));
         add(new Action("search", "Search",
                 "Full-text search in the granted collections of the local index.",
                 Risk.READ, true, "GET", "/search", true, ext, worker));

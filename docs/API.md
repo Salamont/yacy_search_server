@@ -263,7 +263,7 @@ Start:
 
 ```sh
 curl --digest -u admin -X POST -H 'Content-Type: application/json' \
-  -d '{"url":"https://example.com","depth":2,"scope":"domain","maxPages":1000}' \
+  -d '{"url":"https://example.com","depth":2,"scope":"domain","maxPages":1000,"collection":"research"}' \
   http://scoutro:8090/scoutro/api/v1/crawls
 ```
 
@@ -273,14 +273,14 @@ curl --digest -u admin -X POST -H 'Content-Type: application/json' \
 | `depth` | integer 0–10 | 2 | link depth |
 | `scope` | `domain` \| `subpath` \| `wide` | `domain` | stay on the host / below the start path / follow other hosts |
 | `maxPages` | integer 1–1000000 | unlimited | pages per domain |
-| `collection` | `[A-Za-z0-9_-]{1,64}` | `user` | YaCy collection name |
+| `collection` | `[A-Za-z0-9_-]{1,64}` | required | Explicit target; no fallback |
 
 Unknown fields are rejected (`400`), so typos in agent calls do not go
 unnoticed. Answer `201` with a `Location` header:
 
 ```json
 {"id":"pLra5iB67fg3","name":"example.com","state":"running","depth":2,"maxPages":1000,
- "pagesLoaded":null,"collections":["user"],"startUrl":"https://example.com","scope":"domain",
+ "pagesLoaded":null,"collections":["research"],"startUrl":"https://example.com","scope":"domain",
  "links":{"self":"/scoutro/api/v1/crawls/pLra5iB67fg3","stop":"/scoutro/api/v1/crawls/pLra5iB67fg3/stop"}}
 ```
 
@@ -373,7 +373,7 @@ export SCOUTRO_PASSWORD_FILE=/run/secrets/scoutro-admin   # or SCOUTRO_PASSWORD
 
 scoutroctl health
 scoutroctl search "Olares" --limit 5
-scoutroctl crawl start https://example.com --depth 3 --scope domain --max-pages 1000
+scoutroctl crawl start https://example.com --collection research --depth 3 --scope domain --max-pages 1000
 scoutroctl crawl list
 scoutroctl crawl status <id>
 scoutroctl crawl stop <id>
@@ -482,3 +482,7 @@ See [page help](../help/ScoutroSEO_p.md) for exact parameters/errors/response
 fields and [technical semantics](SCOUTRO_SEO_HOST_ANALYSIS.md) for field origins,
 aggregation limits, performance and rollout prerequisites. No crawler,
 scheduler, configuration, ranking or DATA migration side effects.
+
+## Scoutro native crawl and host flow
+
+Collection is now mandatory for every Scoutro crawl, including administrators. Safe retry uses Idempotency-Key. See [the complete contract](SCOUTRO_CRAWL_FLOW.md) for host resolution, scoped collection suggestions, durable metadata, Discovery states and CLI examples.

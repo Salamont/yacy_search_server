@@ -47,9 +47,7 @@ try {
     await page.waitForFunction(()=>[...document.querySelectorAll('.scd-job h3')].some(e=>e.textContent==='UI edited'));
     check(true,`${width}: UI edit`);
     await page.evaluate(()=>Object.defineProperty(crypto,'randomUUID',{configurable:true,value:undefined}));
-    const refusedRun = page.waitForResponse(r=>r.url().endsWith('/run')&&r.request().method()==='POST');
-    await page.locator('.scd-job').filter({has:page.locator('h3',{hasText:'UI edited'})}).locator('button').nth(3).click();
-    check((await refusedRun).status()===409,`${width}: Run once works without secure-context UUID and is blocked while globally disabled`);
+    check(await page.locator('.scd-job').filter({has:page.locator('h3',{hasText:'UI edited'})}).locator('button').nth(3).isDisabled(),`${width}: Run once disabled while globally disabled`);
     page.once('dialog',dialog=>dialog.accept());
     await page.locator('.scd-job').filter({has:page.locator('h3',{hasText:'UI edited'})}).locator('button').last().click();
     await page.waitForFunction(()=>document.querySelector('#scd-job-count').textContent==='1' && document.querySelectorAll('.scd-job').length===1);

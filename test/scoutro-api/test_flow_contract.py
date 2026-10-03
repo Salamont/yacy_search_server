@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+"""Offline CLI and generated-description agreement; no HTTP or credentials. GPL-2.0-or-later."""
+import sys
+sys.dont_write_bytecode=True
+import contextlib,io,json,runpy,tempfile,unittest
+from pathlib import Path
+from unittest.mock import patch
+ROOT=Path(__file__).resolve().parents[2]
+CLI=runpy.run_path(str(ROOT/'tools/scoutro/scoutroctl'))
+class Contracts(unittest.TestCase):
+ def setUp(self):
+  self.openapi=json.loads((ROOT/'htroot/env/scoutro/api/openapi.json').read_text())
+  self.actions=json.loads((ROOT/'htroot/env/scoutro/api/actions.json').read_text())
+ def test_collection_is_required_without_default_in_both_paths(self):
+  for schema in ['CrawlStart','AgentCrawlStart']:
+   spec=self.openapi['components']['schemas'][schema]
+   self.assertIn('collection',spec['required']); self.assertNotIn('default',spec['properties']['collection'])
+  action=next(x for x in self.actions['actions'] if x['name']=='crawl.start')
+  self.assertTrue(action['parameters']['collection']['required'])
+ def test_cli_refuses_missing_collection_before_client(self):
+  with contextlib.redirect_stderr(io.StringIO()),self.assertRaises(SystemExit) as result:
+   CLI['build_parser']().parse_args(['crawl','start','https://example.com/'])
+  self.assertEqual(result.exception.code,2)
+ def test_new_actions_and_agent_paths_are_consistent(self):
+  for name,path in [('host.resolve','hosts/resolve'),('collections.list','collections'),('discovery.status','discovery/status')]:
+   action=next(x for x in self.actions['actions'] if x['name']==name)
+   self.assertFalse(action['mutating']); self.assertTrue(action['agent']['grantable']); self.assertFalse(action['agent']['presetable'])
+   self.assertEqual(action['http']['path'],'/scoutro/api/v1/'+path)
+   self.assertEqual(action['agent']['http']['path'],'/scoutro/api/agent/v1/'+path)
+   self.assertIn('/agent/v1/'+path,self.openapi['paths'])
+ def test_generated_descriptions_are_reproducible(self):
+  with tempfile.TemporaryDirectory() as folder,patch.object(sys,'argv',['generator',folder]),contextlib.redirect_stdout(io.StringIO()):
+   runpy.run_path(str(ROOT/'tools/scoutro/generate_api_description.py'),run_name='__main__')
+   for name in ['openapi.json','actions.json']: self.assertEqual((Path(folder)/name).read_bytes(),(ROOT/'htroot/env/scoutro/api'/name).read_bytes())
+ def call(self,args,token=''):
+  requests=[]
+  class Client:
+   def __init__(self,*_):self.v1='/agent/v1' if token else '/v1'
+   def call(self,*args,**kwargs):requests.append((args,kwargs));return {}
+  globals=CLI['main'].__globals__
+  with patch.dict(globals,Client=Client,password=lambda:'',agent_token=lambda:token),contextlib.redirect_stdout(io.StringIO()):CLI['main'](args)
+  return requests[0]
+ def test_admin_cli_sends_explicit_collection_and_idempotency(self):
+  args,kwargs=self.call(['crawl','start','https://example.com/','--collection','test-web','--idempotency-key','same','--max-pages','15'])
+  self.assertEqual(args,('POST','/v1/crawls'));self.assertEqual(kwargs['body']['collection'],'test-web');self.assertEqual(kwargs['extra_headers'],{'Idempotency-Key':'same'})
+ def test_agent_cli_uses_same_contract(self):
+  args,kwargs=self.call(['crawl','start','https://example.com/','--collection','test-web'],token='test')
+  self.assertEqual(args,('POST','/agent/v1/crawls'));self.assertEqual(kwargs['body']['collection'],'test-web')
+ def test_cli_host_collections_and_status_select_auth_path(self):
+  for token in ['','test']:
+   prefix='/agent/v1' if token else '/v1'
+   for argv,path in [(['host','resolve','https://EXAMPLE.com/path','--collection','test-web'],'/hosts/resolve'),(['collections'],'/collections'),(['automation','status'],'/discovery/status')]:
+    args,_=self.call(argv,token);self.assertEqual(args[:2],('GET',prefix+path))
+ def test_discovery_schema_separates_batch_worker_and_automation(self):
+  properties=self.openapi['components']['schemas']['DiscoveryStatus']['properties']
+  self.assertEqual(properties['automation_status']['enum'],['active','paused','disabled'])
+  for field in ['running','active_batch','job_name','collection','phase','started_at','waiting_reason','allowed_actions']:self.assertIn(field,properties)
+ def test_existing_discovery_actions_are_preserved(self):
+  names={action['name'] for action in self.actions['actions']}
+  for suffix in ['catalog','export','jobs.list','jobs.create','jobs.get','jobs.update','jobs.delete','jobs.run','enable','disable','pause','resume']: self.assertIn('discovery.'+suffix,names)
+ def test_crawl_progress_expresses_unknowns(self):
+  properties=self.openapi['components']['schemas']['Crawl']['properties']
+  for field in ['url','collection','scope','startedAt','endedAt','lastError']:self.assertIn('null',properties[field]['type'])
+if __name__=='__main__':unittest.main()

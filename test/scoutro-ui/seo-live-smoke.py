@@ -68,7 +68,12 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
                 except (OSError, urllib.error.URLError):
                     if time.monotonic() > deadline: raise RuntimeError((root / "peer.log").read_text()[-5000:])
                     time.sleep(0.5)
-            tracked = [root / "DATA/SETTINGS", root / "DATA/INDEX/webportal/SEGMENTS", root / "DATA/QUEUES"]
+            # YaCy records newly loaded servlet names in its built-in called counter.
+            # Warm shells before the strict settings/index/queue/Scoutro hash baseline.
+            readonly_urls = ["/ScoutroCrawls_p.html", "/scoutro/api/v1/crawls", "/scoutro/api/v1/hosts/resolve?input=https%3A%2F%2Fabsent.example%2Fpath", "/scoutro/api/v1/collections", "/ScoutroSEO_p.html", "/scoutro/api/v1/seo/hosts", "/scoutro/api/v1/seo/hosts/a.example", "/scoutro/api/v1/seo/hosts/a.example/pages?sort=references_external&order=desc"]
+            for path in readonly_urls:
+                with client.open(BASE + path, timeout=15) as response: assert response.status == 200
+            tracked = [root / "DATA/SETTINGS", root / "DATA/INDEX/webportal/SEGMENTS", root / "DATA/QUEUES", root / "DATA/SCOUTRO"]
             # YaCy finishes creating its queue files after HTTP starts. Wait for
             # persistent state to settle before measuring dashboard requests.
             deadline = time.monotonic() + 30
@@ -82,7 +87,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
                 before = stable
             config_before = config.read_text()
             # Admin SEO GETs cannot alter persistent settings/index/crawl queues.
-            for url in ["/ScoutroSEO_p.html", "/scoutro/api/v1/seo/hosts", "/scoutro/api/v1/seo/hosts/a.example", "/scoutro/api/v1/seo/hosts/a.example/pages?sort=references_external&order=desc"]:
+            for url in readonly_urls:
                 with client.open(BASE + url, timeout=15) as response: assert response.status == 200
             after = [digests(folder) for folder in tracked]
             changed = [f"{folder.name}/{name}" for folder, old, new in zip(tracked, before, after) for name in old.keys() | new.keys() if old.get(name) != new.get(name)]
@@ -90,11 +95,14 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
             a, b = settings(config_before), settings(config.read_text())
             if a != b: print("Changed setting names:", [key for key in a.keys() | b.keys() if a.get(key) != b.get(key)], flush=True)
             assert before == after, "SEO GET mutated settings, index or crawl queues: " + ", ".join(changed)
-            print("PASS: 5 live authenticated/non-mutation checks", flush=True)
+            print("PASS: 9 live authenticated/non-mutation checks", flush=True)
             env = {**os.environ, "SCOUTRO_URL": BASE, "SCOUTRO_ADMIN_USER": "admin", "SCOUTRO_ADMIN_PASSWORD": "yacy"}
             shots = os.environ.get("SCOUTRO_SCREENSHOTS", "/tmp/scoutro-seo-shots")
             subprocess.run(["node", str(REPO / "test/scoutro-ui/seo-ui-test.mjs"), "--screenshots", shots], cwd=REPO, env=env, check=True)
             subprocess.run(["python3", str(REPO / "test/scoutro-api/test_seo_api.py"), "-v"], cwd=REPO, env=env, check=True)
+            subprocess.run(["python3", str(REPO / "test/scoutro-api/test_flow_api.py"), "-v"], cwd=REPO, env=env, check=True)
+            assert not (root / "DATA/SCOUTRO/crawls.ndjson").exists(), "Invalid/API/UI GETs must not create a crawl ledger"
+            subprocess.run(["node", str(REPO / "test/scoutro-ui/crawl-flow-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
         finally:
             if process is not None and process.poll() is None:
                 process.terminate()

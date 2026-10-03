@@ -9,13 +9,18 @@
 <h1>SEO / Host Analysis</h1>
 <p class="sseo-note">Read indexed content, crawl metadata and locally observed references.</p>
 <form id="sseo-search" class="sseo-search">
-<label for="sseo-host">Domain or host<input class="form-control" id="sseo-host" type="text" required maxlength="253" autocomplete="off" /></label>
+<label for="sseo-host">Host or HTTP/HTTPS URL<input class="form-control" id="sseo-host" type="text" required maxlength="2048" autocomplete="off" /></label>
 <label for="sseo-collection">Collection (optional)<input class="form-control" id="sseo-collection" type="text" maxlength="64" /></label>
 <button class="btn btn-primary" type="submit">Analyze</button>
 <button class="btn btn-default" id="sseo-find" type="button">Find hosts</button>
 </form>
 <p id="sseo-message" role="status" aria-live="polite"></p>
 <ul id="sseo-host-results" class="sseo-host-results"></ul><button class="btn btn-default" id="sseo-more-hosts" type="button" hidden>More hosts</button>
+<section id="sseo-not-indexed" class="sseo-empty" hidden aria-labelledby="sseo-not-indexed-title">
+<h2 id="sseo-not-indexed-title">Not yet indexed</h2><p id="sseo-normalized-host"></p>
+<p>Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.</p>
+<a class="btn btn-primary" id="sseo-start-crawl" href="ScoutroCrawls_p.html#new-crawl">Start crawl</a>
+</section>
 <section id="sseo-analysis" hidden aria-label="Host analysis">
 <h2 id="sseo-heading"></h2>
 <p class="sseo-note">Indexed URLs can include error records. Dates describe stored metadata. Missing values are not zero.</p>
@@ -38,6 +43,7 @@
 </section>
 <section class="sseo-panel" id="sseo-detail" hidden aria-labelledby="sseo-detail-title"><div class="sseo-controls"><h2 id="sseo-detail-title" tabindex="-1">URL detail</h2><button class="btn btn-default" type="button" id="sseo-close">Close detail</button></div><p id="sseo-detail-url"></p><div id="sseo-detail-body"></div></section>
 <div hidden id="sseo-labels">
+<span data-sseo-label="not_indexed">Not yet indexed</span>
 <span data-sseo-label="overview">Overview</span>
 <span data-sseo-label="pages">Pages</span>
 <span data-sseo-label="links">Links</span>

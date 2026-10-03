@@ -188,6 +188,7 @@
       <li><h3>Scoutro</h3></li>
       <li><a href="scoutro-dashboard.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Dashboard</a></li>
       <li><a href="ScoutroDiscovery_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Discovery Automation</a></li>
+      <li><a href="ScoutroCrawls_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Crawls</a></li>
       <li><a href="ScoutroSEO_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">SEO / Host Analysis</a></li>
     </ul>
     

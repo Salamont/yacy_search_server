@@ -52,3 +52,9 @@ Base: `/scoutro/api/v1/discovery/`, HTTP Digest administrator only. Agent tokens
 | POST | `pause` / `resume` | `{}`, required If-Match; updates global pause flag only. |
 
 Common errors: 400 validation, 401/403 authentication/origin, 404 missing job/path, 409 stale revision/config reference/busy/paused, 428 missing revision, 503 unavailable/corrupt persistence/config. See `openapi.json` and `actions.json`. Machine error codes appear as waiting reasons; unknown future codes remain visible.
+
+## Automation versus batch
+
+Active, Paused and Disabled describe automation independently of an existing batch. Batch status shows the job name, collection, phase and start time. Worker activity alone is not a running batch. Buttons follow allowed_actions; heartbeat repair is explicit. Polling rejects overlapping/stale snapshots.
+
+Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).

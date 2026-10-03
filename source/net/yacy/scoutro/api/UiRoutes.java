@@ -58,7 +58,9 @@ final class UiRoutes {
         route("config.portal", "configuration", "Portal Configuration", "/ConfigPortal_p.html", true, "Search portal settings.");
         route("config.design", "configuration", "Portal Design", "/ConfigAppearance_p.html", true, "Skins and appearance.");
         route("config.language", "configuration", "Language", "/ConfigLanguage_p.html", true, "Language of the web interface.");
-        route("crawl.startSite", "crawling", "Grab a whole site", "/CrawlStartSite.html", false, "Simple site crawl start.");
+        route("crawl.startSite", "crawling", "New Scoutro crawl", "/ScoutroCrawls_p.html#new-crawl", true, "Native Scoutro crawl start with required collection.");
+        route("crawl.new", "crawling", "New crawl", "/ScoutroCrawls_p.html#new-crawl", true, "URL, collection, domain/subpath scope, page and depth limits.");
+        route("crawl.overview", "crawling", "Crawls", "/ScoutroCrawls_p.html", true, "Machine-readable Scoutro crawl metadata and YaCy status.");
         route("crawl.startExpert", "crawling", "Crawler (Expert Crawl Start)", "/CrawlStartExpert.html", false, "Crawl start with all options.");
         route("crawl.profiles", "crawling", "Crawl Profiles", "/CrawlProfileEditor_p.html", true, "Active and terminated crawl profiles.");
         route("index.administration", "administration", "Index Administration", "/IndexControlURLs_p.html", true, "Look up and manage indexed URLs.");
