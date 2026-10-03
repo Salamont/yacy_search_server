@@ -173,8 +173,7 @@ def is_public_ip(ip):
         a = ipaddress.ip_address(ip)
     except ValueError:
         return False
-    return not (a.is_private or a.is_loopback or a.is_link_local or a.is_multicast
-                or a.is_reserved or a.is_unspecified)
+    return a.is_global and not a.is_multicast
 
 
 def resolve_public(host):
@@ -186,10 +185,79 @@ def resolve_public(host):
     except socket.gaierror as e:
         return False, "dns:" + str(e)
     ips = {i[4][0] for i in infos}
+    if not ips:
+        return False, "dns:no-addresses"
     for ip in ips:
         if not is_public_ip(ip):
             return False, "private-ip:" + ip
     return True, ",".join(sorted(ips))
+
+
+MAX_ROBOTS_REDIRECTS = 5
+
+
+class RobotsTargetError(urllib.error.URLError):
+    """A policy refusal is not a transient robots fetch failure."""
+
+
+def public_robots_url(url):
+    """Normalize a robots target and validate all its DNS addresses before HTTP."""
+    try:
+        if any(ord(char) < 32 or ord(char) == 127 for char in url):
+            raise ValueError("URL control characters refused")
+        parsed = urllib.parse.urlsplit(url)
+        if parsed.scheme.lower() not in ("http", "https") or not parsed.hostname:
+            raise ValueError("HTTP/HTTPS target required")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("URL credentials refused")
+        host = parsed.hostname.encode("idna").decode("ascii").lower()
+        port = parsed.port
+        authority = "[" + host + "]" if ":" in host else host
+        if port is not None:
+            authority += ":" + str(port)
+        normalized = urllib.parse.urlunsplit((
+            parsed.scheme.lower(), authority,
+            urllib.parse.quote(parsed.path or "/", safe="/%:@!$&'()*+,;=-._~"),
+            urllib.parse.quote(parsed.query, safe="/?%:@!$&'()*+,;=-._~"), ""))
+    except (ValueError, UnicodeError):
+        raise RobotsTargetError("robots-target-invalid") from None
+    allowed, _reason = resolve_public(host)
+    if not allowed:
+        raise RobotsTargetError("robots-target-blocked")
+    return normalized
+
+
+class PublicRobotsRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Every redirect is checked; a per-request counter also bounds loops."""
+    max_repeats = MAX_ROBOTS_REDIRECTS + 1
+    max_redirections = MAX_ROBOTS_REDIRECTS + 1
+
+    def http_error_302(self, req, fp, code, msg, headers):
+        # Validate before urllib's own scheme/Latin-1 processing. Otherwise an
+        # invalid scheme becomes a generic fetch error and IDNs get misencoded.
+        try:
+            location = headers.get("location") or headers.get("uri")
+            if not location:
+                raise RobotsTargetError("robots-target-invalid")
+            target = public_robots_url(urllib.parse.urljoin(req.full_url, location))
+            normalized_headers = {key.lower(): value for key, value in headers.items()}
+            normalized_headers["location"] = target
+            return super().http_error_302(req, fp, code, msg, normalized_headers)
+        except RobotsTargetError:
+            fp.close()
+            raise
+
+    http_error_301 = http_error_303 = http_error_307 = http_error_308 = http_error_302
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        count = getattr(req, "robots_redirect_count", 0)
+        if count >= MAX_ROBOTS_REDIRECTS:
+            raise RobotsTargetError("robots-redirect-limit")
+        target = public_robots_url(newurl)
+        redirected = super().redirect_request(req, fp, code, msg, headers, target)
+        if redirected is not None:
+            redirected.robots_redirect_count = count + 1
+        return redirected
 
 
 def robots_allows(host):
@@ -197,18 +265,22 @@ def robots_allows(host):
 
     Returns (allowed, reason). allowed is True/False, or None when the site
     answered robots.txt with HTTP 5xx on every scheme (a transient site
-    error: do not crawl now, retry later). On any other fetch error we allow
-    and let YaCy decide (YaCy re-checks robots.txt itself).
+    error: do not crawl now, retry later). Policy refusals fail closed. On other
+    fetch errors we let YaCy decide (YaCy re-checks robots.txt itself).
     """
     body = None
     server_errors = []
+    opener = urllib.request.build_opener(PublicRobotsRedirectHandler())
     for scheme in ("https", "http"):
         try:
-            req = urllib.request.Request(scheme + "://" + host + "/robots.txt",
+            url = public_robots_url(scheme + "://" + host + "/robots.txt")
+            req = urllib.request.Request(url,
                                          headers={"User-Agent": "yacybot (scoutro-discovery)"})
-            with urllib.request.urlopen(req, timeout=8) as r:
+            with opener.open(req, timeout=8) as r:
                 body = r.read(200000).decode("utf-8", "replace")
                 break
+        except RobotsTargetError as e:
+            return False, str(e.reason)
         except urllib.error.HTTPError as e:
             if 500 <= e.code <= 599:
                 server_errors.append(e.code)
