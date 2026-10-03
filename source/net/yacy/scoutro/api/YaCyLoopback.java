@@ -50,6 +50,22 @@ import net.yacy.search.SwitchboardConstants;
  */
 final class YaCyLoopback implements Upstream {
 
+    @Override
+    public java.nio.file.Path crawlMetadataPath() {
+        final Switchboard sb = Switchboard.getSwitchboard();
+        if (sb == null) throw new IllegalStateException("Scoutro is not ready");
+        return sb.getDataPath().toPath().resolve("DATA/SCOUTRO/crawls.ndjson");
+    }
+
+    @Override
+    public void requireCollectionStorage() throws ApiException {
+        final Switchboard sb = Switchboard.getSwitchboard();
+        if (sb == null || sb.index == null) throw new ApiException(503, "index_unavailable", "The index is unavailable.");
+        final net.yacy.search.schema.CollectionConfiguration configuration = sb.index.fulltext().getDefaultConfiguration();
+        if (configuration == null || !configuration.isEmpty() && !configuration.contains(net.yacy.search.schema.CollectionSchema.collection_sxt))
+            throw new ApiException(503, "collection_storage_unavailable", "The active index cannot store crawl collections.");
+    }
+
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(5);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(60);
 

@@ -161,3 +161,7 @@ indexed markup, visible backend errors, real zero versus missing references,
 admin auth and agent grant/collection isolation. Agent/token creation for scope
 verification occurs only in that disposable DATA. Before it, authenticated
 SEO GETs must leave settings, index and crawl-queue file hashes unchanged.
+
+## Native crawl / host / Discovery flow
+
+`seo-live-smoke.py` also runs `crawl-flow-ui-test.mjs` and scoped host/crawl API checks. All valid UI crawl starts are intercepted; live starts are invalid/disallowed only. English/German at 360/390/412/1280, JSON contract, coalesced polling and delayed responses are covered. See `docs/SCOUTRO_CRAWL_FLOW_TESTS.md`.

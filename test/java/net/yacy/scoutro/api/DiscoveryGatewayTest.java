@@ -56,4 +56,9 @@ public class DiscoveryGatewayTest {
         try{gateway.start(seed(),"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");fail();}catch(ApiException e){assertEquals("host_busy",e.code());}
         assertEquals(1,bridge.yacy.calls("Crawler_p.json").size());
     }
+    @Test public void missingCollectionIsRejectedBeforePreflight() throws Exception {
+        Bridge bridge=new Bridge(); JsonObject invalid=seed(); invalid.remove("collection");
+        try{new DiscoveryGateway(bridge).start(invalid,MARKER);fail();}catch(ApiException e){assertEquals(400,e.status());}
+        assertTrue(bridge.yacy.calls.isEmpty());
+    }
 }

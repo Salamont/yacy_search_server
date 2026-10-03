@@ -99,21 +99,27 @@ schemas["IndexEvidence"] = {"type": "object", "required": ["domain", "total", "l
 schemas["Crawl"] = {"type": "object", "required": ["id", "state"], "properties": {
     "id": {"type": "string", "description": "YaCy crawl profile handle."},
     "name": {"type": "string", "description": "Crawl name as shown by YaCy (usually the host)."},
-    "state": {"type": "string", "enum": ["running", "paused", "terminated"]},
+    "state": {"type": "string", "enum": ["running", "paused", "terminated", "removed"]},
     "depth": {"type": ["integer", "null"]}, "maxPages": {"type": ["integer", "null"]},
     "pagesLoaded": {"type": ["integer", "null"], "description": "URLs loaded for this crawl so far (running crawls only)."},
     "collections": {"type": "array", "items": {"type": "string"}},
-    "startUrl": {"type": "string", "description": "Only in the answer of crawl.start."},
-    "scope": {"type": "string", "description": "Only in the answer of crawl.start."},
+    "url": {"type": ["string", "null"]}, "host": {"type": ["string", "null"]},
+    "collection": {"type": ["string", "null"]},
+    "startUrl": {"type": ["string", "null"], "description": "Recorded seed URL; unknown for legacy profiles."},
+    "scope": {"type": ["string", "null"], "enum": ["domain", "subpath", "wide", None]},
+    "startedAt": {"type": ["string", "null"], "format": "date-time", "description": "Durable start-intent time, not proof of first fetch."},
+    "endedAt": {"type": ["string", "null"], "description": "Unknown when YaCy supplies no end timestamp."},
+    "lastError": {"type": ["string", "null"]}, "idempotentReplay": {"type": "boolean"},
+    "progress": {"type": "object", "properties": {k: {"type": ["integer", "null"]} for k in ["pagesLoaded", "total", "percent"]}},
     "links": {"type": "object", "properties": {"self": {"type": "string"}, "stop": {"type": "string"}}}}}
 schemas["CrawlList"] = {"type": "object", "required": ["crawls"], "properties": {"crawls": {"type": "array", "items": ref("Crawl")}}}
-schemas["CrawlStart"] = {"type": "object", "required": ["url"], "additionalProperties": False, "properties": {
+schemas["CrawlStart"] = {"type": "object", "required": ["url", "collection"], "additionalProperties": False, "properties": {
     "url": {"type": "string", "format": "uri", "maxLength": 2048, "description": "Start URL, http or https."},
     "depth": {"type": "integer", "minimum": 0, "maximum": 10, "default": 2},
     "scope": {"type": "string", "enum": ["domain", "subpath", "wide"], "default": "domain",
               "description": "domain: stay on the host; subpath: stay below the start path; wide: follow links to other hosts."},
     "maxPages": {"type": "integer", "minimum": 1, "maximum": 1000000, "description": "Maximum pages per domain (unlimited if omitted)."},
-    "collection": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "default": "user"}}}
+    "collection": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$", "description": "Required explicit target collection; no fallback. A new name is allowed for administrators."}}}
 schemas["CrawlStopped"] = {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": "string"}, "state": {"type": "string", "enum": ["stopped"]}}}
 schemas["Settings"] = {"type": "object", "properties": {"settings": {"type": "object", "additionalProperties": {"type": "object", "properties": {
     "value": {}, "type": {"type": "string", "enum": ["string", "integer"]}, "description": {"type": "string"}, "writable": {"type": "boolean"}}}}}}
@@ -196,9 +202,9 @@ paths["/v1/index/evidence"] = {"get": op("index.evidence", "Indexed text of a do
     q("maxChars", {"type": "integer", "minimum": 100, "maximum": 4000, "default": 1500}, "Maximum excerpt length per document.")])}
 paths["/v1/crawls"] = {
     "get": op("crawl.list", "List crawls", "Running, paused and terminated crawls.", ["crawls"], {**ok("Crawl list.", "CrawlList"), **errs("401", "502", "503")}),
-    "post": op("crawl.start", "Start a crawl", "Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).", ["crawls"], {**ok("Crawl started.", "Crawl", "201"), **errs("400", "401", "403", "413", "415", "422", "502", "503")}, body="CrawlStart", mutating=True)}
+    "post": op("crawl.start", "Start a crawl", "Requires an explicit collection. Refuses a second active crawl on the same host. Durable start intent is saved before dispatch; use Idempotency-Key for safe retries. Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).", ["crawls"], {**ok("Crawl started.", "Crawl", "201"), **ok("Existing crawl for this key.", "Crawl"), **errs("400", "401", "403", "409", "413", "415", "422", "502", "503")}, params=[{"name": "Idempotency-Key", "in": "header", "required": False, "schema": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,100}$"}, "description": "Use the same key and request for safe retries; conflicting parameters or an unconfirmed start return 409."}], body="CrawlStart", mutating=True)}
 paths["/v1/crawls/{id}"] = {"get": op("crawl.status", "Crawl status", "State of one crawl.", ["crawls"], {**ok("Crawl.", "Crawl"), **errs("400", "401", "404", "502", "503")}, params=[idp])}
-paths["/v1/crawls/{id}/stop"] = {"post": op("crawl.stop", "Stop a crawl", "Terminates a running or paused crawl. YaCy removes the crawl profile; afterwards crawl.status answers 404. Send an empty JSON object as body.", ["crawls"], {**ok("Crawl stopped.", "CrawlStopped"), **errs("400", "401", "403", "404", "409", "415", "502", "503")}, params=[idp], mutating=True)}
+paths["/v1/crawls/{id}/stop"] = {"post": op("crawl.stop", "Stop a crawl", "Terminates a running or paused crawl. YaCy removes the crawl profile; afterwards recorded Scoutro crawl.status answers removed; unrecorded legacy profiles answer 404. Send an empty JSON object as body.", ["crawls"], {**ok("Crawl stopped.", "CrawlStopped"), **errs("400", "401", "403", "404", "409", "415", "502", "503")}, params=[idp], mutating=True)}
 paths["/v1/config"] = {
     "get": op("config.get", "Read settings", "The allowlisted settings that the API may read and change.", ["config"], {**ok("Settings.", "Settings"), **errs("401", "503")}),
     "patch": op("config.set", "Change settings", "All-or-nothing update of allowlisted settings only.", ["config"], {**ok("Settings after the update.", "Settings"), **errs("400", "401", "403", "413", "415", "503")}, body="SettingsUpdate", mutating=True)}
@@ -211,6 +217,9 @@ paths["/v1/ui/routes/{name}"] = {"get": op("ui.route", "One UI route", "Public. 
 AGENT_AUTH = [{"agentBearer": []}]
 # grant id: (risk, scoped, presetable, agent kinds, method, agent path, admin operationId)
 GRANTS = O([
+    ("host.resolve", ("read", True, False, ["external", "research_worker"], "GET", "/agent/v1/hosts/resolve", "host.resolve")),
+    ("collections.list", ("read", True, False, ["external", "research_worker"], "GET", "/agent/v1/collections", "collections.list")),
+    ("discovery.status", ("admin", False, False, ["external"], "GET", "/agent/v1/discovery/status", "discovery.status")),
     ("search", ("read", True, True, ["external", "research_worker"], "GET", "/agent/v1/search", "search")),
     ("seo.read", ("read", True, False, ["external", "research_worker"], "GET", "/agent/v1/seo/hosts", "seo.hosts")),
     ("index.evidence", ("read", True, True, ["external", "research_worker"], "GET", "/agent/v1/index/evidence", "index.evidence")),
@@ -239,7 +248,7 @@ def aop(opid, summary, desc, tags, responses, params=None, body=None, mutating=F
     o["x-scoutro-agent-grants"] = grants or []
     return o
 collp = q("collection", {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "One of the agent's collections; default: all collections of the scope.")
-idemp = {"name": "Idempotency-Key", "in": "header", "required": False, "description": "Client reference (e.g. a Clustro run id): a repeated start with the same key returns the existing crawl (200) instead of starting a second one.", "schema": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,100}$"}}
+idemp = {"name": "Idempotency-Key", "in": "header", "required": False, "description": "Administrator or agent client reference. Same key and same parameters return the existing crawl (200). Different parameters: 409 idempotency_conflict. Unconfirmed intent: 409 crawl_start_unconfirmed; never blindly replayed.", "schema": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,100}$"}}
 SCOPE_NOTE = " Limited to the agent's data scope on the server side."
 paths["/agent/v1/capabilities"] = {"get": aop("agent.capabilities", "Capabilities of this agent", "Always allowed for a valid token. Lists exactly the actions, collections and limits granted to this agent and records the handshake (shown as 'connected' in Agents & Access).", ["agent"], {**ok("Capabilities.", "AgentCapabilities"), **aerrs("401", "403", "503")})}
 paths["/agent/v1/heartbeat"] = {"post": aop("agent.heartbeat", "Runtime heartbeat", "Always allowed for a valid token. A runtime (e.g. the Scoutro research worker) reports its state; only the listed fields are accepted.", ["agent"], {**ok("Stored.", "AgentHeartbeatAck"), **aerrs("400", "401", "403", "415")}, body="AgentHeartbeat", mutating=True)}
@@ -295,14 +304,14 @@ schemas["SeoPage"] = {"type": "object", "properties": {
     "outgoing": {"type": "object", "properties": {k: nullable_number for k in ["outgoing_internal", "outgoing_external", "nofollow"]}}}}
 facets_schema = {"type": ["array", "null"], "items": {"type": "object", "properties": {"value": {"type": ["string", "number"]}, "pages": {"type": "integer"}}}}
 schemas["SeoHost"] = {"type": "object", "properties": {
-    "host": {"type": "string"}, "indexed_pages": {"type": "integer"}, "citation": ref("SeoCoverage"),
+    "host": {"type": "string"}, "indexed": {"type": "boolean"}, "analysisAvailable": {"type": "boolean"}, "indexed_pages": {"type": "integer"}, "citation": ref("SeoCoverage"),
     "content": {"type": "object", "properties": {**{k + "_pages": nullable_number for k in ["title", "description", "h1", "h2", "h3"]}, "word_count": metric, "languages": facets_schema}},
     "crawl": {"type": "object", "properties": {"depth": metric, "response_time_ms": metric, "load_date": nullable_text, "last_modified": nullable_text}},
     "technology": {"type": "object", "properties": {"http_status": facets_schema, "protocol": facets_schema, **{k: metric for k in ["outgoing_internal", "outgoing_external", "nofollow"]}}},
     "fields": {"type": "object", "additionalProperties": {"type": "boolean"}}}}
 schemas["SeoHosts"] = {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"host": {"type": "string"}, "pages": {"type": "integer"}}}}, **{k: {"type": "integer"} for k in ["total", "offset", "limit"]}}}
 schemas["SeoPages"] = {"type": "object", "properties": {"host": {"type": "string"}, "items": {"type": "array", "items": ref("SeoPage")}, **{k: {"type": "integer"} for k in ["total", "offset", "limit"]}, **{k: {"type": "string"} for k in ["sort", "order", "citation_filter"]}}}
-seo_host = {"name": "host", "in": "path", "required": True, "schema": {"type": "string", "maxLength": 253}, "description": "Exact DNS hostname, no protocol/path/port. IDN normalized, no network lookup."}
+seo_host = {"name": "host", "in": "path", "required": True, "schema": {"type": "string", "maxLength": 253}, "description": "Exact DNS hostname (IDN normalized, no network lookup). Use /hosts/resolve?input=... for a full HTTP(S) URL; it returns the normalized host."}
 seo_id = {"name": "id", "in": "path", "required": True, "schema": {"type": "string", "pattern": "^[A-Za-z0-9_-]{12}$"}, "description": "Stored YaCy URL hash."}
 seo_collection = q("collection", {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "Optional target collection; must be granted on the agent path.")
 seo_paging = [q("limit", {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}, "Bounded page size."), q("offset", {"type": "integer", "minimum": 0, "maximum": 100000, "default": 0}, "Server offset; deep pages may time out.")]
@@ -316,6 +325,212 @@ for suffix, operation, result_schema, parameters in seo_endpoints:
     paths["/v1" + suffix] = {"get": op(operation, "SEO / Host Analysis", SEO_NOTE, ["seo"], {**ok("Indexed metrics.", result_schema), **errs("400", "401", "404", "405", "503")}, params=parameters)}
     paths["/agent/v1" + suffix] = {"get": aop("agent." + operation, "SEO / Host Analysis (scoped)", SEO_NOTE + " Requires explicit seo.read, absent from presets.", ["agent", "seo"], {**ok("Scoped indexed metrics.", result_schema), **aerrs("400", "401", "403", "404", "405", "429", "503")}, params=parameters, grants=["seo.read"])}
 
+
+# Existing Discovery V1 endpoints are generated here too (previously maintained manually).
+schemas["DiscoveryJob"] = {'type': 'object',
+ 'additionalProperties': False,
+ 'properties': {'id': {'type': 'string', 'format': 'uuid', 'readOnly': True},
+                'name': {'type': 'string', 'minLength': 1, 'maxLength': 120},
+                'enabled': {'type': 'boolean', 'default': False},
+                'paused': {'type': 'boolean', 'default': False},
+                'profile': {'type': 'string', 'pattern': '^[a-z][a-z0-9_-]{0,31}$'},
+                'candidate_scope': {'type': 'string',
+                                    'enum': ['source_regions', 'profile_backlog'],
+                                    'default': 'source_regions'},
+                'sources': {'type': 'object',
+                            'additionalProperties': {'type': 'object',
+                                                     'additionalProperties': False,
+                                                     'required': ['regions'],
+                                                     'properties': {'mode': {'type': 'string',
+                                                                             'enum': ['selected',
+                                                                                      'all'],
+                                                                             'default': 'selected'},
+                                                                    'regions': {'type': 'array',
+                                                                                'maxItems': 256,
+                                                                                'items': {'type': 'string'}}}},
+                            'description': 'Registered provider IDs. V1: osm, freeworld. Regions '
+                                           'are source-specific; both is not a source ID.'},
+                'discovery': {'type': 'object',
+                              'additionalProperties': False,
+                              'properties': {'replenish': {'type': 'boolean', 'default': True},
+                                             'replenish_interval_hours': {'type': 'integer',
+                                                                          'minimum': 1,
+                                                                          'maximum': 8760,
+                                                                          'default': 24}}},
+                'batch': {'type': 'object',
+                          'additionalProperties': False,
+                          'properties': {'max_domains': {'type': 'integer',
+                                                         'minimum': 1,
+                                                         'maximum': 500,
+                                                         'default': 50},
+                                         'max_pages': {'type': 'integer',
+                                                       'minimum': 1,
+                                                       'maximum': 10000,
+                                                       'default': 15},
+                                         'depth': {'type': 'integer',
+                                                   'minimum': 0,
+                                                   'maximum': 10,
+                                                   'default': 2},
+                                         'seed_delay_seconds': {'type': 'number',
+                                                                'minimum': 0,
+                                                                'maximum': 300,
+                                                                'default': 10}}},
+                'processing': {'type': 'object',
+                               'additionalProperties': False,
+                               'properties': {'fresh': {'type': 'boolean', 'default': True},
+                                              'retry': {'type': 'boolean', 'default': False},
+                                              'recrawl': {'type': 'object',
+                                                          'additionalProperties': False,
+                                                          'properties': {'enabled': {'type': 'boolean',
+                                                                                     'default': False},
+                                                                         'days': {'type': 'integer',
+                                                                                  'minimum': 1,
+                                                                                  'maximum': 3650,
+                                                                                  'default': 30}}}}},
+                'schedule': {'type': 'object',
+                             'additionalProperties': False,
+                             'properties': {'every_minutes': {'type': 'integer',
+                                                              'minimum': 10,
+                                                              'maximum': 525600,
+                                                              'default': 60}}}}}
+discovery_legacy = {'/v1/discovery/catalog': {'get': {'operationId': 'discovery.catalog'}},
+ '/v1/discovery/export': {'get': {'operationId': 'discovery.export'}},
+ '/v1/discovery/jobs': {'get': {'operationId': 'discovery.jobs.list'},
+                        'post': {'operationId': 'discovery.jobs.create',
+                                 'parameters': [{'name': 'If-Match',
+                                                 'in': 'header',
+                                                 'required': False,
+                                                 'description': 'Numeric jobstore revision, optionally '
+                                                                'quoted. Get from status/jobs.',
+                                                 'schema': {'type': 'string'}}],
+                                 'requestBody': {'required': True,
+                                                 'content': {'application/json': {'schema': {'allOf': [{'$ref': '#/components/schemas/DiscoveryJob'},
+                                                                                                       {'required': ['name',
+                                                                                                                     'profile']}]}}}}}},
+ '/v1/discovery/jobs/{id}': {'get': {'operationId': 'discovery.jobs.get',
+                                     'parameters': [{'name': 'id',
+                                                     'in': 'path',
+                                                     'required': True,
+                                                     'schema': {'type': 'string', 'format': 'uuid'}}]},
+                             'patch': {'operationId': 'discovery.jobs.update',
+                                       'parameters': [{'name': 'id',
+                                                       'in': 'path',
+                                                       'required': True,
+                                                       'schema': {'type': 'string', 'format': 'uuid'}},
+                                                      {'name': 'If-Match',
+                                                       'in': 'header',
+                                                       'required': True,
+                                                       'description': 'Numeric jobstore revision, optionally '
+                                                                      'quoted. Get from status/jobs.',
+                                                       'schema': {'type': 'string'}}],
+                                       'requestBody': {'required': True,
+                                                       'content': {'application/json': {'schema': {'$ref': '#/components/schemas/DiscoveryJob'}}}}},
+                             'delete': {'operationId': 'discovery.jobs.delete',
+                                        'parameters': [{'name': 'id',
+                                                        'in': 'path',
+                                                        'required': True,
+                                                        'schema': {'type': 'string', 'format': 'uuid'}},
+                                                       {'name': 'If-Match',
+                                                        'in': 'header',
+                                                        'required': True,
+                                                        'description': 'Numeric jobstore revision, '
+                                                                       'optionally quoted. Get from '
+                                                                       'status/jobs.',
+                                                        'schema': {'type': 'string'}}],
+                                        'requestBody': {'required': True,
+                                                        'content': {'application/json': {'schema': {'type': 'object',
+                                                                                                    'maxProperties': 0}}}}}},
+ '/v1/discovery/jobs/{id}/run': {'post': {'operationId': 'discovery.jobs.run',
+                                          'parameters': [{'name': 'id',
+                                                          'in': 'path',
+                                                          'required': True,
+                                                          'schema': {'type': 'string', 'format': 'uuid'}}],
+                                          'requestBody': {'required': True,
+                                                          'content': {'application/json': {'schema': {'type': 'object',
+                                                                                                      'additionalProperties': False,
+                                                                                                      'required': ['request_id'],
+                                                                                                      'properties': {'request_id': {'type': 'string',
+                                                                                                                                    'pattern': '^[A-Za-z0-9_-]{1,80}$'}}}}}}}},
+ '/v1/discovery/enable': {'post': {'operationId': 'discovery.enable',
+                                   'parameters': [{'name': 'If-Match',
+                                                   'in': 'header',
+                                                   'required': True,
+                                                   'description': 'Numeric jobstore revision, optionally '
+                                                                  'quoted. Get from status/jobs.',
+                                                   'schema': {'type': 'string'}}],
+                                   'requestBody': {'required': True,
+                                                   'content': {'application/json': {'schema': {'type': 'object',
+                                                                                               'maxProperties': 0}}}}}},
+ '/v1/discovery/disable': {'post': {'operationId': 'discovery.disable',
+                                    'parameters': [{'name': 'If-Match',
+                                                    'in': 'header',
+                                                    'required': True,
+                                                    'description': 'Numeric jobstore revision, optionally '
+                                                                   'quoted. Get from status/jobs.',
+                                                    'schema': {'type': 'string'}}],
+                                    'requestBody': {'required': True,
+                                                    'content': {'application/json': {'schema': {'type': 'object',
+                                                                                                'maxProperties': 0}}}}}},
+ '/v1/discovery/pause': {'post': {'operationId': 'discovery.pause',
+                                  'parameters': [{'name': 'If-Match',
+                                                  'in': 'header',
+                                                  'required': True,
+                                                  'description': 'Numeric jobstore revision, optionally '
+                                                                 'quoted. Get from status/jobs.',
+                                                  'schema': {'type': 'string'}}],
+                                  'requestBody': {'required': True,
+                                                  'content': {'application/json': {'schema': {'type': 'object',
+                                                                                              'maxProperties': 0}}}}}},
+ '/v1/discovery/resume': {'post': {'operationId': 'discovery.resume',
+                                   'parameters': [{'name': 'If-Match',
+                                                   'in': 'header',
+                                                   'required': True,
+                                                   'description': 'Numeric jobstore revision, optionally '
+                                                                  'quoted. Get from status/jobs.',
+                                                   'schema': {'type': 'string'}}],
+                                   'requestBody': {'required': True,
+                                                   'content': {'application/json': {'schema': {'type': 'object',
+                                                                                               'maxProperties': 0}}}}}}}
+for path, methods in discovery_legacy.items():
+    paths[path] = {}
+    for method, definition in methods.items():
+        operation = definition["operationId"]
+        mutation = method != "get"
+        responses = {str(201 if operation.endswith("create") else 200): {"description": "Success", "content": {"application/json": {"schema": {"type": "object"}}}}}
+        responses.update({str(code): err("Validation, authorization, revision, conflict or availability error") for code in [400,401,403,404,409,428,503]})
+        paths[path][method] = {"operationId":operation,"summary":"Discovery automation " + operation.removeprefix("discovery."),"tags":["discovery"],"security":[{"digest":[]}],"x-scoutro-mutating":mutation,
+            "description":"Administrator only. No agent grants. No Classification/LLM. See help/ScoutroDiscovery_p.md.","responses":responses,**{key:value for key,value in definition.items() if key != "operationId"}}
+
+# The UI, CLI and agents share these contracts. No action fetches an unknown host.
+schemas["HostResolution"] = {"type": "object", "required": ["host", "url", "indexed", "analysisAvailable", "crawl"], "properties": {
+    "host": {"type": "string"}, "url": {"type": "string"}, "collection": {"type": ["string", "null"]},
+    "indexed": {"type": "boolean"}, "analysisAvailable": {"type": "boolean"}, "visibleRecords": {"type": "integer"},
+    "crawl": {"type": "object", "properties": {"collectionRequired": {"const": True}, "canRequest": {"type": "boolean"}, "blockedReason": {"type": ["string", "null"]}}},
+    "links": {"type": "object", "additionalProperties": {"type": ["string", "null"]}}}}
+schemas["Collections"] = {"type": "object", "properties": {
+    "collections": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "documents": {"type": ["integer", "null"]}}}},
+    "allowNew": {"type": "boolean"}, "limit": {"type": "integer"}}}
+schemas["DiscoveryBatch"] = {"type": ["object", "null"], "properties": {
+    **{k: {"type": ["string", "null"]} for k in ["id", "job_id", "job_name", "collection", "error"]},
+    "phase": {"enum": ["reserved", "running", "waiting_for_crawler", "needs_reconcile", "needs_review", "completed"]},
+    **{k: {"type": ["integer", "null"]} for k in ["started_at", "finished_at", "attempt_count"]}}}
+schemas["DiscoveryStatus"] = {"type": "object", "required": ["automation_status", "running", "active_batch", "allowed_actions"], "properties": {
+    "automation_status": {"enum": ["active", "paused", "disabled"]},
+    **{k: {"type": "boolean"} for k in ["enabled", "paused", "running", "worker_busy"]},
+    "active_batch": ref("DiscoveryBatch"), "active_run": ref("DiscoveryBatch"),
+    **{k: {"type": ["string", "null"]} for k in ["job_name", "collection", "phase", "waiting_reason"]},
+    "started_at": {"type": ["integer", "null"]}, "last_run": ref("DiscoveryBatch"), "revision": {"type": "integer"},
+    "allowed_actions": {"type": "array", "items": {"enum": ["enable", "disable", "pause", "resume"]}},
+    "heartbeat": {"type": "object", "properties": {"enabled": {"type": "boolean"}, "next_execution": {"type": ["integer", "null"]}, "interval_minutes": {"type": "integer"}}}}}
+inputp = q("input", {"type": "string", "maxLength": 2048}, "DNS hostname or complete HTTP/HTTPS URL. No credentials, IP literals, other schemes, or network lookup.", True)
+flow_specs = [
+    ("/hosts/resolve", "host.resolve", "HostResolution", [inputp, seo_collection], "Normalize a host or URL and look up indexed records within the requested scope. Unknown hosts return indexed=false, HTTP 200. Index failures remain errors. canRequest is permission information, not proof that crawl preflight will pass. Collection is required on the subsequent crawl start."),
+    ("/collections", "collections.list", "Collections", [], "Collection suggestions. Admin: up to 500 indexed names (new names may be entered). Scoped agent: granted collection names, including empty ones; document counts are unknown. No runtime taxonomy edits."),
+    ("/discovery/status", "discovery.status", "DiscoveryStatus", [], "Read-only automation and batch projection. worker_busy alone is not running. enabled/paused are independent of an existing batch. Global metadata requires an explicit global discovery.status grant, absent from presets; no discovery mutation grant is added.")]
+for suffix, operation, result_schema, parameters, note in flow_specs:
+    paths["/v1" + suffix] = {"get": op(operation, operation, note, ["crawls"], {**ok("Status.", result_schema), **errs("400", "401", "502", "503")}, params=parameters)}
+    paths["/agent/v1" + suffix] = {"get": aop("agent." + operation, operation, note, ["agent"], {**ok("Scoped status.", result_schema), **aerrs("400", "401", "403", "429", "502", "503")}, params=parameters, grants=[operation])}
+
 openapi = O()
 openapi["openapi"] = "3.1.0"
 openapi["info"] = {"title": "Scoutro API", "version": "1.0.0",
@@ -327,7 +542,7 @@ openapi["components"] = {"schemas": schemas, "securitySchemes": {
     "digest": {"type": "http", "scheme": "digest", "description": "YaCy administrator account (user 'admin' by default)."},
     "agentBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "sca_<publicId>.<secret>",
                     "description": "Agent token issued in Administration > Agents & Access. Only valid on /scoutro/api/agent/v1/*; never an administrator credential."}}}
-openapi["tags"] = [{"name": t} for t in ["system", "search", "index", "crawls", "config", "ui", "agent", "seo"]]
+openapi["tags"] = [{"name": t} for t in ["system", "search", "index", "crawls", "config", "ui", "agent", "seo", "discovery"]]
 
 # action catalog derived from the same definitions
 actions = []
@@ -337,9 +552,11 @@ mcp = {"search": "scoutro_search", "crawl.start": "scoutro_crawl_start", "crawl.
 cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "search": "scoutroctl search QUERY [--limit N] [--network] [--lang de] [--collection NAME (agent token)]",
        "index.status": "scoutroctl index status [--global (agent token)]", "index.lookup": "scoutroctl index lookup (--url URL | --host HOST)",
        "index.evidence": "scoutroctl index evidence DOMAIN [--collection NAME] [--limit N] [--max-chars N]",
-       "crawl.list": "scoutroctl crawl list", "crawl.start": "scoutroctl crawl start URL [--depth N] [--scope domain|subpath|wide] [--max-pages N] [--collection NAME] [--idempotency-key KEY (agent token)]",
+       "crawl.list": "scoutroctl crawl list", "crawl.start": "scoutroctl crawl start URL [--depth N] [--scope domain|subpath|wide] [--max-pages N] --collection NAME [--idempotency-key KEY]",
        "crawl.status": "scoutroctl crawl status ID", "crawl.stop": "scoutroctl crawl stop ID", "config.get": "scoutroctl config get",
        "config.set": "scoutroctl config set KEY VALUE", "ui.routes": "scoutroctl ui routes", "ui.route": "scoutroctl ui route NAME"}
+mcp.update({"host.resolve": "scoutro_host_resolve", "collections.list": "scoutro_collections_list", "discovery.status": "scoutro_discovery_status"})
+cli.update({"host.resolve": "scoutroctl host resolve HOST_OR_URL [--collection NAME]", "collections.list": "scoutroctl collections", "discovery.status": "scoutroctl automation status"})
 for suffix, operation, _, _ in seo_endpoints:
     mcp[operation] = "scoutro_" + operation.replace(".", "_")
     cli[operation] = "HTTP GET /scoutro/api/v1" + suffix
@@ -347,6 +564,7 @@ for path, methods in paths.items():
     if path.startswith("/agent/"):
         continue
     for method, o in methods.items():
+        if o["operationId"] in {d["operationId"] for methods in discovery_legacy.values() for d in methods.values()}: continue
         params = O()
         for p in o.get("parameters", []):
             params[p["name"]] = {**p["schema"], "in": p["in"], "required": p["required"], "description": p["description"]}
@@ -364,6 +582,188 @@ for path, methods in paths.items():
             parameters=params, returns=ret,
             errors=sorted(int(c) for c in o["responses"] if not c.startswith("2")),
             cli=cli[o["operationId"]], mcpTool=mcp[o["operationId"]]))
+actions.extend([{'name': 'discovery.catalog',
+  'description': 'Discovery automation catalog. Administrator only; no agent grants.',
+  'mutating': False,
+  'auth': 'admin',
+  'http': {'method': 'GET', 'path': '/scoutro/api/v1/discovery/catalog', 'successStatus': 200},
+  'parameters': {},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.export',
+  'description': 'Discovery automation export. Administrator only; no agent grants.',
+  'mutating': False,
+  'auth': 'admin',
+  'http': {'method': 'GET', 'path': '/scoutro/api/v1/discovery/export', 'successStatus': 200},
+  'parameters': {},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.jobs.list',
+  'description': 'Discovery automation jobs.list. Administrator only; no agent grants.',
+  'mutating': False,
+  'auth': 'admin',
+  'http': {'method': 'GET', 'path': '/scoutro/api/v1/discovery/jobs', 'successStatus': 200},
+  'parameters': {},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.jobs.create',
+  'description': 'Discovery automation jobs.create. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/jobs', 'successStatus': 201},
+  'parameters': {'body': {'$ref': '#/components/schemas/DiscoveryJob'}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.jobs.get',
+  'description': 'Discovery automation jobs.get. Administrator only; no agent grants.',
+  'mutating': False,
+  'auth': 'admin',
+  'http': {'method': 'GET', 'path': '/scoutro/api/v1/discovery/jobs/{id}', 'successStatus': 200},
+  'parameters': {},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.jobs.update',
+  'description': 'Discovery automation jobs.update. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'PATCH', 'path': '/scoutro/api/v1/discovery/jobs/{id}', 'successStatus': 200},
+  'parameters': {'body': {'type': 'object',
+                          'additionalProperties': False,
+                          'required': [],
+                          'properties': {'id': {'type': 'string', 'format': 'uuid', 'readOnly': True},
+                                         'name': {'type': 'string', 'minLength': 1, 'maxLength': 120},
+                                         'enabled': {'type': 'boolean', 'default': False},
+                                         'paused': {'type': 'boolean', 'default': False},
+                                         'profile': {'type': 'string', 'pattern': '^[a-z][a-z0-9_-]{0,31}$'},
+                                         'candidate_scope': {'type': 'string',
+                                                             'enum': ['source_regions', 'profile_backlog'],
+                                                             'default': 'source_regions'},
+                                         'sources': {'type': 'object',
+                                                     'additionalProperties': {'type': 'object',
+                                                                              'additionalProperties': False,
+                                                                              'required': ['regions'],
+                                                                              'properties': {'mode': {'type': 'string',
+                                                                                                      'enum': ['selected',
+                                                                                                               'all'],
+                                                                                                      'default': 'selected'},
+                                                                                             'regions': {'type': 'array',
+                                                                                                         'maxItems': 256,
+                                                                                                         'items': {'type': 'string'}}}},
+                                                     'description': 'Registered provider IDs. V1: osm, '
+                                                                    'freeworld. Regions are source-specific; '
+                                                                    'both is not a source ID.'},
+                                         'discovery': {'type': 'object',
+                                                       'additionalProperties': False,
+                                                       'properties': {'replenish': {'type': 'boolean',
+                                                                                    'default': True},
+                                                                      'replenish_interval_hours': {'type': 'integer',
+                                                                                                   'minimum': 1,
+                                                                                                   'maximum': 8760,
+                                                                                                   'default': 24}}},
+                                         'batch': {'type': 'object',
+                                                   'additionalProperties': False,
+                                                   'properties': {'max_domains': {'type': 'integer',
+                                                                                  'minimum': 1,
+                                                                                  'maximum': 500,
+                                                                                  'default': 50},
+                                                                  'max_pages': {'type': 'integer',
+                                                                                'minimum': 1,
+                                                                                'maximum': 10000,
+                                                                                'default': 15},
+                                                                  'depth': {'type': 'integer',
+                                                                            'minimum': 0,
+                                                                            'maximum': 10,
+                                                                            'default': 2},
+                                                                  'seed_delay_seconds': {'type': 'number',
+                                                                                         'minimum': 0,
+                                                                                         'maximum': 300,
+                                                                                         'default': 10}}},
+                                         'processing': {'type': 'object',
+                                                        'additionalProperties': False,
+                                                        'properties': {'fresh': {'type': 'boolean',
+                                                                                 'default': True},
+                                                                       'retry': {'type': 'boolean',
+                                                                                 'default': False},
+                                                                       'recrawl': {'type': 'object',
+                                                                                   'additionalProperties': False,
+                                                                                   'properties': {'enabled': {'type': 'boolean',
+                                                                                                              'default': False},
+                                                                                                  'days': {'type': 'integer',
+                                                                                                           'minimum': 1,
+                                                                                                           'maximum': 3650,
+                                                                                                           'default': 30}}}}},
+                                         'schedule': {'type': 'object',
+                                                      'additionalProperties': False,
+                                                      'properties': {'every_minutes': {'type': 'integer',
+                                                                                       'minimum': 10,
+                                                                                       'maximum': 525600,
+                                                                                       'default': 60}}}}}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.jobs.delete',
+  'description': 'Discovery automation jobs.delete. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'DELETE', 'path': '/scoutro/api/v1/discovery/jobs/{id}', 'successStatus': 200},
+  'parameters': {'body': {'type': 'object', 'maxProperties': 0}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.jobs.run',
+  'description': 'Discovery automation jobs.run. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/jobs/{id}/run', 'successStatus': 202},
+  'parameters': {'body': {'type': 'object',
+                          'additionalProperties': False,
+                          'required': ['request_id'],
+                          'properties': {'request_id': {'type': 'string',
+                                                        'pattern': '^[A-Za-z0-9_-]{1,80}$'}}}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.enable',
+  'description': 'Discovery automation enable. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/enable', 'successStatus': 200},
+  'parameters': {'body': {'type': 'object', 'maxProperties': 0}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.disable',
+  'description': 'Discovery automation disable. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/disable', 'successStatus': 200},
+  'parameters': {'body': {'type': 'object', 'maxProperties': 0}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.pause',
+  'description': 'Discovery automation pause. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/pause', 'successStatus': 200},
+  'parameters': {'body': {'type': 'object', 'maxProperties': 0}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.resume',
+  'description': 'Discovery automation resume. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/resume', 'successStatus': 200},
+  'parameters': {'body': {'type': 'object', 'maxProperties': 0}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}}])
 # agent view of every action: may it be granted, and where does an agent call it
 for a in actions:
     g = GRANTS.get("seo.read" if a["name"].startswith("seo.") else a["name"])
@@ -391,6 +791,8 @@ catalog = O(service="scoutro", apiVersion="1",
     actions=actions, schemas=schemas)
 import sys
 out = sys.argv[1]
-json.dump(openapi, open(out + "/openapi.json", "w"), indent=2, ensure_ascii=False); open(out + "/openapi.json", "a").write("\n")
-json.dump(catalog, open(out + "/actions.json", "w"), indent=2, ensure_ascii=False); open(out + "/actions.json", "a").write("\n")
+for name, value in [("openapi",openapi),("actions",catalog)]:
+    with open(out + "/" + name + ".json", "w", encoding="utf-8") as file:
+        json.dump(value, file, indent=2, ensure_ascii=False)
+        file.write("\n")
 print(len(actions), "actions")

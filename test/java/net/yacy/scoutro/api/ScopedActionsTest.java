@@ -363,4 +363,37 @@ public class ScopedActionsTest {
         Assert.assertFalse(ScopedActions.sameHost("example.com", "example.org"));
         Assert.assertFalse(ScopedActions.sameHost("", ""));
     }
+
+    @Test public void hostResolutionIsExplicitAndScoped() throws Exception {
+        String t=agent("HostReader", List.of("edelsenior-web"), false, "host.resolve", "collections.list");
+        AgentApi.Response r=call(t,"GET","hosts/resolve",q("input","https://EXAMPLE.com/path"),null,null);
+        Assert.assertEquals(200,r.status); Assert.assertTrue(r.body.getBoolean("indexed"));
+        Assert.assertFalse(r.body.getJSONObject("crawl").getBoolean("canRequest"));
+        Assert.assertTrue(this.yacy.last("solr/select").params.get("fq").contains("edelsenior-web"));
+        Assert.assertEquals(403,call(t,"GET","hosts/resolve",q("input","example.com","collection","foreign"),null,null).status);
+        Assert.assertEquals(200,call(t,"GET","collections",null,null,null).status);
+        Assert.assertEquals(403,call(t,"GET","discovery/status",null,null,null).status);
+    }
+    @Test public void hostAndCollectionGrantsDoNotImplicitlyGrantCrawl() throws Exception {
+        String t=agent("ReadOnlyHost",List.of("edelsenior-web"),false,"host.resolve");
+        Assert.assertEquals(403,call(t,"POST","crawls",null,Json.obj("url","https://example.com/","collection","edelsenior-web"),null).status);
+        Assert.assertEquals(0,this.yacy.calls("Crawler_p.json").size());
+    }
+    @Test public void changedIdempotencyBodyNeverStartsTwice() throws Exception {
+        String t=agent("Idempotent",List.of("edelsenior-web"),false,"crawl.start");
+        Assert.assertEquals(201,call(t,"POST","crawls",null,Json.obj("url","https://example.com/","collection","edelsenior-web"),"same").status);
+        AgentApi.Response response=call(t,"POST","crawls",null,Json.obj("url","https://example.com/changed","collection","edelsenior-web"),"same");
+        Assert.assertEquals(409,response.status); Assert.assertEquals("idempotency_conflict",code(response));
+        Assert.assertEquals(1,this.yacy.calls("Crawler_p.json").size());
+    }
+
+    @Test public void reusedProfileIdNeverPermitsStoppingAnotherCrawl() throws Exception {
+        String t=agent("StopOwner",List.of("edelsenior-web"),false,"crawl.start","crawl.stop","crawl.status");
+        AgentApi.Response created=call(t,"POST","crawls",null,Json.obj("url","https://example.com/","collection","edelsenior-web"),"one");
+        String id=created.body.getString("id"); this.yacy.crawls.put(id,new FakeUpstream.Crawl(id,"foreign.example","foreign"));
+        Assert.assertEquals("removed",call(t,"GET","crawls/"+id,null,null,null).body.getString("state"));
+        int before=this.yacy.calls("Crawler_p.json").size();
+        Assert.assertEquals(404,call(t,"POST","crawls/"+id+"/stop",null,Json.obj(),null).status);
+        Assert.assertEquals(before,this.yacy.calls("Crawler_p.json").size());
+    }
 }

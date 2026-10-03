@@ -130,12 +130,12 @@ public class DashboardMetricsTest {
         Assert.assertTrue(header.contains("aria-controls=\"scoutro-adminnav\""));
     }
 
-    @Test public void everyDashboardDetailLinkIsAnExistingStandardPage() throws IOException {
+    @Test public void everyDashboardDetailLinkIsAnExistingPage() throws IOException {
         final String html = read("htroot/scoutro-dashboard.html");
         final java.util.regex.Matcher links = java.util.regex.Pattern.compile("href=\"([^\"]+)\"").matcher(html);
         int count = 0;
         while (links.find()) {
-            final String path = links.group(1).split("\\?")[0];
+            final String path = links.group(1).split("[?#]")[0];
             Assert.assertTrue(path, Files.isRegularFile(Path.of("htroot", path)));
             count++;
         }

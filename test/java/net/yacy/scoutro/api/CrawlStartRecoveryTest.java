@@ -245,7 +245,7 @@ public class CrawlStartRecoveryTest {
         final FakeUpstream.Crawl c = new FakeUpstream.Crawl("old1", "example.com", "edelsenior-web");
         c.mustNotMatch = ScoutroActions.startMarkerFilter(marker);
         this.yacy.crawls.put("old1", c);
-        final AgentApi.Response replay = start("https://example.com/", "run-9");
+        final AgentApi.Response replay = call("POST", "crawls", Json.obj("url", "https://example.com/", "collection", "edelsenior-web", "depth", 1, "maxPages", 10), "run-9");
         Assert.assertEquals(200, replay.status);
         Assert.assertEquals("old1", replay.body.optString("id"));
         Assert.assertEquals(0, starts());

@@ -166,6 +166,18 @@ public class ScoutroApiServlet extends HttpServlet {
                 final Map<String, String> seoQuery = queryParams(request);
                 return SeoAnalysis.current().route(java.util.Arrays.asList(parts).subList(3, parts.length),
                         seoQuery, SeoAnalysis.adminCollections(seoQuery));
+            case "hosts":
+                requireAdmin(request);
+                if (parts.length == 4 && "resolve".equals(parts[3])) {
+                    expect(method, parts, 4, "GET");
+                    final Map<String, String> hostQuery = queryParams(request);
+                    return this.actions.hostResolve(hostQuery, SeoAnalysis.adminCollections(hostQuery));
+                }
+                break;
+            case "collections":
+                requireAdmin(request);
+                expect(method, parts, 3, "GET");
+                return this.actions.collections();
             case "search":
                 requireAdmin(request);
                 expect(method, parts, 3, "GET");
@@ -202,8 +214,8 @@ public class ScoutroApiServlet extends HttpServlet {
                         return this.actions.crawlList();
                     }
                     expect(method, parts, 3, "GET", "POST");
-                    final JSONObject crawl = this.actions.crawlStart(jsonBody(request));
-                    response.setStatus(201);
+                    final JSONObject crawl = this.actions.crawlStartAdmin(jsonBody(request), request.getHeader("Idempotency-Key"));
+                    response.setStatus(crawl.optBoolean("idempotentReplay") ? 200 : 201);
                     response.setHeader("Location", "/scoutro/api/v1/crawls/" + crawl.optString("id"));
                     return crawl;
                 }

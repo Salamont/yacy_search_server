@@ -143,17 +143,7 @@ final class SeoAnalysis {
     }
 
     static String host(final String input) throws ApiException {
-        try {
-            final String normalized =
-                    IDN.toASCII(input.trim(), IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.ROOT);
-            if (normalized.length() > 253
-                    || !normalized.matches(
-                            "[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+")
-                    || normalized.matches("[0-9.]+")) throw new IllegalArgumentException();
-            return normalized;
-        } catch (final IllegalArgumentException | NullPointerException e) {
-            throw ApiException.invalid("host", "Enter a hostname without protocol, path or port.");
-        }
+        return HostInput.parse(input).host;
     }
 
     private String f(final CollectionSchema field) {
@@ -400,7 +390,7 @@ final class SeoAnalysis {
         if (!(value(data, "count") instanceof Number))
             throw new ApiException(503, "index_unavailable", "Incomplete index response.");
         final long total = count(data);
-        if (total == 0) throw missing();
+        if (total == 0) return Json.obj("host", host, "indexed", false, "analysisAvailable", false, "indexed_pages", 0);
         final long processed = count(value(data, "processed")),
                 pending = enabled(CollectionSchema.process_sxt) ? count(value(data, "pending")) : 0;
         final long unavailable = count(value(data, "unavailable"));
@@ -460,6 +450,10 @@ final class SeoAnalysis {
         return Json.obj(
                 "host",
                 host,
+                "indexed",
+                true,
+                "analysisAvailable",
+                true,
                 "indexed_pages",
                 total,
                 "citation",

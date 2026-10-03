@@ -25,6 +25,12 @@ import org.w3c.dom.Document;
  */
 interface Upstream {
 
+    /** Production checks the active schema before any crawl start; test transports may supply a fake. */
+    default void requireCollectionStorage() throws ApiException { }
+
+    /** Lazily resolved; GET must not create or migrate metadata. Null is an in-memory test transport. */
+    default java.nio.file.Path crawlMetadataPath() { return null; }
+
     String getAdmin(String path, YaCyLoopback.Params params) throws ApiException;
 
     String postAdmin(String path, YaCyLoopback.Params params) throws ApiException;

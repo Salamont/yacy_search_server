@@ -68,7 +68,7 @@ collection; `—` means unavailable. Crawler/system sections remain independent.
 | Index Size, Index Administration | `IndexControlURLs_p.html` |
 | JVM Memory, JVM Heap, RAM / Disk / Updates | `Performance_p.html` |
 | System, versions/build/uptime, System Status | `Status.html?noforward=` |
-| Start Crawl | `CrawlStartExpert.html` |
+| Start Crawl | `ScoutroCrawls_p.html#new-crawl` |
 | Blacklists | `Blacklist_p.html` |
 | System Administration | `Settings_p.html` |
 | Autocrawler | `Autocrawl_p.html` |
@@ -93,3 +93,9 @@ and `test/scoutro-ui/dashboard-ui-test.mjs` with `SCOUTRO_URL`,
 ## Discovery overview
 
 The compact Discovery Automation card links to `ScoutroDiscovery_p.html`. A read-only request to the administrator Discovery status API displays disabled/paused/enabled and job count. This neither enables the heartbeat nor creates candidate state. If status is unavailable, the existing dashboard metrics remain usable. See [Discovery Automation](ScoutroDiscovery_p.md).
+
+## Native crawls and Discovery status
+
+Start Crawl opens Scoutro Crawls with a mandatory explicit Collection. Discovery shows automation Active/Paused/Disabled separately from Batch running. Read-only worker activity is not a running batch.
+
+Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).

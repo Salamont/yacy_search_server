@@ -21,6 +21,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.ArrayList;
 import java.net.URISyntaxException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -36,6 +37,7 @@ import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import net.yacy.scoutro.agents.CrawlRecord;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -59,7 +61,7 @@ final class ScoutroActions {
     private static final ConcurrentLog LOG = new ConcurrentLog("SCOUTRO-API");
 
     private static final Pattern CRAWL_ID = Pattern.compile("[A-Za-z0-9_-]{1,64}");
-    private static final Pattern COLLECTION = Pattern.compile("[A-Za-z0-9_-]{1,64}");
+    static final Pattern COLLECTION = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     private static final Pattern LANGUAGE = Pattern.compile("[a-z]{2}");
     private static final Pattern HOST = Pattern.compile("[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?");
     /**
@@ -86,6 +88,7 @@ final class ScoutroActions {
     static final Object CRAWL_START_LOCK = new Object();
 
     private final Upstream yacy;
+    private final CrawlLedger crawlLedger;
 
     ScoutroActions() {
         this(new YaCyLoopback());
@@ -93,6 +96,7 @@ final class ScoutroActions {
 
     ScoutroActions(final Upstream upstream) {
         this.yacy = upstream;
+        this.crawlLedger = new CrawlLedger(upstream::crawlMetadataPath);
     }
 
     // ------------------------------------------------------------------
@@ -256,6 +260,46 @@ final class ScoutroActions {
                 "postprocessing", Json.obj(
                         "status", text(status, "postprocessing", "status"),
                         "remaining", longOrNull(text(status, "postprocessing", "collectionRemainingCount"))));
+    }
+
+    JSONObject hostResolve(final Map<String, String> query, final List<String> collections) throws ApiException {
+        for (final String key : query.keySet()) if (!List.of("input", "collection").contains(key)) throw ApiException.invalid(key, "Unknown host parameter.");
+        final HostInput input = HostInput.parse(query.get("input"));
+        final JSONObject data = Json.parseUpstream(this.yacy.getAdmin("solr/select", new YaCyLoopback.Params()
+                .add("q", "host_s:" + phrase(input.host)).add("fq", collectionFilter(collections))
+                .add("defType", "lucene").add("rows", 0).add("wt", "json").add("timeAllowed", 2000)), "solr/select");
+        final JSONObject header = data.optJSONObject("responseHeader");
+        if (header != null && !header.isNull("partialResults") && !"false".equals(String.valueOf(header.opt("partialResults"))))
+            throw new ApiException(503, "index_unavailable", "The index lookup was incomplete; indexing status is unknown.");
+        final JSONObject response = data.optJSONObject("response");
+        if (response == null || !(response.opt("numFound") instanceof Number)) throw new ApiException(503, "index_unavailable", "The index response is incomplete.");
+        final long records = response.optLong("numFound");
+        return Json.obj("host", input.host, "url", input.url, "indexed", records > 0, "analysisAvailable", records > 0,
+                "visibleRecords", records, "collection", query.get("collection"),
+                "crawl", Json.obj("collectionRequired", true, "canRequest", true, "blockedReason", null),
+                "links", Json.obj("analysis", "/ScoutroSEO_p.html?host=" + input.host + collectionQuery(query),
+                        "newCrawl", "/ScoutroCrawls_p.html?url=" + java.net.URLEncoder.encode(input.url, java.nio.charset.StandardCharsets.UTF_8) + collectionQuery(query)));
+    }
+
+    private static String collectionQuery(final Map<String, String> query) {
+        final String collection = query.get("collection");
+        return collection == null || collection.isBlank() ? "" : "&collection=" + java.net.URLEncoder.encode(collection.trim(), java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    JSONObject collections() throws ApiException {
+        final JSONObject data = Json.parseUpstream(this.yacy.getAdmin("solr/select", new YaCyLoopback.Params()
+                .add("q", "*:*").add("rows", 0).add("wt", "json").add("facet", "true")
+                .add("facet.field", "collection_sxt").add("facet.limit", 500).add("facet.mincount", 1)), "solr/select");
+        final JSONObject counts = data.optJSONObject("facet_counts");
+        final JSONObject fields = counts == null ? null : counts.optJSONObject("facet_fields");
+        final JSONArray facets = fields == null ? null : fields.optJSONArray("collection_sxt");
+        if (facets == null) throw new ApiException(503, "index_unavailable", "Collection catalog is unavailable.");
+        final JSONArray items = new JSONArray();
+        for (int i = 0; i + 1 < facets.length(); i += 2) {
+            final String id = facets.optString(i);
+            if (COLLECTION.matcher(id).matches()) items.put(Json.obj("id", id, "documents", facets.optLong(i + 1)));
+        }
+        return Json.obj("collections", items, "allowNew", true, "limit", 500);
     }
 
     /** index.lookup: is a URL indexed, or how many documents does a host have (embedded Solr). */
@@ -577,6 +621,11 @@ final class ScoutroActions {
         checkCrawlId(id);
         final JSONObject crawl = loadCrawls().get(id);
         if (crawl == null) {
+            final CrawlLedger.Entry recorded = this.crawlLedger.byId(id);
+            if (recorded != null) {
+                final JSONObject removed = CrawlLedger.describe(null, recorded.record);
+                Json.put(removed, "lastError", recorded.error); return removed;
+            }
             throw new ApiException(404, "crawl_not_found", "There is no crawl with the id '" + id + "'.",
                     Json.obj("id", id));
         }
@@ -592,7 +641,7 @@ final class ScoutroActions {
 
     /** crawl.start: translated to the site crawl of Crawler_p. */
     JSONObject crawlStart(final JSONObject body) throws ApiException {
-        return crawlStart(body, null);
+        return startCrawl(CrawlRequest.parse(body), null, null);
     }
 
     /**
@@ -604,26 +653,77 @@ final class ScoutroActions {
      * when the caller crashed before it could store the crawl id.
      */
     JSONObject crawlStart(final JSONObject body, final String marker) throws ApiException {
-        if (marker != null && !marker.matches("[0-9a-f]{32}")) {
-            throw new IllegalArgumentException("invalid start marker");
-        }
-        final java.util.List<String> allowed = java.util.List.of("url", "depth", "scope", "maxPages", "collection");
-        for (final String key : body.keySet()) {
-            if (!allowed.contains(key)) {
-                throw ApiException.invalid(key, "Unknown field '" + key + "'. Allowed fields: " + allowed + ".");
-            }
-        }
-        final Object urlValue = body.opt("url");
-        if (!(urlValue instanceof String)) {
-            throw ApiException.invalid("url", "Field 'url' (an http or https URL) is required.");
-        }
-        final String url = validateHttpUrl((String) urlValue, "url");
-        final int depth = intField(body, "depth", DEFAULT_DEPTH, 0, MAX_DEPTH);
-        final String scope = enumField(body, "scope", "domain", "domain", "subpath", "wide");
-        final Integer maxPages = present(body, "maxPages") ? intField(body, "maxPages", 0, 1, MAX_PAGES) : null;
-        final String collection = present(body, "collection") ? stringField(body, "collection", COLLECTION,
-                "letters, digits, '-' and '_' (at most 64)") : "user";
+        return startCrawl(CrawlRequest.parse(body), marker, marker == null ? null : "marker:" + marker);
+    }
 
+    JSONObject crawlStartAdmin(final JSONObject body, final String key) throws ApiException {
+        final CrawlRequest request = CrawlRequest.parse(body);
+        final String valid = CrawlRequest.key(key);
+        return startCrawl(request, null, valid == null ? null : "admin:" + valid);
+    }
+
+    private JSONObject startCrawl(final CrawlRequest request, final String suppliedMarker, final String reference) throws ApiException {
+        if (suppliedMarker != null && !suppliedMarker.matches("[0-9a-f]{32}")) throw new IllegalArgumentException("invalid start marker");
+        this.yacy.requireCollectionStorage();
+        synchronized (CRAWL_START_LOCK) {
+            CrawlRecord record = this.crawlLedger.find(reference);
+            if (record != null) {
+                if (!request.matches(record)) throw new ApiException(409, "idempotency_conflict", "This Idempotency-Key belongs to a different crawl request.");
+                final Map<String, JSONObject> profiles = loadCrawls();
+                if (record.isStarting()) for (final JSONObject profile : profiles.values()) {
+                    if (record.startMarker.equals(startMarkerValue(profile))) {
+                        record = record.withState(CrawlRecord.STARTED, profile.optString("id"));
+                        this.crawlLedger.save(record, null); break;
+                    }
+                }
+                if (record.isStarted()) {
+                    JSONObject live = profiles.get(record.crawlId);
+                    if (live != null && !record.startMarker.equals(startMarkerValue(live))) live = null;
+                    final JSONObject replay = CrawlLedger.describe(live, record);
+                    Json.put(replay, "idempotentReplay", true); return replay;
+                }
+                // No blind replay even after a crash, unreadable answer or missing profile.
+                throw new ApiException(409, "crawl_start_unconfirmed", "This crawl start has an unconfirmed outcome; it will not be dispatched again.");
+            }
+            for (final JSONObject live : loadCrawls().values()) {
+                if (!"terminated".equals(live.optString("state")) && ScopedActions.sameHost(request.host, ScopedActions.crawlHost(live.optString("id"), live)))
+                    throw new ApiException(409, "host_busy", "Another crawl is active on this host; its queued URLs must be retained.");
+            }
+            final String marker = suppliedMarker == null ? java.util.UUID.randomUUID().toString().replace("-", "") : suppliedMarker;
+            record = CrawlRecord.starting("scoutro", request.collection, request.host, reference, System.currentTimeMillis(),
+                    marker, request.url, request.depth, request.maxPages == null ? -1 : request.maxPages, request.scope);
+            this.crawlLedger.save(record, null); // durable intent BEFORE the side effect
+            final JSONObject created;
+            try {
+                created = dispatchCrawl(request, marker);
+            } catch (final ApiException error) {
+                // A rejected response may still have created a profile; retain a conservative intent.
+                try {
+                    for (final JSONObject profile : loadCrawls().values()) if (marker.equals(startMarkerValue(profile))) {
+                        record = record.withState(CrawlRecord.STARTED, profile.optString("id")); break;
+                    }
+                    this.crawlLedger.save(record, error.code());
+                } catch (final ApiException ignored) { /* durable starting intent still prevents a duplicate */ }
+                throw error;
+            }
+            record = record.withState(CrawlRecord.STARTED, created.optString("id"));
+            try { this.crawlLedger.save(record, null); }
+            catch (final ApiException unavailable) {
+                throw new ApiException(503, "crawl_start_unconfirmed", "YaCy may have started the crawl; retry only with the same Idempotency-Key.");
+            }
+            return CrawlLedger.describe(created, record);
+        }
+    }
+
+    private static String startMarkerValue(final JSONObject profile) {
+        final Object value = profile.opt("startMarker");
+        return value instanceof String ? (String) value : null;
+    }
+
+    private JSONObject dispatchCrawl(final CrawlRequest request, final String marker) throws ApiException {
+        final String url = request.url, scope = request.scope, collection = request.collection;
+        final int depth = request.depth;
+        final Integer maxPages = request.maxPages;
         final YaCyLoopback.Params params = new YaCyLoopback.Params()
                 .add("crawlingstart", "1")
                 .add("crawlingMode", "url")
@@ -745,6 +845,22 @@ final class ScoutroActions {
                             "self", "/scoutro/api/v1/crawls/" + id,
                             "stop", "/scoutro/api/v1/crawls/" + id + "/stop")));
         }
+        for (final JSONObject live : crawls.values()) {
+            Json.put(live, "url", null); Json.put(live, "startUrl", null); Json.put(live, "scope", null);
+            Json.put(live, "startedAt", null); Json.put(live, "endedAt", null); Json.put(live, "lastError", null);
+            final JSONArray collections = live.optJSONArray("collections");
+            Json.put(live, "collection", collections.length() == 1 ? collections.opt(0) : null);
+            Json.put(live, "progress", Json.obj("pagesLoaded", live.opt("pagesLoaded"), "total", null, "percent", null));
+        }
+        for (final JSONObject live : new ArrayList<>(crawls.values())) {
+            final CrawlLedger.Entry entry = this.crawlLedger.byMarker(startMarkerValue(live));
+            if (entry == null) continue;
+            final CrawlRecord record = entry.record;
+            if (record.isStarted() && record.crawlId.equals(live.optString("id"))) {
+                final JSONObject enriched = CrawlLedger.describe(live, record);
+                Json.put(enriched, "lastError", entry.error); crawls.put(record.crawlId, enriched);
+            }
+        }
         return crawls;
     }
 
@@ -832,7 +948,7 @@ final class ScoutroActions {
         throw ApiException.invalid(name, "Parameter '" + name + "' must be one of " + String.join(", ", values) + ".");
     }
 
-    private static int intField(final JSONObject body, final String name, final int dflt, final int min,
+    static int intField(final JSONObject body, final String name, final int dflt, final int min,
             final int max) throws ApiException {
         if (!present(body, name)) {
             return dflt;
@@ -848,7 +964,7 @@ final class ScoutroActions {
         return (int) v;
     }
 
-    private static String enumField(final JSONObject body, final String name, final String dflt,
+    static String enumField(final JSONObject body, final String name, final String dflt,
             final String... values) throws ApiException {
         if (!present(body, name)) {
             return dflt;
@@ -862,7 +978,7 @@ final class ScoutroActions {
         throw ApiException.invalid(name, "Field '" + name + "' must be one of " + String.join(", ", values) + ".");
     }
 
-    private static String stringField(final JSONObject body, final String name, final Pattern pattern,
+    static String stringField(final JSONObject body, final String name, final Pattern pattern,
             final String rule) throws ApiException {
         final Object value = body.opt(name);
         if (!(value instanceof String) || !pattern.matcher((String) value).matches()) {

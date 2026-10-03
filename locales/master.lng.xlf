@@ -10900,6 +10900,15 @@
     <trans-unit id="38fd0a74" xml:space="preserve" approved="no" translate="yes">
        <source>Dashboard</source>
     </trans-unit>
+    <trans-unit id="b83789c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery Automation</source>
+    </trans-unit>
+    <trans-unit id="78c90d4c" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawls</source>
+    </trans-unit>
+    <trans-unit id="c9752640" xml:space="preserve" approved="no" translate="yes">
+       <source>SEO / Host Analysis</source>
+    </trans-unit>
     <trans-unit id="ccfead77" xml:space="preserve" approved="no" translate="yes">
        <source>First Steps</source>
     </trans-unit>
@@ -13165,6 +13174,24 @@
     <trans-unit id="27690bb7" xml:space="preserve" approved="no" translate="yes">
        <source>Collections can overlap. Links open the standard Index Browser.</source>
     </trans-unit>
+    <trans-unit id="b83789c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery Automation</source>
+    </trans-unit>
+    <trans-unit id="c81c19bb" xml:space="preserve" approved="no" translate="yes">
+       <source>Jobs, schedules and persistent discovery backlog</source>
+    </trans-unit>
+    <trans-unit id="14009e9c" xml:space="preserve" approved="no" translate="yes">
+       <source>Disabled</source>
+    </trans-unit>
+    <trans-unit id="74946b26" xml:space="preserve" approved="no" translate="yes">
+       <source>Active</source>
+    </trans-unit>
+    <trans-unit id="8e11854e" xml:space="preserve" approved="no" translate="yes">
+       <source>Paused</source>
+    </trans-unit>
+    <trans-unit id="ec80deb9" xml:space="preserve" approved="no" translate="yes">
+       <source>Batch running</source>
+    </trans-unit>
     <trans-unit id="a0589af4" xml:space="preserve" approved="no" translate="yes">
        <source>Crawler</source>
     </trans-unit>
@@ -13264,4 +13291,634 @@
   </body>
 </file>
 
+<file original="ScoutroCrawls_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="776d583f" xml:space="preserve" approved="no" translate="yes">
+       <source>"https://example.com/"</source>
+    </trans-unit>
+    <trans-unit id="b213e371" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro Crawls</source>
+    </trans-unit>
+    <trans-unit id="78c90d4c" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawls</source>
+    </trans-unit>
+    <trans-unit id="d975fad8" xml:space="preserve" approved="no" translate="yes">
+       <source>Start a text-only crawl into an explicitly selected collection. YaCy handles robots, queues and indexing.</source>
+    </trans-unit>
+    <trans-unit id="fbf98987" xml:space="preserve" approved="no" translate="yes">
+       <source>New crawl</source>
+    </trans-unit>
+    <trans-unit id="1494f" xml:space="preserve" approved="no" translate="yes">
+       <source>URL</source>
+    </trans-unit>
+    <trans-unit id="813b3fe4" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection (required)</source>
+    </trans-unit>
+    <trans-unit id="4c04e34" xml:space="preserve" approved="no" translate="yes">
+       <source>Scope</source>
+    </trans-unit>
+    <trans-unit id="7a58c0e4" xml:space="preserve" approved="no" translate="yes">
+       <source>Domain</source>
+    </trans-unit>
+    <trans-unit id="f3e59a45" xml:space="preserve" approved="no" translate="yes">
+       <source>Subpath</source>
+    </trans-unit>
+    <trans-unit id="3f375923" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum pages per domain</source>
+    </trans-unit>
+    <trans-unit id="c595f16a" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl depth</source>
+    </trans-unit>
+    <trans-unit id="3b480ae2" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose an existing collection or enter a new name. There is no default collection.</source>
+    </trans-unit>
+    <trans-unit id="9c3792c9" xml:space="preserve" approved="no" translate="yes">
+       <source>Start crawl</source>
+    </trans-unit>
+    <trans-unit id="78d7e2b" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl status</source>
+    </trans-unit>
+    <trans-unit id="a3eb2abb" xml:space="preserve" approved="no" translate="yes">
+       <source>Refresh</source>
+    </trans-unit>
+    <trans-unit id="26edc1ac" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Crawler Monitor</source>
+    </trans-unit>
+    <trans-unit id="10d7995b" xml:space="preserve" approved="no" translate="yes">
+       <source>Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.</source>
+    </trans-unit>
+    <trans-unit id="7749791c" xml:space="preserve" approved="no" translate="yes">
+       <source>Loading</source>
+    </trans-unit>
+    <trans-unit id="65e7c97a" xml:space="preserve" approved="no" translate="yes">
+       <source>No crawls available.</source>
+    </trans-unit>
+    <trans-unit id="e7d8d08e" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl accepted.</source>
+    </trans-unit>
+    <trans-unit id="396e668" xml:space="preserve" approved="no" translate="yes">
+       <source>Existing crawl returned. No second start.</source>
+    </trans-unit>
+    <trans-unit id="42c9a70e" xml:space="preserve" approved="no" translate="yes">
+       <source>Request failed</source>
+    </trans-unit>
+    <trans-unit id="9e1b981" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection suggestions unavailable. Enter a collection explicitly.</source>
+    </trans-unit>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="a03b7801" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages loaded</source>
+    </trans-unit>
+    <trans-unit id="90a05ece" xml:space="preserve" approved="no" translate="yes">
+       <source>Start recorded</source>
+    </trans-unit>
+    <trans-unit id="523e442a" xml:space="preserve" approved="no" translate="yes">
+       <source>Unknown</source>
+    </trans-unit>
+    <trans-unit id="bfa7ad9f" xml:space="preserve" approved="no" translate="yes">
+       <source>Running</source>
+    </trans-unit>
+    <trans-unit id="8e11854e" xml:space="preserve" approved="no" translate="yes">
+       <source>Paused</source>
+    </trans-unit>
+    <trans-unit id="28ceea43" xml:space="preserve" approved="no" translate="yes">
+       <source>Terminated</source>
+    </trans-unit>
+    <trans-unit id="1ef3cc9" xml:space="preserve" approved="no" translate="yes">
+       <source>Profile removed</source>
+    </trans-unit>
+    <trans-unit id="f2e829ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Stopped</source>
+    </trans-unit>
+    <trans-unit id="dbccbe08" xml:space="preserve" approved="no" translate="yes">
+       <source>Start unconfirmed</source>
+    </trans-unit>
+    <trans-unit id="2922f3" xml:space="preserve" approved="no" translate="yes">
+       <source>Wide</source>
+    </trans-unit>
+    <trans-unit id="8864c1c" xml:space="preserve" approved="no" translate="yes">
+       <source>Analyze host</source>
+    </trans-unit>
+    <trans-unit id="b9a6b9cc" xml:space="preserve" approved="no" translate="yes">
+       <source>Not yet indexed</source>
+    </trans-unit>
+    <trans-unit id="92958c1e" xml:space="preserve" approved="no" translate="yes">
+       <source>Last error</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="ScoutroDiscovery_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="4f8a3b2c" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro Discovery Automation</source>
+    </trans-unit>
+    <trans-unit id="b83789c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery Automation</source>
+    </trans-unit>
+    <trans-unit id="53eafdf5" xml:space="preserve" approved="no" translate="yes">
+       <source>Discover websites and process a persistent backlog with the YaCy crawler.</source>
+    </trans-unit>
+    <trans-unit id="abb74a42" xml:space="preserve" approved="no" translate="yes">
+       <source>Automation overview</source>
+    </trans-unit>
+    <trans-unit id="e11196ef" xml:space="preserve" approved="no" translate="yes">
+       <source>Global status</source>
+    </trans-unit>
+    <trans-unit id="14009e9c" xml:space="preserve" approved="no" translate="yes">
+       <source>Disabled</source>
+    </trans-unit>
+    <trans-unit id="836b90dc" xml:space="preserve" approved="no" translate="yes">
+       <source>Heartbeat</source>
+    </trans-unit>
+    <trans-unit id="235076" xml:space="preserve" approved="no" translate="yes">
+       <source>Jobs</source>
+    </trans-unit>
+    <trans-unit id="941ffb8" xml:space="preserve" approved="no" translate="yes">
+       <source>Batch status</source>
+    </trans-unit>
+    <trans-unit id="5d4919b3" xml:space="preserve" approved="no" translate="yes">
+       <source>Current batch</source>
+    </trans-unit>
+    <trans-unit id="a6a12fcb" xml:space="preserve" approved="no" translate="yes">
+       <source>Fresh Backlog</source>
+    </trans-unit>
+    <trans-unit id="acc60221" xml:space="preserve" approved="no" translate="yes">
+       <source>Last run</source>
+    </trans-unit>
+    <trans-unit id="9353182f" xml:space="preserve" approved="no" translate="yes">
+       <source>Next heartbeat</source>
+    </trans-unit>
+    <trans-unit id="d9afef97" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting reason</source>
+    </trans-unit>
+    <trans-unit id="86f807b4" xml:space="preserve" approved="no" translate="yes">
+       <source>Enable automation</source>
+    </trans-unit>
+    <trans-unit id="7d74a56f" xml:space="preserve" approved="no" translate="yes">
+       <source>Disable automation</source>
+    </trans-unit>
+    <trans-unit id="a32255a1" xml:space="preserve" approved="no" translate="yes">
+       <source>Pause automation</source>
+    </trans-unit>
+    <trans-unit id="b4ddf6ca" xml:space="preserve" approved="no" translate="yes">
+       <source>Resume automation</source>
+    </trans-unit>
+    <trans-unit id="97f7cd9" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Automation</source>
+    </trans-unit>
+    <trans-unit id="ed67580e" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawler Monitor</source>
+    </trans-unit>
+    <trans-unit id="bf1bc615" xml:space="preserve" approved="no" translate="yes">
+       <source>Pausing prevents new seeds. Crawls already accepted by YaCy continue.</source>
+    </trans-unit>
+    <trans-unit id="7a1520e6" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery jobs</source>
+    </trans-unit>
+    <trans-unit id="1eaa877e" xml:space="preserve" approved="no" translate="yes">
+       <source>Add Job</source>
+    </trans-unit>
+    <trans-unit id="e3119122" xml:space="preserve" approved="no" translate="yes">
+       <source>Export jobs</source>
+    </trans-unit>
+    <trans-unit id="bd83ef5" xml:space="preserve" approved="no" translate="yes">
+       <source>No discovery jobs configured.</source>
+    </trans-unit>
+    <trans-unit id="f9ed8b50" xml:space="preserve" approved="no" translate="yes">
+       <source>Job editor</source>
+    </trans-unit>
+    <trans-unit id="a01c012e" xml:space="preserve" approved="no" translate="yes">
+       <source>Job name</source>
+    </trans-unit>
+    <trans-unit id="50c72189" xml:space="preserve" approved="no" translate="yes">
+       <source>Profile</source>
+    </trans-unit>
+    <trans-unit id="718f3157" xml:space="preserve" approved="no" translate="yes">
+       <source>Candidate scope</source>
+    </trans-unit>
+    <trans-unit id="8265b4ff" xml:space="preserve" approved="no" translate="yes">
+       <source>Selected source regions</source>
+    </trans-unit>
+    <trans-unit id="71c99717" xml:space="preserve" approved="no" translate="yes">
+       <source>Entire profile backlog</source>
+    </trans-unit>
+    <trans-unit id="635f4947" xml:space="preserve" approved="no" translate="yes">
+       <source>Batch size</source>
+    </trans-unit>
+    <trans-unit id="7a7dfe60" xml:space="preserve" approved="no" translate="yes">
+       <source>Max pages per website</source>
+    </trans-unit>
+    <trans-unit id="c595f16a" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl depth</source>
+    </trans-unit>
+    <trans-unit id="a48ac35f" xml:space="preserve" approved="no" translate="yes">
+       <source>Delay between seeds (seconds)</source>
+    </trans-unit>
+    <trans-unit id="a10b3929" xml:space="preserve" approved="no" translate="yes">
+       <source>Schedule (minutes)</source>
+    </trans-unit>
+    <trans-unit id="528cc24d" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery refresh (hours)</source>
+    </trans-unit>
+    <trans-unit id="3408253a" xml:space="preserve" approved="no" translate="yes">
+       <source>Recrawl after (days)</source>
+    </trans-unit>
+    <trans-unit id="3482321" xml:space="preserve" approved="no" translate="yes">
+       <source>Enabled</source>
+    </trans-unit>
+    <trans-unit id="8e11854e" xml:space="preserve" approved="no" translate="yes">
+       <source>Paused</source>
+    </trans-unit>
+    <trans-unit id="6ae13ec7" xml:space="preserve" approved="no" translate="yes">
+       <source>Discover new candidates</source>
+    </trans-unit>
+    <trans-unit id="b4b06333" xml:space="preserve" approved="no" translate="yes">
+       <source>Process fresh candidates</source>
+    </trans-unit>
+    <trans-unit id="61e66c34" xml:space="preserve" approved="no" translate="yes">
+       <source>Retry after backoff or cooldown</source>
+    </trans-unit>
+    <trans-unit id="9ba2d273" xml:space="preserve" approved="no" translate="yes">
+       <source>Recrawl indexed websites</source>
+    </trans-unit>
+    <trans-unit id="91b1157e" xml:space="preserve" approved="no" translate="yes">
+       <source>Entire profile backlog includes older entries without source provenance. Regional jobs use recorded source regions.</source>
+    </trans-unit>
+    <trans-unit id="883946ba" xml:space="preserve" approved="no" translate="yes">
+       <source>Save job</source>
+    </trans-unit>
+    <trans-unit id="77df1a9a" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel</source>
+    </trans-unit>
+    <trans-unit id="74946b26" xml:space="preserve" approved="no" translate="yes">
+       <source>Active</source>
+    </trans-unit>
+    <trans-unit id="ec80deb9" xml:space="preserve" approved="no" translate="yes">
+       <source>Batch running</source>
+    </trans-unit>
+    <trans-unit id="efd3ac49" xml:space="preserve" approved="no" translate="yes">
+       <source>Repair heartbeat</source>
+    </trans-unit>
+    <trans-unit id="23d3162b" xml:space="preserve" approved="no" translate="yes">
+       <source>Completed</source>
+    </trans-unit>
+    <trans-unit id="bfa7ad9f" xml:space="preserve" approved="no" translate="yes">
+       <source>Running</source>
+    </trans-unit>
+    <trans-unit id="22b3f4" xml:space="preserve" approved="no" translate="yes">
+       <source>Idle</source>
+    </trans-unit>
+    <trans-unit id="10dd4" xml:space="preserve" approved="no" translate="yes">
+       <source>Due</source>
+    </trans-unit>
+    <trans-unit id="401e1e8" xml:space="preserve" approved="no" translate="yes">
+       <source>Error</source>
+    </trans-unit>
+    <trans-unit id="714d6e5b" xml:space="preserve" approved="no" translate="yes">
+       <source>Needs review</source>
+    </trans-unit>
+    <trans-unit id="81f296e6" xml:space="preserve" approved="no" translate="yes">
+       <source>Needs reconciliation</source>
+    </trans-unit>
+    <trans-unit id="ffe0514a" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for crawler</source>
+    </trans-unit>
+    <trans-unit id="913e8d44" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for capacity</source>
+    </trans-unit>
+    <trans-unit id="292a0f60" xml:space="preserve" approved="no" translate="yes">
+       <source>No job is due</source>
+    </trans-unit>
+    <trans-unit id="97f8b08" xml:space="preserve" approved="no" translate="yes">
+       <source>Heartbeat missing, disabled or duplicated</source>
+    </trans-unit>
+    <trans-unit id="fb8388f6" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy crawler is paused</source>
+    </trans-unit>
+    <trans-unit id="bf4941e2" xml:space="preserve" approved="no" translate="yes">
+       <source>Index unavailable</source>
+    </trans-unit>
+    <trans-unit id="15e2f3fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for system resources</source>
+    </trans-unit>
+    <trans-unit id="da202693" xml:space="preserve" approved="no" translate="yes">
+       <source>Unconfirmed crawl start; review required</source>
+    </trans-unit>
+    <trans-unit id="d2475e58" xml:space="preserve" approved="no" translate="yes">
+       <source>Runtime configuration is missing or invalid</source>
+    </trans-unit>
+    <trans-unit id="20e22a" xml:space="preserve" approved="no" translate="yes">
+       <source>Edit</source>
+    </trans-unit>
+    <trans-unit id="79cb71cb" xml:space="preserve" approved="no" translate="yes">
+       <source>Delete</source>
+    </trans-unit>
+    <trans-unit id="7bfa11a3" xml:space="preserve" approved="no" translate="yes">
+       <source>Enable</source>
+    </trans-unit>
+    <trans-unit id="c6d6bac8" xml:space="preserve" approved="no" translate="yes">
+       <source>Disable</source>
+    </trans-unit>
+    <trans-unit id="49535d6" xml:space="preserve" approved="no" translate="yes">
+       <source>Pause</source>
+    </trans-unit>
+    <trans-unit id="91b2b44d" xml:space="preserve" approved="no" translate="yes">
+       <source>Resume</source>
+    </trans-unit>
+    <trans-unit id="31059716" xml:space="preserve" approved="no" translate="yes">
+       <source>Run once</source>
+    </trans-unit>
+    <trans-unit id="58a983fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Next run</source>
+    </trans-unit>
+    <trans-unit id="ef312164" xml:space="preserve" approved="no" translate="yes">
+       <source>Fresh remaining</source>
+    </trans-unit>
+    <trans-unit id="a3f54fdf" xml:space="preserve" approved="no" translate="yes">
+       <source>Regions</source>
+    </trans-unit>
+    <trans-unit id="7dd75da7" xml:space="preserve" approved="no" translate="yes">
+       <source>Search regions</source>
+    </trans-unit>
+    <trans-unit id="9388cd1c" xml:space="preserve" approved="no" translate="yes">
+       <source>All configured regions</source>
+    </trans-unit>
+    <trans-unit id="69d37b45" xml:space="preserve" approved="no" translate="yes">
+       <source>Unsupported by this profile</source>
+    </trans-unit>
+    <trans-unit id="3bbf8030" xml:space="preserve" approved="no" translate="yes">
+       <source>Unavailable</source>
+    </trans-unit>
+    <trans-unit id="3f791cdf" xml:space="preserve" approved="no" translate="yes">
+       <source>minutes</source>
+    </trans-unit>
+    <trans-unit id="2dd67159" xml:space="preserve" approved="no" translate="yes">
+       <source>Delete this job? Candidate state and existing crawls are retained.</source>
+    </trans-unit>
+    <trans-unit id="63aabc44" xml:space="preserve" approved="no" translate="yes">
+       <source>Job saved</source>
+    </trans-unit>
+    <trans-unit id="df0904dc" xml:space="preserve" approved="no" translate="yes">
+       <source>OpenStreetMap / Geofabrik</source>
+    </trans-unit>
+    <trans-unit id="1cffe6bc" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Network Search</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="ScoutroSEO_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="f1073910" xml:space="preserve" approved="no" translate="yes">
+       <source>"Host analysis"</source>
+    </trans-unit>
+    <trans-unit id="c9752640" xml:space="preserve" approved="no" translate="yes">
+       <source>SEO / Host Analysis</source>
+    </trans-unit>
+    <trans-unit id="ac962023" xml:space="preserve" approved="no" translate="yes">
+       <source>Read indexed content, crawl metadata and locally observed references.</source>
+    </trans-unit>
+    <trans-unit id="278b6738" xml:space="preserve" approved="no" translate="yes">
+       <source>Host or HTTP/HTTPS URL</source>
+    </trans-unit>
+    <trans-unit id="c5a61843" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection (optional)</source>
+    </trans-unit>
+    <trans-unit id="2fb3f52c" xml:space="preserve" approved="no" translate="yes">
+       <source>Analyze</source>
+    </trans-unit>
+    <trans-unit id="255fb6c4" xml:space="preserve" approved="no" translate="yes">
+       <source>Find hosts</source>
+    </trans-unit>
+    <trans-unit id="21675760" xml:space="preserve" approved="no" translate="yes">
+       <source>More hosts</source>
+    </trans-unit>
+    <trans-unit id="b9a6b9cc" xml:space="preserve" approved="no" translate="yes">
+       <source>Not yet indexed</source>
+    </trans-unit>
+    <trans-unit id="aa8f318f" xml:space="preserve" approved="no" translate="yes">
+       <source>Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.</source>
+    </trans-unit>
+    <trans-unit id="9c3792c9" xml:space="preserve" approved="no" translate="yes">
+       <source>Start crawl</source>
+    </trans-unit>
+    <trans-unit id="1ce4bf4" xml:space="preserve" approved="no" translate="yes">
+       <source>Indexed URLs can include error records. Dates describe stored metadata. Missing values are not zero.</source>
+    </trans-unit>
+    <trans-unit id="23735199" xml:space="preserve" approved="no" translate="yes">
+       <source>Overview</source>
+    </trans-unit>
+    <trans-unit id="494ffa4" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages</source>
+    </trans-unit>
+    <trans-unit id="4605f99" xml:space="preserve" approved="no" translate="yes">
+       <source>Links</source>
+    </trans-unit>
+    <trans-unit id="12b9612c" xml:space="preserve" approved="no" translate="yes">
+       <source>Technology</source>
+    </trans-unit>
+    <trans-unit id="8339d73d" xml:space="preserve" approved="no" translate="yes">
+       <source>Reference coverage</source>
+    </trans-unit>
+    <trans-unit id="9befcc59" xml:space="preserve" approved="no" translate="yes">
+       <source>Content</source>
+    </trans-unit>
+    <trans-unit id="37c0a2c" xml:space="preserve" approved="no" translate="yes">
+       <source>Language distribution</source>
+    </trans-unit>
+    <trans-unit id="ea8ad9f9" xml:space="preserve" approved="no" translate="yes">
+       <source>Sort by</source>
+    </trans-unit>
+    <trans-unit id="1494f" xml:space="preserve" approved="no" translate="yes">
+       <source>URL</source>
+    </trans-unit>
+    <trans-unit id="4fe2a89" xml:space="preserve" approved="no" translate="yes">
+       <source>Words</source>
+    </trans-unit>
+    <trans-unit id="c595f16a" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl depth</source>
+    </trans-unit>
+    <trans-unit id="46865bab" xml:space="preserve" approved="no" translate="yes">
+       <source>Internal references</source>
+    </trans-unit>
+    <trans-unit id="bd8fa9dd" xml:space="preserve" approved="no" translate="yes">
+       <source>External references</source>
+    </trans-unit>
+    <trans-unit id="73a97a47" xml:space="preserve" approved="no" translate="yes">
+       <source>External source hosts per URL</source>
+    </trans-unit>
+    <trans-unit id="c3fcb99d" xml:space="preserve" approved="no" translate="yes">
+       <source>Latest recorded load</source>
+    </trans-unit>
+    <trans-unit id="48e972e" xml:space="preserve" approved="no" translate="yes">
+       <source>Order</source>
+    </trans-unit>
+    <trans-unit id="7726deb8" xml:space="preserve" approved="no" translate="yes">
+       <source>Ascending</source>
+    </trans-unit>
+    <trans-unit id="34488718" xml:space="preserve" approved="no" translate="yes">
+       <source>Descending</source>
+    </trans-unit>
+    <trans-unit id="27edf05b" xml:space="preserve" approved="no" translate="yes">
+       <source>Citation values</source>
+    </trans-unit>
+    <trans-unit id="aab9a7df" xml:space="preserve" approved="no" translate="yes">
+       <source>All statuses</source>
+    </trans-unit>
+    <trans-unit id="8ca8c7e6" xml:space="preserve" approved="no" translate="yes">
+       <source>Finalized</source>
+    </trans-unit>
+    <trans-unit id="7319ee4a" xml:space="preserve" approved="no" translate="yes">
+       <source>Postprocessing pending</source>
+    </trans-unit>
+    <trans-unit id="881da94a" xml:space="preserve" approved="no" translate="yes">
+       <source>No finalized Citation data</source>
+    </trans-unit>
+    <trans-unit id="dbb1d23c" xml:space="preserve" approved="no" translate="yes">
+       <source>Status unknown</source>
+    </trans-unit>
+    <trans-unit id="b7ee1f17" xml:space="preserve" approved="no" translate="yes">
+       <source>Previous</source>
+    </trans-unit>
+    <trans-unit id="24ff13" xml:space="preserve" approved="no" translate="yes">
+       <source>Next</source>
+    </trans-unit>
+    <trans-unit id="dd0c9447" xml:space="preserve" approved="no" translate="yes">
+       <source>Incoming reference sums cover finalized target URLs only. External source hosts are unique per URL and are never added up as a host-wide domain count.</source>
+    </trans-unit>
+    <trans-unit id="673560e8" xml:space="preserve" approved="no" translate="yes">
+       <source>Most externally referenced pages</source>
+    </trans-unit>
+    <trans-unit id="39fc64b6" xml:space="preserve" approved="no" translate="yes">
+       <source>Most internally referenced pages</source>
+    </trans-unit>
+    <trans-unit id="f0ba7f28" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl metadata</source>
+    </trans-unit>
+    <trans-unit id="8cd30e8a" xml:space="preserve" approved="no" translate="yes">
+       <source>HTTP status</source>
+    </trans-unit>
+    <trans-unit id="6fa09a02" xml:space="preserve" approved="no" translate="yes">
+       <source>HTTP / HTTPS</source>
+    </trans-unit>
+    <trans-unit id="fde12225" xml:space="preserve" approved="no" translate="yes">
+       <source>Outgoing links</source>
+    </trans-unit>
+    <trans-unit id="37831824" xml:space="preserve" approved="no" translate="yes">
+       <source>Language and protocol distributions show up to 30 values.</source>
+    </trans-unit>
+    <trans-unit id="a9f98573" xml:space="preserve" approved="no" translate="yes">
+       <source>These references describe the crawlgraph observed by Scoutro, not a complete worldwide backlink index.</source>
+    </trans-unit>
+    <trans-unit id="f60ad244" xml:space="preserve" approved="no" translate="yes">
+       <source>Coverage counts finalized reference fields. Historical Citation collection cannot be proven from these fields. Old URLs may require a later recrawl; this page starts no crawl.</source>
+    </trans-unit>
+    <trans-unit id="be58f042" xml:space="preserve" approved="no" translate="yes">
+       <source>URL detail</source>
+    </trans-unit>
+    <trans-unit id="a397cf99" xml:space="preserve" approved="no" translate="yes">
+       <source>Close detail</source>
+    </trans-unit>
+    <trans-unit id="50400645" xml:space="preserve" approved="no" translate="yes">
+       <source>Known incoming references</source>
+    </trans-unit>
+    <trans-unit id="548ecaf3" xml:space="preserve" approved="no" translate="yes">
+       <source>Indexed URLs</source>
+    </trans-unit>
+    <trans-unit id="4ee00c91" xml:space="preserve" approved="no" translate="yes">
+       <source>Finalized reference values</source>
+    </trans-unit>
+    <trans-unit id="f17baf7d" xml:space="preserve" approved="no" translate="yes">
+       <source>Not recorded</source>
+    </trans-unit>
+    <trans-unit id="71e5ca8a" xml:space="preserve" approved="no" translate="yes">
+       <source>Loading…</source>
+    </trans-unit>
+    <trans-unit id="bca0a094" xml:space="preserve" approved="no" translate="yes">
+       <source>No visible indexed results.</source>
+    </trans-unit>
+    <trans-unit id="9113b6e9" xml:space="preserve" approved="no" translate="yes">
+       <source>Analysis failed. Please retry.</source>
+    </trans-unit>
+    <trans-unit id="4d13238" xml:space="preserve" approved="no" translate="yes">
+       <source>Title</source>
+    </trans-unit>
+    <trans-unit id="fc9f2bdc" xml:space="preserve" approved="no" translate="yes">
+       <source>Description</source>
+    </trans-unit>
+    <trans-unit id="8e9" xml:space="preserve" approved="no" translate="yes">
+       <source>H1</source>
+    </trans-unit>
+    <trans-unit id="8ea" xml:space="preserve" approved="no" translate="yes">
+       <source>H2</source>
+    </trans-unit>
+    <trans-unit id="8eb" xml:space="preserve" approved="no" translate="yes">
+       <source>H3</source>
+    </trans-unit>
+    <trans-unit id="a3acf778" xml:space="preserve" approved="no" translate="yes">
+       <source>Language</source>
+    </trans-unit>
+    <trans-unit id="e0397904" xml:space="preserve" approved="no" translate="yes">
+       <source>Total references</source>
+    </trans-unit>
+    <trans-unit id="f2bc90c0" xml:space="preserve" approved="no" translate="yes">
+       <source>Host extent in local index</source>
+    </trans-unit>
+    <trans-unit id="b4f16d13" xml:space="preserve" approved="no" translate="yes">
+       <source>Last Modified</source>
+    </trans-unit>
+    <trans-unit id="9486828f" xml:space="preserve" approved="no" translate="yes">
+       <source>Response time (ms)</source>
+    </trans-unit>
+    <trans-unit id="7df58faa" xml:space="preserve" approved="no" translate="yes">
+       <source>Outgoing internal links</source>
+    </trans-unit>
+    <trans-unit id="479caa38" xml:space="preserve" approved="no" translate="yes">
+       <source>Outgoing external links</source>
+    </trans-unit>
+    <trans-unit id="569596eb" xml:space="preserve" approved="no" translate="yes">
+       <source>Nofollow links</source>
+    </trans-unit>
+    <trans-unit id="7f1645fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Measured URLs</source>
+    </trans-unit>
+    <trans-unit id="23d6232b" xml:space="preserve" approved="no" translate="yes">
+       <source>Citation status</source>
+    </trans-unit>
+    <trans-unit id="3a23271a" xml:space="preserve" approved="no" translate="yes">
+       <source>URLs with title</source>
+    </trans-unit>
+    <trans-unit id="54ea6f3e" xml:space="preserve" approved="no" translate="yes">
+       <source>URLs with description</source>
+    </trans-unit>
+    <trans-unit id="acb30b67" xml:space="preserve" approved="no" translate="yes">
+       <source>URLs with H1</source>
+    </trans-unit>
+    <trans-unit id="acb30b68" xml:space="preserve" approved="no" translate="yes">
+       <source>URLs with H2</source>
+    </trans-unit>
+    <trans-unit id="acb30b69" xml:space="preserve" approved="no" translate="yes">
+       <source>URLs with H3</source>
+    </trans-unit>
+    <trans-unit id="3b2108fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Finalized URLs</source>
+    </trans-unit>
+    <trans-unit id="fff020d" xml:space="preserve" approved="no" translate="yes">
+       <source>Pending URLs</source>
+    </trans-unit>
+    <trans-unit id="d6d4fe70" xml:space="preserve" approved="no" translate="yes">
+       <source>URLs without finalized values</source>
+    </trans-unit>
+    <trans-unit id="6cea3a06" xml:space="preserve" approved="no" translate="yes">
+       <source>URLs with unknown status</source>
+    </trans-unit>
+    <trans-unit id="a62b6ec7" xml:space="preserve" approved="no" translate="yes">
+       <source>Visible collections</source>
+    </trans-unit>
+    <trans-unit id="36f77fe4" xml:space="preserve" approved="no" translate="yes">
+       <source>Shown / total</source>
+    </trans-unit>
+  </body>
+</file>
 </xliff>

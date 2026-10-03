@@ -135,6 +135,12 @@ def build_parser():
     sub.add_parser("discovery",
                    help="profile discovery (status|start|pause|resume|classify|search|export|migrate-state|selftest); delegates to scoutro-discovery")
 
+    sub.add_parser("collections", help="indexed/admin or granted/agent collection suggestions")
+    host = sub.add_parser("host", help="normalize a host or URL and check the index").add_subparsers(dest="host_command", required=True)
+    resolve = host.add_parser("resolve")
+    resolve.add_argument("input")
+    resolve.add_argument("--collection")
+    sub.add_parser("automation", help="read-only Discovery Automation status").add_subparsers(dest="automation_command", required=True).add_parser("status")
     s = sub.add_parser("search", help="search the index")
     s.add_argument("query")
     s.add_argument("--limit", type=int)
@@ -165,9 +171,9 @@ def build_parser():
     start.add_argument("--depth", type=int)
     start.add_argument("--scope", choices=["domain", "subpath", "wide"])
     start.add_argument("--max-pages", type=int, dest="max_pages")
-    start.add_argument("--collection")
+    start.add_argument("--collection", required=True, help="explicit target collection (no default)")
     start.add_argument("--idempotency-key", dest="idempotency_key",
-                       help="agent token only: a repeated start with the same key returns the existing crawl")
+                       help="a repeated start with the same key returns the existing crawl")
     for name in ("status", "stop"):
         c = crawl.add_parser(name)
         c.add_argument("id")
@@ -211,6 +217,12 @@ def main(argv=None):
         result = client.call("GET", "/actions.json")
     elif c == "openapi":
         result = client.call("GET", "/openapi.json")
+    elif c == "collections":
+        result = client.call("GET", v1 + "/collections")
+    elif c == "host":
+        result = client.call("GET", v1 + "/hosts/resolve", {"input": args.input, "collection": args.collection})
+    elif c == "automation":
+        result = client.call("GET", v1 + "/discovery/status")
     elif c == "search":
         result = client.call("GET", v1 + "/search", {"q": args.query, "limit": args.limit, "offset": args.offset,
                                                      "source": "network" if args.network else None, "lang": args.lang,

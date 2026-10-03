@@ -83,7 +83,21 @@
   }
   async function analyze(value) {
     const run = ++generation; detailGeneration++; host = value.trim(); collection = $('collection').value.trim(); $('analysis').hidden = true; $('detail').hidden = true; message(t('loading'));
+    $('not-indexed').hidden = true;
+    const params = new URLSearchParams({input:value}); if (collection) params.set('collection',collection);
+    const resolvedResponse = await fetch('/scoutro/api/v1/hosts/resolve?' + params, {credentials:'same-origin',cache:'no-store'});
+    const resolved = await resolvedResponse.json(); if (run !== generation) return;
+    if (!resolvedResponse.ok) throw new Error(t('error') + ' (HTTP ' + resolvedResponse.status + ', ' + (resolved.error?.code || 'error') + ')');
+    host = resolved.host;
+    const showMissing = () => {
+      $('normalized-host').textContent = host;
+      const crawlParams = new URLSearchParams({url:resolved.url}); if (collection) crawlParams.set('collection',collection);
+      $('start-crawl').href = 'ScoutroCrawls_p.html?' + crawlParams + '#new-crawl';
+      $('not-indexed').hidden = false; $('host').value = host; message(t('not_indexed'));
+    };
+    if (!resolved.indexed) { showMissing(); return; }
     const data = await api('hosts/' + encodeURIComponent(host)); if (run !== generation) return;
+    if (data.indexed === false) { showMissing(); return; }
     summary = data; host = data.host; $('host').value = host; offset = 0; $('filter').value = 'all'; $('sort').value = 'url'; $('order').value = 'asc'; renderSummary(); $('analysis').hidden = false; $('host-results').replaceChildren(); $('more-hosts').hidden = true; tab('overview'); message();
   }
   async function find(more = false) {
@@ -111,5 +125,7 @@
     button.addEventListener('keydown', e => { const buttons = [...document.querySelectorAll('[data-sseo-tab]')]; let i = buttons.indexOf(button); if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return; e.preventDefault(); i = e.key === 'Home' ? 0 : e.key === 'End' ? 3 : (i + (e.key === 'ArrowRight' ? 1 : 3)) % 4; buttons[i].focus(); tab(buttons[i].dataset.sseoTab); });
   }
   for (const id of ['sort', 'order', 'filter']) $(id).addEventListener('change', () => { const sort = $('sort').value; if (sort.startsWith('references_') || sort === 'external_hosts') $('filter').value = 'processed'; offset = 0; guarded(pages); });
+  const initial = new URLSearchParams(location.search); if (initial.has('collection')) $('collection').value = initial.get('collection');
+  if (initial.has('host')) { $('host').value = initial.get('host'); guarded(() => analyze(initial.get('host'))); }
   $('prev').addEventListener('click', () => { offset = Math.max(0, offset - 25); guarded(pages); }); $('next').addEventListener('click', () => { offset += 25; guarded(pages); });
 })();

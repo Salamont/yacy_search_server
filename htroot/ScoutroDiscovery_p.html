@@ -17,6 +17,7 @@
           <div><dt>Global status</dt><dd id="scd-global-status">Disabled</dd></div>
           <div><dt>Heartbeat</dt><dd id="scd-heartbeat">—</dd></div>
           <div><dt>Jobs</dt><dd id="scd-job-count">—</dd></div>
+          <div><dt>Batch status</dt><dd id="scd-batch-status">—</dd></div>
           <div><dt>Current batch</dt><dd id="scd-current-batch">—</dd></div>
           <div><dt>Fresh Backlog</dt><dd id="scd-fresh">—</dd></div>
           <div><dt>Last run</dt><dd id="scd-last-run">—</dd></div>
@@ -24,10 +25,10 @@
           <div><dt>Waiting reason</dt><dd id="scd-waiting">—</dd></div>
         </dl>
         <div class="scd-actions">
-          <button type="button" class="btn btn-primary" data-scd-global="enable">Enable automation</button>
-          <button type="button" class="btn btn-default" data-scd-global="disable">Disable automation</button>
-          <button type="button" class="btn btn-default" data-scd-global="pause">Pause automation</button>
-          <button type="button" class="btn btn-default" data-scd-global="resume">Resume automation</button>
+          <button type="button" class="btn btn-primary" hidden disabled data-scd-global="enable">Enable automation</button>
+          <button type="button" class="btn btn-default" hidden disabled data-scd-global="disable">Disable automation</button>
+          <button type="button" class="btn btn-default" hidden disabled data-scd-global="pause">Pause automation</button>
+          <button type="button" class="btn btn-default" hidden disabled data-scd-global="resume">Resume automation</button>
           <a href="Automation_p.html?sort=-date_recording">YaCy Automation</a>
           <a href="Crawler_p.html">Crawler Monitor</a>
         </div>
@@ -74,6 +75,7 @@
         </form>
       </section>
       <div id="scd-text" hidden>
+        <span data-scd-label="active">Active</span><span data-scd-label="batch_running">Batch running</span><span data-scd-label="repair_heartbeat">Repair heartbeat</span><span data-scd-label="completed">Completed</span>
         <span data-scd-label="disabled">Disabled</span><span data-scd-label="paused">Paused</span>
         <span data-scd-label="running">Running</span><span data-scd-label="idle">Idle</span>
         <span data-scd-label="due">Due</span><span data-scd-label="error">Error</span>

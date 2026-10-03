@@ -54,10 +54,9 @@ import net.yacy.scoutro.agents.CrawlRecord;
 class ScopedActions {
 
     static final int MAX_SEARCH_COLLECTIONS = 10;
-    private static final Pattern CLIENT_REF = Pattern.compile("[A-Za-z0-9_.:-]{1,100}");
     private static final Pattern COLLECTION = Pattern.compile("[A-Za-z0-9_-]{1,64}");
     /** Agent crawl starts are serialized so that the parallelism limit holds. */
-    private static final Object CRAWL_LOCK = new Object();
+    private static final Object CRAWL_LOCK = ScoutroActions.CRAWL_START_LOCK;
     private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
 
     private final ScoutroActions actions;
@@ -73,6 +72,22 @@ class ScopedActions {
         final Agent agent = call.agent;
         final Map<String, String> q = call.request.query;
         switch (action) {
+            case "host.resolve": {
+                final JSONObject host = this.actions.hostResolve(q, filterCollections(agent, q.get("collection")));
+                final boolean granted = agent.actions.contains("crawl.start");
+                final boolean permitted = granted && agent.limits.allowsHost(host.optString("host"));
+                Json.put(host.optJSONObject("crawl"), "canRequest", permitted);
+                Json.put(host.optJSONObject("crawl"), "blockedReason", permitted ? null : granted ? "domain_not_allowed" : "crawl_not_granted");
+                return ok(host);
+            }
+            case "collections.list": {
+                if (agent.scope.allCollections) return ok(this.actions.collections());
+                final JSONArray choices = new JSONArray();
+                for (final String idValue : agent.scope.collections) choices.put(Json.obj("id", idValue, "documents", null));
+                return ok(Json.obj("collections", choices, "allowNew", false, "limit", choices.length()));
+            }
+            case "discovery.status":
+                return ok(net.yacy.scoutro.discovery.DiscoveryService.get().status());
             case "seo.read":
                 return ok(SeoAnalysis.current().route(call.request.path.subList(1, call.request.path.size()),
                         q, filterCollections(agent, q.get("collection"))));
@@ -268,52 +283,25 @@ class ScopedActions {
         final Agent agent = call.agent;
         final Agent.Limits limits = agent.limits;
         final JSONObject body = call.request.body.get();
-        final String clientRef = call.request.idempotencyKey == null ? null : call.request.idempotencyKey.trim();
-        if (clientRef != null && !CLIENT_REF.matcher(clientRef).matches()) {
-            throw ApiException.invalid("Idempotency-Key", "The Idempotency-Key header must match [A-Za-z0-9_.:-]{1,100}.");
-        }
-        for (final String key : body.keySet()) {
-            if (!List.of("url", "depth", "maxPages", "collection", "scope").contains(key)) {
-                throw ApiException.invalid(key, "Unknown field '" + key + "'. Allowed fields: url, depth, maxPages, "
-                        + "collection, scope.");
-            }
-        }
-        final Object collectionValue = body.opt("collection");
-        if (!(collectionValue instanceof String) || !COLLECTION.matcher((String) collectionValue).matches()) {
-            throw ApiException.invalid("collection", "Field 'collection' (one of your granted collections) is required.");
-        }
-        final String collection = (String) collectionValue;
+        final String clientRef = CrawlRequest.key(call.request.idempotencyKey);
+        final CrawlRequest request = CrawlRequest.parse(body, Math.min(ScoutroActions.DEFAULT_DEPTH, limits.maxDepth), limits.maxPages);
+        final String collection = request.collection, url = request.url, host = request.host;
         requireInScope(agent, collection);
-        final Object urlValue = body.opt("url");
-        if (!(urlValue instanceof String)) {
-            throw ApiException.invalid("url", "Field 'url' (an http or https URL) is required.");
-        }
-        final String url = ScoutroActions.validateHttpUrl((String) urlValue, "url");
-        final String host = URI.create(url).getHost().toLowerCase(Locale.ROOT);
         if (!limits.allowsHost(host)) {
             throw new ApiException(403, "limit_exceeded:domains", "The host '" + host
                     + "' is not on the domain allowlist of this agent.");
         }
-        final Object scopeValue = body.opt("scope");
-        final String scope = scopeValue == null || scopeValue == JSONObject.NULL ? "domain" : String.valueOf(scopeValue);
-        if (!"domain".equals(scope) && !"subpath".equals(scope)) {
-            throw ApiException.invalid("scope", "Field 'scope' must be 'domain' or 'subpath'; agents cannot start wide crawls.");
-        }
-        final int depth = intField(body, "depth", Math.min(ScoutroActions.DEFAULT_DEPTH, limits.maxDepth));
-        if (depth < 0 || depth > limits.maxDepth) {
-            throw new ApiException(403, "limit_exceeded:maxDepth", "Field 'depth' must be between 0 and "
-                    + limits.maxDepth + " for this agent.");
-        }
-        final int maxPages = intField(body, "maxPages", limits.maxPages);
-        if (maxPages < 1 || maxPages > limits.maxPages) {
-            throw new ApiException(403, "limit_exceeded:maxPages", "Field 'maxPages' must be between 1 and "
-                    + limits.maxPages + " for this agent.");
-        }
+        final String scope = request.scope;
+        if ("wide".equals(scope)) throw ApiException.invalid("scope", "Agents can use domain or subpath only.");
+        final int depth = request.depth, maxPages = request.maxPages;
+        if (depth > limits.maxDepth) throw new ApiException(403, "limit_exceeded:maxDepth", "Depth exceeds the agent limit.");
+        if (maxPages > limits.maxPages) throw new ApiException(403, "limit_exceeded:maxPages", "Page count exceeds the agent limit.");
 
         synchronized (CRAWL_LOCK) {
             final Map<String, JSONObject> all = this.actions.loadCrawls();
             reconcile(agent, all);
             final CrawlRecord existing = this.store.crawlByClientRef(agent.id, clientRef);
+            if (existing != null && !request.matches(existing)) throw new ApiException(409, "idempotency_conflict", "This Idempotency-Key belongs to a different request.");
             if (existing != null && existing.isStarted()) {
                 final JSONObject crawl = describe(existing, all);
                 Json.put(crawl, "idempotentReplay", true);
@@ -487,6 +475,7 @@ class ScopedActions {
         final List<CrawlRecord> own = this.store.crawls(agent.id);
         for (int i = own.size() - 1; i >= 0 && out.length() < 100; i--) {
             final CrawlRecord r = own.get(i);
+            if (!agent.scope.allows(r.collection)) continue;
             if (r.isStarted()) {
                 out.put(describe(r, all));
             } else if (r.isStarting()) {
@@ -505,8 +494,13 @@ class ScopedActions {
 
     private JSONObject crawlStop(final Agent agent, final String id) throws ApiException {
         ScoutroActions.checkCrawlId(id);
-        requireOwn(agent, id);
-        return this.actions.crawlStop(id);
+        synchronized (CRAWL_LOCK) {
+            final CrawlRecord own = requireOwn(agent, id);
+            final JSONObject live = this.actions.loadCrawls().get(id);
+            if (live != null && !own.startMarker.isEmpty() && !own.startMarker.equals(live.opt("startMarker")))
+                throw new ApiException(404, "crawl_not_found", "The original crawl is no longer present.");
+            return this.actions.crawlStop(id);
+        }
     }
 
     /** Foreign or unknown crawl ids are reported as not found, so ids cannot be probed. */
@@ -523,12 +517,14 @@ class ScopedActions {
             throw new ApiException(404, "crawl_not_found", "There is no crawl with the id '" + id + "'.",
                     Json.obj("id", id));
         }
+        requireInScope(agent, own.collection);
         return own;
     }
 
     /** YaCy's view of an own crawl, or its ownership record when YaCy has removed the profile. */
     private static JSONObject describe(final CrawlRecord own, final Map<String, JSONObject> all) {
-        final JSONObject live = all.get(own.crawlId);
+        JSONObject live = all.get(own.crawlId);
+        if (live != null && !own.startMarker.isEmpty() && !own.startMarker.equals(live.opt("startMarker"))) live = null;
         final JSONObject out;
         if (live != null) {
             out = Json.obj();
@@ -540,6 +536,8 @@ class ScopedActions {
         } else {
             out = Json.obj("id", own.crawlId, "state", "removed", "collections", new JSONArray().put(own.collection));
         }
+        final JSONObject metadata = CrawlLedger.describe(live, own);
+        for (final String key : List.of("url", "startUrl", "scope", "depth", "maxPages", "endedAt", "progress", "lastError")) Json.put(out, key, metadata.opt(key));
         Json.put(out, "host", own.host);
         Json.put(out, "collection", own.collection);
         Json.put(out, "startedAt", AgentApi.iso(own.createdAt));

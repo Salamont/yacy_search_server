@@ -48,8 +48,8 @@ try {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal page overflow');
   await page.evaluate(() => scrollTo(0, 0));
   if (shots) await page.screenshot({ path: `${shots}/seo-${language}-${width}.png`, fullPage: true });
-  await page.locator('#sseo-host').fill('absent.example'); await page.locator('#sseo-search button[type="submit"]').click();
-  await page.waitForFunction(() => document.querySelector('#sseo-message').textContent.includes('404')); check(!await page.locator('#sseo-analysis').isVisible(), '404 visible, no stale matrix');
+  await page.locator('#sseo-host').fill('https://ABSENT.example/path#fragment'); await page.locator('#sseo-search button[type="submit"]').click();
+  await page.waitForSelector('#sseo-not-indexed:not([hidden])'); check(!await page.locator('#sseo-analysis').isVisible(), 'Unknown is a normal empty state'); check((await page.locator('#sseo-not-indexed').textContent()).includes(language === 'de' ? 'Noch nicht indexiert' : 'Not yet indexed'), 'Unknown message localized'); check((await page.locator('#sseo-start-crawl').getAttribute('href')).includes('ScoutroCrawls_p.html?url='), 'Explicit native crawl link');
   // A failed backend read must be visible, even when a tab previously loaded.
   await page.route('**/scoutro/api/v1/seo/hosts/a.example?*', r => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":{"code":"index_unavailable"}}' }));
   await page.locator('#sseo-host').fill('a.example'); await page.locator('#sseo-search button[type="submit"]').click();

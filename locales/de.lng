@@ -3619,7 +3619,7 @@ Sponsor==Sponsor
 YaCy Packs &amp; Import/Export==YaCy-Packs &amp; Import/Export
 YaCy is free software, so we need the help of many to support the development.<br/><b>You</b> can help by joining a sponsoring plan:==YaCy ist freie Software, deshalb brauchen wir die Hilfe vieler, um die Entwicklung zu unterstützen.<br/><b>Sie</b> können helfen, indem Sie einem Sponsoring-Plan beitreten:
 #-----------------------------
-
+>Crawls<==>Crawls<
 
 #File: env/templates/simpleheader.template
 #---------------------------
@@ -4863,6 +4863,9 @@ Idle==Inaktiv
 >Discovery Automation<==>Discovery-Automatisierung<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, Zeitpläne und persistenter Discovery-Kandidatenbestand<
 >Disabled<==>Deaktiviert<
+>Active<==>Aktiv<
+>Paused<==>Pausiert<
+>Batch running<==>Batch läuft<
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Discovery-Automatisierung<
@@ -4946,8 +4949,14 @@ Idle==Inaktiv
 >Job saved<==>Job gespeichert<
 >OpenStreetMap / Geofabrik<==>OpenStreetMap / Geofabrik<
 >YaCy Network Search<==>YaCy-Netzwerksuche<
+>Batch status<==>Batch-Status<
+>Active<==>Aktiv<
+>Batch running<==>Batch läuft<
+>Repair heartbeat<==>Taktgeber reparieren<
+>Completed<==>Abgeschlossen<
 
 #File: ScoutroSEO_p.html
+>Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.<==>Eine Collection vor dem Crawl-Start wählen. Die Indexierung kann nach Ende des Crawl-Profils weiterlaufen.<
 <html lang="en">==<html lang="de">
 >Overview<==>Übersicht<
 >Pages<==>Seiten<
@@ -5030,3 +5039,46 @@ Idle==Inaktiv
 >Incoming reference sums cover finalized target URLs only. External source hosts are unique per URL and are never added up as a host-wide domain count.<==>Summen eingehender Referenzen berücksichtigen nur finalisierte Ziel-URLs. Externe Quellhosts sind je URL eindeutig und werden nie zu einer hostweiten Domainzahl addiert.<
 >Language and protocol distributions show up to 30 values.<==>Sprach- und Protokollverteilungen zeigen bis zu 30 Werte.<
 aria-label="Host analysis"==aria-label="Host-Analyse"
+>Host or HTTP/HTTPS URL<==>Host oder HTTP/HTTPS-URL<
+>Not yet indexed<==>Noch nicht indexiert<
+>Start crawl<==>Crawl starten<
+
+#File: ScoutroCrawls_p.html
+
+<html lang="en">==<html lang="de">
+>Scoutro Crawls<==>Scoutro Crawls<
+>Crawls<==>Crawls<
+>Start a text-only crawl into an explicitly selected collection. YaCy handles robots, queues and indexing.<==>Text-Crawl in eine ausdrücklich gewählte Collection starten. YaCy übernimmt Robots, Warteschlangen und Indexierung.<
+>New crawl<==>Neuer Crawl<
+>Collection (required)<==>Collection (Pflicht)<
+>Scope<==>Bereich<
+>Domain<==>Domain<
+>Subpath<==>Unterpfad<
+>Maximum pages per domain<==>Maximale Seiten pro Domain<
+>Crawl depth<==>Crawl-Tiefe<
+>Choose an existing collection or enter a new name. There is no default collection.<==>Eine bestehende Collection wählen oder einen neuen Namen eingeben. Es gibt keine Standard-Collection.<
+>Start crawl<==>Crawl starten<
+>Crawl status<==>Crawl-Status<
+>Refresh<==>Aktualisieren<
+>YaCy Crawler Monitor<==>YaCy Crawl-Monitor<
+>Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.<==>Der Profilstatus belegt keine erfolgreiche Indexierung. Fehlende Werte sind unbekannt; ein Prozentsatz wird nicht geschätzt.<
+>Loading<==>Wird geladen<
+>No crawls available.<==>Keine Crawls vorhanden.<
+>Crawl accepted.<==>Crawl angenommen.<
+>Existing crawl returned. No second start.<==>Bestehender Crawl zurückgegeben. Kein zweiter Start.<
+>Request failed<==>Anfrage fehlgeschlagen<
+>Collection suggestions unavailable. Enter a collection explicitly.<==>Collection-Vorschläge nicht verfügbar. Eine Collection ausdrücklich eingeben.<
+>Collection<==>Collection<
+>Pages loaded<==>Geladene Seiten<
+>Start recorded<==>Start registriert<
+>Unknown<==>Unbekannt<
+>Running<==>Läuft<
+>Paused<==>Pausiert<
+>Terminated<==>Beendet<
+>Profile removed<==>Profil entfernt<
+>Stopped<==>Gestoppt<
+>Start unconfirmed<==>Start unbestätigt<
+>Wide<==>Alle Hosts<
+>Analyze host<==>Host analysieren<
+>Not yet indexed<==>Noch nicht indexiert<
+>Last error<==>Letzter Fehler<

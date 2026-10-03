@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Scoutro Crawls</title>
+#%env/templates/metas.template%#
+<link rel="stylesheet" href="env/scoutro/crawls.css" /></head>
+<body id="ScoutroCrawls">
+#%env/templates/header.template%#
+<main class="scc-main">
+<h1>Crawls</h1>
+<p>Start a text-only crawl into an explicitly selected collection. YaCy handles robots, queues and indexing.</p>
+<p id="scc-message" role="status" aria-live="polite"></p>
+<section class="scc-panel" id="new-crawl" aria-labelledby="scc-new-title">
+<h2 id="scc-new-title">New crawl</h2>
+<form id="scc-form">
+<div class="scc-fields">
+<label for="scc-url">URL<input id="scc-url" class="form-control" type="url" required maxlength="2048" placeholder="https://example.com/" autocomplete="url" /></label>
+<label for="scc-collection">Collection (required)<input id="scc-collection" class="form-control" type="text" required maxlength="64" pattern="[A-Za-z0-9_-]{1,64}" list="scc-collections" autocomplete="off" /><datalist id="scc-collections"></datalist></label>
+<label for="scc-scope">Scope<select class="form-control" id="scc-scope"><option value="domain">Domain</option><option value="subpath">Subpath</option></select></label>
+<label for="scc-pages">Maximum pages per domain<input id="scc-pages" class="form-control" type="number" required min="1" max="1000000" step="1" value="15" /></label>
+<label for="scc-depth">Crawl depth<input id="scc-depth" class="form-control" type="number" required min="0" max="10" step="1" value="2" /></label>
+</div>
+<p class="scc-note">Choose an existing collection or enter a new name. There is no default collection.</p>
+<button id="scc-start" class="btn btn-primary" type="submit">Start crawl</button>
+</form>
+</section>
+<section class="scc-panel" aria-labelledby="scc-list-title">
+<div class="scc-heading"><h2 id="scc-list-title">Crawl status</h2><button class="btn btn-default" id="scc-refresh" type="button">Refresh</button><a href="Crawler_p.html">YaCy Crawler Monitor</a></div>
+<p class="scc-note">Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.</p>
+<div id="scc-crawls" class="scc-cards"></div>
+</section>
+<div hidden aria-hidden="true">
+<span data-scc-label="loading">Loading</span><span data-scc-label="empty">No crawls available.</span>
+<span data-scc-label="started">Crawl accepted.</span><span data-scc-label="replayed">Existing crawl returned. No second start.</span>
+<span data-scc-label="error">Request failed</span><span data-scc-label="catalog_error">Collection suggestions unavailable. Enter a collection explicitly.</span>
+<span data-scc-label="collection">Collection</span><span data-scc-label="scope">Scope</span><span data-scc-label="pages">Pages loaded</span>
+<span data-scc-label="depth">Crawl depth</span><span data-scc-label="started_at">Start recorded</span><span data-scc-label="unknown">Unknown</span>
+<span data-scc-label="running">Running</span><span data-scc-label="paused">Paused</span><span data-scc-label="terminated">Terminated</span>
+<span data-scc-label="removed">Profile removed</span><span data-scc-label="stopped">Stopped</span><span data-scc-label="unconfirmed">Start unconfirmed</span>
+<span data-scc-label="domain">Domain</span><span data-scc-label="subpath">Subpath</span><span data-scc-label="wide">Wide</span>
+<span data-scc-label="analyze">Analyze host</span><span data-scc-label="not_indexed">Not yet indexed</span><span data-scc-label="last_error">Last error</span>
+</div>
+</main>
+<script src="env/scoutro/crawls.js"></script>
+#%env/templates/footer.template%#
+</body></html>

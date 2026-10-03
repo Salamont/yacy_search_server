@@ -72,3 +72,9 @@ Page backend: `source/net/yacy/htroot/ScoutroAgents_p.java` (logic in `source/ne
 | `/ScoutroAgents_p.html` | `POST` | admin + transaction token | operations (`op=...`) |
 
 Agents themselves never use this page. They authenticate on `/scoutro/api/agent/v1/*` with `Authorization: Bearer sca_...` and discover their rights with `GET /scoutro/api/agent/v1/capabilities`. The UI route of this page is `config.agents` (`/scoutro/api/v1/ui/routes/config.agents`).
+
+## New optional read grants
+
+`host.resolve` and `collections.list` are collection-scoped. `discovery.status` is a global admin-risk read grant for external agents. All are absent from presets; existing agents receive no new rights automatically. Crawl start always requires a granted explicit Collection.
+
+Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).

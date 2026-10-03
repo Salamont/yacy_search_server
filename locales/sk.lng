@@ -3951,7 +3951,7 @@ Portal Configuration==Konfigurácia portálu
 Portal Design==Dizajn portálu
 Ranking and Heuristics==Hodnotenie a heuristika
 #-----------------------------
-
+>Crawls<==>Crawls<
 
 #File: env/templates/simpleSearchHeader.template
 #---------------------------
@@ -4635,12 +4635,64 @@ Location==Miesto
 >Job saved<==>Job saved<
 >OpenStreetMap / Geofabrik<==>OpenStreetMap / Geofabrik<
 >YaCy Network Search<==>YaCy Network Search<
-
+>Batch status<==>Batch status<
+>Active<==>Active<
+>Batch running<==>Batch running<
+>Repair heartbeat<==>Repair heartbeat<
+>Completed<==>Completed<
 
 #File: scoutro-dashboard.html
 >Discovery Automation<==>Automatizácia objavovania<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+>Active<==>Active<
+>Paused<==>Paused<
+>Batch running<==>Batch running<
 
 #File: ScoutroSEO_p.html
+>Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.<==>Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.<
 # English source fallback until this locale is translated.
+>Host or HTTP/HTTPS URL<==>Host or HTTP/HTTPS URL<
+>Not yet indexed<==>Not yet indexed<
+>Start crawl<==>Start crawl<
+>Crawl depth<==>Crawl depth<
+
+#File: ScoutroCrawls_p.html
+
+<html lang="en">==<html lang="sk">
+>Scoutro Crawls<==>Scoutro Crawls<
+>Crawls<==>Crawls<
+>Start a text-only crawl into an explicitly selected collection. YaCy handles robots, queues and indexing.<==>Start a text-only crawl into an explicitly selected collection. YaCy handles robots, queues and indexing.<
+>New crawl<==>New crawl<
+>Collection (required)<==>Collection (required)<
+>Scope<==>Scope<
+>Domain<==>Domain<
+>Subpath<==>Subpath<
+>Maximum pages per domain<==>Maximum pages per domain<
+>Crawl depth<==>Crawl depth<
+>Choose an existing collection or enter a new name. There is no default collection.<==>Choose an existing collection or enter a new name. There is no default collection.<
+>Start crawl<==>Start crawl<
+>Crawl status<==>Crawl status<
+>Refresh<==>Refresh<
+>YaCy Crawler Monitor<==>YaCy Crawler Monitor<
+>Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.<==>Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.<
+>Loading<==>Loading<
+>No crawls available.<==>No crawls available.<
+>Crawl accepted.<==>Crawl accepted.<
+>Existing crawl returned. No second start.<==>Existing crawl returned. No second start.<
+>Request failed<==>Request failed<
+>Collection suggestions unavailable. Enter a collection explicitly.<==>Collection suggestions unavailable. Enter a collection explicitly.<
+>Collection<==>Collection<
+>Pages loaded<==>Pages loaded<
+>Start recorded<==>Start recorded<
+>Unknown<==>Unknown<
+>Running<==>Running<
+>Paused<==>Paused<
+>Terminated<==>Terminated<
+>Profile removed<==>Profile removed<
+>Stopped<==>Stopped<
+>Start unconfirmed<==>Start unconfirmed<
+>Wide<==>Wide<
+>Analyze host<==>Analyze host<
+>Not yet indexed<==>Not yet indexed<
+>Last error<==>Last error<

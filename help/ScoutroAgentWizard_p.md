@@ -59,3 +59,9 @@ Page backend: `source/net/yacy/htroot/ScoutroAgentWizard_p.java` (logic in `sour
 | `/ScoutroAgentWizard_p.html` | `POST` | admin + transaction token | steps 1–5 |
 
 The wizard is meant for people. Scripts that need an agent should use the wizard once and then work with the token on `/scoutro/api/agent/v1`. The UI route is `config.agentWizard`.
+
+## Crawl and status grants
+
+Crawl start requires an explicit granted Collection. Optional `host.resolve`/`collections.list` reads are scoped. Global `discovery.status` is admin-risk and absent from presets. No Discovery write permission is introduced.
+
+Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
