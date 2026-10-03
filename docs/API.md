@@ -460,3 +460,25 @@ Agent access:
 ## Discovery Automation V1
 
 Administrator-only `/scoutro/api/v1/discovery/` endpoints provide dynamic catalog, status, job CRUD/export, run-once and global enable/disable/pause/resume. No agent grants are added. Mutations use JSON and the existing origin guard; edits/delete/global controls require `If-Match` with the numeric store revision. Complete parameters, responses and side effects: [Discovery help](../help/ScoutroDiscovery_p.md), OpenAPI/action catalog. WorkTables calls the separate transaction-protected `ScoutroDiscoveryTick_p.json` responder, not the JSON mutation API. All scheduling/discovery is deterministic; Classification remains separate.
+
+## SEO / Host Analysis (read-only)
+
+Admin Digest: `GET /scoutro/api/v1/seo/hosts`, `/seo/hosts/{host}`,
+`/seo/hosts/{host}/pages`, `/seo/pages/{id}`. Equivalent Agent Bearer routes
+under `/scoutro/api/agent/v1` require explicit `seo.read`, outside presets.
+Collections filter targets before retrieval; foreign assignments and global
+host extent are hidden in scoped reads. The UI route is `seo.hostAnalysis`.
+
+Fixed allowlisted queries only: host prefix, optional collection, bounded
+limit/offset, page sort/order and reference-readiness filter. No raw Solr
+parameters. Partial results/failed queries return 503, unknown targets 404.
+Readiness coverage counts finalized reference-field shapes; historical Citation
+completeness remains unknown. Non-finalized counters are null, processed zero
+is real zero. Incoming counts represent the local observed graph; outgoing
+internal `inboundlinkscount_i` is not a backlink count. Per-URL external source
+host counts are never summed into a host-wide unique-domain count.
+
+See [page help](../help/ScoutroSEO_p.md) for exact parameters/errors/response
+fields and [technical semantics](SCOUTRO_SEO_HOST_ANALYSIS.md) for field origins,
+aggregation limits, performance and rollout prerequisites. No crawler,
+scheduler, configuration, ranking or DATA migration side effects.

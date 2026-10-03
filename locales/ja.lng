@@ -3891,6 +3891,7 @@ gracious: 50 &euro;==親切です: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>ディスカバリー自動化<
 >Dashboard<==>ダッシュボード<
 #---------------------------
@@ -4636,3 +4637,6 @@ Location==位置
 >Discovery Automation<==>ディスカバリー自動化<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

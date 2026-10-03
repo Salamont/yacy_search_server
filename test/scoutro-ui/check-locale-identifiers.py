@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PAGES = sys.argv[1:] or ["index.html", "yacysearch.html", "LLMSelection_p.html"]
+PAGES = sys.argv[1:] or ["index.html", "yacysearch.html", "LLMSelection_p.html", "ScoutroSEO_p.html"]
 ATTR = re.compile(r'\b(?:class|id|name|for)\s*=\s*"([^"#]*)"')
 
 

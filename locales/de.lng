@@ -3557,6 +3557,7 @@ YaCy Identifier==YaCy-Identifizierer
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host-Analyse<
 >Discovery Automation<==>Discovery-Automatisierung<
 >Dashboard<==>Dashboard<
 #---------------------------
@@ -4945,3 +4946,87 @@ Idle==Inaktiv
 >Job saved<==>Job gespeichert<
 >OpenStreetMap / Geofabrik<==>OpenStreetMap / Geofabrik<
 >YaCy Network Search<==>YaCy-Netzwerksuche<
+
+#File: ScoutroSEO_p.html
+<html lang="en">==<html lang="de">
+>Overview<==>Übersicht<
+>Pages<==>Seiten<
+>Links<==>Links<
+>Technology<==>Technik<
+>Content<==>Inhalt<
+>Crawl metadata<==>Crawl-Metadaten<
+>Outgoing links<==>Ausgehende Links<
+>Known incoming references<==>Bekannte eingehende Referenzen<
+>Indexed URLs<==>Indexierte URLs<
+>Finalized reference values<==>Finalisierte Referenzwerte<
+>Finalized<==>Finalisiert<
+>Postprocessing pending<==>Nachverarbeitung ausstehend<
+>No finalized Citation data<==>Keine finalisierten Citation-Daten<
+>Status unknown<==>Status unbekannt<
+>All statuses<==>Alle Statuswerte<
+>Not recorded<==>Nicht erfasst<
+>Loading…<==>Wird geladen…<
+>No visible indexed results.<==>Keine sichtbaren Indexergebnisse.<
+>Analysis failed. Please retry.<==>Analyse fehlgeschlagen. Bitte erneut versuchen.<
+>URL<==>URL<
+>Title<==>Titel<
+>Description<==>Beschreibung<
+>H1<==>H1<
+>H2<==>H2<
+>H3<==>H3<
+>Words<==>Wörter<
+>Crawl depth<==>Crawl-Tiefe<
+>Language<==>Sprache<
+>Language distribution<==>Sprachverteilung<
+>Total references<==>Referenzen gesamt<
+>Internal references<==>Interne Referenzen<
+>External references<==>Externe Referenzen<
+>External source hosts per URL<==>Externe Quellhosts je URL<
+>Host extent in local index<==>Host-Umfang im lokalen Index<
+>Latest recorded load<==>Letzter gespeicherter Ladezeitpunkt<
+>Last Modified<==>Zuletzt geändert<
+>Response time (ms)<==>Antwortzeit (ms)<
+>HTTP status<==>HTTP-Status<
+>HTTP / HTTPS<==>HTTP / HTTPS<
+>Outgoing internal links<==>Ausgehende interne Links<
+>Outgoing external links<==>Ausgehende externe Links<
+>Nofollow links<==>Nofollow-Links<
+>Measured URLs<==>Gemessene URLs<
+>Citation status<==>Citation-Status<
+>URLs with title<==>URLs mit Titel<
+>URLs with description<==>URLs mit Beschreibung<
+>URLs with H1<==>URLs mit H1<
+>URLs with H2<==>URLs mit H2<
+>URLs with H3<==>URLs mit H3<
+>Finalized URLs<==>Finalisierte URLs<
+>Pending URLs<==>Ausstehende URLs<
+>URLs without finalized values<==>URLs ohne finalisierte Werte<
+>URLs with unknown status<==>URLs mit unbekanntem Status<
+>Visible collections<==>Sichtbare Collections<
+>Shown / total<==>Angezeigt / gesamt<
+>URL detail<==>URL-Detail<
+>Most externally referenced pages<==>Am stärksten extern referenzierte Seiten<
+>Most internally referenced pages<==>Am stärksten intern referenzierte Seiten<
+>SEO / Host Analysis<==>SEO / Host-Analyse<
+>Read indexed content, crawl metadata and locally observed references.<==>Indexierte Inhalte, Crawl-Metadaten und lokal beobachtete Referenzen analysieren.<
+>Domain or host<==>Domain oder Host<
+>Collection (optional)<==>Collection (optional)<
+>Analyze<==>Analysieren<
+>Find hosts<==>Hosts suchen<
+>More hosts<==>Weitere Hosts<
+>Host analysis<==>Host-Analyse<
+>Sort by<==>Sortieren nach<
+>Order<==>Reihenfolge<
+>Ascending<==>Aufsteigend<
+>Descending<==>Absteigend<
+>Previous<==>Zurück<
+>Next<==>Weiter<
+>Close detail<==>Detail schließen<
+>Citation values<==>Citation-Werte<
+>Reference coverage<==>Referenzabdeckung<
+>These references describe the crawlgraph observed by Scoutro, not a complete worldwide backlink index.<==>Diese Referenzen beschreiben den von Scoutro beobachteten Crawlgraphen, keinen vollständigen weltweiten Backlinkindex.<
+>Coverage counts finalized reference fields. Historical Citation collection cannot be proven from these fields. Old URLs may require a later recrawl; this page starts no crawl.<==>Die Abdeckung zählt finalisierte Referenzfelder. Eine historische Citation-Erhebung ist daraus nicht nachweisbar. Alte URLs können einen späteren Recrawl benötigen; diese Seite startet keinen Crawl.<
+>Indexed URLs can include error records. Dates describe stored metadata. Missing values are not zero.<==>Indexierte URLs können Fehlerdatensätze enthalten. Datumsangaben beschreiben gespeicherte Metadaten. Fehlende Werte sind keine Nullwerte.<
+>Incoming reference sums cover finalized target URLs only. External source hosts are unique per URL and are never added up as a host-wide domain count.<==>Summen eingehender Referenzen berücksichtigen nur finalisierte Ziel-URLs. Externe Quellhosts sind je URL eindeutig und werden nie zu einer hostweiten Domainzahl addiert.<
+>Language and protocol distributions show up to 30 values.<==>Sprach- und Protokollverteilungen zeigen bis zu 30 Werte.<
+aria-label="Host analysis"==aria-label="Host-Analyse"

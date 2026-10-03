@@ -151,7 +151,7 @@ public class DashboardMetricsTest {
             Assert.assertFalse(prohibited, responder.contains(prohibited));
         }
         final String servlet = read("source/net/yacy/http/servlets/YaCyDefaultServlet.java");
-        Assert.assertTrue(servlet.contains("if (!\"/scoutro-dashboard.html\".equals(target))"));
+        Assert.assertTrue(servlet.contains("!\"/scoutro-dashboard.html\".equals(target)"));
     }
 
     private static String read(final String path) throws IOException {

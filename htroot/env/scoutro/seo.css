@@ -1,0 +1,32 @@
+/* Scoutro contributors, GPL-2.0-or-later. Uses the existing admin layout and Bootstrap controls. */
+.sseo-main { max-width: 1220px; margin-left: 0; padding: 24px 28px 48px; }
+.sseo-main [hidden] { display: none !important; }
+.sseo-note, .sseo-stats dt, .sseo-card dt { color: #61718a; }
+.sseo-panel, .sseo-card { background: #fff; border: 1px solid #dce6ef; border-radius: 14px; padding: 20px; margin: 18px 0; }
+.sseo-search, .sseo-controls, .sseo-tabs { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin: 16px 0; }
+.sseo-search label { flex: 1; min-width: 190px; }
+.sseo-search input, .sseo-controls select { margin-top: 6px; }
+.sseo-main .btn { min-height: 42px; white-space: normal; }
+.sseo-tabs [aria-selected="true"] { background: #e9f4ff; border-color: #197bb5; color: #124e78; }
+.sseo-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.sseo-card { margin: 0; }
+.sseo-card dd { font-size: 22px; margin-top: 8px; }
+.sseo-stats { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(0, 2fr); gap: 10px 16px; }
+.sseo-stats dd, .sseo-card dd { margin-left: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.sseo-scroll { max-width: 100%; overflow-x: auto; }
+.sseo-scroll table { min-width: 750px; margin-bottom: 12px; }
+.sseo-scroll .sseo-small-table { min-width: 460px; }
+.sseo-url { border: 0; padding: 4px 0; background: transparent; color: #146493; text-align: left; overflow-wrap: anywhere; max-width: 360px; }
+.sseo-main th { white-space: normal; }
+.sseo-main h2, #sseo-detail-url, #sseo-message { overflow-wrap: anywhere; }
+#sseo-message { color: #9d322b; }
+.sseo-host-results { padding-left: 20px; }
+.sseo-host-results button { margin: 4px 0; }
+@media (max-width: 767px) {
+ .sseo-main { margin-left: 0; padding: 18px 12px 36px; }
+ .sseo-panel, .sseo-card { padding: 15px; }
+ .sseo-cards { grid-template-columns: minmax(0, 1fr); }
+ .sseo-search label { min-width: 0; flex: 1 1 100%; }
+ .sseo-stats { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+ .sseo-controls label { flex: 1 1 100%; }
+}

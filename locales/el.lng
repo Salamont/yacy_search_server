@@ -3896,6 +3896,7 @@ gracious: 50 &euro;==ευγενικό: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Αυτοματοποίηση ανακάλυψης<
 >Dashboard<==>Πίνακας ελέγχου<
 #---------------------------
@@ -4641,3 +4642,6 @@ Location==Τοποθεσία
 >Discovery Automation<==>Αυτοματοποίηση ανακάλυψης<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

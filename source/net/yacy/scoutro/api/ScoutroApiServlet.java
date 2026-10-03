@@ -160,6 +160,12 @@ public class ScoutroApiServlet extends HttpServlet {
                 requireAdmin(request);
                 return DiscoveryApi.route(method, parts, request, response,
                         "GET".equals(method) ? null : new net.yacy.scoutro.discovery.JsonObject(jsonBody(request)));
+            case "seo":
+                requireAdmin(request);
+                if (!"GET".equals(method)) throw new ApiException(405, "method_not_allowed", "Host analysis is read-only; use GET.");
+                final Map<String, String> seoQuery = queryParams(request);
+                return SeoAnalysis.current().route(java.util.Arrays.asList(parts).subList(3, parts.length),
+                        seoQuery, SeoAnalysis.adminCollections(seoQuery));
             case "search":
                 requireAdmin(request);
                 expect(method, parts, 3, "GET");

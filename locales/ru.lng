@@ -3495,6 +3495,7 @@ Strict==Строгий
 "Table"=="Стол"
 PK==ПК
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Автоматизация обнаружения<
 >Dashboard<==>Панель управления<
 Search==Поиск
@@ -4734,3 +4735,6 @@ Show System==Показать систему
 >Discovery Automation<==>Автоматизация обнаружения<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

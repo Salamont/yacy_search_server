@@ -3470,6 +3470,7 @@ YaCy Identifier==Identifier YaCy
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automazione della scoperta<
 >Dashboard<==>Panoramica<
 #---------------------------
@@ -4647,3 +4648,6 @@ rss terminal==terminale rss
 >Discovery Automation<==>Automazione della scoperta<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

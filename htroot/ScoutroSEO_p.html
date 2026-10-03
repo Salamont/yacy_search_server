@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>SEO / Host Analysis</title>
+#%env/templates/metas.template%#
+<link rel="stylesheet" href="env/scoutro/seo.css" /></head>
+<body id="ScoutroSEO">
+#%env/templates/header.template%#
+<main class="sseo-main">
+<h1>SEO / Host Analysis</h1>
+<p class="sseo-note">Read indexed content, crawl metadata and locally observed references.</p>
+<form id="sseo-search" class="sseo-search">
+<label for="sseo-host">Domain or host<input class="form-control" id="sseo-host" type="text" required maxlength="253" autocomplete="off" /></label>
+<label for="sseo-collection">Collection (optional)<input class="form-control" id="sseo-collection" type="text" maxlength="64" /></label>
+<button class="btn btn-primary" type="submit">Analyze</button>
+<button class="btn btn-default" id="sseo-find" type="button">Find hosts</button>
+</form>
+<p id="sseo-message" role="status" aria-live="polite"></p>
+<ul id="sseo-host-results" class="sseo-host-results"></ul><button class="btn btn-default" id="sseo-more-hosts" type="button" hidden>More hosts</button>
+<section id="sseo-analysis" hidden aria-label="Host analysis">
+<h2 id="sseo-heading"></h2>
+<p class="sseo-note">Indexed URLs can include error records. Dates describe stored metadata. Missing values are not zero.</p>
+<div class="sseo-tabs" role="tablist" aria-label="Host analysis">
+<button class="btn btn-default" type="button" id="sseo-tab-overview" role="tab" data-sseo-tab="overview" aria-controls="sseo-panel-overview" aria-selected="true" tabindex="0">Overview</button>
+<button class="btn btn-default" type="button" id="sseo-tab-pages" role="tab" data-sseo-tab="pages" aria-controls="sseo-panel-pages" aria-selected="false" tabindex="-1">Pages</button>
+<button class="btn btn-default" type="button" id="sseo-tab-links" role="tab" data-sseo-tab="links" aria-controls="sseo-panel-links" aria-selected="false" tabindex="-1">Links</button>
+<button class="btn btn-default" type="button" id="sseo-tab-technology" role="tab" data-sseo-tab="technology" aria-controls="sseo-panel-technology" aria-selected="false" tabindex="-1">Technology</button>
+</div>
+<section class="sseo-panel" id="sseo-panel-overview" role="tabpanel" aria-labelledby="sseo-tab-overview" tabindex="0" >
+<div class="sseo-cards" id="sseo-kpis"></div><h3>Reference coverage</h3><dl id="sseo-coverage" class="sseo-stats"></dl><h3>Content</h3><dl id="sseo-content" class="sseo-stats"></dl><h3>Language distribution</h3><dl id="sseo-languages" class="sseo-stats"></dl></section>
+<section class="sseo-panel" id="sseo-panel-pages" role="tabpanel" aria-labelledby="sseo-tab-pages" tabindex="0" hidden>
+<div class="sseo-controls"><label for="sseo-sort">Sort by<select class="form-control" id="sseo-sort"><option value="url">URL</option><option value="word_count">Words</option><option value="crawl_depth">Crawl depth</option><option value="references_internal">Internal references</option><option value="references_external">External references</option><option value="external_hosts">External source hosts per URL</option><option value="load_date">Latest recorded load</option></select></label><label for="sseo-order">Order<select class="form-control" id="sseo-order"><option value="asc">Ascending</option><option value="desc">Descending</option></select></label><label for="sseo-filter">Citation values<select class="form-control" id="sseo-filter"><option value="all">All statuses</option><option value="processed">Finalized</option><option value="pending">Postprocessing pending</option><option value="unavailable">No finalized Citation data</option><option value="unknown">Status unknown</option></select></label></div><div class="sseo-scroll" id="sseo-pages-table"></div><div class="sseo-controls"><button class="btn btn-default" id="sseo-prev" type="button">Previous</button><span id="sseo-range" role="status"></span><button class="btn btn-default" id="sseo-next" type="button">Next</button></div></section>
+<section class="sseo-panel" id="sseo-panel-links" role="tabpanel" aria-labelledby="sseo-tab-links" tabindex="0" hidden>
+<dl id="sseo-references" class="sseo-stats"></dl><p class="sseo-note">Incoming reference sums cover finalized target URLs only. External source hosts are unique per URL and are never added up as a host-wide domain count.</p><h3>Most externally referenced pages</h3><div class="sseo-scroll" id="sseo-top-external"></div><h3>Most internally referenced pages</h3><div class="sseo-scroll" id="sseo-top-internal"></div></section>
+<section class="sseo-panel" id="sseo-panel-technology" role="tabpanel" aria-labelledby="sseo-tab-technology" tabindex="0" hidden>
+<h3>Crawl metadata</h3><dl id="sseo-crawl" class="sseo-stats"></dl><h3>HTTP status</h3><dl id="sseo-status" class="sseo-stats"></dl><h3>HTTP / HTTPS</h3><dl id="sseo-protocol" class="sseo-stats"></dl><h3>Outgoing links</h3><dl id="sseo-outgoing" class="sseo-stats"></dl><p class="sseo-note">Language and protocol distributions show up to 30 values.</p></section>
+<p class="sseo-note">These references describe the crawlgraph observed by Scoutro, not a complete worldwide backlink index.</p>
+<p class="sseo-note">Coverage counts finalized reference fields. Historical Citation collection cannot be proven from these fields. Old URLs may require a later recrawl; this page starts no crawl.</p>
+</section>
+<section class="sseo-panel" id="sseo-detail" hidden aria-labelledby="sseo-detail-title"><div class="sseo-controls"><h2 id="sseo-detail-title" tabindex="-1">URL detail</h2><button class="btn btn-default" type="button" id="sseo-close">Close detail</button></div><p id="sseo-detail-url"></p><div id="sseo-detail-body"></div></section>
+<div hidden id="sseo-labels">
+<span data-sseo-label="overview">Overview</span>
+<span data-sseo-label="pages">Pages</span>
+<span data-sseo-label="links">Links</span>
+<span data-sseo-label="technology">Technology</span>
+<span data-sseo-label="content">Content</span>
+<span data-sseo-label="crawl">Crawl metadata</span>
+<span data-sseo-label="outgoing">Outgoing links</span>
+<span data-sseo-label="citation">Known incoming references</span>
+<span data-sseo-label="indexed_pages">Indexed URLs</span>
+<span data-sseo-label="coverage">Finalized reference values</span>
+<span data-sseo-label="processed">Finalized</span>
+<span data-sseo-label="pending">Postprocessing pending</span>
+<span data-sseo-label="unavailable">No finalized Citation data</span>
+<span data-sseo-label="unknown">Status unknown</span>
+<span data-sseo-label="all">All statuses</span>
+<span data-sseo-label="missing">Not recorded</span>
+<span data-sseo-label="loading">Loading…</span>
+<span data-sseo-label="empty">No visible indexed results.</span>
+<span data-sseo-label="error">Analysis failed. Please retry.</span>
+<span data-sseo-label="url">URL</span>
+<span data-sseo-label="title">Title</span>
+<span data-sseo-label="description">Description</span>
+<span data-sseo-label="h1">H1</span>
+<span data-sseo-label="h2">H2</span>
+<span data-sseo-label="h3">H3</span>
+<span data-sseo-label="word_count">Words</span>
+<span data-sseo-label="crawl_depth">Crawl depth</span>
+<span data-sseo-label="language">Language</span>
+<span data-sseo-label="languages">Language distribution</span>
+<span data-sseo-label="references_total">Total references</span>
+<span data-sseo-label="references_internal">Internal references</span>
+<span data-sseo-label="references_external">External references</span>
+<span data-sseo-label="external_hosts">External source hosts per URL</span>
+<span data-sseo-label="host_extent">Host extent in local index</span>
+<span data-sseo-label="load_date">Latest recorded load</span>
+<span data-sseo-label="last_modified">Last Modified</span>
+<span data-sseo-label="response_time_ms">Response time (ms)</span>
+<span data-sseo-label="http_status">HTTP status</span>
+<span data-sseo-label="protocol">HTTP / HTTPS</span>
+<span data-sseo-label="outgoing_internal">Outgoing internal links</span>
+<span data-sseo-label="outgoing_external">Outgoing external links</span>
+<span data-sseo-label="nofollow">Nofollow links</span>
+<span data-sseo-label="measured">Measured URLs</span>
+<span data-sseo-label="status">Citation status</span>
+<span data-sseo-label="title_pages">URLs with title</span>
+<span data-sseo-label="description_pages">URLs with description</span>
+<span data-sseo-label="h1_pages">URLs with H1</span>
+<span data-sseo-label="h2_pages">URLs with H2</span>
+<span data-sseo-label="h3_pages">URLs with H3</span>
+<span data-sseo-label="processed_pages">Finalized URLs</span>
+<span data-sseo-label="pending_pages">Pending URLs</span>
+<span data-sseo-label="unavailable_pages">URLs without finalized values</span>
+<span data-sseo-label="unknown_pages">URLs with unknown status</span>
+<span data-sseo-label="collections">Visible collections</span>
+<span data-sseo-label="range">Shown / total</span>
+<span data-sseo-label="detail">URL detail</span>
+<span data-sseo-label="top_external">Most externally referenced pages</span>
+<span data-sseo-label="top_internal">Most internally referenced pages</span>
+</div>
+</main>
+#%env/templates/footer.template%#
+<script src="env/scoutro/seo.js"></script>
+</body></html>

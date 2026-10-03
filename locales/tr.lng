@@ -3903,6 +3903,7 @@ gracious: 50 &euro;==zarif: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Keşif Otomasyonu<
 >Dashboard<==>Kontrol paneli<
 #---------------------------
@@ -4648,3 +4649,6 @@ Location==Konum
 >Discovery Automation<==>Keşif Otomasyonu<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

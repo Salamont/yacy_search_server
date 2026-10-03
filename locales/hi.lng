@@ -3886,6 +3886,7 @@ gracious: 50 &euro;==दयालु: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>डिस्कवरी स्वचालन<
 >Dashboard<==>डैशबोर्ड<
 #---------------------------
@@ -4631,3 +4632,6 @@ Location==जगह
 >Discovery Automation<==>डिस्कवरी स्वचालन<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

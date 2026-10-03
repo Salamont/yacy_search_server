@@ -3901,6 +3901,7 @@ gracious: 50 &euro;==łaskawy: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automatyzacja odkrywania<
 >Dashboard<==>Panel<
 #---------------------------
@@ -4646,3 +4647,6 @@ Location==Lokalizacja
 >Discovery Automation<==>Automatyzacja odkrywania<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

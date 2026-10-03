@@ -71,6 +71,8 @@ final class UiRoutes {
                 "Discovery jobs, persistent candidate backlog, schedules and batch status.");
         route("config.agentWizard", "administration", "New agent", "/ScoutroAgentWizard_p.html", true,
                 "Wizard for a new agent: identity, data scope, actions, limits, token, connection.");
+        route("seo.hostAnalysis", "administration", "SEO / Host Analysis", "/ScoutroSEO_p.html", true,
+                "Read indexed host, content, crawl and locally observed reference metrics.");
         route("ranking", "administration", "Ranking and Heuristics", "/RankingSolr_p.html", true, "Search ranking settings.");
         route("api.openapi", "api", "Scoutro API description", "/scoutro/api/openapi.json", false, "OpenAPI description of this API.");
         route("api.actions", "api", "Scoutro action catalog", "/scoutro/api/actions.json", false, "Machine-readable list of actions.");

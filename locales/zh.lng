@@ -3896,6 +3896,7 @@ gracious: 50 &euro;==亲切：50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>发现自动化<
 >Dashboard<==>仪表板<
 #---------------------------
@@ -4641,3 +4642,6 @@ Location==位置
 >Discovery Automation<==>发现自动化<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.
