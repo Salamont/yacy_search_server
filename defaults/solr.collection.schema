@@ -111,7 +111,7 @@ applinkscount_i
 ## counter for the number of documents which are not unique (== count of not-unique-flagged documents + 1)
 #fuzzy_signature_copycount_i
 
-## needed (post-)processing steps on this metadata set
+## needed (post-)processing steps; enabled automatically when Citation connects
 #process_sxt
 
 ## if date expressions can be found in the content, these dates are listed here as date objects in order of the appearances

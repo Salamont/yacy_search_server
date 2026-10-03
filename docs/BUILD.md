@@ -21,6 +21,11 @@ Upstream tests: `ant test` (unit tests), `ant jetty12-server-test`, and the
 shell smoke tests in `test/` (e.g. `sh test/jetty-smoke-test.sh <url>`).
 Scoutro UI tests: see `test/scoutro-ui/README.md`.
 
+`ant citation-postprocessing-test` tests Citation-only reference finalization
+against temporary index/DATA, including LocalParams, Collection scopes,
+missing response times, restart and schema persistence failures. See
+[Citation and reference postprocessing](SCOUTRO_CITATION_REFERENCES.md).
+
 ## Versioning
 
 | What | Value | Where |

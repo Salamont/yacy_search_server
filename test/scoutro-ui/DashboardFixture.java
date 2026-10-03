@@ -74,6 +74,10 @@ public class DashboardFixture {
         doc.setField("collection_sxt", List.of(collection));
         doc.setField("title", List.of("Dashboard fixture"));
         doc.setField("text_t", "Scoutro dashboard disposable fixture");
+        // Also support the real Search API's strict text-content filter offline.
+        doc.setField("content_type", List.of("text/html"));
+        doc.setField("last_modified", new java.util.Date(0));
+        doc.setField("size_i", 42);
         doc.setField("httpstatus_i", status);
         if (fail != null) doc.setField("failtype_s", fail);
         return doc;

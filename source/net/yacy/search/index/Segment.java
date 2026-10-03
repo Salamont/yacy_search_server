@@ -181,6 +181,8 @@ public class Segment {
     }
 
     public void connectCitation(final int entityCacheMaxSize, final long maxFileSize) throws IOException {
+        final CollectionConfiguration configuration = this.fulltext.getDefaultConfiguration();
+        if (configuration != null) configuration.ensureCitationFields();
         if (this.urlCitationIndex != null) return;
 
         if (this.merger == null) { // init shared iodispatcher if none running

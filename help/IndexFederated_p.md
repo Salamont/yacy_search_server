@@ -76,3 +76,23 @@ Small operations may finish during the request; large imports, exports, harvests
 ## Related Pages
 
 - `IndexSchema_p.html`
+
+## Citation Without Webgraph
+
+The existing admin form (`setcitation`, with a transaction token) controls
+`core.service.citation.tmp` and `core.service.webgraph.tmp` separately.
+Citation can run with Webgraph disabled. Changing the form connects the
+service live; changing an offline `yacy.conf` requires a restart.
+
+Connecting Citation now enables/persists `process_sxt`, the four
+`references_*` counters and `host_extent_i` in the working collection schema,
+including an existing DATA directory with a missing/disabled marker.
+Other optional fields and ranking settings are unchanged. Normal cleanup
+uses the existing Citation index and includes documents without
+`responsetime_i`. These are locally known incoming references;
+`inboundlinkscount_i` instead counts outgoing internal links.
+
+This does not backfill old reference edges or start a crawl. Complete data
+for pages indexed while Citation was off needs a later controlled recrawl.
+See [Citation and reference postprocessing](../docs/SCOUTRO_CITATION_REFERENCES.md)
+for field meanings, limits, persistence and validation.

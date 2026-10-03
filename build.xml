@@ -360,6 +360,23 @@
     </java>
   </target>
 
+  <target name="citation-postprocessing-test" depends="compile" description="test Citation-only processing with temporary index and DATA">
+    <mkdir dir="build/citation-tests" />
+    <javac srcdir="${test}" destdir="build/citation-tests" release="${javacRelease}"
+           encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/cora/federate/solr/connector/AbstractSolrConnectorQueryTest.java" />
+      <include name="net/yacy/http/servlets/SolrSelectServletTest.java" />
+      <include name="net/yacy/search/schema/CitationPostprocessingTest.java" />
+      <classpath><pathelement location="${build}" /><fileset dir="${lib}" includes="*.jar" /><fileset dir="${libt}" includes="*.jar" /></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true">
+      <classpath><pathelement location="build/citation-tests" /><pathelement location="${build}" /><fileset dir="${lib}" includes="*.jar" /><fileset dir="${libt}" includes="*.jar" /></classpath>
+      <arg value="net.yacy.cora.federate.solr.connector.AbstractSolrConnectorQueryTest" />
+      <arg value="net.yacy.http.servlets.SolrSelectServletTest" />
+      <arg value="net.yacy.search.schema.CitationPostprocessingTest" />
+    </java>
+  </target>
+
   <target name="all" depends="jetty12-server-test">
   </target>
 
@@ -494,6 +511,7 @@
         <pathelement location="${build}"/>
         <path refid="compile.path"/>
         <path refid="test.path"/>
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
       </classpath>
       <compilerarg value="-Xlint"/>
     </javac>

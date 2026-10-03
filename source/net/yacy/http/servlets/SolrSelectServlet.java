@@ -26,6 +26,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -38,6 +39,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
 import net.yacy.cora.federate.solr.Ranking;
+import net.yacy.cora.federate.solr.connector.AbstractSolrConnector;
 import net.yacy.cora.federate.solr.connector.EmbeddedSolrConnector;
 import net.yacy.cora.federate.solr.connector.SolrConnector;
 import net.yacy.cora.federate.solr.responsewriter.EmbeddedSolrResponseWriter;
@@ -183,15 +185,7 @@ public class SolrSelectServlet extends HttpServlet {
 
             // set ranking according to profile number if ranking attributes are not given in the request
             Ranking ranking = sb.index.fulltext().getDefaultConfiguration().getRanking(profileNr);
-            if (multiDoc && !mmsp.getMap().containsKey(CommonParams.SORT) && !mmsp.getMap().containsKey(DisMaxParams.BQ) && !mmsp.getMap().containsKey(DisMaxParams.BF) && !mmsp.getMap().containsKey("boost")) {
-                if (!mmsp.getMap().containsKey("defType")) mmsp.getMap().put("defType", new String[]{"edismax"});        
-                String fq = ranking.getFilterQuery();
-                String bq = ranking.getBoostQuery();
-                String bf = ranking.getBoostFunction();
-                if (fq.length() > 0) mmsp.getMap().put(CommonParams.FQ, new String[]{fq});
-                if (bq.length() > 0) mmsp.getMap().put(DisMaxParams.BQ, StringUtils.split(bq,"\t\n\r\f")); // bq split into multiple query params, allowing space in single query
-                if (bf.length() > 0) mmsp.getMap().put("boost", new String[]{bf}); // a boost function extension, see http://wiki.apache.org/solr/ExtendedDisMax#bf_.28Boost_Function.2C_additive.29
-            }
+            applyRankingDefaults(mmsp, ranking);
 
             // get a response writer for the result
             String wt = mmsp.get(CommonParams.WT, "xml"); // maybe use /solr/select?q=*:*&start=0&rows=10&wt=exml
@@ -390,6 +384,32 @@ public class SolrSelectServlet extends HttpServlet {
                 }
             }
         }
+    }
+
+    /** Keep structured queries and explicit ranking parameters; never replace caller scopes. */
+    static void applyRankingDefaults(final MultiMapSolrParams params, final Ranking ranking) {
+        final Map<String, String[]> values = params.getMap();
+        final String query = params.get(CommonParams.Q);
+        if (AbstractSolrConnector.startsWithLocalParams(query)) {
+            values.put(CommonParams.Q, new String[] {query.stripLeading()});
+            return;
+        }
+        if (params.getInt(CommonParams.ROWS, CommonParams.ROWS_DEFAULT) <= 1
+                || values.containsKey(CommonParams.SORT) || values.containsKey(DisMaxParams.BQ)
+                || values.containsKey(DisMaxParams.BF) || values.containsKey("boost")) return;
+
+        if (!values.containsKey("defType")) values.put("defType", new String[] {"edismax"});
+        final String fq = ranking.getFilterQuery();
+        if (!fq.isEmpty()) {
+            final String[] existing = params.getParams(CommonParams.FQ);
+            final String[] filters = existing == null ? new String[1] : Arrays.copyOf(existing, existing.length + 1);
+            filters[filters.length - 1] = fq;
+            values.put(CommonParams.FQ, filters);
+        }
+        final String bq = ranking.getBoostQuery();
+        if (!bq.isEmpty()) values.put(DisMaxParams.BQ, StringUtils.split(bq, "\t\n\r\f"));
+        final String bf = ranking.getBoostFunction();
+        if (!bf.isEmpty()) values.put("boost", new String[] {bf});
     }
 
     static void sendError(final HttpServletResponse hresponse, final Throwable ex)
