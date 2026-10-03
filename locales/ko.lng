@@ -3886,6 +3886,7 @@ gracious: 50 &euro;==은혜로운: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>발견 자동화<
 >Dashboard<==>대시보드<
 #---------------------------
@@ -4631,3 +4632,6 @@ Location==위치
 >Discovery Automation<==>발견 자동화<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

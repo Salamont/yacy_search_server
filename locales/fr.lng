@@ -1956,6 +1956,7 @@ Strict==Strict
 
 ### Subdirectory env/templates ###
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automatisation de la découverte<
 >Dashboard<==>Tableau de bord<
 "Search"==Rechercher
@@ -4664,3 +4665,6 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 >Discovery Automation<==>Automatisation de la découverte<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

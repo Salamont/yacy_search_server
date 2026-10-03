@@ -2969,6 +2969,7 @@ Not supported==Не підтримується
 "Table"=="Таблиця"
 PK==ПК
 #File: env/templates/header.template
+>SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Автоматизація пошуку<
 >Dashboard<==>Панель керування<
 "Search"=="Пошук"
@@ -4703,3 +4704,6 @@ rss terminal==rss термінал
 >Discovery Automation<==>Автоматизація пошуку<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
+
+#File: ScoutroSEO_p.html
+# English source fallback until this locale is translated.

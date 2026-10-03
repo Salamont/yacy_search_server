@@ -73,6 +73,9 @@ class ScopedActions {
         final Agent agent = call.agent;
         final Map<String, String> q = call.request.query;
         switch (action) {
+            case "seo.read":
+                return ok(SeoAnalysis.current().route(call.request.path.subList(1, call.request.path.size()),
+                        q, filterCollections(agent, q.get("collection"))));
             case "search":
                 return ok(search(agent, q));
             case "search.network":

@@ -92,6 +92,9 @@ public final class AgentActionRegistry {
         add(new Action("search", "Search",
                 "Full-text search in the granted collections of the local index.",
                 Risk.READ, true, "GET", "/search", true, ext, worker));
+        add(new Action("seo.read", "SEO / Host Analysis",
+                "Read bounded host and URL metrics in granted collections; reference counts describe the local observed graph.",
+                Risk.READ, true, "GET", "/seo/hosts", false, ext, worker));
         add(new Action("index.evidence", "Text evidence",
                 "Read URL, title and bounded text excerpts of the indexed pages of one domain.",
                 Risk.READ, true, "GET", "/index/evidence", true, ext, worker));

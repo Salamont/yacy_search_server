@@ -73,6 +73,18 @@ public class AgentApiTest {
     }
 
     @Test
+    public void seoNeedsAnExplicitGrant() throws Exception {
+        Assert.assertEquals(401, call("GET", "seo/hosts", null, null, null).status);
+        Assert.assertEquals(403, get("seo/hosts").status);
+        final Agent.Builder b = new Agent.Builder(); b.name = "SEO reader";
+        b.scope = this.agent.scope; b.actions = new LinkedHashSet<>(Arrays.asList("seo.read"));
+        this.agent = this.agents.store.createAgent(b);
+        this.token = this.agents.store.issueToken(this.agent.id, 30 * AgentStore.DAY).plainText();
+        Assert.assertEquals(200, get("seo/hosts").status);
+        Assert.assertEquals(405, call("POST", "seo/hosts", "Bearer " + this.token, null, null).status);
+    }
+
+    @Test
     public void missingAndForeignCredentialsAreRejected() {
         AgentApi.Response r = call("GET", "capabilities", null, null, null);
         Assert.assertEquals(401, r.status);

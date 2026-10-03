@@ -244,6 +244,11 @@ final class AgentApi {
             case "heartbeat":
                 if (n != 1) return notFound();
                 return "POST".equals(method) ? ok(AgentActionRegistry.HEARTBEAT) : method(method, "POST");
+            case "seo":
+                if (!((n == 2 && "hosts".equals(p.get(1)))
+                        || (n == 3 && ("hosts".equals(p.get(1)) || "pages".equals(p.get(1))))
+                        || (n == 4 && "hosts".equals(p.get(1)) && "pages".equals(p.get(3))))) return notFound();
+                return "GET".equals(method) ? ok("seo.read") : method(method, "GET");
             case "search":
                 if (n != 1) return notFound();
                 return "GET".equals(method) ? ok("search") : method(method, "GET");
