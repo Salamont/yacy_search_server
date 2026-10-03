@@ -8,6 +8,18 @@ import urllib.parse
 from test_agent_api import BASE, admin_opener, http, agent_call, create_agent
 
 class SeoApi(unittest.TestCase):
+    def test_index_browser_collection_and_agent_scope(self):
+        url=BASE+'/scoutro/api/v1/index/browse'
+        status,_,text=http('GET',url+'?q=a.example&collection=visible',opener=admin_opener())
+        self.assertEqual(status,200);data=json.loads(text);self.assertEqual(data['total'],28)
+        self.assertTrue(all(row['collections']==['visible'] for row in data['documents']))
+        token,_,_=create_agent('Browser disposable',collections=('visible',),extra_actions=('index.browse',))
+        status,data,_=agent_call(token,'GET','/index/browse',{'q':'a.example'})
+        self.assertEqual(status,200);self.assertEqual(data['total'],28)
+        self.assertTrue(all(row['collections']==['visible'] for row in data['documents']))
+        self.assertEqual(agent_call(token,'GET','/index/browse',{'collection':'secret'})[0],403)
+        self.assertEqual(agent_call(token,'GET','/index/browse',{'fq':'*:*'})[0],400)
+        self.assertEqual(agent_call(None,'GET','/index/browse')[0],401)
     def get(self, path, query=None):
         status, _, text = http('GET', BASE + '/scoutro/api/v1/seo/' + path + ('?' + urllib.parse.urlencode(query) if query else ''), opener=admin_opener())
         return status, json.loads(text)

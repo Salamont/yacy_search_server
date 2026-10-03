@@ -184,6 +184,11 @@ public class ScoutroApiServlet extends HttpServlet {
                 return this.actions.search(queryParams(request));
             case "index":
                 requireAdmin(request);
+                if (parts.length == 4 && "browse".equals(parts[3])) {
+                    expect(method, parts, 4, "GET");
+                    final Map<String, String> browseQuery = queryParams(request);
+                    return IndexBrowse.current().browse(browseQuery, SeoAnalysis.adminCollections(browseQuery));
+                }
                 if (parts.length == 3) {
                     expect(method, parts, 3, "GET");
                     return this.actions.index();

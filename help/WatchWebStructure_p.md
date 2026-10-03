@@ -78,3 +78,5 @@ Expect observations: counts, logs, queues, timing, network rows, thread states, 
 ## Related Pages
 
 - Related diagnosis usually continues on the status page, log viewer, performance pages, connection tracker, queue monitor, or network view.
+
+Scoutro responsive layout: existing navigation and controls are reused at 360/390/412/768 pixels and desktop. Tables display the original rows as labelled cards on narrow screens; control names, values, events and save paths are unchanged.

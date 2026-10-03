@@ -3701,10 +3701,10 @@ With a GET-property 'latest' you get a list of references that had been computed
 Click the API icon to see the XML file.==Kliknutím na ikonu API zobrazíte súbor XML.
 Web Structure==Webová štruktúra
 Host List==Zoznam hostiteľov
-host==hostiteľ
-depth==hĺbka
-nodes==uzly
-time==čas
+>host<==>hostiteľ<
+>depth<==>hĺbka<
+>nodes<==>uzly<
+>time<==>čas<
 size==veľkosť
 Background==Pozadie
 Color==Farba
@@ -4696,3 +4696,42 @@ Location==Miesto
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==Prehliadajte indexované URL bez sťahovania alebo prehľadávania.
+Apply filters==Použiť filtre
+Reset filters==Obnoviť filtre
+Active collection:==Aktívna kolekcia:
+Remove collection filter==Odstrániť filter kolekcie
+No indexed URLs match these filters.==Žiadne indexované URL nezodpovedajú filtrom.
+Index data unavailable or access denied. Sign in as administrator and retry.==Údaje nie sú dostupné alebo prístup bol zamietnutý. Prihláste sa ako správca a skúste znova.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Neplatná kolekcia. Použite najviac 64 písmen, číslic, podčiarkovníkov alebo spojovníkov.
+indexed URLs==indexované URL
+Index pages==Stránky indexu
+Host/URL==Host/URL
+Collection==Zbierka
+URL==URL adresa
+Host==Hostiteľ
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

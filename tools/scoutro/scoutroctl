@@ -150,6 +150,11 @@ def build_parser():
     s.add_argument("--collection", help="agent token only: one of the agent's collections")
 
     idx = sub.add_parser("index", help="index status, lookup and evidence").add_subparsers(dest="index_command", required=True)
+    browse = idx.add_parser("browse", help="read-only literal host/URL search")
+    browse.add_argument("query", nargs="?", default="")
+    browse.add_argument("--collection")
+    browse.add_argument("--limit", type=int)
+    browse.add_argument("--offset", type=int)
     ist = idx.add_parser("status")
     ist.add_argument("--global", dest="global_status", action="store_true",
                      help="agent token only: global index status (needs the grant index.status.global)")
@@ -228,7 +233,9 @@ def main(argv=None):
                                                      "source": "network" if args.network else None, "lang": args.lang,
                                                      "collection": args.collection})
     elif c == "index":
-        if args.index_command == "status":
+        if args.index_command == "browse":
+            result = client.call("GET", v1 + "/index/browse", {"q": args.query, "collection": args.collection, "limit": args.limit, "offset": args.offset})
+        elif args.index_command == "status":
             result = client.call("GET", v1 + "/index", {"global": "true" if args.global_status else None})
         elif args.index_command == "evidence":
             result = client.call("GET", v1 + "/index/evidence", {"domain": args.domain, "collection": args.collection,

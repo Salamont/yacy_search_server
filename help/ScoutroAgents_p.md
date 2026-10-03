@@ -78,3 +78,5 @@ Agents themselves never use this page. They authenticate on `/scoutro/api/agent/
 `host.resolve` and `collections.list` are collection-scoped. `discovery.status` is a global admin-risk read grant for external agents. All are absent from presets; existing agents receive no new rights automatically. Crawl start always requires a granted explicit Collection.
 
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
+
+Scoutro responsive layout: existing navigation and controls are reused at 360/390/412/768 pixels and desktop. Tables display the original rows as labelled cards on narrow screens; control names, values, events and save paths are unchanged.

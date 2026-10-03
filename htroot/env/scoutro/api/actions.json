@@ -151,6 +151,22 @@
         }
       },
       {
+        "name": "index.browse",
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/browse",
+          "query": {}
+        }
+      },
+      {
         "name": "index.lookup",
         "risk": "read",
         "scoped": true,
@@ -478,6 +494,74 @@
         "http": {
           "method": "GET",
           "path": "/scoutro/api/agent/v1/search"
+        }
+      }
+    },
+    {
+      "name": "index.browse",
+      "description": "Read-only literal host/URL search with an independent collection filter. No URL fetch, DNS, crawl, commit or raw Solr parameters. Bounded rows; partial results fail closed.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/index/browse",
+        "successStatus": 200
+      },
+      "parameters": {
+        "q": {
+          "type": "string",
+          "maxLength": 250,
+          "in": "query",
+          "required": false,
+          "description": "Literal host/URL substring, never Solr query syntax."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Exact collection filter. Unknown valid names return zero rows."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0,
+          "in": "query",
+          "required": false,
+          "description": "First row."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50,
+          "in": "query",
+          "required": false,
+          "description": "Maximum rows."
+        }
+      },
+      "returns": "IndexBrowse",
+      "errors": [
+        400,
+        401,
+        503
+      ],
+      "cli": "scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]",
+      "mcpTool": "scoutro_index_browse",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/index/browse"
         }
       }
     },
@@ -3079,6 +3163,69 @@
             "$ref": "#/components/schemas/AgentCrawl"
           },
           "description": "Only crawls this agent started (newest first, at most 100)."
+        }
+      }
+    },
+    "IndexBrowse": {
+      "type": "object",
+      "required": [
+        "q",
+        "collection",
+        "offset",
+        "limit",
+        "total",
+        "documents"
+      ],
+      "properties": {
+        "q": {
+          "type": "string"
+        },
+        "collection": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "host": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "title": {
+                "type": "string"
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "httpStatus": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          }
         }
       }
     },

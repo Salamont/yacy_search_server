@@ -2841,10 +2841,10 @@ Web Structure==Структура мережі
 "plus"=="плюс"
 "WebStructurePicture"=="WebStructurePicture"
 Host List==Список хостів
-host==хост
-depth==глибина
-nodes==вузлів
-time==час
+>host<==>хост<
+>depth<==>глибина<
+>nodes<==>вузлів<
+>time<==>час<
 size==розмір
 Background==Фон
 Color==Колір
@@ -4760,3 +4760,42 @@ rss terminal==rss термінал
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==Перегляд індексованих URL без завантаження або сканування.
+Apply filters==Застосувати фільтри
+Reset filters==Скинути фільтри
+Active collection:==Активна колекція:
+Remove collection filter==Видалити фільтр колекції
+No indexed URLs match these filters.==Немає індексованих URL, що відповідають фільтрам.
+Index data unavailable or access denied. Sign in as administrator and retry.==Дані недоступні або доступ заборонено. Увійдіть як адміністратор і повторіть спробу.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Недійсна колекція. До 64 латинських літер, цифр, підкреслень або дефісів.
+indexed URLs==індексовані URL
+Index pages==Сторінки індексу
+Host/URL==Хост/URL
+Collection==Колекція
+URL==URL
+Host==Хост
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

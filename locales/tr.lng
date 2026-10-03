@@ -3709,10 +3709,10 @@ With a GET-property 'latest' you get a list of references that had been computed
 Click the API icon to see the XML file.==XML dosyasını görmek için API simgesine tıklayın.
 Web Structure==Web Yapısı
 Host List==Ana Bilgisayar Listesi
-host==ev sahibi
-depth==derinlik
-nodes==düğümler
-time==zaman
+>host<==>ev sahibi<
+>depth<==>derinlik<
+>nodes<==>düğümler<
+>time<==>zaman<
 size==boyut
 Background==Arka plan
 Color==Renk
@@ -4704,3 +4704,42 @@ Location==Konum
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==Dizinlenen URL’leri yüklemeden veya taramadan gözden geçirin.
+Apply filters==Filtreleri uygula
+Reset filters==Filtreleri sıfırla
+Active collection:==Etkin koleksiyon:
+Remove collection filter==Koleksiyon filtresini kaldır
+No indexed URLs match these filters.==Bu filtrelere uyan dizinlenmiş URL yok.
+Index data unavailable or access denied. Sign in as administrator and retry.==Dizin verileri kullanılamıyor veya erişim reddedildi. Yönetici olarak oturum açıp tekrar deneyin.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Geçersiz koleksiyon. En fazla 64 harf, rakam, alt çizgi veya kısa çizgi kullanın.
+indexed URLs==dizinlenmiş URL’ler
+Index pages==Dizin sayfaları
+Host/URL==Ana makine/URL
+Collection==Koleksiyon
+URL==URL
+Host==Ev sahibi
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

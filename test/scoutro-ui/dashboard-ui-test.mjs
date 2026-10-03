@@ -30,7 +30,7 @@ try {
   check(refused.status() === 401, 'Dashboard requires admin even with public search');
   await anonymous.close();
 
-  for (const [width, height] of [[360, 740], [390, 844], [412, 915], [1280, 900]]) {
+  for (const [width, height] of [[360, 740], [390, 844], [412, 915], [768, 900], [1280, 900]]) {
     const mobile = width < 768;
     const context = await browser.newContext({ viewport: { width, height }, isMobile: mobile, hasTouch: mobile, httpCredentials: credentials });
     const page = await context.newPage();
@@ -70,7 +70,9 @@ try {
     }
     check(await page.evaluate(w => document.documentElement.scrollWidth <= w + 1, width), `${width}: no horizontal overflow`);
     const targets = await page.locator('main a[href]').evaluateAll(links => [...new Set(links.map(a => a.getAttribute('href')))]);
-    check(targets.length === 11, `${width}: ten standard YaCy destinations plus Discovery Automation`);
+    check(targets.length === 15, `${width}: standard destinations and four collection-filtered browser links`);
+    const collectionLinks = await page.locator('.scoutro-dash-collection').evaluateAll(links => links.map(link => ({collection: link.dataset.collection, href: link.getAttribute('href')})));
+    for (const link of collectionLinks) check(new URL(link.href, base).searchParams.get('collection') === link.collection, `${width}: Dashboard collection URL preserved`);
     // Use a browser page for YaCy's Digest authentication, not Playwright's
     // API request client (which only sends Basic credentials).
     const detailPage = await context.newPage();

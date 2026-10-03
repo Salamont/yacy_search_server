@@ -3702,10 +3702,10 @@ With a GET-property 'latest' you get a list of references that had been computed
 Click the API icon to see the XML file.==点击API图标查看XML文件.
 Web Structure==网页结构
 Host List==主机列表
-host==主持人
-depth==深度
-nodes==节点
-time==时间
+>host<==>主持人<
+>depth<==>深度<
+>nodes<==>节点<
+>time<==>时间<
 size==尺寸
 Background==背景
 Color==颜色
@@ -4697,3 +4697,42 @@ Location==位置
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==浏览已索引的网址，不下载或抓取网页。
+Apply filters==应用筛选
+Reset filters==重置筛选
+Active collection:==当前集合：
+Remove collection filter==移除集合筛选
+No indexed URLs match these filters.==没有符合筛选条件的已索引网址。
+Index data unavailable or access denied. Sign in as administrator and retry.==索引数据不可用或访问被拒绝。请以管理员身份登录后重试。
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==集合名称无效。请使用最多64个字母、数字、下划线或连字符。
+indexed URLs==已索引网址
+Index pages==索引页面
+Host/URL==服务器/地址
+Collection==收藏
+URL==URL
+Host==主持人
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

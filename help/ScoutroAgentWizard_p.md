@@ -65,3 +65,5 @@ The wizard is meant for people. Scripts that need an agent should use the wizard
 Crawl start requires an explicit granted Collection. Optional `host.resolve`/`collections.list` reads are scoped. Global `discovery.status` is admin-risk and absent from presets. No Discovery write permission is introduced.
 
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
+
+Scoutro responsive layout: existing navigation and controls are reused at 360/390/412/768 pixels and desktop. Tables display the original rows as labelled cards on narrow screens; control names, values, events and save paths are unchanged.

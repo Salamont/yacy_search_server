@@ -61,4 +61,12 @@ class Contracts(unittest.TestCase):
  def test_crawl_progress_expresses_unknowns(self):
   properties=self.openapi['components']['schemas']['Crawl']['properties']
   for field in ['url','collection','scope','startedAt','endedAt','lastError']:self.assertIn('null',properties[field]['type'])
+ def test_index_browser_cli_and_catalog_share_scoped_contract(self):
+  action=next(x for x in self.actions['actions'] if x['name']=='index.browse')
+  self.assertFalse(action['mutating']);self.assertTrue(action['agent']['grantable']);self.assertTrue(action['agent']['scoped']);self.assertFalse(action['agent']['presetable'])
+  self.assertEqual(set(action['parameters']),{'q','collection','limit','offset'})
+  for token in ['','test']:
+   args,kwargs=self.call(['index','browse','a.example','--collection','visible','--limit','5','--offset','10'],token)
+   self.assertEqual(args[:2],('GET',('/agent/v1' if token else '/v1')+'/index/browse'))
+   self.assertEqual(args[2],{'q':'a.example','collection':'visible','limit':5,'offset':10})
 if __name__=='__main__':unittest.main()

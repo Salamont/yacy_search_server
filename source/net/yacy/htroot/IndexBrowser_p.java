@@ -128,6 +128,25 @@ public class IndexBrowser_p {
     public static serverObjects respond(final RequestHeader header, final serverObjects post, final serverSwitch env) {
         // return variable that accumulates replacements
         final Switchboard sb = (Switchboard) env;
+        // Scoutro: ordinary browsing is read-only. The legacy maintenance
+        // responder below remains available only for explicit action requests.
+        if (post == null || !(post.containsKey("load") || post.containsKey("delete")
+                || post.containsKey("deleteLoadErrors") || post.containsKey("reload404")
+                || post.containsKey("addtoblacklist"))) {
+            final serverObjects browser = new serverObjects();
+            browser.putHTML("browserQuery", post == null ? "" : post.get("q", post.get("path", "")));
+            browser.putHTML("browserCollection", post == null ? "" : post.get("collection", ""));
+            browser.put("result", "");
+            return browser;
+        }
+        // Collection-filtered browsing never delegates to global legacy writes.
+        if (!post.get("collection", "").isEmpty()) {
+            final serverObjects rejected = new serverObjects();
+            rejected.putHTML("browserQuery", post.get("q", post.get("path", "")));
+            rejected.putHTML("browserCollection", post.get("collection", ""));
+            rejected.putHTML("result", "Collection browsing is read-only. Use the index administration pages for maintenance.");
+            return rejected;
+        }
         final Fulltext fulltext = sb.index.fulltext();
         final boolean autoload = sb.getConfigBool("browser.autoload", true);
         final boolean load4everyone = sb.getConfigBool("browser.load4everyone", false);

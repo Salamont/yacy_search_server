@@ -64,3 +64,5 @@ Expect rendered search or content output: result lists, snippets, previews, redi
 ## Related Pages
 
 - Related search work usually continues on `yacysearch.html`, `index.html`, `ViewFile.html`, quick crawl, or the search integration pages.
+
+Scoutro responsive layout: existing navigation and controls are reused at 360/390/412/768 pixels and desktop. Tables display the original rows as labelled cards on narrow screens; control names, values, events and save paths are unchanged.

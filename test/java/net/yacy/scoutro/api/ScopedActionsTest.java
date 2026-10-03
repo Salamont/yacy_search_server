@@ -83,6 +83,16 @@ public class ScopedActionsTest {
     // ------------------------------------------------------------------
 
     @Test
+    public void indexBrowserNeedsExplicitGrantAndCannotRequestAnotherCollection() throws Exception {
+        final String absent = agent("No browser", List.of("visible"), false, "search");
+        Assert.assertEquals(403, call(absent, "GET", "index/browse", q(), null, null).status);
+        final String granted = agent("Browser", List.of("visible"), false, "index.browse");
+        Assert.assertEquals(403, call(granted, "GET", "index/browse", q("collection", "secret"), null, null).status);
+        Assert.assertEquals(405, call(granted, "POST", "index/browse", q(), null, null).status);
+        Assert.assertFalse(net.yacy.scoutro.agents.AgentActionRegistry.preset("research").contains("index.browse"));
+    }
+
+    @Test
     public void searchAlwaysSendsTheScopeCollectionAndStaysLocal() throws Exception {
         final String t = agent("A", Arrays.asList("edelsenior-web"), false, "search");
         this.yacy.searchResults.put("edelsenior-web", Arrays.asList("https://a.example/1"));

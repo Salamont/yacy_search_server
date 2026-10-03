@@ -486,3 +486,5 @@ scheduler, configuration, ranking or DATA migration side effects.
 ## Scoutro native crawl and host flow
 
 Collection is now mandatory for every Scoutro crawl, including administrators. Safe retry uses Idempotency-Key. See [the complete contract](SCOUTRO_CRAWL_FLOW.md) for host resolution, scoped collection suggestions, durable metadata, Discovery states and CLI examples.
+
+`GET /v1/index/browse` and `GET /agent/v1/index/browse` provide literal host/URL browsing with an exact, server-enforced collection filter. The agent route requires explicit `index.browse` and never extends presets. See [Index Browser](SCOUTRO_INDEX_BROWSER.md) for parameters, empty/error behavior and CLI usage.

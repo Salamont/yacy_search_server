@@ -101,6 +101,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
             subprocess.run(["node", str(REPO / "test/scoutro-ui/seo-ui-test.mjs"), "--screenshots", shots], cwd=REPO, env=env, check=True)
             subprocess.run(["python3", str(REPO / "test/scoutro-api/test_seo_api.py"), "-v"], cwd=REPO, env=env, check=True)
             subprocess.run(["python3", str(REPO / "test/scoutro-api/test_flow_api.py"), "-v"], cwd=REPO, env=env, check=True)
+            subprocess.run(["node", str(REPO / "test/scoutro-ui/index-browser-ui-test.mjs")], cwd=REPO, env=env, check=True)
             assert not (root / "DATA/SCOUTRO/crawls.ndjson").exists(), "Invalid/API/UI GETs must not create a crawl ledger"
             subprocess.run(["node", str(REPO / "test/scoutro-ui/crawl-flow-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
         finally:

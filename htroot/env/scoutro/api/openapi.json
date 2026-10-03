@@ -223,6 +223,103 @@
         "x-scoutro-mutating": false
       }
     },
+    "/v1/index/browse": {
+      "get": {
+        "operationId": "index.browse",
+        "summary": "Browse indexed URLs",
+        "description": "Read-only literal host/URL search with an independent collection filter. No URL fetch, DNS, crawl, commit or raw Solr parameters. Bounded rows; partial results fail closed.",
+        "tags": [
+          "index"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Literal host/URL substring, never Solr query syntax.",
+            "schema": {
+              "type": "string",
+              "maxLength": 250
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Exact collection filter. Unknown valid names return zero rows.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First row.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum rows.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visible indexed URL rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexBrowse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
     "/v1/index": {
       "get": {
         "operationId": "index.status",
@@ -1444,6 +1541,133 @@
         "x-scoutro-agent-grants": [
           "index.status",
           "index.status.global"
+        ]
+      }
+    },
+    "/agent/v1/index/browse": {
+      "get": {
+        "operationId": "agent.index.browse",
+        "summary": "Browse index (scoped)",
+        "description": "Visible URL rows only; collection membership labels outside the grant are removed. Explicit grant index.browse, never added to existing presets. Limited to the agent's data scope on the server side.",
+        "tags": [
+          "agent"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Literal host/URL substring, never Solr query syntax.",
+            "schema": {
+              "type": "string",
+              "maxLength": 250
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Exact collection filter. Unknown valid names return zero rows.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First row.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Maximum rows.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Visible indexed URL rows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IndexBrowse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "index.browse"
         ]
       }
     },
@@ -6589,6 +6813,69 @@
               "$ref": "#/components/schemas/AgentCrawl"
             },
             "description": "Only crawls this agent started (newest first, at most 100)."
+          }
+        }
+      },
+      "IndexBrowse": {
+        "type": "object",
+        "required": [
+          "q",
+          "collection",
+          "offset",
+          "limit",
+          "total",
+          "documents"
+        ],
+        "properties": {
+          "q": {
+            "type": "string"
+          },
+          "collection": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "collections": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "httpStatus": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                }
+              }
+            }
           }
         }
       },

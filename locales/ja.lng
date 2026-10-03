@@ -3697,10 +3697,10 @@ With a GET-property 'latest' you get a list of references that had been computed
 Click the API icon to see the XML file.==API アイコンをクリックすると、XML ファイルが表示されます。
 Web Structure==ウェブの構造
 Host List==ホストリスト
-host==ホスト
-depth==深さ
-nodes==ノード
-time==時間
+>host<==>ホスト<
+>depth<==>深さ<
+>nodes<==>ノード<
+>time<==>時間<
 size==サイズ
 Background==背景
 Color==色
@@ -4692,3 +4692,42 @@ Location==位置
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==ページを取得・クロールせずに索引済みURLを閲覧します。
+Apply filters==フィルターを適用
+Reset filters==フィルターをリセット
+Active collection:==現在のコレクション：
+Remove collection filter==コレクションフィルターを解除
+No indexed URLs match these filters.==フィルターに一致する索引済みURLはありません。
+Index data unavailable or access denied. Sign in as administrator and retry.==索引データを取得できないかアクセスが拒否されました。管理者としてログインして再試行してください。
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==コレクション名が無効です。64文字以内の英数字、アンダースコア、ハイフンを使用してください。
+indexed URLs==索引済みURL
+Index pages==索引ページ
+Host/URL==ホスト/URL
+Collection==コレクション
+URL==URL
+Host==ホスト
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.
