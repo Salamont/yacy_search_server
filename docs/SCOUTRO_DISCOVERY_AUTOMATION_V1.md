@@ -183,7 +183,7 @@ Screenshots from the disposable smoke are outside Git under `scoutro-discovery-a
 
 ## 23. Known boundaries
 
-- Existing redirect/DNS-rebinding gaps remain; public-DNS precheck is not a complete SSRF guarantee.
+- Robots redirects now validate every target in both Discovery and YaCy's public/global robots loader, with bounded chains. Explicit YaCy local/any modes retain intranet access. DNS checks do not pin transport connections; non-robots paths and DNS rebinding remain outside this narrow fix. See [robots redirect security](ROBOTS_REDIRECT_SECURITY.md).
 - Profile termination and existing queue counters are conservative proxies; they do not measure all in-flight indexing work.
 - Unknown start outcomes can intentionally stall automation until investigated; no destructive recovery shortcut.
 - Multi-file config updates are not proven atomic by a double read; pause for coordinated replacement. Snapshot/cache retention is manual in V1; old successful snapshots/PBFs are not automatically pruned.
@@ -196,7 +196,7 @@ Screenshots from the disposable smoke are outside Git under `scoutro-discovery-a
 
 ## 24. Follow-up packages
 
-1. Separate additive/request-path SSRF/redirect/DNS-rebinding hardening, with explicit review of any necessary Core changes.
+1. Additional non-robots request-path and DNS-rebinding hardening, with explicit review of any necessary Core changes.
 2. Bounded cache/snapshot retention, provider resumability/metrics and more detailed in-flight completion evidence if production operation demonstrates a need.
 3. Explicit audited reconciliation tooling for missing/deleted Crawl Profiles, without enabling duplicate starts.
 4. Safe cross-profile collection preservation before permitting overlapping host recrawls; current refusal remains the safe V1 boundary.

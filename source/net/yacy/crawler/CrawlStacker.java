@@ -596,6 +596,21 @@ public final class CrawlStacker implements WorkflowTask<Request>{
                     ("the host '" + host + "' is global, but global addresses are not accepted: " + ((ia == null) ? "null" : ia.getHostAddress()));
     }
 
+    /**
+     * Check freshly resolved addresses for a public fetch, in addition to the
+     * existing network/domain-list policy. Explicit local/any modes retain their
+     * existing policy. Checking each address avoids the isLocal TLD shortcut.
+     */
+    public String urlInAcceptedDomain(final DigestURL url, final InetAddress[] addresses) {
+        final String rejection = this.urlInAcceptedDomain(url);
+        if (rejection != null || this.acceptLocalURLs) return rejection;
+        if (addresses == null || addresses.length == 0) return "DNS returned no target address";
+        for (final InetAddress address : addresses) {
+            if (!Domains.isPublicAddress(url.getHost(), address)) return "target address is not public";
+        }
+        return null;
+    }
+
     public String urlInAcceptedDomainHash(final byte[] urlhash) {
         // returns true if the url can be accepted according to network.unit.domain
         if (urlhash == null) return "url is null";

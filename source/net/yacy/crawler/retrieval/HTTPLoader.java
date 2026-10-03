@@ -28,7 +28,10 @@ package net.yacy.crawler.retrieval;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Locale;
+import java.util.function.Function;
 
 import org.apache.http.HttpStatus;
 import org.apache.http.StatusLine;
@@ -70,8 +73,23 @@ public final class HTTPLoader {
     private final int socketTimeout;
     private final Switchboard sb;
     private final ConcurrentLog log;
+    private final Function<ClientIdentification.Agent, HTTPClient> clients;
+    private final AddressResolver addresses;
+
+    @FunctionalInterface
+    interface AddressResolver {
+        InetAddress[] resolve(String host) throws UnknownHostException;
+    }
 
     public HTTPLoader(final Switchboard sb, final ConcurrentLog theLog) {
+        this(sb, theLog, HTTPClient::new, InetAddress::getAllByName);
+    }
+
+    /** Package-private seams keep redirect tests entirely free of HTTP and DNS. */
+    HTTPLoader(final Switchboard sb, final ConcurrentLog theLog,
+            final Function<ClientIdentification.Agent, HTTPClient> clients, final AddressResolver addresses) {
+        this.clients = clients;
+        this.addresses = addresses;
         this.sb = sb;
         this.log = theLog;
 
@@ -86,6 +104,31 @@ public final class HTTPLoader {
         final Response doc = this.load(entry, profile, DEFAULT_CRAWLING_RETRY_COUNT, maxFileSize, blacklistType, agent);
         Latency.updateAfterLoad(entry.url(), System.currentTimeMillis() - start);
         return doc;
+    }
+
+    /** Robots requests have no crawl profile, so keep their network context explicitly. */
+    public Response loadRobots(final Request request, final int maxFileSize,
+            final ClientIdentification.Agent agent) throws IOException {
+        final long start = System.currentTimeMillis();
+        final Response response = this.load(request, null, DEFAULT_CRAWLING_RETRY_COUNT, maxFileSize, null, agent, true);
+        Latency.updateAfterLoad(request.url(), System.currentTimeMillis() - start);
+        return response;
+    }
+
+    private void checkRobotsTarget(final DigestURL url) throws IOException {
+        if (!"http".equals(url.getProtocol()) && !"https".equals(url.getProtocol())) {
+            throw new IOException("robots target requires HTTP or HTTPS");
+        }
+        // Local and any-network installations deliberately allow local resources.
+        if (this.sb.isIntranetMode()) return;
+        if (this.sb.crawlStacker == null) throw new IOException("robots network policy unavailable");
+        if (url.getUserInfo() != null && !url.getUserInfo().isEmpty()) {
+            throw new IOException("robots target credentials are not allowed");
+        }
+        final String host = url.getHost();
+        if (host == null || host.isEmpty()) throw new IOException("robots target requires a host");
+        final String reason = this.sb.crawlStacker.urlInAcceptedDomain(url, this.addresses.resolve(host));
+        if (reason != null) throw new IOException("robots target rejected: " + reason);
     }
 
     /**
@@ -141,7 +184,7 @@ public final class HTTPLoader {
         final RequestHeader requestHeader = this.createRequestheader(request, agent);
 
         // HTTP-Client
-        try (final HTTPClient client = new HTTPClient(agent)) {
+        try (final HTTPClient client = this.clients.apply(agent)) {
             client.setRedirecting(false); // we want to handle redirection
                                             // ourselves, so we don't index pages
                                             // twice
@@ -326,7 +369,13 @@ public final class HTTPLoader {
     }
 
     private Response load(final Request request, CrawlProfile profile, final int retryCount, final int maxFileSize, final BlacklistType blacklistType, final ClientIdentification.Agent agent) throws IOException {
+        return this.load(request, profile, retryCount, maxFileSize, blacklistType, agent, false);
+    }
 
+    private Response load(final Request request, CrawlProfile profile, final int retryCount, final int maxFileSize,
+            final BlacklistType blacklistType, final ClientIdentification.Agent agent, final boolean robots) throws IOException {
+        if (robots && retryCount < 0) throw new IOException("robots redirect limit exceeded");
+        if (robots) this.checkRobotsTarget(request.url());
         if (retryCount < 0) {
             this.sb.crawlQueues.errorURL.push(request.url(), request.depth(), profile, FailCategory.TEMPORARY_NETWORK_FAILURE, "retry counter exceeded", -1);
             throw new IOException("retry counter exceeded for URL " + request.url().toString() + ". Processing aborted.$");
@@ -357,6 +406,9 @@ public final class HTTPLoader {
             }
         }
 
+        // Alternative YaCy names can rewrite the actual fetch target.
+        if (robots && url != request.url()) this.checkRobotsTarget(url);
+
         // take a file from the net
         Response response = null;
 
@@ -364,7 +416,7 @@ public final class HTTPLoader {
         final RequestHeader requestHeader = this.createRequestheader(request, agent);
 
         // HTTP-Client
-        try (final HTTPClient client = new HTTPClient(agent)) {
+        try (final HTTPClient client = this.clients.apply(agent)) {
             client.setRedirecting(false); // we want to handle redirection ourselves, so we don't index pages twice
             client.setTimout(this.socketTimeout);
             client.setHeader(requestHeader.entrySet());
@@ -411,7 +463,7 @@ public final class HTTPLoader {
 
                     // retry crawling with new url
                     request.redirectURL(redirectionUrl);
-                    return this.load(request, profile, retryCount - 1, maxFileSize, blacklistType, agent);
+                    return this.load(request, profile, retryCount - 1, maxFileSize, blacklistType, agent, robots);
                 }
                 // we don't want to follow redirects
                 this.sb.crawlQueues.errorURL.push(request.url(), request.depth(), profile, FailCategory.FINAL_PROCESS_CONTEXT, "redirection not wanted", statusCode);

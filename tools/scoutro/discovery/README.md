@@ -332,9 +332,15 @@ are accepted (`SCOUTRO_DISCOVERY_TLDS=.de`, configurable; empty disables it).
   (`crawler.http.maxFileSize`).
 - Crawls stay on the candidate host (`scope=domain`), depth 2, max 15 pages.
 - Web content is untrusted data: this tool never executes or interprets it.
-- Residual risk: YaCy performs the actual fetch and follows redirects itself,
-  so the pre-check cannot fully prevent redirect-based SSRF; treat indexed
-  content as untrusted.
+- Robots redirects are bounded to five hops. Discovery normalizes and checks
+  every HTTP/HTTPS target with `resolve_public()` before following it; a policy
+  refusal fails closed. YaCy's profileless robots requests carry an explicit
+  robots context and use its network policy plus all resolved addresses at
+  every hop in public/global mode. Explicit YaCy `local`/`any` modes retain
+  intranet access. See [robots redirect security](../../../docs/ROBOTS_REDIRECT_SECURITY.md).
+- DNS checks do not pin the subsequent transport connection to an address.
+  This robots fix is not a complete DNS-rebinding defense or a review of every
+  non-robots fetch path; indexed content remains untrusted.
 
 Host blocklist entries match on DNS label boundaries: `pflege.de` blocks
 `pflege.de` and `www.pflege.de`, but no longer `sonnenhof-pflege.de`;

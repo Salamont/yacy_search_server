@@ -1259,6 +1259,29 @@ public class Domains {
         return isLocal(hostaddress);
     }
 
+    /**
+     * A resolved public-fetch target. Reuses YaCy's local address classification,
+     * without changing URL hashes, intranet mode or the existing isLocal contract.
+     * Non-unicast and special-use ranges must not be fetched in a public context.
+     */
+    public static boolean isPublicAddress(final String host, final InetAddress address) {
+        if (address == null || isLocal(host, address) || address.isMulticastAddress()) return false;
+        final byte[] ip = address.getAddress();
+        final int first = ip[0] & 0xff;
+        if (ip.length == 4) {
+            final int second = ip[1] & 0xff, third = ip[2] & 0xff;
+            return first != 0 && first < 240
+                    && !(first == 100 && second >= 64 && second <= 127)
+                    && !(first == 192 && second == 0 && (third == 0 || third == 2))
+                    && !(first == 198 && (second == 18 || second == 19 || second == 51 && third == 100))
+                    && !(first == 203 && second == 0 && third == 113);
+        }
+        // Globally routed IPv6 unicast, excluding the documentation prefix.
+        return ip.length == 16 && (first & 0xe0) == 0x20
+                && !(first == 0x20 && (ip[1] & 0xff) == 0x01
+                        && (ip[2] & 0xff) == 0x0d && (ip[3] & 0xff) == 0xb8);
+    }
+
     private static boolean isLocal(final InetAddress a) {
         final boolean
             localp = noLocalCheck || // DO NOT REMOVE THIS! it is correct to return true if the check is off
