@@ -5164,6 +5164,36 @@ aria-label="Host analysis"==aria-label="Host-Analyse"
 >Total<==>Gesamt<
 >Maximum per day<==>Maximum pro Tag<
 aria-label="Views"==aria-label="Ansichten"
+>Canonical<==>Canonical<
+>Titles and descriptions<==>Titel und Beschreibungen<
+>Pages with canonical<==>Seiten mit Canonical<
+>Canonical points to the page itself<==>Canonical verweist auf die Seite selbst<
+>Canonical points to another URL<==>Canonical verweist auf eine andere URL<
+>Pages without canonical<==>Seiten ohne Canonical<
+>Pages with title<==>Seiten mit Titel<
+>Pages without title<==>Seiten ohne Titel<
+>Groups of pages with the same title<==>Gruppen von Seiten mit gleichem Titel<
+>Pages sharing a title<==>Seiten mit geteiltem Titel<
+>Pages with description<==>Seiten mit Beschreibung<
+>Pages without description<==>Seiten ohne Beschreibung<
+>Groups of pages with the same description<==>Gruppen von Seiten mit gleicher Beschreibung<
+>Pages sharing a description<==>Seiten mit geteilter Beschreibung<
+>Directories<==>Verzeichnisse<
+>Directory<==>Verzeichnis<
+>Documents<==>Dokumente<
+>Directories found<==>Gefundene Verzeichnisse<
+>Documents read<==>Gelesene Dokumente<
+>Documents of the host<==>Dokumente des Hosts<
+>The host has more documents than were read; the figures cover the documents read.<==>Der Host hat mehr Dokumente als gelesen wurden; die Werte gelten für die gelesenen Dokumente.<
+>Referring hosts<==>Verweisende Hosts<
+>Referring hosts in total<==>Verweisende Hosts insgesamt<
+>Links in total<==>Links insgesamt<
+>No referring host observed.<==>Kein verweisender Host beobachtet.<
+>The host link graph is not available.<==>Der Host-Linkgraph ist nicht verfügbar.<
+>Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.<==>Verweisende Hosts sind Hosts, deren gecrawlte Seiten auf diesen Host verlinken, wie von diesem Peer beobachtet. Das ist kein vollständiger Backlink-Index.<
+>Not enabled in the index schema:<==>Im Indexschema nicht aktiviert:<
+>Enable these fields in the index schema; they are filled for pages crawled afterwards.<==>Aktivieren Sie diese Felder im Indexschema; sie werden für danach gecrawlte Seiten gefüllt.<
+>Open index schema<==>Indexschema öffnen<
 
 #File: ScoutroCrawls_p.html
 

@@ -105,7 +105,10 @@ final class ReportApi {
                 if (raw == null || raw.isEmpty()) throw ApiException.invalid("collection", "Parameter 'collection' is required.");
                 final String collection = collection(raw);
                 visible(scope, collection);
-                return this.reports.host(host, collection);
+                final JsonObject report = this.reports.host(host, collection);
+                // The host link graph knows no collections: only the complete index may see it.
+                if (scope != null && !scope.all) report.put("referring_hosts", JsonObject.NULL).put("referring_hosts_scope", "complete_index_required");
+                return report;
             }
         } catch (final IOException e) {
             LOG.warn("crawl report unavailable: " + e.getClass().getSimpleName());

@@ -19,6 +19,7 @@ import net.yacy.cora.federate.solr.connector.SolrConnector;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.crawler.CrawlSwitchboard;
 import net.yacy.crawler.data.CrawlProfile;
+import net.yacy.peers.graphics.WebStructureGraph;
 import net.yacy.scoutro.agents.CrawlRecord;
 import net.yacy.scoutro.discovery.DiscoveryService;
 import net.yacy.scoutro.discovery.JsonObject;
@@ -124,8 +125,26 @@ public final class CaptureRuntime {
                 CaptureRuntime::jobs, System::currentTimeMillis, ZoneId.systemDefault(),
                 clamp(sb.getConfigLong("scoutro.report.cacheSeconds", 600), 0, 86400) * 1000L,
                 (int) clamp(sb.getConfigLong("scoutro.report.staleDays", 30), 1, 3650), version,
-                clamp(sb.getConfigLong("scoutro.report.settleSeconds", 120), 0, 3600) * 1000L + 300_000L);
+                clamp(sb.getConfigLong("scoutro.report.settleSeconds", 120), 0, 3600) * 1000L + 300_000L, referring(sb));
         return reports;
+    }
+
+    /** Hosts whose crawled pages link to a host, from YaCy's host link graph (all protocols and ports). */
+    private static ReportService.ReferringHosts referring(final Switchboard sb) {
+        return host -> {
+            final WebStructureGraph graph = sb.webStructure;
+            if (graph == null) throw new IOException("web structure unavailable");
+            final java.util.Map<String, Integer> out = new java.util.HashMap<>();
+            for (final String hash : graph.hostName2HostHashes(host)) {
+                final WebStructureGraph.StructureEntry incoming = graph.incomingReferences(hash);
+                if (incoming == null) continue;
+                for (final java.util.Map.Entry<String, Integer> ref : incoming.references.entrySet()) {
+                    final String name = graph.hostHash2hostName(ref.getKey());
+                    if (name != null) out.merge(name, ref.getValue() == null ? 0 : ref.getValue(), Integer::sum);
+                }
+            }
+            return out;
+        };
     }
 
     /** Discovery jobs with their recrawl interval as freshness expectation. */
@@ -236,7 +255,7 @@ public final class CaptureRuntime {
             if (!record.isStarted() || handle != null && !record.crawlId.equals(handle)) return null;
             try {
                 return new CrawlOutcome.Crawl(record.crawlId, record.startMarker, record.host, record.collection,
-                        record.createdAt, null, record.depth, record.maxPages);
+                        record.createdAt, null, record.depth, record.maxPages, CrawlOutcome.Crawl.scheme(record.url));
             } catch (final IllegalArgumentException invalid) {
                 return null;
             }

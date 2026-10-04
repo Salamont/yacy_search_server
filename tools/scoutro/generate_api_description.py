@@ -347,7 +347,11 @@ schemas["ReportIndex"] = {"type": ["object", "null"], "description": "Live facet
     "properties": {"collection": {"type": "string"}, "host": nullable_text, **{k: {"type": "integer"} for k in ["documents", "ok", "hosts", "not_reloaded"]},
         **{k: {"type": "array", "items": {"type": "object", "properties": {"value": {"type": ["string", "number"]}, "count": {"type": "integer"}}}} for k in ["http_status", "content_type", "depth"]},
         "fail_type": counts, "duplicates": {"type": "object"}, "oldest": nullable_text, "newest": nullable_text,
-        "unavailable": {"type": "array", "items": {"type": "string"}}}}
+        "canonical": {"type": "object", "description": "OK pages by canonical link (needs canonical_s; self/elsewhere need canonical_equal_sku_b).",
+            "properties": {k: {"type": "integer"} for k in ["with", "without", "self", "elsewhere"]}},
+        **{k: {"type": "object", "description": "OK pages with and without " + k[:-1] + "; same_* (pages sharing one, host scope only, needs " + k[:-1] + "_exact_signature_l): groups of at least two pages, lower bounds when same_truncated.",
+            "properties": {**{n: {"type": "integer"} for n in ["with", "missing", "same_groups", "same_urls"]}, "same_truncated": {"type": "boolean"}}} for k in ["titles", "descriptions"]},
+        "unavailable": {"type": "array", "items": {"type": "string"}, "description": "Disabled schema fields; the facets that need them are omitted."}}}
 report_source = {"index_source": {"type": ["string", "null"], "enum": ["live", "rollup", None]}, "index_as_of": nullable_text, "index_error": {"type": "string"}}
 schemas["ReportCollection"] = {"type": "object", "properties": {"collection": {"type": "string"}, "table": ref("ReportTally"),
     "table_scanned_at": {"type": "string"}, "index": ref("ReportIndex"), **report_source}}
@@ -360,12 +364,20 @@ schemas["ReportHost"] = {"type": "object", "properties": {"host": {"type": "stri
     "row": {"type": ["object", "null"], "properties": {"updated_at": {"type": "string"}, "current": ref("ReportCrawl"), "previous": ref("ReportCrawl"),
         "precheck": {"type": ["object", "null"], "properties": {"at": {"type": "string"}, "result": {"type": "string", "enum": ["dns", "robots", "blocked", "site_5xx"]}, "detail": nullable_text, "job": nullable_text, "discovery_domain": nullable_text}},
         "latest_attempt": {"type": ["string", "null"], "enum": ["crawl", "precheck", None]}}},
-    "index": ref("ReportIndex"), **report_source}}
+    "index": ref("ReportIndex"), **report_source,
+    "directories": {"type": ["object", "null"], "description": "First-level directories of the host from at most 5000 documents; numbers cover the documents read when truncated.",
+        "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"directory": {"type": "string"}, "documents": {"type": "integer"}, "ok": {"type": ["integer", "null"]}}}},
+            **{k: {"type": "integer"} for k in ["directories", "scanned", "total"]}, "truncated": {"type": "boolean"}}},
+    "referring_hosts": {"type": ["object", "null"], "description": "Hosts whose crawled pages link to this host, from YaCy's host link graph (locally observed, not collection-aware). Null when unavailable or for agents without the complete index.",
+        "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {"host": {"type": "string"}, "links": {"type": "integer"}}}},
+            "hosts": {"type": "integer"}, "links": {"type": "integer"}, "truncated": {"type": "boolean"}}},
+    "referring_hosts_scope": {"type": "string", "enum": ["complete_index_required"]}}}
 schemas["ReportHosts"] = {"type": "object", "properties": {"collection": {"type": "string"}, "filter": {"type": "string"},
     **{k: {"type": "integer"} for k in ["total", "offset", "limit"]}, "table_scanned_at": {"type": "string"},
     "items": {"type": "array", "items": {"type": "object", "properties": {"host": {"type": "string"}, "job": nullable_text,
         "last_crawl": nullable_text, "age_days": {"type": ["integer", "null"]}, "stale": {"type": "boolean"}, "outcome": nullable_text,
-        "coverage": nullable_text, "pages_ok": {"type": ["integer", "null"]}, "latest_attempt": nullable_text, "precheck": nullable_text}}}}}
+        "coverage": nullable_text, "pages_ok": {"type": ["integer", "null"]}, "latest_attempt": nullable_text, "precheck": nullable_text,
+        "scheme": {"type": ["string", "null"], "enum": ["http", "https", None], "description": "Scheme of the crawl's start URL, if recorded."}}}}}}
 schemas["ReportJobs"] = {"type": "object", "properties": {"table_scanned_at": {"type": "string"}, "jobs": {"type": "array", "items": {"type": "object", "properties": {
     "id": {"type": "string"}, "known": {"type": "boolean"}, "name": nullable_text, "stale_after_days": {"type": "integer"},
     "collections": {"type": "array", "items": {"type": "string"}}, **{k: {"type": "integer"} for k in ["hosts", "crawled", "stale"]}, "last_crawl": nullable_text}}}}}

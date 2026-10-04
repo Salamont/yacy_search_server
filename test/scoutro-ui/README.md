@@ -167,19 +167,24 @@ SEO GETs must leave settings, index and crawl-queue file hashes unchanged.
 After compiling, run `python3 test/scoutro-ui/report-live-smoke.py` with the
 same `JAVA`, `NODE_PATH` and `SCOUTRO_CHROMIUM_PATH` settings. Optional
 `SCOUTRO_SCREENSHOTS` selects the artifact folder. `ReportFixture.java` refuses
-existing/unmarked DATA and seeds, offline, 8 index documents in two
-collections, 35 `scoutro_domains` rows (current and previous crawls, a
-precheck, a stale host, a job no longer in Discovery), rollups with markers and
-one Discovery job whose name contains markup. The recent rollups are written by
+existing/unmarked DATA and seeds, offline, 10 index documents in two
+collections (with the optional data-quality fields enabled in the disposable
+schema: titles, descriptions, canonical links, a subdirectory), 35
+`scoutro_domains` rows (current and previous crawls, a precheck, a stale host
+crawled over `http`, a job no longer in Discovery), rollups with markers, one
+Discovery job whose name contains markup and a small host link graph
+(`webStructure.map`). The recent rollups are written by
 the report's own daily step, so the peer has nothing left to write.
 
 Authenticated report GETs, followed by two capture ticks, must leave settings,
 index, queues, `DATA/WORK` and `DATA/SCOUTRO` unchanged. Then
 `report-ui-test.mjs` checks English/German at 360/390/412/768/1280 px: view
 switch, collection and job scope, tiles, SVG charts, history with markers,
-filters, paging, "Crawl again" and host links, literal stored/indexed markup,
-the host **Crawl status** tab, keyboard navigation over five tabs, a localized
-unavailable error, no overflow and no non-GET request. `test_report_api.py`
+filters, paging, "Crawl again" (with the recorded scheme) and host links,
+canonical and title/description tiles, the named disabled fields with the
+index schema link, literal stored/indexed markup, the host **Crawl status** tab
+with directories, shared titles and referring hosts, keyboard navigation over
+five tabs, a localized unavailable error, no overflow and no non-GET request. `test_report_api.py`
 checks admin routes, invalid requests, the explicit `report.read` grant and
 agent collection scopes in the same disposable DATA.
 

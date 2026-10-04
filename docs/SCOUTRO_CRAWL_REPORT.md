@@ -1,8 +1,8 @@
 # Scoutro Crawl Report (plan)
 
 Status: confirmed plan. Phases 1 (storage), 2 (capture), 3 (reports and
-rollups) and 4 (API and UI) are implemented on branch `ccr-e3e5f88b-1fqp77`;
-later phases are not started.
+rollups), 4 (API and UI) and 5 (data quality) are implemented on branch
+`ccr-e3e5f88b-1fqp77`; later phases are not started.
 
 Goal: crawl-report views comparable to a classic crawl audit (crawl details,
 status, HTTP codes, content types, depth, duplicates, indexability, data age)
@@ -305,9 +305,54 @@ only to agents with the complete index (otherwise 404, like a missing job).
   analysis and **Crawl again**.
 - **Crawl status** as fifth tab of the host analysis: the row of the host in
   one collection and its live page state.
-- **Crawl again** links to `ScoutroCrawls_p.html?url=https://host/&collection=c#new-crawl`;
+- **Crawl again** links to `ScoutroCrawls_p.html?url=<scheme>://host/&collection=c#new-crawl` (scheme of the last crawl, otherwise `https`);
   the page itself sends GET requests only. Stored and indexed values are
   rendered as text; labels are translated through the page's label list.
+
+## Data quality (Phase 5)
+
+The live facets and the host report gain data-quality figures. They are read
+from YaCy, never copied, and change nothing:
+
+| Figure | Scope | Source | Needs |
+|---|---|---|---|
+| Canonical: OK pages with a canonical link, pointing to the page itself or elsewhere, and without | collection, host | `canonical_s`, `canonical_equal_sku_b` | both fields |
+| Titles and descriptions: OK pages with and without | collection, host | `title`, `description_txt` | default fields |
+| Pages sharing a title or a description: groups of at least two pages and their number | host only | `title_exact_signature_l`, `description_exact_signature_l` | both fields |
+| First-level directories: documents and OK pages per directory (`/` for the root and files below it), top 50 | host only | `sku` of at most 5000 documents | default fields |
+| Referring hosts: hosts whose crawled pages link to the host, with their link count, top 20 | host only | `WebStructureGraph` (`sb.webStructure`, all protocols and ports) | — |
+
+Equal titles on different hosts are no issue of either site, so title and
+description groups are only computed within one host. A canonical pointing
+elsewhere stays in the index because Scoutro crawls do not set YaCy's
+`noindexWhenCanonicalUnequalURL`; pages that YaCy refused for their canonical
+are counted as `excl_canonical` (see [ErrorCache](#errorcache)). Groups are
+lower bounds at 1000 returned groups (`same_truncated`). Above 5000 documents
+the directory figures cover the documents read (`truncated`).
+
+**Optional fields.** `canonical_s`, `canonical_equal_sku_b`,
+`title_exact_signature_l` and `description_exact_signature_l` are disabled in
+YaCy's default schema and stay so; nothing in Scoutro changes the schema. An
+administrator enables them in YaCy's index schema (`IndexSchema_p.html`,
+existing page with transaction token). They are filled for pages crawled
+afterwards. While they are disabled the facets that need them are omitted, the
+names are listed in `unavailable`, and the UI names the missing fields with a
+link to the schema page. Enabling them adds no postprocessing step: YaCy uses
+the signatures for its uniqueness flags only when `title_unique_b` or
+`description_unique_b` are enabled too. With `canonical_equal_sku_b`, YaCy's
+duplicate postprocessing ignores pages whose canonical points elsewhere; with
+`canonical_s`, CitationRank (only if enabled) counts links to such a page for
+its canonical target. Search and ranking use none of the four fields otherwise.
+
+**Referring hosts and scopes.** YaCy's host link graph knows no collections.
+Agents with a narrowed data scope therefore get `referring_hosts: null` and
+`referring_hosts_scope: complete_index_required`; the administrator and agents
+with the complete index see the list. It describes links observed by this peer,
+not a complete backlink index.
+
+**Scheme.** Capture stores the scheme of the crawl's start URL as label
+`scheme` (`http` or `https`). The host list returns it, and "Crawl again" uses
+it; rows recorded earlier have no scheme and fall back to `https`.
 
 ## Data age
 
@@ -363,10 +408,12 @@ recrawls. Page data lives only in the YaCy index.
    `jobs`, the crawl report view and the host's crawl status tab in
    `ScoutroSEO_p.html` with inline SVG charts, data age, stale filter and
    "Crawl again"; help, all locales, OpenAPI/actions catalog and UI routes.
-5. **Data quality:** optional schema fields (`canonical_s`,
-   `canonical_equal_sku_b`, `title_exact_signature_l`,
-   `description_exact_signature_l`), directory facets, locally observed
-   referring hosts through `WebStructureGraph`.
+5. **Data quality (implemented):** see [Data quality](#data-quality-phase-5):
+   canonical, title and description figures (optional schema fields
+   `canonical_s`, `canonical_equal_sku_b`, `title_exact_signature_l`,
+   `description_exact_signature_l`, enabled by the administrator in YaCy's
+   index schema), first-level directories per host, locally observed referring
+   hosts through `WebStructureGraph`, and the crawl scheme for "Crawl again".
 6. **Optional:** measure the storage cost of YaCy's Webgraph core before any
    isolation-level analysis.
 
@@ -407,6 +454,13 @@ outside presets (`ReportApiTest`), the agent path (`AgentApiTest`), the catalog
 change by report reads over two capture ticks, the UI in English and German at
 five widths (`report-ui-test.mjs`) and the admin and agent API
 (`test_report_api.py`).
+
+Phase 5: canonical, title and description figures, host-only groups,
+disabled fields and the directory scan against an embedded Solr core
+(`IndexQualitySolrTest`), referring hosts (merge, self, invalid names, limit,
+unavailable graph) and the scheme in the host list (`ReportServiceTest`), the
+scheme label (`CrawlOutcomeTest`, `CaptureServiceTest`), and referring hosts
+only for the complete index (`ReportApiTest`).
 
 `test/scoutro-api/report-capture-live-smoke.py` runs one real crawl of a local
 fixture site on a new disposable peer and checks the captured row (pages,

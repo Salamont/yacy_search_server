@@ -173,6 +173,7 @@ def main():
         checks += 1
         assert row["s_outcome"] == "partial", row          # pages loaded, one failure (404)
         assert row["s_coverage"] == "complete", row
+        assert row["s_scheme"] == "http", row              # scheme of the start URL, for "Crawl again"
         checks += 1
         print(f"PASS: {checks} crawl report capture checks on a disposable peer", flush=True)
 

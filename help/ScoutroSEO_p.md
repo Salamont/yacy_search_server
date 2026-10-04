@@ -16,8 +16,10 @@ fetches a website, starts a crawl, changes settings, or modifies the index.
 - **Technology:** existing HTTP/protocol, depth, response time, dates and outgoing
   link metadata. Click any URL row to read content/crawl/reference details.
 - **Crawl status:** the stored crawl status of the host in one collection
-  (current and previous crawl, latest precheck, data age) and its live page
-  state. Enter the collection in the tab if none was chosen above.
+  (current and previous crawl, latest precheck, data age), its live page
+  state, canonical links, titles and descriptions (with pages sharing a title
+  or a description), first-level directories and the referring hosts observed
+  by this peer. Enter the collection in the tab if none was chosen above.
 
 Indexed URLs may include error metadata; this count is not the dashboard's
 successful-document count. Stored dates are not proof of the last complete
@@ -87,12 +89,33 @@ Discovery job:
   for a changed job definition or Scoutro version). **Show data** lists the
   values of the chart.
 
+Collection reports also show **Canonical** (pages whose canonical points to the
+page itself, to another URL, or that have none) and **Titles and
+descriptions** (pages with and without). Pages sharing a title or a description
+are counted per host only, in the host's **Crawl status** tab, because equal
+titles on different hosts are no issue of either site.
+
+The canonical and shared title/description figures need four optional fields
+that YaCy's default schema leaves disabled: `canonical_s`,
+`canonical_equal_sku_b`, `title_exact_signature_l`,
+`description_exact_signature_l`. Enable them in **Index Schema**
+(`IndexSchema_p.html`, "show disabled"); they are filled for pages crawled
+afterwards. Until then the report names the missing fields with a link to that
+page. Scoutro never changes the schema itself.
+
+**Directories** groups up to 5000 documents of the host by their first path
+segment (`/` for the root and files directly below it). **Referring hosts** are
+hosts whose crawled pages link to this host, from YaCy's host link graph; it is
+not a complete backlink index and knows no collections, so agents without the
+complete index do not receive it.
+
 A host is **stale** when its last crawl is older than the recrawl interval of
 its Discovery job (`scoutro.report.staleDays` for crawls without a job). **Not
 reloaded by this crawl** means that the latest load of a page is older than the
 crawl start; it is not evidence that the page was deleted. **Crawl again**
-opens Scoutro Crawls with `https://host/` and the collection filled in; nothing
-starts until you submit that form. Viewing the report starts no crawl.
+opens Scoutro Crawls with the host (with the scheme of its last crawl, otherwise
+`https://`) and the collection filled in; nothing starts until you submit that
+form. Viewing the report starts no crawl.
 
 Table figures come from a cached scan (`scoutro.report.cacheSeconds`, default
 600 s); **Crawl status read** shows its time. If the live index does not

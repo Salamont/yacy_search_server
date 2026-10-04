@@ -19,6 +19,7 @@
   const PAGES = ['pages_total', 'pages_ok', 'pages_redirect', 'pages_client_error', 'pages_server_error', 'pages_excluded', 'pages_failed', 'pages_robots', 'pages_not_reloaded', 'pages_not_reloaded_ok'];
   const EXCLUSIONS = ['excl_noindex', 'excl_canonical', 'excl_filter', 'excl_blacklist', 'excl_other'];
   const PRECHECKS = ['dns', 'robots', 'blocked', 'site_5xx'];
+  const QUALITY = ['canonical_s', 'canonical_equal_sku_b', 'title_exact_signature_l', 'description_exact_signature_l'];
   const LIMIT = 25, MAX_OFFSET = 10000;
   let generation = 0, hostGeneration = 0, hostOffset = 0, current = '', jobsLoaded = null;
 
@@ -95,9 +96,16 @@
   function scope(kind) {
     for (const section of document.querySelectorAll('#sseo-r-result [data-sseo-scope]')) section.hidden = section.dataset.sseoScope !== kind;
   }
-  function crawlLink(host, collection) {
+  function crawlLink(host, collection, scheme) {
     const link = node('a', t('r_crawl_again'), 'btn btn-default btn-sm');
-    link.href = 'ScoutroCrawls_p.html?' + new URLSearchParams({ url: 'https://' + host + '/', collection }) + '#new-crawl'; return link;
+    link.href = 'ScoutroCrawls_p.html?' + new URLSearchParams({ url: (scheme === 'http' ? 'http' : 'https') + '://' + host + '/', collection }) + '#new-crawl'; return link;
+  }
+  /** Names the optional quality fields that are disabled, with a link to YaCy's index schema page. */
+  function fieldHint(target, unavailable) {
+    const missing = QUALITY.filter(f => (unavailable || []).includes(f));
+    if (!missing.length) return;
+    const p = node('p', t('r_fields_disabled') + ' ' + missing.join(', ') + '. ' + t('r_fields_hint') + ' ', 'sseo-note'), link = node('a', t('r_index_schema'));
+    link.href = 'IndexSchema_p.html?core=collection1&filter=disabled'; p.append(link); $(target).append(p);
   }
 
   async function collectionReport(collection) {
@@ -115,8 +123,17 @@
       const d = index.duplicates || {}, bound = (n, truncated) => n == null ? null : (truncated ? t('r_at_least') + ' ' : '') + fmt(n);
       stats('r-duplicates', [['r_exact_groups', bound(d.exact_groups, d.exact_truncated)], ['r_exact_urls', bound(d.exact_urls, d.exact_truncated)],
         ['r_similar_groups', bound(d.similar_groups, d.similar_truncated)], ['r_similar_urls', bound(d.similar_urls, d.similar_truncated)]]);
+      const c = index.canonical;
+      if (!c) empty('r-canonical');
+      else bars('r-canonical', c.self == null ? [[t('r_canonical_with'), c.with], [t('r_canonical_without'), c.without]]
+        : [[t('r_canonical_self'), c.self], [t('r_canonical_elsewhere'), c.elsewhere], [t('r_canonical_without'), c.without]]);
+      fieldHint('r-canonical', index.unavailable);
+      const titles = index.titles, descriptions = index.descriptions;
+      if (!titles && !descriptions) empty('r-texts');
+      else stats('r-texts', [['r_title_with', titles && fmt(titles.with)], ['r_title_missing', titles && fmt(titles.missing)],
+        ['r_description_with', descriptions && fmt(descriptions.with)], ['r_description_missing', descriptions && fmt(descriptions.missing)]]);
     } else {
-      for (const id of ['r-status', 'r-types', 'r-depth', 'r-duplicates']) empty(id, 'r_index_unavailable');
+      for (const id of ['r-status', 'r-types', 'r-depth', 'r-duplicates', 'r-canonical', 'r-texts']) empty(id, 'r_index_unavailable');
     }
     stats('r-age', [['r_last_crawl', table.last_crawl && date(table.last_crawl)], ['r_stale_hosts', fmt(table.stale)], ['r_oldest', index?.oldest && date(index.oldest)],
       ['r_newest', index?.newest && date(index.newest)], ['r_index_source', data.index_source && value('r_source_', data.index_source)],
@@ -144,7 +161,7 @@
         for (const [text, className] of [[item.last_crawl && date(item.last_crawl)], [item.age_days == null ? null : fmt(item.age_days)], [t(item.stale ? 'r_yes' : 'r_no'), item.stale ? 'sseo-stale' : null],
           [item.outcome && value('r_', item.outcome)], [item.coverage && (item.coverage === 'complete' ? t('r_complete') : t('r_partly'))],
           [item.pages_ok == null ? null : fmt(item.pages_ok)], [attempt]]) row.append(node('td', text == null ? t('missing') : text, className));
-        const action = node('td'); action.append(crawlLink(item.host, collection)); row.append(action); body.append(row);
+        const action = node('td'); action.append(crawlLink(item.host, collection, item.scheme)); row.append(action); body.append(row);
       }
       table.append(body); box.append(table);
     }

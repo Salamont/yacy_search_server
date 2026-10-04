@@ -6,8 +6,10 @@ const require = createRequire(import.meta.url), { chromium } = require('playwrig
 const base = process.env.SCOUTRO_URL, shots = process.argv.includes('--screenshots') ? process.argv[process.argv.indexOf('--screenshots') + 1] : null;
 const JOB = '5b0f4c1e-7a2d-4c6b-9f1e-2d3c4b5a6f70';
 const browser = await chromium.launch({ executablePath: process.env.SCOUTRO_CHROMIUM_PATH, args: ['--no-proxy-server'] });
-const text = { en: { title: 'Crawl report', indexed: 'Indexed', partial: 'Partially indexed', unavailable: 'Crawl reports are unavailable', stale: 'Yes', host: 'Host analysis', absent: 'No crawl of this host has been recorded in this collection yet.', need: 'Enter a collection to read the crawl status of this host.' },
-  de: { title: 'Crawl-Bericht', indexed: 'Indexiert', partial: 'Teilweise indexiert', unavailable: 'Crawl-Berichte sind nicht verfügbar', stale: 'Ja', host: 'Host-Analyse', absent: 'Für diesen Host wurde in dieser Collection noch kein Crawl erfasst.', need: 'Geben Sie eine Collection ein, um den Crawl-Status dieses Hosts zu lesen.' } };
+const text = { en: { title: 'Crawl report', indexed: 'Indexed', partial: 'Partially indexed', unavailable: 'Crawl reports are unavailable', stale: 'Yes', host: 'Host analysis', absent: 'No crawl of this host has been recorded in this collection yet.', need: 'Enter a collection to read the crawl status of this host.',
+    elsewhere: 'Canonical points to another URL', untitled: 'Pages without title', sharing: 'Pages sharing a title', directories: 'Directories', disabled: 'Not enabled in the index schema:' },
+  de: { title: 'Crawl-Bericht', indexed: 'Indexiert', partial: 'Teilweise indexiert', unavailable: 'Crawl-Berichte sind nicht verfügbar', stale: 'Ja', host: 'Host-Analyse', absent: 'Für diesen Host wurde in dieser Collection noch kein Crawl erfasst.', need: 'Geben Sie eine Collection ein, um den Crawl-Status dieses Hosts zu lesen.',
+    elsewhere: 'Canonical verweist auf eine andere URL', untitled: 'Seiten ohne Titel', sharing: 'Seiten mit geteiltem Titel', directories: 'Verzeichnisse', disabled: 'Im Indexschema nicht aktiviert:' } };
 let checks = 0;
 const check = (v, m) => { assert.ok(v, m); checks++; };
 const rows = page => page.locator('#sseo-r-hosts tbody tr');
@@ -35,6 +37,9 @@ try {
   check((await page.locator('#sseo-r-types').textContent()).includes('text/html<img src=x onerror=alert(1)>'), 'Indexed value shown as text' + where);
   check(await page.locator('#sseo-report-view img').count() === 0, 'No markup from indexed or stored values' + where);
   check((await page.locator('#sseo-r-duplicates').textContent()).includes('2'), 'Duplicates from the live index' + where);
+  check((await page.locator('#sseo-r-canonical').textContent()).includes(l.elsewhere) && await page.locator('#sseo-r-canonical svg').count() === 3, 'Canonical tile' + where);
+  check(await page.locator('#sseo-r-canonical a').count() === 0, 'No field hint while the fields are enabled' + where);
+  check((await page.locator('#sseo-r-texts').textContent()).includes(l.untitled), 'Titles and descriptions tile' + where);
   check(await rows(page).count() === 25 && (await page.locator('#sseo-r-range').textContent()).includes('34'), 'Host list is paged by the server' + where);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal page overflow' + where);
   if (shots) await page.screenshot({ path: `${shots}/report-collection-${language}-${width}.png`, fullPage: true });
@@ -43,7 +48,7 @@ try {
   await page.locator('#sseo-r-filter').selectOption('stale'); await page.waitForFunction(() => document.querySelectorAll('#sseo-r-hosts tbody tr').length === 1);
   const stale = rows(page).first();
   check((await stale.textContent()).includes('b.example') && (await stale.locator('.sseo-stale').textContent()) === l.stale, 'Stale filter' + where);
-  check(await stale.locator('a.btn').getAttribute('href') === 'ScoutroCrawls_p.html?url=https%3A%2F%2Fb.example%2F&collection=visible#new-crawl', 'Crawl again uses the native crawl form' + where);
+  check(await stale.locator('a.btn').getAttribute('href') === 'ScoutroCrawls_p.html?url=http%3A%2F%2Fb.example%2F&collection=visible#new-crawl', 'Crawl again uses the native crawl form and the recorded scheme' + where);
   check(await stale.locator('a.sseo-url').getAttribute('href') === 'ScoutroSEO_p.html?host=b.example&collection=visible', 'Host links to its analysis' + where);
   await page.locator('#sseo-r-filter').selectOption('precheck'); await page.waitForFunction(() => document.querySelector('#sseo-r-hosts tbody tr td')?.textContent === 'c.example');
   await page.locator('#sseo-r-kind').selectOption('job'); await page.waitForFunction(id => [...document.querySelectorAll('#sseo-r-job option')].some(o => o.value === id), JOB);
@@ -59,6 +64,15 @@ try {
   check(await page.locator('#sseo-r-history-table tbody tr').count() >= 8, 'History data table' + where);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal page overflow for a job' + where);
   if (shots) await page.screenshot({ path: `${shots}/report-job-${language}-${width}.png`, fullPage: true });
+  // Disabled optional fields are named, with a link to YaCy's index schema page.
+  await page.route('**/scoutro/api/v1/reports/collections/visible?*', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ collection: 'visible',
+    table: { hosts: 1, crawled: 1, precheck_only: 0, latest_attempt_precheck: 0, coverage_partial: 0, stale: 0, last_crawl: null, outcomes: {}, prechecks: {}, counters: {} },
+    table_scanned_at: '2026-10-04T00:00:00Z', index_source: 'live', index_as_of: '2026-10-04T00:00:00Z',
+    index: { documents: 1, ok: 1, hosts: 1, titles: { with: 1, missing: 0 }, unavailable: ['canonical_s', 'canonical_equal_sku_b'] } }) }));
+  await page.locator('#sseo-r-kind').selectOption('collection'); await page.locator('#sseo-r-form button[type="submit"]').click();
+  await page.waitForSelector('#sseo-r-canonical a[href="IndexSchema_p.html?core=collection1&filter=disabled"]');
+  check((await page.locator('#sseo-r-canonical').textContent()).includes(l.disabled + ' canonical_s, canonical_equal_sku_b'), 'Disabled fields named' + where);
+  await page.unroute('**/scoutro/api/v1/reports/collections/visible?*');
   // A failed report read must be visible and localized.
   await page.route('**/scoutro/api/v1/reports/collections/visible?*', r => r.fulfill({ status: 503, contentType: 'application/json', body: '{"error":{"code":"report_unavailable"}}' }));
   await page.locator('#sseo-r-kind').selectOption('collection'); await page.locator('#sseo-r-form button[type="submit"]').click();
@@ -73,6 +87,9 @@ try {
   check(await page.locator('#sseo-tab-crawl-status').getAttribute('aria-selected') === 'true', 'End selects the last of five tabs' + where);
   await page.waitForSelector('#sseo-cs-body dl');
   check((await page.locator('#sseo-cs-body').textContent()).includes(l.partial), 'Crawl status of host and collection' + where);
+  const crawlTab = await page.locator('#sseo-cs-body').textContent();
+  check(crawlTab.includes(l.directories) && crawlTab.includes('/docs/'), 'Directories of the host' + where);
+  check(crawlTab.includes('blog.example') && crawlTab.includes(l.sharing), 'Referring hosts and shared titles' + where);
   check(await page.locator('#sseo-cs-again').getAttribute('href') === 'ScoutroCrawls_p.html?url=https%3A%2F%2Fa.example%2F&collection=visible#new-crawl', 'Crawl again from the host' + where);
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal page overflow in the crawl tab' + where);
   if (shots) await page.screenshot({ path: `${shots}/report-host-${language}-${width}.png`, fullPage: true });

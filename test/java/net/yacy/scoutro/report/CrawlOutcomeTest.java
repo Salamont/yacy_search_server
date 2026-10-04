@@ -165,4 +165,16 @@ public class CrawlOutcomeTest {
         assertFalse(unknown.counters.containsKey(CrawlOutcome.MAX_PAGES));
         assertNull(unknown.endedAt);
     }
+
+    @Test public void schemeOfTheStartUrlBecomesALabel() {
+        assertEquals("https", CrawlOutcome.Crawl.scheme("HTTPS://Example.com/"));
+        assertEquals("http", CrawlOutcome.Crawl.scheme(" http://example.com"));
+        assertEquals(null, CrawlOutcome.Crawl.scheme("ftp://example.com/"));
+        assertEquals(null, CrawlOutcome.Crawl.scheme(null));
+        final CrawlOutcome.Crawl http = new CrawlOutcome.Crawl("c9", null, "example.com", "research", START, START + 1, 1, 5, "http");
+        assertEquals("http", CrawlOutcome.snapshot(http, Map.of(CrawlOutcome.PAGES_OK, 1L), null, null, null).labels.get(CrawlOutcome.SCHEME));
+        final CrawlOutcome.Crawl odd = new CrawlOutcome.Crawl("c9", null, "example.com", "research", START, START + 1, 1, 5, "gopher");
+        assertEquals(null, odd.scheme);
+        assertTrue(!CrawlOutcome.snapshot(odd, Map.of(), null, null, null).labels.containsKey(CrawlOutcome.SCHEME));
+    }
 }

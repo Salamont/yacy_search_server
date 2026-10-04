@@ -308,6 +308,62 @@ public class ReportServiceTest {
         assertEquals(1, this.service.collection("research").getJSONObject("table").getLong("hosts"));
     }
 
+    private ReportService withReferring(final ReportService.ReferringHosts referring) {
+        final IndexFacets facets = new IndexFacets(p -> {
+            if (p.get("rows").equals("0")) return answer(7, 5, 9);
+            final org.apache.solr.common.SolrDocumentList docs = new org.apache.solr.common.SolrDocumentList();
+            for (final String url : List.of("https://www.example.com/", "https://www.example.com/a/x", "https://www.example.com/a/y")) {
+                final org.apache.solr.common.SolrDocument d = new org.apache.solr.common.SolrDocument();
+                d.setField("sku", url);
+                d.setField("httpstatus_i", 200);
+                docs.add(d);
+            }
+            docs.setNumFound(4);
+            final NamedList<Object> result = new NamedList<>();
+            result.add("responseHeader", new NamedList<>());
+            result.add("response", docs);
+            return result;
+        }, f -> FIELDS.contains(f) || f == CollectionSchema.sku);
+        return new ReportService(this.table, facets, this.rollups, () -> new ArrayList<>(this.jobs), this.clock::get,
+                ZoneOffset.UTC, 0, 14, null, 0, referring);
+    }
+
+    @Test public void hostReportHasDirectoriesAndReferringHosts() throws Exception {
+        final Map<String, Integer> graph = new HashMap<>();
+        graph.put("www.example.com", 50);   // the host itself
+        graph.put("Blog.example", 7);
+        graph.put("blog.example.", 1);      // the same host, merged
+        graph.put("news.example", 9);
+        graph.put("127.0.0.1", 3);          // not a host name
+        for (int i = 0; i < 25; i++) graph.put("h" + i + ".example", 1);
+        final JsonObject r = withReferring(host -> graph).host("www.example.com", "research");
+        final JsonObject refs = r.getJSONObject("referring_hosts");
+        assertEquals(27, refs.getLong("hosts"));
+        assertEquals(42, refs.getLong("links"));
+        assertTrue(refs.getBoolean("truncated"));
+        assertEquals(ReportService.REFERRING_LIMIT, refs.getJSONArray("items").length());
+        assertEquals("news.example", refs.getJSONArray("items").getJSONObject(0).getString("host"));
+        assertEquals(8, refs.getJSONArray("items").getJSONObject(1).getLong("links"));
+        assertEquals("blog.example", refs.getJSONArray("items").getJSONObject(1).getString("host"));
+        final JsonObject dirs = r.getJSONObject("directories");
+        assertEquals("/a/", dirs.getJSONArray("items").getJSONObject(0).getString("directory"));
+        assertEquals(2, dirs.getJSONArray("items").getJSONObject(0).getLong("ok"));
+        assertTrue(dirs.getBoolean("truncated"));
+        assertTrue(withReferring(host -> { throw new IOException("graph down"); }).host("www.example.com", "research").isNull("referring_hosts"));
+        assertTrue(this.service.host("www.example.com", "research").isNull("referring_hosts"));
+        assertTrue(this.service.host("www.example.com", "research").isNull("directories")); // index answer without documents
+    }
+
+    @Test public void hostListShowsTheCrawlScheme() throws Exception {
+        this.table.complete("plain.example", "research", CrawlSnapshot.builder("p1", NOON - DAY).endedAt(NOON - DAY).job(JOB)
+                .label(CrawlOutcome.OUTCOME, "indexed").label(CrawlOutcome.SCHEME, "http").build(), NOON);
+        crawl("www.example.com", "research", JOB, NOON - DAY, "indexed", "complete", 1);
+        final List<Object> items = new ArrayList<>();
+        for (final Object item : this.service.hosts("research", "all", 0, 10).getJSONArray("items")) items.add(item);
+        assertEquals("http", ((JsonObject) items.get(0)).getString("scheme"));
+        assertTrue(((JsonObject) items.get(1)).isNull("scheme"));
+    }
+
     @Test public void rollupRootStaysBelowData() {
         final Path root = RollupStore.root(Path.of("/srv/scoutro"));
         assertEquals(Path.of("/srv/scoutro/DATA/SCOUTRO/reports/rollups"), root);

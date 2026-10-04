@@ -77,7 +77,8 @@ public class IndexFacetsSolrTest {
     }
 
     private static IndexFacets facets() {
-        return new IndexFacets(p -> solr.getResponseByParams(p).getResponse(), f -> schema.isEmpty() || schema.contains(f));
+        return new IndexFacets(p -> solr.getResponseByParams(p).getResponse(),
+                f -> schema.isEmpty() || schema.contains(f) || IndexFacets.QUALITY_FIELDS.contains(f));
     }
 
     private static long count(final JsonArray buckets, final Object value) {

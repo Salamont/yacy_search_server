@@ -3,11 +3,16 @@ package net.yacy.scoutro.report;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.net.URI;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import org.apache.solr.common.SolrDocument;
+import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.util.NamedList;
 
@@ -18,10 +23,15 @@ import net.yacy.search.schema.CollectionSchema;
 /**
  * The current page state of a collection or of one host in it, read live from YaCy's
  * index: one bounded rows=0 facet request; partial or incomplete answers fail. Facets
- * whose schema field is disabled are omitted and listed in {@code unavailable}.
+ * whose schema field is disabled are omitted and listed in {@code unavailable}. The
+ * directories of a host come from a second, bounded request ({@link #directories}).
  */
 public final class IndexFacets {
     static final int STATUS_LIMIT = 30, TYPE_LIMIT = 20, DEPTH_LIMIT = 50, DUPLICATE_LIMIT = 1000;
+    static final int DIRECTORY_SCAN = 5000, DIRECTORY_LIMIT = 50, DIRECTORY_CHARS = 200;
+    /** Optional fields of the data-quality facets (enable them in YaCy's index schema). */
+    public static final List<CollectionSchema> QUALITY_FIELDS = List.of(CollectionSchema.canonical_s, CollectionSchema.canonical_equal_sku_b,
+            CollectionSchema.title_exact_signature_l, CollectionSchema.description_exact_signature_l);
 
     private final CrawlOutcome.Query query;
     private final Predicate<CollectionSchema> enabled;
@@ -53,6 +63,22 @@ public final class IndexFacets {
                 inner.put("depth", terms(CollectionSchema.crawldepth_i, DEPTH_LIMIT).put("sort", "index asc"));
             if (on(CollectionSchema.exact_signature_l, unavailable)) inner.put("exact", duplicates(CollectionSchema.exact_signature_l));
             if (on(CollectionSchema.fuzzy_signature_l, unavailable)) inner.put("similar", duplicates(CollectionSchema.fuzzy_signature_l));
+            final boolean canonical = on(CollectionSchema.canonical_s, unavailable), self = on(CollectionSchema.canonical_equal_sku_b, unavailable);
+            if (canonical) {
+                inner.put("canonical", query(f(CollectionSchema.canonical_s) + ":[* TO *]"));
+                if (self) inner.put("canonical_self", query(f(CollectionSchema.canonical_equal_sku_b) + ":true"));
+            }
+            // Titles and descriptions: presence for every scope; identical ones only within a host,
+            // because equal titles on different hosts are no issue of either site.
+            if (on(CollectionSchema.title, unavailable)) {
+                inner.put("title", query(f(CollectionSchema.title) + ":[* TO *]"));
+                if (h != null && on(CollectionSchema.title_exact_signature_l, unavailable)) inner.put("title_same", duplicates(CollectionSchema.title_exact_signature_l));
+            }
+            if (on(CollectionSchema.description_txt, unavailable)) {
+                inner.put("description", query(f(CollectionSchema.description_txt) + ":[* TO *]"));
+                if (h != null && on(CollectionSchema.description_exact_signature_l, unavailable))
+                    inner.put("description_same", duplicates(CollectionSchema.description_exact_signature_l));
+            }
             if (!inner.isEmpty()) ok.put("facet", inner);
             facets.put("ok", ok);
         } else {
@@ -97,6 +123,26 @@ public final class IndexFacets {
                 if (inner.has("exact")) duplicates(dup, "exact", none ? null : value(ok, "exact"));
                 if (inner.has("similar")) duplicates(dup, "similar", none ? null : value(ok, "similar"));
                 if (!dup.isEmpty()) out.put("duplicates", dup);
+                if (inner.has("canonical")) {
+                    final long with = none ? 0 : count(value(ok, "canonical"));
+                    final JsonObject canonical = new JsonObject().put("with", with).put("without", okCount - with);
+                    if (inner.has("canonical_self")) {
+                        final long self = none ? 0 : count(value(ok, "canonical_self"));
+                        canonical.put("self", self).put("elsewhere", with - self);
+                    }
+                    out.put("canonical", canonical);
+                }
+                for (final String field : new String[] {"title", "description"}) {
+                    if (!inner.has(field)) continue;
+                    final long with = none ? 0 : count(value(ok, field));
+                    final JsonObject presence = new JsonObject().put("with", with).put("missing", okCount - with);
+                    if (inner.has(field + "_same")) {
+                        final JsonObject same = new JsonObject();
+                        duplicates(same, "same", none ? null : value(ok, field + "_same"));
+                        for (final String key : same.keySet()) presence.put(key, same.get(key));
+                    }
+                    out.put(field + "s", presence);
+                }
             }
         }
         if (facets.has("status")) out.put("http_status", buckets(empty ? null : value(data, "status")));
@@ -114,6 +160,68 @@ public final class IndexFacets {
         }
         out.put("unavailable", unavailable);
         return out;
+    }
+
+    /**
+     * First-level directories of one host: the URLs of at most {@link #DIRECTORY_SCAN}
+     * documents are read (only {@code sku}, status and fail type) and grouped by their first
+     * path segment; files directly below the root count as "/". Beyond the scan limit the
+     * numbers cover the scanned documents only and {@code truncated} is true.
+     */
+    public JsonObject directories(final String collection, final String host) throws IOException {
+        DomainTable.collection(collection);
+        final String h = HostNames.normalize(host);
+        for (final CollectionSchema required : new CollectionSchema[] {CollectionSchema.collection_sxt, CollectionSchema.host_s, CollectionSchema.sku})
+            if (!this.enabled.test(required)) throw new IOException("index schema lacks " + required.getSolrFieldName());
+        final boolean status = this.enabled.test(CollectionSchema.httpstatus_i), fail = this.enabled.test(CollectionSchema.failtype_s);
+        final ModifiableSolrParams p = new ModifiableSolrParams();
+        p.set("q", f(CollectionSchema.collection_sxt) + ":" + quoted(collection) + " AND " + f(CollectionSchema.host_s) + ":" + quoted(h));
+        p.set("defType", "lucene");
+        p.set("rows", DIRECTORY_SCAN);
+        p.set("fl", f(CollectionSchema.sku) + (status ? "," + f(CollectionSchema.httpstatus_i) : "") + (fail ? "," + f(CollectionSchema.failtype_s) : ""));
+        p.set("timeAllowed", 2000);
+        p.set("omitHeader", false);
+        final NamedList<Object> result = this.query.execute(p);
+        if (result == null) throw new IOException("No index response");
+        final Object partial = value(result.get("responseHeader"), "partialResults");
+        if (partial != null && !"false".equals(String.valueOf(partial))) throw new IOException("Partial index response");
+        final Object response = result.get("response");
+        if (!(response instanceof SolrDocumentList)) throw new IOException("Incomplete index response");
+        final SolrDocumentList docs = (SolrDocumentList) response;
+        final Map<String, long[]> groups = new HashMap<>();
+        for (final SolrDocument doc : docs) {
+            final String directory = directory(String.valueOf(doc.getFirstValue(f(CollectionSchema.sku))));
+            final long[] n = groups.computeIfAbsent(directory, k -> new long[2]);
+            n[0]++;
+            final Object code = status ? doc.getFirstValue(f(CollectionSchema.httpstatus_i)) : null;
+            if (code instanceof Number && ((Number) code).intValue() == 200 && (!fail || doc.getFirstValue(f(CollectionSchema.failtype_s)) == null)) n[1]++;
+        }
+        final List<Map.Entry<String, long[]>> sorted = new java.util.ArrayList<>(groups.entrySet());
+        sorted.sort((a, b) -> a.getValue()[0] != b.getValue()[0] ? Long.compare(b.getValue()[0], a.getValue()[0]) : a.getKey().compareTo(b.getKey()));
+        final JsonArray items = new JsonArray();
+        for (final Map.Entry<String, long[]> e : sorted.subList(0, Math.min(DIRECTORY_LIMIT, sorted.size()))) {
+            final JsonObject item = new JsonObject().put("directory", e.getKey()).put("documents", e.getValue()[0]);
+            item.put("ok", status ? e.getValue()[1] : JsonObject.NULL);
+            items.put(item);
+        }
+        return new JsonObject().put("items", items).put("directories", groups.size()).put("scanned", docs.size())
+                .put("total", docs.getNumFound()).put("truncated", docs.getNumFound() > docs.size());
+    }
+
+    /** "/" for the root and files below it, otherwise "/first-segment/", at most {@link #DIRECTORY_CHARS} characters. */
+    static String directory(final String url) {
+        String path;
+        try {
+            path = URI.create(url).getRawPath();
+        } catch (final IllegalArgumentException invalid) {
+            final int start = url.indexOf("://"), slash = start < 0 ? -1 : url.indexOf('/', start + 3);
+            path = slash < 0 ? "/" : url.substring(slash).replaceAll("[?#].*$", "");
+        }
+        if (path == null || path.isEmpty()) return "/";
+        final int next = path.indexOf('/', 1);
+        if (next < 0) return "/";
+        final String directory = path.substring(0, next + 1);
+        return directory.length() > DIRECTORY_CHARS ? directory.substring(0, DIRECTORY_CHARS) + "…" : directory;
     }
 
     private boolean on(final CollectionSchema field, final JsonArray unavailable) {

@@ -37,6 +37,8 @@ public final class CrawlOutcome {
     public static final String MAX_PAGES = "max_pages";
     public static final String OUTCOME = "outcome";
     public static final String COVERAGE = "coverage";
+    /** Label: "http" or "https", the scheme of the crawl's start URL. */
+    public static final String SCHEME = "scheme";
     /**
      * A redirect the crawler followed is stored as fail type {@code fail}, HTTP status -1
      * and this reason prefix (CrawlQueues/HTTPLoader); it is a redirect, not a failure.
@@ -54,9 +56,16 @@ public final class CrawlOutcome {
         public final long startedAt;
         public final Long endedAt;
         public final int depth, maxPages;
+        /** "http", "https" or null if unknown. */
+        public final String scheme;
 
         public Crawl(final String crawlId, final String startMarker, final String host, final String collection,
                 final long startedAt, final Long endedAt, final int depth, final int maxPages) {
+            this(crawlId, startMarker, host, collection, startedAt, endedAt, depth, maxPages, null);
+        }
+
+        public Crawl(final String crawlId, final String startMarker, final String host, final String collection,
+                final long startedAt, final Long endedAt, final int depth, final int maxPages, final String scheme) {
             this.crawlId = crawlId;
             this.startMarker = startMarker == null || startMarker.isEmpty() ? null : startMarker;
             this.host = HostNames.normalize(host);
@@ -65,6 +74,14 @@ public final class CrawlOutcome {
             this.endedAt = endedAt;
             this.depth = depth;
             this.maxPages = maxPages;
+            this.scheme = "http".equals(scheme) || "https".equals(scheme) ? scheme : null;
+        }
+
+        /** The scheme of a start URL, or null. */
+        public static String scheme(final String url) {
+            if (url == null) return null;
+            final String u = url.trim().toLowerCase(java.util.Locale.ROOT);
+            return u.startsWith("https://") ? "https" : u.startsWith("http://") ? "http" : null;
         }
 
         /** Identity-only snapshot, used to test whether this crawl is already recorded. */
@@ -150,6 +167,7 @@ public final class CrawlOutcome {
         if (exclusions != null) for (final Map.Entry<String, Long> e : exclusions.counts.entrySet()) b.counter(e.getKey(), e.getValue());
         b.label(OUTCOME, outcome(pages));
         b.label(COVERAGE, exclusions != null && exclusions.complete ? "complete" : "partial");
+        if (crawl.scheme != null) b.label(SCHEME, crawl.scheme);
         return b.build();
     }
 

@@ -506,6 +506,16 @@ live index fails, a collection report falls back to the newest rollup
 snapshot (`index_source: rollup`). No route fetches a URL, starts a crawl or
 writes; "Crawl again" in the UI only links to the native crawl form.
 
+Data quality: collection and host reports include `canonical` and
+`titles`/`descriptions` (host reports also pages sharing a title or a
+description); host reports add first-level `directories` and
+`referring_hosts` from YaCy's host link graph. The graph is not
+collection-aware, so agents without the complete index get `referring_hosts:
+null` with `referring_hosts_scope: complete_index_required`. The optional fields
+`canonical_s`, `canonical_equal_sku_b`, `title_exact_signature_l` and
+`description_exact_signature_l` are enabled by the administrator in
+`IndexSchema_p.html`; while disabled they are listed in `index.unavailable`.
+
 ## Scoutro native crawl and host flow
 
 Collection is now mandatory for every Scoutro crawl, including administrators. Safe retry uses Idempotency-Key. See [the complete contract](SCOUTRO_CRAWL_FLOW.md) for host resolution, scoped collection suggestions, durable metadata, Discovery states and CLI examples.

@@ -26,6 +26,54 @@
   }
   const value = (prefix, key) => labels[prefix + key] || String(key);
   const COUNTERS = ['pages_total', 'pages_ok', 'pages_', 'excl_', 'depth', 'max_pages'];
+  const QUALITY = ['canonical_s', 'canonical_equal_sku_b', 'title_exact_signature_l', 'description_exact_signature_l'];
+  function grid(keys, rows) {
+    const table = node('table', null, 'table table-striped sseo-small-table'), head = node('tr'), thead = node('thead'), body = node('tbody');
+    for (const key of keys) { const th = node('th', t(key)); th.scope = 'col'; head.append(th); }
+    thead.append(head); table.append(thead);
+    for (const cells of rows) { const row = node('tr'); for (const cell of cells) row.append(node('td', cell == null ? t('missing') : String(cell))); body.append(row); }
+    table.append(body); const box = node('div', null, 'sseo-scroll'); box.append(table); return box;
+  }
+  function fieldHint(unavailable) {
+    const missing = QUALITY.filter(f => (unavailable || []).includes(f));
+    if (!missing.length) return [];
+    const p = node('p', t('r_fields_disabled') + ' ' + missing.join(', ') + '. ' + t('r_fields_hint') + ' ', 'sseo-note'), link = node('a', t('r_index_schema'));
+    link.href = 'IndexSchema_p.html?core=collection1&filter=disabled'; p.append(link); return [p];
+  }
+  function quality(body, data) {
+    const index = data.index;
+    if (index) {
+      const c = index.canonical, titles = index.titles, descriptions = index.descriptions;
+      body.append(node('h3', t('r_canonical')));
+      if (c) body.append(...section('r_canonical', [['r_canonical_with', fmt(c.with)], ['r_canonical_self', c.self == null ? null : fmt(c.self)],
+        ['r_canonical_elsewhere', c.elsewhere == null ? null : fmt(c.elsewhere)], ['r_canonical_without', fmt(c.without)]]).slice(1));
+      else body.append(node('p', t('r_none'), 'sseo-note'));
+      body.append(...fieldHint(index.unavailable));
+      if (titles || descriptions) body.append(...section('r_texts', [['r_title_with', titles && fmt(titles.with)], ['r_title_missing', titles && fmt(titles.missing)],
+        ['r_title_same_groups', titles && titles.same_groups != null ? fmt(titles.same_groups) : null], ['r_title_same_urls', titles && titles.same_urls != null ? fmt(titles.same_urls) : null],
+        ['r_description_with', descriptions && fmt(descriptions.with)], ['r_description_missing', descriptions && fmt(descriptions.missing)],
+        ['r_description_same_groups', descriptions && descriptions.same_groups != null ? fmt(descriptions.same_groups) : null],
+        ['r_description_same_urls', descriptions && descriptions.same_urls != null ? fmt(descriptions.same_urls) : null]]));
+    }
+    const dirs = data.directories;
+    body.append(node('h3', t('r_directories')));
+    if (!dirs) body.append(node('p', t('r_index_unavailable'), 'sseo-note'));
+    else if (!dirs.items.length) body.append(node('p', t('r_none'), 'sseo-note'));
+    else {
+      body.append(grid(['r_directory', 'r_documents_short', 'r_ok'], dirs.items.map(d => [d.directory, fmt(d.documents), d.ok == null ? null : fmt(d.ok)])));
+      body.append(...section('r_directories', [['r_dirs_count', fmt(dirs.directories)], ['r_dirs_scanned', fmt(dirs.scanned)], ['r_dirs_total', fmt(dirs.total)]]).slice(1));
+      if (dirs.truncated) body.append(node('p', t('r_dirs_truncated'), 'sseo-note'));
+    }
+    const refs = data.referring_hosts;
+    body.append(node('h3', t('r_referring')));
+    if (!refs) body.append(node('p', t('r_referring_unavailable'), 'sseo-note'));
+    else if (!refs.items.length) body.append(node('p', t('r_referring_none'), 'sseo-note'));
+    else {
+      body.append(grid(['r_host', 'r_links'], refs.items.map(r => [r.host, fmt(r.links)])));
+      body.append(...section('r_referring', [['r_referring_total', fmt(refs.hosts)], ['r_links_total', fmt(refs.links)]]).slice(1));
+    }
+    body.append(node('p', t('r_referring_note'), 'sseo-note'));
+  }
   const yes = flag => flag == null ? t('missing') : t(flag ? 'r_yes' : 'r_no');
   function section(title, rows) { const dl = node('dl', null, 'sseo-stats'); for (const [key, v] of rows) dl.append(node('dt', t(key)), node('dd', v == null ? t('missing') : String(v))); return [node('h3', t(title)), dl]; }
   function crawlRows(c) {
@@ -45,6 +93,8 @@
     message(t('loading')); body.replaceChildren(node('p', t('loading')));
     const data = await report('hosts/' + encodeURIComponent(host), { collection: wanted }); if (run !== generation) return;
     body.replaceChildren(); message();
+    const scheme = data.row?.current?.labels?.scheme;
+    if (scheme === 'http' || scheme === 'https') { again.set('url', scheme + '://' + host + '/'); $('cs-again').href = 'ScoutroCrawls_p.html?' + again + '#new-crawl'; }
     if (data.status !== 'found') body.append(node('p', t('cs_' + data.status)));
     else {
       const row = data.row;
@@ -53,8 +103,9 @@
       if (row.previous) body.append(...section('r_previous', crawlRows(row.previous)));
     }
     const index = data.index;
-    if (!index) { body.append(node('h3', t('r_index')), node('p', t('r_index_unavailable'))); return; }
-    body.append(...section('r_index', [['r_documents', fmt(index.documents)], ['r_ok', fmt(index.ok)], ['pages_not_reloaded', 'not_reloaded' in index ? fmt(index.not_reloaded) : null], ['r_oldest', index.oldest && date(index.oldest)], ['r_newest', index.newest && date(index.newest)]]));
+    if (!index) body.append(node('h3', t('r_index')), node('p', t('r_index_unavailable')));
+    else body.append(...section('r_index', [['r_documents', fmt(index.documents)], ['r_ok', fmt(index.ok)], ['pages_not_reloaded', 'not_reloaded' in index ? fmt(index.not_reloaded) : null], ['r_oldest', index.oldest && date(index.oldest)], ['r_newest', index.newest && date(index.newest)]]));
+    quality(body, data);
   }
   function message(text = '') { $('message').textContent = text; }
   function guarded(task) { const promise = task(), run = generation, detailRun = detailGeneration; promise.catch(e => { if (run === generation && detailRun === detailGeneration) message(e.message); }); }

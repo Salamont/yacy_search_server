@@ -8707,11 +8707,72 @@
               "null"
             ]
           },
+          "canonical": {
+            "type": "object",
+            "description": "OK pages by canonical link (needs canonical_s; self/elsewhere need canonical_equal_sku_b).",
+            "properties": {
+              "with": {
+                "type": "integer"
+              },
+              "without": {
+                "type": "integer"
+              },
+              "self": {
+                "type": "integer"
+              },
+              "elsewhere": {
+                "type": "integer"
+              }
+            }
+          },
+          "titles": {
+            "type": "object",
+            "description": "OK pages with and without title; same_* (pages sharing one, host scope only, needs title_exact_signature_l): groups of at least two pages, lower bounds when same_truncated.",
+            "properties": {
+              "with": {
+                "type": "integer"
+              },
+              "missing": {
+                "type": "integer"
+              },
+              "same_groups": {
+                "type": "integer"
+              },
+              "same_urls": {
+                "type": "integer"
+              },
+              "same_truncated": {
+                "type": "boolean"
+              }
+            }
+          },
+          "descriptions": {
+            "type": "object",
+            "description": "OK pages with and without description; same_* (pages sharing one, host scope only, needs description_exact_signature_l): groups of at least two pages, lower bounds when same_truncated.",
+            "properties": {
+              "with": {
+                "type": "integer"
+              },
+              "missing": {
+                "type": "integer"
+              },
+              "same_groups": {
+                "type": "integer"
+              },
+              "same_urls": {
+                "type": "integer"
+              },
+              "same_truncated": {
+                "type": "boolean"
+              }
+            }
+          },
           "unavailable": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Disabled schema fields; the facets that need them are omitted."
           }
         }
       },
@@ -8917,6 +8978,85 @@
           },
           "index_error": {
             "type": "string"
+          },
+          "directories": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "First-level directories of the host from at most 5000 documents; numbers cover the documents read when truncated.",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "directory": {
+                      "type": "string"
+                    },
+                    "documents": {
+                      "type": "integer"
+                    },
+                    "ok": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "directories": {
+                "type": "integer"
+              },
+              "scanned": {
+                "type": "integer"
+              },
+              "total": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            }
+          },
+          "referring_hosts": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Hosts whose crawled pages link to this host, from YaCy's host link graph (locally observed, not collection-aware). Null when unavailable or for agents without the complete index.",
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "host": {
+                      "type": "string"
+                    },
+                    "links": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              },
+              "hosts": {
+                "type": "integer"
+              },
+              "links": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            }
+          },
+          "referring_hosts_scope": {
+            "type": "string",
+            "enum": [
+              "complete_index_required"
+            ]
           }
         }
       },
@@ -8999,6 +9139,18 @@
                     "string",
                     "null"
                   ]
+                },
+                "scheme": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "http",
+                    "https",
+                    null
+                  ],
+                  "description": "Scheme of the crawl's start URL, if recorded."
                 }
               }
             }

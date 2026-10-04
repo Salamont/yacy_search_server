@@ -75,7 +75,7 @@ public class CaptureServiceTest {
 
     @Test public void finishedCrawlIsCapturedOnceAfterTheSettleDelay() throws Exception {
         final long start = this.clock.get() + 1;
-        final CrawlOutcome.Crawl c = crawl("c1", MARKER, "www.example.com", start);
+        final CrawlOutcome.Crawl c = new CrawlOutcome.Crawl("c1", MARKER, "www.example.com", "research", start, null, 2, 15, "http");
         tick(0); // baseline
         this.active.add(c);
         this.service.discoveryAccepted(MARKER, JOB, "example.com");
@@ -102,6 +102,7 @@ public class CaptureServiceTest {
         assertEquals(1L, (long) e.current.counters.get(ExclusionTracker.EXCL_NOINDEX));
         assertEquals("partial", e.current.labels.get(CrawlOutcome.OUTCOME));
         assertEquals("complete", e.current.labels.get(CrawlOutcome.COVERAGE));
+        assertEquals("http", e.current.labels.get(CrawlOutcome.SCHEME)); // kept through the copy with the end time
         assertEquals(1, this.queries.get());
         this.service.discoveryTerminated(MARKER, JOB, "example.com"); // reconcile reports the same crawl again
         tick(SETTLE * 3);
@@ -120,6 +121,7 @@ public class CaptureServiceTest {
         assertNull(e.current.endedAt);
         assertNull(e.current.job);
         assertEquals("partial", e.current.labels.get(CrawlOutcome.COVERAGE));
+        assertNull(e.current.labels.get(CrawlOutcome.SCHEME)); // unknown start URL
         tick(SETTLE);
         assertEquals(1, this.queries.get());
     }

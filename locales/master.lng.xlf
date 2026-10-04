@@ -13877,6 +13877,12 @@
     <trans-unit id="233b30e8" xml:space="preserve" approved="no" translate="yes">
        <source>Duplicates</source>
     </trans-unit>
+    <trans-unit id="a8d1c4d4" xml:space="preserve" approved="no" translate="yes">
+       <source>Canonical</source>
+    </trans-unit>
+    <trans-unit id="26bdafe5" xml:space="preserve" approved="no" translate="yes">
+       <source>Titles and descriptions</source>
+    </trans-unit>
     <trans-unit id="6e6573a9" xml:space="preserve" approved="no" translate="yes">
        <source>Data age</source>
     </trans-unit>
@@ -14284,6 +14290,90 @@
     </trans-unit>
     <trans-unit id="90f3d3f9" xml:space="preserve" approved="no" translate="yes">
        <source>Maximum per day</source>
+    </trans-unit>
+    <trans-unit id="4f984616" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages with canonical</source>
+    </trans-unit>
+    <trans-unit id="5bd45ee5" xml:space="preserve" approved="no" translate="yes">
+       <source>Canonical points to the page itself</source>
+    </trans-unit>
+    <trans-unit id="896ca71e" xml:space="preserve" approved="no" translate="yes">
+       <source>Canonical points to another URL</source>
+    </trans-unit>
+    <trans-unit id="30d59220" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages without canonical</source>
+    </trans-unit>
+    <trans-unit id="bffea47a" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages with title</source>
+    </trans-unit>
+    <trans-unit id="82078584" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages without title</source>
+    </trans-unit>
+    <trans-unit id="4ca24f0e" xml:space="preserve" approved="no" translate="yes">
+       <source>Groups of pages with the same title</source>
+    </trans-unit>
+    <trans-unit id="51a68e19" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages sharing a title</source>
+    </trans-unit>
+    <trans-unit id="bca649e" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages with description</source>
+    </trans-unit>
+    <trans-unit id="92e4d628" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages without description</source>
+    </trans-unit>
+    <trans-unit id="caa0d032" xml:space="preserve" approved="no" translate="yes">
+       <source>Groups of pages with the same description</source>
+    </trans-unit>
+    <trans-unit id="eb1e5afd" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages sharing a description</source>
+    </trans-unit>
+    <trans-unit id="27bafab" xml:space="preserve" approved="no" translate="yes">
+       <source>Directories</source>
+    </trans-unit>
+    <trans-unit id="3e123e4d" xml:space="preserve" approved="no" translate="yes">
+       <source>Directory</source>
+    </trans-unit>
+    <trans-unit id="afaf7298" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents</source>
+    </trans-unit>
+    <trans-unit id="eef2aecd" xml:space="preserve" approved="no" translate="yes">
+       <source>Directories found</source>
+    </trans-unit>
+    <trans-unit id="5380b61e" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents read</source>
+    </trans-unit>
+    <trans-unit id="38ed3298" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents of the host</source>
+    </trans-unit>
+    <trans-unit id="ca5c7119" xml:space="preserve" approved="no" translate="yes">
+       <source>The host has more documents than were read; the figures cover the documents read.</source>
+    </trans-unit>
+    <trans-unit id="49cde3b" xml:space="preserve" approved="no" translate="yes">
+       <source>Referring hosts</source>
+    </trans-unit>
+    <trans-unit id="83f2a0ce" xml:space="preserve" approved="no" translate="yes">
+       <source>Referring hosts in total</source>
+    </trans-unit>
+    <trans-unit id="4487c930" xml:space="preserve" approved="no" translate="yes">
+       <source>Links in total</source>
+    </trans-unit>
+    <trans-unit id="266eebd" xml:space="preserve" approved="no" translate="yes">
+       <source>No referring host observed.</source>
+    </trans-unit>
+    <trans-unit id="7c45aa99" xml:space="preserve" approved="no" translate="yes">
+       <source>The host link graph is not available.</source>
+    </trans-unit>
+    <trans-unit id="2b8096fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.</source>
+    </trans-unit>
+    <trans-unit id="1bce638d" xml:space="preserve" approved="no" translate="yes">
+       <source>Not enabled in the index schema:</source>
+    </trans-unit>
+    <trans-unit id="6036f77b" xml:space="preserve" approved="no" translate="yes">
+       <source>Enable these fields in the index schema; they are filled for pages crawled afterwards.</source>
+    </trans-unit>
+    <trans-unit id="b8236a5" xml:space="preserve" approved="no" translate="yes">
+       <source>Open index schema</source>
     </trans-unit>
   </body>
 </file>

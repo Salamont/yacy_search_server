@@ -62,6 +62,14 @@ public final class ReportService {
         List<Job> jobs() throws IOException;
     }
 
+    /** Locally observed hosts linking to a host (YaCy's host link graph), with their link counts. */
+    @FunctionalInterface
+    public interface ReferringHosts {
+        Map<String, Integer> of(String host) throws IOException;
+    }
+
+    public static final int REFERRING_LIMIT = 20;
+
     /** Current status of a group of rows: one collection or one job. */
     static final class Tally {
         long hosts, crawled, precheckOnly, latestPrecheck, coveragePartial, stale, lastCrawl;
@@ -117,6 +125,7 @@ public final class ReportService {
     private final int defaultStaleDays;
     private final String version;
     private final long graceMillis;
+    private final ReferringHosts referring;
     private Aggregates cached;
     private final Map<String, HostList> hostLists = new java.util.LinkedHashMap<String, HostList>(16, 0.75f, true) {
         private static final long serialVersionUID = 1L;
@@ -132,6 +141,14 @@ public final class ReportService {
     public ReportService(final DomainTable table, final IndexFacets facets, final RollupStore rollups, final Jobs jobs,
             final LongSupplier clock, final ZoneId zone, final long cacheMillis, final int defaultStaleDays, final String version,
             final long graceMillis) {
+        this(table, facets, rollups, jobs, clock, zone, cacheMillis, defaultStaleDays, version, graceMillis, null);
+    }
+
+    /** @param referring the host link graph, or null if it is not available */
+    public ReportService(final DomainTable table, final IndexFacets facets, final RollupStore rollups, final Jobs jobs,
+            final LongSupplier clock, final ZoneId zone, final long cacheMillis, final int defaultStaleDays, final String version,
+            final long graceMillis, final ReferringHosts referring) {
+        this.referring = referring;
         this.table = table;
         this.facets = facets;
         this.rollups = rollups;
@@ -146,7 +163,10 @@ public final class ReportService {
 
     // ------------------------------------------------------------------ host
 
-    /** Row of one host and collection plus its live page state since the current crawl started. */
+    /**
+     * Row of one host and collection plus its live page state since the current crawl
+     * started, its first-level directories and the locally observed referring hosts.
+     */
     public JsonObject host(final String host, final String collection) throws IOException {
         final String h = HostNames.normalize(host), c = DomainTable.collection(collection);
         final DomainTable.Lookup lookup = this.table.read(h, c);
@@ -180,7 +200,43 @@ public final class ReportService {
         } catch (final IOException e) {
             out.put("index", JsonObject.NULL).put("index_source", JsonObject.NULL).put("index_error", "index_unavailable");
         }
+        try {
+            out.put("directories", this.facets.directories(c, h));
+        } catch (final IOException e) {
+            out.put("directories", JsonObject.NULL);
+        }
+        out.put("referring_hosts", referringHosts(h));
         return out;
+    }
+
+    /** Top referring hosts by link count (the host itself excluded), or null if the graph is unavailable. */
+    private Object referringHosts(final String host) {
+        if (this.referring == null) return JsonObject.NULL;
+        final Map<String, Integer> raw;
+        try {
+            raw = this.referring.of(host);
+        } catch (final IOException | RuntimeException e) {
+            return JsonObject.NULL;
+        }
+        final Map<String, Long> hosts = new TreeMap<>();
+        for (final Map.Entry<String, Integer> e : raw.entrySet()) {
+            final String name;
+            try {
+                name = HostNames.normalize(e.getKey());
+            } catch (final IllegalArgumentException invalid) {
+                continue;
+            }
+            if (!name.equals(host)) hosts.merge(name, e.getValue() == null ? 0L : Math.max(0, e.getValue()), Long::sum);
+        }
+        final List<Map.Entry<String, Long>> sorted = new ArrayList<>(hosts.entrySet());
+        sorted.sort((a, b) -> !a.getValue().equals(b.getValue()) ? Long.compare(b.getValue(), a.getValue()) : a.getKey().compareTo(b.getKey()));
+        final JsonArray items = new JsonArray();
+        long links = 0;
+        for (final Map.Entry<String, Long> e : sorted) links += e.getValue();
+        for (final Map.Entry<String, Long> e : sorted.subList(0, Math.min(REFERRING_LIMIT, sorted.size())))
+            items.put(new JsonObject().put("host", e.getKey()).put("links", e.getValue()));
+        return new JsonObject().put("items", items).put("hosts", sorted.size()).put("links", links)
+                .put("truncated", sorted.size() > REFERRING_LIMIT);
     }
 
     // ------------------------------------------------------------ collection
@@ -280,10 +336,11 @@ public final class ReportService {
                     .put("stale", now - at > staleDays * DAY)
                     .put("outcome", e.current.labels.getOrDefault(CrawlOutcome.OUTCOME, "unknown"))
                     .put("coverage", e.current.labels.getOrDefault(CrawlOutcome.COVERAGE, "partial"))
-                    .put("pages_ok", e.current.counters.getOrDefault(CrawlOutcome.PAGES_OK, 0L));
+                    .put("pages_ok", e.current.counters.getOrDefault(CrawlOutcome.PAGES_OK, 0L))
+                    .put("scheme", e.current.labels.containsKey(CrawlOutcome.SCHEME) ? e.current.labels.get(CrawlOutcome.SCHEME) : JsonObject.NULL);
         } else {
             item.put("crawl_time", 0).put("last_crawl", JsonObject.NULL).put("age_days", JsonObject.NULL).put("stale", false)
-                    .put("outcome", JsonObject.NULL).put("coverage", JsonObject.NULL).put("pages_ok", JsonObject.NULL);
+                    .put("outcome", JsonObject.NULL).put("coverage", JsonObject.NULL).put("pages_ok", JsonObject.NULL).put("scheme", JsonObject.NULL);
         }
         final boolean precheck = latestIsPrecheck(e);
         item.put("latest_attempt", precheck ? "precheck" : e.current == null ? JsonObject.NULL : "crawl")

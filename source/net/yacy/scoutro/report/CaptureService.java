@@ -151,7 +151,7 @@ public final class CaptureService {
             return;
         }
         final CrawlOutcome.Crawl ended = endedAt == null ? crawl : new CrawlOutcome.Crawl(crawl.crawlId, crawl.startMarker,
-                crawl.host, crawl.collection, crawl.startedAt, Math.max(endedAt, crawl.startedAt), crawl.depth, crawl.maxPages);
+                crawl.host, crawl.collection, crawl.startedAt, Math.max(endedAt, crawl.startedAt), crawl.depth, crawl.maxPages, crawl.scheme);
         this.pending.put(key, new Pending(ended, due));
     }
 

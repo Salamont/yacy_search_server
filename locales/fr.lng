@@ -4801,6 +4801,37 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 >No hosts match this filter.<==>No hosts match this filter.<
 >Total<==>Total<
 >Maximum per day<==>Maximum per day<
+>Canonical<==>Canonical<
+>Titles and descriptions<==>Titles and descriptions<
+>Pages with canonical<==>Pages with canonical<
+>Canonical points to the page itself<==>Canonical points to the page itself<
+>Canonical points to another URL<==>Canonical points to another URL<
+>Pages without canonical<==>Pages without canonical<
+>Pages with title<==>Pages with title<
+>Pages without title<==>Pages without title<
+>Groups of pages with the same title<==>Groups of pages with the same title<
+>Pages sharing a title<==>Pages sharing a title<
+>Pages with description<==>Pages with description<
+>Pages without description<==>Pages without description<
+>Groups of pages with the same description<==>Groups of pages with the same description<
+>Pages sharing a description<==>Pages sharing a description<
+>Directories<==>Directories<
+>Directory<==>Directory<
+>Documents<==>Documents<
+>Directories found<==>Directories found<
+>Documents read<==>Documents read<
+>Documents of the host<==>Documents of the host<
+>The host has more documents than were read; the figures cover the documents read.<==>The host has more documents than were read; the figures cover the documents read.<
+>Referring hosts<==>Referring hosts<
+>Links<==>Links<
+>Referring hosts in total<==>Referring hosts in total<
+>Links in total<==>Links in total<
+>No referring host observed.<==>No referring host observed.<
+>The host link graph is not available.<==>The host link graph is not available.<
+>Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.<==>Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.<
+>Not enabled in the index schema:<==>Not enabled in the index schema:<
+>Enable these fields in the index schema; they are filled for pages crawled afterwards.<==>Enable these fields in the index schema; they are filled for pages crawled afterwards.<
+>Open index schema<==>Open index schema<
 
 #File: ScoutroCrawls_p.html
 

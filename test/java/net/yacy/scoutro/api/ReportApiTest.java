@@ -52,7 +52,7 @@ public class ReportApiTest {
         final IndexFacets facets = new IndexFacets(p -> answer(), Set.of(CollectionSchema.collection_sxt, CollectionSchema.host_s)::contains);
         final ReportService reports = new ReportService(this.table, facets, new RollupStore(RollupStore.root(this.tmp.newFolder("app").toPath())),
                 () -> List.of(new ReportService.Job(JOB, "Visible job", "fp", 30), new ReportService.Job(MIXED, "Mixed job", "fp", 30)),
-                this.clock::get, ZoneOffset.UTC, 0, 30, null, 0);
+                this.clock::get, ZoneOffset.UTC, 0, 30, null, 0, host -> Map.of("ref.example", 3));
         this.api = new ReportApi(reports);
         crawl("a.example", "visible", JOB, NOON - DAY, "indexed");
         crawl("b.example", "visible", JOB, NOON - 40 * DAY, "partial");
@@ -195,6 +195,17 @@ public class ReportApiTest {
         assertEquals(1, agent(all, "collections/secret").getJSONObject("table").getLong("hosts"));
         final ReportApi.Scope none = new ReportApi.Scope(false, Set.of("other"));
         assertEquals(0, agent(none, "jobs").getJSONArray("jobs").length());
+    }
+
+    @Test public void referringHostsNeedTheCompleteIndex() throws Exception {
+        final JSONObject admin = admin("hosts/a.example", "collection", "visible");
+        assertEquals("ref.example", admin.getJSONObject("referring_hosts").getJSONArray("items").getJSONObject(0).getString("host"));
+        final JSONObject all = agent(new ReportApi.Scope(true, Set.of()), "hosts/a.example", "collection", "visible");
+        assertEquals(1, all.getJSONObject("referring_hosts").getLong("hosts"));
+        final JSONObject narrow = agent(new ReportApi.Scope(false, Set.of("visible")), "hosts/a.example", "collection", "visible");
+        assertTrue(narrow.isNull("referring_hosts"));
+        assertEquals("complete_index_required", narrow.getString("referring_hosts_scope"));
+        assertFalse(admin.has("referring_hosts_scope"));
     }
 
     @Test public void jobsWithoutRecordedCollectionsAreOnlyVisibleWithTheCompleteIndex() throws Exception {

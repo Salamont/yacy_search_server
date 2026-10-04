@@ -75,6 +75,8 @@
 <section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-types-title"><h3 id="sseo-r-types-title">Content types</h3><div id="sseo-r-types"></div></section>
 <section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-depth-title"><h3 id="sseo-r-depth-title">Crawl depth</h3><div id="sseo-r-depth"></div></section>
 <section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-duplicates-title"><h3 id="sseo-r-duplicates-title">Duplicates</h3><dl class="sseo-stats" id="sseo-r-duplicates"></dl></section>
+<section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-canonical-title"><h3 id="sseo-r-canonical-title">Canonical</h3><div id="sseo-r-canonical"></div></section>
+<section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-texts-title"><h3 id="sseo-r-texts-title">Titles and descriptions</h3><dl class="sseo-stats" id="sseo-r-texts"></dl></section>
 <section class="sseo-panel" aria-labelledby="sseo-r-age-title"><h3 id="sseo-r-age-title">Data age</h3><dl class="sseo-stats" id="sseo-r-age"></dl></section>
 </div>
 <section class="sseo-panel" data-sseo-scope="job" aria-labelledby="sseo-r-history-title"><h3 id="sseo-r-history-title">Daily history</h3><div id="sseo-r-history"></div><details><summary>Show data</summary><div class="sseo-scroll" id="sseo-r-history-table"></div></details></section>
@@ -245,6 +247,37 @@
 <span data-sseo-label="r_no_hosts">No hosts match this filter.</span>
 <span data-sseo-label="r_total">Total</span>
 <span data-sseo-label="r_maximum">Maximum per day</span>
+<span data-sseo-label="r_canonical">Canonical</span>
+<span data-sseo-label="r_canonical_with">Pages with canonical</span>
+<span data-sseo-label="r_canonical_self">Canonical points to the page itself</span>
+<span data-sseo-label="r_canonical_elsewhere">Canonical points to another URL</span>
+<span data-sseo-label="r_canonical_without">Pages without canonical</span>
+<span data-sseo-label="r_texts">Titles and descriptions</span>
+<span data-sseo-label="r_title_with">Pages with title</span>
+<span data-sseo-label="r_title_missing">Pages without title</span>
+<span data-sseo-label="r_title_same_groups">Groups of pages with the same title</span>
+<span data-sseo-label="r_title_same_urls">Pages sharing a title</span>
+<span data-sseo-label="r_description_with">Pages with description</span>
+<span data-sseo-label="r_description_missing">Pages without description</span>
+<span data-sseo-label="r_description_same_groups">Groups of pages with the same description</span>
+<span data-sseo-label="r_description_same_urls">Pages sharing a description</span>
+<span data-sseo-label="r_directories">Directories</span>
+<span data-sseo-label="r_directory">Directory</span>
+<span data-sseo-label="r_documents_short">Documents</span>
+<span data-sseo-label="r_dirs_count">Directories found</span>
+<span data-sseo-label="r_dirs_scanned">Documents read</span>
+<span data-sseo-label="r_dirs_total">Documents of the host</span>
+<span data-sseo-label="r_dirs_truncated">The host has more documents than were read; the figures cover the documents read.</span>
+<span data-sseo-label="r_referring">Referring hosts</span>
+<span data-sseo-label="r_links">Links</span>
+<span data-sseo-label="r_referring_total">Referring hosts in total</span>
+<span data-sseo-label="r_links_total">Links in total</span>
+<span data-sseo-label="r_referring_none">No referring host observed.</span>
+<span data-sseo-label="r_referring_unavailable">The host link graph is not available.</span>
+<span data-sseo-label="r_referring_note">Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.</span>
+<span data-sseo-label="r_fields_disabled">Not enabled in the index schema:</span>
+<span data-sseo-label="r_fields_hint">Enable these fields in the index schema; they are filled for pages crawled afterwards.</span>
+<span data-sseo-label="r_index_schema">Open index schema</span>
 </div>
 </main>
 #%env/templates/footer.template%#
