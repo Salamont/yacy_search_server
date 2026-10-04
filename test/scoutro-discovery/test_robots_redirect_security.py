@@ -46,6 +46,7 @@ class RobotsRedirectSecurityTest(unittest.TestCase):
             return factory(urllib.request.ProxyHandler({}), FakeHTTP(), FakeHTTPS(), *handlers)
 
         self.patches = [
+            patch("urllib.request.getproxies", return_value={}),
             patch("urllib.request.build_opener", side_effect=fake_opener),
             patch("socket.getaddrinfo", side_effect=self.resolve),
             patch("socket.create_connection", side_effect=AssertionError("real connection forbidden")),

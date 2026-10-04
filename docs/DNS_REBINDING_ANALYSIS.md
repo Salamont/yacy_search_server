@@ -1,21 +1,37 @@
-# DNS-rebinding: open transport boundary
+# DNS rebinding: robots validation bound to connection
 
-The existing robots redirect defenses validate every target/hop and all DNS answers, refuse private/mixed/empty results and retain YaCy domain/network policy. They protect redirect selection. They do not bind that decision to the socket address used by the HTTP client.
+The reproduced validation-versus-connect gap is closed for public/global YaCy robots fetches and Scoutro Discovery's robots pre-check. Each request captures all DNS answers, applies the existing public-address policy, and passes that immutable snapshot to the connector. The connector dials only numeric addresses from that snapshot and checks the connected peer IP and port. No later hostname lookup can select a different destination. Empty, failed or mixed public/private answers remain refused.
 
-Evidence in the current main and this PR:
+## Java
 
-- Python `tools/scoutro/scoutro-discovery`: `public_robots_url()` calls `resolve_public()` and returns only a normalized URL. `robots_allowed()` passes it to `urllib` which resolves the hostname again during connection.
-- Java `source/net/yacy/crawler/data/RobotsTxt.java`: contextual target validation precedes the loader fetch; `source/net/yacy/cora/protocol/http/HTTPClient.java` owns the separate connection manager/resolution path. The validation result is not an immutable connection address constraint. Loader caching/proxy/pooling also need consideration before claiming a fix.
-- `test/scoutro-discovery/test_dns_rebinding_analysis.py` runs the actual urllib connection-selection code with fake DNS and a fake socket: validation sees a public address, connection selection sees loopback. The fake socket records the attempted address and raises before connecting. No packet, live DNS, production URL or private service is contacted. This reproduces the validation/connect gap; it does not claim a working network exploit or a security fix.
+`source/net/yacy/crawler/robots/RobotsTxt.java` uses `LoaderDispatcher.loadRobots()` with `NOCACHE`; `HTTPLoader` validates the initial target, every redirect and any alternative-name rewrite. It passes the validated snapshot to `HTTPClient.pinRobotsTarget()` before fetching.
 
-A check just before `open()`, an extra DNS lookup, or IP substitution in the URL is insufficient. The first two retain the race; IP substitution can break TLS hostname verification/SNI, virtual-host routing and existing proxy/loader policy. A global DNS cache or broad HTTPClient rewrite would exceed this PR without proving the invariant. No runtime network change is made here.
+`PinnedRobotsTransport` installs a request-specific Apache connection manager with a fixed DNS resolver. The URL retains its original host, scheme and port, preserving HTTP Host and HTTPS certificate hostname/SNI. TLS uses the default trusted SSL context and hostname verifier, explicit HTTPS endpoint identification and DNS SNI; it does not use the general crawler's permissive TLS factory. IPv4/IPv6 fallback can select only another address in the same validated snapshot. Unexpected route/peer changes fail before HTTP data is sent.
 
-## Concrete follow-up plan
+The manager is never shared with the general connection pool. Automatic retries, internal redirects and connection reuse are disabled; the client and its manager close after the single fetch. Manual loader redirects obtain a new snapshot and client, including same-host redirects. Both configured proxy routes and request-config proxies are refused: a remote resolver cannot be bound to the validated destination by this adapter. A proxy is not silently bypassed.
 
-1. Inventory the robots-only Java and Python transport paths: direct connections, proxies, redirects, pooled reuse, IPv4/IPv6 and retries. Establish how to enforce each existing policy at actual connection selection.
-2. Introduce a bounded request context containing the canonical host/port and the full validated public address set. Fail closed on empty, mixed or changed policy results. Ensure the connector can dial only that set for this request, including retries/reuse, while preserving the original HTTP Host and TLS SNI/certificate hostname verification. Do not allow a later resolver to choose an unchecked address.
-3. Implement a robots-specific transport adapter first; avoid changing unrelated crawls/loaders. If a proxy performs DNS, require a supported way to enforce the same destination boundary or fail closed for that mode. Connection pools must isolate or revalidate destinations before reuse.
-4. Add fake DNS schedules public→loopback, public→RFC1918/link-local, mixed A/AAAA, DNS failure and public→public. Test actual dial selection, redirect hops, pooled reuse/retries, proxy behavior, HTTPS Host/SNI/certificate rejection and normal public targets. Tests must use controlled local listeners or fake transports, never production DNS/URLs.
-5. Require an independent security review and invariant proof before enabling the new transport. Retain the existing redirect/robots policy tests and document precisely which loaders are covered.
+The explicit `local` and `any` network modes retain their existing intentionally local-capable transport and policy. Ordinary crawl/profileless/stream loaders are unchanged. Existing unavailable-robots parser/cache behavior is unchanged; this change prevents an unvalidated robots connection, rather than changing robots permissions.
 
-Residual risk remains: an attacker-controlled hostname may change its DNS answer between validation and connect. Existing redirect defenses reduce other SSRF paths but do not close this race. The MCP adapter is distinct: its fixed server origin comes from trusted local configuration, carries scoped agent credentials, refuses redirects and does not consume crawler-provided target URLs. System metric/host analysis actions never fetch or resolve a target.
+## Python Discovery
+
+The robots-only urllib opener prepares a canonical URL and immutable family/address snapshot. Its HTTP and HTTPS connections call `socket.connect()` with numeric IPv4/IPv6 destinations instead of `socket.create_connection()` or a hostname. Scoped IPv6/escaped host names are refused to avoid an additional interface/hostname resolution in socket selection. Peer IP/port must equal the selected validated destination. HTTPS wraps that socket with `ssl.create_default_context()` and the original canonical hostname for SNI and certificate verification.
+
+Every redirect creates and validates a new request. Connections close after each fetch; there is no shared pool. Connect fallback uses only addresses from the current snapshot. Environment proxies are refused when they apply; configured `NO_PROXY` bypasses still use the pinned direct connector. Policy errors survive urllib's exception wrapping and return `False` from `robots_allows()`, without the ordinary unavailable-robots fallback. Existing HTTPS/HTTP content fallback and transient 5xx behavior remain, with a separate validated binding for every attempted request.
+
+## Offline proof and regressions
+
+`test/scoutro-discovery/test_dns_rebinding_analysis.py` replaces the former successful gap reproduction with 12 transport regressions. Real urllib/http.client request and connection selection run against fake DNS, sockets and TLS. Public-to-loopback, RFC1918, link-local and public-to-public answer schedules prove that only the first validated snapshot is dialed. Tests also cover mixed/empty/failed DNS, IPv6 literals/nondefault ports and address fallback, Host/SNI, certificate failure, redirects, fresh requests, proxy refusal/bypass and peer mismatch.
+
+`PinnedRobotsTransportTest` runs the real Apache route/resolver/connect/TLS/HTTP logic with fake socket factories. It verifies immutable snapshots, numeric IPv4/IPv6 dialing, address fallback, Host/port, SNI/endpoint identification, certificate-hostname and handshake rejection, changed routes, both proxy paths, no automatic redirects/retries, separate managers, peer mismatch, and the actual HTTPClient binding/close/single-use path. Existing loader/dispatcher/RobotsTxt tests additionally assert that the validated snapshots reach the connector on each hop and retain local/any compatibility. Its test JVM uses a dedicated hosts file; no external DNS or real connection occurs. The PEM fixture is only a public test certificate; no private key is stored.
+
+```sh
+ant robots-redirect-security-test
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+  -s test/scoutro-discovery -p 'test_*.py' -v
+```
+
+## Coverage boundary
+
+This is a robots-specific transport fix, not a global network rewrite. Other crawler/Discovery download transports are outside its coverage. Supported public robots requests require a direct route; configured proxies fail with a clear transport/policy error. Standard CA/hostname verification can reject certificates that the prior permissive Java transport accepted. No proxy service, production crawl, deployment or release is required.
+
+The MCP adapter remains separate: its fixed origin is trusted local configuration, scoped credentials never follow redirects, and system metric/host-analysis actions do not fetch or resolve their requested hosts.

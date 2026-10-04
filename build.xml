@@ -303,6 +303,7 @@
     <javac srcdir="${test}" destdir="build/robots-security-tests" release="${javacRelease}"
            encoding="UTF-8" includeantruntime="false">
       <include name="net/yacy/crawler/retrieval/RobotsRedirectSecurityTest.java" />
+      <include name="net/yacy/cora/protocol/http/PinnedRobotsTransportTest.java" />
       <include name="net/yacy/crawler/robots/RobotsTxtTest.java" />
       <include name="net/yacy/cora/protocol/Domains*Test.java" />
       <classpath>
@@ -315,6 +316,7 @@
     <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true">
       <jvmarg value="-Djdk.net.hosts.file=${yacyroot}/build/robots-security-tests/hosts" />
       <arg value="net.yacy.crawler.retrieval.RobotsRedirectSecurityTest" />
+      <arg value="net.yacy.cora.protocol.http.PinnedRobotsTransportTest" />
       <arg value="net.yacy.crawler.robots.RobotsTxtTest" />
       <arg value="net.yacy.cora.protocol.DomainsTest" />
       <arg value="net.yacy.cora.protocol.DomainsPublicAddressTest" />

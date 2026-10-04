@@ -99,12 +99,17 @@ Those opt-ins were not enabled. The Java build and `git diff --check` passed.
 Suite totals overlap where Dashboard/Admin tests are run by several targets;
 these numbers are per target, not a count of unique cases.
 
-## Boundary
+## Bound connection addresses
 
-Target validation is performed before every robots follow fetch. DNS results
-are not pinned to the HTTP client's subsequent connection; a hostile DNS change
-between validation and connection remains a separate transport-hardening topic.
-This is not a blanket SSRF guarantee for unrelated loaders or other Discovery
-source downloads.
+The subsequent PR #9 transport fix binds public/global robots connections to
+an immutable validated address snapshot. Java uses a dedicated, single-use
+Apache connection manager; Python uses numeric-address HTTP/HTTPS connectors.
+Host/SNI and trusted TLS certificate/hostname verification remain attached to
+the original URL. Every redirect is revalidated; shared pools and unchecked
+proxy resolution cannot bypass the binding. Unsupported proxies fail closed.
+Local/any modes and ordinary loaders retain their existing behavior.
 
-The bounded fake-DNS reproduction and a concrete transport-hardening plan are now recorded in [DNS_REBINDING_ANALYSIS.md](DNS_REBINDING_ANALYSIS.md). This follow-up does not change network behavior or claim to close the remaining validation/connect race.
+The implementation, fake-dial regressions and exact coverage boundary are
+recorded in [DNS_REBINDING_ANALYSIS.md](DNS_REBINDING_ANALYSIS.md). The historical
+validation totals above describe the earlier redirect-only fix; the PR #9
+report includes the new transport and complete rebased regression results.
