@@ -1,0 +1,178 @@
+#!/usr/bin/env python3
+"""Scoutro MCP stdio adapter. GPL-2.0-or-later. Only authorized read actions, no admin credentials."""
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+MAX_BYTES = 1024 * 1024
+PROTOCOLS = ('2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05')
+
+class AdapterError(Exception):
+    pass
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise AdapterError('Scoutro redirects are refused; the Bearer token stays on the configured origin.')
+
+class Adapter:
+    def __init__(self, base, token, catalog, opener=None):
+        if any(ord(c) < 33 for c in base):
+            raise AdapterError('SCOUTRO_URL must not contain whitespace or control characters.')
+        url = urllib.parse.urlsplit(base)
+        if (url.scheme not in ('http', 'https') or not url.hostname or url.username or url.password or url.query or url.fragment
+                or (url.scheme == 'http' and url.hostname not in ('127.0.0.1', '::1', 'localhost'))):
+            raise AdapterError('SCOUTRO_URL must be HTTPS, or HTTP on literal loopback, without credentials/query/fragment.')
+        if not re.fullmatch(r'sca_[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+', token or ''):
+            raise AdapterError('An agent token is required in SCOUTRO_TOKEN or SCOUTRO_TOKEN_FILE; admin passwords are not accepted.')
+        self.base, self.token, self.catalog = base.rstrip('/'), token, catalog
+        self.opener = opener or urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect())
+
+    def get(self, path, query=None):
+        # All paths originate in the local generated catalog, never from a client URL.
+        if not path.startswith('/scoutro/api/agent/v1/') or '..' in path.split('/'):
+            raise AdapterError('Only the authorized agent API is available.')
+        url = self.base + path
+        if query:
+            url += '?' + urllib.parse.urlencode(query)
+        request = urllib.request.Request(url, headers={'Authorization':'Bearer ' + self.token, 'Accept':'application/json'})
+        try:
+            response = self.opener.open(request, timeout=15)
+        except urllib.error.HTTPError as error:
+            response = error
+        except (OSError, urllib.error.URLError):
+            raise AdapterError('Scoutro is unreachable; no substitute data is returned.') from None
+        with response:
+            raw = response.read(MAX_BYTES + 1)
+            if len(raw) > MAX_BYTES:
+                raise AdapterError('Scoutro response exceeds the bounded MCP response size.')
+            try:
+                data = json.loads(raw)
+            except (ValueError, UnicodeError):
+                raise AdapterError('Scoutro did not return JSON.') from None
+            if not isinstance(data, dict):
+                raise AdapterError('Scoutro did not return a structured JSON object.')
+            return response.status, data
+
+    def available(self):
+        status, caps = self.get('/scoutro/api/agent/v1/capabilities')
+        if status != 200:
+            raise AdapterError('Scoutro capabilities denied or unavailable; check token status and grants.')
+        actions = caps.get('actions')
+        if not isinstance(actions, list) or any(not isinstance(a, dict) or not isinstance(a.get('name'), str) for a in actions):
+            raise AdapterError('Scoutro capabilities are incomplete.')
+        granted = {a['name'] for a in actions}
+        tools = {}
+        for action in self.catalog['actions']:
+            access = action.get('agent', {})
+            grant = access.get('grant', action['name'])
+            delegates = access.get('delegatesTo', [])
+            if (action.get('mutating') or access.get('http', {}).get('method') != 'GET'
+                    or not ((access.get('grantable') and grant in granted) or (delegates and granted.intersection(delegates)))):
+                continue
+            properties, required = {}, []
+            for name, definition in action.get('parameters', {}).items():
+                if definition.get('in') not in ('query', 'path'):
+                    continue
+                properties[name] = {k:v for k,v in definition.items() if k not in ('in', 'required')}
+                if definition.get('required'):
+                    required.append(name)
+            schema = {'type':'object', 'properties':properties, 'required':required, 'additionalProperties':False}
+            tools[action['mcpTool']] = (action, schema)
+        return tools
+
+    def call(self, name, arguments):
+        tools = self.available()  # Refresh revocation/grants at each call; the API authorizes again.
+        if name not in tools:
+            raise AdapterError('Tool is unknown or not granted to this agent.')
+        action, schema = tools[name]
+        if not isinstance(arguments, dict) or set(arguments) - set(schema['properties']) or set(schema['required']) - set(arguments):
+            raise AdapterError('Arguments do not match the authorized tool schema.')
+        path, query = action['agent']['http']['path'], {}
+        for key, value in arguments.items():
+            definition = schema['properties'][key]
+            types = definition.get('type', 'string')
+            types = types if isinstance(types, list) else [types]
+            valid = any((t == 'string' and isinstance(value, str)) or (t == 'integer' and type(value) is int)
+                        or (t == 'boolean' and type(value) is bool) for t in types)
+            if not valid or ('enum' in definition and value not in definition['enum']):
+                raise AdapterError('Invalid argument type or enum value.')
+            if isinstance(value, str) and (len(value) > definition.get('maxLength', 4096) or any(ord(c) < 32 for c in value)
+                                           or ('pattern' in definition and not re.search(definition['pattern'], value))):
+                raise AdapterError('Invalid string argument.')
+            if type(value) is int and (value < definition.get('minimum', -10**12) or value > definition.get('maximum', 10**12)):
+                raise AdapterError('Numeric argument outside the allowed range.')
+            original = action['parameters'][key]
+            if original['in'] == 'path':
+                path = path.replace('{' + key + '}', urllib.parse.quote(value, safe=''))
+            else:
+                query[key] = str(value).lower() if isinstance(value, bool) else value
+        if '{' in path:
+            raise AdapterError('Missing path parameter.')
+        status, data = self.get(path, query)
+        # Tool errors remain structured API errors; never switch to public/admin/search endpoints.
+        return {'content':[{'type':'text','text':json.dumps(data, ensure_ascii=False)}], 'isError':status != 200}
+
+    def dispatch(self, request):
+        if not isinstance(request, dict) or request.get('jsonrpc') != '2.0' or not isinstance(request.get('method'), str):
+            return {'jsonrpc':'2.0','id':None,'error':{'code':-32600,'message':'Invalid JSON-RPC request.'}}
+        if 'id' not in request:
+            return None  # MCP notifications have no response.
+        result = {'jsonrpc':'2.0', 'id':request['id']}
+        method, params = request['method'], request.get('params', {})
+        try:
+            if not isinstance(params, dict):
+                raise AdapterError('Parameters must be an object.')
+            if method == 'initialize':
+                version = params.get('protocolVersion')
+                result['result'] = {'protocolVersion':version if version in PROTOCOLS else PROTOCOLS[0],
+                                    'capabilities':{'tools':{}}, 'serverInfo':{'name':'scoutro-agent-actions','version':'1'}}
+            elif method == 'ping':
+                result['result'] = {}
+            elif method == 'tools/list':
+                result['result'] = {'tools':[{'name':name,'description':action['description'],'inputSchema':schema,
+                                              'annotations':{'readOnlyHint':True,'destructiveHint':False}}
+                                             for name,(action,schema) in self.available().items()]}
+            elif method == 'tools/call':
+                result['result'] = self.call(params.get('name'), params.get('arguments', {}))
+            else:
+                result['error'] = {'code':-32601,'message':'Method not found.'}
+        except AdapterError as error:
+            result['error'] = {'code':-32602,'message':str(error)}
+        except (KeyError, TypeError, ValueError):
+            result['error'] = {'code':-32602,'message':'Invalid MCP request or action catalog.'}
+        return result
+
+def main():
+    try:
+        token = os.environ.get('SCOUTRO_TOKEN')
+        if not token and os.environ.get('SCOUTRO_TOKEN_FILE'):
+            with open(os.environ['SCOUTRO_TOKEN_FILE'], encoding='utf-8') as source:
+                token = source.readline().strip()
+        catalog = json.loads((Path(__file__).resolve().parents[2] / 'htroot/env/scoutro/api/actions.json').read_text())
+        adapter = Adapter(os.environ.get('SCOUTRO_URL','http://127.0.0.1:8090'), (token or '').strip(), catalog)
+    except (OSError, ValueError, AdapterError) as error:
+        # Never print token values, request headers, URLs or credential paths.
+        print('Scoutro MCP configuration failed: ' + (str(error) if isinstance(error, AdapterError) else 'cannot read configuration.'), file=sys.stderr)
+        return 2
+    while True:
+        line = sys.stdin.buffer.readline(MAX_BYTES + 1)
+        if not line:
+            break
+        if len(line) > MAX_BYTES:
+            print('Scoutro MCP input exceeds the message limit.', file=sys.stderr)
+            return 2
+        try:
+            result = adapter.dispatch(json.loads(line))
+        except (ValueError, UnicodeError):
+            result = {'jsonrpc':'2.0','id':None,'error':{'code':-32700,'message':'Parse error.'}}
+        if result is not None:
+            print(json.dumps(result, ensure_ascii=False), flush=True)
+    return 0
+
+if __name__ == '__main__':
+    sys.exit(main())

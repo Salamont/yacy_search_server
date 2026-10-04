@@ -115,20 +115,22 @@ public final class HTTPLoader {
         return response;
     }
 
-    private void checkRobotsTarget(final DigestURL url) throws IOException {
+    private InetAddress[] checkRobotsTarget(final DigestURL url) throws IOException {
         if (!"http".equals(url.getProtocol()) && !"https".equals(url.getProtocol())) {
             throw new IOException("robots target requires HTTP or HTTPS");
         }
         // Local and any-network installations deliberately allow local resources.
-        if (this.sb.isIntranetMode()) return;
+        if (this.sb.isIntranetMode()) return null;
         if (this.sb.crawlStacker == null) throw new IOException("robots network policy unavailable");
         if (url.getUserInfo() != null && !url.getUserInfo().isEmpty()) {
             throw new IOException("robots target credentials are not allowed");
         }
         final String host = url.getHost();
         if (host == null || host.isEmpty()) throw new IOException("robots target requires a host");
-        final String reason = this.sb.crawlStacker.urlInAcceptedDomain(url, this.addresses.resolve(host));
+        final InetAddress[] validated = this.addresses.resolve(host);
+        final String reason = this.sb.crawlStacker.urlInAcceptedDomain(url, validated);
         if (reason != null) throw new IOException("robots target rejected: " + reason);
+        return validated.clone();
     }
 
     /**
@@ -375,7 +377,7 @@ public final class HTTPLoader {
     private Response load(final Request request, CrawlProfile profile, final int retryCount, final int maxFileSize,
             final BlacklistType blacklistType, final ClientIdentification.Agent agent, final boolean robots) throws IOException {
         if (robots && retryCount < 0) throw new IOException("robots redirect limit exceeded");
-        if (robots) this.checkRobotsTarget(request.url());
+        InetAddress[] validated = robots ? this.checkRobotsTarget(request.url()) : null;
         if (retryCount < 0) {
             this.sb.crawlQueues.errorURL.push(request.url(), request.depth(), profile, FailCategory.TEMPORARY_NETWORK_FAILURE, "retry counter exceeded", -1);
             throw new IOException("retry counter exceeded for URL " + request.url().toString() + ". Processing aborted.$");
@@ -407,7 +409,7 @@ public final class HTTPLoader {
         }
 
         // Alternative YaCy names can rewrite the actual fetch target.
-        if (robots && url != request.url()) this.checkRobotsTarget(url);
+        if (robots && url != request.url()) validated = this.checkRobotsTarget(url);
 
         // take a file from the net
         Response response = null;
@@ -417,6 +419,7 @@ public final class HTTPLoader {
 
         // HTTP-Client
         try (final HTTPClient client = this.clients.apply(agent)) {
+            if (validated != null) client.pinRobotsTarget(url, validated);
             client.setRedirecting(false); // we want to handle redirection ourselves, so we don't index pages twice
             client.setTimout(this.socketTimeout);
             client.setHeader(requestHeader.entrySet());

@@ -113,7 +113,8 @@ final class AgentApi {
         }
     }
 
-    private Response dispatch(final Request r) throws ApiException {
+    private Response dispatch(final Request original) throws ApiException {
+        Request r = original;
         if (r.query.containsKey("access_token") || r.query.containsKey("token")) {
             return error(r, null, null, "-", 400, "token_in_url",
                     "Send the token in the Authorization header, never in the URL.");
@@ -153,6 +154,17 @@ final class AgentApi {
         }
         final Agent agent = auth2.agent;
         final TokenRecord token = auth2.token;
+        final SystemQuestions.Plan question;
+        if (r.path.equals(java.util.Arrays.asList("system", "questions"))) {
+            if (!"GET".equals(r.method)) return audited(r, agent, token, "-", new Response(405,
+                    new ApiException(405, "method_not_allowed", "System questions require GET.").toJson()), "method_not_allowed");
+            try {
+                question = SystemQuestions.require(r.query.get("q"));
+                r = SystemQuestions.request(question, r);
+            } catch (final ApiException e) {
+                return audited(r, agent, token, "-", new Response(e.status(), e.toJson()), e.code());
+            }
+        } else question = null;
         final Route route = refine(route(r.method, r.path), r.query);
         if (route.error != null) {
             return audited(r, agent, token, "-", new Response(route.error.status(), route.error.toJson()),
@@ -165,7 +177,8 @@ final class AgentApi {
             return audited(r, agent, token, route.action, resp, d.reason);
         }
         try {
-            final Response resp = execute(route, new Call(agent, token, r));
+            final Response raw = execute(route, new Call(agent, token, r));
+            final Response resp = question == null ? raw : new Response(raw.status, SystemQuestions.answer(question, raw.body));
             return audited(r, agent, token, route.action, resp, null);
         } catch (final ApiException e) {
             return audited(r, agent, token, route.action, new Response(e.status(), e.toJson()), e.code());
@@ -276,6 +289,7 @@ final class AgentApi {
             case "index":
                 if (n == 2 && "browse".equals(p.get(1))) return "GET".equals(method) ? ok("index.browse") : method(method, "GET");
                 if (n == 1) return "GET".equals(method) ? ok("index.status") : method(method, "GET");
+                if (n == 2 && "metrics".equals(p.get(1))) return "GET".equals(method) ? ok("index.metrics") : method(method, "GET");
                 if (n == 2 && "lookup".equals(p.get(1))) return "GET".equals(method) ? ok("index.lookup") : method(method, "GET");
                 if (n == 2 && "evidence".equals(p.get(1))) return "GET".equals(method) ? ok("index.evidence") : method(method, "GET");
                 return notFound();

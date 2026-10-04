@@ -69,3 +69,7 @@ Expect rendered search or content output: result lists, snippets, previews, redi
 ## Related Pages
 
 - Related search work usually continues on `yacysearch.html`, `index.html`, `ViewFile.html`, quick crawl, or the search integration pages.
+
+Scoutro system questions (DE/EN) use authorized structured Actions before RAG or model selection. Host/page counts, crawls, Discovery, collections and host analysis work without Function Calling. System data needs the administrator role or an explicitly granted agent token; missing rights/data produce a clear error without substitute web results. `collection` in the chat JSON scopes index/SEO reads. Details, API parameters, JSON/SSE replies and automation: [System questions and MCP](../docs/SCOUTRO_SYSTEM_QUESTIONS_MCP.md).
+
+System answers retain structured facts in API metadata and show a concise readable summary in the chat. Mobile fieldsets/composer wrap without widening the page; no conversation storage logic changes.

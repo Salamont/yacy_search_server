@@ -154,6 +154,11 @@ public class ScoutroApiServlet extends HttpServlet {
                 break;
             case "system":
                 requireAdmin(request);
+                if (parts.length == 4 && "questions".equals(parts[3])) {
+                    expect(method, parts, 4, "GET");
+                    final Map<String, String> q = queryParams(request);
+                    return SystemQuestions.admin(SystemQuestions.require(q.get("q")), q, this.actions);
+                }
                 expect(method, parts, 3, "GET");
                 return this.actions.system();
             case "discovery":
@@ -192,6 +197,11 @@ public class ScoutroApiServlet extends HttpServlet {
                     expect(method, parts, 4, "GET");
                     final Map<String, String> browseQuery = queryParams(request);
                     return IndexBrowse.current().browse(browseQuery, SeoAnalysis.adminCollections(browseQuery));
+                }
+                if (parts.length == 4 && "metrics".equals(parts[3])) {
+                    expect(method, parts, 4, "GET");
+                    final Map<String, String> q = queryParams(request);
+                    return IndexMetrics.current().read(q, SeoAnalysis.adminCollections(q));
                 }
                 if (parts.length == 3) {
                     expect(method, parts, 3, "GET");

@@ -4984,3 +4984,6 @@ Index administration==Index administration
 
 #File: LLMSelection_p.html
 # Scoutro cards reuse original model/service controls and serialization.
+
+#File: yacychat.html
+System data requires an authorized administrator or agent token. No web answer is substituted.==Для системных данных нужен уполномоченный администратор или токен агента. Ответ из интернета не используется вместо них.

@@ -30,7 +30,7 @@ try {
   check(refused.status() === 401, 'Dashboard requires admin even with public search');
   await anonymous.close();
 
-  for (const [width, height] of [[360, 740], [390, 844], [412, 915], [768, 900], [1280, 900]]) {
+  for (const [width, height] of [[360, 740], [390, 844], [412, 915], [768, 1024], [1280, 900]]) {
     const mobile = width < 768;
     const context = await browser.newContext({ viewport: { width, height }, isMobile: mobile, hasTouch: mobile, httpCredentials: credentials });
     const page = await context.newPage();

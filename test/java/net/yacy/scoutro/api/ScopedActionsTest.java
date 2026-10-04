@@ -78,6 +78,23 @@ public class ScopedActionsTest {
         return r.body.optJSONObject("error") == null ? "" : r.body.optJSONObject("error").optString("code");
     }
 
+    @Test
+    public void systemQuestionsDelegateToExactGrantsAndCannotUseSearchAsFallback() throws Exception {
+        String search = agent("Search", List.of("visible"), false, "search");
+        for (String question : List.of("Wie viele Seiten?", "Welche Collections gibt es?", "Ist Discovery aktiv?", "Welche Crawls laufen?", "Analysiere Host example.com"))
+            Assert.assertEquals(question, 403, call(search,"GET","system/questions",q("q",question),null,null).status);
+        Assert.assertTrue(this.yacy.calls.isEmpty());
+        String collections = agent("Collections", List.of("visible"), false, "collections.list");
+        AgentApi.Response r = call(collections,"GET","system/questions",q("q","Welche Collections gibt es?"),null,null);
+        Assert.assertEquals(200,r.status); Assert.assertEquals("collections.list",r.body.getString("action"));
+        Assert.assertEquals("visible",r.body.getJSONObject("facts").getJSONArray("collections").getJSONObject(0).getString("id"));
+        Assert.assertEquals("collections.list",this.agents.audit.recent(null,null,1).get(0).optString("action"));
+        Assert.assertEquals(403,call(collections,"GET","system/questions",q("q","Welche Collections gibt es?","collection","secret"),null,null).status);
+        Assert.assertEquals(405,call(collections,"POST","system/questions",q("q","Welche Collections gibt es?"),null,null).status);
+        Assert.assertEquals(400,call(collections,"GET","system/questions",q("q","/system unknown"),null,null).status);
+        Assert.assertFalse(net.yacy.scoutro.agents.AgentActionRegistry.preset("research").contains("index.metrics"));
+    }
+
     // ------------------------------------------------------------------
     // search
     // ------------------------------------------------------------------
