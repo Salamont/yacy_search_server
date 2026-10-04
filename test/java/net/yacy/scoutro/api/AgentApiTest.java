@@ -85,6 +85,26 @@ public class AgentApiTest {
     }
 
     @Test
+    public void crawlReportsNeedAnExplicitReadOnlyGrant() throws Exception {
+        Assert.assertEquals(401, call("GET", "reports/jobs", null, null, null).status);
+        Assert.assertEquals(403, get("reports/jobs").status);
+        final Agent.Builder b = new Agent.Builder(); b.name = "Report reader";
+        b.scope = this.agent.scope; b.actions = new LinkedHashSet<>(Arrays.asList("report.read"));
+        this.agent = this.agents.store.createAgent(b);
+        this.token = this.agents.store.issueToken(this.agent.id, 30 * AgentStore.DAY).plainText();
+        for (final String path : new String[] {"reports/jobs", "reports/jobs/3276af9c-b8b5-4b8c-bc2b-17b8d1905eb7",
+                "reports/collections/edelsenior-web", "reports/collections/edelsenior-web/hosts", "reports/hosts/a.example"})
+            Assert.assertEquals(path, 200, get(path).status);
+        Assert.assertEquals(405, call("POST", "reports/jobs", "Bearer " + this.token, null, null).status);
+        Assert.assertEquals(404, get("reports/collections/edelsenior-web/pages").status);
+        Assert.assertEquals(404, get("reports").status);
+        final Map<String, String> foreign = new HashMap<>();
+        foreign.put("collection", "other-web");
+        Assert.assertEquals(403, call("GET", "reports/hosts/a.example", "Bearer " + this.token, foreign, null).status);
+        Assert.assertTrue(this.executed.contains("report.read"));
+    }
+
+    @Test
     public void missingAndForeignCredentialsAreRejected() {
         AgentApi.Response r = call("GET", "capabilities", null, null, null);
         Assert.assertEquals(401, r.status);

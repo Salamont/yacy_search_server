@@ -211,6 +211,141 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(entry["automation_attempt"]["state"], "submitted_unknown")
         self.assertNotIn("status", entry)
 
+    def test_precheck_refusals_are_reported_best_effort(self):
+        self.replenish(candidates(2))
+        calls = []
+        class Rpc:
+            def call(self, action, params=None):
+                if action == "admission": return {"allowed": True}
+                if action == "precheck":
+                    calls.append(params)
+                    raise d.ApiError(503, "report_unavailable", "report store down")
+                raise AssertionError("unexpected " + action)
+        with patch.object(d, "precheck_candidate", return_value={"status": "robots:robots-disallow-all"}):
+            result = automation.execute(d, self.state, {"job": job(), "collection": "future-index", "regions": {"freeworld": ["Test City"]}}, Rpc(), self.tmp.name, self.tmp.name)
+        self.assertEqual(result["processed"], 2)
+        self.assertEqual(sorted(c["domain"] for c in calls), ["firm-0.de", "firm-1.de"])
+        self.assertEqual({(c["result"], c["detail"]) for c in calls}, {("robots", "robots-disallow-all")})
+        self.assertTrue(all(c["url"].startswith("https://") for c in calls))
+
+    def test_precheck_report_keeps_only_short_reason_codes(self):
+        self.assertEqual(automation.precheck_report({"status": "retry:dns", "error": "dns:[Errno -2] Name or service not known"}), ("dns", "dns"))
+        self.assertEqual(automation.precheck_report({"status": "retry:site_5xx", "error": "site-5xx:503"}), ("site_5xx", "site-5xx:503"))
+        self.assertEqual(automation.precheck_report({"status": "blocked:private-ip:10.0.0.1"}), ("blocked", "private-ip:10.0.0.1"))
+        self.assertEqual(automation.precheck_report({"status": "robots:robots-disallow-all"}), ("robots", "robots-disallow-all"))
+        self.assertEqual(automation.precheck_report({"status": "blocked:bad host name!"}), ("blocked", None))
+        self.assertIsNone(automation.precheck_report({"status": "crawled"}))
+
+    def crawled(self, n, last_crawl=None):
+        self.replenish(candidates(n))
+        for i in range(n):
+            entry = self.state.profile_entry("firm-%d.de" % i, "future_profile")
+            d.confirm_start(entry, {"id": "crawl-%d" % i}, last_crawl or NOW - 600, 30)
+        self.state.save()
+
+    def outcome_job(self, retry=True):
+        definition = job(); definition["processing"]["retry"] = retry; definition["processing"]["outcome_retry"] = True
+        return definition
+
+    class Outcomes:
+        def __init__(self, answers=None, error=None):
+            self.answers, self.error, self.calls = answers or {}, error, []
+
+        def call(self, action, params=None):
+            if action != "outcomes":
+                raise AssertionError("unexpected " + action)
+            self.calls.append(params["hosts"])
+            if self.error:
+                raise self.error
+            return {"outcomes": {h: self.answers[h] for h in params["hosts"] if h in self.answers}}
+
+    def test_outcome_retry_needs_the_option_and_retry(self):
+        self.crawled(1)
+        rpc = self.Outcomes({"firm-0.de": {"crawl_id": "crawl-0", "outcome": "not_indexed"}})
+        self.assertEqual(automation.apply_outcomes(d, self.state, rpc, job(), NOW), 0)
+        self.assertEqual(automation.apply_outcomes(d, self.state, rpc, self.outcome_job(retry=False), NOW), 0)
+        self.assertEqual(rpc.calls, [])
+        self.assertEqual(self.state.profile_entry("firm-0.de", "future_profile")["status"], "crawled")
+
+    def test_unsuccessful_results_of_the_own_crawl_become_retries(self):
+        self.crawled(5)
+        old = self.state.profile_entry("firm-4.de", "future_profile"); old["last_crawl"] = NOW - 4 * 86400; self.state.save()
+        before = copy.deepcopy(self.state.data["domains"]["firm-2.de"])
+        rpc = self.Outcomes({"firm-0.de": {"crawl_id": "crawl-0", "outcome": "not_indexed"},
+                             "firm-1.de": {"crawl_id": "crawl-1", "outcome": "not_reloaded"},
+                             "firm-2.de": {"crawl_id": "crawl-2", "outcome": "indexed"},
+                             "firm-3.de": {"crawl_id": "an-older-crawl", "outcome": "not_indexed"},
+                             "firm-4.de": {"crawl_id": "crawl-4", "outcome": "not_indexed"}})
+        self.assertEqual(automation.apply_outcomes(d, self.state, rpc, self.outcome_job(), NOW), 2)
+        self.assertEqual(rpc.calls, [["firm-0.de", "firm-1.de", "firm-2.de", "firm-3.de"]])   # firm-4: outside the window
+        saved = d.State(self.tmp.name)
+        for i, cls in ((0, "not_indexed"), (1, "not_reloaded")):
+            entry = saved.profile_entry("firm-%d.de" % i, "future_profile")
+            self.assertEqual((entry["status"], entry["error_class"], entry["attempts"]), ("retry", cls, 1))
+            self.assertEqual(entry["next_attempt"], NOW + 2 * 3600)
+            self.assertEqual(entry["crawl_id"], "crawl-%d" % i)
+        self.assertEqual(saved.data["domains"]["firm-2.de"], before)                              # success: untouched
+        self.assertEqual(saved.profile_entry("firm-3.de", "future_profile")["status"], "crawled")  # another crawl
+        self.assertEqual(saved.profile_entry("firm-4.de", "future_profile")["status"], "crawled")
+        self.assertEqual(len(self.select(self.outcome_job())), 0)                                  # backoff not over
+        later = automation.select_backlog(d, saved, self.outcome_job(), {"freeworld": ["Test City"]}, NOW + 3 * 3600)
+        self.assertEqual(sorted(domain for domain, *_ in later), ["firm-0.de", "firm-1.de"])
+
+    def test_backoff_grows_across_outcome_retries_and_success_resets_it(self):
+        self.crawled(1)
+        entry = self.state.profile_entry("firm-0.de", "future_profile")
+        for attempt in (1, 2, 3):
+            rpc = self.Outcomes({"firm-0.de": {"crawl_id": entry["crawl_id"], "outcome": "not_indexed"}})
+            automation.apply_outcomes(d, self.state, rpc, self.outcome_job(), NOW)
+            entry = self.state.profile_entry("firm-0.de", "future_profile")
+            self.assertEqual((entry["attempts"], entry["next_attempt"]), (attempt, NOW + 2 ** attempt * 3600))
+            automation.confirm(d, entry, {"id": "crawl-r%d" % attempt}, NOW - 60, 30)          # the retry is started
+            self.assertEqual((entry["status"], entry["attempts"]), ("crawled", attempt))
+        long_ago = copy.deepcopy(entry); long_ago.update(attempts=12)
+        d.mark_retry(long_ago, "not_indexed", "crawl:not_indexed", NOW, 30)
+        self.assertEqual(long_ago["next_attempt"], NOW + 30 * 86400)                              # bounded by the recrawl interval
+        rpc = self.Outcomes({"firm-0.de": {"crawl_id": entry["crawl_id"], "outcome": "partial"}})
+        self.assertEqual(automation.apply_outcomes(d, self.state, rpc, self.outcome_job(), NOW), 0)
+        entry = self.state.profile_entry("firm-0.de", "future_profile")
+        self.assertEqual((entry["status"], entry["attempts"]), ("crawled", 0))
+        retried = copy.deepcopy(entry); retried.update(status="retry", error_class="not_reloaded", attempts=3)
+        automation.confirm(d, retried, {"id": "crawl-z"}, NOW, 30)
+        automation.confirm(d, retried, {"id": "crawl-z"}, NOW, 30)                             # replayed confirmation
+        self.assertEqual((retried["status"], retried["attempts"]), ("crawled", 3))
+        dns = copy.deepcopy(entry); dns.update(status="retry", error_class="dns", attempts=4)
+        automation.confirm(d, dns, {"id": "x"}, NOW, 30)
+        self.assertEqual(dns["attempts"], 0)                                                     # other retries keep their rule
+
+    def test_outcome_lookup_is_batched_and_best_effort(self):
+        self.crawled(450)
+        rpc = self.Outcomes({})
+        automation.apply_outcomes(d, self.state, rpc, self.outcome_job(), NOW)
+        self.assertEqual([len(c) for c in rpc.calls], [200, 200, 50])
+        failing = self.Outcomes(error=d.ApiError(400, "invalid_request", "outcome retry off"))
+        before = copy.deepcopy(self.state.data)
+        self.assertEqual(automation.apply_outcomes(d, self.state, failing, self.outcome_job(), NOW), 0)
+        self.assertEqual(len(failing.calls), 1)
+        self.assertEqual(before, self.state.data)
+
+    def test_execute_reports_outcome_retries_before_selecting(self):
+        self.crawled(2)
+        actions = []
+        class Rpc:
+            def call(self, action, params=None):
+                actions.append(action)
+                if action == "outcomes":
+                    return {"outcomes": {"firm-0.de": {"crawl_id": "crawl-0", "outcome": "not_indexed"}}}
+                if action == "admission": return {"allowed": True}
+                raise AssertionError("unexpected " + action)
+        result = automation.execute(d, self.state, {"job": self.outcome_job(), "collection": "future-index",
+                                                    "regions": {"freeworld": ["Test City"]}}, Rpc(), self.tmp.name, self.tmp.name)
+        self.assertEqual(result["outcome_retries"], 1)
+        self.assertEqual(actions[0], "outcomes")
+        self.assertNotIn("crawl", actions)                                                      # nothing due yet
+        result = automation.execute(d, self.state, {"job": job(), "collection": "future-index",
+                                                    "regions": {"freeworld": ["Test City"]}}, Rpc(), self.tmp.name, self.tmp.name)
+        self.assertNotIn("outcome_retries", result)
+
     def test_status_protocol_is_read_only_without_repo_config_fallback(self):
         root = Path(self.tmp.name) / "absent"
         init = {"operation": "status", "jobs": [], "regions": {}}

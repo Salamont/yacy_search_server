@@ -85,6 +85,18 @@ ai.shield.limit-all=...&ai.shield.all.per-minute=...&ai.shield.all.per-hour=...&
 
 Expect configuration values, diagnostics, or changed result behavior. The effect may only become visible after running the same query again, re-indexing fields, or using the configured model/RAG workflow.
 
+## Scoutro: client address and administrator access
+
+The AI Shield decides by `net.yacy.http.ClientAddress`: `X-Real-IP` and
+`X-Forwarded-For` count only from a peer in `server.reverseProxy.trusted`, and
+only a direct loopback connection without forwarding headers is local. A
+request through a proxy (also one on loopback, e.g. the Olares entrance) is
+remote. With `ai.shield.allow-nonlocalhost=false` a remote client is admitted
+only with the YaCy administrator login (HTTP Digest, same site); without it the
+chat answers 401 `admin_required`, cross-site requests and agent tokens 403
+`ai_shield_blocked`, rate limits 429 `ai_shield_rate_limited`. Details:
+`docs/SCOUTRO_LLM_SECURITY.md`.
+
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.

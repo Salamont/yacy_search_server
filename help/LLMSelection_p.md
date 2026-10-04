@@ -85,6 +85,17 @@ GET /api/tags?hoststub=<URL-encoded-Ollama-base-URL>
 
 After saving, RAG and AI analysis pages should use the selected provider profile. Model failures after this point usually mean the model server, API key, host URL, or model name needs checking.
 
+## Scoutro: stored API keys and errors
+
+The page never shows a stored `api_key`; the field stays empty and the matrix shows
+"set". Saving with an empty field keeps the stored key; "remove the stored api_key
+on the next save" deletes it. A key typed for an endpoint that is not saved yet is
+sent to the admin proxy in `X-LLM-Api-Key`; the YaCy login is never forwarded to
+the endpoint. Errors of the YaCy proxy are JSON (`admin_required`, ...); statuses
+mirrored from the endpoint carry `X-LLM-Upstream: 1`, so the page tells "YaCy
+administrator login required" apart from "the LLM endpoint rejected the
+credentials". `hoststub` and `api_key` accept up to 512 characters.
+
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.

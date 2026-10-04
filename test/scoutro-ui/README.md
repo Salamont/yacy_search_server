@@ -57,6 +57,18 @@ The script exits with status 1 and lists every failed check. Against an
 unmodified YaCy 1.942 it fails (hidden navigation, covered toggle, page
 overflow); against Scoutro all checks pass.
 
+## Offline disposable peers
+
+Every `*-live-smoke.py` harness starts a peer that makes no internet request at
+startup. YaCy would otherwise load the donation frame
+(`donation.iframesource`) and the OAI ListFriends lists, and where outbound
+HTTP is reachable but refused (for example by a proxy) it stores the failed
+loads as error documents in the index (collection `robot_snippetGlobalMedia`).
+Those documents changed document counts and index hashes during the checks.
+The harnesses therefore set `donation.iframesource=` and place empty cached
+lists in `DATA/DICTIONARIES/harvesting/`; YaCy's loader skips a source whose
+cache file exists. YaCy itself is unchanged.
+
 ## Dashboard smoke
 
 `ant scoutro-dashboard-test` checks counts, failure isolation, existing detail
@@ -97,7 +109,14 @@ The LLM smoke creates a new temporary peer and local fake Ollama server. It
 checks real admin `/api/tags?hoststub=...` forwarding/statuses, public virtual
 usage names, model selection in English and all 14 translations, German
 desktop/mobile, empty/invalid responses, 401/502/503, network failure and
-retry. Discovery errors retain the production matrix and expose no upstream
+retry. It also checks the LLM hardening (`docs/SCOUTRO_LLM_SECURITY.md`) with a
+second fake chat endpoint: no stored api_key in the HTML, keys kept on an empty
+save, the YaCy login never forwarded upstream, the AI Shield behind a proxy header
+(401 `admin_required`, administrator admitted, cross-site and agent token 403),
+the server system prompt and the search data block at the endpoint, no tools for
+`tooling=supported` alone, the error codes `llm_auth_failed`, `llm_unreachable`,
+`no_chat_model`, and the log report page. The offline unit tests run with
+`ant scoutro-llm-security-test`. Discovery errors retain the production matrix and expose no upstream
 body. Browser saves are intercepted, so the peer's AI settings remain
 unchanged. No inference, model pull/delete, discovery processing or crawl is
 started; disposable DATA is removed. `TranslatorTest` additionally guards
@@ -161,6 +180,32 @@ indexed markup, visible backend errors, real zero versus missing references,
 admin auth and agent grant/collection isolation. Agent/token creation for scope
 verification occurs only in that disposable DATA. Before it, authenticated
 SEO GETs must leave settings, index and crawl-queue file hashes unchanged.
+
+## Crawl report smoke
+
+After compiling, run `python3 test/scoutro-ui/report-live-smoke.py` with the
+same `JAVA`, `NODE_PATH` and `SCOUTRO_CHROMIUM_PATH` settings. Optional
+`SCOUTRO_SCREENSHOTS` selects the artifact folder. `ReportFixture.java` refuses
+existing/unmarked DATA and seeds, offline, 10 index documents in two
+collections (with the optional data-quality fields enabled in the disposable
+schema: titles, descriptions, canonical links, a subdirectory), 35
+`scoutro_domains` rows (current and previous crawls, a precheck, a stale host
+crawled over `http`, a job no longer in Discovery), rollups with markers, one
+Discovery job whose name contains markup and a small host link graph
+(`webStructure.map`). The recent rollups are written by
+the report's own daily step, so the peer has nothing left to write.
+
+Authenticated report GETs, followed by two capture ticks, must leave settings,
+index, queues, `DATA/WORK` and `DATA/SCOUTRO` unchanged. Then
+`report-ui-test.mjs` checks English/German at 360/390/412/768/1280 px: view
+switch, collection and job scope, tiles, SVG charts, history with markers,
+filters, paging, "Crawl again" (with the recorded scheme) and host links,
+canonical and title/description tiles, the named disabled fields with the
+index schema link, literal stored/indexed markup, the host **Crawl status** tab
+with directories, shared titles and referring hosts, keyboard navigation over
+five tabs, a localized unavailable error, no overflow and no non-GET request. `test_report_api.py`
+checks admin routes, invalid requests, the explicit `report.read` grant and
+agent collection scopes in the same disposable DATA.
 
 ## Native crawl / host / Discovery flow
 

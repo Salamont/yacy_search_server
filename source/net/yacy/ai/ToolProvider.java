@@ -57,11 +57,36 @@ import net.yacy.search.Switchboard;
  *   <li>Resolve tool names to handlers.</li>
  *   <li>Execute tool calls by name with raw JSON argument text.</li>
  * </ul>
+ * <p>
+ * A tool is offered to the model and executable only when it is released server-side:
+ * {@code ai.tools.<name>.enabled=true} and {@code ai.tools.<name>.maxCallsPerTurn > 0}.
+ * Model capability {@code tooling=supported} alone releases nothing; it only allows the
+ * released tools to be sent to that model. Client-supplied tool definitions are removed.
  */
 public final class ToolProvider {
     private static final String CONFIG_PREFIX = "ai.tools.";
     private static final String DESCRIPTION_SUFFIX = ".description";
     private static final String MAX_CALLS_SUFFIX = ".maxCallsPerTurn";
+    private static final String ENABLED_SUFFIX = ".enabled";
+
+    /** Configuration source: the Switchboard, or a fixed map in tests. */
+    interface Settings {
+        String get(String key, String defaultValue);
+    }
+
+    private static volatile Settings settings = null;
+
+    /** Tests only: read the tool configuration from the given source (null: Switchboard). */
+    static void useSettings(final Settings source) {
+        settings = source;
+    }
+
+    private static String config(final String key, final String defaultValue) {
+        final Settings source = settings;
+        if (source != null) return source.get(key, defaultValue);
+        final Switchboard sb = Switchboard.getSwitchboard();
+        return sb == null ? defaultValue : sb.getConfig(key, defaultValue);
+    }
 
 
     /**
@@ -110,14 +135,19 @@ public final class ToolProvider {
         public final String description;
         public final int maxCallsPerTurn;
         public final int defaultMaxCallsPerTurn;
+        /** explicitly released by the operator (ai.tools.NAME.enabled) */
+        public final boolean released;
+        /** released and maxCallsPerTurn > 0: offered to tool-capable models */
         public final boolean enabled;
 
-        private ToolConfig(final String name, final String description, final int maxCallsPerTurn, final int defaultMaxCallsPerTurn) {
+        private ToolConfig(final String name, final String description, final int maxCallsPerTurn, final int defaultMaxCallsPerTurn,
+                final boolean released) {
             this.name = name;
             this.description = description;
             this.maxCallsPerTurn = Math.max(0, maxCallsPerTurn);
             this.defaultMaxCallsPerTurn = Math.max(0, defaultMaxCallsPerTurn);
-            this.enabled = this.maxCallsPerTurn > 0;
+            this.released = released;
+            this.enabled = released && this.maxCallsPerTurn > 0;
         }
     }
 
@@ -127,34 +157,36 @@ public final class ToolProvider {
     private ToolProvider() {}
 
     /**
-     * Ensures a chat request body contains all available tool definitions and a
-     * default tool selection mode.
+     * Replace the tool part of a chat request body by the released tools.
      * <p>
-     * Existing tool definitions are kept; missing ones are appended.
+     * Client-supplied {@code tools}, {@code tool_choice}, {@code functions} and
+     * {@code function_call} are always removed. When the model may use tools, the
+     * definitions of the released tools are added with {@code tool_choice=auto};
+     * without released tools the body carries no tools at all.
      *
      * @param body request body to mutate
+     * @param toolingEnabled the model supports tool calls
      */
-    public static void ensureTools(JSONObject body) {
+    public static void applyReleasedTools(final JSONObject body, final boolean toolingEnabled) {
         if (body == null) return;
+        body.remove("tools");
+        body.remove("tool_choice");
+        body.remove("functions");
+        body.remove("function_call");
+        if (!toolingEnabled) return;
         try {
-            // Create "tools" array lazily when caller did not provide one.
-            JSONArray tools = body.optJSONArray("tools");
-            if (tools == null) {
-                tools = new JSONArray();
-                body.put("tools", tools);
-            }
-            // Merge registry definitions without duplicating by tool name.
+            final JSONArray tools = new JSONArray();
             for (ToolHandler tool : TOOLS) {
                 JSONObject definition = configuredDefinition(tool);
                 if (definition == null) continue;
                 addToolDefinitionIfMissing(tools, definition);
             }
-            // Providers usually expect explicit tool-choice mode.
-            if (!body.has("tool_choice")) {
-                body.put("tool_choice", "auto");
-            }
+            if (tools.length() == 0) return;
+            body.put("tools", tools);
+            body.put("tool_choice", "auto");
         } catch (JSONException e) {
-            // keep body unchanged if tool schema cannot be injected
+            body.remove("tools");
+            body.remove("tool_choice");
         }
     }
 
@@ -169,7 +201,7 @@ public final class ToolProvider {
         if (name == null) return errorJson("Invalid tool call");
         ToolHandler tool = TOOL_BY_NAME.get(name);
         if (tool == null) return errorJson("Unknown tool: " + name);
-        if (maxCallsPerTurn(name) <= 0) return errorJson("Tool disabled: " + name);
+        if (allowedCallsPerTurn(name) <= 0) return errorJson("Tool not released: " + name);
         // Tool implementations are responsible for argument parsing/validation.
         return tool.execute(arguments);
     }
@@ -187,6 +219,21 @@ public final class ToolProvider {
         if (tool == null) return 1;
         int max = configuredMaxCalls(name, tool.maxCallsPerTurn());
         return Math.max(0, max);
+    }
+
+    /** True when the operator released the tool (ai.tools.NAME.enabled=true). */
+    public static boolean isReleased(final String name) {
+        if (name == null || !TOOL_BY_NAME.containsKey(name)) return false;
+        return "true".equalsIgnoreCase(config(CONFIG_PREFIX + name + ENABLED_SUFFIX, "false").trim());
+    }
+
+    /**
+     * Calls of a tool allowed within one tool turn: 0 for unknown or not released tools,
+     * otherwise maxCallsPerTurn.
+     */
+    public static int allowedCallsPerTurn(final String name) {
+        if (!isReleased(name)) return 0;
+        return maxCallsPerTurn(name);
     }
 
     public static List<ToolConfig> listTools() {
@@ -220,7 +267,8 @@ public final class ToolProvider {
                         name,
                         configuredDescription(name, defaultDescription),
                         configuredMaxCalls(name, defaultMaxCalls),
-                        defaultMaxCalls));
+                        defaultMaxCalls,
+                        isReleased(name)));
             } catch (JSONException e) {
                 // skip invalid definitions
             }
@@ -295,8 +343,8 @@ public final class ToolProvider {
         try {
             final JSONObject definition = tool.definition();
             final String name = extractToolName(definition);
-            if (name == null || name.isEmpty()) return definition;
-            if (configuredMaxCalls(name, tool.maxCallsPerTurn()) <= 0) return null;
+            if (name == null || name.isEmpty()) return null;
+            if (allowedCallsPerTurn(name) <= 0) return null;
             final JSONObject fn = definition.optJSONObject("function");
             if (fn != null) {
                 final String defaultDescription = fn.optString("description", "");
@@ -310,16 +358,17 @@ public final class ToolProvider {
 
     private static String configuredDescription(final String toolName, final String defaultDescription) {
         if (toolName == null || toolName.isEmpty()) return defaultDescription == null ? "" : defaultDescription;
-        final Switchboard sb = Switchboard.getSwitchboard();
-        if (sb == null) return defaultDescription == null ? "" : defaultDescription;
-        return sb.getConfig(CONFIG_PREFIX + toolName + DESCRIPTION_SUFFIX, defaultDescription == null ? "" : defaultDescription);
+        return config(CONFIG_PREFIX + toolName + DESCRIPTION_SUFFIX, defaultDescription == null ? "" : defaultDescription);
     }
 
     private static int configuredMaxCalls(final String toolName, final int defaultMaxCalls) {
         if (toolName == null || toolName.isEmpty()) return Math.max(0, defaultMaxCalls);
-        final Switchboard sb = Switchboard.getSwitchboard();
-        if (sb == null) return Math.max(0, defaultMaxCalls);
-        final int configured = sb.getConfigInt(CONFIG_PREFIX + toolName + MAX_CALLS_SUFFIX, defaultMaxCalls);
+        int configured = defaultMaxCalls;
+        try {
+            configured = Integer.parseInt(config(CONFIG_PREFIX + toolName + MAX_CALLS_SUFFIX, Integer.toString(defaultMaxCalls)).trim());
+        } catch (final NumberFormatException e) {
+            configured = defaultMaxCalls;
+        }
         return Math.max(0, configured);
     }
 

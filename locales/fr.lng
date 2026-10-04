@@ -4664,6 +4664,8 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 >Batch running<==>Batch running<
 >Repair heartbeat<==>Repair heartbeat<
 >Completed<==>Completed<
+> Also retry after an unsuccessful crawl result<==> Also retry after an unsuccessful crawl result<
+>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<
 
 #File: scoutro-dashboard.html
 >Discovery Automation<==>Automatisation de la découverte<
@@ -4680,6 +4682,158 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 >Not yet indexed<==>Not yet indexed<
 >Start crawl<==>Start crawl<
 >Crawl depth<==>Crawl depth<
+>Crawl report<==>Crawl report<
+>Crawl status<==>Crawl status<
+>Collection<==>Collection<
+>Show crawl status<==>Show crawl status<
+>Crawl again<==>Crawl again<
+>The crawl status is kept per host and collection. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<==>The crawl status is kept per host and collection. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<
+>Current crawl status per host and collection, live page state from the index and the daily history of Discovery jobs. Viewing this report starts no crawl.<==>Current crawl status per host and collection, live page state from the index and the daily history of Discovery jobs. Viewing this report starts no crawl.<
+>Scope<==>Scope<
+>Discovery job<==>Discovery job<
+>From<==>From<
+>To<==>To<
+>Show report<==>Show report<
+>Crawl outcomes<==>Crawl outcomes<
+>Prechecks<==>Prechecks<
+>Pages in the latest crawls<==>Pages in the latest crawls<
+>Exclusions<==>Exclusions<
+>Content types<==>Content types<
+>Duplicates<==>Duplicates<
+>Data age<==>Data age<
+>Daily history<==>Daily history<
+>Show data<==>Show data<
+>Collections of this job<==>Collections of this job<
+>Hosts<==>Hosts<
+>Show<==>Show<
+>All hosts<==>All hosts<
+>Stale hosts<==>Stale hosts<
+>Latest attempt was a precheck<==>Latest attempt was a precheck<
+>Partially indexed<==>Partially indexed<
+>Not indexed<==>Not indexed<
+>Not reloaded by this crawl<==>Not reloaded by this crawl<
+>Outcome unknown<==>Outcome unknown<
+>Exclusions only partly recorded<==>Exclusions only partly recorded<
+>Not reloaded by this crawl means that the latest load of a page is older than the start of this crawl. It does not mean that the page was deleted.<==>Not reloaded by this crawl means that the latest load of a page is older than the start of this crawl. It does not mean that the page was deleted.<
+>A host is stale when its last crawl is older than the recrawl interval of its Discovery job. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<==>A host is stale when its last crawl is older than the recrawl interval of its Discovery job. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<
+>Enter a collection to read the crawl status of this host.<==>Enter a collection to read the crawl status of this host.<
+>No crawl of this host has been recorded in this collection yet.<==>No crawl of this host has been recorded in this collection yet.<
+>The stored row belongs to another host or collection and is not shown.<==>The stored row belongs to another host or collection and is not shown.<
+>The stored crawl status cannot be read.<==>The stored crawl status cannot be read.<
+>Current crawl<==>Current crawl<
+>Previous crawl<==>Previous crawl<
+>Latest precheck<==>Latest precheck<
+>Page state in the index<==>Page state in the index<
+>Started<==>Started<
+>Ended<==>Ended<
+>Age (days)<==>Age (days)<
+>Stale<==>Stale<
+>Recrawl interval (days)<==>Recrawl interval (days)<
+>Yes<==>Yes<
+>No<==>No<
+>Outcome<==>Outcome<
+>Exclusion coverage<==>Exclusion coverage<
+>Complete<==>Complete<
+>Partly recorded<==>Partly recorded<
+>Latest attempt<==>Latest attempt<
+>Crawl<==>Crawl<
+>Precheck<==>Precheck<
+>Indexed<==>Indexed<
+>Host name not resolvable<==>Host name not resolvable<
+>Disallowed by robots.txt<==>Disallowed by robots.txt<
+>Blocked address<==>Blocked address<
+>robots.txt answered with a server error<==>robots.txt answered with a server error<
+>Checked<==>Checked<
+>Result<==>Result<
+>Reason code<==>Reason code<
+>Pages in the index<==>Pages in the index<
+>Pages OK<==>Pages OK<
+>Redirects<==>Redirects<
+>Client errors (4xx)<==>Client errors (4xx)<
+>Server errors (5xx)<==>Server errors (5xx)<
+>Excluded pages<==>Excluded pages<
+>Failed pages<==>Failed pages<
+>Pages disallowed by robots.txt<==>Pages disallowed by robots.txt<
+>Pages not reloaded by this crawl<==>Pages not reloaded by this crawl<
+>Not reloaded, OK before<==>Not reloaded, OK before<
+>Depth limit<==>Depth limit<
+>Page limit<==>Page limit<
+>noindex<==>noindex<
+>Canonical elsewhere<==>Canonical elsewhere<
+>URL filter<==>URL filter<
+>Blacklist<==>Blacklist<
+>Other exclusions<==>Other exclusions<
+>Documents (error records included)<==>Documents (error records included)<
+>OK pages<==>OK pages<
+>Oldest load<==>Oldest load<
+>Newest load<==>Newest load<
+>Crawled hosts<==>Crawled hosts<
+>Last crawl<==>Last crawl<
+>Only prechecked<==>Only prechecked<
+>Crawl status read<==>Crawl status read<
+>Page state as of<==>Page state as of<
+>Page state source<==>Page state source<
+>Live index<==>Live index<
+>Daily snapshot; the live index did not answer<==>Daily snapshot; the live index did not answer<
+>The index is unavailable; the page state is not shown.<==>The index is unavailable; the page state is not shown.<
+>Groups of identical pages<==>Groups of identical pages<
+>Identical pages<==>Identical pages<
+>Groups of similar pages<==>Groups of similar pages<
+>Similar pages<==>Similar pages<
+>at least<==>at least<
+>No values recorded.<==>No values recorded.<
+>Crawl reports are unavailable. Capture may be disabled or the index is not ready.<==>Crawl reports are unavailable. Capture may be disabled or the index is not ready.<
+>No crawl report was found.<==>No crawl report was found.<
+>The crawl report could not be loaded. Please retry.<==>The crawl report could not be loaded. Please retry.<
+>Check the scope and the day range.<==>Check the scope and the day range.<
+>Enter a collection.<==>Enter a collection.<
+>Select a Discovery job.<==>Select a Discovery job.<
+>No Discovery jobs recorded<==>No Discovery jobs recorded<
+>Job no longer in Discovery<==>Job no longer in Discovery<
+>Host<==>Host<
+>Action<==>Action<
+>Crawls per day<==>Crawls per day<
+>Day<==>Day<
+>Crawls<==>Crawls<
+>Markers<==>Markers<
+>Scoutro version changed<==>Scoutro version changed<
+>Job definition changed<==>Job definition changed<
+>No crawl activity in this day range.<==>No crawl activity in this day range.<
+>No collection recorded yet.<==>No collection recorded yet.<
+>No hosts match this filter.<==>No hosts match this filter.<
+>Total<==>Total<
+>Maximum per day<==>Maximum per day<
+>Canonical<==>Canonical<
+>Titles and descriptions<==>Titles and descriptions<
+>Pages with canonical<==>Pages with canonical<
+>Canonical points to the page itself<==>Canonical points to the page itself<
+>Canonical points to another URL<==>Canonical points to another URL<
+>Pages without canonical<==>Pages without canonical<
+>Pages with title<==>Pages with title<
+>Pages without title<==>Pages without title<
+>Groups of pages with the same title<==>Groups of pages with the same title<
+>Pages sharing a title<==>Pages sharing a title<
+>Pages with description<==>Pages with description<
+>Pages without description<==>Pages without description<
+>Groups of pages with the same description<==>Groups of pages with the same description<
+>Pages sharing a description<==>Pages sharing a description<
+>Directories<==>Directories<
+>Directory<==>Directory<
+>Documents<==>Documents<
+>Directories found<==>Directories found<
+>Documents read<==>Documents read<
+>Documents of the host<==>Documents of the host<
+>The host has more documents than were read; the figures cover the documents read.<==>The host has more documents than were read; the figures cover the documents read.<
+>Referring hosts<==>Referring hosts<
+>Links<==>Links<
+>Referring hosts in total<==>Referring hosts in total<
+>Links in total<==>Links in total<
+>No referring host observed.<==>No referring host observed.<
+>The host link graph is not available.<==>The host link graph is not available.<
+>Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.<==>Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.<
+>Not enabled in the index schema:<==>Not enabled in the index schema:<
+>Enable these fields in the index schema; they are filled for pages crawled afterwards.<==>Enable these fields in the index schema; they are filled for pages crawled afterwards.<
+>Open index schema<==>Open index schema<
 
 #File: ScoutroCrawls_p.html
 

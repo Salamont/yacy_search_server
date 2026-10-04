@@ -72,6 +72,20 @@ ai.tools.#[name]#.maxCallsPerTurn=...&ai.tools.#[name]#.description=...&save=...
 
 A successful change is visible as a saved value, a confirmation, or changed behavior on a related page. Some settings take effect immediately; others require reconnecting, reloading translations, restarting services, or watching the status page.
 
+## Scoutro: tool release
+
+A tool is offered to the chat model and executed only when it is **released for
+the chat** (`ai.tools.<name>.enabled=true`) and `ai.tools.<name>.maxCallsPerTurn`
+is above 0. Default: no tool is released. A model with `tooling=supported` alone
+gets no tools. Client-supplied tool definitions are removed. `http_json` is
+read-only (GET); `http_json` and `webfetch` reach only public http(s)
+addresses: local, private, cluster-internal and cloud metadata targets, also via
+DNS or redirects, are refused. Details: `docs/SCOUTRO_LLM_SECURITY.md`.
+
+| Parameter | Meaning and valid values | Care |
+| --- | --- | --- |
+| `ai.tools.<name>.enabled` | `true` releases the tool for the chat; absent or any other value withdraws it. | Release only tools the chat really needs. |
+
 ## Related Pages
 
 - Related configuration work is usually reached from `ConfigBasic.html`, `Settings_p.html`, or the adjacent configuration page in the administration menu.

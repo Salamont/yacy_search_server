@@ -25,6 +25,8 @@ loaded-page counter. Missing legacy metadata, end time and percentage stay
 unknown/null. A terminated profile alone does not prove indexing. The Analyze
 host link returns to SEO with Collection and rechecks indexed state there.
 No automatic crawl starts on following that link.
+**Crawl again** in the crawl report and in the host's **Crawl status** tab
+prefills this form the same way (the host with the scheme of its last crawl, otherwise `https://`, and the collection).
 
 Complete endpoints, permissions, status/error contract, durable journal,
 automation guidance and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).

@@ -45,7 +45,7 @@ Example with a **synthetic profile**, not a portal built into code:
   },
   "discovery": {"replenish": true, "replenish_interval_hours": 24},
   "batch": {"max_domains": 50, "max_pages": 15, "depth": 2, "seed_delay_seconds": 10},
-  "processing": {"fresh": true, "retry": false, "recrawl": {"enabled": false, "days": 30}},
+  "processing": {"fresh": true, "retry": false, "outcome_retry": false, "recrawl": {"enabled": false, "days": 30}},
   "schedule": {"every_minutes": 60}
 }
 ```
@@ -75,7 +75,7 @@ The five runtime files are size bounded and double-read; SHA-256 includes filena
 The existing Python State V2 stores **every accepted, deduplicated discovered pair**, before dispatch limits apply:
 `domains.<domain>.profiles.<profile>` contains collection, candidate URL, discovery timestamps, source/source_region and an origins list. Missing final status remains fresh. Existing statuses, Classification, other profile entries and custom fields survive. Origins merge when the same pair is found through multiple sources/regions. The older `region` location label is preserved independently.
 
-Selection reuses `selection_kind`, `select_domains`, shared DNS/robots precheck, backoff and cooldown. Processing masks distinguish fresh, retry/problematic-after-cooldown and recrawl. No automatic force. Mutating Python paths acquire `run.lock` **before** reading the state. Existing atomic state writes/state lock remain.
+Selection reuses `selection_kind`, `select_domains`, shared DNS/robots precheck, backoff and cooldown. Processing masks distinguish fresh, retry/problematic-after-cooldown and recrawl. `outcome_retry` (optional, default off, requires `retry`; jobs stored without it keep it off) adds one step before selection: for this job's `crawled` entries started in the last three days, Python asks the bridge for the recorded crawl results (`outcomes`, at most 200 hosts per request) and turns `not_indexed`/`not_reloaded` of the same crawl id into `mark_retry`; the attempt count is kept when such a retry is started again, so the backoff doubles up to the recrawl interval, and a successful result resets it. A failed lookup is skipped; the selection continues. No automatic force. Mutating Python paths acquire `run.lock` **before** reading the state. Existing atomic state writes/state lock remain.
 
 Existing unknown origins are not guessed. A profile-wide backlog job can drain them. Known previously discovered fresh totals were not fully saved by the old manual path; an initial rediscovery is required to populate durable backlog. Already crawled pairs remain ineligible unless enabled processing rules make them due. No mandatory State V2 migration/reset or recrawl of the old index.
 
@@ -91,7 +91,7 @@ Discovery refresh is separate from batch schedule. Freeworld uses job-selected s
 
 ## 14–15. Java–Python bridge and exact Crawl start path
 
-`DiscoveryProcess` uses `ProcessBuilder(List<String>)`, not a shell command. It strips inherited environment except runtime/locale/proxy/trust settings, passes no administrator password/hash/token, and suppresses raw child stderr. Structured newline JSON has size/request limits and a process-tree timeout. Shutdown stops the child process tree. The permitted RPC actions are admission, Freeworld search, source progress, crawl and accepted-state acknowledgement.
+`DiscoveryProcess` uses `ProcessBuilder(List<String>)`, not a shell command. It strips inherited environment except runtime/locale/proxy/trust settings, passes no administrator password/hash/token, and suppresses raw child stderr. Structured newline JSON has size/request limits and a process-tree timeout. Shutdown stops the child process tree. The permitted RPC actions are admission, Freeworld search, source progress, crawl, accepted-state acknowledgement, precheck result and, for jobs with `outcome_retry`, the read-only crawl results (`outcomes`; crawl report, see [Crawl Report](SCOUTRO_CRAWL_REPORT.md)).
 
 Python requests a candidate URL/domain only. Java resolves the reserved job collection/pages/depth, writes a prepared intent, then calls:
 

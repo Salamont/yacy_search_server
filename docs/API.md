@@ -422,6 +422,13 @@ Scoutro is packaged as `scoutro-olares`:
   does not weaken the API: the API constraints always require Digest
   authentication, independent of the client address, and
   `adminAccountForLocalhost` stays `false`.
+- The chat (`/v1/chat/completions`) and the LLM admin proxy treat a request with
+  forwarding headers as remote, also from `127.0.0.1`: with
+  `ai.shield.allow-nonlocalhost=false` the YaCy administrator login admits it
+  (see `docs/SCOUTRO_LLM_SECURITY.md`).
+- The chat accepts an optional `collection` (`[A-Za-z0-9_-]{1,64}`) that restricts
+  RAG to that collection, and streams the sources and the citation check of each
+  answer (`scoutro-sources`, `scoutro-citations`; see `docs/SCOUTRO_RAG_QUALITY.md`).
 
 ## Tests
 
@@ -482,6 +489,39 @@ See [page help](../help/ScoutroSEO_p.md) for exact parameters/errors/response
 fields and [technical semantics](SCOUTRO_SEO_HOST_ANALYSIS.md) for field origins,
 aggregation limits, performance and rollout prerequisites. No crawler,
 scheduler, configuration, ranking or DATA migration side effects.
+
+## Crawl report (read-only)
+
+Admin Digest: `GET /scoutro/api/v1/reports/jobs`, `/reports/jobs/{id}`
+(`from`, `to` as `YYYY-MM-DD`; default the last 90 days, at most three years),
+`/reports/collections/{collection}`, `/reports/collections/{collection}/hosts`
+(`filter` = `all`, `stale`, `precheck`, `partial`, `not_indexed`,
+`not_reloaded`, `unknown`, `coverage_partial`; `limit` 1–100, default 50;
+`offset` 0–10000) and `/reports/hosts/{host}?collection=` (collection
+required). Equivalent Agent Bearer routes under `/scoutro/api/agent/v1` require
+the explicit grant `report.read`, absent from every preset. A collection
+outside the agent's scope is refused with 403 `collection_not_in_scope`; a job
+is visible only when all of its collections are in scope (otherwise 404, like a
+missing job). The UI route is `report.crawl`.
+
+Sources: the live index for the current page state, `scoutro_domains` for the
+current host and crawl status, and the daily rollups for the history (see
+[crawl report](SCOUTRO_CRAWL_REPORT.md)). A host without a row returns 200 with
+`status: absent`. Unknown parameters return 400 `invalid_request`, other
+methods 405, an unavailable table or capture 503 `report_unavailable`. If the
+live index fails, a collection report falls back to the newest rollup
+snapshot (`index_source: rollup`). No route fetches a URL, starts a crawl or
+writes; "Crawl again" in the UI only links to the native crawl form.
+
+Data quality: collection and host reports include `canonical` and
+`titles`/`descriptions` (host reports also pages sharing a title or a
+description); host reports add first-level `directories` and
+`referring_hosts` from YaCy's host link graph. The graph is not
+collection-aware, so agents without the complete index get `referring_hosts:
+null` with `referring_hosts_scope: complete_index_required`. The optional fields
+`canonical_s`, `canonical_equal_sku_b`, `title_exact_signature_l` and
+`description_exact_signature_l` are enabled by the administrator in
+`IndexSchema_p.html`; while disabled they are listed in `index.unavailable`.
 
 ## Scoutro native crawl and host flow
 

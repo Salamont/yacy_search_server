@@ -125,9 +125,14 @@
     $('scd-domains').max = catalog.limits.max_domains; $('scd-pages').max = catalog.limits.max_pages; $('scd-depth').max = catalog.limits.depth;
     for (const [id, value] of Object.entries({ enabled: job?.enabled ?? false, paused: job?.paused ?? false,
       replenish: job?.discovery.replenish ?? true, 'process-fresh': job?.processing.fresh ?? true,
-      'process-retry': job?.processing.retry ?? false, 'process-recrawl': job?.processing.recrawl.enabled ?? false })) $('scd-' + id).checked = value;
+      'process-retry': job?.processing.retry ?? false, 'process-outcome-retry': job?.processing.outcome_retry ?? false,
+      'process-recrawl': job?.processing.recrawl.enabled ?? false })) $('scd-' + id).checked = value;
+    outcomeRetry();
     sourceBlocks(job?.sources || {}); $('scd-editor').hidden = false; $('scd-name').focus();
   }
+  // A retry after an unsuccessful crawl result uses the retry path, so it needs retry.
+  function outcomeRetry() { const retry = $('scd-process-retry').checked; $('scd-process-outcome-retry').disabled = !retry; if (!retry) $('scd-process-outcome-retry').checked = false; }
+  $('scd-process-retry').addEventListener('change', outcomeRetry);
   $('scd-profile').addEventListener('change', () => sourceBlocks());
   $('scd-add').addEventListener('click', async () => { try { await openEditor(); } catch (e) { message(e.message); } });
   $('scd-cancel').addEventListener('click', () => { $('scd-editor').hidden = true; });
@@ -144,7 +149,8 @@
       enabled: checked('enabled'), paused: checked('paused'),
       discovery: { replenish: checked('replenish'), replenish_interval_hours: number('refresh') },
       batch: { max_domains: number('domains'), max_pages: number('pages'), depth: number('depth'), seed_delay_seconds: number('delay') },
-      processing: { fresh: checked('process-fresh'), retry: checked('process-retry'), recrawl: { enabled: checked('process-recrawl'), days: number('recrawl-days') } },
+      processing: { fresh: checked('process-fresh'), retry: checked('process-retry'), outcome_retry: checked('process-retry') && checked('process-outcome-retry'),
+        recrawl: { enabled: checked('process-recrawl'), days: number('recrawl-days') } },
       schedule: { every_minutes: number('schedule') } };
     try { await api(editing ? `jobs/${editing}` : 'jobs', editing ? 'PATCH' : 'POST', job); $('scd-editor').hidden = true; message(text('saved')); await refresh(); }
     catch (e) { message(e.message); await refresh(); }

@@ -171,6 +171,10 @@ public class ScoutroApiServlet extends HttpServlet {
                 final Map<String, String> seoQuery = queryParams(request);
                 return SeoAnalysis.current().route(java.util.Arrays.asList(parts).subList(3, parts.length),
                         seoQuery, SeoAnalysis.adminCollections(seoQuery));
+            case "reports":
+                requireAdmin(request);
+                if (!"GET".equals(method)) throw new ApiException(405, "method_not_allowed", "Crawl reports are read-only; use GET.");
+                return ReportApi.current().route(java.util.Arrays.asList(parts).subList(3, parts.length), queryParams(request), null);
             case "hosts":
                 requireAdmin(request);
                 if (parts.length == 4 && "resolve".equals(parts[3])) {
@@ -251,8 +255,16 @@ public class ScoutroApiServlet extends HttpServlet {
         throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
     }
 
+    /** Loaded at startup (web.xml) so that crawl report capture also runs without API traffic. */
+    @Override
+    public void init() throws javax.servlet.ServletException {
+        super.init();
+        CaptureRuntime.start();
+    }
+
     @Override
     public void destroy() {
+        CaptureRuntime.stop();
         net.yacy.scoutro.discovery.DiscoveryService.closeCurrent();
         super.destroy();
     }

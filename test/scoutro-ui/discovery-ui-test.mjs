@@ -28,6 +28,12 @@ try {
     check(await osm.locator('.scd-region-list').textContent().then(t=>t.includes('Test-Region')&&!t.includes('Teststadt')),`${width}: OSM separate regions`);
     check(await freeworld.locator('.scd-region-list').textContent().then(t=>t.includes('Teststadt')&&!t.includes('Test-Region')),`${width}: Freeworld separate regions`);
     check(await page.locator('#scd-process-fresh').isChecked()&&!await page.locator('#scd-process-retry').isChecked()&&!await page.locator('#scd-process-recrawl').isChecked(),`${width}: conservative processing defaults`);
+    const outcome=page.locator('#scd-process-outcome-retry'),retry=page.locator('#scd-process-retry');
+    check(!await outcome.isChecked()&&await outcome.isDisabled(),`${width}: outcome retry off and only with retry`);
+    await retry.check(); check(await outcome.isEnabled(),`${width}: outcome retry available with retry`);
+    await outcome.check(); await retry.uncheck();
+    check(await outcome.isDisabled()&&!await outcome.isChecked(),`${width}: outcome retry cleared without retry`);
+    await retry.check(); await outcome.check();
     check(await page.evaluate(w=>document.documentElement.scrollWidth<=w+1,width),`${width}: no horizontal overflow`);
     await page.locator('#scd-profile').selectOption('unsupported');
     check(await page.locator('[data-source-enabled="osm"]').isDisabled()&&await page.locator('[data-source-enabled="freeworld"]').isDisabled(),`${width}: capabilities disable unsupported source`);
@@ -43,6 +49,7 @@ try {
     const row=page.locator('.scd-job').filter({has:page.locator('h3',{hasText:'UI disposable'})});
     await row.locator('button').first().click(); await page.locator('#scd-editor').waitFor({state:'visible'});
     check(await osm.locator('input[value="test-region"]').isChecked()&&await freeworld.locator('input[value="Andere Stadt"]').isChecked(),`${width}: edit round trip source regions`);
+    check(await retry.isChecked()&&await outcome.isChecked()&&await outcome.isEnabled(),`${width}: edit round trip outcome retry`);
     await page.locator('#scd-name').fill('UI edited'); await page.locator('#scd-job-form button[type="submit"]').click();
     await page.waitForFunction(()=>[...document.querySelectorAll('.scd-job h3')].some(e=>e.textContent==='UI edited'));
     check(true,`${width}: UI edit`);

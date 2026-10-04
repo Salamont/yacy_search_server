@@ -3416,6 +3416,8 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost(); return false;"
 "Search..."=="Suchen..."
 #File: yacysearch.html
 #---------------------------
+Language:==Sprache:
+>any<==>beliebig<
 Did you mean:==Meinten Sie vielleicht:
 No Results.==Keine Ergebnisse.
 Location -- click on map to enlarge==Ort -- Auf die Karte klicken, um zu vergrößern
@@ -4065,6 +4067,8 @@ Per day:==Pro Tag:
 
 #File: ToolsConfig_p.html
 #---------------------------
+A tool is offered to the chat model only when it is <b>released for the chat</b> here and its maxCallsPerTurn is above 0. A model with tool support alone does not release any tool. The web tools <code>http_json</code> (GET only) and <code>webfetch</code> reach only public http(s) addresses.==Ein Werkzeug wird dem Chat-Modell nur angeboten, wenn es hier <b>für den Chat freigegeben</b> ist und maxCallsPerTurn größer als 0 ist. Ein Modell mit Werkzeug-Unterstützung allein gibt kein Werkzeug frei. Die Web-Werkzeuge <code>http_json</code> (nur GET) und <code>webfetch</code> erreichen nur öffentliche http(s)-Adressen.
+>released for the chat<==>für den Chat freigegeben<
 Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Verleihen Sie dem YaCy-Chat Superkräfte. Werkzeuge können deaktiviert werden, indem maxCallsPerTurn auf 0 gesetzt wird.
 Save Tools Configuration==Werkzeug-Konfiguration speichern
 Data Retrieval Tools==Datenabruf-Werkzeuge
@@ -4078,12 +4082,18 @@ maxCallsPerTurn==maxCallsPerTurn
 
 #File: RAGConfig_p.html
 #---------------------------
-Maximum character length of the virtual search document used as RAG attachment and as the `search` tool result. Content beyond this limit is cut off. Default: 30000.==Maximale Zeichenlänge des virtuellen Suchdokuments, das als RAG-Anhang und als Ergebnis des `search`-Werkzeugs verwendet wird. Inhalt über dieser Grenze wird abgeschnitten. Standard: 30000.
+Upper bound in characters for all sources of one RAG answer and for the `search` tool result. The actual RAG budget is smaller when the context window (num_ctx in LLM Selection) minus the answer length (max_tokens) does not allow more; sources are never cut in the middle. Default: 30000.==Obergrenze in Zeichen für alle Quellen einer RAG-Antwort und für das Ergebnis des `search`-Werkzeugs. Das tatsächliche RAG-Budget ist kleiner, wenn das Kontextfenster (num_ctx in der LLM-Auswahl) abzüglich der Antwortlänge (max_tokens) nicht mehr zulässt; Quellen werden nie mitten im Text abgeschnitten. Standard: 30000.
+Sampling temperature of RAG answers (0 to 2) when the client sends none; low values keep answers close to the sources. Default: 0.2.==Sampling-Temperatur der RAG-Antworten (0 bis 2), wenn der Client keine sendet; niedrige Werte halten die Antworten nah an den Quellen. Standard: 0.2.
+Maximum characters per source; the passages with the most question terms are taken (400 to 20000). Default: 1500.==Maximale Zeichen pro Quelle; verwendet werden die Abschnitte mit den meisten Begriffen der Frage (400 bis 20000). Standard: 1500.
+Introduces the numbered search results in RAG mode. The results follow as an untrusted data block with sources [1], [2], ...==Leitet im RAG-Modus die nummerierten Suchergebnisse ein. Die Ergebnisse folgen als nicht vertrauenswürdiger Datenblock mit den Quellen [1], [2], ...
+Maximum number of numbered sources in one RAG answer (1 to 20). Default: 8.==Höchstzahl nummerierter Quellen in einer RAG-Antwort (1 bis 20). Standard: 8.
 Tune how YaCy constructs prompts and search queries for Retrieval Augmented Generation.==Stellen Sie ein, wie YaCy Prompts und Suchanfragen für Retrieval Augmented Generation aufbaut.
-Prepended before attached search snippets in RAG mode to tell the LLM how to use them.==Wird im RAG-Modus vor die angehängten Such-Snippets gesetzt, um dem LLM mitzuteilen, wie es sie verwenden soll.
-This is sent as the system message for chats. Keep it concise and friendly.==Dies wird als Systemnachricht für Chats gesendet. Halten Sie es knapp und freundlich.
+Style guidance for chats. Scoutro always sends its own base prompt with the security rules first; this text is added below it and cannot change those rules. Keep it concise and friendly.==Stilvorgaben für Chats. Scoutro sendet immer zuerst seinen eigenen Basis-Prompt mit den Sicherheitsregeln; dieser Text wird darunter angefügt und kann diese Regeln nicht ändern. Halten Sie ihn knapp und freundlich.
 Prompt given to the model that generates search queries from user requests.==Prompt für das Modell, das aus Benutzeranfragen Suchanfragen erzeugt.
 Search Document Max Length==Maximale Länge des Suchdokuments
+Source Excerpt Max Length==Maximale Länge des Quellenauszugs
+Answer Temperature==Antworttemperatur
+Maximum Sources==Maximale Quellenzahl
 Query Generator Prefix==Anfragegenerator-Präfix
 User Retrieval Prefix==Benutzer-Retrieval-Präfix
 Wire RAG Retrieval==RAG-Retrieval verdrahten
@@ -4151,7 +4161,11 @@ Loading models...==Modelle werden geladen...
 Failed to load models.==Modelle konnten nicht geladen werden.
 HTTP status:==HTTP-Status:
 The endpoint returned an invalid model list.==Der Endpunkt lieferte eine ungültige Modellliste.
-Check administrator login and endpoint credentials.==Prüfen Sie die Admin-Anmeldung und die Zugangsdaten des Endpunkts.
+The LLM endpoint rejected the credentials: check the api_key.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den api_key.
+YaCy administrator login required.==YaCy-Administratoranmeldung erforderlich.
+data-apikey-set-label="set"==data-apikey-set-label="gesetzt"
+data-stored-placeholder="set, leave empty to keep the stored key"==data-stored-placeholder="gesetzt, leer lassen behält den gespeicherten Key"
+remove the stored api_key on the next save==gespeicherten api_key beim nächsten Speichern entfernen
 Check the hoststub and endpoint availability from the Scoutro server.==Prüfen Sie den hoststub und die Erreichbarkeit des Endpunkts vom Scoutro-Server aus.
 Check the hoststub and try again.==Prüfen Sie den hoststub und versuchen Sie es erneut.
 No models found on this endpoint. Load a model in the service, then retry.==An diesem Endpunkt wurden keine Modelle gefunden. Laden Sie ein Modell im Dienst und versuchen Sie es erneut.
@@ -4500,6 +4514,7 @@ YaCy Firefox Search-Plugin Installation:==YaCy Firefox Such-Plugin Installation:
 <i>external</i>&nbsp;&nbsp;&nbsp;Bugtracker==<i>extern</i>&nbsp;&nbsp;&nbsp;Bugtracker
 JavaScript information==JavaScript-Informationen
 About This Page==Über diese Seite
+About==Über
 Compare Search==Vergleichssuche
 YaCy Tutorials==YaCy-Tutorials
 File Search==Datei-Suche
@@ -4542,6 +4557,9 @@ User==Benutzer
 "Show system prompt"=="System-Prompt anzeigen"
 "Upload chat"=="Chat hochladen"
 Attach PNG/JPG or text (.txt/.md/.tex)==PNG/JPG oder Text anhängen (.txt/.md/.tex)
+Search only this collection, e.g. edelsenior-web==Nur in dieser Collection suchen, z. B. edelsenior-web
+"all collections"=="alle Collections"
+Collection (portal):==Collection (Portal):
 Attach Search Results==Suchergebnisse anhängen
 Default Dialog Augmentation:==Standard-Dialogerweiterung:
 Show System==System anzeigen
@@ -4954,6 +4972,8 @@ Idle==Inaktiv
 >Batch running<==>Batch läuft<
 >Repair heartbeat<==>Taktgeber reparieren<
 >Completed<==>Abgeschlossen<
+> Also retry after an unsuccessful crawl result<==> Auch nach einem erfolglosen Crawl-Ergebnis wiederholen<
+>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>Ein erfolgloses Crawl-Ergebnis bedeutet, dass keine Seite indexiert oder beim Crawl nichts neu geladen wurde. Solche Hosts werden mit dem Backoff anderer Wiederholungen erneut versucht, der sich bis zum Recrawl-Intervall verdoppelt. Setzt Wiederholen voraus.<
 
 #File: ScoutroSEO_p.html
 >Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.<==>Eine Collection vor dem Crawl-Start wählen. Die Indexierung kann nach Ende des Crawl-Profils weiterlaufen.<
@@ -5042,6 +5062,158 @@ aria-label="Host analysis"==aria-label="Host-Analyse"
 >Host or HTTP/HTTPS URL<==>Host oder HTTP/HTTPS-URL<
 >Not yet indexed<==>Noch nicht indexiert<
 >Start crawl<==>Crawl starten<
+>Crawl report<==>Crawl-Bericht<
+>Crawl status<==>Crawl-Status<
+>Collection<==>Collection<
+>Show crawl status<==>Crawl-Status anzeigen<
+>Crawl again<==>Erneut crawlen<
+>The crawl status is kept per host and collection. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<==>Der Crawl-Status wird je Host und Collection gespeichert. „Erneut crawlen“ öffnet das Crawl-Formular mit vorausgefülltem Host und vorausgefüllter Collection; gestartet wird erst, wenn Sie es dort absenden.<
+>Current crawl status per host and collection, live page state from the index and the daily history of Discovery jobs. Viewing this report starts no crawl.<==>Aktueller Crawl-Status je Host und Collection, aktueller Seitenzustand aus dem Index und Tagesverlauf der Discovery-Jobs. Das Ansehen dieses Berichts startet keinen Crawl.<
+>Scope<==>Umfang<
+>Discovery job<==>Discovery-Job<
+>From<==>Von<
+>To<==>Bis<
+>Show report<==>Bericht anzeigen<
+>Crawl outcomes<==>Crawl-Ergebnisse<
+>Prechecks<==>Vorprüfungen<
+>Pages in the latest crawls<==>Seiten der letzten Crawls<
+>Exclusions<==>Ausschlüsse<
+>Content types<==>Inhaltstypen<
+>Duplicates<==>Duplikate<
+>Data age<==>Datenalter<
+>Daily history<==>Tagesverlauf<
+>Show data<==>Daten anzeigen<
+>Collections of this job<==>Collections dieses Jobs<
+>Hosts<==>Hosts<
+>Show<==>Anzeigen<
+>All hosts<==>Alle Hosts<
+>Stale hosts<==>Veraltete Hosts<
+>Latest attempt was a precheck<==>Letzter Versuch war eine Vorprüfung<
+>Partially indexed<==>Teilweise indexiert<
+>Not indexed<==>Nicht indexiert<
+>Not reloaded by this crawl<==>Bei diesem Crawl nicht neu geladen<
+>Outcome unknown<==>Ergebnis unbekannt<
+>Exclusions only partly recorded<==>Ausschlüsse nur teilweise erfasst<
+>Not reloaded by this crawl means that the latest load of a page is older than the start of this crawl. It does not mean that the page was deleted.<==>„Bei diesem Crawl nicht neu geladen“ bedeutet, dass der letzte Ladevorgang einer Seite älter als der Start dieses Crawls ist. Es bedeutet nicht, dass die Seite gelöscht wurde.<
+>A host is stale when its last crawl is older than the recrawl interval of its Discovery job. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<==>Ein Host ist veraltet, wenn sein letzter Crawl älter als das Recrawl-Intervall seines Discovery-Jobs ist. „Erneut crawlen“ öffnet das Crawl-Formular mit vorausgefülltem Host und vorausgefüllter Collection; gestartet wird erst, wenn Sie es dort absenden.<
+>Enter a collection to read the crawl status of this host.<==>Geben Sie eine Collection ein, um den Crawl-Status dieses Hosts zu lesen.<
+>No crawl of this host has been recorded in this collection yet.<==>Für diesen Host wurde in dieser Collection noch kein Crawl erfasst.<
+>The stored row belongs to another host or collection and is not shown.<==>Die gespeicherte Zeile gehört zu einem anderen Host oder einer anderen Collection und wird nicht angezeigt.<
+>The stored crawl status cannot be read.<==>Der gespeicherte Crawl-Status kann nicht gelesen werden.<
+>Current crawl<==>Aktueller Crawl<
+>Previous crawl<==>Vorheriger Crawl<
+>Latest precheck<==>Letzte Vorprüfung<
+>Page state in the index<==>Seitenzustand im Index<
+>Started<==>Gestartet<
+>Ended<==>Beendet<
+>Age (days)<==>Alter (Tage)<
+>Stale<==>Veraltet<
+>Recrawl interval (days)<==>Recrawl-Intervall (Tage)<
+>Yes<==>Ja<
+>No<==>Nein<
+>Outcome<==>Ergebnis<
+>Exclusion coverage<==>Erfassung der Ausschlüsse<
+>Complete<==>Vollständig<
+>Partly recorded<==>Teilweise erfasst<
+>Latest attempt<==>Letzter Versuch<
+>Crawl<==>Crawl<
+>Precheck<==>Vorprüfung<
+>Indexed<==>Indexiert<
+>Host name not resolvable<==>Hostname nicht auflösbar<
+>Disallowed by robots.txt<==>Durch robots.txt untersagt<
+>Blocked address<==>Gesperrte Adresse<
+>robots.txt answered with a server error<==>robots.txt mit Serverfehler beantwortet<
+>Checked<==>Geprüft<
+>Result<==>Ergebnis der Prüfung<
+>Reason code<==>Ursachencode<
+>Pages in the index<==>Seiten im Index<
+>Pages OK<==>Seiten OK<
+>Redirects<==>Weiterleitungen<
+>Client errors (4xx)<==>Clientfehler (4xx)<
+>Server errors (5xx)<==>Serverfehler (5xx)<
+>Excluded pages<==>Ausgeschlossene Seiten<
+>Failed pages<==>Fehlgeschlagene Seiten<
+>Pages disallowed by robots.txt<==>Durch robots.txt untersagte Seiten<
+>Pages not reloaded by this crawl<==>Bei diesem Crawl nicht neu geladene Seiten<
+>Not reloaded, OK before<==>Nicht neu geladen, vorher OK<
+>Depth limit<==>Tiefenlimit<
+>Page limit<==>Seitenlimit<
+>noindex<==>noindex<
+>Canonical elsewhere<==>Canonical verweist woanders hin<
+>URL filter<==>URL-Filter<
+>Blacklist<==>Blacklist<
+>Other exclusions<==>Sonstige Ausschlüsse<
+>Documents (error records included)<==>Dokumente (inklusive Fehlereinträge)<
+>OK pages<==>OK-Seiten<
+>Oldest load<==>Ältester Ladevorgang<
+>Newest load<==>Neuester Ladevorgang<
+>Crawled hosts<==>Gecrawlte Hosts<
+>Last crawl<==>Letzter Crawl<
+>Only prechecked<==>Nur vorgeprüft<
+>Crawl status read<==>Crawl-Status gelesen<
+>Page state as of<==>Seitenzustand vom<
+>Page state source<==>Quelle des Seitenzustands<
+>Live index<==>Live-Index<
+>Daily snapshot; the live index did not answer<==>Tagesstand; der Live-Index hat nicht geantwortet<
+>The index is unavailable; the page state is not shown.<==>Der Index ist nicht verfügbar; der Seitenzustand wird nicht angezeigt.<
+>Groups of identical pages<==>Gruppen identischer Seiten<
+>Identical pages<==>Identische Seiten<
+>Groups of similar pages<==>Gruppen ähnlicher Seiten<
+>Similar pages<==>Ähnliche Seiten<
+>at least<==>mindestens<
+>No values recorded.<==>Keine Werte erfasst.<
+>Crawl reports are unavailable. Capture may be disabled or the index is not ready.<==>Crawl-Berichte sind nicht verfügbar. Die Erfassung ist eventuell deaktiviert oder der Index ist nicht bereit.<
+>No crawl report was found.<==>Es wurde kein Crawl-Bericht gefunden.<
+>The crawl report could not be loaded. Please retry.<==>Der Crawl-Bericht konnte nicht geladen werden. Bitte erneut versuchen.<
+>Check the scope and the day range.<==>Prüfen Sie Umfang und Zeitraum.<
+>Enter a collection.<==>Geben Sie eine Collection ein.<
+>Select a Discovery job.<==>Wählen Sie einen Discovery-Job.<
+>No Discovery jobs recorded<==>Keine Discovery-Jobs erfasst<
+>Job no longer in Discovery<==>Job nicht mehr in Discovery<
+>Host<==>Host<
+>Action<==>Aktion<
+>Crawls per day<==>Crawls pro Tag<
+>Day<==>Tag<
+>Crawls<==>Crawls<
+>Markers<==>Markierungen<
+>Scoutro version changed<==>Scoutro-Version geändert<
+>Job definition changed<==>Job-Definition geändert<
+>No crawl activity in this day range.<==>Keine Crawl-Aktivität in diesem Zeitraum.<
+>No collection recorded yet.<==>Noch keine Collection erfasst.<
+>No hosts match this filter.<==>Keine Hosts entsprechen diesem Filter.<
+>Total<==>Gesamt<
+>Maximum per day<==>Maximum pro Tag<
+aria-label="Views"==aria-label="Ansichten"
+>Canonical<==>Canonical<
+>Titles and descriptions<==>Titel und Beschreibungen<
+>Pages with canonical<==>Seiten mit Canonical<
+>Canonical points to the page itself<==>Canonical verweist auf die Seite selbst<
+>Canonical points to another URL<==>Canonical verweist auf eine andere URL<
+>Pages without canonical<==>Seiten ohne Canonical<
+>Pages with title<==>Seiten mit Titel<
+>Pages without title<==>Seiten ohne Titel<
+>Groups of pages with the same title<==>Gruppen von Seiten mit gleichem Titel<
+>Pages sharing a title<==>Seiten mit geteiltem Titel<
+>Pages with description<==>Seiten mit Beschreibung<
+>Pages without description<==>Seiten ohne Beschreibung<
+>Groups of pages with the same description<==>Gruppen von Seiten mit gleicher Beschreibung<
+>Pages sharing a description<==>Seiten mit geteilter Beschreibung<
+>Directories<==>Verzeichnisse<
+>Directory<==>Verzeichnis<
+>Documents<==>Dokumente<
+>Directories found<==>Gefundene Verzeichnisse<
+>Documents read<==>Gelesene Dokumente<
+>Documents of the host<==>Dokumente des Hosts<
+>The host has more documents than were read; the figures cover the documents read.<==>Der Host hat mehr Dokumente als gelesen wurden; die Werte gelten für die gelesenen Dokumente.<
+>Referring hosts<==>Verweisende Hosts<
+>Referring hosts in total<==>Verweisende Hosts insgesamt<
+>Links in total<==>Links insgesamt<
+>No referring host observed.<==>Kein verweisender Host beobachtet.<
+>The host link graph is not available.<==>Der Host-Linkgraph ist nicht verfügbar.<
+>Referring hosts are hosts whose crawled pages link to this host, as observed by this peer. This is not a complete backlink index.<==>Verweisende Hosts sind Hosts, deren gecrawlte Seiten auf diesen Host verlinken, wie von diesem Peer beobachtet. Das ist kein vollständiger Backlink-Index.<
+>Not enabled in the index schema:<==>Im Indexschema nicht aktiviert:<
+>Enable these fields in the index schema; they are filled for pages crawled afterwards.<==>Aktivieren Sie diese Felder im Indexschema; sie werden für danach gecrawlte Seiten gefüllt.<
+>Open index schema<==>Indexschema öffnen<
 
 #File: ScoutroCrawls_p.html
 
@@ -5122,5 +5294,40 @@ Index administration==Indexverwaltung
 #File: LLMSelection_p.html
 # Scoutro cards reuse original model/service controls and serialization.
 
+#File: scoutro-about.html
+#---------------------------
+<html lang="en">==<html lang="de">
+Scoutro is a mobile-first search, crawling and indexing application. Scoutro is an independent community project <strong>based on <a href="https://yacy.net/">YaCy</a></strong>, the free, distributed peer-to-peer search engine.==Scoutro ist eine für Mobilgeräte optimierte Anwendung zum Suchen, Crawlen und Indexieren. Scoutro ist ein unabhängiges Community-Projekt <strong>auf Basis von <a href="https://yacy.net/">YaCy</a></strong>, der freien, verteilten Peer-to-Peer-Suchmaschine.
+YaCy is developed by Michael Peter Christen and the YaCy contributors (the YaCy project). Scoutro is not affiliated with or endorsed by the YaCy project.==YaCy wird von Michael Peter Christen und den YaCy-Mitwirkenden (dem YaCy-Projekt) entwickelt. Scoutro ist weder mit dem YaCy-Projekt verbunden noch von ihm unterstützt.
+YaCy is free software, licensed under the <a href="https://github.com/yacy/yacy_search_server/blob/master/gpl.txt">GNU General Public License, version 2 or (at your option) any later version</a>. Parts of YaCy (<code>net.yacy.cora</code>) are licensed under the GNU Lesser General Public License 2.1 or later. Scoutro is a modified version of YaCy and is distributed under the same license, GPL-2.0-or-later, without any warranty.==YaCy ist freie Software, lizenziert unter der <a href="https://github.com/yacy/yacy_search_server/blob/master/gpl.txt">GNU General Public License, Version 2 oder (nach Ihrer Wahl) jeder späteren Version</a>. Teile von YaCy (<code>net.yacy.cora</code>) stehen unter der GNU Lesser General Public License 2.1 oder später. Scoutro ist eine veränderte Version von YaCy und wird unter derselben Lizenz, GPL-2.0-or-later, ohne jede Gewährleistung verbreitet.
+Licenses of the JavaScript code on these pages: <a href="jslicense.html">JavaScript information</a>. Third-party components and their notices are listed in the files <code>NOTICE</code>, <code>COPYRIGHT</code> and <code>LICENSES/</code> of the source code.==Lizenzen des JavaScript-Codes auf diesen Seiten: <a href="jslicense.html">JavaScript-Informationen</a>. Komponenten Dritter und ihre Hinweise sind in den Dateien <code>NOTICE</code>, <code>COPYRIGHT</code> und <code>LICENSES/</code> des Quellcodes aufgeführt.
+Administration and technical details:==Administration und technische Details:
+>About this peer<==>Über diesen Peer<
+>Support YaCy development<==>YaCy-Entwicklung unterstützen<
+>YaCy community forum<==>YaCy-Community-Forum<
+(fork of YaCy)==(Fork von YaCy)
+>About Scoutro<==>Über Scoutro<
+&larr; Search==&larr; Suche
+>Source code<==>Quellcode<
+>YaCy project<==>YaCy-Projekt<
+>License<==>Lizenz<
+#-----------------------------
+
+#File: env/templates/scoutro/tagline.template
+#---------------------------
+Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
+#-----------------------------
+
 #File: yacychat.html
 System data requires an authorized administrator or agent token. No web answer is substituted.==Systemdaten benötigen einen berechtigten Administrator oder Agent-Token. Es wird keine Webantwort als Ersatz verwendet.
+Not among the sources of this answer: not linked==Nicht unter den Quellen dieser Antwort: nicht verlinkt
+Not among the sources found for this answer:==Nicht unter den für diese Antwort gefundenen Quellen:
+No source of this answer has this number==Keine Quelle dieser Antwort hat diese Nummer
+Sources of this answer==Quellen dieser Antwort
+No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.==Keine YaCy-Administratorberechtigung: Das AI Shield lässt diese Adresse erst nach der YaCy-Administratoranmeldung zu.
+Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.==Vom AI Shield blockiert: Der Gastzugang ist aus, oder die Anfrage kam von einer anderen Website oder mit einem Agent-Token.
+Rate limit reached: please wait and try again. The server is protecting itself from overload.==Ratenlimit erreicht: Bitte warten Sie und versuchen Sie es erneut. Der Server schützt sich vor Überlastung.
+No chat model is configured: assign a model to the chat role in LLM Selection.==Kein Chat-Modell konfiguriert: Weisen Sie in der LLM-Auswahl der Chat-Rolle ein Modell zu.
+The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.==Der LLM-Endpunkt ist vom Scoutro-Server aus nicht erreichbar: Prüfen Sie den hoststub in der LLM-Auswahl.
+The LLM endpoint rejected the credentials: check the API key in LLM Selection.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den API-Key in der LLM-Auswahl.
+The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.==Der LLM-Endpunkt hat mit einem Fehler geantwortet: Den HTTP-Status zeigt das Scoutro-Log.

@@ -37,13 +37,13 @@
     <form method="post" action="RAGConfig_p.html">
       <div class="rag-card">
         <h3>System Prompt</h3>
-        <p>This is sent as the system message for chats. Keep it concise and friendly.</p>
+        <p>Style guidance for chats. Scoutro always sends its own base prompt with the security rules first; this text is added below it and cannot change those rules. Keep it concise and friendly.</p>
         <textarea name="ai.system-prompt" class="rag-textarea form-control" rows="5">#[ai.system-prompt]#</textarea>
       </div>
 
       <div class="rag-card">
         <h3>User Retrieval Prefix</h3>
-        <p>Prepended before attached search snippets in RAG mode to tell the LLM how to use them.</p>
+        <p>Introduces the numbered search results in RAG mode. The results follow as an untrusted data block with sources [1], [2], ...</p>
         <textarea name="ai.llm-user-prefix" class="rag-textarea form-control" rows="5">#[ai.llm-user-prefix]#</textarea>
       </div>
 
@@ -55,8 +55,26 @@
 
       <div class="rag-card">
         <h3>Search Document Max Length</h3>
-        <p>Maximum character length of the virtual search document used as RAG attachment and as the `search` tool result. Content beyond this limit is cut off. Default: 30000.</p>
+        <p>Upper bound in characters for all sources of one RAG answer and for the `search` tool result. The actual RAG budget is smaller when the context window (num_ctx in LLM Selection) minus the answer length (max_tokens) does not allow more; sources are never cut in the middle. Default: 30000.</p>
         <input type="number" min="1" step="1" name="ai.rag.search-document-maxlength" value="#[ai.rag.search-document-maxlength]#" class="form-control" />
+      </div>
+
+      <div class="rag-card">
+        <h3>Maximum Sources</h3>
+        <p>Maximum number of numbered sources in one RAG answer (1 to 20). Default: 8.</p>
+        <input type="number" min="1" max="20" step="1" name="ai.rag.max-sources" value="#[ai.rag.max-sources]#" class="form-control" />
+      </div>
+
+      <div class="rag-card">
+        <h3>Source Excerpt Max Length</h3>
+        <p>Maximum characters per source; the passages with the most question terms are taken (400 to 20000). Default: 1500.</p>
+        <input type="number" min="400" max="20000" step="1" name="ai.rag.document-maxlength" value="#[ai.rag.document-maxlength]#" class="form-control" />
+      </div>
+
+      <div class="rag-card">
+        <h3>Answer Temperature</h3>
+        <p>Sampling temperature of RAG answers (0 to 2) when the client sends none; low values keep answers close to the sources. Default: 0.2.</p>
+        <input type="number" min="0" max="2" step="0.05" name="ai.rag.temperature" value="#[ai.rag.temperature]#" class="form-control" />
       </div>
 
       <button type="submit" class="btn btn-primary">Save RAG Settings</button>

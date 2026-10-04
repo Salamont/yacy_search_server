@@ -34,6 +34,7 @@ public class ToolsConfig_p {
     private static final String CONFIG_PREFIX = "ai.tools.";
     private static final String DESCRIPTION_SUFFIX = ".description";
     private static final String MAX_CALLS_SUFFIX = ".maxCallsPerTurn";
+    private static final String ENABLED_SUFFIX = ".enabled";
 
     public static serverObjects respond(@SuppressWarnings("unused") final RequestHeader header, final serverObjects post, final serverSwitch env) {
         final Switchboard sb = (Switchboard) env;
@@ -57,6 +58,9 @@ public class ToolsConfig_p {
                 if (configuredMaxCalls < 0) configuredMaxCalls = 0;
                 sb.setConfig(descKey, configuredDescription);
                 sb.setConfig(maxKey, Integer.toString(configuredMaxCalls));
+                // explicit release for the chat; an unchecked box withdraws it
+                sb.setConfig(CONFIG_PREFIX + tool.name + ENABLED_SUFFIX,
+                        "true".equals(post.get(CONFIG_PREFIX + tool.name + ENABLED_SUFFIX, "false")) ? "true" : "false");
             }
             prop.put("status", "1");
         } else {
@@ -79,6 +83,7 @@ public class ToolsConfig_p {
             prop.putHTML(keyPrefix + "_" + row + "_name", tool.name);
             prop.putHTML(keyPrefix + "_" + row + "_description", tool.description);
             prop.putNum(keyPrefix + "_" + row + "_maxCallsPerTurn", tool.maxCallsPerTurn);
+            prop.put(keyPrefix + "_" + row + "_released", tool.released ? "1" : "0");
             row++;
         }
         prop.put(keyPrefix, row);

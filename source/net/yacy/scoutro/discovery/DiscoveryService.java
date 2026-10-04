@@ -29,6 +29,18 @@ public final class DiscoveryService implements AutoCloseable {
     @FunctionalInterface public interface Runner {
         JsonObject run(Path script, Path state, Path config, JsonObject init, DiscoveryProcess.Handler handler, int timeout) throws Exception;
     }
+    /** Crawl report hooks; failures are logged and never change a Discovery decision. */
+    public interface CrawlObserver {
+        CrawlObserver NONE = new CrawlObserver() { };
+        default void accepted(final String marker, final String job, final String domain) { }
+        default void terminated(final String marker, final String job, final String domain) { }
+        default void precheck(final String url, final String collection, final String job, final String domain,
+                final String result, final String detail) throws Exception { }
+        /** Recorded current crawl per host of a collection: {host: {crawl_id, outcome, ended_at}}; hosts without one are left out. */
+        default JsonObject outcomes(final String collection, final java.util.List<String> hosts) throws Exception { return new JsonObject(); }
+    }
+    static final int OUTCOME_BATCH = 200;
+    static final java.util.Set<String> PRECHECK_RESULTS = java.util.Set.of("dns", "robots", "blocked", "site_5xx");
     private static volatile DiscoveryService instance;
     public final JobStore store;
     private final Path configRoot, stateRoot, snapshots, script;
@@ -46,6 +58,7 @@ public final class DiscoveryService implements AutoCloseable {
     private volatile JsonObject stateSnapshot = new JsonObject().put("available", false);
     private volatile long snapshotAt;
     private volatile String waiting = "disabled";
+    private volatile CrawlObserver observer = CrawlObserver.NONE;
 
     public DiscoveryService(final Path data, final Path app, final Path config, final Path state,
             final DiscoveryHeartbeat heartbeat, final Backend backend, final LongSupplier clock,
@@ -75,10 +88,17 @@ public final class DiscoveryService implements AutoCloseable {
                                     Math.max(0, Math.min(10, sb.getConfigInt("scoutro.discovery.maxDepth", 5)))),
                             DiscoveryProcess::run, Math.max(60, Math.min(7200, sb.getConfigInt("scoutro.discovery.workerTimeoutSeconds", 3600))));
                 } catch (final IOException e) { throw unavailable(); }
+                instance.observer(net.yacy.scoutro.api.CaptureRuntime.observer());
             }
         }
         return instance;
     }
+    public void observer(final CrawlObserver value) { this.observer = value == null ? CrawlObserver.NONE : value; }
+    private void observe(final String hook, final ObserverCall call) {
+        try { call.run(this.observer); }
+        catch (final Exception e) { ConcurrentLog.warn("ScoutroDiscovery", "crawl report " + hook + " hook failed: " + e.getClass().getSimpleName()); }
+    }
+    @FunctionalInterface private interface ObserverCall { void run(CrawlObserver observer) throws Exception; }
     public static void closeCurrent() { final DiscoveryService service = instance; if (service != null) service.close(); instance = null; }
     private static ApiException unavailable() { return new ApiException(503, "jobstore_unavailable", "Discovery persistence is unavailable; existing files are retained."); }
     private RuntimeCatalog catalog() throws ApiException { return RuntimeCatalog.load(this.configRoot); }
@@ -340,12 +360,39 @@ public final class DiscoveryService implements AutoCloseable {
                     intent.put("state_applied", true);
                 });
                 return new JsonObject();
+            case "precheck":
+                JobSchema.keys(params, "domain", "url", "result", "detail");
+                final String checked = params.getString("domain"), checkedUrl = params.getString("url");
+                candidate(checked, checkedUrl);
+                final String result = params.getString("result");
+                if (!PRECHECK_RESULTS.contains(result)) throw ApiException.invalid("result", "Unknown precheck result.");
+                final Object detail = params.opt("detail");
+                if (detail != null && detail != JsonObject.NULL && !(detail instanceof String)) throw ApiException.invalid("detail", "Expected string.");
+                observe("precheck", o -> o.precheck(checkedUrl, run.getString("collection"), run.getString("job_id"), checked,
+                        result, detail instanceof String ? (String) detail : null));
+                return new JsonObject();
+            case "outcomes":
+                // Read-only: recorded crawl results for processing.outcome_retry; Python decides and writes its state.
+                JobSchema.keys(params, "hosts");
+                if (!job.getJSONObject("processing").optBoolean("outcome_retry", false))
+                    throw ApiException.invalid("action", "Outcome retry is not enabled for the reserved job.");
+                final JsonArray hosts = params.optJSONArray("hosts");
+                if (hosts == null || hosts.length() > OUTCOME_BATCH) throw ApiException.invalid("hosts", "Expected at most " + OUTCOME_BATCH + " host names.");
+                final java.util.List<String> names = new java.util.ArrayList<>();
+                for (final Object value : hosts) {
+                    if (!(value instanceof String) || !((String) value).matches("[a-z0-9.-]{1,253}")) throw ApiException.invalid("hosts", "Expected lower-case host names.");
+                    names.add((String) value);
+                }
+                try {
+                    return new JsonObject().put("outcomes", this.observer.outcomes(run.getString("collection"), names));
+                } catch (final Exception e) {
+                    ConcurrentLog.warn("ScoutroDiscovery", "crawl report outcomes unavailable: " + e.getClass().getSimpleName());
+                    return new JsonObject().put("outcomes", new JsonObject()).put("unavailable", true);
+                }
             case "crawl":
                 JobSchema.keys(params, "domain", "url");
                 final String domain = params.getString("domain"), url = params.getString("url");
-                final URI uri = new URI(url);
-                if (!domain.matches("[a-z0-9.-]{3,253}") || uri.getHost() == null
-                        || !(uri.getHost().equals(domain) || uri.getHost().endsWith("." + domain))) throw ApiException.invalid("url", "Candidate domain mismatch.");
+                candidate(domain, url);
                 if (!request(runId, "admission", new JsonObject()).getBoolean("allowed")) throw new ApiException(409, "capacity", "Admission is paused or capacity is unavailable.");
                 final String marker = UUID.randomUUID().toString().replace("-", "");
                 final JsonObject intent = new JsonObject().put("id", marker).put("marker", marker).put("domain", domain)
@@ -357,9 +404,10 @@ public final class DiscoveryService implements AutoCloseable {
                         .put("depth", job.getJSONObject("batch").getInt("depth")).put("maxPages", job.getJSONObject("batch").getInt("max_pages"))
                         .put("scope", "domain");
                 try {
-                    final JsonObject result = this.backend.start(parameters, marker);
-                    change(null, next -> attempt(next.getJSONObject("active_run"), marker).put("state", "accepted").put("crawl_id", result.getString("id")));
-                    return result.put("attempt_id", marker);
+                    final JsonObject started = this.backend.start(parameters, marker);
+                    change(null, next -> attempt(next.getJSONObject("active_run"), marker).put("state", "accepted").put("crawl_id", started.getString("id")));
+                    observe("accepted", o -> o.accepted(marker, run.getString("job_id"), domain));
+                    return started.put("attempt_id", marker);
                 } catch (final ApiException e) {
                     final boolean definite = java.util.Set.of("host_busy", "collection_conflict", "crawl_rejected", "invalid_request").contains(e.code());
                     change(null, next -> attempt(next.getJSONObject("active_run"), marker).put("state", definite ? "not_submitted" : "submitted_unknown"));
@@ -369,6 +417,12 @@ public final class DiscoveryService implements AutoCloseable {
                 }
             default: throw ApiException.invalid("action", "Unregistered process action.");
         }
+    }
+    /** A candidate URL must be HTTP(S) on the Discovery domain or one of its subdomains. */
+    private static void candidate(final String domain, final String url) throws Exception {
+        final URI uri = new URI(url);
+        if (!domain.matches("[a-z0-9.-]{3,253}") || uri.getHost() == null
+                || !(uri.getHost().equals(domain) || uri.getHost().endsWith("." + domain))) throw ApiException.invalid("url", "Candidate domain mismatch.");
     }
     private static JsonObject attempt(final JsonObject run, final String id) throws ApiException {
         for (final Object value : run.getJSONArray("attempts")) if (((JsonObject) value).getString("id").equals(id)) return (JsonObject) value;
@@ -448,6 +502,7 @@ public final class DiscoveryService implements AutoCloseable {
                 this.waiting = "crawl_status_unknown"; return;
             }
             if (!"terminated".equals(crawl.optString("state"))) running = true;
+            else observe("terminated", o -> o.terminated(intent.getString("marker"), updated.getString("job_id"), intent.getString("domain")));
         }
         if (running) { this.waiting = "waiting_for_crawler"; return; }
         change(null, DiscoveryService::complete);
