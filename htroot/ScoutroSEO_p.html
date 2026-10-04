@@ -7,10 +7,13 @@
 #%env/templates/header.template%#
 <main class="sseo-main">
 <h1>SEO / Host Analysis</h1>
+<nav class="sseo-views" aria-label="Views"><a id="sseo-view-host" href="ScoutroSEO_p.html" aria-current="page">Host analysis</a><a id="sseo-view-report" href="ScoutroSEO_p.html?view=report">Crawl report</a></nav>
+<datalist id="sseo-collection-list"></datalist>
+<div id="sseo-host-view">
 <p class="sseo-note">Read indexed content, crawl metadata and locally observed references.</p>
 <form id="sseo-search" class="sseo-search">
 <label for="sseo-host">Host or HTTP/HTTPS URL<input class="form-control" id="sseo-host" type="text" required maxlength="2048" autocomplete="off" /></label>
-<label for="sseo-collection">Collection (optional)<input class="form-control" id="sseo-collection" type="text" maxlength="64" /></label>
+<label for="sseo-collection">Collection (optional)<input class="form-control" id="sseo-collection" type="text" maxlength="64" list="sseo-collection-list" autocomplete="off" /></label>
 <button class="btn btn-primary" type="submit">Analyze</button>
 <button class="btn btn-default" id="sseo-find" type="button">Find hosts</button>
 </form>
@@ -29,6 +32,7 @@
 <button class="btn btn-default" type="button" id="sseo-tab-pages" role="tab" data-sseo-tab="pages" aria-controls="sseo-panel-pages" aria-selected="false" tabindex="-1">Pages</button>
 <button class="btn btn-default" type="button" id="sseo-tab-links" role="tab" data-sseo-tab="links" aria-controls="sseo-panel-links" aria-selected="false" tabindex="-1">Links</button>
 <button class="btn btn-default" type="button" id="sseo-tab-technology" role="tab" data-sseo-tab="technology" aria-controls="sseo-panel-technology" aria-selected="false" tabindex="-1">Technology</button>
+<button class="btn btn-default" type="button" id="sseo-tab-crawl-status" role="tab" data-sseo-tab="crawl-status" aria-controls="sseo-panel-crawl-status" aria-selected="false" tabindex="-1">Crawl status</button>
 </div>
 <section class="sseo-panel" id="sseo-panel-overview" role="tabpanel" aria-labelledby="sseo-tab-overview" tabindex="0" >
 <div class="sseo-cards" id="sseo-kpis"></div><h3>Reference coverage</h3><dl id="sseo-coverage" class="sseo-stats"></dl><h3>Content</h3><dl id="sseo-content" class="sseo-stats"></dl><h3>Language distribution</h3><dl id="sseo-languages" class="sseo-stats"></dl></section>
@@ -38,10 +42,51 @@
 <dl id="sseo-references" class="sseo-stats"></dl><p class="sseo-note">Incoming reference sums cover finalized target URLs only. External source hosts are unique per URL and are never added up as a host-wide domain count.</p><h3>Most externally referenced pages</h3><div class="sseo-scroll" id="sseo-top-external"></div><h3>Most internally referenced pages</h3><div class="sseo-scroll" id="sseo-top-internal"></div></section>
 <section class="sseo-panel" id="sseo-panel-technology" role="tabpanel" aria-labelledby="sseo-tab-technology" tabindex="0" hidden>
 <h3>Crawl metadata</h3><dl id="sseo-crawl" class="sseo-stats"></dl><h3>HTTP status</h3><dl id="sseo-status" class="sseo-stats"></dl><h3>HTTP / HTTPS</h3><dl id="sseo-protocol" class="sseo-stats"></dl><h3>Outgoing links</h3><dl id="sseo-outgoing" class="sseo-stats"></dl><p class="sseo-note">Language and protocol distributions show up to 30 values.</p></section>
+<section class="sseo-panel" id="sseo-panel-crawl-status" role="tabpanel" aria-labelledby="sseo-tab-crawl-status" tabindex="0" hidden>
+<div class="sseo-controls"><label for="sseo-cs-collection">Collection<input class="form-control" id="sseo-cs-collection" type="text" maxlength="64" list="sseo-collection-list" autocomplete="off" /></label><button class="btn btn-default" id="sseo-cs-show" type="button">Show crawl status</button><a class="btn btn-default" id="sseo-cs-again" href="ScoutroCrawls_p.html#new-crawl">Crawl again</a></div>
+<div id="sseo-cs-body"></div>
+<p class="sseo-note">The crawl status is kept per host and collection. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.</p></section>
 <p class="sseo-note">These references describe the crawlgraph observed by Scoutro, not a complete worldwide backlink index.</p>
 <p class="sseo-note">Coverage counts finalized reference fields. Historical Citation collection cannot be proven from these fields. Old URLs may require a later recrawl; this page starts no crawl.</p>
 </section>
 <section class="sseo-panel" id="sseo-detail" hidden aria-labelledby="sseo-detail-title"><div class="sseo-controls"><h2 id="sseo-detail-title" tabindex="-1">URL detail</h2><button class="btn btn-default" type="button" id="sseo-close">Close detail</button></div><p id="sseo-detail-url"></p><div id="sseo-detail-body"></div></section>
+</div>
+<section id="sseo-report-view" hidden aria-labelledby="sseo-report-title">
+<h2 id="sseo-report-title">Crawl report</h2>
+<p class="sseo-note">Current crawl status per host and collection, live page state from the index and the daily history of Discovery jobs. Viewing this report starts no crawl.</p>
+<form id="sseo-r-form" class="sseo-search">
+<label for="sseo-r-kind">Scope<select class="form-control" id="sseo-r-kind"><option value="collection">Collection</option><option value="job">Discovery job</option></select></label>
+<label for="sseo-r-collection" id="sseo-r-collection-field">Collection<input class="form-control" id="sseo-r-collection" type="text" maxlength="64" list="sseo-collection-list" autocomplete="off" /></label>
+<label for="sseo-r-job" id="sseo-r-job-field" hidden>Discovery job<select class="form-control" id="sseo-r-job"></select></label>
+<label for="sseo-r-from" id="sseo-r-from-field" hidden>From<input class="form-control" id="sseo-r-from" type="date" /></label>
+<label for="sseo-r-to" id="sseo-r-to-field" hidden>To<input class="form-control" id="sseo-r-to" type="date" /></label>
+<button class="btn btn-primary" type="submit">Show report</button>
+</form>
+<p id="sseo-r-message" role="status" aria-live="polite"></p>
+<div id="sseo-r-result" hidden>
+<h3 id="sseo-r-heading"></h3>
+<div class="sseo-cards sseo-r-cards" id="sseo-r-kpis"></div>
+<div class="sseo-r-grid">
+<section class="sseo-panel" aria-labelledby="sseo-r-outcomes-title"><h3 id="sseo-r-outcomes-title">Crawl outcomes</h3><div id="sseo-r-outcomes"></div></section>
+<section class="sseo-panel" aria-labelledby="sseo-r-prechecks-title"><h3 id="sseo-r-prechecks-title">Prechecks</h3><div id="sseo-r-prechecks"></div></section>
+<section class="sseo-panel" aria-labelledby="sseo-r-pages-title"><h3 id="sseo-r-pages-title">Pages in the latest crawls</h3><div id="sseo-r-pages"></div></section>
+<section class="sseo-panel" aria-labelledby="sseo-r-exclusions-title"><h3 id="sseo-r-exclusions-title">Exclusions</h3><div id="sseo-r-exclusions"></div></section>
+<section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-status-title"><h3 id="sseo-r-status-title">HTTP status</h3><div id="sseo-r-status"></div></section>
+<section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-types-title"><h3 id="sseo-r-types-title">Content types</h3><div id="sseo-r-types"></div></section>
+<section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-depth-title"><h3 id="sseo-r-depth-title">Crawl depth</h3><div id="sseo-r-depth"></div></section>
+<section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-duplicates-title"><h3 id="sseo-r-duplicates-title">Duplicates</h3><dl class="sseo-stats" id="sseo-r-duplicates"></dl></section>
+<section class="sseo-panel" aria-labelledby="sseo-r-age-title"><h3 id="sseo-r-age-title">Data age</h3><dl class="sseo-stats" id="sseo-r-age"></dl></section>
+</div>
+<section class="sseo-panel" data-sseo-scope="job" aria-labelledby="sseo-r-history-title"><h3 id="sseo-r-history-title">Daily history</h3><div id="sseo-r-history"></div><details><summary>Show data</summary><div class="sseo-scroll" id="sseo-r-history-table"></div></details></section>
+<section class="sseo-panel" data-sseo-scope="job" aria-labelledby="sseo-r-collections-title"><h3 id="sseo-r-collections-title">Collections of this job</h3><ul class="sseo-host-results" id="sseo-r-collections"></ul></section>
+<section class="sseo-panel" data-sseo-scope="collection" aria-labelledby="sseo-r-hosts-title"><h3 id="sseo-r-hosts-title">Hosts</h3>
+<div class="sseo-controls"><label for="sseo-r-filter">Show<select class="form-control" id="sseo-r-filter"><option value="all">All hosts</option><option value="stale">Stale hosts</option><option value="precheck">Latest attempt was a precheck</option><option value="partial">Partially indexed</option><option value="not_indexed">Not indexed</option><option value="not_reloaded">Not reloaded by this crawl</option><option value="unknown">Outcome unknown</option><option value="coverage_partial">Exclusions only partly recorded</option></select></label></div>
+<div class="sseo-scroll" id="sseo-r-hosts"></div>
+<div class="sseo-controls"><button class="btn btn-default" id="sseo-r-prev" type="button">Previous</button><span id="sseo-r-range" role="status"></span><button class="btn btn-default" id="sseo-r-next" type="button">Next</button></div></section>
+<p class="sseo-note">Not reloaded by this crawl means that the latest load of a page is older than the start of this crawl. It does not mean that the page was deleted.</p>
+<p class="sseo-note">A host is stale when its last crawl is older than the recrawl interval of its Discovery job. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.</p>
+</div>
+</section>
 <div hidden id="sseo-labels">
 <span data-sseo-label="not_indexed">Not yet indexed</span>
 <span data-sseo-label="overview">Overview</span>
@@ -102,8 +147,107 @@
 <span data-sseo-label="detail">URL detail</span>
 <span data-sseo-label="top_external">Most externally referenced pages</span>
 <span data-sseo-label="top_internal">Most internally referenced pages</span>
+<span data-sseo-label="cs_need_collection">Enter a collection to read the crawl status of this host.</span>
+<span data-sseo-label="cs_absent">No crawl of this host has been recorded in this collection yet.</span>
+<span data-sseo-label="cs_key_collision">The stored row belongs to another host or collection and is not shown.</span>
+<span data-sseo-label="cs_invalid_row">The stored crawl status cannot be read.</span>
+<span data-sseo-label="r_current">Current crawl</span>
+<span data-sseo-label="r_previous">Previous crawl</span>
+<span data-sseo-label="r_precheck">Latest precheck</span>
+<span data-sseo-label="r_index">Page state in the index</span>
+<span data-sseo-label="r_started_at">Started</span>
+<span data-sseo-label="r_ended_at">Ended</span>
+<span data-sseo-label="r_age_days">Age (days)</span>
+<span data-sseo-label="r_stale">Stale</span>
+<span data-sseo-label="r_stale_after_days">Recrawl interval (days)</span>
+<span data-sseo-label="r_yes">Yes</span>
+<span data-sseo-label="r_no">No</span>
+<span data-sseo-label="r_outcome">Outcome</span>
+<span data-sseo-label="r_coverage">Exclusion coverage</span>
+<span data-sseo-label="r_complete">Complete</span>
+<span data-sseo-label="r_partly">Partly recorded</span>
+<span data-sseo-label="r_job">Discovery job</span>
+<span data-sseo-label="r_latest_attempt">Latest attempt</span>
+<span data-sseo-label="r_attempt_crawl">Crawl</span>
+<span data-sseo-label="r_attempt_precheck">Precheck</span>
+<span data-sseo-label="r_indexed">Indexed</span>
+<span data-sseo-label="r_partial">Partially indexed</span>
+<span data-sseo-label="r_not_indexed">Not indexed</span>
+<span data-sseo-label="r_not_reloaded">Not reloaded by this crawl</span>
+<span data-sseo-label="r_unknown">Outcome unknown</span>
+<span data-sseo-label="r_dns">Host name not resolvable</span>
+<span data-sseo-label="r_robots">Disallowed by robots.txt</span>
+<span data-sseo-label="r_blocked">Blocked address</span>
+<span data-sseo-label="r_site_5xx">robots.txt answered with a server error</span>
+<span data-sseo-label="r_at">Checked</span>
+<span data-sseo-label="r_result">Result</span>
+<span data-sseo-label="r_detail">Reason code</span>
+<span data-sseo-label="pages_total">Pages in the index</span>
+<span data-sseo-label="pages_ok">Pages OK</span>
+<span data-sseo-label="pages_redirect">Redirects</span>
+<span data-sseo-label="pages_client_error">Client errors (4xx)</span>
+<span data-sseo-label="pages_server_error">Server errors (5xx)</span>
+<span data-sseo-label="pages_excluded">Excluded pages</span>
+<span data-sseo-label="pages_failed">Failed pages</span>
+<span data-sseo-label="pages_robots">Pages disallowed by robots.txt</span>
+<span data-sseo-label="pages_not_reloaded">Pages not reloaded by this crawl</span>
+<span data-sseo-label="pages_not_reloaded_ok">Not reloaded, OK before</span>
+<span data-sseo-label="depth">Depth limit</span>
+<span data-sseo-label="max_pages">Page limit</span>
+<span data-sseo-label="excl_noindex">noindex</span>
+<span data-sseo-label="excl_canonical">Canonical elsewhere</span>
+<span data-sseo-label="excl_filter">URL filter</span>
+<span data-sseo-label="excl_blacklist">Blacklist</span>
+<span data-sseo-label="excl_other">Other exclusions</span>
+<span data-sseo-label="r_documents">Documents (error records included)</span>
+<span data-sseo-label="r_ok">OK pages</span>
+<span data-sseo-label="r_hosts">Hosts</span>
+<span data-sseo-label="r_oldest">Oldest load</span>
+<span data-sseo-label="r_newest">Newest load</span>
+<span data-sseo-label="r_crawled">Crawled hosts</span>
+<span data-sseo-label="r_stale_hosts">Stale hosts</span>
+<span data-sseo-label="r_last_crawl">Last crawl</span>
+<span data-sseo-label="r_precheck_only">Only prechecked</span>
+<span data-sseo-label="r_latest_precheck">Latest attempt was a precheck</span>
+<span data-sseo-label="r_coverage_partial">Exclusions only partly recorded</span>
+<span data-sseo-label="r_scanned">Crawl status read</span>
+<span data-sseo-label="r_index_as_of">Page state as of</span>
+<span data-sseo-label="r_index_source">Page state source</span>
+<span data-sseo-label="r_source_live">Live index</span>
+<span data-sseo-label="r_source_rollup">Daily snapshot; the live index did not answer</span>
+<span data-sseo-label="r_index_unavailable">The index is unavailable; the page state is not shown.</span>
+<span data-sseo-label="r_exact_groups">Groups of identical pages</span>
+<span data-sseo-label="r_exact_urls">Identical pages</span>
+<span data-sseo-label="r_similar_groups">Groups of similar pages</span>
+<span data-sseo-label="r_similar_urls">Similar pages</span>
+<span data-sseo-label="r_at_least">at least</span>
+<span data-sseo-label="r_none">No values recorded.</span>
+<span data-sseo-label="r_unavailable">Crawl reports are unavailable. Capture may be disabled or the index is not ready.</span>
+<span data-sseo-label="r_not_found">No crawl report was found.</span>
+<span data-sseo-label="r_error">The crawl report could not be loaded. Please retry.</span>
+<span data-sseo-label="r_invalid">Check the scope and the day range.</span>
+<span data-sseo-label="r_choose_collection">Enter a collection.</span>
+<span data-sseo-label="r_choose_job">Select a Discovery job.</span>
+<span data-sseo-label="r_no_jobs">No Discovery jobs recorded</span>
+<span data-sseo-label="r_job_unknown">Job no longer in Discovery</span>
+<span data-sseo-label="r_host">Host</span>
+<span data-sseo-label="r_action">Action</span>
+<span data-sseo-label="r_crawl_again">Crawl again</span>
+<span data-sseo-label="r_history">Crawls per day</span>
+<span data-sseo-label="r_day">Day</span>
+<span data-sseo-label="r_crawls">Crawls</span>
+<span data-sseo-label="r_prechecks">Prechecks</span>
+<span data-sseo-label="r_markers">Markers</span>
+<span data-sseo-label="r_version_changed">Scoutro version changed</span>
+<span data-sseo-label="r_job_changed">Job definition changed</span>
+<span data-sseo-label="r_no_history">No crawl activity in this day range.</span>
+<span data-sseo-label="r_no_collections">No collection recorded yet.</span>
+<span data-sseo-label="r_no_hosts">No hosts match this filter.</span>
+<span data-sseo-label="r_total">Total</span>
+<span data-sseo-label="r_maximum">Maximum per day</span>
 </div>
 </main>
 #%env/templates/footer.template%#
 <script src="env/scoutro/seo.js"></script>
+<script src="env/scoutro/seo-report.js"></script>
 </body></html>

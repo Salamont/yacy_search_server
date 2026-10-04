@@ -1,8 +1,8 @@
 # Scoutro Crawl Report (plan)
 
-Status: confirmed plan. Phases 1 (storage), 2 (capture) and 3 (reports and
-rollups) are implemented on branch `ccr-e3e5f88b-1fqp77`; later phases are not
-started.
+Status: confirmed plan. Phases 1 (storage), 2 (capture), 3 (reports and
+rollups) and 4 (API and UI) are implemented on branch `ccr-e3e5f88b-1fqp77`;
+later phases are not started.
 
 Goal: crawl-report views comparable to a classic crawl audit (crawl details,
 status, HTTP codes, content types, depth, duplicates, indexability, data age)
@@ -272,6 +272,43 @@ previous crawl of each host; a host crawled more than twice within the window
 counts its older crawls only if they are still there. Crawls outside Discovery
 jobs are not in job rollups.
 
+## API and UI (Phase 4)
+
+`api/ReportApi` exposes `ReportService` read-only under
+`/scoutro/api/v1/reports/` (administrator, HTTP Digest) and
+`/scoutro/api/agent/v1/reports/` (Bearer token with the explicit grant
+`report.read`, absent from every preset):
+
+| Route | Content |
+|---|---|
+| `GET jobs` | Known Discovery jobs plus jobs that only appear in the table, with collections, host counts, stale hosts and last crawl |
+| `GET jobs/{id}?from=&to=` | Job report; days as `YYYY-MM-DD`, default the last 90 days, at most three years |
+| `GET collections/{collection}` | Collection report (table aggregate and live index state, or rollup fallback) |
+| `GET collections/{collection}/hosts?filter=&limit=&offset=` | Host list: `stale` oldest crawl first, all other filters by host name; `limit` 1–100 (default 50), `offset` 0–10000; only offset+limit rows are kept while scanning, and the list is cached like the aggregates |
+| `GET hosts/{host}?collection=` | Host report; `collection` is required, a missing row is `status: absent` |
+
+Unknown parameters are rejected with 400 before anything is read; other
+methods return 405; an unreadable table or disabled capture returns 503
+`report_unavailable`. On the agent path a collection outside the scope is
+refused with 403 `collection_not_in_scope`; a job is visible only when all of
+its recorded collections are in scope, and a job without a recorded collection
+only to agents with the complete index (otherwise 404, like a missing job).
+
+`ScoutroSEO_p.html` has a view switch **Host analysis | Crawl report**
+(`?view=report`, UI route `report.crawl`):
+
+- **Crawl report** for a collection or a Discovery job: host counts, outcome
+  donut, prechecks, page counters, exclusions, HTTP status, content types,
+  depth, duplicates and data age as inline SVG charts and lists; for a job the
+  daily history (stacked outcomes per day, markers as dashed lines, data table);
+  for a collection the host list with filters, paging, a link to the host
+  analysis and **Crawl again**.
+- **Crawl status** as fifth tab of the host analysis: the row of the host in
+  one collection and its live page state.
+- **Crawl again** links to `ScoutroCrawls_p.html?url=https://host/&collection=c#new-crawl`;
+  the page itself sends GET requests only. Stored and indexed values are
+  rendered as text; labels are translated through the page's label list.
+
 ## Data age
 
 - Data age per host: end of the last crawl compared with the job's recrawl
@@ -320,10 +357,12 @@ recrawls. Page data lives only in the YaCy index.
    `report/IndexFacets`, `report/ReportService` (host, collection and job
    reports, cached table scan, rollup fallback, daily rollups from the capture
    thread), `DomainTable.scan`. No API or UI yet.
-4. **API and UI:** GET endpoints under `/scoutro/api/v1/reports/...`, explicit
-   agent grant `report.read`, a "Crawl report" tab in `ScoutroSEO_p.html` with
-   inline SVG charts, data age, stale filter and "Crawl again"; help, all
-   locales, OpenAPI/actions catalog and UI routes.
+4. **API and UI (implemented):** see [API and UI](#api-and-ui-phase-4):
+   `api/ReportApi` with GET endpoints under `/scoutro/api/v1/reports/...` and
+   the agent path, explicit grant `report.read`, `ReportService.hosts` and
+   `jobs`, the crawl report view and the host's crawl status tab in
+   `ScoutroSEO_p.html` with inline SVG charts, data age, stale filter and
+   "Crawl again"; help, all locales, OpenAPI/actions catalog and UI routes.
 5. **Data quality:** optional schema fields (`canonical_s`,
    `canonical_equal_sku_b`, `title_exact_signature_l`,
    `description_exact_signature_l`), directory facets, locally observed
@@ -360,6 +399,14 @@ Phase 3: the report facets against an embedded Solr core (`IndexFacetsSolrTest`)
 host, collection and job reports, aggregates, staleness, latest-attempt rule,
 cache, fallback, daily rollups with catch-up, grace time and markers, and the
 table scan (`ReportServiceTest`).
+
+Phase 4: routes, parameter validation, scopes, the service error and the grant
+outside presets (`ReportApiTest`), the agent path (`AgentApiTest`), the catalog
+(`AgentCatalogTest`, `test_flow_contract.py`), and
+`test/scoutro-ui/report-live-smoke.py` with a disposable fixture: no state
+change by report reads over two capture ticks, the UI in English and German at
+five widths (`report-ui-test.mjs`) and the admin and agent API
+(`test_report_api.py`).
 
 `test/scoutro-api/report-capture-live-smoke.py` runs one real crawl of a local
 fixture site on a new disposable peer and checks the captured row (pages,

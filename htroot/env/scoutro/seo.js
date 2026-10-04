@@ -8,7 +8,7 @@
   const date = value => value == null ? t('missing') : new Date(value).toLocaleString(document.documentElement.lang);
   const display = (key, value) => key === 'load_date' || key === 'last_modified' ? date(value) : fmt(value);
   const node = (tag, text, className) => { const n = document.createElement(tag); if (text != null) n.textContent = text; if (className) n.className = className; return n; };
-  let host = '', collection = '', summary = null, offset = 0, generation = 0, detailGeneration = 0, hostOffset = 0, hostsQuery = '';
+  let host = '', collection = '', summary = null, offset = 0, generation = 0, detailGeneration = 0, hostOffset = 0, hostsQuery = '', crawlUrl = '';
   const root = '/scoutro/api/v1/seo/';
   async function api(path, query = {}) {
     const parameters = new URLSearchParams(query); if (collection) parameters.set('collection', collection);
@@ -16,6 +16,45 @@
     let result; try { result = await response.json(); } catch (_) { throw new Error(t('error') + ' (HTTP ' + response.status + ')'); }
     if (!response.ok) throw new Error((response.status === 404 ? t('empty') : t('error')) + ' (HTTP ' + response.status + ', ' + (result.error?.code || 'error') + ')');
     return result;
+  }
+  async function report(path, query) {
+    const response = await fetch('/scoutro/api/v1/reports/' + path + '?' + new URLSearchParams(query), { credentials: 'same-origin', cache: 'no-store' });
+    let result; try { result = await response.json(); } catch (_) { throw new Error(t('r_error') + ' (HTTP ' + response.status + ')'); }
+    const code = result.error?.code || 'error';
+    if (!response.ok) throw new Error(t(code === 'report_unavailable' ? 'r_unavailable' : response.status === 400 ? 'r_invalid' : 'r_error') + ' (HTTP ' + response.status + ', ' + code + ')');
+    return result;
+  }
+  const value = (prefix, key) => labels[prefix + key] || String(key);
+  const COUNTERS = ['pages_total', 'pages_ok', 'pages_', 'excl_', 'depth', 'max_pages'];
+  const yes = flag => flag == null ? t('missing') : t(flag ? 'r_yes' : 'r_no');
+  function section(title, rows) { const dl = node('dl', null, 'sseo-stats'); for (const [key, v] of rows) dl.append(node('dt', t(key)), node('dd', v == null ? t('missing') : String(v))); return [node('h3', t(title)), dl]; }
+  function crawlRows(c) {
+    const rows = [['r_outcome', value('r_', c.labels.outcome || 'unknown')], ['r_coverage', c.labels.coverage === 'complete' ? t('r_complete') : t('r_partly')],
+      ['r_ended_at', c.ended_at && date(c.ended_at)], ['r_started_at', date(c.started_at)]];
+    if ('age_days' in c) rows.push(['r_age_days', fmt(c.age_days)], ['r_stale', yes(c.stale)], ['r_stale_after_days', fmt(c.stale_after_days)]);
+    rows.push(['r_job', c.job]);
+    const order = key => { const i = COUNTERS.findIndex(prefix => key.startsWith(prefix)); return i < 0 ? COUNTERS.length : i; };
+    for (const [key, n] of Object.entries(c.counters).sort(([a], [b]) => order(a) - order(b) || a.localeCompare(b))) rows.push([key, fmt(n)]);
+    return rows;
+  }
+  async function crawlStatus() {
+    const run = ++generation, wanted = $('cs-collection').value.trim(), body = $('cs-body');
+    const again = new URLSearchParams({ url: crawlUrl || 'https://' + host + '/' }); if (wanted) again.set('collection', wanted);
+    $('cs-again').href = 'ScoutroCrawls_p.html?' + again + '#new-crawl';
+    if (!wanted) { body.replaceChildren(node('p', t('cs_need_collection'))); return; }
+    message(t('loading')); body.replaceChildren(node('p', t('loading')));
+    const data = await report('hosts/' + encodeURIComponent(host), { collection: wanted }); if (run !== generation) return;
+    body.replaceChildren(); message();
+    if (data.status !== 'found') body.append(node('p', t('cs_' + data.status)));
+    else {
+      const row = data.row;
+      if (row.current) body.append(...section('r_current', [...crawlRows(row.current), ['r_latest_attempt', row.latest_attempt && value('r_attempt_', row.latest_attempt)]]));
+      if (row.precheck) body.append(...section('r_precheck', [['r_result', value('r_', row.precheck.result)], ['r_at', date(row.precheck.at)], ['r_detail', row.precheck.detail], ['r_job', row.precheck.job]]));
+      if (row.previous) body.append(...section('r_previous', crawlRows(row.previous)));
+    }
+    const index = data.index;
+    if (!index) { body.append(node('h3', t('r_index')), node('p', t('r_index_unavailable'))); return; }
+    body.append(...section('r_index', [['r_documents', fmt(index.documents)], ['r_ok', fmt(index.ok)], ['pages_not_reloaded', 'not_reloaded' in index ? fmt(index.not_reloaded) : null], ['r_oldest', index.oldest && date(index.oldest)], ['r_newest', index.newest && date(index.newest)]]));
   }
   function message(text = '') { $('message').textContent = text; }
   function guarded(task) { const promise = task(), run = generation, detailRun = detailGeneration; promise.catch(e => { if (run === generation && detailRun === detailGeneration) message(e.message); }); }
@@ -80,6 +119,7 @@
     generation++; message();
     for (const button of document.querySelectorAll('[data-sseo-tab]')) { const active = button.dataset.sseoTab === key; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; $('panel-' + button.dataset.sseoTab).hidden = !active; }
     if (key === 'pages') guarded(pages); if (key === 'links') guarded(links);
+    if (key === 'crawl-status') { if (!$('cs-collection').value.trim()) $('cs-collection').value = collection; guarded(crawlStatus); }
   }
   async function analyze(value) {
     const run = ++generation; detailGeneration++; host = value.trim(); collection = $('collection').value.trim(); $('analysis').hidden = true; $('detail').hidden = true; message(t('loading'));
@@ -88,7 +128,7 @@
     const resolvedResponse = await fetch('/scoutro/api/v1/hosts/resolve?' + params, {credentials:'same-origin',cache:'no-store'});
     const resolved = await resolvedResponse.json(); if (run !== generation) return;
     if (!resolvedResponse.ok) throw new Error(t('error') + ' (HTTP ' + resolvedResponse.status + ', ' + (resolved.error?.code || 'error') + ')');
-    host = resolved.host;
+    host = resolved.host; crawlUrl = resolved.url;
     const showMissing = () => {
       $('normalized-host').textContent = host;
       const crawlParams = new URLSearchParams({url:resolved.url}); if (collection) crawlParams.set('collection',collection);
@@ -98,7 +138,7 @@
     if (!resolved.indexed) { showMissing(); return; }
     const data = await api('hosts/' + encodeURIComponent(host)); if (run !== generation) return;
     if (data.indexed === false) { showMissing(); return; }
-    summary = data; host = data.host; $('host').value = host; offset = 0; $('filter').value = 'all'; $('sort').value = 'url'; $('order').value = 'asc'; renderSummary(); $('analysis').hidden = false; $('host-results').replaceChildren(); $('more-hosts').hidden = true; tab('overview'); message();
+    summary = data; host = data.host; $('host').value = host; offset = 0; $('cs-collection').value = collection; $('cs-body').replaceChildren(); $('filter').value = 'all'; $('sort').value = 'url'; $('order').value = 'asc'; renderSummary(); $('analysis').hidden = false; $('host-results').replaceChildren(); $('more-hosts').hidden = true; tab('overview'); message();
   }
   async function find(more = false) {
     const run = ++generation; collection = $('collection').value.trim(); if (!more) { hostOffset = 0; hostsQuery = $('host').value.trim().toLowerCase(); $('host-results').replaceChildren(); }
@@ -119,13 +159,21 @@
   }
   $('search').addEventListener('submit', event => { event.preventDefault(); guarded(() => analyze($('host').value)); });
   $('find').addEventListener('click', () => guarded(() => find())); $('more-hosts').addEventListener('click', () => guarded(() => find(true)));
+  $('cs-show').addEventListener('click', () => guarded(crawlStatus));
   $('close').addEventListener('click', () => { detailGeneration++; $('detail').hidden = true; $('tab-pages').focus(); });
   for (const button of document.querySelectorAll('[data-sseo-tab]')) {
     button.addEventListener('click', () => tab(button.dataset.sseoTab));
-    button.addEventListener('keydown', e => { const buttons = [...document.querySelectorAll('[data-sseo-tab]')]; let i = buttons.indexOf(button); if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return; e.preventDefault(); i = e.key === 'Home' ? 0 : e.key === 'End' ? 3 : (i + (e.key === 'ArrowRight' ? 1 : 3)) % 4; buttons[i].focus(); tab(buttons[i].dataset.sseoTab); });
+    button.addEventListener('keydown', e => { const buttons = [...document.querySelectorAll('[data-sseo-tab]')]; let i = buttons.indexOf(button); if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return; e.preventDefault(); const n = buttons.length; i = e.key === 'Home' ? 0 : e.key === 'End' ? n - 1 : (i + (e.key === 'ArrowRight' ? 1 : n - 1)) % n; buttons[i].focus(); tab(buttons[i].dataset.sseoTab); });
   }
   for (const id of ['sort', 'order', 'filter']) $(id).addEventListener('change', () => { const sort = $('sort').value; if (sort.startsWith('references_') || sort === 'external_hosts') $('filter').value = 'processed'; offset = 0; guarded(pages); });
-  const initial = new URLSearchParams(location.search); if (initial.has('collection')) $('collection').value = initial.get('collection');
-  if (initial.has('host')) { $('host').value = initial.get('host'); guarded(() => analyze(initial.get('host'))); }
   $('prev').addEventListener('click', () => { offset = Math.max(0, offset - 25); guarded(pages); }); $('next').addEventListener('click', () => { offset += 25; guarded(pages); });
+  const initial = new URLSearchParams(location.search), reportView = initial.get('view') === 'report';
+  $('host-view').hidden = reportView; $('report-view').hidden = !reportView;
+  for (const [id, active] of [['view-host', !reportView], ['view-report', reportView]]) { if (active) $(id).setAttribute('aria-current', 'page'); else $(id).removeAttribute('aria-current'); }
+  fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
+    for (const item of data?.collections || []) { const option = document.createElement('option'); option.value = item.id; $('collection-list').append(option); }
+  }).catch(() => {});
+  if (reportView) return;
+  if (initial.has('collection')) $('collection').value = initial.get('collection');
+  if (initial.has('host')) { $('host').value = initial.get('host'); guarded(() => analyze(initial.get('host'))); }
 })();

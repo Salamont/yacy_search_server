@@ -166,6 +166,10 @@ public class ScoutroApiServlet extends HttpServlet {
                 final Map<String, String> seoQuery = queryParams(request);
                 return SeoAnalysis.current().route(java.util.Arrays.asList(parts).subList(3, parts.length),
                         seoQuery, SeoAnalysis.adminCollections(seoQuery));
+            case "reports":
+                requireAdmin(request);
+                if (!"GET".equals(method)) throw new ApiException(405, "method_not_allowed", "Crawl reports are read-only; use GET.");
+                return ReportApi.current().route(java.util.Arrays.asList(parts).subList(3, parts.length), queryParams(request), null);
             case "hosts":
                 requireAdmin(request);
                 if (parts.length == 4 && "resolve".equals(parts[3])) {

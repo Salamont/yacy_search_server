@@ -162,6 +162,27 @@ admin auth and agent grant/collection isolation. Agent/token creation for scope
 verification occurs only in that disposable DATA. Before it, authenticated
 SEO GETs must leave settings, index and crawl-queue file hashes unchanged.
 
+## Crawl report smoke
+
+After compiling, run `python3 test/scoutro-ui/report-live-smoke.py` with the
+same `JAVA`, `NODE_PATH` and `SCOUTRO_CHROMIUM_PATH` settings. Optional
+`SCOUTRO_SCREENSHOTS` selects the artifact folder. `ReportFixture.java` refuses
+existing/unmarked DATA and seeds, offline, 8 index documents in two
+collections, 35 `scoutro_domains` rows (current and previous crawls, a
+precheck, a stale host, a job no longer in Discovery), rollups with markers and
+one Discovery job whose name contains markup. The recent rollups are written by
+the report's own daily step, so the peer has nothing left to write.
+
+Authenticated report GETs, followed by two capture ticks, must leave settings,
+index, queues, `DATA/WORK` and `DATA/SCOUTRO` unchanged. Then
+`report-ui-test.mjs` checks English/German at 360/390/412/768/1280 px: view
+switch, collection and job scope, tiles, SVG charts, history with markers,
+filters, paging, "Crawl again" and host links, literal stored/indexed markup,
+the host **Crawl status** tab, keyboard navigation over five tabs, a localized
+unavailable error, no overflow and no non-GET request. `test_report_api.py`
+checks admin routes, invalid requests, the explicit `report.read` grant and
+agent collection scopes in the same disposable DATA.
+
 ## Native crawl / host / Discovery flow
 
 `seo-live-smoke.py` also runs `crawl-flow-ui-test.mjs` and scoped host/crawl API checks. All valid UI crawl starts are intercepted; live starts are invalid/disallowed only. English/German at 360/390/412/1280, JSON contract, coalesced polling and delayed responses are covered. See `docs/SCOUTRO_CRAWL_FLOW_TESTS.md`.

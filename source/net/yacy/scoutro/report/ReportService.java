@@ -38,6 +38,10 @@ public final class ReportService {
     static final int FALLBACK_DAYS = 31;
     static final int MAX_JOB_RANGE_DAYS = 3 * 366;
     static final long DAILY_RETRY_MILLIS = 600_000L;
+    public static final int MAX_HOST_LIMIT = 100, MAX_HOST_OFFSET = 10000;
+    public static final List<String> HOST_FILTERS = List.of("all", "stale", "precheck", "partial", "not_indexed",
+            "not_reloaded", "unknown", "coverage_partial");
+    private static final int HOST_LIST_CACHE = 16;
     private static final long DAY = 86_400_000L;
 
     /** A Discovery job as the report needs it. */
@@ -91,6 +95,13 @@ public final class ReportService {
         }
     }
 
+    /** The first matching hosts of one collection and filter, in report order. */
+    private static final class HostList {
+        final List<JsonObject> items;
+        final long total, at;
+        HostList(final List<JsonObject> items, final long total, final long at) { this.items = items; this.total = total; this.at = at; }
+    }
+
     private static final class Aggregates {
         final Map<String, Tally> collections = new HashMap<>(), jobs = new HashMap<>();
         long rows, invalid, at;
@@ -107,6 +118,10 @@ public final class ReportService {
     private final String version;
     private final long graceMillis;
     private Aggregates cached;
+    private final Map<String, HostList> hostLists = new java.util.LinkedHashMap<String, HostList>(16, 0.75f, true) {
+        private static final long serialVersionUID = 1L;
+        @Override protected boolean removeEldestEntry(final Map.Entry<String, HostList> eldest) { return size() > HOST_LIST_CACHE; }
+    };
     private LocalDate lastDaily;
     private long dailyRetryAt;
 
@@ -211,6 +226,105 @@ public final class ReportService {
         return best;
     }
 
+    /**
+     * Hosts of a collection matching a filter: {@code stale} oldest crawl first, all
+     * others by host name. Only offset+limit rows are kept while scanning; the result
+     * is cached like the aggregates.
+     */
+    public synchronized JsonObject hosts(final String collection, final String filter, final int offset, final int limit) throws IOException {
+        final String c = DomainTable.collection(collection);
+        final String f = filter == null || filter.isEmpty() ? "all" : filter;
+        if (!HOST_FILTERS.contains(f)) throw new IllegalArgumentException("Invalid filter.");
+        if (offset < 0 || offset > MAX_HOST_OFFSET || limit < 1 || limit > MAX_HOST_LIMIT) throw new IllegalArgumentException("Invalid paging.");
+        final long now = this.clock.getAsLong();
+        final String key = c + "\0" + f;
+        HostList list = this.hostLists.get(key);
+        if (list == null || now - list.at >= this.cacheMillis) {
+            final Map<String, Integer> staleDays = staleDays();
+            final int keep = MAX_HOST_OFFSET + MAX_HOST_LIMIT;
+            final java.util.Comparator<JsonObject> order = "stale".equals(f)
+                    ? java.util.Comparator.<JsonObject>comparingLong(o -> o.optLong("crawl_time", 0)).thenComparing(o -> o.getString("host"))
+                    : java.util.Comparator.comparing(o -> o.getString("host"));
+            final java.util.TreeSet<JsonObject> top = new java.util.TreeSet<>(order);
+            final long[] total = {0};
+            this.table.scan(e -> {
+                if (!e.collection.equals(c)) return;
+                final JsonObject item = hostItem(e, now, staleDays.getOrDefault(job(e), this.defaultStaleDays));
+                if (!matches(f, e, item)) return;
+                total[0]++;
+                top.add(item);
+                if (top.size() > keep) top.pollLast();
+            });
+            list = new HostList(new ArrayList<>(top), total[0], now);
+            this.hostLists.put(key, list);
+        }
+        final JsonArray items = new JsonArray();
+        for (int i = offset; i < Math.min(list.items.size(), offset + limit); i++) {
+            final JsonObject item = new JsonObject(list.items.get(i).toString());
+            item.remove("crawl_time");
+            items.put(item);
+        }
+        return new JsonObject().put("collection", c).put("filter", f).put("total", list.total).put("offset", offset)
+                .put("limit", limit).put("items", items).put("table_scanned_at", iso(list.at));
+    }
+
+    private static String job(final DomainTable.Entry e) {
+        return e.current != null && e.current.job != null ? e.current.job : e.precheck == null ? null : e.precheck.job;
+    }
+
+    private static JsonObject hostItem(final DomainTable.Entry e, final long now, final int staleDays) {
+        final JsonObject item = new JsonObject().put("host", e.host).put("job", job(e) == null ? JsonObject.NULL : job(e));
+        if (e.current != null) {
+            final long at = crawlTime(e.current);
+            item.put("crawl_time", at).put("last_crawl", iso(at)).put("age_days", (now - at) / DAY)
+                    .put("stale", now - at > staleDays * DAY)
+                    .put("outcome", e.current.labels.getOrDefault(CrawlOutcome.OUTCOME, "unknown"))
+                    .put("coverage", e.current.labels.getOrDefault(CrawlOutcome.COVERAGE, "partial"))
+                    .put("pages_ok", e.current.counters.getOrDefault(CrawlOutcome.PAGES_OK, 0L));
+        } else {
+            item.put("crawl_time", 0).put("last_crawl", JsonObject.NULL).put("age_days", JsonObject.NULL).put("stale", false)
+                    .put("outcome", JsonObject.NULL).put("coverage", JsonObject.NULL).put("pages_ok", JsonObject.NULL);
+        }
+        final boolean precheck = latestIsPrecheck(e);
+        item.put("latest_attempt", precheck ? "precheck" : e.current == null ? JsonObject.NULL : "crawl")
+                .put("precheck", precheck ? e.precheck.result : JsonObject.NULL);
+        return item;
+    }
+
+    private static boolean matches(final String filter, final DomainTable.Entry e, final JsonObject item) {
+        switch (filter) {
+            case "all": return true;
+            case "stale": return item.getBoolean("stale");
+            case "precheck": return "precheck".equals(item.opt("latest_attempt"));
+            case "coverage_partial": return e.current != null && "partial".equals(item.opt("coverage"));
+            default: return e.current != null && filter.equals(item.opt("outcome"));
+        }
+    }
+
+    /** Known Discovery jobs plus jobs that only appear in the table, with their collections and counts. */
+    public JsonObject jobs() throws IOException {
+        final Aggregates a = aggregates();
+        final Map<String, JsonObject> out = new TreeMap<>();
+        for (final Job job : knownJobs()) {
+            out.put(job.id, new JsonObject().put("id", job.id).put("known", true)
+                    .put("name", job.name == null ? JsonObject.NULL : job.name).put("stale_after_days", job.staleDays));
+        }
+        for (final String id : a.jobs.keySet()) {
+            if (!out.containsKey(id)) out.put(id, new JsonObject().put("id", id).put("known", false).put("name", JsonObject.NULL)
+                    .put("stale_after_days", this.defaultStaleDays));
+        }
+        final JsonArray list = new JsonArray();
+        for (final JsonObject job : out.values()) {
+            final Tally t = a.jobs.get(job.getString("id"));
+            final JsonArray collections = new JsonArray();
+            if (t != null) for (final String c : t.collections) collections.put(c);
+            job.put("collections", collections).put("hosts", t == null ? 0 : t.hosts).put("crawled", t == null ? 0 : t.crawled)
+                    .put("stale", t == null ? 0 : t.stale).put("last_crawl", t == null || t.lastCrawl == 0 ? JsonObject.NULL : iso(t.lastCrawl));
+            list.put(job);
+        }
+        return new JsonObject().put("jobs", list).put("table_scanned_at", iso(a.at));
+    }
+
     // ------------------------------------------------------------------- job
 
     /** Table aggregate and rollup history of one Discovery job. */
@@ -219,7 +333,7 @@ public final class ReportService {
         final LocalDate end = to == null ? today() : to, start = from == null ? end.minusDays(89) : from;
         if (end.isBefore(start) || start.plusDays(MAX_JOB_RANGE_DAYS).isBefore(end)) throw new IllegalArgumentException("Invalid day range.");
         Job known = null;
-        for (final Job job : jobs()) if (job.id.equals(id)) known = job;
+        for (final Job job : knownJobs()) if (job.id.equals(id)) known = job;
         final Tally t = aggregates().jobs.get(id);
         final JsonArray collections = new JsonArray();
         if (t != null) for (final String c : t.collections) collections.put(c);
@@ -283,7 +397,7 @@ public final class ReportService {
             }
         });
         final Map<String, Job> known = new HashMap<>();
-        for (final Job job : jobs()) known.put(job.id, job);
+        for (final Job job : knownJobs()) known.put(job.id, job);
         for (final Map.Entry<String, Map<LocalDate, Day>> job : days.entrySet()) {
             for (final Map.Entry<LocalDate, Day> entry : job.getValue().entrySet()) {
                 if (!entry.getValue().active()) continue;
@@ -380,12 +494,12 @@ public final class ReportService {
 
     private Map<String, Integer> staleDays() {
         final Map<String, Integer> out = new HashMap<>();
-        for (final Job job : jobs()) out.put(job.id, job.staleDays);
+        for (final Job job : knownJobs()) out.put(job.id, job.staleDays);
         return out;
     }
 
     /** Discovery jobs, or none if the job store cannot be read; reports then use defaults. */
-    private List<Job> jobs() {
+    private List<Job> knownJobs() {
         try {
             return this.jobs.jobs();
         } catch (final IOException | RuntimeException e) {

@@ -258,6 +258,11 @@ final class AgentApi {
                         || (n == 3 && ("hosts".equals(p.get(1)) || "pages".equals(p.get(1))))
                         || (n == 4 && "hosts".equals(p.get(1)) && "pages".equals(p.get(3))))) return notFound();
                 return "GET".equals(method) ? ok("seo.read") : method(method, "GET");
+            case "reports":
+                if (!((n == 2 && "jobs".equals(p.get(1)))
+                        || (n == 3 && ("jobs".equals(p.get(1)) || "collections".equals(p.get(1)) || "hosts".equals(p.get(1))))
+                        || (n == 4 && "collections".equals(p.get(1)) && "hosts".equals(p.get(3))))) return notFound();
+                return "GET".equals(method) ? ok("report.read") : method(method, "GET");
             case "search":
                 if (n != 1) return notFound();
                 return "GET".equals(method) ? ok("search") : method(method, "GET");

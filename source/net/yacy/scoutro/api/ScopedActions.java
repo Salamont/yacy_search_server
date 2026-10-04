@@ -91,6 +91,8 @@ class ScopedActions {
             case "seo.read":
                 return ok(SeoAnalysis.current().route(call.request.path.subList(1, call.request.path.size()),
                         q, filterCollections(agent, q.get("collection"))));
+            case "report.read":
+                return ok(ReportApi.current().route(call.request.path.subList(1, call.request.path.size()), q, ReportApi.Scope.of(agent)));
             case "search":
                 return ok(search(agent, q));
             case "search.network":

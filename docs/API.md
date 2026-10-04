@@ -483,6 +483,29 @@ fields and [technical semantics](SCOUTRO_SEO_HOST_ANALYSIS.md) for field origins
 aggregation limits, performance and rollout prerequisites. No crawler,
 scheduler, configuration, ranking or DATA migration side effects.
 
+## Crawl report (read-only)
+
+Admin Digest: `GET /scoutro/api/v1/reports/jobs`, `/reports/jobs/{id}`
+(`from`, `to` as `YYYY-MM-DD`; default the last 90 days, at most three years),
+`/reports/collections/{collection}`, `/reports/collections/{collection}/hosts`
+(`filter` = `all`, `stale`, `precheck`, `partial`, `not_indexed`,
+`not_reloaded`, `unknown`, `coverage_partial`; `limit` 1–100, default 50;
+`offset` 0–10000) and `/reports/hosts/{host}?collection=` (collection
+required). Equivalent Agent Bearer routes under `/scoutro/api/agent/v1` require
+the explicit grant `report.read`, absent from every preset. A collection
+outside the agent's scope is refused with 403 `collection_not_in_scope`; a job
+is visible only when all of its collections are in scope (otherwise 404, like a
+missing job). The UI route is `report.crawl`.
+
+Sources: the live index for the current page state, `scoutro_domains` for the
+current host and crawl status, and the daily rollups for the history (see
+[crawl report](SCOUTRO_CRAWL_REPORT.md)). A host without a row returns 200 with
+`status: absent`. Unknown parameters return 400 `invalid_request`, other
+methods 405, an unavailable table or capture 503 `report_unavailable`. If the
+live index fails, a collection report falls back to the newest rollup
+snapshot (`index_source: rollup`). No route fetches a URL, starts a crawl or
+writes; "Crawl again" in the UI only links to the native crawl form.
+
 ## Scoutro native crawl and host flow
 
 Collection is now mandatory for every Scoutro crawl, including administrators. Safe retry uses Idempotency-Key. See [the complete contract](SCOUTRO_CRAWL_FLOW.md) for host resolution, scoped collection suggestions, durable metadata, Discovery states and CLI examples.

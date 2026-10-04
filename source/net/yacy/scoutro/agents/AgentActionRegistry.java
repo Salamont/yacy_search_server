@@ -104,6 +104,9 @@ public final class AgentActionRegistry {
         add(new Action("seo.read", "SEO / Host Analysis",
                 "Read bounded host and URL metrics in granted collections; reference counts describe the local observed graph.",
                 Risk.READ, true, "GET", "/seo/hosts", false, ext, worker));
+        add(new Action("report.read", "Crawl report",
+                "Read crawl status, outcomes, prechecks, page state and daily history of granted collections; never starts a crawl.",
+                Risk.READ, true, "GET", "/reports/jobs", false, ext, worker));
         add(new Action("index.evidence", "Text evidence",
                 "Read URL, title and bounded text excerpts of the indexed pages of one domain.",
                 Risk.READ, true, "GET", "/index/evidence", true, ext, worker));

@@ -55,6 +55,11 @@ explicit new grants `host.resolve`/`collections.list`. Reads filter collections
 and never reveal foreign index records; an unseen host is `indexed:false`.
 Neither read grant permits starting a crawl. `seo.read` remains separate.
 
+The crawl report (`ScoutroSEO_p.html?view=report`) and the host's **Crawl
+status** tab offer **Crawl again** links of the same kind: `ScoutroCrawls_p.html`
+with `url=https://host/` and the collection prefilled. They never submit; the
+grant `report.read` permits reading only.
+
 ## Machine-readable crawl status and persistence
 
 GET `/v1/crawls` and `/v1/crawls/{id}` (agent: own scoped crawls only) return

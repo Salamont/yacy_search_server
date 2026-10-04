@@ -5042,6 +5042,128 @@ aria-label="Host analysis"==aria-label="Host-Analyse"
 >Host or HTTP/HTTPS URL<==>Host oder HTTP/HTTPS-URL<
 >Not yet indexed<==>Noch nicht indexiert<
 >Start crawl<==>Crawl starten<
+>Crawl report<==>Crawl-Bericht<
+>Crawl status<==>Crawl-Status<
+>Collection<==>Collection<
+>Show crawl status<==>Crawl-Status anzeigen<
+>Crawl again<==>Erneut crawlen<
+>The crawl status is kept per host and collection. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<==>Der Crawl-Status wird je Host und Collection gespeichert. „Erneut crawlen“ öffnet das Crawl-Formular mit vorausgefülltem Host und vorausgefüllter Collection; gestartet wird erst, wenn Sie es dort absenden.<
+>Current crawl status per host and collection, live page state from the index and the daily history of Discovery jobs. Viewing this report starts no crawl.<==>Aktueller Crawl-Status je Host und Collection, aktueller Seitenzustand aus dem Index und Tagesverlauf der Discovery-Jobs. Das Ansehen dieses Berichts startet keinen Crawl.<
+>Scope<==>Umfang<
+>Discovery job<==>Discovery-Job<
+>From<==>Von<
+>To<==>Bis<
+>Show report<==>Bericht anzeigen<
+>Crawl outcomes<==>Crawl-Ergebnisse<
+>Prechecks<==>Vorprüfungen<
+>Pages in the latest crawls<==>Seiten der letzten Crawls<
+>Exclusions<==>Ausschlüsse<
+>Content types<==>Inhaltstypen<
+>Duplicates<==>Duplikate<
+>Data age<==>Datenalter<
+>Daily history<==>Tagesverlauf<
+>Show data<==>Daten anzeigen<
+>Collections of this job<==>Collections dieses Jobs<
+>Hosts<==>Hosts<
+>Show<==>Anzeigen<
+>All hosts<==>Alle Hosts<
+>Stale hosts<==>Veraltete Hosts<
+>Latest attempt was a precheck<==>Letzter Versuch war eine Vorprüfung<
+>Partially indexed<==>Teilweise indexiert<
+>Not indexed<==>Nicht indexiert<
+>Not reloaded by this crawl<==>Bei diesem Crawl nicht neu geladen<
+>Outcome unknown<==>Ergebnis unbekannt<
+>Exclusions only partly recorded<==>Ausschlüsse nur teilweise erfasst<
+>Not reloaded by this crawl means that the latest load of a page is older than the start of this crawl. It does not mean that the page was deleted.<==>„Bei diesem Crawl nicht neu geladen“ bedeutet, dass der letzte Ladevorgang einer Seite älter als der Start dieses Crawls ist. Es bedeutet nicht, dass die Seite gelöscht wurde.<
+>A host is stale when its last crawl is older than the recrawl interval of its Discovery job. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.<==>Ein Host ist veraltet, wenn sein letzter Crawl älter als das Recrawl-Intervall seines Discovery-Jobs ist. „Erneut crawlen“ öffnet das Crawl-Formular mit vorausgefülltem Host und vorausgefüllter Collection; gestartet wird erst, wenn Sie es dort absenden.<
+>Enter a collection to read the crawl status of this host.<==>Geben Sie eine Collection ein, um den Crawl-Status dieses Hosts zu lesen.<
+>No crawl of this host has been recorded in this collection yet.<==>Für diesen Host wurde in dieser Collection noch kein Crawl erfasst.<
+>The stored row belongs to another host or collection and is not shown.<==>Die gespeicherte Zeile gehört zu einem anderen Host oder einer anderen Collection und wird nicht angezeigt.<
+>The stored crawl status cannot be read.<==>Der gespeicherte Crawl-Status kann nicht gelesen werden.<
+>Current crawl<==>Aktueller Crawl<
+>Previous crawl<==>Vorheriger Crawl<
+>Latest precheck<==>Letzte Vorprüfung<
+>Page state in the index<==>Seitenzustand im Index<
+>Started<==>Gestartet<
+>Ended<==>Beendet<
+>Age (days)<==>Alter (Tage)<
+>Stale<==>Veraltet<
+>Recrawl interval (days)<==>Recrawl-Intervall (Tage)<
+>Yes<==>Ja<
+>No<==>Nein<
+>Outcome<==>Ergebnis<
+>Exclusion coverage<==>Erfassung der Ausschlüsse<
+>Complete<==>Vollständig<
+>Partly recorded<==>Teilweise erfasst<
+>Latest attempt<==>Letzter Versuch<
+>Crawl<==>Crawl<
+>Precheck<==>Vorprüfung<
+>Indexed<==>Indexiert<
+>Host name not resolvable<==>Hostname nicht auflösbar<
+>Disallowed by robots.txt<==>Durch robots.txt untersagt<
+>Blocked address<==>Gesperrte Adresse<
+>robots.txt answered with a server error<==>robots.txt mit Serverfehler beantwortet<
+>Checked<==>Geprüft<
+>Result<==>Ergebnis der Prüfung<
+>Reason code<==>Ursachencode<
+>Pages in the index<==>Seiten im Index<
+>Pages OK<==>Seiten OK<
+>Redirects<==>Weiterleitungen<
+>Client errors (4xx)<==>Clientfehler (4xx)<
+>Server errors (5xx)<==>Serverfehler (5xx)<
+>Excluded pages<==>Ausgeschlossene Seiten<
+>Failed pages<==>Fehlgeschlagene Seiten<
+>Pages disallowed by robots.txt<==>Durch robots.txt untersagte Seiten<
+>Pages not reloaded by this crawl<==>Bei diesem Crawl nicht neu geladene Seiten<
+>Not reloaded, OK before<==>Nicht neu geladen, vorher OK<
+>Depth limit<==>Tiefenlimit<
+>Page limit<==>Seitenlimit<
+>noindex<==>noindex<
+>Canonical elsewhere<==>Canonical verweist woanders hin<
+>URL filter<==>URL-Filter<
+>Blacklist<==>Blacklist<
+>Other exclusions<==>Sonstige Ausschlüsse<
+>Documents (error records included)<==>Dokumente (inklusive Fehlereinträge)<
+>OK pages<==>OK-Seiten<
+>Oldest load<==>Ältester Ladevorgang<
+>Newest load<==>Neuester Ladevorgang<
+>Crawled hosts<==>Gecrawlte Hosts<
+>Last crawl<==>Letzter Crawl<
+>Only prechecked<==>Nur vorgeprüft<
+>Crawl status read<==>Crawl-Status gelesen<
+>Page state as of<==>Seitenzustand vom<
+>Page state source<==>Quelle des Seitenzustands<
+>Live index<==>Live-Index<
+>Daily snapshot; the live index did not answer<==>Tagesstand; der Live-Index hat nicht geantwortet<
+>The index is unavailable; the page state is not shown.<==>Der Index ist nicht verfügbar; der Seitenzustand wird nicht angezeigt.<
+>Groups of identical pages<==>Gruppen identischer Seiten<
+>Identical pages<==>Identische Seiten<
+>Groups of similar pages<==>Gruppen ähnlicher Seiten<
+>Similar pages<==>Ähnliche Seiten<
+>at least<==>mindestens<
+>No values recorded.<==>Keine Werte erfasst.<
+>Crawl reports are unavailable. Capture may be disabled or the index is not ready.<==>Crawl-Berichte sind nicht verfügbar. Die Erfassung ist eventuell deaktiviert oder der Index ist nicht bereit.<
+>No crawl report was found.<==>Es wurde kein Crawl-Bericht gefunden.<
+>The crawl report could not be loaded. Please retry.<==>Der Crawl-Bericht konnte nicht geladen werden. Bitte erneut versuchen.<
+>Check the scope and the day range.<==>Prüfen Sie Umfang und Zeitraum.<
+>Enter a collection.<==>Geben Sie eine Collection ein.<
+>Select a Discovery job.<==>Wählen Sie einen Discovery-Job.<
+>No Discovery jobs recorded<==>Keine Discovery-Jobs erfasst<
+>Job no longer in Discovery<==>Job nicht mehr in Discovery<
+>Host<==>Host<
+>Action<==>Aktion<
+>Crawls per day<==>Crawls pro Tag<
+>Day<==>Tag<
+>Crawls<==>Crawls<
+>Markers<==>Markierungen<
+>Scoutro version changed<==>Scoutro-Version geändert<
+>Job definition changed<==>Job-Definition geändert<
+>No crawl activity in this day range.<==>Keine Crawl-Aktivität in diesem Zeitraum.<
+>No collection recorded yet.<==>Noch keine Collection erfasst.<
+>No hosts match this filter.<==>Keine Hosts entsprechen diesem Filter.<
+>Total<==>Gesamt<
+>Maximum per day<==>Maximum pro Tag<
+aria-label="Views"==aria-label="Ansichten"
 
 #File: ScoutroCrawls_p.html
 

@@ -77,6 +77,8 @@ public class AgentCatalogTest {
             {"GET", "capabilities"}, {"POST", "heartbeat"}, {"GET", "search"}, {"GET", "index"},
             {"GET", "index/lookup"}, {"GET", "index/evidence"}, {"GET", "crawls"}, {"POST", "crawls"},
             {"GET", "seo/hosts"}, {"GET", "seo/hosts/{host}"}, {"GET", "seo/hosts/{host}/pages"}, {"GET", "seo/pages/{id}"},
+            {"GET", "reports/jobs"}, {"GET", "reports/jobs/{id}"}, {"GET", "reports/collections/{collection}"},
+            {"GET", "reports/collections/{collection}/hosts"}, {"GET", "reports/hosts/{host}"},
             {"GET", "crawls/{id}"}, {"POST", "crawls/{id}/stop"}, {"GET", "system"}, {"GET", "config"}, {"PATCH", "config"}};
         for (final String[] r : routes) {
             final List<String> segs = new ArrayList<>();
