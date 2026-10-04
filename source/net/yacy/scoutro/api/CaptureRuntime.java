@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.time.ZoneId;
 
 import net.yacy.cora.document.encoding.ASCII;
 import net.yacy.cora.document.id.DigestURL;
@@ -20,23 +21,29 @@ import net.yacy.crawler.CrawlSwitchboard;
 import net.yacy.crawler.data.CrawlProfile;
 import net.yacy.scoutro.agents.CrawlRecord;
 import net.yacy.scoutro.discovery.DiscoveryService;
+import net.yacy.scoutro.discovery.JsonObject;
 import net.yacy.scoutro.report.CaptureService;
 import net.yacy.scoutro.report.CrawlOutcome;
 import net.yacy.scoutro.report.DomainTable;
 import net.yacy.scoutro.report.ExclusionTracker;
+import net.yacy.scoutro.report.IndexFacets;
 import net.yacy.scoutro.report.PrecheckResult;
+import net.yacy.scoutro.report.ReportService;
+import net.yacy.scoutro.report.RollupStore;
 import net.yacy.search.Switchboard;
 import net.yacy.search.schema.CollectionConfiguration;
 
 /**
  * Runs the crawl report capture beside YaCy on its own daemon thread. Towards YaCy it
  * only reads (crawl profiles, ErrorCache, index); it writes nothing but the
- * {@code scoutro_domains} table. Disable with {@code scoutro.report.capture=false}.
+ * {@code scoutro_domains} table and the daily rollups. Disable with
+ * {@code scoutro.report.capture=false}.
  */
 public final class CaptureRuntime {
     private static final ConcurrentLog LOG = new ConcurrentLog("SCOUTRO-REPORT");
     private static ScheduledExecutorService executor;
     private static CaptureService service;
+    private static ReportService reports;
 
     private CaptureRuntime() {}
 
@@ -61,6 +68,7 @@ public final class CaptureRuntime {
         if (executor != null) executor.shutdownNow();
         executor = null;
         service = null;
+        reports = null;
     }
 
     private static void tick() {
@@ -69,6 +77,12 @@ public final class CaptureRuntime {
             if (current != null) current.tick();
         } catch (final IOException | RuntimeException e) {
             LOG.warn("crawl report capture step failed: " + e.getClass().getSimpleName());
+        }
+        try {
+            final ReportService current = reports();
+            if (current != null) current.daily();
+        } catch (final IOException | RuntimeException e) {
+            LOG.warn("crawl report rollup step failed: " + e.getClass().getSimpleName());
         }
     }
 
@@ -89,6 +103,47 @@ public final class CaptureRuntime {
         service = new CaptureService(new YaCyCrawls(sb), new ExclusionTracker(errors(sb)), outcome,
                 new DomainTable(sb.tables), System::currentTimeMillis, settle);
         return service;
+    }
+
+    /** Reports over index, table and rollups once YaCy is ready, or null. */
+    public static synchronized ReportService reports() {
+        if (executor == null) return null;
+        if (reports != null) return reports;
+        final Switchboard sb = Switchboard.getSwitchboard();
+        if (sb == null || sb.index == null || sb.tables == null || sb.index.fulltext().getDefaultConnector() == null) return null;
+        final CollectionConfiguration schema = sb.index.fulltext().getDefaultConfiguration();
+        final IndexFacets facets = new IndexFacets(p -> {
+            final SolrConnector connector = sb.index.fulltext().getDefaultConnector();
+            if (connector == null || connector.isClosed()) throw new IOException("index unavailable");
+            return connector.getResponseByParams(p).getResponse();
+        }, field -> schema == null || schema.isEmpty() || schema.contains(field));
+        final java.util.Properties scoutro = ScoutroActions.scoutroProperties();
+        final String release = scoutro.getProperty("scoutro.release", "");
+        final String version = release.isEmpty() ? null : scoutro.getProperty("scoutro.upstream.version", "") + "-scoutro." + release;
+        reports = new ReportService(new DomainTable(sb.tables), facets, new RollupStore(RollupStore.root(sb.getDataPath().toPath())),
+                CaptureRuntime::jobs, System::currentTimeMillis, ZoneId.systemDefault(),
+                clamp(sb.getConfigLong("scoutro.report.cacheSeconds", 600), 0, 86400) * 1000L,
+                (int) clamp(sb.getConfigLong("scoutro.report.staleDays", 30), 1, 3650), version,
+                clamp(sb.getConfigLong("scoutro.report.settleSeconds", 120), 0, 3600) * 1000L + 300_000L);
+        return reports;
+    }
+
+    /** Discovery jobs with their recrawl interval as freshness expectation. */
+    private static List<ReportService.Job> jobs() throws IOException {
+        final JsonObject root;
+        try {
+            root = DiscoveryService.get().store.read();
+        } catch (final ApiException unavailable) {
+            throw new IOException("discovery job store unavailable");
+        }
+        final List<ReportService.Job> out = new ArrayList<>();
+        for (final Object row : root.getJSONArray("jobs")) {
+            final JsonObject definition = ((JsonObject) row).getJSONObject("definition");
+            out.add(new ReportService.Job(definition.getString("id"), definition.optString("name", null),
+                    ReportService.fingerprint(definition),
+                    definition.getJSONObject("processing").getJSONObject("recrawl").getInt("days")));
+        }
+        return out;
     }
 
     /** Forwards Discovery events; does nothing while capture is not running. */

@@ -5,10 +5,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 
 import net.yacy.cora.order.Base64Order;
 import net.yacy.cora.util.SpaceExceededException;
@@ -59,6 +62,12 @@ public final class DomainTable {
         /** Present only for FOUND. */
         public final Entry entry;
         Lookup(final ReadStatus status, final Entry entry) { this.status = status; this.entry = entry; }
+    }
+
+    /** Row counts of a {@link #scan}. */
+    public static final class ScanResult {
+        public final long rows, invalid;
+        ScanResult(final long rows, final long invalid) { this.rows = rows; this.invalid = invalid; }
     }
 
     private static final class InvalidRow extends Exception {
@@ -180,6 +189,33 @@ public final class DomainTable {
             }
             write(key, h, c, now, entry.current, entry.previous, precheck);
             return Status.UPDATED;
+        }
+    }
+
+    /**
+     * Visits every valid row. Rows stored under a key that does not belong to their host
+     * and collection, and rows that cannot be parsed, are only counted. Writes wait
+     * until the scan is finished, so no row is read while it is being replaced.
+     */
+    public ScanResult scan(final Consumer<Entry> visitor) throws IOException {
+        synchronized (LOCK) {
+            long rows = 0, invalid = 0;
+            final Iterator<Tables.Row> i = this.tables.iterator(TABLE);
+            while (i.hasNext()) {
+                final Tables.Row row = i.next();
+                rows++;
+                final String host = text(row, "host"), collection = text(row, "collection");
+                try {
+                    if (host == null || collection == null || !Arrays.equals(row.getPK(), key(host, collection))) {
+                        invalid++;
+                        continue;
+                    }
+                    visitor.accept(parse(row, host, collection));
+                } catch (final InvalidRow | IllegalArgumentException e) {
+                    invalid++;
+                }
+            }
+            return new ScanResult(rows, invalid);
         }
     }
 

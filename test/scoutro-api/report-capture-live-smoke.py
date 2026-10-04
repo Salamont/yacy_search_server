@@ -152,9 +152,13 @@ def main():
                               cwd=REPO, check=True, timeout=120, capture_output=True, text=True, env=env).stdout
         rows = [json.loads(line) for line in dump.splitlines() if line.startswith("{")]
         log_tail = [line for line in (root / "peer.log").read_text().splitlines() if "SCOUTRO-REPORT" in line][-10:]
+        assert not any("step failed" in line for line in log_tail), log_tail
+        scoutro = sorted(str(p.relative_to(root)) for p in (root / "DATA").rglob("*")
+                         if "SCOUTRO" in str(p) or "scoutro-discovery" in p.name)
+        assert not any(name.startswith("DATA/SCOUTRO/reports/rollups/") for name in scoutro), scoutro  # no Discovery job: no rollup
         assert len(rows) == 1, {"rows": rows, "log": log_tail}
         row = rows[0]
-        print(json.dumps({"row": row, "documents": documents}, indent=1, sort_keys=True), flush=True)
+        print(json.dumps({"row": row, "documents": documents, "scoutro_files": scoutro}, indent=1, sort_keys=True), flush=True)
         assert row["host"] == HOST and row["collection"] == "report" and row["v"] == "1", row
         assert row["crawl_id"] == crawl_id and len(row.get("start_marker", "")) == 32, row
         assert int(row["ended_at"]) >= int(row["started_at"]), row

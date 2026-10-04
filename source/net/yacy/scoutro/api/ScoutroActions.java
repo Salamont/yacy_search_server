@@ -153,7 +153,7 @@ final class ScoutroActions {
                 "build", text(version, "file"));
     }
 
-    private static Properties scoutroProperties() {
+    static Properties scoutroProperties() {
         final Properties p = new Properties();
         final Switchboard sb = Switchboard.getSwitchboard();
         if (sb == null) {

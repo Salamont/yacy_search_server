@@ -1,7 +1,8 @@
 # Scoutro Crawl Report (plan)
 
-Status: confirmed plan. Phase 1 (storage) and Phase 2 (capture) are implemented
-on branch `ccr-e3e5f88b-1fqp77`; later phases are not started.
+Status: confirmed plan. Phases 1 (storage), 2 (capture) and 3 (reports and
+rollups) are implemented on branch `ccr-e3e5f88b-1fqp77`; later phases are not
+started.
 
 Goal: crawl-report views comparable to a classic crawl audit (crawl details,
 status, HTTP codes, content types, depth, duplicates, indexability, data age)
@@ -178,6 +179,8 @@ Read from `yacy.conf`; nothing is written.
 | `scoutro.report.capture` | `true` | `false` disables capture and the Discovery hooks |
 | `scoutro.report.captureIntervalSeconds` | `20` | 5-300 |
 | `scoutro.report.settleSeconds` | `120` | 0-3600 |
+| `scoutro.report.cacheSeconds` | `600` | 0-86400, table aggregate cache |
+| `scoutro.report.staleDays` | `30` | 1-3650, staleness for crawls without a Discovery job |
 
 ## Rollups
 
@@ -188,13 +191,86 @@ Read from `yacy.conf`; nothing is written.
   (`already_present`), for example after a restart.
 - Line format: `{"v":1,"job":"<uuid>","day":"YYYY-MM-DD", ...aggregates}`,
   at most 16 KiB per line.
-- **No separate event log.** Chart markers (job edit, enable/pause, version
-  change, schema change) are an optional bounded `markers` array inside the
-  daily rollup (at most 20 entries). There is no unbounded log of crawl
-  attempts.
+- **No separate event log.** Chart markers are an optional bounded `markers`
+  array inside the daily rollup (at most 20 entries). There is no unbounded log
+  of crawl attempts. Phase 3 writes `job_changed` (the job definition, including
+  enable/pause, differs from the previous rollup) and `version_changed`.
 - Corrupt or foreign content (invalid JSON, missing final newline, wrong job or
   year, duplicate day, oversized line) fails closed: nothing is appended and the
   file is retained for manual inspection.
+
+## Reports (Phase 3)
+
+`report/ReportService` combines the three sources; Phase 4 exposes it through
+the API and UI. Nothing in it starts a crawl or changes YaCy.
+
+| Report | Content |
+|---|---|
+| Host (host + collection) | the `scoutro_domains` row (current and previous crawl, precheck, `latest_attempt`), data age and staleness, and the live index state of the host with `not_reloaded` since the current crawl start |
+| Collection | the table aggregate of the collection and its live index state, or the latest rollup snapshot |
+| Job | the table aggregate of a Discovery job, its collections and its rollups for a day range (default 90 days, at most three years) |
+
+### Live index facets
+
+`report/IndexFacets`: one rows=0 JSON facet request on `collection_sxt` (and
+`host_s` for a host), 2 s budget, partial answers rejected:
+
+- `documents` (error documents included), `ok` (HTTP 200 without fail type),
+  `hosts` (collection only), `http_status`, `fail_type` (`excl`, `fail`);
+- for `ok` pages: `content_type`, `depth` (`crawldepth_i`, index order) and
+  `duplicates`: groups of at least two pages with the same `exact_signature_l`
+  (identical body) or `fuzzy_signature_l` (similar body). Solr's `numBuckets`
+  ignores `mincount`, so groups are counted from at most 1000 returned buckets;
+  at the limit the numbers are lower bounds and `*_truncated` is true;
+- `oldest`, `newest` (`load_date_dt`) and, for a host, `not_reloaded`.
+
+Facets whose schema field is disabled are omitted and listed in `unavailable`.
+
+### Table aggregates
+
+One scan of `scoutro_domains` (under the table lock, so no row is read while it
+is replaced) yields per collection and per job: `hosts`, `crawled`,
+`precheck_only`, `latest_attempt_precheck` (the precheck is newer than the
+current crawl), `coverage_partial`, `stale`, `last_crawl`, `outcomes`,
+`prechecks` (of latest-attempt prechecks) and the sums of the `pages_*` and
+`excl_*` counters. Rows whose key does not belong to their host and collection,
+or that cannot be parsed, are counted and left out. The scan is cached for
+`scoutro.report.cacheSeconds`.
+
+A host is **stale** when its current crawl ended (or started, if the end is
+unknown) longer ago than the job's `processing.recrawl.days`; crawls without a
+job use `scoutro.report.staleDays`.
+
+### Fallback
+
+If the live collection facets fail (timeout, partial answer, index
+unavailable), the collection report returns the newest rollup `index` snapshot
+of a job of that collection from the last 31 days, with `index_source: rollup`,
+`index_as_of` and `index_error`. Without such a snapshot `index` is null.
+
+### Daily rollups
+
+The capture thread calls the daily step on every tick; it runs once per local
+day, `scoutro.report.settleSeconds` plus five minutes after midnight, so that
+crawls ended just before midnight are captured first. (The Discovery heartbeat
+is not used: it is disabled by default.) For each Discovery job and each of the
+last seven days with activity and without a line it writes:
+
+`collections`, `crawls`, `outcomes`, `coverage_partial`, `pages` and
+`exclusions` (sums over crawl sections that ended that day; current and
+previous section of each row), `prechecks` (by result, by precheck time),
+`version`, `job_fingerprint` (SHA-256 of the sorted job definition, 16 hex
+digits), `markers`, and for yesterday an `index` snapshot (`documents`, `ok`,
+`hosts`) per collection, taken when the line is written.
+
+If the Discovery job store cannot be read, reports use the default staleness
+and rollups are written without `job_fingerprint`. A failed daily step (for
+example an unreadable table) waits ten minutes before it scans again.
+
+Catch-up days are rebuilt from the table, which keeps only the current and the
+previous crawl of each host; a host crawled more than twice within the window
+counts its older crawls only if they are still there. Crawls outside Discovery
+jobs are not in job rollups.
 
 ## Data age
 
@@ -240,9 +316,10 @@ recrawls. Page data lives only in the YaCy index.
    the `precheck` RPC. `report/CrawlOutcome`, `report/ExclusionTracker`,
    `report/CaptureService`, `report/PrecheckResult`; YaCy adapter
    `api/CaptureRuntime`. No API, UI or rollup writing yet.
-3. **Report:** live Solr facets per collection, job and host plus the table;
-   daily rollup through the existing heartbeat, also used as fallback when a
-   facet query exceeds its 2 s budget.
+3. **Reports (implemented):** see [Reports](#reports-phase-3):
+   `report/IndexFacets`, `report/ReportService` (host, collection and job
+   reports, cached table scan, rollup fallback, daily rollups from the capture
+   thread), `DomainTable.scan`. No API or UI yet.
 4. **API and UI:** GET endpoints under `/scoutro/api/v1/reports/...`, explicit
    agent grant `report.read`, a "Crawl report" tab in `ScoutroSEO_p.html` with
    inline SVG charts, data age, stale filter and "Crawl again"; help, all
@@ -278,6 +355,11 @@ Phase 2: the capture query against YaCy's real schema in an embedded Solr core
 detection and attribution, capture timing, recovery, retries and Discovery
 context, precheck rows, Discovery hooks and the `precheck` RPC, and the Python
 worker's precheck report (`test/scoutro-discovery/test_automation.py`).
+
+Phase 3: the report facets against an embedded Solr core (`IndexFacetsSolrTest`),
+host, collection and job reports, aggregates, staleness, latest-attempt rule,
+cache, fallback, daily rollups with catch-up, grace time and markers, and the
+table scan (`ReportServiceTest`).
 
 `test/scoutro-api/report-capture-live-smoke.py` runs one real crawl of a local
 fixture site on a new disposable peer and checks the captured row (pages,
