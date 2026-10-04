@@ -3255,11 +3255,11 @@ Host List==Lista de máquinas
 Line==Línea
 Other Dot==Otros puntos
 Pivot Dot==Punto de Pivote
-depth==profundidad
-host==host
-nodes==nodos
+>depth<==>profundidad<
+>host<==>host<
+>nodes<==>nodos<
 size==Tamaño
-time==hora
+>time<==>hora<
 #-----------------------------
 
 #File: WikiCodeHelp.html
@@ -4697,3 +4697,42 @@ rss terminal==terminal rss
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==Explorar las URL indexadas sin cargarlas ni rastrearlas.
+Apply filters==Aplicar filtros
+Reset filters==Restablecer filtros
+Active collection:==Colección activa:
+Remove collection filter==Quitar filtro de colección
+No indexed URLs match these filters.==Ninguna URL indexada coincide con estos filtros.
+Index data unavailable or access denied. Sign in as administrator and retry.==Datos no disponibles o acceso denegado. Inicie sesión como administrador y reintente.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Colección no válida. Use hasta 64 letras, números, guiones o guiones bajos.
+indexed URLs==URL indexadas
+Index pages==Páginas del índice
+Host/URL==Host/URL
+Collection==Recogida
+URL==URL
+Host==Servidor
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

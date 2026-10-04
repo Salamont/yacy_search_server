@@ -29,13 +29,15 @@
   }
 </style>
 </head>
-<body id="WebStructure" style="margin:0px;">
+<body id="WebStructure" class="scoutro-visualization" style="margin:0px;">
 #%env/templates/header.template%# 
 #%env/templates/submenuWebStructure.template%#
 
     <script type="text/javascript" src="js/jquery.colorpicker.js"></script>
 	<script type="text/javascript">
       $(document).ready(function(){
+        // Scoutro: retain the plain color fields when the optional legacy plugin is unavailable.
+        if (!$.fn.ColorPicker) return;
         $('#colorback, #colortext, #colorline, #colordot0, #colordota, #colorlineend').ColorPicker({
 			onSubmit: function(hsb, hex, rgb, el) {
 				$(el).val(hex);

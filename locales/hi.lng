@@ -3692,10 +3692,10 @@ With a GET-property 'latest' you get a list of references that had been computed
 Click the API icon to see the XML file.==XML फ़ाइल देखने के लिए API आइकन पर क्लिक करें।
 Web Structure==वेब संरचना
 Host List==मेज़बान सूची
-host==मेज़बान
-depth==गहराई
-nodes==नोड्स
-time==समय
+>host<==>मेज़बान<
+>depth<==>गहराई<
+>nodes<==>नोड्स<
+>time<==>समय<
 size==आकार
 Background==पृष्ठभूमि
 Color==रंग
@@ -4687,3 +4687,42 @@ Location==जगह
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==पृष्ठ लोड या क्रॉल किए बिना अनुक्रमित URL देखें।
+Apply filters==फ़िल्टर लागू करें
+Reset filters==फ़िल्टर रीसेट करें
+Active collection:==सक्रिय संग्रह:
+Remove collection filter==संग्रह फ़िल्टर हटाएँ
+No indexed URLs match these filters.==इन फ़िल्टर से मेल खाने वाला कोई अनुक्रमित URL नहीं है।
+Index data unavailable or access denied. Sign in as administrator and retry.==अनुक्रमणिका उपलब्ध नहीं है या अनुमति नहीं मिली। व्यवस्थापक के रूप में लॉग इन करके फिर प्रयास करें।
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==अमान्य संग्रह। अधिकतम 64 अंग्रेज़ी अक्षर, अंक, अंडरस्कोर या हाइफ़न प्रयोग करें।
+indexed URLs==अनुक्रमित URL
+Index pages==अनुक्रमणिका पृष्ठ
+Host/URL==होस्ट/URL
+Collection==संग्रह
+URL==URL
+Host==मेज़बान
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

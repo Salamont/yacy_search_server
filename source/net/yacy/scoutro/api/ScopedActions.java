@@ -97,6 +97,8 @@ class ScopedActions {
                 return ok(networkSearch(q));
             case "index.evidence":
                 return ok(this.actions.indexEvidence(q, filterCollections(agent, q.get("collection"))));
+            case "index.browse":
+                return ok(IndexBrowse.current().browse(q, filterCollections(agent, q.get("collection"))));
             case "index.lookup":
                 return ok(this.actions.indexLookup(q, filterCollections(agent, q.get("collection"))));
             case "index.status":

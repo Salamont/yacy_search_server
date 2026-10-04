@@ -3330,10 +3330,10 @@ Click the API icon to see the XML file.==Нажмите на иконку API д
 "minus"=="минус"
 "plus"=="плюс"
 Host List==Список хостов
-host==хозяин
-depth==глубина
-nodes==узлы
-time==время
+>host<==>хозяин<
+>depth<==>глубина<
+>nodes<==>узлы<
+>time<==>время<
 size==размер
 Background==Фон
 Color==Цвет
@@ -4791,3 +4791,42 @@ Show System==Показать систему
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==Просмотр индексированных URL без загрузки или сканирования.
+Apply filters==Применить фильтры
+Reset filters==Сбросить фильтры
+Active collection:==Активная коллекция:
+Remove collection filter==Удалить фильтр коллекции
+No indexed URLs match these filters.==Нет индексированных URL, соответствующих фильтрам.
+Index data unavailable or access denied. Sign in as administrator and retry.==Данные недоступны или доступ запрещён. Войдите как администратор и повторите попытку.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Недопустимая коллекция. До 64 латинских букв, цифр, подчёркиваний или дефисов.
+indexed URLs==индексированные URL
+Index pages==Страницы индекса
+Host/URL==Хост/ссылка:
+Collection==Коллекция
+URL==URL
+Host==Хост
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

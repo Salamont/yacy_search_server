@@ -3261,11 +3261,11 @@ Host List==Elenco host
 Line==Linea
 Other Dot==Altro punto
 Pivot Dot==Pivot dot
-depth==profondità
-host==host
-nodes==nodi
+>depth<==>profondità<
+>host<==>host<
+>nodes<==>nodi<
 size==dimensione
-time==tempo
+>time<==>tempo<
 #-----------------------------
 
 #File: WikiCodeHelp.html
@@ -4703,3 +4703,42 @@ rss terminal==terminale rss
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==Sfoglia gli URL indicizzati senza caricarli o scansionarli.
+Apply filters==Applica filtri
+Reset filters==Reimposta filtri
+Active collection:==Collezione attiva:
+Remove collection filter==Rimuovi filtro della collezione
+No indexed URLs match these filters.==Nessun URL indicizzato corrisponde ai filtri.
+Index data unavailable or access denied. Sign in as administrator and retry.==Dati non disponibili o accesso negato. Accedi come amministratore e riprova.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Collezione non valida. Usa fino a 64 lettere, numeri, trattini o trattini bassi.
+indexed URLs==URL indicizzati
+Index pages==Pagine dell’indice
+Host/URL==Host/URL
+Collection==Raccolta
+URL==URL
+Host==HostCity name (optional, probably does not need a translation)
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

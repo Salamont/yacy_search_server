@@ -23,7 +23,7 @@ const browser = await chromium.launch({
 try {
   const languages = ['en', ...fs.readdirSync('locales').filter(name => name.endsWith('.lng')).map(name => name.slice(0, -4))];
   for (const language of languages) {
-    for (const width of language === 'de' || language === 'en' ? [390, 1280] : [1280]) {
+    for (const width of language === 'de' || language === 'en' ? [360, 390, 412, 768, 1280] : [1280]) {
       const context = await browser.newContext({
         locale: language, viewport: { width, height: 900 },
         httpCredentials: { username: 'admin', password: 'yacy' },
@@ -68,6 +68,18 @@ try {
         check((await page.locator('#productionModelsTable tbody').textContent()).includes('fixture-model:latest'), `${width}: model added to production matrix`);
         check((await page.locator('#productionModelsTable tbody tr').first().locator('td').first().textContent()).trim() === 'OLLAMA', `${width}: production service remains canonical`);
         check(saves.some(save => save.production_models?.some(model => model.service === 'OLLAMA' && model.model === 'fixture-model:latest')), `${width}: canonical production model serialized`);
+        // Reflow must preserve the exact original controls and serialized grant.
+        const beforeReflow = saves.at(-1).production_models;
+        const originalControls = await page.locator('#productionModelsTable input').count();
+        await page.setViewportSize({width: width < 992 ? 1280 : 390, height: 900});
+        await page.evaluate(() => persistProductionModels());
+        await page.waitForTimeout(100);
+        check(JSON.stringify(saves.at(-1).production_models) === JSON.stringify(beforeReflow), `${width}: resize preserves model selection and save payload`);
+        check(await page.locator('#productionModelsTable input').count() === originalControls, `${width}: no duplicate mobile controls`);
+        await page.setViewportSize({width, height: 900});
+        const overflow = await page.evaluate(() => ({width:document.documentElement.scrollWidth, items:Array.from(document.querySelectorAll('body *')).filter(el => el.getBoundingClientRect().right > innerWidth+1).slice(0,12).map(el => ({tag:el.tagName,id:el.id,cls:el.className,right:el.getBoundingClientRect().right}))}));
+        check(overflow.width <= width + 1, `${width}: LLM services/models/matrix do not widen page: ${JSON.stringify(overflow)}`);
+        if (width < 992) check(await page.locator('#productionModelsTable tbody tr').first().evaluate(row => getComputedStyle(row).display === 'grid'), `${width}: original matrix row displays as card`);
         const originalMatrix = await page.locator('#productionModelsTable tbody').textContent();
         for (const [variant, http, message] of [
           ['http503', 503, 'HTTP-Status: 503'],

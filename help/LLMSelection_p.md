@@ -88,3 +88,5 @@ After saving, RAG and AI analysis pages should use the selected provider profile
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.
+
+On narrow screens the Services, Available Models and Production Models Matrix use labelled cards from the same table cells and controls. Existing model/usage/context-window save handlers are reused; resizing does not create a second model list or save path.

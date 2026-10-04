@@ -11,7 +11,7 @@ try {
  const anonymous = await browser.newContext();
  for (const path of ['/ScoutroSEO_p.html', '/scoutro/api/v1/seo/hosts']) check((await anonymous.request.get(base + path)).status() === 401, 'Admin required: ' + path);
  await anonymous.close(); if (shots) fs.mkdirSync(shots, { recursive: true });
- for (const language of ['en', 'de']) for (const width of [360, 390, 412, 1280]) {
+ for (const language of ['en', 'de']) for (const width of [360, 390, 412, 768, 1280]) {
   const context = await browser.newContext({ viewport: { width, height: 900 }, isMobile: width < 768, hasTouch: width < 768, httpCredentials: { username: 'admin', password: 'yacy' }, extraHTTPHeaders: { 'Accept-Language': language } });
   const page = await context.newPage(), errors = [], writes = [];
   page.on('pageerror', e => errors.push(e.message)); page.on('request', r => { if (!['GET', 'HEAD'].includes(r.method())) writes.push(r.url()); });
@@ -57,5 +57,5 @@ try {
   check(errors.length === 0, 'No JS errors: ' + errors.join(';')); check(writes.length === 0, 'No mutation requests');
   await context.close();
  }
- console.log(`PASS: ${checks} SEO UI checks, English/German, four desktop/mobile widths`);
+ console.log(`PASS: ${checks} SEO UI checks, English/German, five desktop/mobile widths`);
 } finally { await browser.close(); }

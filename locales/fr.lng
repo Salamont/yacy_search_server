@@ -3273,11 +3273,11 @@ The data that is visualized here can also be retrieved in a XML file, which list
 Web Structure==Structure du Web
 With a GET-property 'about' you get only reference relations about the host that you give in the argument field for 'about'.==Avec un GET-property 'about' vous obtenez seulement des relations de référence sur l'hôte que vous donnez dans le champ argument pour 'about'.
 With a GET-property 'latest' you get a list of references that had been computed during the current run-time of YaCy, and with each next call only an update to the next list of references.==Avec un "dernier" de propriété GET, vous obtenez une liste de références qui ont été calculées pendant le temps d'exécution actuel de YaCy, et avec chaque appel suivant seulement une mise à jour à la prochaine liste de références.
-depth==profondeur
-host==hôte
-nodes==nœuds
+>depth<==>profondeur<
+>host<==>hôte<
+>nodes<==>nœuds<
 size==taille
-time==temps
+>time<==>temps<
 #-----------------------------
 
 #File: api/yacydoc.html
@@ -4720,3 +4720,42 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==Parcourir les URL indexées sans les charger ni les explorer.
+Apply filters==Appliquer les filtres
+Reset filters==Réinitialiser les filtres
+Active collection:==Collection active :
+Remove collection filter==Supprimer le filtre de collection
+No indexed URLs match these filters.==Aucune URL indexée ne correspond à ces filtres.
+Index data unavailable or access denied. Sign in as administrator and retry.==Données indisponibles ou accès refusé. Connectez-vous comme administrateur et réessayez.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Collection invalide. Utilisez au plus 64 lettres, chiffres, tirets ou traits de soulignement.
+indexed URLs==URL indexées
+Index pages==Pages de l’index
+Host/URL==Nom de domaine/URL
+Collection==Collection
+URL==URL
+Host==Hôte
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

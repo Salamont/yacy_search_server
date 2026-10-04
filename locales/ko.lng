@@ -3692,10 +3692,10 @@ With a GET-property 'latest' you get a list of references that had been computed
 Click the API icon to see the XML file.==API 아이콘을 클릭하면 XML 파일을 볼 수 있습니다.
 Web Structure==웹 구조
 Host List==호스트 목록
-host==주인
-depth==깊이
-nodes==노드
-time==시간
+>host<==>주인<
+>depth<==>깊이<
+>nodes<==>노드<
+>time<==>시간<
 size==크기
 Background==배경
 Color==색상
@@ -4687,3 +4687,42 @@ Location==위치
 >Analyze host<==>Analyze host<
 >Not yet indexed<==>Not yet indexed<
 >Last error<==>Last error<
+
+#File: IndexBrowser_p.html
+# Scoutro collection browser
+Browse indexed URLs without loading or crawling them.==페이지를 가져오거나 크롤링하지 않고 색인된 URL을 탐색합니다.
+Apply filters==필터 적용
+Reset filters==필터 초기화
+Active collection:==활성 컬렉션:
+Remove collection filter==컬렉션 필터 제거
+No indexed URLs match these filters.==필터와 일치하는 색인된 URL이 없습니다.
+Index data unavailable or access denied. Sign in as administrator and retry.==색인 데이터를 사용할 수 없거나 접근이 거부되었습니다. 관리자로 로그인한 후 다시 시도하세요.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==잘못된 컬렉션입니다. 영문자, 숫자, 밑줄 또는 하이픈을 최대 64자까지 사용하세요.
+indexed URLs==색인된 URL
+Index pages==색인 페이지
+Host/URL==호스트/URL
+Collection==수집
+URL==URL
+Host==주인
+HTTP status==HTTP status
+Previous==Previous
+Next==Next
+Index administration==Index administration
+
+#File: WatchWebStructure_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: Collage.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgents_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: ScoutroAgentWizard_p.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: scoutro-dashboard.html
+# Scoutro responsive layout; existing translations and identifiers retained.
+
+#File: LLMSelection_p.html
+# Scoutro cards reuse original model/service controls and serialization.

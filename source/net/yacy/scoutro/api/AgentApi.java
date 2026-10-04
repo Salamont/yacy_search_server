@@ -269,6 +269,7 @@ final class AgentApi {
                 if ("GET".equals(method)) return ok("config.get");
                 return "PATCH".equals(method) ? ok("config.set") : method(method, "GET", "PATCH");
             case "index":
+                if (n == 2 && "browse".equals(p.get(1))) return "GET".equals(method) ? ok("index.browse") : method(method, "GET");
                 if (n == 1) return "GET".equals(method) ? ok("index.status") : method(method, "GET");
                 if (n == 2 && "lookup".equals(p.get(1))) return "GET".equals(method) ? ok("index.lookup") : method(method, "GET");
                 if (n == 2 && "evidence".equals(p.get(1))) return "GET".equals(method) ? ok("index.evidence") : method(method, "GET");

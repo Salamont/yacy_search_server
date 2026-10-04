@@ -149,6 +149,31 @@ for the JavaScript code in this page.
   }
 
   function onReady() {
+    // Scoutro: label the original cells for responsive cards. Controls, cell
+    // indices and save handlers remain the single source of truth.
+    function labelCards() {
+      document.querySelectorAll('.scoutro-cards, #productionModelsTable, #servicesTable, #availableModelsContainer table').forEach(function (table) {
+        table.classList.add('scoutro-cards');
+        var head = table.tHead && table.tHead.rows[0];
+        if (!head) return;
+        Array.from(table.tBodies).forEach(function (body) {
+          Array.from(body.rows).forEach(function (row) {
+            Array.from(row.cells).forEach(function (cell, index) {
+              if (head.cells[index]) {
+                var header = head.cells[index];
+                cell.dataset.label = Array.from(header.childNodes).filter(function (node) {
+                  return node.nodeType === 3;
+                }).map(function (node) { return node.textContent; }).join(' ').trim() || header.textContent.trim();
+                var control = cell.querySelector('input[type=checkbox]');
+                if (control) control.setAttribute('aria-label', cell.dataset.label);
+              }
+            });
+          });
+        });
+      });
+    }
+    labelCards();
+    if (window.MutationObserver) new MutationObserver(labelCards).observe(document.body, {childList: true, subtree: true});
     wrapWideTables();
     markCurrentLinks();
     watchEmptyResults();

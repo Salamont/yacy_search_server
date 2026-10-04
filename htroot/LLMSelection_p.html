@@ -768,7 +768,7 @@
         }
 
         const table = document.createElement("table");
-        table.className = "table table-striped";
+        table.className = "table table-striped scoutro-cards";
         const activeHeaders = Array.isArray(headers) && headers.length ? headers : MODEL_TABLE_HEADERS;
 
         const thead = document.createElement("thead");
@@ -2201,7 +2201,7 @@
             (Ollama: <code>OLLAMA_CONTEXT_LENGTH</code>, a Modelfile <code>PARAMETER num_ctx</code>, or the
             Context Length setting). YaCy does not enforce it on the backend.
         </p>
-        <table class="table table-striped" id="servicesTable">
+        <table class="table table-striped scoutro-cards" id="servicesTable">
             <thead class="thead-dark">
                 <tr>
                     <td>service</td>
@@ -2234,7 +2234,7 @@
             <div id="testActivityList"></div>
         </div>
         <div class="scoutro-scroll" style="clear:both">
-        <table class="table table-striped" id="productionModelsTable">
+        <table class="table table-striped scoutro-cards" id="productionModelsTable">
             <thead class="thead-dark">
                 <tr>
                     <td>service</td>

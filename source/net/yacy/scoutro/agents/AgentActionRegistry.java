@@ -107,6 +107,9 @@ public final class AgentActionRegistry {
         add(new Action("index.evidence", "Text evidence",
                 "Read URL, title and bounded text excerpts of the indexed pages of one domain.",
                 Risk.READ, true, "GET", "/index/evidence", true, ext, worker));
+        add(new Action("index.browse", "Browse index",
+                "Read bounded URL rows using literal host/URL input in granted collections; never fetches or crawls.",
+                Risk.READ, true, "GET", "/index/browse", false, ext, worker));
         add(new Action("index.lookup", "Index lookup",
                 "Check whether a URL is indexed, or count the documents of a host, in the granted collections.",
                 Risk.READ, true, "GET", "/index/lookup", true, ext, worker));

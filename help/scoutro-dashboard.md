@@ -99,3 +99,6 @@ The compact Discovery Automation card links to `ScoutroDiscovery_p.html`. A read
 Start Crawl opens Scoutro Crawls with a mandatory explicit Collection. Discovery shows automation Active/Paused/Disabled separately from Batch running. Read-only worker activity is not a running batch.
 
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
+
+Scoutro responsive layout: existing navigation and controls are reused at 360/390/412/768 pixels and desktop. Tables display the original rows as labelled cards on narrow screens; control names, values, events and save paths are unchanged.
+Dashboard collection links open the Index Browser with the exact `collection` URL parameter.
