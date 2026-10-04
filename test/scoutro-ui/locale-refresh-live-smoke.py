@@ -141,7 +141,7 @@ def run(mode, fail=False):
                     check((locale / "de/version").read_text() == revision, "Language management uses a different marker")
                 # YaCy records the first visit of each responder in server.servlets.called.
                 # Warm those existing navigation records before the read-only comparison.
-                for name in PAGES[1:] + ["env/style.css"]:
+                for name in PAGES[1:] + ["index.html", "env/style.css"]:
                     get("/" + name)
                 tracked = [root / "DATA/INDEX/webportal/SEGMENTS", root / "DATA/QUEUES", root / "DATA/SETTINGS"]
                 deadline = time.monotonic() + 30
@@ -156,6 +156,10 @@ def run(mode, fail=False):
                 before_config = settings(config)
                 dashboard = get("/scoutro-dashboard.html")
                 check('data-metric="pages">7<' in dashboard and 'data-metric="hosts">2<' in dashboard, "Fixture index changed")
+                about = get("/scoutro-about.html")
+                check('<html lang="de">' in about and "<h1>Über Scoutro</h1>" in about and "About Scoutro" not in about,
+                      "About page not served from the German copy")
+                check("Suchen. Crawlen. Entdecken." in get("/index.html"), "Start page tagline not translated")
                 subprocess.run(["node", str(REPO / "test/scoutro-ui/locale-refresh-ui-test.mjs")], cwd=REPO,
                                env={**os.environ, "SCOUTRO_URL": base, "SCOUTRO_LOCALE_MODE": mode}, check=True, timeout=90)
                 after = [digests(folder) for folder in tracked]

@@ -3416,6 +3416,8 @@ onkeyup="xmlhttpPost(); return false;"==onkeyup="xmlhttpPost(); return false;"
 "Search..."=="Suchen..."
 #File: yacysearch.html
 #---------------------------
+Language:==Sprache:
+>any<==>beliebig<
 Did you mean:==Meinten Sie vielleicht:
 No Results.==Keine Ergebnisse.
 Location -- click on map to enlarge==Ort -- Auf die Karte klicken, um zu vergrößern
@@ -4500,6 +4502,7 @@ YaCy Firefox Search-Plugin Installation:==YaCy Firefox Such-Plugin Installation:
 <i>external</i>&nbsp;&nbsp;&nbsp;Bugtracker==<i>extern</i>&nbsp;&nbsp;&nbsp;Bugtracker
 JavaScript information==JavaScript-Informationen
 About This Page==Über diese Seite
+About==Über
 Compare Search==Vergleichssuche
 YaCy Tutorials==YaCy-Tutorials
 File Search==Datei-Suche
@@ -5275,3 +5278,27 @@ Index administration==Indexverwaltung
 
 #File: LLMSelection_p.html
 # Scoutro cards reuse original model/service controls and serialization.
+
+#File: scoutro-about.html
+#---------------------------
+<html lang="en">==<html lang="de">
+Scoutro is a mobile-first search, crawling and indexing application. Scoutro is an independent community project <strong>based on <a href="https://yacy.net/">YaCy</a></strong>, the free, distributed peer-to-peer search engine.==Scoutro ist eine für Mobilgeräte optimierte Anwendung zum Suchen, Crawlen und Indexieren. Scoutro ist ein unabhängiges Community-Projekt <strong>auf Basis von <a href="https://yacy.net/">YaCy</a></strong>, der freien, verteilten Peer-to-Peer-Suchmaschine.
+YaCy is developed by Michael Peter Christen and the YaCy contributors (the YaCy project). Scoutro is not affiliated with or endorsed by the YaCy project.==YaCy wird von Michael Peter Christen und den YaCy-Mitwirkenden (dem YaCy-Projekt) entwickelt. Scoutro ist weder mit dem YaCy-Projekt verbunden noch von ihm unterstützt.
+YaCy is free software, licensed under the <a href="https://github.com/yacy/yacy_search_server/blob/master/gpl.txt">GNU General Public License, version 2 or (at your option) any later version</a>. Parts of YaCy (<code>net.yacy.cora</code>) are licensed under the GNU Lesser General Public License 2.1 or later. Scoutro is a modified version of YaCy and is distributed under the same license, GPL-2.0-or-later, without any warranty.==YaCy ist freie Software, lizenziert unter der <a href="https://github.com/yacy/yacy_search_server/blob/master/gpl.txt">GNU General Public License, Version 2 oder (nach Ihrer Wahl) jeder späteren Version</a>. Teile von YaCy (<code>net.yacy.cora</code>) stehen unter der GNU Lesser General Public License 2.1 oder später. Scoutro ist eine veränderte Version von YaCy und wird unter derselben Lizenz, GPL-2.0-or-later, ohne jede Gewährleistung verbreitet.
+Licenses of the JavaScript code on these pages: <a href="jslicense.html">JavaScript information</a>. Third-party components and their notices are listed in the files <code>NOTICE</code>, <code>COPYRIGHT</code> and <code>LICENSES/</code> of the source code.==Lizenzen des JavaScript-Codes auf diesen Seiten: <a href="jslicense.html">JavaScript-Informationen</a>. Komponenten Dritter und ihre Hinweise sind in den Dateien <code>NOTICE</code>, <code>COPYRIGHT</code> und <code>LICENSES/</code> des Quellcodes aufgeführt.
+Administration and technical details:==Administration und technische Details:
+>About this peer<==>Über diesen Peer<
+>Support YaCy development<==>YaCy-Entwicklung unterstützen<
+>YaCy community forum<==>YaCy-Community-Forum<
+(fork of YaCy)==(Fork von YaCy)
+>About Scoutro<==>Über Scoutro<
+&larr; Search==&larr; Suche
+>Source code<==>Quellcode<
+>YaCy project<==>YaCy-Projekt<
+>License<==>Lizenz<
+#-----------------------------
+
+#File: env/templates/scoutro/tagline.template
+#---------------------------
+Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
+#-----------------------------

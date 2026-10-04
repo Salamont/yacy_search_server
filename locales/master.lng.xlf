@@ -14420,35 +14420,11 @@
     <trans-unit id="14655e8" xml:space="preserve" approved="no" translate="yes">
        <source>&amp;larr; Search</source>
     </trans-unit>
-    <trans-unit id="bbc273a7" xml:space="preserve" approved="no" translate="yes">
-       <source>Scoutro is a mobile-first search, crawling and indexing application.</source>
-    </trans-unit>
-    <trans-unit id="8f6af85d" xml:space="preserve" approved="no" translate="yes">
-       <source>Scoutro is an independent community project &lt;strong&gt;based on</source>
-    </trans-unit>
-    <trans-unit id="7dc590ab" xml:space="preserve" approved="no" translate="yes">
-       <source>peer-to-peer search engine.</source>
-    </trans-unit>
-    <trans-unit id="855785e6" xml:space="preserve" approved="no" translate="yes">
-       <source>YaCy is developed by Michael Peter Christen and the YaCy contributors</source>
-    </trans-unit>
-    <trans-unit id="a19bccf9" xml:space="preserve" approved="no" translate="yes">
-       <source>(the YaCy project). Scoutro is not affiliated with or endorsed by the</source>
-    </trans-unit>
-    <trans-unit id="91752457" xml:space="preserve" approved="no" translate="yes">
-       <source>YaCy project.</source>
+    <trans-unit id="91b0b036" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy is developed by Michael Peter Christen and the YaCy contributors (the YaCy project). Scoutro is not affiliated with or endorsed by the YaCy project.</source>
     </trans-unit>
     <trans-unit id="6d291c21" xml:space="preserve" approved="no" translate="yes">
        <source>License</source>
-    </trans-unit>
-    <trans-unit id="a6a13907" xml:space="preserve" approved="no" translate="yes">
-       <source>YaCy is free software, licensed under the</source>
-    </trans-unit>
-    <trans-unit id="bde8634c" xml:space="preserve" approved="no" translate="yes">
-       <source>Scoutro is a modified version of YaCy and is distributed under the same license,</source>
-    </trans-unit>
-    <trans-unit id="e4a1162d" xml:space="preserve" approved="no" translate="yes">
-       <source>GPL-2.0-or-later, without any warranty.</source>
     </trans-unit>
     <trans-unit id="5adeb6b2" xml:space="preserve" approved="no" translate="yes">
        <source>Source code</source>
@@ -14464,9 +14440,6 @@
     </trans-unit>
     <trans-unit id="609ca22a" xml:space="preserve" approved="no" translate="yes">
        <source>Support YaCy development</source>
-    </trans-unit>
-    <trans-unit id="128c38b1" xml:space="preserve" approved="no" translate="yes">
-       <source>About this peer</source>
     </trans-unit>
   </body>
 </file>
