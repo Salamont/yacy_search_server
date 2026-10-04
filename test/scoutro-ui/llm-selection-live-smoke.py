@@ -80,6 +80,11 @@ def main():
             (root / ".scoutro-dashboard-disposable").touch()
             config = root / "DATA/SETTINGS/yacy.conf"
             config.parent.mkdir(parents=True)
+            # Offline peer: YaCy fetches the donation frame and OAI ListFriends lists at startup
+            # and stores failed loads as index documents. donation.iframesource= and cached empty lists prevent both.
+            (root / "DATA/DICTIONARIES/harvesting").mkdir(parents=True, exist_ok=True)
+            for friends in ("export_roar_ROAR_ListFriends.xml", "ListFriends.xml"):
+                (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
             inference = {"service": "OLLAMA", "hoststub": stub, "api_key": ""}
             capabilities = {f"OLLAMA|{stub}|fixture-model:latest":
                             dict.fromkeys(["thinking", "tooling", "vision", "format"], "unsupported")}
@@ -87,7 +92,7 @@ def main():
                 f"port={port}", "adminAccountForLocalhost=false", "adminAccountAllPages=false",
                 "adminAccountUserName=admin", "adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c",
                 "network.unit.definition=defaults/yacy.network.webportal.unit", "browserPopUpTrigger=false",
-                "autocrawl=false", "server.https=false", "locale.language=browser", "upnp.enabled=false",
+                "autocrawl=false", "server.https=false", "locale.language=browser", "upnp.enabled=false", "donation.iframesource=",
                 "resource.disk.free.min.steadystate=1", "resource.disk.free.min.undershot=1",
                 "resource.disk.used.max.steadystate=1000000000000", "resource.disk.used.max.overshot=1000000000000",
                 "ai.production_models=[]", "ai.inference_system=" + json.dumps(inference),

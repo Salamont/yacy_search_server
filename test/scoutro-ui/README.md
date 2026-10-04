@@ -57,6 +57,18 @@ The script exits with status 1 and lists every failed check. Against an
 unmodified YaCy 1.942 it fails (hidden navigation, covered toggle, page
 overflow); against Scoutro all checks pass.
 
+## Offline disposable peers
+
+Every `*-live-smoke.py` harness starts a peer that makes no internet request at
+startup. YaCy would otherwise load the donation frame
+(`donation.iframesource`) and the OAI ListFriends lists, and where outbound
+HTTP is reachable but refused (for example by a proxy) it stores the failed
+loads as error documents in the index (collection `robot_snippetGlobalMedia`).
+Those documents changed document counts and index hashes during the checks.
+The harnesses therefore set `donation.iframesource=` and place empty cached
+lists in `DATA/DICTIONARIES/harvesting/`; YaCy's loader skips a source whose
+cache file exists. YaCy itself is unchanged.
+
 ## Dashboard smoke
 
 `ant scoutro-dashboard-test` checks counts, failure isolation, existing detail

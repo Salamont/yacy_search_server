@@ -35,6 +35,11 @@ def main():
         (root / ".scoutro-dashboard-disposable").touch()
         settings = root / "DATA/SETTINGS"
         settings.mkdir(parents=True)
+        # Offline peer: YaCy fetches the donation frame and OAI ListFriends lists at startup
+        # and stores failed loads as index documents. donation.iframesource= and cached empty lists prevent both.
+        (root / "DATA/DICTIONARIES/harvesting").mkdir(parents=True, exist_ok=True)
+        for friends in ("export_roar_ROAR_ListFriends.xml", "ListFriends.xml"):
+            (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
         # .example fixtures have no public DNS. Permit their offline metadata
         # in this disposable network only; keep all online verification off.
         network = root / "fixture.network.unit"
@@ -44,7 +49,7 @@ def main():
             f"port={port}", "adminAccountForLocalhost=false", "adminAccountAllPages=false",
             "adminAccountUserName=admin", "adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c",
             f"network.unit.definition={network}", "browserPopUpTrigger=false",
-            "autocrawl=false", "server.https=false", "locale.language=default", "upnp.enabled=false",
+            "autocrawl=false", "server.https=false", "locale.language=default", "upnp.enabled=false", "donation.iframesource=",
             "scoutro.discovery.enabled=false", "core.service.citation.tmp=true", "core.service.webgraph.tmp=false",
             "search.verify=false",
             "search.ranking.solr.collection.filterquery.tmpa.0=httpstatus_i:200",

@@ -38,6 +38,11 @@ with tempfile.TemporaryDirectory(prefix='scoutro-discovery-v1-') as temp:
     (root / '.scoutro-dashboard-disposable').touch()
     settings = root / 'DATA/SETTINGS/yacy.conf'
     settings.parent.mkdir(parents=True)
+    # Offline peer: YaCy fetches the donation frame and OAI ListFriends lists at startup
+    # and stores failed loads as index documents. donation.iframesource= and cached empty lists prevent both.
+    (root / "DATA/DICTIONARIES/harvesting").mkdir(parents=True, exist_ok=True)
+    for friends in ("export_roar_ROAR_ListFriends.xml", "ListFriends.xml"):
+        (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
     runtime = root / 'DATA/SCOUTRO/config'
     runtime.mkdir(parents=True)
     (runtime / 'profiles.json').write_text(json.dumps({'profiles': {'new_profile': {'collection': 'custom-index'}, 'unsupported': {'collection': 'other-index'}}}))
@@ -55,7 +60,7 @@ with tempfile.TemporaryDirectory(prefix='scoutro-discovery-v1-') as temp:
     (locale / 'version').write_text('1.942\n')
     pepper = settings.parent / 'scoutro-agent-pepper'
     pepper.write_text('01' * 32)
-    settings.write_text('\n'.join([f'port={port}', 'adminAccountForLocalhost=false', 'adminAccountAllPages=false', 'adminAccountUserName=admin', 'adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c', 'network.unit.definition=defaults/yacy.network.webportal.unit', 'browserPopUpTrigger=false', 'autocrawl=false', 'server.https=false', 'locale.language=browser', 'upnp.enabled=false', 'resource.disk.free.min.steadystate=1', 'resource.disk.free.min.undershot=1', 'resource.disk.used.max.steadystate=1000000000000', 'resource.disk.used.max.overshot=1000000000000'])+'\n')
+    settings.write_text('\n'.join([f'port={port}', 'adminAccountForLocalhost=false', 'adminAccountAllPages=false', 'adminAccountUserName=admin', 'adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c', 'network.unit.definition=defaults/yacy.network.webportal.unit', 'browserPopUpTrigger=false', 'autocrawl=false', 'server.https=false', 'locale.language=browser', 'upnp.enabled=false', 'donation.iframesource=', 'resource.disk.free.min.steadystate=1', 'resource.disk.free.min.undershot=1', 'resource.disk.used.max.steadystate=1000000000000', 'resource.disk.used.max.overshot=1000000000000'])+'\n')
     subprocess.run([JAVA, '-cp', CP, str(REPO / 'test/scoutro-ui/DashboardFixture.java'), str(root)], cwd=REPO, check=True, timeout=60, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     passwords = urllib.request.HTTPPasswordMgrWithDefaultRealm()
     passwords.add_password(None, base, 'admin', 'yacy')

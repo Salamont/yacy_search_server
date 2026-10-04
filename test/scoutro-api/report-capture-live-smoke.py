@@ -75,6 +75,11 @@ def main():
         root = Path(temporary)
         settings = root / "DATA/SETTINGS"
         settings.mkdir(parents=True)
+        # Offline peer: YaCy fetches the donation frame and OAI ListFriends lists at startup
+        # and stores failed loads as index documents. donation.iframesource= and cached empty lists prevent both.
+        (root / "DATA/DICTIONARIES/harvesting").mkdir(parents=True, exist_ok=True)
+        for friends in ("export_roar_ROAR_ListFriends.xml", "ListFriends.xml"):
+            (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
         (root / "hosts").write_text(f"127.0.0.1 {HOST}\n")
         network = root / "fixture.network.unit"
         network.write_text((REPO / "defaults/yacy.network.webportal.unit").read_text().replace(
@@ -83,7 +88,7 @@ def main():
             f"port={port}", "adminAccountForLocalhost=false", "adminAccountAllPages=false",
             "adminAccountUserName=admin", "adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c",
             f"network.unit.definition={network}", "browserPopUpTrigger=false",
-            "autocrawl=false", "server.https=false", "locale.language=default", "upnp.enabled=false",
+            "autocrawl=false", "server.https=false", "locale.language=default", "upnp.enabled=false", "donation.iframesource=",
             "scoutro.discovery.enabled=false", "search.verify=false",
             "90_cleanup_idlesleep=2000", "90_cleanup_busysleep=2000",
             "scoutro.report.captureIntervalSeconds=5", "scoutro.report.settleSeconds=5",
