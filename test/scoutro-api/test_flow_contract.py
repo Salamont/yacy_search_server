@@ -51,6 +51,20 @@ class Contracts(unittest.TestCase):
    prefix='/agent/v1' if token else '/v1'
    for argv,path in [(['host','resolve','https://EXAMPLE.com/path','--collection','test-web'],'/hosts/resolve'),(['collections'],'/collections'),(['automation','status'],'/discovery/status')]:
     args,_=self.call(argv,token);self.assertEqual(args[:2],('GET',prefix+path))
+ def test_system_questions_and_metrics_are_shared_by_cli_and_descriptions(self):
+  grants={g['name']:g for g in self.actions['agentAccess']['grants']}
+  self.assertTrue(grants['index.metrics']['scoped']);self.assertFalse(grants['index.metrics']['presetable']);self.assertNotIn('system.questions',grants)
+  questions=next(a for a in self.actions['actions'] if a['name']=='system.questions')
+  self.assertEqual(questions['agent']['delegatesTo'],['index.metrics','crawl.list','discovery.status','collections.list','seo.read'])
+  for token in ['','test']:
+   prefix='/agent/v1' if token else '/v1'
+   for argv,path in [(['index','metrics','--collection','visible'],'/index/metrics'),(['ask','Wie viele Seiten?','--collection','visible'],'/system/questions')]:
+    args,_=self.call(argv,token);self.assertEqual(args[:2],('GET',prefix+path));self.assertEqual(args[2]['collection'],'visible')
+  self.assertEqual(self.actions['mcpAdapter']['transport'],'stdio')
+  chat=self.openapi['paths']['/v1/chat/completions']['post']
+  self.assertEqual(chat['servers'][0]['url'],'/')
+  self.assertIn('text/event-stream',chat['responses']['200']['content'])
+  self.assertFalse(any(a['name']=='chat.completions' for a in self.actions['actions']))
  def test_discovery_schema_separates_batch_worker_and_automation(self):
   properties=self.openapi['components']['schemas']['DiscoveryStatus']['properties']
   self.assertEqual(properties['automation_status']['enum'],['active','paused','disabled'])

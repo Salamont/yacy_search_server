@@ -50,6 +50,7 @@ public class RobotsRedirectSecurityTest {
     private static final byte[] BODY = "User-agent: *\nAllow: /\n".getBytes(StandardCharsets.UTF_8);
     private final List<String> fetched = new ArrayList<>();
     private final List<String> resolved = new ArrayList<>();
+    private final List<InetAddress[]> pinned = new ArrayList<>();
     private final Map<String, Reply> replies = new HashMap<>();
     private final Map<String, InetAddress[]> addresses = new HashMap<>();
     private Switchboard board;
@@ -153,6 +154,8 @@ public class RobotsRedirectSecurityTest {
         assertArrayEquals(BODY, load().getContent());
         assertEquals(List.of(START, NEXT), this.fetched);
         assertEquals(List.of("crawl-fixture.com", "next-fixture.com"), this.resolved);
+        assertArrayEquals(new InetAddress[]{ip("8.8.8.8")},this.pinned.get(0));
+        assertArrayEquals(new InetAddress[]{ip("8.8.4.4")},this.pinned.get(1));
     }
 
     @Test
@@ -368,6 +371,9 @@ public class RobotsRedirectSecurityTest {
     private final class FakeClient extends HTTPClient {
         private HttpResponse response;
         FakeClient() { super(ClientIdentification.yacyInternetCrawlerAgent); }
+        @Override public void pinRobotsTarget(final MultiProtocolURL url, final InetAddress[] validated) {
+            pinned.add(validated.clone());
+        }
         @Override
         public byte[] GETbytes(final MultiProtocolURL url, final String user, final String password,
                 final int maxBytes, final boolean concurrent) {

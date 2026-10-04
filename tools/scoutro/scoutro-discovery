@@ -44,6 +44,7 @@
 import argparse
 import fcntl
 import hashlib
+import http.client
 import ipaddress
 import json
 import os
@@ -51,6 +52,7 @@ import re
 import secrets
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -200,8 +202,8 @@ class RobotsTargetError(urllib.error.URLError):
     """A policy refusal is not a transient robots fetch failure."""
 
 
-def public_robots_url(url):
-    """Normalize a robots target and validate all its DNS addresses before HTTP."""
+def normalized_robots_url(url):
+    """Pure URL normalization, shared by initial targets and redirects."""
     try:
         if any(ord(char) < 32 or ord(char) == 127 for char in url):
             raise ValueError("URL control characters refused")
@@ -211,6 +213,8 @@ def public_robots_url(url):
         if parsed.username is not None or parsed.password is not None:
             raise ValueError("URL credentials refused")
         host = parsed.hostname.encode("idna").decode("ascii").lower()
+        if "%" in host:
+            raise ValueError("scoped/escaped host refused")
         port = parsed.port
         authority = "[" + host + "]" if ":" in host else host
         if port is not None:
@@ -221,10 +225,136 @@ def public_robots_url(url):
             urllib.parse.quote(parsed.query, safe="/?%:@!$&'()*+,;=-._~"), ""))
     except (ValueError, UnicodeError):
         raise RobotsTargetError("robots-target-invalid") from None
+    return normalized
+
+
+def public_robots_url(url):
+    """Compatibility policy check; fetching uses the bound request below."""
+    normalized = normalized_robots_url(url)
+    host = urllib.parse.urlsplit(normalized).hostname
     allowed, _reason = resolve_public(host)
     if not allowed:
         raise RobotsTargetError("robots-target-blocked")
     return normalized
+
+
+def pinned_robots_request(request):
+    """One immutable address snapshot per request, never a process-wide DNS cache."""
+    normalized = normalized_robots_url(request.full_url)
+    parsed = urllib.parse.urlsplit(normalized)
+    host = parsed.hostname
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    if host == "localhost" or host.endswith(".local"):
+        raise RobotsTargetError("robots-target-blocked")
+    try:
+        infos = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+    except socket.gaierror:
+        raise RobotsTargetError("robots-target-blocked") from None
+    addresses = []
+    for family, _kind, _protocol, _canonical, address in infos:
+        ip = address[0]
+        if family not in (socket.AF_INET, socket.AF_INET6) or "%" in ip or not is_public_ip(ip):
+            raise RobotsTargetError("robots-target-blocked")
+        # Never pass a hostname (or an unchecked resolver-supplied port) to connect().
+        numeric = str(ipaddress.ip_address(ip))
+        destination = (numeric, port) if family == socket.AF_INET else (numeric, port, 0, 0)
+        entry = (family, destination)
+        if entry not in addresses:
+            addresses.append(entry)
+    if not addresses:
+        raise RobotsTargetError("robots-target-blocked")
+    request.full_url = normalized
+    request.robots_binding = (normalized, host, port, tuple(addresses))
+    return request
+
+
+class PinnedRobotsConnection(http.client.HTTPConnection):
+    def __init__(self, host, *, binding, **kwargs):
+        super().__init__(host, **kwargs)
+        self.binding = binding
+        if self.host != binding[1] or self.port != binding[2]:
+            raise RobotsTargetError("robots-target-changed")
+
+    def connect(self):
+        if self._tunnel_host is not None:
+            raise RobotsTargetError("robots-proxy-unsupported")
+        last_error = None
+        for family, destination in self.binding[3]:
+            connection = socket.socket(family, socket.SOCK_STREAM, socket.IPPROTO_TCP)
+            try:
+                connection.settimeout(self.timeout)
+                connection.connect(destination)
+                peer = connection.getpeername()
+                if (ipaddress.ip_address(peer[0]) != ipaddress.ip_address(destination[0])
+                        or peer[1] != destination[1]):
+                    raise RobotsTargetError("robots-peer-mismatch")
+                self.sock = connection
+                return
+            except RobotsTargetError:
+                connection.close()
+                raise
+            except OSError as error:
+                connection.close()
+                last_error = error
+            except BaseException:
+                connection.close()
+                raise
+        raise last_error or RobotsTargetError("robots-target-blocked")
+
+
+class PinnedRobotsTLSConnection(PinnedRobotsConnection):
+    default_port = 443
+
+    def connect(self):
+        super().connect()
+        try:
+            # Keep the DNS hostname for SNI and certificate validation, not the dialed IP.
+            context = ssl.create_default_context()
+            self.sock = context.wrap_socket(self.sock, server_hostname=self.binding[1])
+        except BaseException:
+            self.close()
+            raise
+
+
+def open_pinned_robots(handler, connection, request):
+    try:
+        return handler.do_open(lambda host, **kw: connection(
+            host, binding=request.robots_binding, **kw), request)
+    except urllib.error.URLError as error:
+        # urllib wraps OSError, including our policy exception. Preserve fail-closed semantics.
+        if isinstance(error.reason, RobotsTargetError):
+            raise error.reason
+        raise
+
+
+class PinnedRobotsHTTPHandler(urllib.request.HTTPHandler):
+    def http_request(self, request):
+        if getattr(request, "robots_binding", (None,))[0] != request.full_url:
+            pinned_robots_request(request)
+        return super().http_request(request)
+
+    https_request = http_request
+
+    def http_open(self, request):
+        return open_pinned_robots(self, PinnedRobotsConnection, request)
+
+
+class PinnedRobotsHTTPSHandler(urllib.request.HTTPSHandler):
+    def https_open(self, request):
+        return open_pinned_robots(self, PinnedRobotsTLSConnection, request)
+
+
+class RobotsProxyHandler(urllib.request.ProxyHandler):
+    def proxy_open(self, request, proxy, type):
+        if not urllib.request.proxy_bypass(request.host):
+            raise RobotsTargetError("robots-proxy-unsupported")
+        return None
+
+
+def robots_opener():
+    # urllib closes each connection; there is no pool shared across requests or hops.
+    return urllib.request.build_opener(RobotsProxyHandler(), PinnedRobotsHTTPHandler(),
+                                      PinnedRobotsHTTPSHandler(), PublicRobotsRedirectHandler())
 
 
 class PublicRobotsRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -239,7 +369,7 @@ class PublicRobotsRedirectHandler(urllib.request.HTTPRedirectHandler):
             location = headers.get("location") or headers.get("uri")
             if not location:
                 raise RobotsTargetError("robots-target-invalid")
-            target = public_robots_url(urllib.parse.urljoin(req.full_url, location))
+            target = normalized_robots_url(urllib.parse.urljoin(req.full_url, location))
             normalized_headers = {key.lower(): value for key, value in headers.items()}
             normalized_headers["location"] = target
             return super().http_error_302(req, fp, code, msg, normalized_headers)
@@ -253,9 +383,10 @@ class PublicRobotsRedirectHandler(urllib.request.HTTPRedirectHandler):
         count = getattr(req, "robots_redirect_count", 0)
         if count >= MAX_ROBOTS_REDIRECTS:
             raise RobotsTargetError("robots-redirect-limit")
-        target = public_robots_url(newurl)
+        target = normalized_robots_url(newurl)
         redirected = super().redirect_request(req, fp, code, msg, headers, target)
         if redirected is not None:
+            pinned_robots_request(redirected)
             redirected.robots_redirect_count = count + 1
         return redirected
 
@@ -270,10 +401,10 @@ def robots_allows(host):
     """
     body = None
     server_errors = []
-    opener = urllib.request.build_opener(PublicRobotsRedirectHandler())
+    opener = robots_opener()
     for scheme in ("https", "http"):
         try:
-            url = public_robots_url(scheme + "://" + host + "/robots.txt")
+            url = normalized_robots_url(scheme + "://" + host + "/robots.txt")
             req = urllib.request.Request(url,
                                          headers={"User-Agent": "yacybot (scoutro-discovery)"})
             with opener.open(req, timeout=8) as r:

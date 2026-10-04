@@ -13,6 +13,21 @@
         padding: 0 0 32px 0; 
       }
     
+      /* Keep flex/fieldset intrinsic widths from widening structured answers. */
+      .chat-panel, .chat-flow, .chat-messages, .chat-turn, .composer-main {
+        min-width: 0;
+        max-width: 100%;
+      }
+      .chat-turn { min-inline-size: 0; }
+      .chat-body { overflow-wrap: anywhere; }
+      .chat-body pre { max-width: 100%; overflow-x: auto; }
+      @media (max-width: 767px) {
+        .chat-turn { padding-left: 12px; padding-right: 12px; }
+        .composer { flex-wrap: wrap; }
+        .composer-main { flex-basis: 100%; }
+        .attachment-row { flex-wrap: wrap; }
+        .attachment-filename { white-space: normal; overflow-wrap: anywhere; }
+      }
       /* 2. Layout Structure */
       .chat-flow {
         display: flex;
@@ -679,6 +694,7 @@
 
       .clear-chat-row {
         display: flex;
+        flex-wrap: wrap;
         visibility: hidden;
         pointer-events: none;
         margin-top: 12px;
@@ -688,6 +704,8 @@
 
       .clear-chat-row .btn {
         display: inline-flex;
+        max-width: 100%;
+        white-space: normal;
         align-items: center;
         gap: 6px;
       }
@@ -1696,6 +1714,12 @@
             if (response.status === 429) {
                 throw new Error('Rate limit reached: please wait and try again. The server is protecting itself from overload.');
             }
+            let failure;
+            try { failure = await response.json(); } catch (_) { failure = null; }
+            if (failure?.error?.message) throw new Error(String(failure.error.message));
+            if (response.status === 401 || response.status === 403) {
+                throw new Error('System data requires an authorized administrator or agent token. No web answer is substituted.');
+            }
             throw new Error(`Request failed: ${response.status} ${response.statusText}`);
         }
         if (!response.body) {
@@ -1826,6 +1850,7 @@
                 }
                 const contentDelta = delta?.content;
                 if (delta) {
+                    if (assistantNode) delete assistantNode.dataset.pendingReply;
                     if (!sawFirstDelta) {
                         sawFirstDelta = true;
                         applyMessageContent(assistantNode, 'assistant', 'waiting for an answer...');
@@ -2023,9 +2048,7 @@
     }
 
     function initialAssistantPlaceholder(message) {
-        return message?.search && message.search !== SEARCH_DEFAULTS.none
-            ? 'searching for content...'
-            : 'waiting for an answer...';
+        return 'waiting for an answer...';
     }
 
     function inferAttachmentFromContent(content) {
@@ -2728,9 +2751,13 @@
         clearAttachment();
         resizeComposer();
         const assistantNode = appendMessage('assistant', initialAssistantPlaceholder(userMessage));
+        assistantNode.dataset.pendingReply = 'true';
         try {
             await streamChat(userMessage, assistantNode, { onFirstToken: showComposer, includeUserInPayload: false, pushUserToState: false, currentUserIndex: userIndex });
         } catch (err) {
+            if (assistantNode && assistantNode.dataset.pendingReply === 'true') {
+                assistantNode.closest('.chat-turn')?.remove();
+            }
             appendMessage('system', `Error: ${err.message}`);
             showComposer();
         } finally {

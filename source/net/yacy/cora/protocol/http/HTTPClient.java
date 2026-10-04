@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
+import java.net.InetAddress;
 import java.security.KeyManagementException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
@@ -175,6 +176,8 @@ public class HTTPClient implements Closeable {
     private String host = null;
     private final long timeout;
     private final HttpClientBuilder clientBuilder;
+    private PoolingHttpClientConnectionManager robotsManager;
+    private boolean robotsUsed;
 
     private static ExecutorService executor = Executors
             .newCachedThreadPool(new NamePrefixThreadFactory(HTTPClient.class.getSimpleName() + ".execute"));
@@ -201,6 +204,12 @@ public class HTTPClient implements Closeable {
         this.clientBuilder.setUserAgent(agent.userAgent());
         this.reqConfBuilder = RequestConfig.copy(DFLTREQUESTCONFIG);
         this.setTimout(timeout);
+    }
+
+    /** Bind this single robots request to the complete address set checked by HTTPLoader. */
+    public void pinRobotsTarget(final MultiProtocolURL target, final InetAddress[] validated) throws IOException {
+        if (this.client != null || this.robotsManager != null) throw new IOException("robots client already used");
+        this.robotsManager = PinnedRobotsTransport.configure(this.clientBuilder, target, validated);
     }
 
     private static RequestConfig initRequestConfig(int timeout) {
@@ -461,7 +470,10 @@ public class HTTPClient implements Closeable {
      * @throws IOException
      */
     public byte[] GETbytes(final MultiProtocolURL url, final String username, final String pass, final int maxBytes, final boolean concurrent) throws IOException {
-        final boolean localhost = Domains.isLocalhost(url.getHost());
+        if (this.robotsManager != null && this.robotsUsed) throw new IOException("robots client is single use");
+        this.robotsUsed = this.robotsManager != null;
+        // The pinned Internet path must neither resolve again nor forward local admin credentials.
+        final boolean localhost = this.robotsManager == null && Domains.isLocalhost(url.getHost());
         final String urix = url.toNormalform(true);
 
         try {
@@ -642,7 +654,10 @@ public class HTTPClient implements Closeable {
     public byte[] POSTbytes(final MultiProtocolURL url, final String vhost, final Map<String, ContentBody> post,
             final String userName, final String password, final boolean usegzip, final boolean concurrent) throws IOException {
         this.currentRequest = new HttpPost(url.toNormalform(true));
-        final boolean localhost = Domains.isLocalhost(url.getHost());
+        if (this.robotsManager != null && this.robotsUsed) throw new IOException("robots client is single use");
+        this.robotsUsed = this.robotsManager != null;
+        // The pinned Internet path must neither resolve again nor forward local admin credentials.
+        final boolean localhost = this.robotsManager == null && Domains.isLocalhost(url.getHost());
         if (!localhost) this.setHost(url.getHost()); // overwrite resolved IP, needed for shared web hosting DO NOT REMOVE, see http://en.wikipedia.org/wiki/Shared_web_hosting_service
         if (vhost == null) this.setHost(Domains.LOCALHOST);
 
@@ -849,6 +864,7 @@ public class HTTPClient implements Closeable {
                 this.client.close();
             }
         } finally {
+            if (this.robotsManager != null) this.robotsManager.close();
             if (this.currentRequest != null) {
                 ConnectionInfo.removeConnection(this.currentRequest.hashCode());
                 this.currentRequest.abort();
