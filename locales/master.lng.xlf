@@ -5890,6 +5890,9 @@
     <trans-unit id="abb7876c" xml:space="preserve" approved="no" translate="yes">
        <source>(not required for Ollama or LMStudio)</source>
     </trans-unit>
+    <trans-unit id="20911652" xml:space="preserve" approved="no" translate="yes">
+       <source>remove the stored api_key on the next save</source>
+    </trans-unit>
     <trans-unit id="560f747e" xml:space="preserve" approved="no" translate="yes">
        <source>Services</source>
     </trans-unit>
@@ -7755,8 +7758,8 @@
     <trans-unit id="711b6875" xml:space="preserve" approved="no" translate="yes">
        <source>System Prompt</source>
     </trans-unit>
-    <trans-unit id="dd11345" xml:space="preserve" approved="no" translate="yes">
-       <source>This is sent as the system message for chats. Keep it concise and friendly.</source>
+    <trans-unit id="e5280313" xml:space="preserve" approved="no" translate="yes">
+       <source>Style guidance for chats. Scoutro always sends its own base prompt with the security rules first; this text is added below it and cannot change those rules. Keep it concise and friendly.</source>
     </trans-unit>
     <trans-unit id="eea994d3" xml:space="preserve" approved="no" translate="yes">
        <source>User Retrieval Prefix</source>
@@ -9707,6 +9710,9 @@
     </trans-unit>
     <trans-unit id="639e22e8" xml:space="preserve" approved="no" translate="yes">
        <source>disable</source>
+    </trans-unit>
+    <trans-unit id="e2eda921" xml:space="preserve" approved="no" translate="yes">
+       <source>released for the chat</source>
     </trans-unit>
     <trans-unit id="cc25df9f" xml:space="preserve" approved="no" translate="yes">
        <source>Visualization Tools</source>

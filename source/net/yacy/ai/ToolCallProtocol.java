@@ -92,12 +92,22 @@ public final class ToolCallProtocol {
         try {
             final JSONObject prepared = body == null ? new JSONObject(true) : new JSONObject(body.toString());
             if (forceStream) prepared.put("stream", true);
-            if (toolingEnabled) net.yacy.ai.ToolProvider.ensureTools(prepared);
+            // only server-released tools, never client-supplied definitions
+            net.yacy.ai.ToolProvider.applyReleasedTools(prepared, toolingEnabled);
             return prepared;
         } catch (JSONException e) {
             final JSONObject fallback = new JSONObject(true);
-            if (toolingEnabled) net.yacy.ai.ToolProvider.ensureTools(fallback);
+            net.yacy.ai.ToolProvider.applyReleasedTools(fallback, toolingEnabled);
             return fallback;
+        }
+    }
+
+    /** The LLM endpoint could not be reached (connect, TLS or I/O failure before any response). */
+    public static final class UpstreamUnavailable extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        UpstreamUnavailable(final IOException cause) {
+            super(cause.getMessage(), cause);
         }
     }
 
@@ -130,9 +140,17 @@ public final class ToolCallProtocol {
         if (llm4Chat != null && llm4Chat.thinking) {
             LLM.applyNoThinkingParameters(preparedBody);
         }
-        log.info(prefix(runId) + "event=tool-lifecycle phase=start tooling=" + (llm4Chat != null && llm4Chat.tooling) + " thinking=" + (llm4Chat != null && llm4Chat.thinking) + " messages=" + (messages == null ? 0 : messages.length()) + " metadata=" + (initialMetadata == null ? 0 : initialMetadata.length()));
-        final HttpURLConnection conn = openChatCompletionConnection(llm4Chat, preparedBody);
-        final int status = conn.getResponseCode();
+        final JSONArray offeredTools = preparedBody.optJSONArray("tools");
+        log.info(prefix(runId) + "event=tool-lifecycle phase=start tooling=" + (llm4Chat != null && llm4Chat.tooling) + " releasedTools=" + (offeredTools == null ? 0 : offeredTools.length()) + " thinking=" + (llm4Chat != null && llm4Chat.thinking) + " messages=" + (messages == null ? 0 : messages.length()) + " metadata=" + (initialMetadata == null ? 0 : initialMetadata.length()));
+        final HttpURLConnection conn;
+        final int status;
+        try {
+            conn = openChatCompletionConnection(llm4Chat, preparedBody);
+            status = conn.getResponseCode();
+        } catch (final IOException e) {
+            log.warn(prefix(runId) + "event=tool-lifecycle phase=end result=upstream-unreachable errorClass=" + e.getClass().getName() + " reason=" + LogRedaction.redactMessage(e) + " durationMs=" + (System.currentTimeMillis() - start));
+            throw new UpstreamUnavailable(e);
+        }
         //final String message = conn.getResponseMessage();
         if (status == 200) {
             handleInitialStreamAndContinue(out, conn, llm4Chat, preparedBody, messages, initialMetadata, runId);
@@ -140,6 +158,7 @@ public final class ToolCallProtocol {
         } else {
             log.warn(prefix(runId) + "event=tool-lifecycle phase=end result=upstream-error status=" + status + " reason=" + LogRedaction.redact(conn.getResponseMessage()) + " durationMs=" + (System.currentTimeMillis() - start));
             Logger.getLogger("ToolCallProtocoll").severe(status + " " + conn.getResponseMessage());
+            conn.disconnect();
         }
         return status;
     }
@@ -492,9 +511,10 @@ public final class ToolCallProtocol {
                 if (call.id == null || call.id.isEmpty()) call.id = "toolcall_" + idx + "_" + System.currentTimeMillis();
                 if (call.type == null || call.type.isEmpty()) call.type = "function";
                 if (!isExecutableToolCall(call)) continue;
-                // Enforce per-tool max calls for the complete tool turn lifecycle.
+                // Enforce per-tool max calls for the complete tool turn lifecycle;
+                // unknown and not released tools have no calls at all.
                 final String toolName = call.name == null ? "" : call.name.trim();
-                final int maxCalls = net.yacy.ai.ToolProvider.maxCallsPerTurn(toolName);
+                final int maxCalls = net.yacy.ai.ToolProvider.allowedCallsPerTurn(toolName);
                 final int usedCalls = toolCallCounters.getOrDefault(toolName, Integer.valueOf(0)).intValue();
                 if (usedCalls >= maxCalls) {
                     log.warn(prefix(runId) + "event=tool-execution phase=skip round=" + round + " tool=" + LogRedaction.redact(toolName) + " reason=max-calls used=" + usedCalls + " max=" + maxCalls);

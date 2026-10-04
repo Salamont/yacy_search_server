@@ -66,6 +66,16 @@ GET /yacychat.html?userInput=...&searchButton=...&addFileButton=...&fileInput=..
 
 Expect rendered search or content output: result lists, snippets, previews, redirects, widgets, or fragments. If output is empty, check whether the index contains matching documents before changing query syntax.
 
+## Scoutro: prompt and errors
+
+The server puts its own base system prompt with the security rules first; the
+operator prompt (`ai.system-prompt`) and any client system prompt follow with
+lower priority. Search results and attached texts are sent as untrusted data
+between random `DATA-…-BEGIN`/`DATA-…-END` markers. Errors are shown per code:
+no YaCy administrator permission, blocked by the AI Shield, rate limit, no chat
+model configured, LLM endpoint not reachable, LLM endpoint rejected the
+credentials. Details: `docs/SCOUTRO_LLM_SECURITY.md`.
+
 ## Related Pages
 
 - Related search work usually continues on `yacysearch.html`, `index.html`, `ViewFile.html`, quick crawl, or the search integration pages.

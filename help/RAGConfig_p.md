@@ -69,6 +69,12 @@ ai.system-prompt=...&ai.llm-user-prefix=...&ai.llm-query-generator-prefix=...&ai
 
 Expect configuration values, diagnostics, or changed result behavior. The effect may only become visible after running the same query again, re-indexing fields, or using the configured model/RAG workflow.
 
+## Scoutro: system prompt
+
+`ai.system-prompt` is style guidance below Scoutro's fixed base prompt; it cannot
+change the security rules. `ai.llm-user-prefix` introduces the search results,
+which follow as an untrusted data block. Retrieval itself is unchanged.
+
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.

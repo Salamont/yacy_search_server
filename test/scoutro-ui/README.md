@@ -109,7 +109,14 @@ The LLM smoke creates a new temporary peer and local fake Ollama server. It
 checks real admin `/api/tags?hoststub=...` forwarding/statuses, public virtual
 usage names, model selection in English and all 14 translations, German
 desktop/mobile, empty/invalid responses, 401/502/503, network failure and
-retry. Discovery errors retain the production matrix and expose no upstream
+retry. It also checks the LLM hardening (`docs/SCOUTRO_LLM_SECURITY.md`) with a
+second fake chat endpoint: no stored api_key in the HTML, keys kept on an empty
+save, the YaCy login never forwarded upstream, the AI Shield behind a proxy header
+(401 `admin_required`, administrator admitted, cross-site and agent token 403),
+the server system prompt and the search data block at the endpoint, no tools for
+`tooling=supported` alone, the error codes `llm_auth_failed`, `llm_unreachable`,
+`no_chat_model`, and the log report page. The offline unit tests run with
+`ant scoutro-llm-security-test`. Discovery errors retain the production matrix and expose no upstream
 body. Browser saves are intercepted, so the peer's AI settings remain
 unchanged. No inference, model pull/delete, discovery processing or crawl is
 started; disposable DATA is removed. `TranslatorTest` additionally guards

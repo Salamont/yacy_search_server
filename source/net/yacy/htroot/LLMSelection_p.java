@@ -105,6 +105,60 @@ public class LLMSelection_p {
         return normalized;
     }
 
+    /**
+     * Stored API keys are never sent back to the browser. A save with an empty api_key keeps
+     * the stored key of the same endpoint: first the key of the stored row with the same
+     * service, hoststub and model, then any stored key for the same hoststub (production rows
+     * or inference system). Only an explicit api_key_clear on the inference system removes the
+     * stored keys of its hoststub.
+     */
+    static String storedKey(final JSONArray storedRows, final JSONObject storedInference, final String service,
+            final String hoststub, final String model) {
+        final String endpoint = net.yacy.ai.LLM.normalizeHoststub(hoststub);
+        if (endpoint.isEmpty()) return "";
+        String sameEndpoint = "";
+        if (storedRows != null) {
+            for (int i = 0; i < storedRows.length(); i++) {
+                final JSONObject row = storedRows.optJSONObject(i);
+                if (row == null || !endpoint.equals(net.yacy.ai.LLM.normalizeHoststub(row.optString("hoststub", "")))) continue;
+                final String key = row.optString("api_key", "").trim();
+                if (key.isEmpty()) continue;
+                if (row.optString("service", "").equals(service) && row.optString("model", "").equals(model)) return key;
+                if (sameEndpoint.isEmpty()) sameEndpoint = key;
+            }
+        }
+        if (sameEndpoint.isEmpty() && storedInference != null
+                && endpoint.equals(net.yacy.ai.LLM.normalizeHoststub(storedInference.optString("hoststub", "")))) {
+            sameEndpoint = storedInference.optString("api_key", "").trim();
+        }
+        return sameEndpoint;
+    }
+
+    /** Keep stored keys for rows saved with an empty api_key, except for cleared endpoints. */
+    static void keepStoredKey(final JSONObject row, final JSONArray storedRows, final JSONObject storedInference,
+            final String clearedHoststub) throws JSONException {
+        if (!row.optString("api_key", "").trim().isEmpty()) return;
+        final String hoststub = row.optString("hoststub", "");
+        if (!clearedHoststub.isEmpty() && clearedHoststub.equals(net.yacy.ai.LLM.normalizeHoststub(hoststub))) return;
+        row.put("api_key", storedKey(storedRows, storedInference, row.optString("service", ""), hoststub, row.optString("model", "")));
+    }
+
+    private static JSONArray storedRows(final Switchboard sb) {
+        try {
+            return new JSONArray(new JSONTokener(sb.getConfig("ai.production_models", "[]")));
+        } catch (final JSONException e) {
+            return new JSONArray();
+        }
+    }
+
+    private static JSONObject storedInference(final Switchboard sb) {
+        try {
+            return new JSONObject(new JSONTokener(sb.getConfig("ai.inference_system", "{}")));
+        } catch (final JSONException e) {
+            return new JSONObject();
+        }
+    }
+
     public static serverObjects respond(@SuppressWarnings("unused") final RequestHeader header, final serverObjects post, final serverSwitch env) {
         // return variable that accumulates replacements
         final Switchboard sb = (Switchboard) env;
@@ -119,15 +173,35 @@ public class LLMSelection_p {
                 // silently catch this
             }
         }
+        // stored configuration before this save, for keys the browser never receives
+        final JSONArray storedRows = storedRows(sb);
+        final JSONObject storedInference = storedInference(sb);
+        JSONObject inferenceSystem = bodyj.optJSONObject("inference_system");
+        final String clearedHoststub = inferenceSystem != null && inferenceSystem.optBoolean("api_key_clear", false)
+                ? net.yacy.ai.LLM.normalizeHoststub(inferenceSystem.optString("hoststub", "")) : "";
+
         JSONArray production_models = bodyj.optJSONArray("production_models");
         if (production_models != null) {
-            // simply store the model array
+            // store the model array; an empty api_key keeps the stored key of that endpoint
             try {
                 final JSONArray normalizedModels = new JSONArray();
                 for (int i = 0; i < production_models.length(); i++) {
-                    normalizedModels.put(normalizeProductionModelRow(production_models.getJSONObject(i)));
+                    final JSONObject row = normalizeProductionModelRow(production_models.getJSONObject(i));
+                    keepStoredKey(row, storedRows, storedInference, clearedHoststub);
+                    normalizedModels.put(row);
                 }
                 sb.setConfig("ai.production_models", normalizedModels.toString(0));
+            } catch (JSONException e) {
+                //e.printStackTrace();
+            }
+        } else if (!clearedHoststub.isEmpty()) {
+            // clear the stored keys of that endpoint also in the stored production rows
+            try {
+                for (int i = 0; i < storedRows.length(); i++) {
+                    final JSONObject row = storedRows.getJSONObject(i);
+                    if (clearedHoststub.equals(net.yacy.ai.LLM.normalizeHoststub(row.optString("hoststub", "")))) row.put("api_key", "");
+                }
+                sb.setConfig("ai.production_models", storedRows.toString(0));
             } catch (JSONException e) {
                 //e.printStackTrace();
             }
@@ -142,9 +216,20 @@ public class LLMSelection_p {
             }
         }
 
-        JSONObject inferenceSystem = bodyj.optJSONObject("inference_system");
         if (inferenceSystem != null) {
-            sb.setConfig("ai.inference_system", inferenceSystem.toString());
+            try {
+                final JSONObject inference = new JSONObject(true);
+                inference.put("service", inferenceSystem.optString("service", ""));
+                inference.put("hoststub", inferenceSystem.optString("hoststub", ""));
+                inference.put("api_key", inferenceSystem.optString("api_key", "").trim());
+                if (inference.optString("api_key", "").isEmpty() && clearedHoststub.isEmpty()) {
+                    inference.put("api_key", storedKey(storedRows, storedInference, inference.optString("service", ""),
+                            inference.optString("hoststub", ""), null));
+                }
+                sb.setConfig("ai.inference_system", inference.toString());
+            } catch (JSONException e) {
+                //e.printStackTrace();
+            }
         }
 
         JSONObject serviceNumCtx = bodyj.optJSONObject("service_num_ctx");
@@ -196,10 +281,11 @@ public class LLMSelection_p {
             production_models = new JSONArray(new JSONTokener(pms));
             for (int i = 0; i < production_models.length(); i++) {
                 JSONObject row = normalizeProductionModelRow(production_models.getJSONObject(i));
-                prop.put("productionmodels_" + i + "_service", row.optString("service", "OLLAMA"));
-                prop.put("productionmodels_" + i + "_model", row.optString("model", ""));
-                prop.put("productionmodels_" + i + "_hoststub", row.optString("hoststub", ""));
-                prop.put("productionmodels_" + i + "_api_key", row.optString("api_key", ""));
+                prop.putHTML("productionmodels_" + i + "_service", row.optString("service", "OLLAMA"));
+                prop.putHTML("productionmodels_" + i + "_model", row.optString("model", ""));
+                prop.putHTML("productionmodels_" + i + "_hoststub", row.optString("hoststub", ""));
+                // the key itself never leaves the server, only whether one is stored
+                prop.put("productionmodels_" + i + "_api_key_set", row.optString("api_key", "").isEmpty() ? "0" : "1");
                 prop.put("productionmodels_" + i + "_max_tokens", row.optString("max_tokens", String.valueOf(net.yacy.ai.LLM.DEFAULT_MAX_TOKENS)));
                 
                 prop.put("productionmodels_" + i + "_search", row.optBoolean("search", false));
@@ -300,13 +386,13 @@ public class LLMSelection_p {
         final String inferenceJson = sb.getConfig("ai.inference_system", "{}");
         try {
             JSONObject inference = new JSONObject(new JSONTokener(inferenceJson));
-            prop.put("llm_service", inference.optString("service", "OLLAMA"));
-            prop.put("llm_hoststub", inference.optString("hoststub", "http://localhost:11434"));
-            prop.put("llm_apikey", inference.optString("api_key", ""));
+            prop.putHTML("llm_service", inference.optString("service", "OLLAMA"));
+            prop.putHTML("llm_hoststub", inference.optString("hoststub", "http://localhost:11434"));
+            prop.put("llm_apikey_set", inference.optString("api_key", "").isEmpty() ? "0" : "1");
         } catch (JSONException e) {
             prop.put("llm_service", "OLLAMA");
             prop.put("llm_hoststub", "http://localhost:11434");
-            prop.put("llm_apikey", "");
+            prop.put("llm_apikey_set", "0");
         }
 
         if (post == null || env == null) {

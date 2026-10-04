@@ -804,6 +804,17 @@
     const defaultApiHost = '';
     const P2P_MODE = #[p2p_mode]# === 1;
 
+    // Messages for the error codes of /v1/chat/completions (see LLMAccess.java).
+    const CHAT_ERRORS = {
+        admin_required: 'No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.',
+        ai_shield_blocked: 'Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.',
+        ai_shield_rate_limited: 'Rate limit reached: please wait and try again. The server is protecting itself from overload.',
+        no_chat_model: 'No chat model is configured: assign a model to the chat role in LLM Selection.',
+        llm_unreachable: 'The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.',
+        llm_auth_failed: 'The LLM endpoint rejected the credentials: check the API key in LLM Selection.',
+        llm_error: 'The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.'
+    };
+
     const CHAT_VFS_PATH = '/yacy/chat/chat.json';
     const SETTINGS_VFS_PATH = '/yacy/chat/settings.json';
     const SEARCH_DEFAULTS = {
@@ -1711,11 +1722,11 @@
             body: JSON.stringify(payload)
         });
         if (!response.ok) {
-            if (response.status === 429) {
-                throw new Error('Rate limit reached: please wait and try again. The server is protecting itself from overload.');
-            }
             let failure;
             try { failure = await response.json(); } catch (_) { failure = null; }
+            const errorCode = typeof failure?.error?.code === 'string' ? failure.error.code : '';
+            if (Object.prototype.hasOwnProperty.call(CHAT_ERRORS, errorCode)) throw new Error(CHAT_ERRORS[errorCode]);
+            if (response.status === 429) throw new Error(CHAT_ERRORS.ai_shield_rate_limited);
             if (failure?.error?.message) throw new Error(String(failure.error.message));
             if (response.status === 401 || response.status === 403) {
                 throw new Error('System data requires an authorized administrator or agent token. No web answer is substituted.');

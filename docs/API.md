@@ -422,6 +422,10 @@ Scoutro is packaged as `scoutro-olares`:
   does not weaken the API: the API constraints always require Digest
   authentication, independent of the client address, and
   `adminAccountForLocalhost` stays `false`.
+- The chat (`/v1/chat/completions`) and the LLM admin proxy treat a request with
+  forwarding headers as remote, also from `127.0.0.1`: with
+  `ai.shield.allow-nonlocalhost=false` the YaCy administrator login admits it
+  (see `docs/SCOUTRO_LLM_SECURITY.md`).
 
 ## Tests
 

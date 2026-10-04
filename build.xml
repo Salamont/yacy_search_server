@@ -330,6 +330,44 @@
     </java>
   </target>
 
+  <!-- Scoutro: LLM/RAG hardening (client address, AI Shield, SSRF policy, tool release, RAG data blocks, stored keys) -->
+  <target name="scoutro-llm-security-test" depends="compile" description="offline LLM/RAG security tests">
+    <delete dir="build/scoutro-llm-security-tests" failonerror="false" />
+    <mkdir dir="build/scoutro-llm-security-tests" />
+    <!-- Keep Domains' local-interface initialization off real DNS. -->
+    <echo file="build/scoutro-llm-security-tests/hosts">127.0.0.1 localhost
+::1 localhost
+</echo>
+    <javac srcdir="${test}" destdir="build/scoutro-llm-security-tests" release="${javacRelease}"
+           encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/http/ClientAddressTest.java" />
+      <include name="net/yacy/ai/**/*Test.java" />
+      <include name="net/yacy/htroot/LLMSelection_pTest.java" />
+      <classpath>
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <jvmarg value="-Djdk.net.hosts.file=${yacyroot}/build/scoutro-llm-security-tests/hosts" />
+      <arg value="net.yacy.http.ClientAddressTest" />
+      <arg value="net.yacy.ai.tools.OutboundUrlPolicyTest" />
+      <arg value="net.yacy.ai.tools.PinnedHttpGetTest" />
+      <arg value="net.yacy.ai.ToolReleaseTest" />
+      <arg value="net.yacy.ai.PromptGuardTest" />
+      <arg value="net.yacy.htroot.LLMSelection_pTest" />
+      <classpath>
+        <pathelement location="build/scoutro-llm-security-tests" />
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </java>
+  </target>
+
   <target name="locale-refresh-test" depends="compile" description="test generated locale refresh against temporary DATA">
     <mkdir dir="build/locale-refresh-tests" />
     <javac srcdir="${test}" destdir="build/locale-refresh-tests" release="${javacRelease}"

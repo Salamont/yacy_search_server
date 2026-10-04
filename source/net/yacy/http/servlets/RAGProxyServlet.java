@@ -45,11 +45,12 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import net.yacy.ai.LLM;
+import net.yacy.ai.PromptGuard;
 import net.yacy.ai.RAGAugmentor;
 import net.yacy.ai.ToolCallProtocol;
-import net.yacy.cora.protocol.Domains;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.cora.util.LogRedaction;
+import net.yacy.http.ClientAddress;
 import net.yacy.search.Switchboard;
 
 /**
@@ -61,6 +62,15 @@ import net.yacy.search.Switchboard;
  * proxy implemented in this class, where the target LLM comes from the server-side
  * configuration. With a "hoststub" parameter the request is handed over to the
  * admin-only passthrough proxy which mirrors the given endpoint 1:1.
+ *
+ * AI Shield (see LLMAccess): a direct local connection passes; a remote client passes as
+ * guest only with ai.shield.allow-nonlocalhost=true, otherwise only as authenticated YaCy
+ * administrator from the same site. The client address comes from ClientAddress (forwarded
+ * headers only from server.reverseProxy.trusted, a proxied request is never local).
+ *
+ * Prompt (see PromptGuard): the server puts its base system prompt first; client system
+ * messages are only lower-priority preferences. Search results and attached texts are
+ * untrusted data in a block with a random delimiter.
  *
  * You can test this using a curl command:
  curl -X POST "http://localhost:8090/v1/chat/completions"\
@@ -109,21 +119,34 @@ public class RAGProxyServlet extends HttpServlet {
         hresponse.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
         final Switchboard sb = Switchboard.getSwitchboard();
-        final String clientIP = hrequest.getRemoteAddr();
-        final boolean localhostAccess = Domains.isLocalhost(clientIP);
-        ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=start method=" + hrequest.getMethod() + " localhost=" + localhostAccess);
-        if (!localhostAccess) {
-            // obey the allow-nonlocalhost shield setting
-            final boolean allowNonLocal = sb.getConfigBool("ai.shield.allow-nonlocalhost", false);
-            if (!allowNonLocal) {
-                ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=nonlocalhost-blocked durationMs=" + elapsed(requestStart));
-                hresponse.sendError(HttpServletResponse.SC_FORBIDDEN);
-                return;
-            }
+        if ("OPTIONS".equals(hrequest.getMethod())) {
+            // CORS preflight: no data, no AI Shield decision needed
+            hresponse.setStatus(HttpServletResponse.SC_OK);
+            return;
         }
-        if (isRateLimited(sb, clientIP, localhostAccess)) {
-            ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=rate-limited localhost=" + localhostAccess + " durationMs=" + elapsed(requestStart));
-            hresponse.sendError(429, "Too Many Requests"); // standard status for rate limits
+        final ClientAddress client = LLMAccess.client(hrequest);
+        final String clientIP = client.effective();
+        final LLMAccess.Shield shield = LLMAccess.shield(sb.getConfigBool("ai.shield.allow-nonlocalhost", false), client,
+                LLMAccess.crossSite(hrequest, client), LLMAccess.bearerToken(hrequest),
+                () -> LLMAccess.admin(hrequest, hresponse, true));
+        ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=start method=" + hrequest.getMethod() + " localhost=" + client.isLocal() + " " + client + " shield=" + shield);
+        if (!shield.allowed()) {
+            ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=" + shield.name().toLowerCase(java.util.Locale.ROOT) + " durationMs=" + elapsed(requestStart));
+            if (shield == LLMAccess.Shield.ADMIN_REQUIRED) {
+                LLMAccess.error(hresponse, HttpServletResponse.SC_UNAUTHORIZED, LLMAccess.ADMIN_REQUIRED,
+                        "YaCy administrator login required: the AI Shield admits remote clients only as administrator (guest access is off).");
+            } else if (shield == LLMAccess.Shield.BLOCKED_CROSS_SITE) {
+                LLMAccess.error(hresponse, HttpServletResponse.SC_FORBIDDEN, LLMAccess.AI_SHIELD_BLOCKED,
+                        "Blocked by the AI Shield: requests from another site are not accepted.");
+            } else {
+                LLMAccess.error(hresponse, HttpServletResponse.SC_FORBIDDEN, LLMAccess.AI_SHIELD_BLOCKED,
+                        "Blocked by the AI Shield: remote clients are admitted only as YaCy administrator, not with an agent token.");
+            }
+            return;
+        }
+        if (isRateLimited(sb, clientIP, shield.privileged)) {
+            ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=rate-limited localhost=" + client.isLocal() + " shield=" + shield + " durationMs=" + elapsed(requestStart));
+            LLMAccess.error(hresponse, 429, LLMAccess.AI_SHIELD_RATE_LIMITED, "Blocked by the AI Shield: rate limit reached, please wait and try again.");
             return;
         }
         recordAccess(clientIP);
@@ -139,7 +162,7 @@ public class RAGProxyServlet extends HttpServlet {
         // We expect a POST request
         if (reqMethod != Method.POST) {
             ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=method-not-allowed method=" + hrequest.getMethod() + " durationMs=" + elapsed(requestStart));
-            hresponse.sendError(HttpServletResponse.SC_METHOD_NOT_ALLOWED);
+            LLMAccess.error(hresponse, HttpServletResponse.SC_METHOD_NOT_ALLOWED, "method_not_allowed", "Use POST.");
             return;
         }
 
@@ -177,23 +200,28 @@ public class RAGProxyServlet extends HttpServlet {
             LLM.LLMModel llm4tldr = LLM.llmFromUsage(LLM.LLMUsage.tldr, runId, "rag-query-generator");
             if (llm4Chat == null) {
                 ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=no-chat-model usage=" + usage + " durationMs=" + elapsed(requestStart));
-                hresponse.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE, "No chat model configured");
+                LLMAccess.error(hresponse, HttpServletResponse.SC_SERVICE_UNAVAILABLE, LLMAccess.NO_CHAT_MODEL,
+                        "No chat model is configured: assign a model to the chat role in LLM Selection.");
                 return;
             }
             bodyObject.put("model", llm4Chat.model); // replace the model with the decoded model name
-            
-            // get messages and prepare user message attachments
-            JSONArray messages = bodyObject.optJSONArray("messages");
+
+            // server base system prompt first; client system messages become lower-priority preferences
+            final PromptGuard guard = new PromptGuard();
+            JSONArray messages = guard.withSystemPrompt(bodyObject.optJSONArray("messages"),
+                    sb.getConfig("ai.system-prompt", LLM_SYSTEM_PROMPT_DEFAULT));
+            bodyObject.put("messages", messages);
             final String userPrefix = sb.getConfig("ai.llm-user-prefix", LLM_USER_PREFIX_DEFAULT);
             
             // debug
             //System.out.println(messages.toString());
             
+            // attached texts (also the search results of earlier rounds) are untrusted data
             for (int i = 0; i < messages.length(); i++) {
                 JSONObject message = messages.getJSONObject(i);
                 if (message.optString("role", "").equals("user")) {
                     UserObject userObject = new UserObject(message);
-                    userObject.attachAttachment(userPrefix);
+                    userObject.attachAttachment(userPrefix, guard);
                 }
             }
             UserObject userObject = null;
@@ -246,7 +274,7 @@ public class RAGProxyServlet extends HttpServlet {
                     "runId=" + runId + " event=rag-retrieval phase=end ragMode=" + ragMode + " queryChars=" + searchResultQuery.length() + " queryWords=" + countWords(searchResultQuery) + " queryMs=" + queryElapsed + " searchMs=" + searchElapsed +
                     " markdownChars=" + searchResultMarkdown.length());
                 user += userPrefix;
-                user += searchResultMarkdown;
+                user += guard.data(searchResultMarkdown.isEmpty() ? "(no search results)" : searchResultMarkdown);
                 userObject.setContentText(user);
             }
             
@@ -256,12 +284,35 @@ public class RAGProxyServlet extends HttpServlet {
             }
 
             // ToolCallProtocol owns request preparation, initial stream handling and follow-up tool rounds.
-            final int status = ToolCallProtocol.proxyToolLifecycle(out, llm4Chat, bodyObject, messages, initialMetadata, runId);
+            final int status;
+            try {
+                status = ToolCallProtocol.proxyToolLifecycle(out, llm4Chat, bodyObject, messages, initialMetadata, runId);
+            } catch (final ToolCallProtocol.UpstreamUnavailable e) {
+                ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=end result=llm-unreachable reason=" + LogRedaction.redactMessage(e) + " durationMs=" + elapsed(requestStart));
+                LLMAccess.error(hresponse, HttpServletResponse.SC_BAD_GATEWAY, LLMAccess.LLM_UNREACHABLE,
+                        "The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.");
+                return;
+            }
+            if (status != HttpServletResponse.SC_OK) {
+                ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=end result=llm-error status=" + status + " durationMs=" + elapsed(requestStart));
+                if (status == HttpServletResponse.SC_UNAUTHORIZED || status == HttpServletResponse.SC_FORBIDDEN) {
+                    LLMAccess.error(hresponse, HttpServletResponse.SC_BAD_GATEWAY, LLMAccess.LLM_AUTH_FAILED,
+                            "The LLM endpoint rejected the credentials (HTTP " + status + "): check the API key in LLM Selection.");
+                } else {
+                    LLMAccess.error(hresponse, HttpServletResponse.SC_BAD_GATEWAY, LLMAccess.LLM_ERROR,
+                            "The LLM endpoint answered with HTTP " + status + ".");
+                }
+                return;
+            }
             hresponse.setStatus(status);
             out.close(); // close this here to end transmission
             ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=end result=success status=" + status + " durationMs=" + elapsed(requestStart));
         } catch (JSONException e) {
             ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=end result=failure errorClass=" + e.getClass().getName() + " reason=" + LogRedaction.redactMessage(e) + " durationMs=" + elapsed(requestStart));
+            if (!hresponse.isCommitted()) {
+                LLMAccess.error(hresponse, HttpServletResponse.SC_BAD_REQUEST, "invalid_request", "The request body is not a valid chat completion request.");
+                return;
+            }
             throw new IOException(e.getMessage());
         }
     }
@@ -314,16 +365,17 @@ public class RAGProxyServlet extends HttpServlet {
             this.userObject = userObject;
         }
         
-        public void attachAttachment(String prefix) {
+        public void attachAttachment(String prefix, PromptGuard guard) {
             List<DataURL> data_urls = this.getContentAttachments(); // this list is a copy of the content data_urls
             
             // if the data_urls contains a text object, we remove that and inject it into the text prompt
+            // as untrusted data (attached files and the search results of earlier rounds)
             for (DataURL data_url: data_urls) {
                 if (!data_url.getMimetype().startsWith("text/")) continue;
                 String user = this.getContentText(); // this is the latest prompt
                 String attachment = new String(data_url.getData(), StandardCharsets.UTF_8);
                 user += prefix;
-                user += attachment;
+                user += guard.data(attachment);
                 this.setContentText(user);
                 this.removeContentAttachment(data_url);
             }

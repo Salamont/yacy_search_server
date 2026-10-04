@@ -4067,6 +4067,8 @@ Per day:==Pro Tag:
 
 #File: ToolsConfig_p.html
 #---------------------------
+A tool is offered to the chat model only when it is <b>released for the chat</b> here and its maxCallsPerTurn is above 0. A model with tool support alone does not release any tool. The web tools <code>http_json</code> (GET only) and <code>webfetch</code> reach only public http(s) addresses.==Ein Werkzeug wird dem Chat-Modell nur angeboten, wenn es hier <b>für den Chat freigegeben</b> ist und maxCallsPerTurn größer als 0 ist. Ein Modell mit Werkzeug-Unterstützung allein gibt kein Werkzeug frei. Die Web-Werkzeuge <code>http_json</code> (nur GET) und <code>webfetch</code> erreichen nur öffentliche http(s)-Adressen.
+>released for the chat<==>für den Chat freigegeben<
 Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Verleihen Sie dem YaCy-Chat Superkräfte. Werkzeuge können deaktiviert werden, indem maxCallsPerTurn auf 0 gesetzt wird.
 Save Tools Configuration==Werkzeug-Konfiguration speichern
 Data Retrieval Tools==Datenabruf-Werkzeuge
@@ -4083,7 +4085,7 @@ maxCallsPerTurn==maxCallsPerTurn
 Maximum character length of the virtual search document used as RAG attachment and as the `search` tool result. Content beyond this limit is cut off. Default: 30000.==Maximale Zeichenlänge des virtuellen Suchdokuments, das als RAG-Anhang und als Ergebnis des `search`-Werkzeugs verwendet wird. Inhalt über dieser Grenze wird abgeschnitten. Standard: 30000.
 Tune how YaCy constructs prompts and search queries for Retrieval Augmented Generation.==Stellen Sie ein, wie YaCy Prompts und Suchanfragen für Retrieval Augmented Generation aufbaut.
 Prepended before attached search snippets in RAG mode to tell the LLM how to use them.==Wird im RAG-Modus vor die angehängten Such-Snippets gesetzt, um dem LLM mitzuteilen, wie es sie verwenden soll.
-This is sent as the system message for chats. Keep it concise and friendly.==Dies wird als Systemnachricht für Chats gesendet. Halten Sie es knapp und freundlich.
+Style guidance for chats. Scoutro always sends its own base prompt with the security rules first; this text is added below it and cannot change those rules. Keep it concise and friendly.==Stilvorgaben für Chats. Scoutro sendet immer zuerst seinen eigenen Basis-Prompt mit den Sicherheitsregeln; dieser Text wird darunter angefügt und kann diese Regeln nicht ändern. Halten Sie ihn knapp und freundlich.
 Prompt given to the model that generates search queries from user requests.==Prompt für das Modell, das aus Benutzeranfragen Suchanfragen erzeugt.
 Search Document Max Length==Maximale Länge des Suchdokuments
 Query Generator Prefix==Anfragegenerator-Präfix
@@ -4153,7 +4155,11 @@ Loading models...==Modelle werden geladen...
 Failed to load models.==Modelle konnten nicht geladen werden.
 HTTP status:==HTTP-Status:
 The endpoint returned an invalid model list.==Der Endpunkt lieferte eine ungültige Modellliste.
-Check administrator login and endpoint credentials.==Prüfen Sie die Admin-Anmeldung und die Zugangsdaten des Endpunkts.
+The LLM endpoint rejected the credentials: check the api_key.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den api_key.
+YaCy administrator login required.==YaCy-Administratoranmeldung erforderlich.
+data-apikey-set-label="set"==data-apikey-set-label="gesetzt"
+data-stored-placeholder="set, leave empty to keep the stored key"==data-stored-placeholder="gesetzt, leer lassen behält den gespeicherten Key"
+remove the stored api_key on the next save==gespeicherten api_key beim nächsten Speichern entfernen
 Check the hoststub and endpoint availability from the Scoutro server.==Prüfen Sie den hoststub und die Erreichbarkeit des Endpunkts vom Scoutro-Server aus.
 Check the hoststub and try again.==Prüfen Sie den hoststub und versuchen Sie es erneut.
 No models found on this endpoint. Load a model in the service, then retry.==An diesem Endpunkt wurden keine Modelle gefunden. Laden Sie ein Modell im Dienst und versuchen Sie es erneut.
@@ -5305,3 +5311,10 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 
 #File: yacychat.html
 System data requires an authorized administrator or agent token. No web answer is substituted.==Systemdaten benötigen einen berechtigten Administrator oder Agent-Token. Es wird keine Webantwort als Ersatz verwendet.
+No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.==Keine YaCy-Administratorberechtigung: Das AI Shield lässt diese Adresse erst nach der YaCy-Administratoranmeldung zu.
+Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.==Vom AI Shield blockiert: Der Gastzugang ist aus, oder die Anfrage kam von einer anderen Website oder mit einem Agent-Token.
+Rate limit reached: please wait and try again. The server is protecting itself from overload.==Ratenlimit erreicht: Bitte warten Sie und versuchen Sie es erneut. Der Server schützt sich vor Überlastung.
+No chat model is configured: assign a model to the chat role in LLM Selection.==Kein Chat-Modell konfiguriert: Weisen Sie in der LLM-Auswahl der Chat-Rolle ein Modell zu.
+The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.==Der LLM-Endpunkt ist vom Scoutro-Server aus nicht erreichbar: Prüfen Sie den hoststub in der LLM-Auswahl.
+The LLM endpoint rejected the credentials: check the API key in LLM Selection.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den API-Key in der LLM-Auswahl.
+The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.==Der LLM-Endpunkt hat mit einem Fehler geantwortet: Den HTTP-Status zeigt das Scoutro-Log.

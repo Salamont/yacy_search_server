@@ -51,6 +51,18 @@
         width: 100%;
         resize: vertical;
       }
+      .tool-release {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 40px;
+        margin-bottom: 6px;
+      }
+      .tool-release input {
+        width: 20px;
+        height: 20px;
+        margin: 0;
+      }
       .skills-grid {
         display: flex;
         flex-wrap: wrap;
@@ -75,6 +87,7 @@
 
     <h2>Tools</h2>
     <p>Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.</p>
+    <p class="alert alert-info">A tool is offered to the chat model only when it is <b>released for the chat</b> here and its maxCallsPerTurn is above 0. A model with tool support alone does not release any tool. The web tools <code>http_json</code> (GET only) and <code>webfetch</code> reach only public http(s) addresses.</p>
 
     #(status)#
     ::<div class="alert alert-success">Tool settings were saved.</div>
@@ -98,6 +111,10 @@
             <button type="button" class="btn btn-default toggle-button">disable</button>
           </div>
         </div>
+        <div class="tool-release">
+          <input id="tool-release-basic-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
+          <label for="tool-release-basic-#[name]#">released for the chat</label>
+        </div>
         <textarea class="tool-description form-control" name="ai.tools.#[name]#.description" rows="2">#[description]#</textarea>
       </div>
       #{/basic_tools}#
@@ -115,6 +132,10 @@
             <button type="button" class="btn btn-default toggle-button">disable</button>
           </div>
         </div>
+        <div class="tool-release">
+          <input id="tool-release-vis-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
+          <label for="tool-release-vis-#[name]#">released for the chat</label>
+        </div>
         <textarea class="tool-description form-control" name="ai.tools.#[name]#.description" rows="2">#[description]#</textarea>
       </div>
       #{/visualization_tools}#
@@ -131,6 +152,10 @@
             <input id="tool-limit-ret-#[name]#" type="number" class="form-control max-calls-input" min="0" max="99" name="ai.tools.#[name]#.maxCallsPerTurn" value="#[maxCallsPerTurn]#" />
             <button type="button" class="btn btn-default toggle-button">disable</button>
           </div>
+        </div>
+        <div class="tool-release">
+          <input id="tool-release-ret-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
+          <label for="tool-release-ret-#[name]#">released for the chat</label>
         </div>
         <textarea class="tool-description form-control" name="ai.tools.#[name]#.description" rows="2">#[description]#</textarea>
       </div>

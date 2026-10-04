@@ -5,7 +5,7 @@
     <title>YaCy '#[clientname]#': LLM Selection</title>
     #%env/templates/metas.template%#
   </head>
-  <body id="IndexControl" data-llm-service="#[llm_service]#" data-llm-hoststub="#[llm_hoststub]#" data-llm-apikey="#[llm_apikey]#" data-model-capabilities="#[model_capabilities]#" data-service-num-ctx="#[service_num_ctx_json]#">
+  <body id="IndexControl" data-llm-service="#[llm_service]#" data-llm-hoststub="#[llm_hoststub]#" data-llm-apikey-set="#[llm_apikey_set]#" data-apikey-set-label="set" data-model-capabilities="#[model_capabilities]#" data-service-num-ctx="#[service_num_ctx_json]#">
     #%env/templates/header.template%#
     #%env/templates/submenuAI.template%#
     <script>
@@ -70,6 +70,7 @@
         11, // tldr
         12  // log-report
       ]);
+      const PRODUCTION_MODEL_API_KEY_COLUMN_INDEX = 3;
       const PRODUCTION_MODEL_COLUMN_NAMES = [
         "service",
         "model",
@@ -131,7 +132,8 @@
        ***  reachable which are only visible from the YaCy server (remote YaCy
        ***  installations), avoids CORS/mixed-content issues and lets YaCy inject the
        ***  stored api_key server-side. The proxy requires admin authentication, which
-       ***  the browser already holds on this page.
+       ***  the browser already holds on this page. A key typed for an endpoint that is not
+       ***  saved yet travels in X-LLM-Api-Key, so the YaCy login stays in Authorization.
        ***/
 
       function proxyUrl(hoststub, path) {
@@ -144,6 +146,16 @@
         if (response.status !== 200) {
           const error = new Error("Model fetch failed");
           error.status = response.status;
+          // X-LLM-Upstream: the status comes from the LLM endpoint, not from the YaCy proxy
+          error.upstream = response.headers.get("X-LLM-Upstream") === "1";
+          if (!error.upstream) {
+            try {
+              const failure = await response.json();
+              error.code = failure && failure.error && typeof failure.error.code === "string" ? failure.error.code : null;
+            } catch (cause) {
+              error.code = null;
+            }
+          }
           throw error;
         }
         try {
@@ -309,7 +321,7 @@
         const apikey = apikeyEl ? apikeyEl.value.trim() : "";
         if (apikey) {
           // for endpoints which are not saved yet the proxy cannot look up the key itself
-          options.headers = { "Authorization": `Bearer ${apikey}` };
+          options.headers = { "X-LLM-Api-Key": apikey };
         }
         try {
           const payload = await fetchJsonOrThrow(url, options);
@@ -351,8 +363,10 @@
         if (status) message += " HTTP status:" + ` ${status}.`;
         if (error && error.invalidModelList) {
           message += " The endpoint returned an invalid model list.";
-        } else if (status === 401 || status === 403) {
-          message += " Check administrator login and endpoint credentials.";
+        } else if ((status === 401 || status === 403) && error.upstream) {
+          message += " The LLM endpoint rejected the credentials: check the api_key.";
+        } else if (status === 401 || (error && error.code === "admin_required")) {
+          message += " YaCy administrator login required.";
         } else if (status === 502 || status === 504 || !status) {
           message += " Check the hoststub and endpoint availability from the Scoutro server.";
         } else {
@@ -636,7 +650,7 @@
         const body = document.body;
         const presetService = (body.getAttribute("data-llm-service") || "").trim();
         const presetHoststub = (body.getAttribute("data-llm-hoststub") || "").trim();
-        const presetApikey = (body.getAttribute("data-llm-apikey") || "").trim();
+        const presetKeySet = body.getAttribute("data-llm-apikey-set") === "1";
         if (serviceSelect && presetService) {
           serviceSelect.value = presetService;
         }
@@ -644,10 +658,32 @@
         if (hoststubInput && presetHoststub) {
           hoststubInput.value = presetHoststub;
         }
-        if (apikeyInput && presetApikey) {
+        // a stored key is never sent to the browser: show that it is set, an empty field keeps it
+        if (apikeyInput && presetKeySet) {
           apikeyInput.disabled = false;
-          apikeyInput.value = presetApikey;
+          apikeyInput.value = "";
+          apikeyInput.placeholder = apikeyInput.dataset.storedPlaceholder || "";
         }
+        const clearRow = document.getElementById("apikeyClearRow");
+        if (clearRow) clearRow.style.display = presetKeySet ? "" : "none";
+      }
+
+      // API keys typed during this page view, per production row. Stored keys never reach the browser.
+      const newApiKeys = new WeakMap();
+
+      function apiKeyForRow(row) {
+        return (row && newApiKeys.get(row)) || "";
+      }
+
+      function markApiKeyCell(cell, isSet) {
+        if (!cell) return;
+        cell.dataset.apiKeySet = isSet ? "1" : "0";
+        cell.textContent = isSet ? (document.body.dataset.apikeySetLabel || "set") : "";
+      }
+
+      function apiKeyClearRequested() {
+        const clear = document.getElementById("apikeyClear");
+        return Boolean(clear && clear.checked);
       }
 
       async function handleModelDelete(modelName, deleteButton) {
@@ -1025,9 +1061,16 @@
           ? DEFAULT_MAX_TOKENS
           : readMaxTokenValue(cells[PRODUCTION_MODEL_MAX_TOKENS_COLUMN_INDEX]);
         const values = [service, modelName, hoststub, apikey, effectiveMaxToken];
+        const presetHoststub = (document.body.getAttribute("data-llm-hoststub") || "").trim().replace(/\/+$/, "");
+        const presetKeySet = document.body.getAttribute("data-llm-apikey-set") === "1"
+          && presetHoststub === hoststub.replace(/\/+$/, "") && !apiKeyClearRequested();
         values.forEach((value, index) => {
           if (!cells[index]) return;
-          if (index === PRODUCTION_MODEL_MAX_TOKENS_COLUMN_INDEX) {
+          if (index === PRODUCTION_MODEL_API_KEY_COLUMN_INDEX) {
+            // only the marker is shown; the server keeps a stored key when this row is saved without one
+            if (apikey) newApiKeys.set(targetRow, apikey);
+            markApiKeyCell(cells[index], Boolean(apikey) || cells[index].dataset.apiKeySet === "1" || presetKeySet);
+          } else if (index === PRODUCTION_MODEL_MAX_TOKENS_COLUMN_INDEX) {
             ensureMaxTokenSelect(cells[index], value);
           } else {
             cells[index].textContent = value || "";
@@ -1057,6 +1100,8 @@
           for (let i = 0; i < missingCells; i += 1) {
             row.appendChild(document.createElement("td"));
           }
+          const keyCell = row.cells[PRODUCTION_MODEL_API_KEY_COLUMN_INDEX];
+          markApiKeyCell(keyCell, keyCell && keyCell.dataset.apiKeySet === "1");
           const maxTokenCell = row.cells[PRODUCTION_MODEL_MAX_TOKENS_COLUMN_INDEX];
           ensureMaxTokenSelect(maxTokenCell, readMaxTokenValue(maxTokenCell));
           ensureProductionRowUsageCells(row, false);
@@ -1073,7 +1118,8 @@
           ? row.cells[PRODUCTION_MODEL_MODEL_COLUMN_INDEX].textContent.trim()
           : "";
         const hoststub = row.cells[2] ? row.cells[2].textContent.trim() : "";
-        const apikey = row.cells[3] ? row.cells[3].textContent.trim() : "";
+        // a stored key is injected by the admin proxy; only a key typed in this view is sent
+        const apikey = apiKeyForRow(row);
         if (!service || !modelName || !hoststub) return;
         const statuses = capabilityStatuses || getPersistedCapabilitiesForModel(service, hoststub, modelName);
         if (statuses.thinking === "unknown") {
@@ -1098,7 +1144,8 @@
         const inference_system = {
           service: serviceSelect ? serviceSelect.value : "",
           hoststub: hoststubInput ? hoststubInput.value : "",
-          api_key: apikeyInput ? apikeyInput.value : ""
+          api_key: apikeyInput ? apikeyInput.value : "", // empty keeps the stored key
+          api_key_clear: apiKeyClearRequested()
         };
         fetch(PRODUCTION_MODEL_SUBMIT_URL, {
           method: "POST", headers: { "Content-Type": "application/json" },
@@ -1356,6 +1403,8 @@
               rowData[columnName] = checkbox && isSelectableUsageColumn(index) ? checkbox.checked : false;
             } else if (index === PRODUCTION_MODEL_MAX_TOKENS_COLUMN_INDEX) {
               rowData[columnName] = readMaxTokenValue(row.cells[index]);
+            } else if (index === PRODUCTION_MODEL_API_KEY_COLUMN_INDEX) {
+              rowData[columnName] = apiKeyForRow(row); // empty keeps the stored key
             } else {
               rowData[columnName] = row.cells[index] ? row.cells[index].textContent.trim() : "";
             }
@@ -1373,7 +1422,8 @@
         const inference_system = {
           service: serviceSelect ? serviceSelect.value : "",
           hoststub: hoststubInput ? hoststubInput.value : "",
-          api_key: apikeyInput ? apikeyInput.value : ""
+          api_key: apikeyInput ? apikeyInput.value : "", // empty keeps the stored key
+          api_key_clear: apiKeyClearRequested()
         };
 
         fetch(PRODUCTION_MODEL_SUBMIT_URL, {
@@ -1475,7 +1525,7 @@
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
         const headers = { "Content-Type": "application/json" };
         if (apikey) {
-          headers.Authorization = `Bearer ${apikey}`;
+          headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
         const controller = new AbortController();
         const response = await fetch(targetUrl, {
@@ -1571,7 +1621,7 @@
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
         const headers = { "Content-Type": "application/json" };
         if (apikey) {
-          headers.Authorization = `Bearer ${apikey}`;
+          headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
         const payload = buildToolingTestPayload(service, hoststub, modelName);
         const response = await fetch(targetUrl, {
@@ -1704,7 +1754,7 @@
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
         const headers = { "Content-Type": "application/json" };
         if (apikey) {
-          headers.Authorization = `Bearer ${apikey}`;
+          headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
         const base64Image = await loadVisionTestImageBase64();
         const payload = buildVisionTestPayload(service, hoststub, modelName, base64Image);
@@ -1893,7 +1943,7 @@
         const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
         const headers = { "Content-Type": "application/json" };
         if (apikey) {
-          headers.Authorization = `Bearer ${apikey}`;
+          headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
         const payload = buildFormatTestPayload(service, endpointBase, modelName, inputText);
         const response = await fetch(targetUrl, {
@@ -2169,11 +2219,12 @@
         </dd>
 
         <dt class="TableCellDark">hoststub</dt>
-        <dd><input type="text" name="hoststub" id="hoststub" value="http://localhost:11434" size="30" maxlength="60" class="form-control" onchange="syncSelectedServiceRow()"/>&nbsp; you can probably leave this to the default value
+        <dd><input type="text" name="hoststub" id="hoststub" value="http://localhost:11434" size="30" maxlength="512" class="form-control" onchange="syncSelectedServiceRow()"/>&nbsp; you can probably leave this to the default value
         </dd>
 
         <dt class="TableCellDark">api_key</dt>
-        <dd><input type="text" name="apikey" id="apikey" value="" disabled=true size="30" maxlength="120" class="form-control"/>&nbsp; (not required for Ollama or LMStudio)
+        <dd><input type="password" name="apikey" id="apikey" value="" disabled=true size="30" maxlength="512" autocomplete="new-password" class="form-control" data-stored-placeholder="set, leave empty to keep the stored key"/>&nbsp; (not required for Ollama or LMStudio)
+            <span id="apikeyClearRow" style="display:none"><br/><input type="checkbox" id="apikeyClear" /> <label for="apikeyClear">remove the stored api_key on the next save</label></span>
             <br/>
             <small>
                 The selected service's context window (<code>num_ctx</code>) is shown and editable in the
@@ -2265,7 +2316,7 @@
                 <td>#[service]#</td>
                 <td>#[model]#</td>
                 <td>#[hoststub]#</td>
-                <td>#[api_key]#</td>
+                <td data-api-key-set="#(api_key_set)#0::1#(/api_key_set)#"></td>
                 <td>#[max_tokens]#</td>
                 
                 <td><input type="checkbox" #(search)#::checked=true#(/search)# disabled="disabled"></td>

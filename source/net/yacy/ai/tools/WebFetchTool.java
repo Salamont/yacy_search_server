@@ -22,10 +22,10 @@ package net.yacy.ai.tools;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 
-import org.apache.http.Header;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -35,20 +35,33 @@ import net.yacy.cora.document.analysis.Classification;
 import net.yacy.cora.document.analysis.Classification.ContentDomain;
 import net.yacy.cora.document.id.DigestURL;
 import net.yacy.cora.document.id.MultiProtocolURL;
-import net.yacy.cora.protocol.ClientIdentification;
-import net.yacy.cora.protocol.HeaderFramework;
-import net.yacy.cora.protocol.http.HTTPClient;
 import net.yacy.document.Document;
 import net.yacy.document.Parser;
 import net.yacy.document.TextParser;
 import net.yacy.document.VocabularyScraper;
 import net.yacy.document.parser.html.TagValency;
 
+/**
+ * Fetch a public web page as text. Every target and redirect passes {@link OutboundUrlPolicy}
+ * and the connection is pinned to the validated addresses ({@link PinnedHttpGet}); local,
+ * private, cluster-internal and metadata addresses are never fetched.
+ */
 public class WebFetchTool implements ToolHandler {
 
     private static final String NAME = "webfetch";
     private static final int TOOL_WEBFETCH_MAX_BYTES = 2_000_000;
     private static final int TOOL_WEBFETCH_MAX_CHARS = 12_000;
+    private static final int TOOL_WEBFETCH_TIMEOUT_MS = 30000;
+
+    private final PinnedHttpGet http;
+
+    public WebFetchTool() {
+        this(new PinnedHttpGet(OutboundUrlPolicy.DEFAULT, HttpJsonTool.agent()));
+    }
+
+    WebFetchTool(final PinnedHttpGet http) {
+        this.http = http;
+    }
 
     @Override
     public JSONObject definition() throws JSONException {
@@ -56,13 +69,13 @@ public class WebFetchTool implements ToolHandler {
         tool.put("type", "function");
         JSONObject fn = new JSONObject(true);
         fn.put("name", NAME);
-        fn.put("description", "Fetch a URL and return text content. Parse HTML/documents into markdown-style text when possible.");
+        fn.put("description", "Fetch a public URL and return text content. Parse HTML/documents into markdown-style text when possible.");
         JSONObject params = new JSONObject(true);
         params.put("type", "object");
         JSONObject props = new JSONObject(true);
         JSONObject url = new JSONObject(true);
         url.put("type", "string");
-        url.put("description", "Absolute http or https URL to fetch.");
+        url.put("description", "Absolute public http or https URL to fetch.");
         props.put("url", url);
         params.put("properties", props);
         params.put("required", new JSONArray().put("url"));
@@ -87,26 +100,17 @@ public class WebFetchTool implements ToolHandler {
         }
         if (urlRaw == null || urlRaw.isEmpty()) return recoverableErrorJson("Missing url. don't try again");
 
-        final DigestURL url;
         try {
-            url = new DigestURL(urlRaw);
-        } catch (Exception e) {
-            return recoverableErrorJson("Invalid URL. don't try again");
-        }
-        final String protocol = url.getProtocol();
-        if (!"http".equalsIgnoreCase(protocol) && !"https".equalsIgnoreCase(protocol)) {
-            return recoverableErrorJson("Only http/https URLs are allowed. don't try again");
-        }
-
-        try (HTTPClient client = new HTTPClient(ClientIdentification.yacyInternetCrawlerAgent, 30000)) {
-            byte[] content = client.GETbytes(url, null, null, TOOL_WEBFETCH_MAX_BYTES, false);
-            int status = client.getStatusCode();
+            final PinnedHttpGet.Result response = this.http.get(urlRaw, Collections.singletonMap("Accept", "text/html,text/plain,application/xhtml+xml,*/*;q=0.5"),
+                    TOOL_WEBFETCH_TIMEOUT_MS, TOOL_WEBFETCH_MAX_BYTES);
+            int status = response.status;
             if (status < 200 || status >= 300) return recoverableErrorJson("HTTP status " + status + ". don't try again");
+            final byte[] content = response.body;
             if (content == null || content.length == 0) return recoverableErrorJson("Empty response body. don't try again");
+            final DigestURL url = new DigestURL(response.url);
 
             String contentType = "application/octet-stream";
-            Header ct = client.getHttpResponse() == null ? null : client.getHttpResponse().getFirstHeader(HeaderFramework.CONTENT_TYPE);
-            if (ct != null && ct.getValue() != null && !ct.getValue().isEmpty()) contentType = ct.getValue();
+            if (response.contentType != null && !response.contentType.isEmpty()) contentType = response.contentType;
             int semicolon = contentType.indexOf(';');
             if (semicolon > 0) contentType = contentType.substring(0, semicolon).trim().toLowerCase();
 
@@ -139,6 +143,8 @@ public class WebFetchTool implements ToolHandler {
             result.put("content_type", contentType);
             result.put("content", text == null ? "" : text);
             return result.toString();
+        } catch (OutboundUrlPolicy.Blocked e) {
+            return recoverableErrorJson("URL not allowed (" + e.reason + "): only public http(s) addresses can be fetched. don't try again");
         } catch (IOException e) {
             return recoverableErrorJson("Fetch error: " + e.getMessage() + ". don't try again");
         } catch (Parser.Failure e) {
