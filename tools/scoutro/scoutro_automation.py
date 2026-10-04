@@ -7,6 +7,7 @@ no password, HTTP endpoint, command or arbitrary job path is accepted here.
 import copy
 import json
 import os
+import re
 import time
 import urllib.parse
 
@@ -49,6 +50,30 @@ class Rpc:
 
 class UnknownStart(Exception):
     pass
+
+
+PRECHECK_RESULTS = (("retry:dns", "dns"), ("retry:site_5xx", "site_5xx"), ("robots", "robots"), ("blocked", "blocked"))
+
+
+def precheck_detail(raw):
+    """A short reason code such as robots-disallow-all or site-5xx:503; free text is dropped."""
+    parts = (raw or "").split(":")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{1,40}", parts[0]):
+        return None
+    code = parts[0]
+    if len(parts) > 1 and re.fullmatch(r"[A-Za-z0-9_.-]{1,23}", parts[1]):
+        code += ":" + parts[1]
+    return code
+
+
+def precheck_report(preliminary):
+    """Crawl report result of a precheck refusal, or None for statuses the report does not record."""
+    status = preliminary.get("status", "")
+    for prefix, result in PRECHECK_RESULTS:
+        if status.startswith(prefix):
+            raw = preliminary.get("error") or (status.split(":", 1)[1] if ":" in status else "")
+            return result, precheck_detail(raw)
+    return None
 
 
 def origins(entry):
@@ -258,6 +283,12 @@ def execute(engine, state, init, rpc, config, workdir):
         state.save()
         if entry.get("automation_attempt", {}).get("state") == "accepted":
             rpc.call("ack", {"attempt_id": entry["automation_attempt"]["id"]})
+        checked = precheck_report(preliminary) if preliminary is not None else None
+        if checked:
+            try:
+                rpc.call("precheck", {"domain": domain, "url": candidate["url"], "result": checked[0], "detail": checked[1]})
+            except engine.ApiError:
+                pass  # the crawl report is best effort; the selection state above is already saved
         report["processed"] += 1
         # Admission is checked again after every delay; YaCy's own per-host delay is independent.
         time.sleep(job["batch"]["seed_delay_seconds"])

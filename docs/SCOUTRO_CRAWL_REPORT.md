@@ -1,7 +1,7 @@
 # Scoutro Crawl Report (plan)
 
-Status: confirmed plan. Phase 1 (storage) is implemented on branch
-`ccr-e3e5f88b-1fqp77`; later phases are not started.
+Status: confirmed plan. Phase 1 (storage) and Phase 2 (capture) are implemented
+on branch `ccr-e3e5f88b-1fqp77`; later phases are not started.
 
 Goal: crawl-report views comparable to a classic crawl audit (crawl details,
 status, HTTP codes, content types, depth, duplicates, indexability, data age)
@@ -53,8 +53,13 @@ keeps it small even with very many domains.
 - **Discovery link:** the registrable Discovery domain (the `state.json` key) is
   stored as `discovery_domain` in the crawl section. It is a link only, never a key.
 - **Crawl section:** `crawl_id`, `start_marker` (32 hex, optional), `started_at`,
-  `ended_at`, `job`, `discovery_domain`, bounded counters `n_*` and labels `s_*`.
-  Phase 2 defines the concrete counter and label names.
+  `ended_at`, `job`, `discovery_domain`, bounded counters `n_*` and labels `s_*`
+  (see [Capture](#capture-phase-2)).
+- **Precheck section:** `pc_at`, `pc_result` (`dns`, `robots`, `blocked`,
+  `site_5xx`), `pc_detail` (short reason code), `pc_job`, `pc_discovery_domain`.
+  Only the latest Discovery precheck refusal; it never touches the crawl
+  sections, and a row may hold only a precheck. An older or identical precheck
+  writes nothing.
 
 ### Idempotent crawl completion
 
@@ -80,6 +85,99 @@ A repeated completion of the same crawl therefore never moves current to
 YaCy's tables buffer writes and do not fsync every write. After a hard crash
 the last rows can be missing; the next crawl recreates them and Solr is not
 affected. Only `prev_*` and ErrorCache exclusions of those rows would be lost.
+
+## Capture (Phase 2)
+
+A daemon thread `ScoutroReport.capture` starts with the Scoutro API servlet
+(`load-on-startup` in `defaults/web.xml`) and runs every
+`scoutro.report.captureIntervalSeconds`. It reads YaCy in-process and writes
+only `scoutro_domains`: it never starts, stops or changes a crawl and writes
+nothing to `state.json`, the Discovery job store or `yacy.conf`. It uses its
+own executor instead of YaCy's `deployThread`, which would persist thread
+settings into `yacy.conf`.
+
+Each step:
+
+1. Scoutro crawls with an active YaCy profile are tracked. A Scoutro crawl is a
+   profile whose must-not-match filter carries a start marker recorded as
+   started in `DATA/SCOUTRO/crawls.ndjson`: Discovery crawls and crawls started
+   through the Scoutro API (administrator and agents). Plain YaCy expert crawls
+   are not recorded; their pages are still part of the live Solr state.
+2. The ErrorCache is read (see below).
+3. A tracked crawl whose profile is no longer active is captured after
+   `scoutro.report.settleSeconds`, so that indexing can finish.
+4. Once after startup, terminated Scoutro profiles without a row are recovered
+   (YaCy keeps terminated profiles); their `ended_at` is unknown.
+
+At most 10 captures run per step. A failing index query is retried up to five
+times with growing delay; then the crawl is recorded without page counters
+(`outcome` `unknown`). `started_at` is the persisted start intent of the crawl
+ledger (as in `crawl.status`); `ended_at` is when the end was observed (within
+one interval).
+
+### Counters
+
+One rows=0 JSON facet request on `host_s` and `collection_sxt`, split at the
+crawl start by `load_date_dt`, with a 2 s budget; partial answers are rejected.
+
+| Column | Meaning |
+|---|---|
+| `n_pages_total` | documents of host and collection loaded since the crawl start, error documents included |
+| `n_pages_ok` | HTTP 200 without fail type |
+| `n_pages_redirect` | HTTP 3xx, or a redirect followed by the crawler (YaCy stores it with fail type `fail`, status -1 and the reason `...CRAWLER Redirect of URL=...`) |
+| `n_pages_client_error`, `n_pages_server_error` | HTTP 4xx, 5xx |
+| `n_pages_excluded` | fail type `excl` (robots.txt, recorded redirects) |
+| `n_pages_failed` | fail type `fail` without crawler redirects |
+| `n_pages_robots` | reason `FINAL_ROBOTS_RULE` |
+| `n_pages_not_reloaded` | documents with a load date before the crawl start: not reloaded by this crawl, not deleted |
+| `n_pages_not_reloaded_ok` | of those, HTTP 200 |
+| `n_depth`, `n_max_pages` | crawl parameters |
+| `n_excl_noindex`, `n_excl_canonical`, `n_excl_filter`, `n_excl_blacklist`, `n_excl_other` | ErrorCache exclusions that are not stored in the index |
+| `s_outcome` | `indexed`, `partial`, `not_reloaded`, `not_indexed` or `unknown` |
+| `s_coverage` | `complete` or `partial` (ErrorCache counters) |
+
+`indexed`: pages loaded and no failure; `partial`: pages loaded and at least
+one failure; `not_reloaded`: nothing loaded, but earlier HTTP 200 pages exist
+(for example within YaCy's reload interval); `not_indexed`: no HTTP 200 page at
+all; `unknown`: no page counters (schema field missing or index unavailable).
+
+### ErrorCache
+
+YaCy keeps the latest 1000 ErrorCache entries in memory, including exclusions
+it does not store in the index (noindex, canonical, URL and content filters,
+blacklist, parser and other processing refusals). The thread reads the newest
+entries with a growing window (1, 8, 64, 256, 1000) back to the last entry
+already read; an idle step reads one entry. Only `FINAL_PROCESS_CONTEXT` and
+`FINAL_LOAD_CONTEXT` entries are counted; everything else is also in the index.
+Entries are attributed by exact host, collection and time.
+
+Coverage is `complete` only if reading had started before the crawl began, the
+crawl was tracked from its first read on, and the last entry read was never
+evicted (more than 1000 entries between two reads, or a cleared cache). Crawls
+started before the first read after a restart are therefore `partial`.
+
+### Discovery
+
+The coordinator reports accepted starts (marker, job, Discovery domain) and
+terminated attempts. This only adds the job context and triggers a missing
+capture; hook failures are logged and never change a Discovery decision.
+
+The new worker RPC action `precheck` reports a precheck refusal (`dns`,
+`robots`, `blocked`, `site_5xx`, optional short reason code such as
+`robots-disallow-all` or `site-5xx:503`) for the candidate host. It is validated
+like `crawl` (candidate domain and URL, allowlisted fields) and stored in the
+`pc_*` section. The worker sends it after saving its own state and ignores
+errors. Prechecks of the manual CLI are not recorded.
+
+### Configuration
+
+Read from `yacy.conf`; nothing is written.
+
+| Key | Default | Range |
+|---|---|---|
+| `scoutro.report.capture` | `true` | `false` disables capture and the Discovery hooks |
+| `scoutro.report.captureIntervalSeconds` | `20` | 5-300 |
+| `scoutro.report.settleSeconds` | `120` | 0-3600 |
 
 ## Rollups
 
@@ -137,11 +235,11 @@ recrawls. Page data lives only in the YaCy index.
    used by the existing `HostInput`), `report/RollupStore` (yearly files),
    tests with temporary tables and directories. No Discovery integration, no
    API, no UI, no Solr queries; nothing calls the new classes yet.
-2. **Capture:** call from `DiscoveryService` when a crawl has terminated (also for
-   Scoutro API crawls via `CrawlLedger`); ErrorCache reader thread (YaCy
-   `deployThread`, about 20 s, cursor on fail date, `coverage: partial` when
-   entries were lost); precheck results (DNS, robots, blocked, 5xx) from the
-   Python worker via RPC into the table.
+2. **Capture (implemented):** see [Capture](#capture-phase-2): monitor thread
+   for Discovery and Scoutro API crawls, ErrorCache reader, Discovery hooks and
+   the `precheck` RPC. `report/CrawlOutcome`, `report/ExclusionTracker`,
+   `report/CaptureService`, `report/PrecheckResult`; YaCy adapter
+   `api/CaptureRuntime`. No API, UI or rollup writing yet.
 3. **Report:** live Solr facets per collection, job and host plus the table;
    daily rollup through the existing heartbeat, also used as fallback when a
    facet query exceeds its 2 s budget.
@@ -168,10 +266,19 @@ the Discovery job store schema.
 
 ## Tests
 
-`ant scoutro-report-test` runs the Phase 1 tests and the host normalization
-regression tests (`CrawlFlowTest`); they are also part of
-`ant scoutro-agents-test`. They use temporary tables and directories only:
-deterministic keys, host normalization, `www`
+`ant scoutro-report-test` runs the report tests, the host normalization
+regression tests (`CrawlFlowTest`) and the Discovery tests; all are also part of
+`ant scoutro-agents-test`. They use temporary tables, directories and an
+embedded index only. Phase 1: deterministic keys, host normalization, `www`
 separation, case-sensitive collections, key collisions, invalid rows, all
 completion cases, persistence across reopen, no table growth over repeated
 recrawls, rollup partitioning, idempotent days, corrupt files and size limits.
+Phase 2: the capture query against YaCy's real schema in an embedded Solr core
+(`CrawlOutcomeSolrTest`), counters and outcome rule, ErrorCache windows, loss
+detection and attribution, capture timing, recovery, retries and Discovery
+context, precheck rows, Discovery hooks and the `precheck` RPC, and the Python
+worker's precheck report (`test/scoutro-discovery/test_automation.py`).
+
+`test/scoutro-api/report-capture-live-smoke.py` runs one real crawl of a local
+fixture site on a new disposable peer and checks the captured row (pages,
+redirect, 404, noindex from the ErrorCache, outcome and coverage).

@@ -164,6 +164,67 @@ public class DiscoveryAutomationTest {
         assertEquals(1, this.backend.starts); this.backend.crawls.getJSONObject(0).put("state", "terminated"); this.service.advance();
         assertTrue(this.service.store.read().isNull("active_run")); assertEquals(1, this.backend.starts);
     }
+    @Test public void crawlReportHooksSeeAcceptedAndTerminatedCrawls() throws Exception {
+        final java.util.List<String> events = new java.util.ArrayList<>();
+        this.acknowledge = true;
+        open(); final String id = create("Job"); enable();
+        this.service.observer(new DiscoveryService.CrawlObserver() {
+            @Override public void accepted(String marker, String job, String domain) { events.add("accepted:" + marker + ":" + job + ":" + domain); }
+            @Override public void terminated(String marker, String job, String domain) { events.add("terminated:" + marker + ":" + job + ":" + domain); }
+        });
+        this.service.advance();
+        final String marker = this.backend.crawls.getJSONObject(0).getString("startMarker");
+        assertEquals(java.util.List.of("accepted:" + marker + ":" + id + ":example.com"), events);
+        this.service.advance(); // still running
+        assertEquals(1, events.size());
+        this.backend.crawls.getJSONObject(0).put("state", "terminated");
+        this.service.advance();
+        assertEquals("terminated:" + marker + ":" + id + ":example.com", events.get(1));
+        assertTrue(this.service.store.read().isNull("active_run"));
+    }
+    @Test public void failingCrawlReportHooksNeverChangeDiscovery() throws Exception {
+        this.acknowledge = true;
+        open(); create("Job"); enable();
+        this.service.observer(new DiscoveryService.CrawlObserver() {
+            @Override public void accepted(String marker, String job, String domain) { throw new IllegalStateException("report down"); }
+            @Override public void terminated(String marker, String job, String domain) { throw new IllegalStateException("report down"); }
+        });
+        this.service.advance();
+        assertEquals("accepted", active().getJSONArray("attempts").getJSONObject(0).getString("state"));
+        this.backend.crawls.getJSONObject(0).put("state", "terminated");
+        this.service.advance();
+        assertTrue(this.service.store.read().isNull("active_run"));
+        assertEquals(1, this.backend.starts);
+    }
+    @Test public void precheckRpcIsValidatedAndOnlyForwarded() throws Exception {
+        final java.util.List<String> forwarded = new java.util.ArrayList<>(), codes = new java.util.ArrayList<>();
+        this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
+            if (!"run".equals(init.getString("operation"))) return new JsonObject();
+            final JsonObject[] calls = {
+                new JsonObject().put("domain", "example.com").put("url", "https://www.example.com/").put("result", "robots").put("detail", "robots-disallow-all"),
+                new JsonObject().put("domain", "example.com").put("url", "https://example.com/").put("result", "dns").put("detail", JsonObject.NULL),
+                new JsonObject().put("domain", "example.com").put("url", "https://other.org/").put("result", "dns"),
+                new JsonObject().put("domain", "example.com").put("url", "https://example.com/").put("result", "timeout"),
+                new JsonObject().put("domain", "example.com").put("url", "https://example.com/").put("result", "dns").put("force", true),
+                new JsonObject().put("domain", "example.com").put("url", "https://example.com/").put("result", "dns").put("detail", 5)};
+            for (final JsonObject call : calls) {
+                try { handler.request("precheck", call); codes.add("ok"); } catch (ApiException e) { codes.add(e.code()); }
+            }
+            return new JsonObject().put("report", new JsonObject());
+        };
+        open(); final String id = create("Job"); enable();
+        this.service.observer(new DiscoveryService.CrawlObserver() {
+            @Override public void precheck(String url, String collection, String job, String domain, String result, String detail) {
+                forwarded.add(url + "|" + collection + "|" + job + "|" + domain + "|" + result + "|" + detail);
+            }
+        });
+        this.service.advance();
+        assertEquals(java.util.List.of("ok", "ok", "invalid_request", "invalid_request", "invalid_request", "invalid_request"), codes);
+        assertEquals(java.util.List.of("https://www.example.com/|custom-index|" + id + "|example.com|robots|robots-disallow-all",
+                "https://example.com/|custom-index|" + id + "|example.com|dns|null"), forwarded);
+        assertEquals(0, this.backend.starts);
+        assertTrue(this.service.store.read().isNull("active_run"));
+    }
     @Test public void threeTerminatedCrawlsConfirmAndCompleteThroughRealPython() throws Exception {
         final int[] acknowledgements = {0};
         this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {

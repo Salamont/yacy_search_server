@@ -149,6 +149,9 @@
     <servlet>
         <servlet-name>ScoutroApiServlet</servlet-name>
         <servlet-class>net.yacy.scoutro.api.ScoutroApiServlet</servlet-class>
+        <!-- Scoutro: initialized at startup to run the read-only crawl report capture
+             (docs/SCOUTRO_CRAWL_REPORT.md); disable with scoutro.report.capture=false -->
+        <load-on-startup>1</load-on-startup>
     </servlet>
     <servlet-mapping>
         <servlet-name>ScoutroApiServlet</servlet-name>

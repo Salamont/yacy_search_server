@@ -244,6 +244,80 @@ public class DomainTableTest {
         }
     }
 
+    private static PrecheckResult precheck(final long at, final String result) {
+        return new PrecheckResult(at, result, result.equals("robots") ? "robots-disallow-all" : null, JOB, "example.com");
+    }
+
+    @Test public void precheckOnlyRowKeepsItsPrecheckWhenTheFirstCrawlArrives() throws Exception {
+        assertEquals(Status.CREATED, this.table.precheck("www.example.com", "research", precheck(50, "robots"), 1));
+        DomainTable.Entry e = entry("www.example.com", "research");
+        assertNull(e.current);
+        assertNull(e.previous);
+        assertEquals("robots", e.precheck.result);
+        assertEquals("robots-disallow-all", e.precheck.detail);
+        assertEquals("example.com", e.precheck.discoveryDomain);
+        final CrawlSnapshot a = crawl("c1", MARKER_A, 100, 10);
+        assertEquals(Status.CREATED, this.table.complete("www.example.com", "research", a, 2));
+        reopen();
+        e = entry("www.example.com", "research");
+        assertEquals(a, e.current);
+        assertEquals(precheck(50, "robots"), e.precheck);
+    }
+
+    @Test public void prechecksAreIdempotentAndNeverTouchCrawlSections() throws Exception {
+        final CrawlSnapshot a = crawl("c1", MARKER_A, 100, 10), b = crawl("c2", MARKER_B, 200, 12);
+        this.table.complete("example.com", "research", a, 1);
+        this.table.complete("example.com", "research", b, 2);
+        assertEquals(Status.UPDATED, this.table.precheck("example.com", "research", precheck(300, "dns"), 3));
+        assertEquals(Status.UNCHANGED, this.table.precheck("example.com", "research", precheck(300, "dns"), 4));
+        assertEquals(Status.IGNORED_OLDER, this.table.precheck("example.com", "research", precheck(250, "robots"), 5));
+        assertEquals(Status.CONFLICT, this.table.precheck("example.com", "research", precheck(300, "blocked"), 6));
+        assertEquals(Status.UPDATED, this.table.precheck("example.com", "research", precheck(400, "site_5xx"), 7));
+        final CrawlSnapshot c = crawl("c3", null, 500, 3);
+        assertEquals(Status.SHIFTED, this.table.complete("example.com", "research", c, 8));
+        final DomainTable.Entry e = entry("example.com", "research");
+        assertEquals(c, e.current);
+        assertEquals(b, e.previous);
+        assertEquals("site_5xx", e.precheck.result);
+        assertEquals(8, e.updatedAt);
+    }
+
+    @Test public void invalidPrecheckRowsFailClosed() throws Exception {
+        final List<Map<String, String>> rows = List.of(
+                Map.of("v", "1", "updated_at", "1"),                                              // neither crawl nor precheck
+                Map.of("v", "1", "updated_at", "1", "pc_result", "dns"),                          // no time
+                Map.of("v", "1", "updated_at", "1", "pc_at", "5", "pc_result", "unknown"),
+                Map.of("v", "1", "updated_at", "1", "pc_at", "5", "pc_result", "dns", "pc_extra", "x"),
+                Map.of("v", "1", "updated_at", "1", "pc_at", "5", "pc_result", "dns", "prev_crawl_id", "c0", "prev_started_at", "1"));
+        int i = 0;
+        for (final Map<String, String> columns : rows) {
+            final String host = "p" + (i++) + ".example";
+            final Map<String, byte[]> row = new HashMap<>();
+            row.put("host", host.getBytes(StandardCharsets.UTF_8));
+            row.put("collection", "research".getBytes(StandardCharsets.UTF_8));
+            for (final Map.Entry<String, String> c : columns.entrySet()) row.put(c.getKey(), c.getValue().getBytes(StandardCharsets.UTF_8));
+            this.tables.insert(DomainTable.TABLE, DomainTable.key(host, "research"), row);
+            assertEquals(host, DomainTable.ReadStatus.INVALID_ROW, this.table.read(host, "research").status);
+            assertEquals(host, Status.INVALID_ROW, this.table.precheck(host, "research", precheck(900, "dns"), 9));
+            assertEquals(host, Status.INVALID_ROW, this.table.complete(host, "research", crawl("c2", MARKER_B, 900, 1), 9));
+        }
+    }
+
+    @Test public void precheckResultsAreBounded() {
+        final List<Runnable> invalid = List.of(
+                () -> new PrecheckResult(0, "dns", null, null, null),
+                () -> new PrecheckResult(1, "timeout", null, null, null),
+                () -> new PrecheckResult(1, "dns", "free text", null, null),
+                () -> new PrecheckResult(1, "dns", null, "job", null),
+                () -> new PrecheckResult(1, "dns", null, null, "localhost"));
+        for (int i = 0; i < invalid.size(); i++) {
+            try { invalid.get(i).run(); fail("case " + i); } catch (final IllegalArgumentException expected) { }
+        }
+        assertEquals("site-5xx:503", PrecheckResult.detail("site-5xx:503"));
+        assertNull(PrecheckResult.detail("dns:[Errno -2] Name or service not known"));
+        assertNull(PrecheckResult.detail(null));
+    }
+
     private long tableBytes() {
         long bytes = 0;
         for (final File f : this.dir.listFiles()) if (f.getName().startsWith(DomainTable.TABLE)) bytes += f.length();

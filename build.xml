@@ -388,6 +388,7 @@
            release="${javacRelease}" encoding="UTF-8">
       <include name="net/yacy/scoutro/report/*Test.java" />
       <include name="net/yacy/scoutro/api/CrawlFlowTest.java" />
+      <include name="net/yacy/scoutro/discovery/DiscoveryAutomationTest.java" />
       <classpath>
         <pathelement location="${build}" />
         <path refid="compile.path" />
@@ -401,6 +402,7 @@
         <fileset dir="${test}">
           <include name="net/yacy/scoutro/report/*Test.java" />
           <include name="net/yacy/scoutro/api/CrawlFlowTest.java" />
+          <include name="net/yacy/scoutro/discovery/DiscoveryAutomationTest.java" />
         </fileset>
       </batchtest>
       <classpath>

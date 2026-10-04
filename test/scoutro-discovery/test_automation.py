@@ -211,6 +211,31 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(entry["automation_attempt"]["state"], "submitted_unknown")
         self.assertNotIn("status", entry)
 
+    def test_precheck_refusals_are_reported_best_effort(self):
+        self.replenish(candidates(2))
+        calls = []
+        class Rpc:
+            def call(self, action, params=None):
+                if action == "admission": return {"allowed": True}
+                if action == "precheck":
+                    calls.append(params)
+                    raise d.ApiError(503, "report_unavailable", "report store down")
+                raise AssertionError("unexpected " + action)
+        with patch.object(d, "precheck_candidate", return_value={"status": "robots:robots-disallow-all"}):
+            result = automation.execute(d, self.state, {"job": job(), "collection": "future-index", "regions": {"freeworld": ["Test City"]}}, Rpc(), self.tmp.name, self.tmp.name)
+        self.assertEqual(result["processed"], 2)
+        self.assertEqual(sorted(c["domain"] for c in calls), ["firm-0.de", "firm-1.de"])
+        self.assertEqual({(c["result"], c["detail"]) for c in calls}, {("robots", "robots-disallow-all")})
+        self.assertTrue(all(c["url"].startswith("https://") for c in calls))
+
+    def test_precheck_report_keeps_only_short_reason_codes(self):
+        self.assertEqual(automation.precheck_report({"status": "retry:dns", "error": "dns:[Errno -2] Name or service not known"}), ("dns", "dns"))
+        self.assertEqual(automation.precheck_report({"status": "retry:site_5xx", "error": "site-5xx:503"}), ("site_5xx", "site-5xx:503"))
+        self.assertEqual(automation.precheck_report({"status": "blocked:private-ip:10.0.0.1"}), ("blocked", "private-ip:10.0.0.1"))
+        self.assertEqual(automation.precheck_report({"status": "robots:robots-disallow-all"}), ("robots", "robots-disallow-all"))
+        self.assertEqual(automation.precheck_report({"status": "blocked:bad host name!"}), ("blocked", None))
+        self.assertIsNone(automation.precheck_report({"status": "crawled"}))
+
     def test_status_protocol_is_read_only_without_repo_config_fallback(self):
         root = Path(self.tmp.name) / "absent"
         init = {"operation": "status", "jobs": [], "regions": {}}

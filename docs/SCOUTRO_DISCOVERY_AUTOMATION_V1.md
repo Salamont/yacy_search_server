@@ -91,7 +91,7 @@ Discovery refresh is separate from batch schedule. Freeworld uses job-selected s
 
 ## 14–15. Java–Python bridge and exact Crawl start path
 
-`DiscoveryProcess` uses `ProcessBuilder(List<String>)`, not a shell command. It strips inherited environment except runtime/locale/proxy/trust settings, passes no administrator password/hash/token, and suppresses raw child stderr. Structured newline JSON has size/request limits and a process-tree timeout. Shutdown stops the child process tree. The permitted RPC actions are admission, Freeworld search, source progress, crawl and accepted-state acknowledgement.
+`DiscoveryProcess` uses `ProcessBuilder(List<String>)`, not a shell command. It strips inherited environment except runtime/locale/proxy/trust settings, passes no administrator password/hash/token, and suppresses raw child stderr. Structured newline JSON has size/request limits and a process-tree timeout. Shutdown stops the child process tree. The permitted RPC actions are admission, Freeworld search, source progress, crawl, accepted-state acknowledgement and precheck result (crawl report only, see [Crawl Report](SCOUTRO_CRAWL_REPORT.md)).
 
 Python requests a candidate URL/domain only. Java resolves the reserved job collection/pages/depth, writes a prepared intent, then calls:
 

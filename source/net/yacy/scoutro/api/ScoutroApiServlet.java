@@ -241,8 +241,16 @@ public class ScoutroApiServlet extends HttpServlet {
         throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
     }
 
+    /** Loaded at startup (web.xml) so that crawl report capture also runs without API traffic. */
+    @Override
+    public void init() throws javax.servlet.ServletException {
+        super.init();
+        CaptureRuntime.start();
+    }
+
     @Override
     public void destroy() {
+        CaptureRuntime.stop();
         net.yacy.scoutro.discovery.DiscoveryService.closeCurrent();
         super.destroy();
     }

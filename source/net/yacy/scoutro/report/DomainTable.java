@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import net.yacy.cora.order.Base64Order;
@@ -25,10 +26,12 @@ public final class DomainTable {
     public static final int KEY_LENGTH = 12;
     static final String VERSION = "1";
     static final String PREV = "prev_";
+    static final String PRECHECK = "pc_";
+    private static final Set<String> PRECHECK_COLUMNS = Set.of("at", "result", "detail", "job", "discovery_domain");
     private static final String KEY_DOMAIN = "scoutro-domains/v1";
     private static final Object LOCK = new Object();
 
-    /** Outcome of {@link #complete}; only CREATED, UPDATED and SHIFTED write. */
+    /** Outcome of {@link #complete} and {@link #precheck}; only CREATED, UPDATED and SHIFTED write. */
     public enum Status { CREATED, UNCHANGED, UPDATED, SHIFTED, IGNORED_PREVIOUS, IGNORED_OLDER, CONFLICT, KEY_COLLISION, INVALID_ROW }
 
     /** Outcome of {@link #read}. */
@@ -37,14 +40,17 @@ public final class DomainTable {
     public static final class Entry {
         public final String host, collection;
         public final long updatedAt;
+        /** The latest recorded crawl, or null while the host only has a precheck result. */
         public final CrawlSnapshot current;
         /** The crawl before {@link #current}, or null. */
         public final CrawlSnapshot previous;
+        /** The latest precheck that kept the host from being crawled, or null. */
+        public final PrecheckResult precheck;
 
         Entry(final String host, final String collection, final long updatedAt,
-                final CrawlSnapshot current, final CrawlSnapshot previous) {
+                final CrawlSnapshot current, final CrawlSnapshot previous, final PrecheckResult precheck) {
             this.host = host; this.collection = collection; this.updatedAt = updatedAt;
-            this.current = current; this.previous = previous;
+            this.current = current; this.previous = previous; this.precheck = precheck;
         }
     }
 
@@ -114,7 +120,7 @@ public final class DomainTable {
         synchronized (LOCK) {
             final Map<String, byte[]> row = select(key);
             if (row == null) {
-                write(key, h, c, now, crawl, null);
+                write(key, h, c, now, crawl, null, null);
                 return Status.CREATED;
             }
             if (!matches(row, h, c)) return Status.KEY_COLLISION;
@@ -124,11 +130,15 @@ public final class DomainTable {
             } catch (final InvalidRow invalid) {
                 return Status.INVALID_ROW;
             }
+            if (entry.current == null) {
+                write(key, h, c, now, crawl, null, entry.precheck);
+                return Status.CREATED;
+            }
             switch (crawl.relate(entry.current)) {
                 case CONFLICT: return Status.CONFLICT;
                 case SAME:
                     if (crawl.equals(entry.current)) return Status.UNCHANGED;
-                    write(key, h, c, now, crawl, entry.previous);
+                    write(key, h, c, now, crawl, entry.previous, entry.precheck);
                     return Status.UPDATED;
                 default:
             }
@@ -136,8 +146,40 @@ public final class DomainTable {
                 return Status.IGNORED_PREVIOUS;
             if (crawl.startedAt < entry.current.startedAt) return Status.IGNORED_OLDER;
             if (crawl.startedAt == entry.current.startedAt) return Status.CONFLICT;
-            write(key, h, c, now, crawl, entry.current);
+            write(key, h, c, now, crawl, entry.current, entry.precheck);
             return Status.SHIFTED;
+        }
+    }
+
+    /**
+     * Records the latest Discovery precheck of a host; crawl sections stay untouched.
+     * An older or identical result writes nothing.
+     */
+    public Status precheck(final String host, final String collection, final PrecheckResult precheck, final long now)
+            throws IOException {
+        if (precheck == null) throw new IllegalArgumentException("precheck");
+        final String h = HostNames.normalize(host), c = collection(collection);
+        final byte[] key = key(h, c);
+        synchronized (LOCK) {
+            final Map<String, byte[]> row = select(key);
+            if (row == null) {
+                write(key, h, c, now, null, null, precheck);
+                return Status.CREATED;
+            }
+            if (!matches(row, h, c)) return Status.KEY_COLLISION;
+            final Entry entry;
+            try {
+                entry = parse(row, h, c);
+            } catch (final InvalidRow invalid) {
+                return Status.INVALID_ROW;
+            }
+            if (entry.precheck != null) {
+                if (precheck.equals(entry.precheck)) return Status.UNCHANGED;
+                if (precheck.at < entry.precheck.at) return Status.IGNORED_OLDER;
+                if (precheck.at == entry.precheck.at) return Status.CONFLICT;
+            }
+            write(key, h, c, now, entry.current, entry.previous, precheck);
+            return Status.UPDATED;
         }
     }
 
@@ -150,14 +192,21 @@ public final class DomainTable {
     }
 
     private void write(final byte[] key, final String host, final String collection, final long now,
-            final CrawlSnapshot current, final CrawlSnapshot previous) throws IOException {
+            final CrawlSnapshot current, final CrawlSnapshot previous, final PrecheckResult precheck) throws IOException {
         final Map<String, byte[]> row = new HashMap<>();
         put(row, "v", VERSION);
         put(row, "host", host);
         put(row, "collection", collection);
         put(row, "updated_at", Long.toString(now));
-        section(row, "", current);
+        if (current != null) section(row, "", current);
         if (previous != null) section(row, PREV, previous);
+        if (precheck != null) {
+            put(row, PRECHECK + "at", Long.toString(precheck.at));
+            put(row, PRECHECK + "result", precheck.result);
+            if (precheck.detail != null) put(row, PRECHECK + "detail", precheck.detail);
+            if (precheck.job != null) put(row, PRECHECK + "job", precheck.job);
+            if (precheck.discoveryDomain != null) put(row, PRECHECK + "discovery_domain", precheck.discoveryDomain);
+        }
         this.tables.insert(TABLE, key, row); // replaces the complete row
     }
 
@@ -187,18 +236,30 @@ public final class DomainTable {
 
     private static Entry parse(final Map<String, byte[]> row, final String host, final String collection) throws InvalidRow {
         if (!VERSION.equals(text(row, "v"))) throw new InvalidRow();
-        final Map<String, String> current = new TreeMap<>(), previous = new TreeMap<>();
+        final Map<String, String> current = new TreeMap<>(), previous = new TreeMap<>(), precheck = new TreeMap<>();
         for (final String column : row.keySet()) {
             if (column.equals("v") || column.equals("host") || column.equals("collection") || column.equals("updated_at")) continue;
             if (column.startsWith(PREV)) previous.put(column.substring(PREV.length()), text(row, column));
+            else if (column.startsWith(PRECHECK)) precheck.put(column.substring(PRECHECK.length()), text(row, column));
             else current.put(column, text(row, column));
         }
+        if (current.isEmpty() && (!previous.isEmpty() || precheck.isEmpty())) throw new InvalidRow();
         try {
             final long updatedAt = Long.parseLong(text(row, "updated_at"));
-            return new Entry(host, collection, updatedAt, snapshot(current), previous.isEmpty() ? null : snapshot(previous));
+            return new Entry(host, collection, updatedAt, current.isEmpty() ? null : snapshot(current),
+                    previous.isEmpty() ? null : snapshot(previous), precheck.isEmpty() ? null : precheck(precheck));
         } catch (final RuntimeException invalid) {
             throw new InvalidRow();
         }
+    }
+
+    private static PrecheckResult precheck(final Map<String, String> columns) throws InvalidRow {
+        for (final String column : columns.keySet())
+            if (!PRECHECK_COLUMNS.contains(column)) throw new InvalidRow();
+        final String at = columns.get("at");
+        if (at == null) throw new InvalidRow();
+        return new PrecheckResult(Long.parseLong(at), columns.get("result"), columns.get("detail"), columns.get("job"),
+                columns.get("discovery_domain"));
     }
 
     private static CrawlSnapshot snapshot(final Map<String, String> columns) throws InvalidRow {
