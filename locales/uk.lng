@@ -4704,6 +4704,8 @@ rss terminal==rss термінал
 >Batch running<==>Batch running<
 >Repair heartbeat<==>Repair heartbeat<
 >Completed<==>Completed<
+> Also retry after an unsuccessful crawl result<==> Also retry after an unsuccessful crawl result<
+>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<
 
 #File: scoutro-dashboard.html
 >Discovery Automation<==>Автоматизація пошуку<

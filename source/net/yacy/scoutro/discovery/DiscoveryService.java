@@ -36,7 +36,10 @@ public final class DiscoveryService implements AutoCloseable {
         default void terminated(final String marker, final String job, final String domain) { }
         default void precheck(final String url, final String collection, final String job, final String domain,
                 final String result, final String detail) throws Exception { }
+        /** Recorded current crawl per host of a collection: {host: {crawl_id, outcome, ended_at}}; hosts without one are left out. */
+        default JsonObject outcomes(final String collection, final java.util.List<String> hosts) throws Exception { return new JsonObject(); }
     }
+    static final int OUTCOME_BATCH = 200;
     static final java.util.Set<String> PRECHECK_RESULTS = java.util.Set.of("dns", "robots", "blocked", "site_5xx");
     private static volatile DiscoveryService instance;
     public final JobStore store;
@@ -368,6 +371,24 @@ public final class DiscoveryService implements AutoCloseable {
                 observe("precheck", o -> o.precheck(checkedUrl, run.getString("collection"), run.getString("job_id"), checked,
                         result, detail instanceof String ? (String) detail : null));
                 return new JsonObject();
+            case "outcomes":
+                // Read-only: recorded crawl results for processing.outcome_retry; Python decides and writes its state.
+                JobSchema.keys(params, "hosts");
+                if (!job.getJSONObject("processing").optBoolean("outcome_retry", false))
+                    throw ApiException.invalid("action", "Outcome retry is not enabled for the reserved job.");
+                final JsonArray hosts = params.optJSONArray("hosts");
+                if (hosts == null || hosts.length() > OUTCOME_BATCH) throw ApiException.invalid("hosts", "Expected at most " + OUTCOME_BATCH + " host names.");
+                final java.util.List<String> names = new java.util.ArrayList<>();
+                for (final Object value : hosts) {
+                    if (!(value instanceof String) || !((String) value).matches("[a-z0-9.-]{1,253}")) throw ApiException.invalid("hosts", "Expected lower-case host names.");
+                    names.add((String) value);
+                }
+                try {
+                    return new JsonObject().put("outcomes", this.observer.outcomes(run.getString("collection"), names));
+                } catch (final Exception e) {
+                    ConcurrentLog.warn("ScoutroDiscovery", "crawl report outcomes unavailable: " + e.getClass().getSimpleName());
+                    return new JsonObject().put("outcomes", new JsonObject()).put("unavailable", true);
+                }
             case "crawl":
                 JobSchema.keys(params, "domain", "url");
                 final String domain = params.getString("domain"), url = params.getString("url");

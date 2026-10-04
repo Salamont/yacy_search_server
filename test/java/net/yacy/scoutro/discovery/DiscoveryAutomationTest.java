@@ -225,6 +225,67 @@ public class DiscoveryAutomationTest {
         assertEquals(0, this.backend.starts);
         assertTrue(this.service.store.read().isNull("active_run"));
     }
+    @Test public void outcomeRetryIsAnOptionalProcessingFlagThatNeedsRetry() throws Exception {
+        open();
+        final JsonObject created = this.service.create(input("Defaults"), null).getJSONArray("jobs").getJSONObject(0).getJSONObject("definition");
+        assertFalse(created.getJSONObject("processing").getBoolean("outcome_retry"));
+        code("invalid_request", () -> this.service.create(input("No retry").put("processing", new JsonObject().put("outcome_retry", true)), null));
+        code("invalid_request", () -> this.service.create(input("Type").put("processing", new JsonObject().put("retry", true).put("outcome_retry", "yes")), null));
+        final JsonObject on = this.service.create(input("On").put("processing", new JsonObject().put("retry", true).put("outcome_retry", true)), null)
+                .getJSONArray("jobs").getJSONObject(0).getJSONObject("definition");
+        assertTrue(on.getJSONObject("processing").getBoolean("outcome_retry"));
+        // A job stored before the option existed has no outcome_retry and stays valid.
+        final JsonObject legacy = JobSchema.defaults(input("Legacy"));
+        legacy.getJSONObject("processing").remove("outcome_retry");
+        JobSchema.validate(legacy, JobSchema.Limits.hard());
+    }
+    @Test public void outcomesRpcIsReadOnlyAndOnlyForOutcomeRetryJobs() throws Exception {
+        final java.util.List<String> codes = new java.util.ArrayList<>(), asked = new java.util.ArrayList<>();
+        final JsonObject[] answers = new JsonObject[2];
+        final boolean[] failing = {false};
+        this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
+            if (!"run".equals(init.getString("operation"))) return new JsonObject();
+            final JsonArray many = new JsonArray();
+            for (int i = 0; i <= DiscoveryService.OUTCOME_BATCH; i++) many.put("h" + i + ".example");
+            for (final JsonObject call : new JsonObject[] {new JsonObject().put("hosts", new JsonArray().put("www.example.com").put("shop.example.com")),
+                    new JsonObject().put("hosts", many), new JsonObject().put("hosts", new JsonArray().put("WWW.Example.com")),
+                    new JsonObject().put("hosts", new JsonArray().put(5)), new JsonObject().put("hosts", new JsonArray()).put("collection", "other")}) {
+                try { answers[0] = handler.request("outcomes", call); codes.add("ok"); } catch (ApiException e) { codes.add(e.code()); }
+            }
+            failing[0] = true;
+            answers[1] = handler.request("outcomes", new JsonObject().put("hosts", new JsonArray().put("www.example.com")));
+            return new JsonObject().put("report", new JsonObject());
+        };
+        open();
+        this.service.create(input("On").put("processing", new JsonObject().put("retry", true).put("outcome_retry", true)), null);
+        enable();
+        this.service.observer(new DiscoveryService.CrawlObserver() {
+            @Override public JsonObject outcomes(String collection, java.util.List<String> hosts) throws Exception {
+                if (failing[0]) throw new IOException("table down");
+                asked.add(collection + "|" + hosts);
+                return new JsonObject().put("www.example.com", new JsonObject().put("crawl_id", "c1").put("outcome", "not_indexed"));
+            }
+        });
+        this.service.advance();
+        assertEquals(java.util.List.of("ok", "invalid_request", "invalid_request", "invalid_request", "invalid_request"), codes);
+        assertEquals(java.util.List.of("custom-index|[www.example.com, shop.example.com]"), asked);
+        assertEquals("not_indexed", answers[0].getJSONObject("outcomes").getJSONObject("www.example.com").getString("outcome"));
+        assertTrue(answers[1].getBoolean("unavailable"));
+        assertEquals(0, answers[1].getJSONObject("outcomes").length());
+        assertEquals(0, this.backend.starts);
+    }
+    @Test public void outcomesRpcIsRefusedWithoutTheOption() throws Exception {
+        final java.util.List<String> codes = new java.util.ArrayList<>();
+        this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
+            if (!"run".equals(init.getString("operation"))) return new JsonObject();
+            try { handler.request("outcomes", new JsonObject().put("hosts", new JsonArray().put("www.example.com"))); codes.add("ok"); }
+            catch (ApiException e) { codes.add(e.code()); }
+            return new JsonObject().put("report", new JsonObject());
+        };
+        open(); create("Off"); enable();
+        this.service.advance();
+        assertEquals(java.util.List.of("invalid_request"), codes);
+    }
     @Test public void threeTerminatedCrawlsConfirmAndCompleteThroughRealPython() throws Exception {
         final int[] acknowledgements = {0};
         this.runner = (script, stateDir, snapshot, init, handler, timeout) -> {
@@ -420,6 +481,47 @@ public class DiscoveryAutomationTest {
         }, 10);
         assertFalse(answer.toString(),answer.has("error")); assertEquals(2,starts[0]);assertEquals(2,acks[0]);
         assertEquals(120,new JsonObject(Files.readString(this.state.resolve("state.json"))).getJSONObject("domains").length());
+    }
+    @Test public void realBridgeTurnsAnUnsuccessfulOutcomeIntoARetry() throws Exception {
+        final JsonObject init = bridgeInit();
+        init.getJSONObject("job").getJSONObject("processing").put("retry", true).put("outcome_retry", true);
+        final java.util.Map<String, String> started = new java.util.LinkedHashMap<>();
+        final java.util.List<JsonObject> asked = new java.util.ArrayList<>();
+        final DiscoveryProcess.Handler handler = (action, params) -> {
+            if ("search".equals(action)) return bridgeSearch();
+            if ("admission".equals(action)) return new JsonObject().put("allowed", true);
+            if ("crawl".equals(action)) {
+                final String id = "crawl-" + (started.size() + 1);
+                started.put(params.getString("domain"), id);
+                return new JsonObject().put("id", id).put("attempt_id", "attempt-" + started.size());
+            }
+            if ("outcomes".equals(action)) {
+                asked.add(params);
+                final String first = started.keySet().iterator().next();
+                return new JsonObject().put("outcomes", new JsonObject()
+                        .put(first, new JsonObject().put("crawl_id", started.get(first)).put("outcome", "not_indexed")));
+            }
+            return new JsonObject();
+        };
+        final Path bridge = bridgeFixture();
+        JsonObject answer = DiscoveryProcess.run(bridge, this.state, this.config, init, handler, 10);
+        assertFalse(answer.toString(), answer.has("error"));
+        assertEquals(2, started.size());
+        assertTrue(asked.isEmpty());                                   // nothing was crawled before this run
+        assertEquals(0, answer.getJSONObject("report").getInt("outcome_retries"));
+        init.remove("replenish_due");
+        init.getJSONObject("job").getJSONObject("batch").put("max_domains", 1);
+        answer = DiscoveryProcess.run(bridge, this.state, this.config, init, handler, 10);
+        assertFalse(answer.toString(), answer.has("error"));
+        assertEquals(1, answer.getJSONObject("report").getInt("outcome_retries"));
+        final String first = started.keySet().iterator().next();
+        final JsonObject hosts = asked.get(asked.size() - 1);
+        assertTrue(hosts.toString(), hosts.getJSONArray("hosts").toString().contains("\"" + first + "\""));
+        final JsonObject entry = new JsonObject(Files.readString(this.state.resolve("state.json"))).getJSONObject("domains")
+                .getJSONObject(first).getJSONObject("profiles").getJSONObject("new_profile");
+        assertEquals("retry", entry.getString("status"));
+        assertEquals("not_indexed", entry.getString("error_class"));
+        assertEquals(1, entry.getInt("attempts"));
     }
     @Test public void realBridgeUncertainReplyPersistsHoldAndStops() throws Exception {
         final int[] starts={0};

@@ -185,7 +185,32 @@ public final class CaptureRuntime {
                 s.precheck(URI.create(url).getHost(), collection,
                         new PrecheckResult(System.currentTimeMillis(), result, PrecheckResult.detail(detail), job, domain));
             }
+
+            @Override public JsonObject outcomes(final String collection, final List<String> hosts) throws IOException {
+                final Switchboard sb = Switchboard.getSwitchboard();
+                if (sb == null || sb.tables == null) throw new IOException("tables unavailable");
+                return CaptureRuntime.outcomes(new DomainTable(sb.tables), collection, hosts);
+            }
         };
+    }
+
+    /** The current crawl of each host that has one: crawl id, outcome label and end time. */
+    static JsonObject outcomes(final DomainTable table, final String collection, final List<String> hosts) throws IOException {
+        final JsonObject out = new JsonObject();
+        for (final String host : hosts) {
+            final DomainTable.Lookup lookup;
+            try {
+                lookup = table.read(host, collection);
+            } catch (final IllegalArgumentException invalid) {
+                continue; // not a valid host name for the table
+            }
+            if (lookup.status != DomainTable.ReadStatus.FOUND || lookup.entry.current == null) continue;
+            final net.yacy.scoutro.report.CrawlSnapshot current = lookup.entry.current;
+            out.put(host, new JsonObject().put("crawl_id", current.crawlId)
+                    .put("outcome", current.labels.getOrDefault(CrawlOutcome.OUTCOME, "unknown"))
+                    .put("ended_at", current.endedAt == null ? JsonObject.NULL : current.endedAt));
+        }
+        return out;
     }
 
     private static ExclusionTracker.Source errors(final Switchboard sb) {

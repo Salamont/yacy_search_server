@@ -19,7 +19,7 @@ public final class JobSchema {
                 .put("candidate_scope", "source_regions")
                 .put("discovery", new JsonObject().put("replenish", true).put("replenish_interval_hours", 24))
                 .put("batch", new JsonObject().put("max_domains", 50).put("max_pages", 15).put("depth", 2).put("seed_delay_seconds", 10))
-                .put("processing", new JsonObject().put("fresh", true).put("retry", false)
+                .put("processing", new JsonObject().put("fresh", true).put("retry", false).put("outcome_retry", false)
                         .put("recrawl", new JsonObject().put("enabled", false).put("days", 30)))
                 .put("schedule", new JsonObject().put("every_minutes", 60));
         return merge(job, input);
@@ -78,8 +78,12 @@ public final class JobSchema {
             final JsonObject batch = job.getJSONObject("batch"); keys(batch, "max_domains", "max_pages", "depth", "seed_delay_seconds");
             number(batch, "max_domains", 1, limits.maxDomains, true); number(batch, "max_pages", 1, limits.maxPages, true);
             number(batch, "depth", 0, limits.maxDepth, true); number(batch, "seed_delay_seconds", 0, 300, false);
-            final JsonObject processing = job.getJSONObject("processing"); keys(processing, "fresh", "retry", "recrawl");
+            final JsonObject processing = job.getJSONObject("processing"); keys(processing, "fresh", "retry", "recrawl", "outcome_retry");
             bool(processing, "fresh"); bool(processing, "retry");
+            // Optional: jobs stored before the option existed have no outcome_retry and keep it off.
+            if (processing.has("outcome_retry")) bool(processing, "outcome_retry");
+            if (processing.optBoolean("outcome_retry", false) && !processing.getBoolean("retry"))
+                throw ApiException.invalid("outcome_retry", "Retry after an unsuccessful crawl needs processing.retry.");
             final JsonObject recrawl = processing.getJSONObject("recrawl"); keys(recrawl, "enabled", "days"); bool(recrawl, "enabled");
             number(recrawl, "days", 1, 3650, true);
             if (!processing.getBoolean("fresh") && !processing.getBoolean("retry") && !recrawl.getBoolean("enabled")) throw ApiException.invalid("processing", "Enable a processing mode.");

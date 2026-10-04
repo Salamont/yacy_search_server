@@ -13540,11 +13540,17 @@
     <trans-unit id="61e66c34" xml:space="preserve" approved="no" translate="yes">
        <source>Retry after backoff or cooldown</source>
     </trans-unit>
+    <trans-unit id="82078565" xml:space="preserve" approved="no" translate="yes">
+       <source>Also retry after an unsuccessful crawl result</source>
+    </trans-unit>
     <trans-unit id="9ba2d273" xml:space="preserve" approved="no" translate="yes">
        <source>Recrawl indexed websites</source>
     </trans-unit>
     <trans-unit id="91b1157e" xml:space="preserve" approved="no" translate="yes">
        <source>Entire profile backlog includes older entries without source provenance. Regional jobs use recorded source regions.</source>
+    </trans-unit>
+    <trans-unit id="bcd2b66c" xml:space="preserve" approved="no" translate="yes">
+       <source>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.</source>
     </trans-unit>
     <trans-unit id="883946ba" xml:space="preserve" approved="no" translate="yes">
        <source>Save job</source>

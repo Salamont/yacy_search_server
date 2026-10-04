@@ -4954,6 +4954,8 @@ Idle==Inaktiv
 >Batch running<==>Batch läuft<
 >Repair heartbeat<==>Taktgeber reparieren<
 >Completed<==>Abgeschlossen<
+> Also retry after an unsuccessful crawl result<==> Auch nach einem erfolglosen Crawl-Ergebnis wiederholen<
+>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>Ein erfolgloses Crawl-Ergebnis bedeutet, dass keine Seite indexiert oder beim Crawl nichts neu geladen wurde. Solche Hosts werden mit dem Backoff anderer Wiederholungen erneut versucht, der sich bis zum Recrawl-Intervall verdoppelt. Setzt Wiederholen voraus.<
 
 #File: ScoutroSEO_p.html
 >Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.<==>Eine Collection vor dem Crawl-Start wählen. Die Indexierung kann nach Ende des Crawl-Profils weiterlaufen.<

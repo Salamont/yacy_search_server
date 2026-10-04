@@ -76,6 +76,74 @@ def precheck_report(preliminary):
     return None
 
 
+# processing.outcome_retry: recorded crawl results that make a crawled host a retry.
+OUTCOME_RETRY = ("not_indexed", "not_reloaded")
+OUTCOME_SUCCESS = ("indexed", "partial")
+OUTCOME_WINDOW = 3 * 86400   # only crawls started in the last three days are looked up
+OUTCOME_BATCH = 200          # hosts per outcomes request, the bridge's limit
+
+
+def outcome_retry(job):
+    processing = job["processing"]
+    return bool(processing.get("outcome_retry")) and bool(processing.get("retry"))
+
+
+def confirm(engine, entry, result, now, recrawl_days):
+    """confirm_start, keeping the attempt count of an outcome retry so that its backoff keeps
+    growing until it reaches the recrawl interval."""
+    retry = entry.get("status") == "retry" and entry.get("error_class") in OUTCOME_RETRY
+    replay = entry.get("status") == "crawled" and entry.get("crawl_id") == result.get("id")  # same confirmation again
+    attempts = entry.get("attempts", 0) if retry or replay else 0
+    engine.confirm_start(entry, result, now, recrawl_days)
+    if attempts:
+        entry["attempts"] = attempts
+
+
+def apply_outcomes(engine, state, rpc, job, now):
+    """processing.outcome_retry: a recorded unsuccessful result (OUTCOME_RETRY) of the crawl this
+    state started makes the host a retry with the existing backoff; a successful one resets the
+    attempt count. Only existing fields of the retry path change; results are never copied.
+    Returns the number of hosts that became a retry."""
+    if not outcome_retry(job):
+        return 0
+    profile, days = job["profile"], job["processing"]["recrawl"]["days"]
+    pending = []
+    for domain, root in state.data["domains"].items():
+        entry = (root.get("profiles") or {}).get(profile)
+        if not entry or entry.get("status") != "crawled" or not entry.get("crawl_id"):
+            continue
+        if now - entry.get("last_crawl", 0) > OUTCOME_WINDOW:
+            continue
+        host = (urllib.parse.urlsplit(entry.get("candidate_url") or "https://" + domain + "/").hostname or "").lower()
+        if host:
+            pending.append((domain, host, entry["crawl_id"]))
+    retries = 0
+    for i in range(0, len(pending), OUTCOME_BATCH):
+        chunk = pending[i:i + OUTCOME_BATCH]
+        try:
+            outcomes = rpc.call("outcomes", {"hosts": sorted({host for _, host, _ in chunk})}).get("outcomes") or {}
+        except engine.ApiError:
+            break  # best effort, like the precheck report: the selection runs without results
+        updated = 0
+        for domain, host, crawl_id in chunk:
+            found = outcomes.get(host) or {}
+            if found.get("crawl_id") != crawl_id:
+                continue  # not recorded yet, or the table holds another crawl of this host
+            entry = copy.deepcopy(state.profile_entry(domain, profile))
+            if found.get("outcome") in OUTCOME_RETRY:
+                engine.mark_retry(entry, found["outcome"], "crawl:" + found["outcome"], now, days)
+                retries += 1
+            elif found.get("outcome") in OUTCOME_SUCCESS and entry.get("attempts"):
+                entry["attempts"] = 0
+            else:
+                continue
+            state.put_profile_entry(domain, profile, entry, now)
+            updated += 1
+        if updated:
+            state.save()
+    return retries
+
+
 def origins(entry):
     result = list(entry.get("origins") or [])
     if entry.get("source") and entry.get("source_region"):
@@ -214,7 +282,7 @@ def apply_confirmations(engine, state, confirmations):
         submitted = attempt["submitted_at"] / 1000
         if entry.get("last_crawl", 0) > submitted and entry.get("crawl_id") != attempt["crawl_id"]:
             raise ValueError("state_confirmation_conflict")
-        engine.confirm_start(entry, {"id": attempt["crawl_id"]}, submitted, attempt["recrawl_days"])
+        confirm(engine, entry, {"id": attempt["crawl_id"]}, submitted, attempt["recrawl_days"])
         entry["automation_attempt"] = {"id": attempt["id"], "state": "accepted"}
         state.put_profile_entry(attempt["domain"], attempt["profile"], entry, submitted)
         state.save()
@@ -236,6 +304,8 @@ def execute(engine, state, init, rpc, config, workdir):
         for attempt in init.get("confirmations", []):
             rpc.call("ack", {"attempt_id": attempt["id"]})
         return report
+    if outcome_retry(job):
+        report["outcome_retries"] = apply_outcomes(engine, state, rpc, job, int(time.time()))
     if init.get("replenish_due") and job["discovery"]["replenish"]:
         for source, spec in job["sources"].items():
             if source not in init.get("replenish_sources", list(job["sources"])):
@@ -261,7 +331,7 @@ def execute(engine, state, init, rpc, config, workdir):
         if preliminary is None:
             try:
                 result = rpc.call("crawl", {"domain": domain, "url": candidate["url"]})
-                engine.confirm_start(entry, result, now, job["processing"]["recrawl"]["days"])
+                confirm(engine, entry, result, now, job["processing"]["recrawl"]["days"])
                 entry["automation_attempt"] = {"id": result["attempt_id"], "state": "accepted"}
             except UnknownStart as exc:
                 entry["automation_attempt"] = {"id": str(exc), "state": "submitted_unknown"}

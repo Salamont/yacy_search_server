@@ -1,8 +1,9 @@
 # Scoutro Crawl Report (plan)
 
 Status: confirmed plan. Phases 1 (storage), 2 (capture), 3 (reports and
-rollups), 4 (API and UI) and 5 (data quality) are implemented on branch
-`ccr-e3e5f88b-1fqp77`; later phases are not started.
+rollups), 4 (API and UI) and 5 (data quality) and the Discovery option
+`processing.outcome_retry` are implemented on branch `ccr-e3e5f88b-1fqp77`;
+the optional phase 6 is not started.
 
 Goal: crawl-report views comparable to a classic crawl audit (crawl details,
 status, HTTP codes, content types, depth, duplicates, indexability, data age)
@@ -417,10 +418,34 @@ recrawls. Page data lives only in the YaCy index.
 6. **Optional:** measure the storage cost of YaCy's Webgraph core before any
    isolation-level analysis.
 
-`processing.outcome_retry` (outcome-driven Discovery selection, default off)
-is added in a later phase, after capture works. With the option off, crawl
-results never write to `state.json`; with it on, only existing selection fields
-(`status`, `error_class`, `next_attempt`) are updated.
+`processing.outcome_retry` (outcome-driven Discovery selection, default off) is
+implemented, see [Outcome retry](#outcome-retry). With the option off, crawl
+results never write to `state.json`; with it on, only the existing fields of the
+retry path are updated.
+
+## Outcome retry
+
+`processing.outcome_retry` is an optional Discovery job flag (default off). It
+requires `processing.retry`; jobs stored before it existed have no flag and
+keep it off.
+
+- Before its selection, the Python runner collects the job's `crawled` entries
+  whose crawl started in the last three days and asks the bridge for their
+  recorded results: RPC action `outcomes` with at most 200 host names, answered
+  from `scoutro_domains` (current crawl of the host in the run's collection:
+  `crawl_id`, `outcome`, `ended_at`). The action is refused for jobs without
+  the flag and writes nothing.
+- Only a result of the crawl this entry started counts (same `crawl_id`).
+  `not_indexed` and `not_reloaded` call the existing `mark_retry`: `status:
+  retry`, `error_class` = the outcome, `attempts` + 1, `last_error`,
+  `next_attempt` = now + min(2^attempts hours, recrawl interval).
+- Starting such a retry keeps the attempt count (`confirm_start` would reset
+  it), so a host that keeps failing is retried after 2, 4, 8 … hours up to the
+  recrawl interval, and never more often than a normal recrawl after that. A
+  successful result (`indexed`, `partial`) resets the attempt count.
+- A failed lookup (no table, refused action) is skipped and the selection runs
+  as without the flag. The run report counts `outcome_retries`.
+- Nothing else is copied into `state.json`; results stay in the crawl report.
 
 ## Not changed
 
@@ -461,6 +486,13 @@ disabled fields and the directory scan against an embedded Solr core
 unavailable graph) and the scheme in the host list (`ReportServiceTest`), the
 scheme label (`CrawlOutcomeTest`, `CaptureServiceTest`), and referring hosts
 only for the complete index (`ReportApiTest`).
+
+Outcome retry: the optional flag and its dependency on retry, the `outcomes`
+action (validation, refusal without the flag, unavailable table) and a real
+Python run that turns `not_indexed` into a retry (`DiscoveryAutomationTest`),
+reading the current crawl per host (`ReportApiTest`), and the runner's rules:
+own crawl id only, three-day window, growing and bounded backoff, reset on
+success, batching and best effort (`test/scoutro-discovery/test_automation.py`).
 
 `test/scoutro-api/report-capture-live-smoke.py` runs one real crawl of a local
 fixture site on a new disposable peer and checks the captured row (pages,

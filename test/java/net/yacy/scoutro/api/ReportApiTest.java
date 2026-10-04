@@ -208,6 +208,16 @@ public class ReportApiTest {
         assertFalse(admin.has("referring_hosts_scope"));
     }
 
+    @Test public void discoveryReadsTheCurrentCrawlOfEachHost() throws Exception {
+        final net.yacy.scoutro.discovery.JsonObject out = CaptureRuntime.outcomes(this.table, "visible",
+                List.of("a.example", "b.example", "c.example", "unknown.example", "bad host", "e.example"));
+        assertEquals(Set.of("a.example", "b.example"), out.keySet());               // c: precheck only, e: other collection
+        assertEquals("ca", out.getJSONObject("a.example").getString("crawl_id"));
+        assertEquals("indexed", out.getJSONObject("a.example").getString("outcome"));
+        assertEquals("partial", out.getJSONObject("b.example").getString("outcome"));
+        assertEquals(NOON - 40 * DAY, out.getJSONObject("b.example").getLong("ended_at"));
+    }
+
     @Test public void jobsWithoutRecordedCollectionsAreOnlyVisibleWithTheCompleteIndex() throws Exception {
         final String empty = "0b9b2f5e-4b51-4d0c-9e84-0c3a1c7a8a01";
         final ReportService reports = new ReportService(this.table, new IndexFacets(p -> answer(), f -> true),

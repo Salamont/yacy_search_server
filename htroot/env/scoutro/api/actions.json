@@ -2056,6 +2056,11 @@
                   "type": "boolean",
                   "default": false
                 },
+                "outcome_retry": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Also retry hosts whose recorded crawl result is not_indexed or not_reloaded (crawl report), with the existing retry backoff. Requires retry; jobs stored without it keep it off."
+                },
                 "recrawl": {
                   "type": "object",
                   "additionalProperties": false,
@@ -4904,6 +4909,11 @@
             "retry": {
               "type": "boolean",
               "default": false
+            },
+            "outcome_retry": {
+              "type": "boolean",
+              "default": false,
+              "description": "Also retry hosts whose recorded crawl result is not_indexed or not_reloaded (crawl report), with the existing retry backoff. Requires retry; jobs stored without it keep it off."
             },
             "recrawl": {
               "type": "object",

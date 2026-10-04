@@ -66,9 +66,11 @@
             <label><input id="scd-replenish" type="checkbox" /> Discover new candidates</label>
             <label><input id="scd-process-fresh" type="checkbox" /> Process fresh candidates</label>
             <label><input id="scd-process-retry" type="checkbox" /> Retry after backoff or cooldown</label>
+            <label><input id="scd-process-outcome-retry" type="checkbox" /> Also retry after an unsuccessful crawl result</label>
             <label><input id="scd-process-recrawl" type="checkbox" /> Recrawl indexed websites</label>
           </div>
           <p class="scd-note">Entire profile backlog includes older entries without source provenance. Regional jobs use recorded source regions.</p>
+          <p class="scd-note">An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.</p>
           <div id="scd-sources"></div>
           <div class="scd-actions"><button class="btn btn-primary" type="submit">Save job</button>
             <button class="btn btn-default" type="button" id="scd-cancel">Cancel</button></div>
