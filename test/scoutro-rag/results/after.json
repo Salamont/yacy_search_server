@@ -1,0 +1,865 @@
+{
+ "label": "after",
+ "num_ctx": 4096,
+ "max_tokens": 512,
+ "real_llm": false,
+ "questions": [
+  {
+   "id": "Q01-kurz",
+   "kind": "short natural question",
+   "collection": "edelsenior-web",
+   "hits": 4,
+   "relevant": 2,
+   "gold": 2,
+   "precision": 0.5,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 2458,
+   "prompt_chars": 4443,
+   "prompt_tokens_est": 1481,
+   "fits_num_ctx": true,
+   "ui_sources": 4,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "pflegeheime köln",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 4
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "sonnenschein",
+    "rhein",
+    "demenz-wg",
+    "ehrenfeld"
+   ]
+  },
+  {
+   "id": "Q02-stoppwoerter",
+   "kind": "many stopwords",
+   "collection": "edelsenior-web",
+   "hits": 4,
+   "relevant": 2,
+   "gold": 2,
+   "precision": 0.5,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 2393,
+   "prompt_chars": 4434,
+   "prompt_tokens_est": 1478,
+   "fits_num_ctx": true,
+   "ui_sources": 4,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "köln pflegeheim menschen demenz geeignet",
+   "stage": "majority",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 4
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "demenz-wg",
+    "sonnenschein",
+    "rhein",
+    "st-anna"
+   ]
+  },
+  {
+   "id": "Q03-lang",
+   "kind": "long natural question (>40 words)",
+   "collection": "edelsenior-web",
+   "hits": 4,
+   "relevant": 2,
+   "gold": 2,
+   "precision": 0.5,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 2393,
+   "prompt_chars": 4688,
+   "prompt_tokens_est": 1562,
+   "fits_num_ctx": true,
+   "ui_sources": 4,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "mutter köln demenz pflegeheim bereich menschen angehörige besuch",
+   "stage": "majority",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 4
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "sonnenschein",
+    "rhein",
+    "demenz-wg",
+    "st-anna"
+   ]
+  },
+  {
+   "id": "Q04-zu-streng",
+   "kind": "too strict query (fallback)",
+   "collection": "edelsenior-web",
+   "hits": 4,
+   "relevant": 2,
+   "gold": 2,
+   "precision": 0.5,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 2315,
+   "prompt_chars": 4308,
+   "prompt_tokens_est": 1436,
+   "fits_num_ctx": true,
+   "ui_sources": 4,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "pflegeheim köln demenz schwimmbad haustiere",
+   "stage": "majority",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 4
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "sonnenschein",
+    "rhein",
+    "demenz-wg",
+    "waldblick"
+   ]
+  },
+  {
+   "id": "Q05-stackfinder",
+   "kind": "collection stackfinder-web",
+   "collection": "stackfinder-web",
+   "hits": 1,
+   "relevant": 1,
+   "gold": 1,
+   "precision": 1.0,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 404,
+   "prompt_chars": 2402,
+   "prompt_tokens_est": 800,
+   "fits_num_ctx": true,
+   "ui_sources": 1,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "agentur hamburg shopware",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1
+    ],
+    "invalid": [
+     2,
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 1
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "shopware-hamburg"
+   ]
+  },
+  {
+   "id": "Q06-coach",
+   "kind": "collection checkthecoach-web",
+   "collection": "checkthecoach-web",
+   "hits": 1,
+   "relevant": 1,
+   "gold": 1,
+   "precision": 1.0,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 530,
+   "prompt_chars": 2541,
+   "prompt_tokens_est": 847,
+   "fits_num_ctx": true,
+   "ui_sources": 1,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "business coach führungskräfte hamburg",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1
+    ],
+    "invalid": [
+     2,
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 1
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "business-coach-hamburg"
+   ]
+  },
+  {
+   "id": "Q07-bau",
+   "kind": "collection bauteamcheck-web",
+   "collection": "bauteamcheck-web",
+   "hits": 2,
+   "relevant": 1,
+   "gold": 1,
+   "precision": 0.5,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 823,
+   "prompt_chars": 2808,
+   "prompt_tokens_est": 936,
+   "fits_num_ctx": true,
+   "ui_sources": 2,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "baut einfamilienhäuser köln",
+   "stage": "majority",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 2
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "bau-koeln",
+    "architektur-koeln"
+   ]
+  },
+  {
+   "id": "Q08-null",
+   "kind": "0 hits",
+   "collection": "edelsenior-web",
+   "hits": 0,
+   "relevant": 0,
+   "gold": 0,
+   "precision": null,
+   "recall": null,
+   "foreign": [],
+   "context_chars": 19,
+   "prompt_chars": 2015,
+   "prompt_tokens_est": 671,
+   "fits_num_ctx": true,
+   "ui_sources": 0,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "anbieter weltraumtourismus",
+   "stage": "none",
+   "citations": {
+    "valid": [],
+    "invalid": [
+     1,
+     2,
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 0
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": []
+  },
+  {
+   "id": "Q09-eins",
+   "kind": "1 hit",
+   "collection": "edelsenior-web",
+   "hits": 1,
+   "relevant": 1,
+   "gold": 1,
+   "precision": 1.0,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 462,
+   "prompt_chars": 2445,
+   "prompt_tokens_est": 815,
+   "fits_num_ctx": true,
+   "ui_sources": 1,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "hospiz düsseldorf",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1
+    ],
+    "invalid": [
+     2,
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 1
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "hospiz"
+   ]
+  },
+  {
+   "id": "Q10-viele",
+   "kind": "10+ hits",
+   "collection": "edelsenior-web",
+   "hits": 7,
+   "relevant": 7,
+   "gold": 13,
+   "precision": 1.0,
+   "recall": 0.54,
+   "foreign": [],
+   "context_chars": 3949,
+   "prompt_chars": 5934,
+   "prompt_tokens_est": 1978,
+   "fits_num_ctx": true,
+   "ui_sources": 7,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "angebote pflege",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 7
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "tagespflege-bonn",
+    "st-anna",
+    "ehrenfeld",
+    "pflegegrad",
+    "kosten",
+    "sonnenschein",
+    "residenz-park"
+   ]
+  },
+  {
+   "id": "Q11-mischung",
+   "kind": "no mixing (edelsenior-web)",
+   "collection": "edelsenior-web",
+   "hits": 4,
+   "relevant": 2,
+   "gold": 2,
+   "precision": 0.5,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 2458,
+   "prompt_chars": 4426,
+   "prompt_tokens_est": 1475,
+   "fits_num_ctx": true,
+   "ui_sources": 4,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "pflegeheim köln",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 4
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "sonnenschein",
+    "rhein",
+    "demenz-wg",
+    "ehrenfeld"
+   ]
+  },
+  {
+   "id": "Q11-mischung-ohne-collection",
+   "kind": "no mixing (edelsenior-web)",
+   "collection": "edelsenior-web",
+   "hits": 7,
+   "relevant": 2,
+   "gold": 2,
+   "precision": 0.29,
+   "recall": 1.0,
+   "foreign": [
+    "architektur-koeln",
+    "bau-koeln",
+    "react-native-koeln"
+   ],
+   "context_chars": 3617,
+   "prompt_chars": 5585,
+   "prompt_tokens_est": 1861,
+   "fits_num_ctx": true,
+   "ui_sources": 7,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "pflegeheim köln",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 7
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "sonnenschein",
+    "rhein",
+    "demenz-wg",
+    "ehrenfeld",
+    "architektur-koeln",
+    "bau-koeln",
+    "react-native-koeln"
+   ],
+   "request_collection": null
+  },
+  {
+   "id": "Q12-langes-dokument",
+   "kind": "very long document",
+   "collection": "edelsenior-web",
+   "hits": 1,
+   "relevant": 1,
+   "gold": 2,
+   "precision": 1.0,
+   "recall": 0.5,
+   "foreign": [],
+   "context_chars": 1455,
+   "prompt_chars": 3460,
+   "prompt_tokens_est": 1153,
+   "fits_num_ctx": true,
+   "ui_sources": 1,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "pflegeheime aachen heimverzeichnis",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1
+    ],
+    "invalid": [
+     2,
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 1
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "heimverzeichnis"
+   ]
+  },
+  {
+   "id": "Q13-mischung-coach",
+   "kind": "no mixing (checkthecoach-web)",
+   "collection": "checkthecoach-web",
+   "hits": 1,
+   "relevant": 1,
+   "gold": 1,
+   "precision": 1.0,
+   "recall": 1.0,
+   "foreign": [],
+   "context_chars": 387,
+   "prompt_chars": 2353,
+   "prompt_tokens_est": 784,
+   "fits_num_ctx": true,
+   "ui_sources": 1,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "coaching köln",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1
+    ],
+    "invalid": [
+     2,
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 1
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "coaching-koeln"
+   ]
+  },
+  {
+   "id": "Q13-mischung-coach-ohne-collection",
+   "kind": "no mixing (checkthecoach-web)",
+   "collection": "checkthecoach-web",
+   "hits": 2,
+   "relevant": 1,
+   "gold": 1,
+   "precision": 0.5,
+   "recall": 1.0,
+   "foreign": [
+    "react-native-koeln"
+   ],
+   "context_chars": 721,
+   "prompt_chars": 2687,
+   "prompt_tokens_est": 895,
+   "fits_num_ctx": true,
+   "ui_sources": 2,
+   "ui_equals_context": true,
+   "params": {
+    "temperature": 0.2,
+    "max_tokens": 512,
+    "num_ctx": 4096
+   },
+   "query": "coaching köln",
+   "stage": "all",
+   "citations": {
+    "valid": [
+     1,
+     2
+    ],
+    "invalid": [
+     9
+    ],
+    "unknownUrls": [
+     "https://erfunden.example/quelle"
+    ],
+    "sources": 2
+   },
+   "answer": "Laut den Quellen gibt es passende Angebote [1][2]. Weitere Details nennt [9], siehe https://erfunden.example/quelle.",
+   "sources": [
+    "coaching-koeln",
+    "react-native-koeln"
+   ],
+   "request_collection": null
+  }
+ ],
+ "conversation": {
+  "id": "C01-mehrstufig",
+  "kind": "multi-turn chat",
+  "turns": [
+   {
+    "turn": 1,
+    "prompt_chars": 4443,
+    "prompt_tokens_est": 1481,
+    "data_blocks": 1,
+    "fits_num_ctx": true
+   },
+   {
+    "turn": 2,
+    "prompt_chars": 4122,
+    "prompt_tokens_est": 1374,
+    "data_blocks": 1,
+    "fits_num_ctx": true
+   },
+   {
+    "turn": 3,
+    "prompt_chars": 2706,
+    "prompt_tokens_est": 902,
+    "data_blocks": 1,
+    "fits_num_ctx": true
+   },
+   {
+    "turn": 4,
+    "prompt_chars": 3002,
+    "prompt_tokens_est": 1000,
+    "data_blocks": 1,
+    "fits_num_ctx": true
+   }
+  ]
+ },
+ "rag_log": [
+  "I 2026/10/04 16:24:25 RAGProxy * runId=88dab1e9-68c4-40a2-af01-16490efc5a42 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=88dab1e9-68c4-40a2-af01-16490efc5a42 event=rag-request phase=body-read bodyChars=109",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=88dab1e9-68c4-40a2-af01-16490efc5a42 event=rag-request phase=messages messages=2 ragMode=local userChars=10 collection=false numCtx=4096 maxTokens=512 freeChars=8143 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=88dab1e9-68c4-40a2-af01-16490efc5a42 event=rag-search phase=candidates global=false collection=false requested=30 returned=9 durationMs=221",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=88dab1e9-68c4-40a2-af01-16490efc5a42 event=rag-retrieval phase=end ragMode=local terms=1 stage=all candidates=9 foreignDropped=0 sources=8 contextChars=4904 searchMs=260",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=88dab1e9-68c4-40a2-af01-16490efc5a42 event=rag-request phase=end result=success status=200 durationMs=345",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=47498cae-2ed6-4fd3-9272-1d2aeb6bcd9a event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=47498cae-2ed6-4fd3-9272-1d2aeb6bcd9a event=rag-request phase=body-read bodyChars=277",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=47498cae-2ed6-4fd3-9272-1d2aeb6bcd9a event=rag-request phase=messages messages=2 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=47498cae-2ed6-4fd3-9272-1d2aeb6bcd9a event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=202",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=47498cae-2ed6-4fd3-9272-1d2aeb6bcd9a event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=9 foreignDropped=0 sources=4 contextChars=2458 searchMs=210",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=47498cae-2ed6-4fd3-9272-1d2aeb6bcd9a event=rag-request phase=end result=success status=200 durationMs=220",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=a0c77e96-022e-4740-9052-800015e1eca4 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=a0c77e96-022e-4740-9052-800015e1eca4 event=rag-request phase=body-read bodyChars=343",
+  "I 2026/10/04 16:24:25 RAGProxy * runId=a0c77e96-022e-4740-9052-800015e1eca4 event=rag-request phase=messages messages=2 ragMode=local userChars=91 collection=true numCtx=4096 maxTokens=512 freeChars=8062 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a0c77e96-022e-4740-9052-800015e1eca4 event=rag-search phase=candidates global=false collection=true requested=30 returned=11 durationMs=216",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a0c77e96-022e-4740-9052-800015e1eca4 event=rag-retrieval phase=end ragMode=local terms=5 stage=majority candidates=11 foreignDropped=0 sources=4 contextChars=2393 searchMs=222",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a0c77e96-022e-4740-9052-800015e1eca4 event=rag-request phase=end result=success status=200 durationMs=230",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a1948d68-1bd8-468e-8b09-14e16aecab87 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a1948d68-1bd8-468e-8b09-14e16aecab87 event=rag-request phase=body-read bodyChars=617",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a1948d68-1bd8-468e-8b09-14e16aecab87 event=rag-request phase=messages messages=2 ragMode=local userChars=345 collection=true numCtx=4096 maxTokens=512 freeChars=7808 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a1948d68-1bd8-468e-8b09-14e16aecab87 event=rag-search phase=candidates global=false collection=true requested=30 returned=11 durationMs=216",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a1948d68-1bd8-468e-8b09-14e16aecab87 event=rag-retrieval phase=end ragMode=local terms=8 stage=majority candidates=11 foreignDropped=0 sources=4 contextChars=2393 searchMs=224",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a1948d68-1bd8-468e-8b09-14e16aecab87 event=rag-request phase=end result=success status=200 durationMs=232",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=37ae72f6-a7e9-4417-a2a2-13ee502b2093 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=37ae72f6-a7e9-4417-a2a2-13ee502b2093 event=rag-request phase=body-read bodyChars=285",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=37ae72f6-a7e9-4417-a2a2-13ee502b2093 event=rag-request phase=messages messages=2 ragMode=local userChars=43 collection=true numCtx=4096 maxTokens=512 freeChars=8110 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=37ae72f6-a7e9-4417-a2a2-13ee502b2093 event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=193",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=37ae72f6-a7e9-4417-a2a2-13ee502b2093 event=rag-retrieval phase=end ragMode=local terms=5 stage=majority candidates=9 foreignDropped=0 sources=4 contextChars=2315 searchMs=196",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=37ae72f6-a7e9-4417-a2a2-13ee502b2093 event=rag-request phase=end result=success status=200 durationMs=201",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=39ec4247-4de3-4755-a6a7-ad7461195c2d event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=39ec4247-4de3-4755-a6a7-ad7461195c2d event=rag-request phase=body-read bodyChars=286",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=39ec4247-4de3-4755-a6a7-ad7461195c2d event=rag-request phase=messages messages=2 ragMode=local userChars=48 collection=true numCtx=4096 maxTokens=512 freeChars=8105 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=39ec4247-4de3-4755-a6a7-ad7461195c2d event=rag-search phase=candidates global=false collection=true requested=30 returned=5 durationMs=149",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=39ec4247-4de3-4755-a6a7-ad7461195c2d event=rag-retrieval phase=end ragMode=local terms=3 stage=all candidates=5 foreignDropped=0 sources=1 contextChars=404 searchMs=151",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=39ec4247-4de3-4755-a6a7-ad7461195c2d event=rag-request phase=end result=success status=200 durationMs=159",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=24d70846-ea0c-405a-8737-b845274ea5f0 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=24d70846-ea0c-405a-8737-b845274ea5f0 event=rag-request phase=body-read bodyChars=316",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=24d70846-ea0c-405a-8737-b845274ea5f0 event=rag-request phase=messages messages=2 ragMode=local userChars=61 collection=true numCtx=4096 maxTokens=512 freeChars=8092 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=24d70846-ea0c-405a-8737-b845274ea5f0 event=rag-search phase=candidates global=false collection=true requested=30 returned=4 durationMs=137",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=24d70846-ea0c-405a-8737-b845274ea5f0 event=rag-retrieval phase=end ragMode=local terms=4 stage=all candidates=4 foreignDropped=0 sources=1 contextChars=530 searchMs=137",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=24d70846-ea0c-405a-8737-b845274ea5f0 event=rag-request phase=end result=success status=200 durationMs=142",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a4379850-c7ae-45a7-ad1d-ffab43f63963 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a4379850-c7ae-45a7-ad1d-ffab43f63963 event=rag-request phase=body-read bodyChars=284",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a4379850-c7ae-45a7-ad1d-ffab43f63963 event=rag-request phase=messages messages=2 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a4379850-c7ae-45a7-ad1d-ffab43f63963 event=rag-search phase=candidates global=false collection=true requested=30 returned=2 durationMs=116",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a4379850-c7ae-45a7-ad1d-ffab43f63963 event=rag-retrieval phase=end ragMode=local terms=3 stage=majority candidates=2 foreignDropped=0 sources=2 contextChars=823 searchMs=117",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=a4379850-c7ae-45a7-ad1d-ffab43f63963 event=rag-request phase=end result=success status=200 durationMs=123",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=87e50e8d-698a-4de5-b0a1-091f835655b9 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=87e50e8d-698a-4de5-b0a1-091f835655b9 event=rag-request phase=body-read bodyChars=288",
+  "I 2026/10/04 16:24:26 RAGProxy * runId=87e50e8d-698a-4de5-b0a1-091f835655b9 event=rag-request phase=messages messages=2 ragMode=local userChars=46 collection=true numCtx=4096 maxTokens=512 freeChars=8107 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=87e50e8d-698a-4de5-b0a1-091f835655b9 event=rag-search phase=candidates global=false collection=true requested=30 returned=0 durationMs=108",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=87e50e8d-698a-4de5-b0a1-091f835655b9 event=rag-retrieval phase=end ragMode=local terms=2 stage=none candidates=0 foreignDropped=0 sources=0 contextChars=0 searchMs=108",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=87e50e8d-698a-4de5-b0a1-091f835655b9 event=rag-request phase=end result=success status=200 durationMs=116",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=34a800be-f6cd-4b5a-90cc-58f365dbe6a1 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=34a800be-f6cd-4b5a-90cc-58f365dbe6a1 event=rag-request phase=body-read bodyChars=275",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=34a800be-f6cd-4b5a-90cc-58f365dbe6a1 event=rag-request phase=messages messages=2 ragMode=local userChars=33 collection=true numCtx=4096 maxTokens=512 freeChars=8120 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=34a800be-f6cd-4b5a-90cc-58f365dbe6a1 event=rag-search phase=candidates global=false collection=true requested=30 returned=3 durationMs=125",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=34a800be-f6cd-4b5a-90cc-58f365dbe6a1 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=3 foreignDropped=0 sources=1 contextChars=462 searchMs=126",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=34a800be-f6cd-4b5a-90cc-58f365dbe6a1 event=rag-request phase=end result=success status=200 durationMs=131",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=58860b9a-62f2-4c3d-8add-554d061bb649 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=58860b9a-62f2-4c3d-8add-554d061bb649 event=rag-request phase=body-read bodyChars=272",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=58860b9a-62f2-4c3d-8add-554d061bb649 event=rag-request phase=messages messages=2 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=58860b9a-62f2-4c3d-8add-554d061bb649 event=rag-search phase=candidates global=false collection=true requested=30 returned=7 durationMs=169",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=58860b9a-62f2-4c3d-8add-554d061bb649 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=7 foreignDropped=0 sources=7 contextChars=3949 searchMs=170",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=58860b9a-62f2-4c3d-8add-554d061bb649 event=rag-request phase=end result=success status=200 durationMs=176",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=27f9b8dd-d41d-4a80-87e2-06da9987c1b1 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=27f9b8dd-d41d-4a80-87e2-06da9987c1b1 event=rag-request phase=body-read bodyChars=260",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=27f9b8dd-d41d-4a80-87e2-06da9987c1b1 event=rag-request phase=messages messages=2 ragMode=local userChars=18 collection=true numCtx=4096 maxTokens=512 freeChars=8135 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=27f9b8dd-d41d-4a80-87e2-06da9987c1b1 event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=191",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=27f9b8dd-d41d-4a80-87e2-06da9987c1b1 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=9 foreignDropped=0 sources=4 contextChars=2458 searchMs=193",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=27f9b8dd-d41d-4a80-87e2-06da9987c1b1 event=rag-request phase=end result=success status=200 durationMs=199",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=f5d8ba4f-0270-4ee0-a7cf-63c2b8dcd4a1 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=f5d8ba4f-0270-4ee0-a7cf-63c2b8dcd4a1 event=rag-request phase=body-read bodyChars=228",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=f5d8ba4f-0270-4ee0-a7cf-63c2b8dcd4a1 event=rag-request phase=messages messages=2 ragMode=local userChars=18 collection=false numCtx=4096 maxTokens=512 freeChars=8135 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=f5d8ba4f-0270-4ee0-a7cf-63c2b8dcd4a1 event=rag-search phase=candidates global=false collection=false requested=30 returned=13 durationMs=238",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=f5d8ba4f-0270-4ee0-a7cf-63c2b8dcd4a1 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=13 foreignDropped=0 sources=7 contextChars=3617 searchMs=241",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=f5d8ba4f-0270-4ee0-a7cf-63c2b8dcd4a1 event=rag-request phase=end result=success status=200 durationMs=248",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=aaf3f977-c200-4367-80e4-fbd872cd8835 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=aaf3f977-c200-4367-80e4-fbd872cd8835 event=rag-request phase=body-read bodyChars=292",
+  "I 2026/10/04 16:24:27 RAGProxy * runId=aaf3f977-c200-4367-80e4-fbd872cd8835 event=rag-request phase=messages messages=2 ragMode=local userChars=55 collection=true numCtx=4096 maxTokens=512 freeChars=8098 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=aaf3f977-c200-4367-80e4-fbd872cd8835 event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=197",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=aaf3f977-c200-4367-80e4-fbd872cd8835 event=rag-retrieval phase=end ragMode=local terms=3 stage=all candidates=9 foreignDropped=0 sources=1 contextChars=1455 searchMs=201",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=aaf3f977-c200-4367-80e4-fbd872cd8835 event=rag-request phase=end result=success status=200 durationMs=207",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=41d09d1a-a98a-40ab-9f79-3424c85de928 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=41d09d1a-a98a-40ab-9f79-3424c85de928 event=rag-request phase=body-read bodyChars=261",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=41d09d1a-a98a-40ab-9f79-3424c85de928 event=rag-request phase=messages messages=2 ragMode=local userChars=16 collection=true numCtx=4096 maxTokens=512 freeChars=8137 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=41d09d1a-a98a-40ab-9f79-3424c85de928 event=rag-search phase=candidates global=false collection=true requested=30 returned=5 durationMs=148",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=41d09d1a-a98a-40ab-9f79-3424c85de928 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=5 foreignDropped=0 sources=1 contextChars=387 searchMs=148",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=41d09d1a-a98a-40ab-9f79-3424c85de928 event=rag-request phase=end result=success status=200 durationMs=159",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=3ec48bce-6515-43c5-8fe0-8a927518093a event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=3ec48bce-6515-43c5-8fe0-8a927518093a event=rag-request phase=body-read bodyChars=226",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=3ec48bce-6515-43c5-8fe0-8a927518093a event=rag-request phase=messages messages=2 ragMode=local userChars=16 collection=false numCtx=4096 maxTokens=512 freeChars=8137 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=3ec48bce-6515-43c5-8fe0-8a927518093a event=rag-search phase=candidates global=false collection=false requested=30 returned=12 durationMs=224",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=3ec48bce-6515-43c5-8fe0-8a927518093a event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=12 foreignDropped=0 sources=2 contextChars=721 searchMs=226",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=3ec48bce-6515-43c5-8fe0-8a927518093a event=rag-request phase=end result=success status=200 durationMs=233",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=ec8a2cc7-a9e3-4fdd-81d8-9fa49ec8ca83 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=ec8a2cc7-a9e3-4fdd-81d8-9fa49ec8ca83 event=rag-request phase=body-read bodyChars=277",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=ec8a2cc7-a9e3-4fdd-81d8-9fa49ec8ca83 event=rag-request phase=messages messages=2 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=ec8a2cc7-a9e3-4fdd-81d8-9fa49ec8ca83 event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=194",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=ec8a2cc7-a9e3-4fdd-81d8-9fa49ec8ca83 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=9 foreignDropped=0 sources=4 contextChars=2458 searchMs=196",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=ec8a2cc7-a9e3-4fdd-81d8-9fa49ec8ca83 event=rag-request phase=end result=success status=200 durationMs=202",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=b3df7ae0-44b1-4662-9ec1-9ac6e2fa2656 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=b3df7ae0-44b1-4662-9ec1-9ac6e2fa2656 event=rag-request phase=body-read bodyChars=4025",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=b3df7ae0-44b1-4662-9ec1-9ac6e2fa2656 event=rag-request phase=messages messages=4 ragMode=local userChars=56 collection=true numCtx=4096 maxTokens=512 freeChars=8097 prunedSearchDocs=1 staleAnswers=1 trimmedMessages=0",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=b3df7ae0-44b1-4662-9ec1-9ac6e2fa2656 event=rag-search phase=candidates global=false collection=true requested=30 returned=6 durationMs=158",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=b3df7ae0-44b1-4662-9ec1-9ac6e2fa2656 event=rag-retrieval phase=end ragMode=local terms=3 stage=all candidates=6 foreignDropped=0 sources=3 contextChars=1976 searchMs=159",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=b3df7ae0-44b1-4662-9ec1-9ac6e2fa2656 event=rag-request phase=end result=success status=200 durationMs=166",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=9358980b-673f-441d-b823-130a799cd7ae event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=9358980b-673f-441d-b823-130a799cd7ae event=rag-request phase=body-read bodyChars=7087",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=9358980b-673f-441d-b823-130a799cd7ae event=rag-request phase=messages messages=6 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=2 staleAnswers=2 trimmedMessages=0",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=9358980b-673f-441d-b823-130a799cd7ae event=rag-search phase=candidates global=false collection=true requested=30 returned=4 durationMs=137",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=9358980b-673f-441d-b823-130a799cd7ae event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=4 foreignDropped=0 sources=1 contextChars=420 searchMs=140",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=9358980b-673f-441d-b823-130a799cd7ae event=rag-request phase=end result=success status=200 durationMs=146",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=c1e64ae0-d946-476f-b5db-01a82469cfc3 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=c1e64ae0-d946-476f-b5db-01a82469cfc3 event=rag-request phase=body-read bodyChars=8038",
+  "I 2026/10/04 16:24:28 RAGProxy * runId=c1e64ae0-d946-476f-b5db-01a82469cfc3 event=rag-request phase=messages messages=8 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=3 staleAnswers=3 trimmedMessages=0",
+  "I 2026/10/04 16:24:29 RAGProxy * runId=c1e64ae0-d946-476f-b5db-01a82469cfc3 event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=193",
+  "I 2026/10/04 16:24:29 RAGProxy * runId=c1e64ae0-d946-476f-b5db-01a82469cfc3 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=9 foreignDropped=0 sources=1 contextChars=576 searchMs=194",
+  "I 2026/10/04 16:24:29 RAGProxy * runId=c1e64ae0-d946-476f-b5db-01a82469cfc3 event=rag-request phase=end result=success status=200 durationMs=201",
+  "I 2026/10/04 16:24:30 RAGProxy * runId=c9f74945-ea93-476b-ac27-28150d4d0f01 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:30 RAGProxy * runId=c9f74945-ea93-476b-ac27-28150d4d0f01 event=rag-request phase=body-read bodyChars=256",
+  "I 2026/10/04 16:24:30 RAGProxy * runId=c9f74945-ea93-476b-ac27-28150d4d0f01 event=rag-request phase=messages messages=2 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=c9f74945-ea93-476b-ac27-28150d4d0f01 event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=196",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=c9f74945-ea93-476b-ac27-28150d4d0f01 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=9 foreignDropped=0 sources=4 contextChars=2458 searchMs=198",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=c9f74945-ea93-476b-ac27-28150d4d0f01 event=rag-request phase=end result=success status=200 durationMs=204",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=f92eaa7a-3adc-4063-9837-55d601d3dd9c event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=f92eaa7a-3adc-4063-9837-55d601d3dd9c event=rag-request phase=body-read bodyChars=3939",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=f92eaa7a-3adc-4063-9837-55d601d3dd9c event=rag-request phase=messages messages=4 ragMode=no userChars=31 collection=true numCtx=4096 maxTokens=512 freeChars=8122 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=f92eaa7a-3adc-4063-9837-55d601d3dd9c event=rag-request phase=end result=success status=200 durationMs=8",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=3ce17cb5-6139-4667-a86d-fb2adec6e52d event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=3ce17cb5-6139-4667-a86d-fb2adec6e52d event=rag-request phase=body-read bodyChars=678",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=3ce17cb5-6139-4667-a86d-fb2adec6e52d event=rag-request phase=messages messages=6 ragMode=local userChars=33 collection=true numCtx=4096 maxTokens=512 freeChars=8120 prunedSearchDocs=0 staleAnswers=2 trimmedMessages=0",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=3ce17cb5-6139-4667-a86d-fb2adec6e52d event=rag-search phase=candidates global=false collection=true requested=30 returned=3 durationMs=125",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=3ce17cb5-6139-4667-a86d-fb2adec6e52d event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=3 foreignDropped=0 sources=1 contextChars=462 searchMs=126",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=3ce17cb5-6139-4667-a86d-fb2adec6e52d event=rag-request phase=end result=success status=200 durationMs=132",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=1b734b9e-9183-40df-9204-46e73832e797 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=1b734b9e-9183-40df-9204-46e73832e797 event=rag-request phase=body-read bodyChars=862",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=1b734b9e-9183-40df-9204-46e73832e797 event=rag-request phase=messages messages=8 ragMode=local userChars=5 collection=true numCtx=4096 maxTokens=512 freeChars=8148 prunedSearchDocs=0 staleAnswers=3 trimmedMessages=0",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=1b734b9e-9183-40df-9204-46e73832e797 event=rag-search phase=candidates global=false collection=true requested=30 returned=0 durationMs=103",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=1b734b9e-9183-40df-9204-46e73832e797 event=rag-retrieval phase=end ragMode=local terms=1 stage=none candidates=0 foreignDropped=0 sources=0 contextChars=0 searchMs=103",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=1b734b9e-9183-40df-9204-46e73832e797 event=rag-request phase=end result=success status=200 durationMs=110",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=2a2549fe-2290-4e59-ab2e-d5a6205af9f5 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=2a2549fe-2290-4e59-ab2e-d5a6205af9f5 event=rag-request phase=body-read bodyChars=1038",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=2a2549fe-2290-4e59-ab2e-d5a6205af9f5 event=rag-request phase=messages messages=10 ragMode=local userChars=10 collection=false numCtx=4096 maxTokens=512 freeChars=8143 prunedSearchDocs=0 staleAnswers=4 trimmedMessages=0",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=2a2549fe-2290-4e59-ab2e-d5a6205af9f5 event=rag-retrieval phase=end ragMode=local terms=0 stage=no-terms candidates=0 foreignDropped=0 sources=0 contextChars=0 searchMs=0",
+  "I 2026/10/04 16:24:31 RAGProxy * runId=2a2549fe-2290-4e59-ab2e-d5a6205af9f5 event=rag-request phase=end result=success status=200 durationMs=5",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=c01ac5f3-dc86-4d45-a95c-85f41bfafd7b event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=c01ac5f3-dc86-4d45-a95c-85f41bfafd7b event=rag-request phase=body-read bodyChars=256",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=c01ac5f3-dc86-4d45-a95c-85f41bfafd7b event=rag-request phase=messages messages=2 ragMode=local userChars=35 collection=true numCtx=4096 maxTokens=512 freeChars=8118 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=c01ac5f3-dc86-4d45-a95c-85f41bfafd7b event=rag-search phase=candidates global=false collection=true requested=30 returned=9 durationMs=197",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=c01ac5f3-dc86-4d45-a95c-85f41bfafd7b event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=9 foreignDropped=0 sources=4 contextChars=2458 searchMs=199",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=c01ac5f3-dc86-4d45-a95c-85f41bfafd7b event=rag-request phase=end result=success status=200 durationMs=205",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=b0654916-8e45-45bb-ac9d-9d0d4b7473b2 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=b0654916-8e45-45bb-ac9d-9d0d4b7473b2 event=rag-request phase=body-read bodyChars=3939",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=b0654916-8e45-45bb-ac9d-9d0d4b7473b2 event=rag-request phase=messages messages=4 ragMode=no userChars=31 collection=true numCtx=4096 maxTokens=512 freeChars=8122 prunedSearchDocs=0 staleAnswers=0 trimmedMessages=0",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=b0654916-8e45-45bb-ac9d-9d0d4b7473b2 event=rag-request phase=end result=success status=200 durationMs=6",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=3fb1aa24-d85e-41d3-b6db-4af799c5d401 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=3fb1aa24-d85e-41d3-b6db-4af799c5d401 event=rag-request phase=body-read bodyChars=678",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=3fb1aa24-d85e-41d3-b6db-4af799c5d401 event=rag-request phase=messages messages=6 ragMode=local userChars=33 collection=true numCtx=4096 maxTokens=512 freeChars=8120 prunedSearchDocs=0 staleAnswers=2 trimmedMessages=0",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=3fb1aa24-d85e-41d3-b6db-4af799c5d401 event=rag-search phase=candidates global=false collection=true requested=30 returned=3 durationMs=124",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=3fb1aa24-d85e-41d3-b6db-4af799c5d401 event=rag-retrieval phase=end ragMode=local terms=2 stage=all candidates=3 foreignDropped=0 sources=1 contextChars=462 searchMs=125",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=3fb1aa24-d85e-41d3-b6db-4af799c5d401 event=rag-request phase=end result=success status=200 durationMs=130",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=f319367e-13b3-449a-b65a-a1cfb8e8d385 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=f319367e-13b3-449a-b65a-a1cfb8e8d385 event=rag-request phase=body-read bodyChars=862",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=f319367e-13b3-449a-b65a-a1cfb8e8d385 event=rag-request phase=messages messages=8 ragMode=local userChars=5 collection=true numCtx=4096 maxTokens=512 freeChars=8148 prunedSearchDocs=0 staleAnswers=3 trimmedMessages=0",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=f319367e-13b3-449a-b65a-a1cfb8e8d385 event=rag-search phase=candidates global=false collection=true requested=30 returned=0 durationMs=103",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=f319367e-13b3-449a-b65a-a1cfb8e8d385 event=rag-retrieval phase=end ragMode=local terms=1 stage=none candidates=0 foreignDropped=0 sources=0 contextChars=0 searchMs=103",
+  "I 2026/10/04 16:24:33 RAGProxy * runId=f319367e-13b3-449a-b65a-a1cfb8e8d385 event=rag-request phase=end result=success status=200 durationMs=109",
+  "I 2026/10/04 16:24:34 RAGProxy * runId=7bf337ca-2ba6-4958-a82c-c7e581652593 event=rag-request phase=start method=POST localhost=true source=direct peerTrusted=true shield=LOCAL",
+  "I 2026/10/04 16:24:34 RAGProxy * runId=7bf337ca-2ba6-4958-a82c-c7e581652593 event=rag-request phase=body-read bodyChars=1038",
+  "I 2026/10/04 16:24:34 RAGProxy * runId=7bf337ca-2ba6-4958-a82c-c7e581652593 event=rag-request phase=messages messages=10 ragMode=local userChars=10 collection=false numCtx=4096 maxTokens=512 freeChars=8143 prunedSearchDocs=0 staleAnswers=4 trimmedMessages=0"
+ ]
+}

@@ -5,7 +5,9 @@ already configured model (e.g. `llama3.1:8b` on Olares) is safe. Based on the
 analysis "Scoutro – Analyse der LLM-Integration" (commit `e119bc1`).
 
 Not changed: retrieval (search, collections, query words, context length),
-model routing, Classification, Discovery and the crawler.
+model routing, Classification, Discovery and the crawler. Retrieval, collection
+scope, context budget and citations were reworked afterwards: see
+[SCOUTRO_RAG_QUALITY.md](SCOUTRO_RAG_QUALITY.md).
 
 ## 1. Client address and AI Shield
 
@@ -109,8 +111,9 @@ The tool policy does not apply to it.
    "client preferences" in a delimited block (at most 4000 characters). Client
    system messages are removed from the list; a client cannot replace the base
    prompt. The chat page sends exactly `ai.system-prompt`; it is not repeated.
-2. Search results and attached texts (also the search results of earlier rounds,
-   which the chat page sends back as attachments) are wrapped as untrusted data:
+2. Search results and attached texts (also the newest search document of an
+   earlier round, which the chat page sends back as attachment) are wrapped as
+   untrusted data:
 
    ```
    <question>

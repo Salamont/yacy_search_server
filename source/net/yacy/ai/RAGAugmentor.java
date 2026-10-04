@@ -34,6 +34,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import net.yacy.ai.rag.RagCandidate;
 import net.yacy.cora.document.analysis.Classification;
 import net.yacy.cora.document.id.DigestURL;
 import net.yacy.cora.document.id.MultiProtocolURL;
@@ -104,8 +105,72 @@ public final class RAGAugmentor {
     }
 
     public static JSONArray searchResults(String query, int count, final boolean includeSnippet, final String runId) {
-        final QueryParams theQuery = buildTextQueryParams(query, count, QueryParams.Searchdom.LOCAL);
+        final QueryParams theQuery = buildTextQueryParams(query, count, QueryParams.Searchdom.LOCAL, null);
         return searchResults(theQuery, count, includeSnippet, runId);
+    }
+
+    /**
+     * Candidates for the RAG chat (see net.yacy.ai.rag.RagRetriever): the normal YaCy search with
+     * the prepared query, restricted to one collection when given (YaCy's collection filter, as the
+     * collection parameter of yacysearch). Each candidate carries title, description, full text and
+     * collections, so the LLM context and the sources shown to the user come from this one search.
+     */
+    public static List<RagCandidate> searchCandidates(final String query, final String collection, final int count,
+            final boolean global, final String runId) {
+        final List<RagCandidate> candidates = new ArrayList<>();
+        final Switchboard sb = Switchboard.getSwitchboard();
+        if (sb == null || query == null || query.trim().isEmpty() || count <= 0) return candidates;
+        final QueryParams theQuery = buildTextQueryParams(query, count,
+                global ? QueryParams.Searchdom.GLOBAL : QueryParams.Searchdom.LOCAL, collection);
+        final long start = System.currentTimeMillis();
+        final SearchEvent theSearch = startSearch(sb, theQuery);
+        final long timeout = sb.getConfigLong(
+                SwitchboardConstants.REMOTESEARCH_MAXTIME_USER,
+                sb.getConfigLong(SwitchboardConstants.REMOTESEARCH_MAXTIME_DEFAULT, 3000));
+        if (global) theSearch.resortCachedResults(); else waitForFeedingAndResort(theSearch, timeout);
+        final long deadline = System.currentTimeMillis() + timeout;
+        int index = 0;
+        while (index < count && System.currentTimeMillis() < deadline) {
+            final long remaining = deadline - System.currentTimeMillis();
+            final URIMetadataNode node = theSearch.oneResult(index, global ? Math.min(remaining, 500L) : remaining);
+            if (node == null) {
+                if (!global || theSearch.isFeedingFinished()) break;
+                theSearch.resortCachedResults();
+                continue;
+            }
+            String text = firstFieldString(node.getFieldValue(CollectionSchema.text_t.getSolrFieldName()));
+            if (text.isEmpty()) {
+                final TextSnippet snippet = node.textSnippet();
+                if (snippet != null && snippet.exists() && !snippet.getErrorCode().fail()) text = snippet.getLineRaw();
+            }
+            if (text == null || text.isEmpty()) text = node.snippet();
+            final List<String> collections = new ArrayList<>();
+            final Collection<Object> values = node.getFieldValues(CollectionSchema.collection_sxt.getSolrFieldName());
+            if (values != null) for (final Object value : values) if (value != null) collections.add(value.toString());
+            candidates.add(new RagCandidate(node.urlstring(), node.title(),
+                    firstFieldString(node.getFieldValue(CollectionSchema.description_txt.getSolrFieldName())),
+                    text, node.url().getHost(), collections, index));
+            index++;
+        }
+        ConcurrentLog.info("RAGProxy", prefix(runId) + "event=rag-search phase=candidates global=" + global + " collection=" + (collection != null)
+                + " requested=" + count + " returned=" + candidates.size() + " durationMs=" + (System.currentTimeMillis() - start));
+        return candidates;
+    }
+
+    private static SearchEvent startSearch(final Switchboard sb, final QueryParams theQuery) {
+        return SearchEventCache.getEvent(
+                theQuery,
+                sb.peers,
+                sb.tables,
+                (sb.isRobinsonMode()) ? sb.clusterhashes : null,
+                false,
+                sb.loader,
+                (int) sb.getConfigLong(
+                        SwitchboardConstants.REMOTESEARCH_MAXCOUNT_USER,
+                        sb.getConfigLong(SwitchboardConstants.REMOTESEARCH_MAXCOUNT_DEFAULT, 10)),
+                sb.getConfigLong(
+                        SwitchboardConstants.REMOTESEARCH_MAXTIME_USER,
+                        sb.getConfigLong(SwitchboardConstants.REMOTESEARCH_MAXTIME_DEFAULT, 3000)));
     }
 
     /**
@@ -197,7 +262,7 @@ public final class RAGAugmentor {
     }
 
     public static JSONArray searchResultsGlobal(String query, int count, final boolean includeSnippet, final String runId) {
-        final QueryParams theQuery = buildTextQueryParams(query, count, QueryParams.Searchdom.GLOBAL);
+        final QueryParams theQuery = buildTextQueryParams(query, count, QueryParams.Searchdom.GLOBAL, null);
         return searchResults(theQuery, count, includeSnippet, runId);
     }
 
@@ -298,12 +363,15 @@ public final class RAGAugmentor {
      * @param searchdom local or global search scope
      * @return shared query parameters ready for Solr/event execution
      */
-    private static QueryParams buildTextQueryParams(final String query, final int count, final QueryParams.Searchdom searchdom) {
+    private static QueryParams buildTextQueryParams(final String query, final int count, final QueryParams.Searchdom searchdom,
+            final String collection) {
         final Switchboard sb = Switchboard.getSwitchboard();
         final RankingProfile ranking = sb.getRanking();
         final int timezoneOffset = 0;
         final QueryModifier modifier = new QueryModifier(timezoneOffset);
         String querystring = modifier.parse(query);
+        // an explicit collection overrides any collection: in the query, as the yacysearch parameter does
+        if (collection != null && !collection.isEmpty()) modifier.collection = collection;
         if (querystring.length() == 0) querystring = query == null ? "" : query.trim();
         final QueryGoal qg = new QueryGoal(querystring);
         final QueryParams theQuery = new QueryParams(

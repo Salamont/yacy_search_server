@@ -342,6 +342,7 @@
            encoding="UTF-8" includeantruntime="false">
       <include name="net/yacy/http/ClientAddressTest.java" />
       <include name="net/yacy/ai/**/*Test.java" />
+      <exclude name="net/yacy/ai/rag/**" />
       <include name="net/yacy/htroot/LLMSelection_pTest.java" />
       <classpath>
         <pathelement location="${build}" />
@@ -360,6 +361,36 @@
       <arg value="net.yacy.htroot.LLMSelection_pTest" />
       <classpath>
         <pathelement location="build/scoutro-llm-security-tests" />
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </java>
+  </target>
+
+  <!-- Scoutro: RAG answer quality (query preparation, collection scope, context budget, citations); docs/SCOUTRO_RAG_QUALITY.md -->
+  <target name="scoutro-rag-test" depends="compile" description="offline RAG retrieval/context/citation tests">
+    <delete dir="build/scoutro-rag-tests" failonerror="false" />
+    <mkdir dir="build/scoutro-rag-tests" />
+    <javac srcdir="${test}" destdir="build/scoutro-rag-tests" release="${javacRelease}"
+           encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/ai/rag/*.java" />
+      <classpath>
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <arg value="net.yacy.ai.rag.RagQueryTest" />
+      <arg value="net.yacy.ai.rag.RagRetrieverTest" />
+      <arg value="net.yacy.ai.rag.RagContextTest" />
+      <arg value="net.yacy.ai.rag.RagCitationsTest" />
+      <arg value="net.yacy.ai.rag.RagConversationTest" />
+      <classpath>
+        <pathelement location="build/scoutro-rag-tests" />
         <pathelement location="${build}" />
         <path refid="compile.path" />
         <fileset dir="${lib}" includes="solr9-bridge-*.jar" />

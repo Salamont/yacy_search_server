@@ -7764,8 +7764,8 @@
     <trans-unit id="eea994d3" xml:space="preserve" approved="no" translate="yes">
        <source>User Retrieval Prefix</source>
     </trans-unit>
-    <trans-unit id="98f6d9ca" xml:space="preserve" approved="no" translate="yes">
-       <source>Prepended before attached search snippets in RAG mode to tell the LLM how to use them.</source>
+    <trans-unit id="38f4c5ec" xml:space="preserve" approved="no" translate="yes">
+       <source>Introduces the numbered search results in RAG mode. The results follow as an untrusted data block with sources [1], [2], ...</source>
     </trans-unit>
     <trans-unit id="b3e26937" xml:space="preserve" approved="no" translate="yes">
        <source>Query Generator Prefix</source>
@@ -7776,8 +7776,26 @@
     <trans-unit id="f741370f" xml:space="preserve" approved="no" translate="yes">
        <source>Search Document Max Length</source>
     </trans-unit>
-    <trans-unit id="6e16b0e8" xml:space="preserve" approved="no" translate="yes">
-       <source>Maximum character length of the virtual search document used as RAG attachment and as the `search` tool result. Content beyond this limit is cut off. Default: 30000.</source>
+    <trans-unit id="917ecaa0" xml:space="preserve" approved="no" translate="yes">
+       <source>Upper bound in characters for all sources of one RAG answer and for the `search` tool result. The actual RAG budget is smaller when the context window (num_ctx in LLM Selection) minus the answer length (max_tokens) does not allow more; sources are never cut in the middle. Default: 30000.</source>
+    </trans-unit>
+    <trans-unit id="a43f1d78" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum Sources</source>
+    </trans-unit>
+    <trans-unit id="eaeadea1" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum number of numbered sources in one RAG answer (1 to 20). Default: 8.</source>
+    </trans-unit>
+    <trans-unit id="e6bf1d86" xml:space="preserve" approved="no" translate="yes">
+       <source>Source Excerpt Max Length</source>
+    </trans-unit>
+    <trans-unit id="ddd3996e" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum characters per source; the passages with the most question terms are taken (400 to 20000). Default: 1500.</source>
+    </trans-unit>
+    <trans-unit id="6b316812" xml:space="preserve" approved="no" translate="yes">
+       <source>Answer Temperature</source>
+    </trans-unit>
+    <trans-unit id="bcc01258" xml:space="preserve" approved="no" translate="yes">
+       <source>Sampling temperature of RAG answers (0 to 2) when the client sends none; low values keep answers close to the sources. Default: 0.2.</source>
     </trans-unit>
     <trans-unit id="de9e1d0e" xml:space="preserve" approved="no" translate="yes">
        <source>Save RAG Settings</source>
@@ -12159,6 +12177,9 @@
     <trans-unit id="ee71ec1" xml:space="preserve" approved="no" translate="yes">
        <source>"Attach search results by default"</source>
     </trans-unit>
+    <trans-unit id="92dbcd6e" xml:space="preserve" approved="no" translate="yes">
+       <source>"all collections"</source>
+    </trans-unit>
     <trans-unit id="a472dcf8" xml:space="preserve" approved="no" translate="yes">
        <source>"Search"</source>
     </trans-unit>
@@ -12197,6 +12218,12 @@
     </trans-unit>
     <trans-unit id="92123dec" xml:space="preserve" approved="no" translate="yes">
        <source>use global search</source>
+    </trans-unit>
+    <trans-unit id="dbaf53e3" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection (portal):</source>
+    </trans-unit>
+    <trans-unit id="a04af7d5" xml:space="preserve" approved="no" translate="yes">
+       <source>Search only this collection, e.g. edelsenior-web</source>
     </trans-unit>
     <trans-unit id="285feb" xml:space="preserve" approved="no" translate="yes">
        <source>User</source>

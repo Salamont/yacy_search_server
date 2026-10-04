@@ -4082,12 +4082,18 @@ maxCallsPerTurn==maxCallsPerTurn
 
 #File: RAGConfig_p.html
 #---------------------------
-Maximum character length of the virtual search document used as RAG attachment and as the `search` tool result. Content beyond this limit is cut off. Default: 30000.==Maximale Zeichenlänge des virtuellen Suchdokuments, das als RAG-Anhang und als Ergebnis des `search`-Werkzeugs verwendet wird. Inhalt über dieser Grenze wird abgeschnitten. Standard: 30000.
+Upper bound in characters for all sources of one RAG answer and for the `search` tool result. The actual RAG budget is smaller when the context window (num_ctx in LLM Selection) minus the answer length (max_tokens) does not allow more; sources are never cut in the middle. Default: 30000.==Obergrenze in Zeichen für alle Quellen einer RAG-Antwort und für das Ergebnis des `search`-Werkzeugs. Das tatsächliche RAG-Budget ist kleiner, wenn das Kontextfenster (num_ctx in der LLM-Auswahl) abzüglich der Antwortlänge (max_tokens) nicht mehr zulässt; Quellen werden nie mitten im Text abgeschnitten. Standard: 30000.
+Sampling temperature of RAG answers (0 to 2) when the client sends none; low values keep answers close to the sources. Default: 0.2.==Sampling-Temperatur der RAG-Antworten (0 bis 2), wenn der Client keine sendet; niedrige Werte halten die Antworten nah an den Quellen. Standard: 0.2.
+Maximum characters per source; the passages with the most question terms are taken (400 to 20000). Default: 1500.==Maximale Zeichen pro Quelle; verwendet werden die Abschnitte mit den meisten Begriffen der Frage (400 bis 20000). Standard: 1500.
+Introduces the numbered search results in RAG mode. The results follow as an untrusted data block with sources [1], [2], ...==Leitet im RAG-Modus die nummerierten Suchergebnisse ein. Die Ergebnisse folgen als nicht vertrauenswürdiger Datenblock mit den Quellen [1], [2], ...
+Maximum number of numbered sources in one RAG answer (1 to 20). Default: 8.==Höchstzahl nummerierter Quellen in einer RAG-Antwort (1 bis 20). Standard: 8.
 Tune how YaCy constructs prompts and search queries for Retrieval Augmented Generation.==Stellen Sie ein, wie YaCy Prompts und Suchanfragen für Retrieval Augmented Generation aufbaut.
-Prepended before attached search snippets in RAG mode to tell the LLM how to use them.==Wird im RAG-Modus vor die angehängten Such-Snippets gesetzt, um dem LLM mitzuteilen, wie es sie verwenden soll.
 Style guidance for chats. Scoutro always sends its own base prompt with the security rules first; this text is added below it and cannot change those rules. Keep it concise and friendly.==Stilvorgaben für Chats. Scoutro sendet immer zuerst seinen eigenen Basis-Prompt mit den Sicherheitsregeln; dieser Text wird darunter angefügt und kann diese Regeln nicht ändern. Halten Sie ihn knapp und freundlich.
 Prompt given to the model that generates search queries from user requests.==Prompt für das Modell, das aus Benutzeranfragen Suchanfragen erzeugt.
 Search Document Max Length==Maximale Länge des Suchdokuments
+Source Excerpt Max Length==Maximale Länge des Quellenauszugs
+Answer Temperature==Antworttemperatur
+Maximum Sources==Maximale Quellenzahl
 Query Generator Prefix==Anfragegenerator-Präfix
 User Retrieval Prefix==Benutzer-Retrieval-Präfix
 Wire RAG Retrieval==RAG-Retrieval verdrahten
@@ -4551,6 +4557,9 @@ User==Benutzer
 "Show system prompt"=="System-Prompt anzeigen"
 "Upload chat"=="Chat hochladen"
 Attach PNG/JPG or text (.txt/.md/.tex)==PNG/JPG oder Text anhängen (.txt/.md/.tex)
+Search only this collection, e.g. edelsenior-web==Nur in dieser Collection suchen, z. B. edelsenior-web
+"all collections"=="alle Collections"
+Collection (portal):==Collection (Portal):
 Attach Search Results==Suchergebnisse anhängen
 Default Dialog Augmentation:==Standard-Dialogerweiterung:
 Show System==System anzeigen
@@ -5311,6 +5320,10 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 
 #File: yacychat.html
 System data requires an authorized administrator or agent token. No web answer is substituted.==Systemdaten benötigen einen berechtigten Administrator oder Agent-Token. Es wird keine Webantwort als Ersatz verwendet.
+Not among the sources of this answer: not linked==Nicht unter den Quellen dieser Antwort: nicht verlinkt
+Not among the sources found for this answer:==Nicht unter den für diese Antwort gefundenen Quellen:
+No source of this answer has this number==Keine Quelle dieser Antwort hat diese Nummer
+Sources of this answer==Quellen dieser Antwort
 No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.==Keine YaCy-Administratorberechtigung: Das AI Shield lässt diese Adresse erst nach der YaCy-Administratoranmeldung zu.
 Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.==Vom AI Shield blockiert: Der Gastzugang ist aus, oder die Anfrage kam von einer anderen Website oder mit einem Agent-Token.
 Rate limit reached: please wait and try again. The server is protecting itself from overload.==Ratenlimit erreicht: Bitte warten Sie und versuchen Sie es erneut. Der Server schützt sich vor Überlastung.

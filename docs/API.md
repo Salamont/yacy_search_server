@@ -426,6 +426,9 @@ Scoutro is packaged as `scoutro-olares`:
   forwarding headers as remote, also from `127.0.0.1`: with
   `ai.shield.allow-nonlocalhost=false` the YaCy administrator login admits it
   (see `docs/SCOUTRO_LLM_SECURITY.md`).
+- The chat accepts an optional `collection` (`[A-Za-z0-9_-]{1,64}`) that restricts
+  RAG to that collection, and streams the sources and the citation check of each
+  answer (`scoutro-sources`, `scoutro-citations`; see `docs/SCOUTRO_RAG_QUALITY.md`).
 
 ## Tests
 

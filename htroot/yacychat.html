@@ -702,6 +702,82 @@
         align-items: center;
       }
 
+      .collection-control {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0 12px;
+      }
+
+      .collection-control input {
+        min-height: 40px;
+        width: 18em;
+        max-width: 100%;
+        padding: 6px 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+      }
+
+      .collection-control input:invalid {
+        border-color: #c0392b;
+      }
+
+      .collection-hint {
+        color: #666;
+        font-size: 0.9em;
+      }
+
+      .chat-sources {
+        margin-top: 10px;
+        padding-top: 8px;
+        border-top: 1px solid #e3e3e3;
+        font-size: 0.92em;
+      }
+
+      .chat-sources ol {
+        margin: 4px 0 0;
+        padding-left: 2.2em;
+      }
+
+      .chat-sources li {
+        margin: 2px 0;
+        overflow-wrap: anywhere;
+      }
+
+      .chat-source-host {
+        color: #666;
+        margin-left: 6px;
+      }
+
+      a.chat-citation {
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      .chat-citation-invalid {
+        color: #c0392b;
+        font-weight: 600;
+        cursor: help;
+      }
+
+      .chat-link-unverified {
+        color: #8a4b08;
+        text-decoration: underline dotted;
+        cursor: help;
+        overflow-wrap: anywhere;
+      }
+
+      .chat-citation-warning {
+        color: #8a4b08;
+        background: #fcf8e3;
+        border: 1px solid #faebcc;
+        border-radius: 4px;
+        padding: 6px 8px;
+        margin-top: 8px;
+        overflow-wrap: anywhere;
+      }
+
       .clear-chat-row .btn {
         display: inline-flex;
         max-width: 100%;
@@ -748,6 +824,11 @@
                <label for="searchDefaultGlobal" class="global-label">use global search</label>
                <span class="search-default-slider" aria-hidden="true"></span>
              </div>
+          </div>
+          <div class="collection-control">
+            <label for="collectionInput">Collection (portal):</label>
+            <input type="text" id="collectionInput" maxlength="64" pattern="[A-Za-z0-9_\-]{1,64}" placeholder="all collections" autocomplete="off" spellcheck="false" aria-describedby="collectionHint"/>
+            <span class="collection-hint" id="collectionHint">Search only this collection, e.g. edelsenior-web</span>
           </div>
           <div class="chat-messages" id="chatMessages" aria-live="polite"></div>
           <form id="chatForm">
@@ -815,6 +896,17 @@
         llm_error: 'The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.'
     };
 
+    // Sources of an answer (scoutro-sources) and the citation check (scoutro-citations), see RAGProxyServlet.
+    const CHAT_SOURCE_TEXT = {
+        title: 'Sources of this answer',
+        unknown: 'Not among the sources found for this answer:',
+        invalidTitle: 'No source of this answer has this number',
+        unverifiedTitle: 'Not among the sources of this answer: not linked'
+    };
+    const COLLECTION_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+    const COLLECTION_STORAGE_KEY = 'scoutro.chat.collection';
+    const SEARCH_FILE_PREFIXES = ['scoutro-sources', 'search_result_'];
+
     const CHAT_VFS_PATH = '/yacy/chat/chat.json';
     const SETTINGS_VFS_PATH = '/yacy/chat/settings.json';
     const SEARCH_DEFAULTS = {
@@ -829,7 +921,8 @@
         config: {
             apiHost: defaultApiHost,
             model: 'chat',
-            systemPrompt: SYSTEM_PROMPT
+            systemPrompt: SYSTEM_PROMPT,
+            collection: ''
         },
         busy: false,
         attachment: null,
@@ -859,7 +952,8 @@
         searchDefaultOptions: document.getElementById('searchDefaultOptions'),
         searchDefaultNone: document.getElementById('searchDefaultNone'),
         searchDefaultLocal: document.getElementById('searchDefaultLocal'),
-        searchDefaultGlobal: document.getElementById('searchDefaultGlobal')
+        searchDefaultGlobal: document.getElementById('searchDefaultGlobal'),
+        collectionInput: document.getElementById('collectionInput')
     };
 
     // configure search default options based on P2P mode
@@ -1181,7 +1275,7 @@
         });
     }
 
-    function applyMessageContent(target, role, text) {
+    function applyMessageContent(target, role, text, meta = null) {
         if (!target) return;
         if (role === 'assistant') {
             target.classList.add('markdown', 'markdown-body');
@@ -1191,11 +1285,156 @@
             target.innerHTML = renderAssistantContent(text, defaultOpen);
             bindThinkToggles(target);
             rehighlightCode(target);
+            decorateSources(target, meta);
         } else {
             target.classList.add('plain-text');
             target.classList.remove('markdown');
             target.textContent = text || '';
         }
+    }
+
+    // [n] becomes a link to source n of this answer; unknown numbers are marked, never linked
+    function decorateSources(target, meta) {
+        const sources = Array.isArray(meta?.sources) ? meta.sources : [];
+        const citations = meta?.citations || null;
+        if (!sources.length && !citations) return;
+        const byId = new Map(sources.filter(source => /^https?:\/\//i.test(source?.url || '')).map(source => [Number(source.id), source]));
+        const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT, {
+            acceptNode: node => node.parentElement && node.parentElement.closest('code, pre, a, .chat-sources, .think-block summary')
+                ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+        });
+        const textNodes = [];
+        while (walker.nextNode()) textNodes.push(walker.currentNode);
+        const pattern = /\[(\d{1,3}(?:\s*[,;]\s*\d{1,3})*)\](?!\()/g;
+        for (const node of textNodes) {
+            const value = node.nodeValue || '';
+            pattern.lastIndex = 0;
+            if (!pattern.test(value)) continue;
+            pattern.lastIndex = 0;
+            const fragment = document.createDocumentFragment();
+            let cursor = 0;
+            let match;
+            while ((match = pattern.exec(value)) !== null) {
+                fragment.appendChild(document.createTextNode(value.slice(cursor, match.index)));
+                for (const number of match[1].split(/\s*[,;]\s*/)) {
+                    const source = byId.get(Number(number));
+                    if (source) {
+                        const link = document.createElement('a');
+                        link.className = 'chat-citation';
+                        link.href = source.url;
+                        link.target = '_blank';
+                        link.rel = 'noopener noreferrer';
+                        link.title = source.title || source.url;
+                        link.textContent = `[${number}]`;
+                        fragment.appendChild(link);
+                    } else {
+                        const invalid = document.createElement('span');
+                        invalid.className = 'chat-citation-invalid';
+                        invalid.title = CHAT_SOURCE_TEXT.invalidTitle;
+                        invalid.textContent = `[${number}?]`;
+                        fragment.appendChild(invalid);
+                    }
+                }
+                cursor = match.index + match[0].length;
+            }
+            fragment.appendChild(document.createTextNode(value.slice(cursor)));
+            node.parentNode.replaceChild(fragment, node);
+        }
+        if (byId.size) {
+            const box = document.createElement('div');
+            box.className = 'chat-sources';
+            const heading = document.createElement('div');
+            heading.className = 'chat-sources-title';
+            heading.textContent = CHAT_SOURCE_TEXT.title;
+            box.appendChild(heading);
+            const list = document.createElement('ol');
+            for (const [id, source] of byId) {
+                const item = document.createElement('li');
+                item.value = id;
+                const link = document.createElement('a');
+                link.href = source.url;
+                link.target = '_blank';
+                link.rel = 'noopener noreferrer';
+                link.textContent = source.title || source.url;
+                item.appendChild(link);
+                if (source.host) {
+                    const host = document.createElement('span');
+                    host.className = 'chat-source-host';
+                    host.textContent = source.host;
+                    item.appendChild(host);
+                }
+                list.appendChild(item);
+            }
+            box.appendChild(list);
+            target.appendChild(box);
+        }
+        // links in the answer that are not among its sources (checked by the server) are shown, not linked
+        const normalizeUrl = url => String(url || '').trim().toLowerCase().replace(/\/+$/, '');
+        const unverified = new Set((citations?.unknownUrls || []).map(normalizeUrl));
+        if (unverified.size) {
+            for (const anchor of Array.from(target.querySelectorAll('a[href]'))) {
+                if (anchor.classList.contains('chat-citation') || anchor.closest('.chat-sources')) continue;
+                if (!unverified.has(normalizeUrl(anchor.getAttribute('href')))) continue;
+                const span = document.createElement('span');
+                span.className = 'chat-link-unverified';
+                span.title = CHAT_SOURCE_TEXT.unverifiedTitle;
+                span.textContent = anchor.textContent;
+                anchor.replaceWith(span);
+            }
+        }
+        const unknown = [];
+        for (const number of citations?.invalid || []) unknown.push(`[${number}]`);
+        for (const url of citations?.unknownUrls || []) unknown.push(String(url));
+        if (unknown.length) {
+            const warning = document.createElement('p');
+            warning.className = 'chat-citation-warning';
+            warning.textContent = `${CHAT_SOURCE_TEXT.unknown} ${unknown.join(', ')}`;
+            target.appendChild(warning);
+        }
+    }
+
+    function isSearchAttachmentContent(content) {
+        if (!Array.isArray(content)) return false;
+        return content.some(part => part?.type === 'image_url'
+            && SEARCH_FILE_PREFIXES.some(prefix => String(part.filename || '').startsWith(prefix)));
+    }
+
+    function readCollectionSetting() {
+        let value = '';
+        try {
+            value = new URLSearchParams(window.location.search).get('collection') || '';
+        } catch (err) {
+            value = '';
+        }
+        if (!value) {
+            try {
+                value = window.localStorage.getItem(COLLECTION_STORAGE_KEY) || '';
+            } catch (err) {
+                value = '';
+            }
+        }
+        return COLLECTION_PATTERN.test(value) ? value : '';
+    }
+
+    function applyCollectionSetting(value, persist) {
+        const clean = (value || '').trim();
+        if (clean && !COLLECTION_PATTERN.test(clean)) return false;
+        state.config.collection = clean;
+        if (persist) {
+            try {
+                if (clean) window.localStorage.setItem(COLLECTION_STORAGE_KEY, clean);
+                else window.localStorage.removeItem(COLLECTION_STORAGE_KEY);
+            } catch (err) {
+                // the setting then lasts for this page view only
+            }
+        }
+        return true;
+    }
+
+    if (dom.collectionInput) {
+        dom.collectionInput.addEventListener('change', () => {
+            if (!applyCollectionSetting(dom.collectionInput.value, true)) dom.collectionInput.reportValidity();
+        });
     }
 
     function scrollToBottom(smooth = true) {
@@ -1222,7 +1461,7 @@
     }
 
     function appendMessage(role, text, opts = {}) {
-        const { skipScroll = false, skipVisibilityUpdate = false, attachment = null, messageIndex = undefined, toolCalls = null, toolResults = null } = opts;
+        const { skipScroll = false, skipVisibilityUpdate = false, attachment = null, messageIndex = undefined, toolCalls = null, toolResults = null, sources = null, citations = null } = opts;
         const entry = document.createElement('fieldset');
         entry.className = `chat-turn ${role}`;
         if (role === 'assistant' || role === 'user') {
@@ -1245,7 +1484,7 @@
         if (typeof messageIndex === 'number') {
             body.dataset.messageIndex = String(messageIndex);
         }
-        applyMessageContent(body, role, text);
+        applyMessageContent(body, role, text, { sources, citations });
         entry.appendChild(body);
 
         if (attachment && role === 'user') {
@@ -1702,10 +1941,19 @@
         const { onFirstToken, includeUserInPayload = true, pushUserToState = true, currentUserIndex = -1 } = options;
         const requestStart = performance.now();
         ensureSystemMessage();
+        // earlier search documents: none when this turn searches again, else only the latest one
+        const searchesAgain = Boolean(userMessage?.search && userMessage.search !== SEARCH_DEFAULTS.none);
+        let latestSearchIndex = -1;
+        if (!searchesAgain) {
+            state.messages.forEach((msg, index) => {
+                if (msg?.role === 'user' && isSearchAttachmentContent(msg.content)) latestSearchIndex = index;
+            });
+        }
         const sanitizedMessages = state.messages
             .map((msg, index) => {
                 const hasAttachment = msg?.role === 'user' && Array.isArray(msg.content);
-                const textOnly = index !== currentUserIndex && !hasAttachment;
+                const oldSearch = hasAttachment && isSearchAttachmentContent(msg.content) && index !== latestSearchIndex;
+                const textOnly = index !== currentUserIndex && (!hasAttachment || oldSearch);
                 return stripMessageForApi(msg, { textOnly });
             })
             .filter(Boolean);
@@ -1715,6 +1963,7 @@
             messages: sanitizedUserMessage ? [...sanitizedMessages, sanitizedUserMessage] : sanitizedMessages,
             stream: true
         };
+        if (state.config.collection) payload.collection = state.config.collection;
         const headers = { 'Content-Type': 'application/json' };
         const response = await fetch(state.config.apiHost.replace(/\/$/, '') + '/v1/chat/completions', {
             method: 'POST',
@@ -1748,6 +1997,8 @@
         let thinkAutoClosed = false;
         let thinkAutoCloseFired = false;
         let thinkAutoCloseTimer = null;
+        let roundSources = null;
+        let roundCitations = null;
         if (assistantNode) {
             assistantNode.dataset.streaming = 'true';
         }
@@ -1820,6 +2071,11 @@
                 const parsed = JSON.parse(clean);
                 let toolMetadataChanged = false;
                 applySearchAttachment(parsed);
+                if (Array.isArray(parsed['scoutro-sources'])) roundSources = parsed['scoutro-sources'];
+                if (parsed['scoutro-citations'] && typeof parsed['scoutro-citations'] === 'object') {
+                    roundCitations = parsed['scoutro-citations'];
+                    if (assistantText) applyMessageContent(assistantNode, 'assistant', assistantText, { sources: roundSources, citations: roundCitations });
+                }
                 if (Array.isArray(parsed['tool-calls']) && parsed['tool-calls'].length > 0) {
                     const injectedToolCalls = normalizeToolCalls(parsed['tool-calls']);
                     if (injectedToolCalls.length > 0) {
@@ -1888,7 +2144,7 @@
                                 assistantNode.dataset.thinkAutoClosing = 'false';
                                 assistantNode.dataset.thinkAutoClosed = 'true';
                                 assistantNode.dataset.thinkOpen = 'false';
-                                applyMessageContent(assistantNode, 'assistant', assistantText);
+                                applyMessageContent(assistantNode, 'assistant', assistantText, { sources: roundSources, citations: roundCitations });
                             }
                             const last = state.messages[state.messages.length - 1];
                             if (last && last.role === 'assistant' && last.content === assistantText) {
@@ -1899,7 +2155,7 @@
                         }, 2000);
                     }
                     if (assistantText) {
-                        applyMessageContent(assistantNode, 'assistant', assistantText);
+                        applyMessageContent(assistantNode, 'assistant', assistantText, { sources: roundSources, citations: roundCitations });
                     }
                     performAutoScroll();
                 }
@@ -1951,6 +2207,8 @@
             content: assistantText,
             thinkOpen: storedThinkOpen
         };
+        if (Array.isArray(roundSources)) assistantMessage.sources = roundSources;
+        if (roundCitations) assistantMessage.citations = roundCitations;
         if (normalizedToolCalls.length) {
             assistantMessage.tool_calls = normalizedToolCalls;
             if (collectedToolResults.length) {
@@ -2120,7 +2378,7 @@
         for (let i = 0; i < state.messages.length; i++) {
             const msg = state.messages[i];
             if (msg.role === 'system' && !state.showSystem) continue;
-            appendMessage(msg.role, messageDisplayText(msg), { skipScroll: true, skipVisibilityUpdate: true, messageIndex: i, attachment: inferAttachmentFromContent(msg.content), toolCalls: msg.tool_calls, toolResults: msg.tool_results });
+            appendMessage(msg.role, messageDisplayText(msg), { skipScroll: true, skipVisibilityUpdate: true, messageIndex: i, attachment: inferAttachmentFromContent(msg.content), toolCalls: msg.tool_calls, toolResults: msg.tool_results, sources: msg.sources, citations: msg.citations });
         }
         updateClearChatVisibility();
         updateSystemToggleButton();
@@ -2863,6 +3121,8 @@
     window.addEventListener('resize', resizeComposer);
 
     async function initializeChat() {
+        applyCollectionSetting(readCollectionSetting(), false);
+        if (dom.collectionInput) dom.collectionInput.value = state.config.collection;
         await loadSearchDefault();
         await hydrateConversation();
         updateSystemToggleButton();
