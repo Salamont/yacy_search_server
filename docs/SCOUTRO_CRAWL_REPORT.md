@@ -1,6 +1,6 @@
 # Scoutro Crawl Report (plan)
 
-Status: confirmed plan. Implementation starts with Phase 1 (storage) on branch
+Status: confirmed plan. Phase 1 (storage) is implemented on branch
 `ccr-e3e5f88b-1fqp77`; later phases are not started.
 
 Goal: crawl-report views comparable to a classic crawl audit (crawl details,
@@ -111,24 +111,32 @@ affected. Only `prev_*` and ErrorCache exclusions of those rows would be lost.
 
 ## Measured storage
 
-Measured with synthetic records shaped like the planned data (Discovery
-defaults: 15 pages, depth 2). Real sizes may differ by about ±30 %.
+`scoutro_domains` was measured with the Phase 1 implementation in a temporary
+YaCy table (`Tables`, 12-byte keys): 20,000 and 100,000 hosts, nine counters,
+two labels, Discovery job and domain, start marker; heap, index and gap files
+counted. Rollup sizes are from synthetic records shaped like the planned data.
+Real sizes may differ by about ±30 %.
 
 | Item | Size |
 |---|---|
-| `scoutro_domains` row (bencoded, earlier estimate with two `prev_*` values) | about 354 B; Phase 1 measures the real row with a complete `prev_*` section |
+| `scoutro_domains`, host after its first crawl | about 540 B |
+| `scoutro_domains`, host after a recrawl (current + complete `prev_*`) | about 1,060 B (1,080 B with index files) |
+| Growth over further recrawls of the same hosts (up to 8 crawls measured) | none; YaCy's heap reuses the space of replaced rows |
+| 100,000 / 1,000,000 hosts | about 108 MB / 1.1 GB |
 | Rollup line | about 1 KB raw, 0.2 KB gzip |
 | Rollups for 5 jobs | about 1.85 MB per year |
 
-Report data grows with the number of hosts, not with time. Page data lives
-only in the YaCy index.
+Report data grows with the number of hosts, not with time or the number of
+recrawls. Page data lives only in the YaCy index.
 
 ## Phases
 
-1. **Storage:** `report/DomainTable` (key derivation,
-   verification, idempotent current/prev logic), `report/RollupStore` (yearly
-   files), tests with temporary tables and directories. No Discovery
-   integration, no API, no UI, no Solr queries.
+1. **Storage (implemented):** `report/DomainTable` (key derivation,
+   verification, idempotent current/prev logic), `report/CrawlSnapshot` (one
+   bounded crawl section), `report/HostNames` (exact host normalization, also
+   used by the existing `HostInput`), `report/RollupStore` (yearly files),
+   tests with temporary tables and directories. No Discovery integration, no
+   API, no UI, no Solr queries; nothing calls the new classes yet.
 2. **Capture:** call from `DiscoveryService` when a crawl has terminated (also for
    Scoutro API crawls via `CrawlLedger`); ErrorCache reader thread (YaCy
    `deployThread`, about 20 s, cursor on fail date, `coverage: partial` when
@@ -160,7 +168,10 @@ the Discovery job store schema.
 
 ## Tests
 
-Phase 1 adds focused tests with temporary tables and directories: deterministic keys, host normalization, `www`
+`ant scoutro-report-test` runs the Phase 1 tests and the host normalization
+regression tests (`CrawlFlowTest`); they are also part of
+`ant scoutro-agents-test`. They use temporary tables and directories only:
+deterministic keys, host normalization, `www`
 separation, case-sensitive collections, key collisions, invalid rows, all
-completion cases, persistence across reopen, rollup partitioning, idempotent
-days, corrupt files and size limits.
+completion cases, persistence across reopen, no table growth over repeated
+recrawls, rollup partitioning, idempotent days, corrupt files and size limits.

@@ -379,6 +379,40 @@
     </junit>
   </target>
 
+  <target name="scoutro-report-test" depends="compile" description="run focused Scoutro crawl report storage tests">
+    <property name="scoutro.report.test.classes" location="${build}/../scoutro-report-test-classes" />
+    <delete dir="${scoutro.report.test.classes}" failonerror="false" />
+    <mkdir dir="${scoutro.report.test.classes}" />
+    <javac srcdir="${test}" destdir="${scoutro.report.test.classes}"
+           debug="true" debuglevel="lines,vars,source" includeantruntime="false"
+           release="${javacRelease}" encoding="UTF-8">
+      <include name="net/yacy/scoutro/report/*Test.java" />
+      <include name="net/yacy/scoutro/api/CrawlFlowTest.java" />
+      <classpath>
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </javac>
+    <junit printsummary="yes" haltonfailure="yes" fork="true" dir="${yacyroot}">
+      <formatter type="plain" usefile="false" />
+      <batchtest>
+        <fileset dir="${test}">
+          <include name="net/yacy/scoutro/report/*Test.java" />
+          <include name="net/yacy/scoutro/api/CrawlFlowTest.java" />
+        </fileset>
+      </batchtest>
+      <classpath>
+        <pathelement location="${scoutro.report.test.classes}" />
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </junit>
+  </target>
+
   <target name="scoutro-dashboard-test" depends="compile" description="run focused Scoutro dashboard tests">
     <mkdir dir="build/scoutro-dashboard-tests" />
     <javac srcdir="${test}" destdir="build/scoutro-dashboard-tests" release="${javacRelease}"

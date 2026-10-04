@@ -1,9 +1,10 @@
 /* Scoutro contributors, GPL-2.0-or-later. */
 package net.yacy.scoutro.api;
 
-import java.net.IDN;
 import java.net.URI;
 import java.util.Locale;
+
+import net.yacy.scoutro.report.HostNames;
 
 /** Pure normalization, never DNS or HTTP. Exact hosts; www is not merged. */
 final class HostInput {
@@ -37,11 +38,7 @@ final class HostInput {
                 if (path == null || path.isEmpty()) path = "/";
                 query = uri.getRawQuery();
             }
-            if (name.endsWith(".")) name = name.substring(0, name.length() - 1);
-            final String host = IDN.toASCII(name, IDN.USE_STD3_ASCII_RULES).toLowerCase(Locale.ROOT);
-            if (host.length() > 253 || !host.matches("[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+")
-                    || host.matches("[0-9.]+")) throw new IllegalArgumentException();
-            for (final String label : host.split("\\.")) if (label.length() > 63) throw new IllegalArgumentException();
+            final String host = HostNames.normalize(name);
             final String url = new URI(scheme + "://" + host + (port < 0 ? "" : ":" + port) + path
                     + (query == null ? "" : "?" + query)).normalize().toASCIIString();
             return new HostInput(host, url);
