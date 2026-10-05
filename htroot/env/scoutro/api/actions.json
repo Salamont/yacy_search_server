@@ -5772,7 +5772,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "start, unclean_start, collections_changed, extractor_changed, query_delete, overflow, queue_full, daily, admin, resume, full_reset."
+                  "description": "start, unclean_start, collections_changed, extractor_changed, query_delete, overflow, queue_full, lost_changes (a rescan once lost changes are visible to a search), daily, admin, resume, full_reset."
                 },
                 "dueAt": {
                   "type": [
