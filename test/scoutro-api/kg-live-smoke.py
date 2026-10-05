@@ -8,10 +8,12 @@ DATA directory or external state is touched):
    no access without the administrator account;
 2. graph enabled: status "running", database files, pause persisted;
 3. clean restart (SIGTERM): no unclean start, pause still active, resume;
-4. hard kill (SIGKILL) and restart: unclean start detected, quick_check ok;
+4. hard kill (SIGKILL) and restart: unclean start detected, graph writes held
+   back until the integrity check (quick_check) has passed;
 5. SQLite native library not loadable: Scoutro starts, the graph is unavailable.
 
 Run after `ant compile`:  python3 test/scoutro-api/kg-live-smoke.py
+Another JDK:              JAVA=/path/to/bin/java python3 test/scoutro-api/kg-live-smoke.py
 GPL-2.0-or-later.
 """
 
@@ -143,11 +145,13 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-") as temporary:
             assert s["store"]["uncleanStartDetected"] is False and s["store"]["startRecorded"] is True, s["store"]
             assert s["storage"]["growthAllowed"] is True, s["storage"]
             assert s["storage"]["pages"]["maxPageCount"] > 0, s["storage"]
+            assert s["store"]["integrity"]["state"] == "not_required", s["store"]
+            assert s["storage"]["files"]["tmpDirectory"] == "graph", s["storage"]["files"]
             code, _ = control(client, "pause", content_type="text/plain")
             assert code == 415, code
             code, body = control(client, "pause")
             assert code == 200 and body["storage"]["growthAllowed"] is False, (code, body)
-            checks += 6
+            checks += 8
             stop(process)  # SIGTERM: Scoutro shuts down cleanly
 
             # 3. clean restart keeps the pause and reports no crash
@@ -164,12 +168,17 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-") as temporary:
             process, client = start(root, log)
             s = status(client)
             assert s["state"] == "running" and s["store"]["uncleanStartDetected"] is True, s["store"]
+            assert s["store"]["integrity"]["trigger"] == "unclean_start", s["store"]
             deadline = time.monotonic() + 30
-            while status(client)["store"]["quickCheck"] == "not_run" and time.monotonic() < deadline:
+            while status(client)["store"]["integrity"]["state"] in ("pending", "running") and time.monotonic() < deadline:
                 time.sleep(0.5)
-            assert status(client)["store"]["quickCheck"] == "ok", status(client)["store"]
-            assert any(e["code"] == "unclean_start" for e in status(client)["events"]), status(client)["events"]
-            checks += 3
+            s = status(client)
+            assert s["store"]["integrity"]["state"] == "ok" and s["store"]["integrity"]["result"] == "ok", s["store"]
+            assert s["store"]["integrity"]["blocksGraphWrites"] is False, s["store"]
+            assert not [r for r in s["storage"]["reasons"] if r["code"].startswith("integrity")], s["storage"]["reasons"]
+            codes = [e["code"] for e in s["events"]]
+            assert "unclean_start" in codes and "integrity_ok" in codes, codes
+            checks += 5
             stop(process)
 
             # 5. the SQLite native library cannot be extracted: Scoutro still starts, the graph reports why

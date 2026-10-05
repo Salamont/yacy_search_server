@@ -36,11 +36,41 @@ public interface StorageProbe {
     long usableBytes(File path);
 
     /**
-     * Bytes of open but already unlinked files below {@code dir}. SQLite removes
-     * its temp files right after creating them, so a directory scan cannot see
-     * them. Returns -1 where this cannot be measured (no /proc/self/fd).
+     * SQLite temp files this process holds open. SQLite unlinks a temp file
+     * right after creating it, so a directory scan cannot see it; on Linux the
+     * descriptors in /proc/self/fd still name it with a " (deleted)" suffix.
+     * Counted are every unlinked file below {@code dir} and, elsewhere, every
+     * unlinked file with SQLite's temp prefix: SQLite silently falls back to
+     * /var/tmp or /tmp when its temp directory is missing or not writable.
+     * Returns {@link TempFiles#UNKNOWN} where this cannot be measured.
      */
-    long openUnlinkedBytes(File dir);
+    TempFiles openTempFiles(File dir);
+
+    /** Result of {@link #openTempFiles}. */
+    final class TempFiles {
+        public static final TempFiles UNKNOWN = new TempFiles(-1L, -1L);
+
+        /** Bytes below the graph's own temp directory, -1 if unknown. */
+        public final long inDirBytes;
+        /** Bytes of SQLite temp files anywhere else, -1 if unknown. */
+        public final long elsewhereBytes;
+
+        public TempFiles(final long inDirBytes, final long elsewhereBytes) {
+            this.inDirBytes = inDirBytes;
+            this.elsewhereBytes = elsewhereBytes;
+        }
+
+        public boolean measured() {
+            return this.inDirBytes >= 0L && this.elsewhereBytes >= 0L;
+        }
+
+        public long totalBytes() {
+            return Math.max(0L, this.inDirBytes) + Math.max(0L, this.elsewhereBytes);
+        }
+    }
+
+    /** File name prefix of SQLite temp files (SQLITE_TEMP_FILE_PREFIX, unchanged in sqlite-jdbc). */
+    String SQLITE_TEMP_PREFIX = "etilqs_";
 
     StorageProbe SYSTEM = new StorageProbe() {
         @Override
@@ -70,33 +100,39 @@ public interface StorageProbe {
         }
 
         @Override
-        public long openUnlinkedBytes(final File dir) {
+        public TempFiles openTempFiles(final File dir) {
             final Path fds = new File("/proc/self/fd").toPath();
             if (!Files.isDirectory(fds)) {
-                return -1L;
+                return TempFiles.UNKNOWN;
             }
             final String prefix;
             try {
                 prefix = dir.getCanonicalPath() + File.separator;
             } catch (final IOException e) {
-                return -1L;
+                return TempFiles.UNKNOWN;
             }
-            long sum = 0L;
+            long inDir = 0L;
+            long elsewhere = 0L;
             try (DirectoryStream<Path> entries = Files.newDirectoryStream(fds)) {
                 for (final Path fd : entries) {
                     try {
                         final String target = Files.readSymbolicLink(fd).toString();
-                        if (target.startsWith(prefix) && target.endsWith(" (deleted)")) {
-                            sum += fd.toFile().length();
+                        if (!target.endsWith(" (deleted)")) {
+                            continue;
+                        }
+                        if (target.startsWith(prefix)) {
+                            inDir += fd.toFile().length();
+                        } else if (target.substring(target.lastIndexOf(File.separatorChar) + 1).startsWith(SQLITE_TEMP_PREFIX)) {
+                            elsewhere += fd.toFile().length();
                         }
                     } catch (final IOException | RuntimeException e) {
                         // descriptor closed while scanning
                     }
                 }
             } catch (final IOException | RuntimeException e) {
-                return -1L;
+                return TempFiles.UNKNOWN;
             }
-            return sum;
+            return new TempFiles(inDir, elsewhere);
         }
     };
 }

@@ -1351,7 +1351,7 @@
       "post": {
         "operationId": "kg.control",
         "summary": "Pause or resume the knowledge graph",
-        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 503 kg_unavailable (details.reason) when the graph cannot run, 503 kg_write_refused (details.reason) when the storage guard refuses the bookkeeping write.",
+        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 503 kg_unavailable (details.reason) when the graph cannot run. The change takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
         "tags": [
           "knowledge"
         ],
@@ -8703,13 +8703,16 @@
               "disk_critical",
               "wal_checkpoint_blocked",
               "wal_limit",
+              "integrity_check_pending",
+              "integrity_check_failed",
+              "start_not_recorded",
               "manual",
               "budget_exhausted",
               "budget",
               "disk_reserve",
               "tmp_limit"
             ],
-            "description": "Why new growth (or every write) is paused. storage_error, disk_critical, wal_checkpoint_blocked and wal_limit stop deletions too."
+            "description": "Why new growth (or every write) is paused. storage_error, disk_critical, wal_checkpoint_blocked and wal_limit stop every write; integrity_check_pending, integrity_check_failed and start_not_recorded stop graph writes (growth and deletions) but not the runtime's own records."
           },
           "since": {
             "type": [
@@ -8854,7 +8857,23 @@
                       "integer",
                       "null"
                     ],
-                    "description": "Open but unlinked SQLite temp files; null where not measurable."
+                    "description": "Open but unlinked SQLite temp files in the graph's tmp directory; null where not measurable (no /proc/self/fd)."
+                  },
+                  "tmpOpenElsewhere": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "Open but unlinked SQLite temp files (etilqs_*) of this process elsewhere, e.g. after SQLite fell back to /var/tmp; counted like tmpOpen."
+                  },
+                  "tmpDirectory": {
+                    "type": "string",
+                    "enum": [
+                      "graph",
+                      "other",
+                      "system_default"
+                    ],
+                    "description": "SQLite's process-wide temp directory: the graph's tmp directory, another one (set while another store held connections), or SQLite's default."
                   },
                   "backup": {
                     "type": "integer"
@@ -8961,7 +8980,8 @@
                 "type": "object",
                 "properties": {
                   "open": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Running read leases."
                   },
                   "oldestAgeMillis": {
                     "type": [
@@ -8969,11 +8989,18 @@
                       "null"
                     ]
                   },
+                  "connections": {
+                    "type": "integer"
+                  },
+                  "maxConnections": {
+                    "type": "integer"
+                  },
                   "maxTransactionMillis": {
                     "type": "integer"
                   },
                   "interrupted": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "Leases ended at their deadline (watchdog interrupt or refused statement)."
                   }
                 }
               },
@@ -9074,13 +9101,75 @@
               },
               "startRecorded": {
                 "type": "boolean",
-                "description": "False while the guard refuses the start bookkeeping (e.g. disk_critical); the graph then runs read-only and the monitor retries."
+                "description": "False while the guard refuses the start bookkeeping (e.g. disk_critical); the graph then runs read-only, graph writes wait (start_not_recorded) and the maintenance thread retries."
               },
-              "quickCheck": {
-                "type": "string"
+              "integrity": {
+                "type": "object",
+                "description": "PRAGMA quick_check after an unclean shutdown, or on resume after a storage error or a failed check. Graph writes wait until it passes.",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "not_required",
+                      "pending",
+                      "running",
+                      "ok",
+                      "failed",
+                      "aborted"
+                    ]
+                  },
+                  "blocksGraphWrites": {
+                    "type": "boolean"
+                  },
+                  "trigger": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "unclean_start",
+                      "incomplete_check",
+                      "resume",
+                      null
+                    ]
+                  },
+                  "result": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "ok, or the first problem quick_check reported."
+                  },
+                  "error": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Why the check was aborted, e.g. read_timeout at scoutro.kg.integrity.maxMillis."
+                  },
+                  "startedAt": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "finishedAt": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "maxMillis": {
+                    "type": "integer"
+                  }
+                }
               },
               "manualPause": {
                 "type": "boolean"
+              },
+              "manualPauseSaved": {
+                "type": "boolean",
+                "description": "False while a pause change is in effect but the guard refused to store it; the maintenance thread stores it later."
               }
             }
           },
@@ -9127,7 +9216,7 @@
               "pause",
               "resume"
             ],
-            "description": "pause stops new growth (persisted across restarts); deletions and bookkeeping continue. resume ends a manual pause and, after a storage error, clears it only if PRAGMA quick_check passes."
+            "description": "pause stops new growth (stored across restarts); deletions and bookkeeping continue. resume ends a manual pause and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity)."
           }
         }
       },

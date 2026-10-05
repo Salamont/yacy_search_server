@@ -45,23 +45,47 @@ import net.yacy.search.Switchboard;
  * With {@code scoutro.kg.enabled=false} (the default) nothing happens: no
  * directory, no file, no thread, and the SQLite native library is not
  * loaded. When enabled, the store is opened, an unclean previous shutdown is
- * detected through the {@code clean_shutdown} flag, and one daemon thread
- * enforces read deadlines, measures storage and checkpoints the WAL. No
- * failure here may stop Scoutro: every problem ends in the state
- * {@link State#UNAVAILABLE} with a reason, and the rest of Scoutro runs on.
+ * detected through the {@code clean_shutdown} flag, and two daemon threads
+ * start. The watchdog ({@value #WATCHDOG_THREAD}) only enforces read
+ * deadlines, every {@value #WATCHDOG_MILLIS} ms; it never runs SQL and never
+ * waits for the write lock, so nothing the maintenance thread does can keep
+ * it from interrupting a read. The maintenance thread
+ * ({@value #MAINTENANCE_THREAD}) runs the supervised work: the integrity check
+ * after an unclean shutdown, measurement, checkpoints and retries.
+ * <p>
+ * After an unclean shutdown graph writes (growth and maintenance) stay blocked
+ * until {@code PRAGMA quick_check} has passed; a failed or aborted check keeps
+ * the block with a visible reason. No failure here may stop Scoutro: every
+ * problem ends in the state {@link State#UNAVAILABLE} with a reason, and the
+ * rest of Scoutro runs on.
  */
 public final class KgRuntime {
 
     public enum State { DISABLED, RUNNING, UNAVAILABLE, STOPPED }
 
+    /** The integrity check required after an unclean shutdown or requested after a storage error. */
+    public enum Integrity { NOT_REQUIRED, PENDING, RUNNING, OK, FAILED, ABORTED }
+
     public static final String STATUS_SCHEMA = "scoutro.kg.status.v1";
-    public static final String MONITOR_THREAD = "ScoutroKG.monitor";
+    public static final String WATCHDOG_THREAD = "ScoutroKG.watchdog";
+    public static final String MAINTENANCE_THREAD = "ScoutroKG.maintenance";
+    /** Watchdog period: a read is interrupted at most this long after its deadline. */
+    public static final long WATCHDOG_MILLIS = 250L;
+
+    /** Triggers of the integrity check. */
+    public static final String TRIGGER_UNCLEAN_START = "unclean_start";
+    public static final String TRIGGER_INCOMPLETE_CHECK = "incomplete_check";
+    public static final String TRIGGER_RESUME = "resume";
 
     private static final ConcurrentLog LOG = new ConcurrentLog("SCOUTRO-KG");
     private static final long SMALL_WRITE_BYTES = 64L * 1024L;
+    private static final long MAINTENANCE_MILLIS = 1000L;
     private static final long MEASURE_EVERY_MILLIS = 30_000L;
-    private static final long QUICK_CHECK_DEADLINE_MILLIS = 120_000L;
+    private static final long STOP_WAIT_MILLIS = 5000L;
     private static final int STATUS_EVENTS = 20;
+
+    /** The integrity check: {@code PRAGMA quick_check}, "ok" if the database is consistent. */
+    static final KgStore.SqlWork<String> QUICK_CHECK = c -> KgStore.queryString(c, "PRAGMA quick_check(1)");
 
     private static KgRuntime current;
 
@@ -73,15 +97,28 @@ public final class KgRuntime {
         final StorageProbe probe;
         final KgStore.ConnectionFactory connections;
         final boolean monitorThread;
+        final KgStore.SqlWork<String> integrityCheck;
 
         public Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread) {
+            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK);
+        }
+
+        private Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
+                final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
+                final KgStore.SqlWork<String> integrityCheck) {
             this.dataRoot = dataRoot;
             this.config = config;
             this.clock = clock;
             this.probe = probe;
             this.connections = connections;
             this.monitorThread = monitorThread;
+            this.integrityCheck = integrityCheck;
+        }
+
+        /** The same environment with another integrity check (tests). */
+        Env withIntegrityCheck(final KgStore.SqlWork<String> check) {
+            return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread, check);
         }
 
         static Env of(final Switchboard sb) {
@@ -98,15 +135,26 @@ public final class KgRuntime {
     private KgPaths paths;
     private StorageGuard guard;
     private JsonLdCapturePolicy jsonld;
-    private KgStore store;
-    private ScheduledExecutorService monitor;
+    private volatile KgStore store;
+    private ScheduledExecutorService watchdog;
+    private ScheduledExecutorService maintenance;
+    private volatile boolean closing;
     private boolean uncleanStartDetected;
-    private volatile String quickCheck = "not_run";
-    private volatile boolean quickCheckPending;
-    /** False while the start could not be written; later packages must not write graph data before it is true. */
+    /** False while the start could not be written; the guard holds graph writes back until it is true. */
     private volatile boolean startRecorded = true;
+    /** A manual pause change that is in effect but not yet stored (the guard refused the write); null if stored. */
+    private volatile Boolean unsavedManualPause;
+    private final Object pauseLock = new Object();
     private long startedAt;
     private long lastMeasure;
+
+    private final Object integrityLock = new Object();
+    private Integrity integrity = Integrity.NOT_REQUIRED;
+    private String integrityTrigger;
+    private String integrityResult;
+    private String integrityError;
+    private long integrityStartedAt;
+    private long integrityFinishedAt;
 
     public KgRuntime(final Env env) {
         this.env = env;
@@ -174,17 +222,15 @@ public final class KgRuntime {
             markStarted();
             this.guard.refresh();
             this.lastMeasure = this.env.clock.getAsLong();
-            if (this.env.monitorThread) {
-                this.monitor = Executors.newSingleThreadScheduledExecutor(r -> {
-                    final Thread t = new Thread(r, MONITOR_THREAD);
-                    t.setDaemon(true);
-                    t.setPriority(Thread.MIN_PRIORITY);
-                    return t;
-                });
-                this.monitor.scheduleWithFixedDelay(this::tick, 1, 1, TimeUnit.SECONDS);
-            }
             set(State.RUNNING, null, null);
-            LOG.info("knowledge graph store open: " + this.paths.db + (this.uncleanStartDetected ? " (unclean previous shutdown)" : ""));
+            if (this.env.monitorThread) {
+                this.watchdog = daemon(WATCHDOG_THREAD);
+                this.watchdog.scheduleWithFixedDelay(this::watchdogTick, WATCHDOG_MILLIS, WATCHDOG_MILLIS, TimeUnit.MILLISECONDS);
+                this.maintenance = daemon(MAINTENANCE_THREAD);
+                this.maintenance.scheduleWithFixedDelay(this::tick, 0L, MAINTENANCE_MILLIS, TimeUnit.MILLISECONDS);
+            }
+            LOG.info("knowledge graph store open: " + this.paths.db + (this.uncleanStartDetected
+                    ? " (unclean previous shutdown; graph writes wait for the integrity check)" : ""));
         } catch (final KgException e) {
             closeStoreQuietly();
             set(State.UNAVAILABLE, e.code(), e.getMessage());
@@ -200,22 +246,39 @@ public final class KgRuntime {
         }
     }
 
+    private static ScheduledExecutorService daemon(final String name) {
+        return Executors.newSingleThreadScheduledExecutor(r -> {
+            final Thread t = new Thread(r, name);
+            t.setDaemon(true);
+            t.setPriority(Thread.MIN_PRIORITY);
+            return t;
+        });
+    }
+
     /**
-     * Reads the clean-shutdown flag and the manual pause, then marks this run
-     * as started. A flag left at 0 by the previous run means it ended without
-     * {@link #close()}: the sync (package 2) must then run a full reconcile,
-     * and the database gets a quick_check.
+     * Reads the clean-shutdown flag, the manual pause and the integrity flag,
+     * then marks this run as started. A clean-shutdown flag left at 0 by the
+     * previous run means it ended without {@link #close()}: the sync (package
+     * 2) must then run a full reconcile, and graph writes wait for the
+     * integrity check. The integrity flag stays set across a clean stop until
+     * a check has passed.
      * <p>
      * If the storage guard refuses the bookkeeping write (e.g. the disk is
      * below the critical floor), the runtime still starts, read-only, and the
-     * monitor retries the mark until it succeeds ({@link #startRecorded}).
+     * maintenance thread retries the mark until it succeeds; graph writes wait
+     * for it ({@link StorageGuard#START_NOT_RECORDED}).
      */
     private void markStarted() throws KgException {
-        final String[] flags = this.store.read(c -> new String[] {
-                KgStore.getMeta(c, KgSchema.META_CLEAN_SHUTDOWN), KgStore.getMeta(c, KgSchema.META_MANUAL_PAUSE)});
+        final String[] flags = this.store.read(c -> new String[] {KgStore.getMeta(c, KgSchema.META_CLEAN_SHUTDOWN),
+                KgStore.getMeta(c, KgSchema.META_MANUAL_PAUSE), KgStore.getMeta(c, KgSchema.META_INTEGRITY_REQUIRED)});
         this.uncleanStartDetected = "0".equals(flags[0]);
         this.guard.setManualPause("1".equals(flags[1]));
-        this.quickCheckPending = this.uncleanStartDetected;
+        if (this.uncleanStartDetected) {
+            requireIntegrityCheck(TRIGGER_UNCLEAN_START);
+        } else if ("1".equals(flags[2])) {
+            requireIntegrityCheck(TRIGGER_INCOMPLETE_CHECK);
+        }
+        this.guard.setStartNotRecorded(true);
         try {
             recordStart();
         } catch (final KgException e) {
@@ -230,10 +293,14 @@ public final class KgRuntime {
     private void recordStart() throws KgException {
         final long now = this.env.clock.getAsLong();
         final boolean unclean = this.uncleanStartDetected;
-        this.store.write(WriteClass.MAINTENANCE, SMALL_WRITE_BYTES, tx -> {
+        final boolean checkOutstanding = integrityOutstanding();
+        this.store.write(WriteClass.SYSTEM, SMALL_WRITE_BYTES, tx -> {
             if (unclean) {
                 KgStore.putMeta(tx, KgSchema.META_RECONCILE_REQUIRED, "1");
                 KgStore.event(tx, 2, "unclean_start", "previous run ended without a clean shutdown", now);
+            }
+            if (checkOutstanding) {
+                KgStore.putMeta(tx, KgSchema.META_INTEGRITY_REQUIRED, "1");
             }
             KgStore.putMeta(tx, KgSchema.META_CLEAN_SHUTDOWN, "0");
             KgStore.putMeta(tx, KgSchema.META_LAST_START, Long.toString(now));
@@ -241,23 +308,38 @@ public final class KgRuntime {
             return null;
         });
         this.startRecorded = true;
+        this.guard.setStartNotRecorded(false);
     }
 
-    /** Clean shutdown: marks the flag, checkpoints and closes. Never throws. */
+    /**
+     * Clean shutdown: stops the maintenance thread (a running integrity check
+     * is interrupted and stays required), then the watchdog, marks the flag,
+     * checkpoints and closes. Never throws.
+     */
     public synchronized void close() {
-        if (this.monitor != null) {
-            this.monitor.shutdownNow();
-            try {
-                this.monitor.awaitTermination(2, TimeUnit.SECONDS);
-            } catch (final InterruptedException e) {
-                Thread.currentThread().interrupt();
+        this.closing = true;
+        final KgStore s = this.store;
+        if (this.maintenance != null) {
+            this.maintenance.shutdownNow();
+            if (s != null) {
+                s.interruptAllReaders();
             }
-            this.monitor = null;
+            awaitQuietly(this.maintenance);
+            this.maintenance = null;
         }
-        if (this.store != null) {
+        if (this.watchdog != null) {
+            this.watchdog.shutdownNow();
+            awaitQuietly(this.watchdog);
+            this.watchdog = null;
+        }
+        if (s != null) {
             final long now = this.env.clock.getAsLong();
+            final Boolean unsaved = this.unsavedManualPause;
             try {
-                this.store.write(WriteClass.MAINTENANCE, SMALL_WRITE_BYTES, tx -> {
+                s.write(WriteClass.SYSTEM, SMALL_WRITE_BYTES, tx -> {
+                    if (unsaved != null) {
+                        KgStore.putMeta(tx, KgSchema.META_MANUAL_PAUSE, unsaved ? "1" : "0");
+                    }
                     KgStore.putMeta(tx, KgSchema.META_CLEAN_SHUTDOWN, "1");
                     KgStore.event(tx, 1, "stop", null, now);
                     return null;
@@ -272,10 +354,19 @@ public final class KgRuntime {
         }
     }
 
+    private static void awaitQuietly(final ScheduledExecutorService e) {
+        try {
+            e.awaitTermination(STOP_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+        } catch (final InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
     private void closeStoreQuietly() {
-        if (this.store != null) {
+        final KgStore s = this.store;
+        if (s != null) {
             try {
-                this.store.close();
+                s.close();
             } catch (final RuntimeException e) {
                 // closing anyway
             }
@@ -289,15 +380,33 @@ public final class KgRuntime {
         this.reasonDetail = detail;
     }
 
-    /** One monitor step: read deadlines every second, measurement and checkpoint every 30 seconds. */
-    void tick() {
+    // ------------------------------------------------------------ background
+
+    /** Watchdog step: interrupts reads past their deadline. No SQL, no locks shared with the work it supervises. */
+    void watchdogTick() {
         final KgStore s = this.store;
-        if (s == null || this.state != State.RUNNING) {
+        if (s == null) {
             return;
         }
         try {
-            final long now = this.env.clock.getAsLong();
-            s.interruptExpiredReaders(now);
+            s.interruptExpiredReaders(this.env.clock.getAsLong());
+        } catch (final RuntimeException e) {
+            LOG.warn("knowledge graph watchdog step failed: " + e);
+        }
+    }
+
+    /**
+     * Maintenance step, every second: records a start the guard refused
+     * earlier, stores an unsaved manual pause, runs a pending integrity check,
+     * and every 30 seconds measures storage and checkpoints the WAL. Its reads
+     * are leases; the watchdog interrupts them at their deadline.
+     */
+    void tick() {
+        final KgStore s = this.store;
+        if (s == null || this.state != State.RUNNING || this.closing) {
+            return;
+        }
+        try {
             if (!this.startRecorded) {
                 try {
                     recordStart();
@@ -305,10 +414,17 @@ public final class KgRuntime {
                     // still refused; the status shows the guard's reason
                 }
             }
-            if (this.quickCheckPending) {
-                this.quickCheckPending = false;
-                runQuickCheck();
+            if (this.unsavedManualPause != null) {
+                try {
+                    saveManualPause();
+                } catch (final KgException e) {
+                    // kept in memory, retried
+                }
             }
+            if (beginIntegrityCheck()) {
+                runIntegrityCheck(s);
+            }
+            final long now = this.env.clock.getAsLong();
             if (now - this.lastMeasure >= MEASURE_EVERY_MILLIS) {
                 this.lastMeasure = now;
                 this.guard.refresh();
@@ -322,20 +438,112 @@ public final class KgRuntime {
         } catch (final KgException e) {
             // recorded by the guard and visible in the status
         } catch (final RuntimeException e) {
-            LOG.warn("knowledge graph monitor step failed: " + e);
+            LOG.warn("knowledge graph maintenance step failed: " + e);
         }
     }
 
-    private void runQuickCheck() {
-        try {
-            this.quickCheck = this.store.quickCheck(QUICK_CHECK_DEADLINE_MILLIS);
-            if (!"ok".equals(this.quickCheck)) {
-                this.guard.storageError("quick_check");
-                LOG.warn("knowledge graph quick_check failed: " + this.quickCheck);
+    // -------------------------------------------------------------- integrity
+
+    private void requireIntegrityCheck(final String trigger) {
+        synchronized (this.integrityLock) {
+            if (this.integrity == Integrity.PENDING || this.integrity == Integrity.RUNNING) {
+                return;
             }
-        } catch (final KgException e) {
-            this.quickCheck = "error:" + e.code();
+            this.integrity = Integrity.PENDING;
+            this.integrityTrigger = trigger;
+            this.integrityResult = null;
+            this.integrityError = null;
+            this.integrityStartedAt = 0L;
+            this.integrityFinishedAt = 0L;
         }
+        this.guard.setIntegrityBlock(StorageGuard.INTEGRITY_PENDING, trigger);
+    }
+
+    /** True if a check is required and has not passed yet. */
+    private boolean integrityOutstanding() {
+        synchronized (this.integrityLock) {
+            return this.integrity != Integrity.NOT_REQUIRED && this.integrity != Integrity.OK;
+        }
+    }
+
+    private boolean beginIntegrityCheck() {
+        synchronized (this.integrityLock) {
+            if (this.integrity != Integrity.PENDING) {
+                return false;
+            }
+            this.integrity = Integrity.RUNNING;
+            this.integrityStartedAt = this.env.clock.getAsLong();
+            return true;
+        }
+    }
+
+    /**
+     * Runs the check as one read lease with the deadline
+     * {@code scoutro.kg.integrity.maxMillis}; the watchdog interrupts it when
+     * the deadline passes ({@code sqlite3_interrupt} stops quick_check within
+     * milliseconds).
+     */
+    private void runIntegrityCheck(final KgStore s) {
+        String result = null;
+        KgException failure = null;
+        try {
+            result = s.read(this.env.integrityCheck, this.config.integrityMaxMillis);
+        } catch (final KgException e) {
+            failure = e;
+        }
+        final long now = this.env.clock.getAsLong();
+        final long took;
+        synchronized (this.integrityLock) {
+            took = now - this.integrityStartedAt;
+            this.integrityFinishedAt = now;
+            if (failure != null) {
+                this.integrity = Integrity.ABORTED;
+                this.integrityError = failure.code();
+            } else if ("ok".equals(result)) {
+                this.integrity = Integrity.OK;
+                this.integrityResult = "ok";
+            } else {
+                this.integrity = Integrity.FAILED;
+                this.integrityResult = clip(String.valueOf(result));
+            }
+        }
+        if (failure != null) {
+            this.guard.setIntegrityBlock(StorageGuard.INTEGRITY_FAILED, "aborted: " + failure.code() + " after " + took + " ms");
+            LOG.warn("knowledge graph integrity check aborted after " + took + " ms: " + failure.code());
+            if (!this.closing) {
+                recordEvent(2, "integrity_aborted", failure.code() + " after " + took + " ms", false);
+            }
+        } else if ("ok".equals(result)) {
+            this.guard.clearStorageError();
+            this.guard.setIntegrityBlock(null, null);
+            LOG.info("knowledge graph integrity check passed in " + took + " ms");
+            recordEvent(1, "integrity_ok", took + " ms", true);
+        } else {
+            // a damaged database: every write stops, the stored flag keeps the check required
+            this.guard.storageError("integrity_check");
+            this.guard.setIntegrityBlock(StorageGuard.INTEGRITY_FAILED, "quick_check: " + clip(String.valueOf(result)));
+            LOG.warn("knowledge graph integrity check failed: " + result);
+        }
+    }
+
+    private void recordEvent(final int level, final String code, final String detail, final boolean integrityPassed) {
+        final long now = this.env.clock.getAsLong();
+        try {
+            this.store.write(WriteClass.SYSTEM, SMALL_WRITE_BYTES, tx -> {
+                if (integrityPassed) {
+                    KgStore.putMeta(tx, KgSchema.META_INTEGRITY_REQUIRED, "0");
+                }
+                KgStore.event(tx, level, code, detail, now);
+                return null;
+            });
+        } catch (final KgException | RuntimeException e) {
+            // the next start checks again if the passed check could not be stored
+        }
+    }
+
+    private static String clip(final String v) {
+        final String line = v.replace('\n', ' ');
+        return line.length() > 200 ? line.substring(0, 200) : line;
     }
 
     // ---------------------------------------------------------------- control
@@ -348,38 +556,60 @@ public final class KgRuntime {
         return this.reason;
     }
 
-    /** Stops new growth (extraction and backfill in later packages); deletions continue. Persisted. */
+    /**
+     * Stops new growth (extraction and backfill in later packages); deletions
+     * continue. Takes effect at once and is stored; if the guard refuses the
+     * write, the maintenance thread stores it later.
+     */
     public synchronized JSONObject pause() throws KgException {
         requireRunning();
         this.guard.setManualPause(true);
-        persistManualPause(true);
+        saveManualPause();
         return status();
     }
 
     /**
-     * Ends a manual pause. After a storage error it first runs a quick_check
-     * and clears the error only if the database is consistent.
+     * Ends a manual pause. After a storage error or a failed or aborted
+     * integrity check it also requests a new check; graph writes resume only
+     * when it has passed.
      */
     public synchronized JSONObject resume() throws KgException {
         requireRunning();
-        if (this.guard.storageErrorCode() != null) {
-            runQuickCheck();
-            if ("ok".equals(this.quickCheck)) {
-                this.guard.clearStorageError();
-            }
+        final boolean recheck;
+        synchronized (this.integrityLock) {
+            recheck = this.integrity == Integrity.FAILED || this.integrity == Integrity.ABORTED;
+        }
+        if (recheck || this.guard.storageErrorCode() != null) {
+            requireIntegrityCheck(TRIGGER_RESUME);
         }
         this.guard.setManualPause(false);
-        persistManualPause(false);
+        saveManualPause();
         return status();
     }
 
-    private void persistManualPause(final boolean paused) throws KgException {
-        final long now = this.env.clock.getAsLong();
-        this.store.write(WriteClass.MAINTENANCE, SMALL_WRITE_BYTES, tx -> {
-            KgStore.putMeta(tx, KgSchema.META_MANUAL_PAUSE, paused ? "1" : "0");
-            KgStore.event(tx, 1, paused ? "manual_pause" : "manual_resume", null, now);
-            return null;
-        });
+    /**
+     * Stores the manual pause that is in effect. If the guard refuses the
+     * system write (e.g. after a storage error), the pause stays in effect in
+     * memory and the maintenance thread stores it later.
+     */
+    private void saveManualPause() throws KgException {
+        synchronized (this.pauseLock) {
+            final boolean paused = this.guard.manualPause();
+            final long now = this.env.clock.getAsLong();
+            try {
+                this.store.write(WriteClass.SYSTEM, SMALL_WRITE_BYTES, tx -> {
+                    KgStore.putMeta(tx, KgSchema.META_MANUAL_PAUSE, paused ? "1" : "0");
+                    KgStore.event(tx, 1, paused ? "manual_pause" : "manual_resume", null, now);
+                    return null;
+                });
+                this.unsavedManualPause = null;
+            } catch (final KgException e) {
+                this.unsavedManualPause = paused;
+                if (!KgException.WRITE_REFUSED.equals(e.code())) {
+                    throw e;
+                }
+            }
+        }
     }
 
     private void requireRunning() throws KgException {
@@ -405,17 +635,18 @@ public final class KgRuntime {
         if (this.config == null || !this.config.enabled) {
             return o;
         }
-        final boolean running = this.state == State.RUNNING && this.store != null;
+        final KgStore s = this.store;
+        final boolean running = this.state == State.RUNNING && s != null;
         KgJson.put(o, "paths", KgJson.obj("dir", KgPaths.RELATIVE_DIR));
         if (this.guard != null) {
             final JSONObject storage = this.guard.status();
             if (running) {
                 try {
-                    KgJson.put(storage, "pages", this.store.pageStats());
+                    KgJson.put(storage, "pages", s.pageStats());
                 } catch (final KgException e) {
                     KgJson.put(storage, "pages", KgJson.obj("error", e.code()));
                 }
-                KgJson.put(storage, "readers", this.store.readerStatus(this.env.clock.getAsLong()));
+                KgJson.put(storage, "readers", s.readerStatus(this.env.clock.getAsLong()));
             }
             KgJson.put(o, "storage", storage);
             // nothing is captured yet (package 2), so the field size in Solr is unknown
@@ -425,12 +656,24 @@ public final class KgRuntime {
         }
         KgJson.put(o, "jsonld", this.jsonld.status());
         if (running) {
-            KgJson.put(o, "store", KgJson.obj("schemaVersion", this.store.schemaVersion(), "epoch", this.store.epoch(),
+            KgJson.put(o, "store", KgJson.obj("schemaVersion", s.schemaVersion(), "epoch", s.epoch(),
                     "uncleanStartDetected", this.uncleanStartDetected, "startRecorded", this.startRecorded,
-                    "quickCheck", this.quickCheck, "manualPause", this.guard.manualPause()));
-            KgJson.put(o, "events", recentEvents());
+                    "integrity", integrityStatus(), "manualPause", this.guard.manualPause(),
+                    "manualPauseSaved", this.unsavedManualPause == null));
+            KgJson.put(o, "events", recentEvents(s));
         }
         return o;
+    }
+
+    private JSONObject integrityStatus() {
+        synchronized (this.integrityLock) {
+            return KgJson.obj("state", this.integrity.name().toLowerCase(),
+                    "blocksGraphWrites", this.integrity != Integrity.NOT_REQUIRED && this.integrity != Integrity.OK,
+                    "trigger", this.integrityTrigger, "result", this.integrityResult, "error", this.integrityError,
+                    "startedAt", this.integrityStartedAt > 0 ? this.integrityStartedAt : null,
+                    "finishedAt", this.integrityFinishedAt > 0 ? this.integrityFinishedAt : null,
+                    "maxMillis", this.config.integrityMaxMillis);
+        }
     }
 
     private static long diskUsable(final JSONObject storage) {
@@ -438,9 +681,9 @@ public final class KgRuntime {
         return disk == null ? 0L : disk.optLong("usableBytes", 0L);
     }
 
-    private JSONArray recentEvents() {
+    private static JSONArray recentEvents(final KgStore s) {
         try {
-            return this.store.read(c -> events(c));
+            return s.read(c -> events(c));
         } catch (final KgException e) {
             return new JSONArray();
         }
@@ -479,5 +722,12 @@ public final class KgRuntime {
     /** For tests: whether the previous run ended without a clean shutdown. */
     boolean uncleanStartDetected() {
         return this.uncleanStartDetected;
+    }
+
+    /** For tests: the state of the integrity check. */
+    Integrity integrity() {
+        synchronized (this.integrityLock) {
+            return this.integrity;
+        }
     }
 }

@@ -22,12 +22,13 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Map;
+import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
@@ -47,14 +48,19 @@ import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 /**
  * The embedded SQLite store of the knowledge graph.
  * <p>
- * One writer connection, serialised by a lock; every write is admitted by the
- * {@link StorageGuard} first and runs in one {@code BEGIN IMMEDIATE}
- * transaction. Readers come from a small pool and only inside
- * {@link #read(SqlWork)}: each read is a lease with a deadline. A reader that
- * overruns its deadline is interrupted ({@code sqlite3_interrupt}), because an
+ * One writer connection, serialised by a lock. Every write is admitted by the
+ * {@link StorageGuard} while the lock is held, right before
+ * {@code BEGIN IMMEDIATE}, so each admission sees the files after all earlier
+ * commits. Readers come from a small pool and only inside
+ * {@link #read(SqlWork)}: each read is a lease with a deadline, because an
  * open read transaction keeps the WAL from being checkpointed and lets it grow
- * without bound. Readers never hold a transaction across client I/O: callers
- * materialise a bounded page and return.
+ * without bound. The runtime's watchdog interrupts leases past their deadline
+ * ({@code sqlite3_interrupt}); the leased connection additionally refuses to
+ * start statements once the lease is over, since an interrupt between two
+ * statements does not stop the next one. Interrupt, lease end, reuse and
+ * closing of a reader connection are serialised per connection, so a late
+ * interrupt can never reach the next lease. Readers never hold a transaction
+ * across client I/O: callers materialise a bounded page and return.
  * <p>
  * Checkpoints are explicit ({@code wal_checkpoint(TRUNCATE)}) and verified;
  * the result goes to the guard, which refuses writes once the WAL reaches its
@@ -81,6 +87,17 @@ public final class KgStore implements AutoCloseable {
     private static final int CHECKPOINT_BUSY_TIMEOUT_MILLIS = 200;
     private static final long SCHEMA_ESTIMATE_BYTES = 512L * 1024L;
     private static final int EVENT_RING = 1000;
+    /** Pages freed per incremental-vacuum transaction. */
+    static final int VACUUM_BATCH_PAGES = 128;
+    /**
+     * WAL frames reserved per freed page and per batch. Measured with
+     * sqlite-jdbc 3.53: at most 0.9 frames per page in one transaction (one
+     * page per transaction needs up to 17 frames), so 2 per page plus 16 is a
+     * safe bound; a batch writes each touched page once.
+     */
+    static final long VACUUM_FRAMES_PER_PAGE = 2L;
+    static final long VACUUM_FRAMES_PER_BATCH = 16L;
+    private static final long WAL_FRAME_HEADER = 24L;
 
     private static final int SQLITE_BUSY = 5;
     private static final int SQLITE_LOCKED = 6;
@@ -99,10 +116,12 @@ public final class KgStore implements AutoCloseable {
     private final LongSupplier clock;
     private final Connection writer;
     private final ReentrantLock writeLock = new ReentrantLock();
-    private final BlockingQueue<Connection> idleReaders = new LinkedBlockingQueue<>();
+    private final List<ReaderSlot> readers = new CopyOnWriteArrayList<>();
+    private final BlockingQueue<ReaderSlot> idleReaders = new LinkedBlockingQueue<>();
     private final AtomicInteger readerCount = new AtomicInteger();
-    private final Map<Connection, Lease> leases = new ConcurrentHashMap<>();
     private final AtomicLong interruptedReads = new AtomicLong();
+    /** Test hook: runs inside the per-connection critical section, right before sqlite3_interrupt. */
+    private volatile Runnable interruptProbe;
     private volatile boolean closed;
     private long pageSize;
     private long maxPageCount;
@@ -110,14 +129,55 @@ public final class KgStore implements AutoCloseable {
     private String epoch;
     private boolean created;
 
+    /** One reader connection. {@code lease} and {@code closed} change only under the slot's monitor. */
+    private static final class ReaderSlot {
+        final Connection conn;
+        volatile Lease lease;
+        boolean closed;
+
+        ReaderSlot(final Connection conn) {
+            this.conn = conn;
+        }
+    }
+
     private static final class Lease {
         final long startedAt;
         final long deadlineMillis;
-        volatile boolean interrupted;
+        final AtomicBoolean interrupted = new AtomicBoolean();
 
         Lease(final long startedAt, final long deadlineMillis) {
             this.startedAt = startedAt;
             this.deadlineMillis = deadlineMillis;
+        }
+
+        boolean expired(final long now) {
+            return now - this.startedAt > this.deadlineMillis;
+        }
+    }
+
+    /** Outcome of {@link #incrementalVacuum}. */
+    public static final class VacuumResult {
+        public static final String DONE = "done";
+        public static final String MAX_PAGES = "max_pages";
+        public static final String DEADLINE = "deadline";
+        public static final String NO_PROGRESS = "no_progress";
+
+        public final long freedPages;
+        public final int batches;
+        /** {@link #DONE}, {@link #MAX_PAGES}, {@link #DEADLINE}, {@link #NO_PROGRESS} or a guard reason. */
+        public final String stop;
+        public final long remainingFreePages;
+
+        VacuumResult(final long freedPages, final int batches, final String stop, final long remainingFreePages) {
+            this.freedPages = freedPages;
+            this.batches = batches;
+            this.stop = stop;
+            this.remainingFreePages = remainingFreePages;
+        }
+
+        public JSONObject toJson() {
+            return KgJson.obj("freedPages", this.freedPages, "batches", this.batches, "stop", this.stop,
+                    "remainingFreePages", this.remainingFreePages);
         }
     }
 
@@ -146,11 +206,11 @@ public final class KgStore implements AutoCloseable {
         mkdirs(paths.tmp);
         final boolean fresh = !paths.db.isFile() || paths.db.length() == 0L;
         if (fresh) {
-            guard.admit(WriteClass.MAINTENANCE, SCHEMA_ESTIMATE_BYTES);
+            guard.admit(WriteClass.SYSTEM, SCHEMA_ESTIMATE_BYTES);
         }
         final Connection writer;
         try {
-            writer = factory.open(paths.db);
+            writer = SqliteProcess.open(factory, paths.db, paths.tmp);
         } catch (final LinkageError e) {
             throw new KgException(KgException.NATIVE_LIBRARY_UNAVAILABLE, null,
                     "SQLite could not be loaded: " + e.getClass().getSimpleName(), e);
@@ -166,16 +226,18 @@ public final class KgStore implements AutoCloseable {
             store.configureWriter(fresh);
             store.initSchema();
         } catch (final KgException e) {
-            closeQuietly(writer);
+            SqliteProcess.close(writer);
             throw e;
         } catch (final SQLException e) {
-            closeQuietly(writer);
+            SqliteProcess.close(writer);
             throw new KgException(KgException.STORAGE_ERROR, null, "cannot initialise " + paths.db + ": " + e.getMessage(), e);
         } catch (final RuntimeException | LinkageError e) {
-            closeQuietly(writer);
+            SqliteProcess.close(writer);
             throw new KgException(KgException.NATIVE_LIBRARY_UNAVAILABLE, null,
                     "SQLite failed during initialisation: " + e.getClass().getSimpleName(), e);
         }
+        guard.setTempDirectory(SqliteProcess.tempDirectoryIs(paths.tmp) ? StorageGuard.TMP_DIR_GRAPH
+                : SqliteProcess.tempDirectorySet() ? StorageGuard.TMP_DIR_OTHER : StorageGuard.TMP_DIR_UNSET);
         return store;
     }
 
@@ -205,10 +267,13 @@ public final class KgStore implements AutoCloseable {
         applyMaxPageCount();
     }
 
-    private void configureCommon(final Connection c, final int cacheKiB) throws SQLException {
+    /**
+     * Per-connection settings. The temp directory is process-wide and set by
+     * {@link SqliteProcess} on the first connection only.
+     */
+    private static void configureCommon(final Connection c, final int cacheKiB) throws SQLException {
         exec(c, "PRAGMA busy_timeout=" + BUSY_TIMEOUT_MILLIS);
         exec(c, "PRAGMA temp_store=FILE");
-        exec(c, "PRAGMA temp_store_directory='" + this.paths.tmp.getAbsolutePath().replace("'", "''") + "'");
         exec(c, "PRAGMA cache_size=-" + cacheKiB);
         exec(c, "PRAGMA mmap_size=0");
     }
@@ -276,16 +341,18 @@ public final class KgStore implements AutoCloseable {
 
     /**
      * Runs {@code work} in one write transaction after the guard admitted
-     * {@code estimateBytes} of growth for the given class. A refused or failed
-     * write leaves the database unchanged.
+     * {@code estimateBytes} of growth for the given class. The admission runs
+     * under the write lock, right before {@code BEGIN IMMEDIATE}, so it is
+     * based on the files after every earlier commit. A refused or failed write
+     * leaves the database unchanged.
      */
     public <T> T write(final WriteClass writeClass, final long estimateBytes, final SqlWork<T> work) throws KgException {
         ensureOpen();
-        admit(writeClass, estimateBytes);
         final T result;
         this.writeLock.lock();
         try {
             ensureOpen();
+            admitLocked(writeClass, estimateBytes);
             exec(this.writer, "BEGIN IMMEDIATE");
             try {
                 result = work.run(this.writer);
@@ -306,8 +373,8 @@ public final class KgStore implements AutoCloseable {
         return result;
     }
 
-    /** Admission with one checkpoint attempt when only the WAL is in the way. */
-    private void admit(final WriteClass writeClass, final long estimateBytes) throws KgException {
+    /** Admission with one checkpoint attempt when only the WAL is in the way; caller holds the write lock. */
+    private void admitLocked(final WriteClass writeClass, final long estimateBytes) throws KgException {
         try {
             this.guard.admit(writeClass, estimateBytes);
         } catch (final KgException e) {
@@ -360,39 +427,85 @@ public final class KgStore implements AutoCloseable {
     }
 
     /**
-     * Returns free pages to the filesystem in small steps (each call of the
-     * pragma through sqlite-jdbc frees one page). Never a full VACUUM.
-     *
-     * @return freed pages
+     * Returns free pages to the filesystem, never with a full VACUUM. Works in
+     * transactions of {@value #VACUUM_BATCH_PAGES} pages; each batch is
+     * admitted on its own (maintenance class) with a WAL estimate, and between
+     * batches the WAL is checkpointed. In WAL mode the main file only shrinks
+     * when a checkpoint completes, so the vacuum stops as soon as a checkpoint
+     * is blocked (a reader holds an old snapshot): further batches would only
+     * fill the WAL that deletions may need. It also stops when the guard
+     * refuses the next batch, at {@code maxPages} and at the deadline.
      */
-    public long incrementalVacuum(final long maxPages, final long maxMillis) throws KgException {
+    public VacuumResult incrementalVacuum(final long maxPages, final long maxMillis) throws KgException {
         ensureOpen();
-        admit(WriteClass.MAINTENANCE, 64L * 1024L);
         final long deadline = this.clock.getAsLong() + maxMillis;
         long freed = 0L;
-        this.writeLock.lock();
-        try {
-            final long before = queryLong(this.writer, "PRAGMA freelist_count");
-            long remaining = before;
-            try (Statement st = this.writer.createStatement()) {
-                while (remaining > 0L && freed < maxPages && this.clock.getAsLong() < deadline) {
-                    st.execute("PRAGMA incremental_vacuum");
-                    freed++;
-                    if (freed % 64L == 0L) {
-                        remaining = queryLong(this.writer, "PRAGMA freelist_count");
-                    } else {
-                        remaining--;
-                    }
-                }
+        long free = -1L;
+        int batches = 0;
+        String stop = null;
+        while (stop == null) {
+            if (freed >= maxPages) {
+                stop = VacuumResult.MAX_PAGES;
+                break;
             }
-            freed = before - queryLong(this.writer, "PRAGMA freelist_count");
-        } catch (final SQLException e) {
-            throw mapWrite(e);
-        } finally {
-            this.writeLock.unlock();
+            if (this.clock.getAsLong() >= deadline) {
+                stop = VacuumResult.DEADLINE;
+                break;
+            }
+            this.writeLock.lock();
+            try {
+                ensureOpen();
+                free = queryLong(this.writer, "PRAGMA freelist_count");
+                if (free == 0L) {
+                    stop = VacuumResult.DONE;
+                    break;
+                }
+                final int pages = (int) Math.min(VACUUM_BATCH_PAGES, Math.min(maxPages - freed, free));
+                try {
+                    admitLocked(WriteClass.MAINTENANCE, vacuumEstimateBytes(pages));
+                } catch (final KgException e) {
+                    if (!KgException.WRITE_REFUSED.equals(e.code())) {
+                        throw e;
+                    }
+                    stop = e.reason();
+                    break;
+                }
+                exec(this.writer, "BEGIN IMMEDIATE");
+                try {
+                    // sqlite-jdbc steps the pragma once per execution, which frees one page; the statement
+                    // must be closed before COMMIT, which SQLite refuses while it is still active
+                    try (Statement st = this.writer.createStatement()) {
+                        for (int i = 0; i < pages; i++) {
+                            st.execute("PRAGMA incremental_vacuum");
+                        }
+                    }
+                    exec(this.writer, "COMMIT");
+                } catch (final SQLException | RuntimeException e) {
+                    rollbackQuietly(this.writer);
+                    throw e;
+                }
+                final long after = queryLong(this.writer, "PRAGMA freelist_count");
+                batches++;
+                if (after >= free) {
+                    stop = VacuumResult.NO_PROGRESS;
+                }
+                freed += Math.max(0L, free - after);
+                free = after;
+            } catch (final SQLException e) {
+                throw mapWrite(e);
+            } finally {
+                this.writeLock.unlock();
+            }
+            if (stop == null && this.guard.walBytes() >= this.cfg.walCheckpointBytes && !checkpoint().complete()) {
+                stop = StorageGuard.WAL_CHECKPOINT_BLOCKED;
+            }
         }
-        maybeCheckpoint();
-        return freed;
+        return new VacuumResult(freed, batches, stop, free);
+    }
+
+    /** WAL bytes a batch of {@code pages} may write (frame header + page per frame). */
+    long vacuumEstimateBytes(final int pages) {
+        return (VACUUM_FRAMES_PER_PAGE * pages + VACUUM_FRAMES_PER_BATCH) * (this.pageSize + WAL_FRAME_HEADER);
     }
 
     private KgException mapWrite(final SQLException e) {
@@ -425,38 +538,67 @@ public final class KgStore implements AutoCloseable {
         return read(work, this.cfg.readMaxTransactionMillis);
     }
 
-    /** Runs {@code work} in one read transaction; it is interrupted after {@code deadlineMillis}. */
+    /**
+     * Runs {@code work} in one read transaction; it is interrupted after
+     * {@code deadlineMillis}. {@code work} gets a leased connection: it must
+     * not control the transaction, and every statement it starts after the
+     * deadline fails with {@link KgException#READ_TIMEOUT}.
+     */
     public <T> T read(final SqlWork<T> work, final long deadlineMillis) throws KgException {
         ensureOpen();
-        final Connection c = acquireReader();
+        final ReaderSlot slot = acquireReader();
         final Lease lease = new Lease(this.clock.getAsLong(), deadlineMillis);
-        this.leases.put(c, lease);
-        boolean broken = false;
+        synchronized (slot) {
+            slot.lease = lease;
+        }
+        final LeasedConnection leased = new LeasedConnection(slot.conn, () -> checkLease(lease));
+        boolean ok = false;
         try {
-            exec(c, "BEGIN");
-            try {
-                final T result = work.run(c);
-                exec(c, "COMMIT");
-                return result;
-            } catch (final SQLException e) {
-                rollbackQuietly(c);
-                throw mapRead(e, lease);
-            } catch (final KgException | RuntimeException | Error e) {
-                rollbackQuietly(c);
-                throw e;
-            }
+            exec(slot.conn, "BEGIN");
+            final T result = work.run(leased.proxy);
+            ok = true;
+            return result;
         } catch (final SQLException e) {
-            broken = true;
             throw mapRead(e, lease);
         } finally {
-            this.leases.remove(c);
-            releaseReader(c, broken);
+            // 1. no statement of the lease stays active, so nothing is left for an interrupt to hit
+            leased.closeStatements();
+            // 2. from here on no interrupt can be issued for this connection (see interruptReaders)
+            synchronized (slot) {
+                slot.lease = null;
+            }
+            // 3. starts with no active statement: SQLite clears a pending interrupt, the end cannot fail by it;
+            //    a connection whose transaction could not be ended is closed, never reused
+            releaseReader(slot, !endTransaction(slot.conn, ok));
+        }
+    }
+
+    /** Called by the leased connection before every statement and row step. */
+    private void checkLease(final Lease lease) throws SQLException {
+        if (lease.interrupted.get() || lease.expired(this.clock.getAsLong())) {
+            if (lease.interrupted.compareAndSet(false, true)) {
+                this.interruptedReads.incrementAndGet();
+            }
+            throw new SQLException("read lease ended after " + lease.deadlineMillis + " ms", null, SQLITE_INTERRUPT);
+        }
+    }
+
+    /** COMMIT (or ROLLBACK); false if the transaction could not be ended and the connection must be closed. */
+    private static boolean endTransaction(final Connection c, final boolean commit) {
+        try {
+            exec(c, commit ? "COMMIT" : "ROLLBACK");
+            return true;
+        } catch (final SQLException e) {
+            if (!commit && String.valueOf(e.getMessage()).contains("no transaction is active")) {
+                return true;
+            }
+            return false;
         }
     }
 
     private KgException mapRead(final SQLException e, final Lease lease) {
         final int code = baseCode(e);
-        if (lease.interrupted || code == SQLITE_INTERRUPT) {
+        if (lease.interrupted.get() || code == SQLITE_INTERRUPT) {
             return new KgException(KgException.READ_TIMEOUT, null,
                     "read transaction exceeded " + lease.deadlineMillis + " ms and was interrupted", e);
         }
@@ -470,90 +612,130 @@ public final class KgStore implements AutoCloseable {
         return new KgException(KgException.SQL_ERROR, null, "SQLite error: " + e.getMessage(), e);
     }
 
-    private Connection acquireReader() throws KgException {
-        Connection c = this.idleReaders.poll();
-        if (c != null) {
-            return c;
+    private ReaderSlot acquireReader() throws KgException {
+        ReaderSlot slot = this.idleReaders.poll();
+        if (slot != null) {
+            return slot;
         }
         if (this.readerCount.incrementAndGet() <= MAX_READERS) {
+            Connection c = null;
             try {
-                c = this.factory.open(this.paths.db);
+                c = SqliteProcess.open(this.factory, this.paths.db, this.paths.tmp);
                 configureCommon(c, 4096);
                 exec(c, "PRAGMA query_only=1");
-                return c;
+                slot = new ReaderSlot(c);
+                this.readers.add(slot);
+                if (this.closed) {
+                    closeReader(slot);
+                    throw new KgException(KgException.STORE_CLOSED, "the knowledge graph store is closed");
+                }
+                return slot;
             } catch (final SQLException e) {
                 this.readerCount.decrementAndGet();
-                closeQuietly(c);
+                SqliteProcess.close(c);
                 throw new KgException(isNativeFailure(e) ? KgException.NATIVE_LIBRARY_UNAVAILABLE : KgException.STORAGE_ERROR,
                         null, "cannot open a reader: " + e.getMessage(), e);
             } catch (final LinkageError e) {
                 this.readerCount.decrementAndGet();
+                SqliteProcess.close(c);
                 throw new KgException(KgException.NATIVE_LIBRARY_UNAVAILABLE, null, "SQLite could not be loaded", e);
             }
         }
         this.readerCount.decrementAndGet();
         try {
-            c = this.idleReaders.poll(READER_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+            slot = this.idleReaders.poll(READER_WAIT_MILLIS, TimeUnit.MILLISECONDS);
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        if (c == null) {
+        if (slot == null) {
             throw new KgException(KgException.BUSY, "all knowledge graph readers are busy");
         }
-        return c;
+        return slot;
     }
 
-    private void releaseReader(final Connection c, final boolean broken) {
+    private void releaseReader(final ReaderSlot slot, final boolean broken) {
         if (this.closed || broken) {
-            closeQuietly(c);
-            this.readerCount.decrementAndGet();
+            closeReader(slot);
             return;
         }
-        this.idleReaders.offer(c);
+        this.idleReaders.offer(slot);
+        if (this.closed && this.idleReaders.remove(slot)) {
+            closeReader(slot); // close() ran while this reader was being returned
+        }
+    }
+
+    /** Closes a reader that has no lease; serialised with interrupts by the slot's monitor. */
+    private void closeReader(final ReaderSlot slot) {
+        synchronized (slot) {
+            if (slot.closed) {
+                return;
+            }
+            slot.closed = true;
+            SqliteProcess.close(slot.conn);
+        }
+        this.readers.remove(slot);
+        this.readerCount.decrementAndGet();
     }
 
     /**
      * Interrupts every read that has run longer than its deadline; called by
-     * the runtime every second and after a blocked checkpoint.
+     * the runtime's watchdog every 250 ms and after a blocked checkpoint. The
+     * interrupt is repeated on every call while the lease is still current:
+     * an interrupt that arrives between two statements is otherwise lost.
      *
-     * @return number of interrupted reads
+     * @return number of reads newly marked as interrupted
      */
     public int interruptExpiredReaders(final long now) {
-        int n = 0;
-        for (final Map.Entry<Connection, Lease> e : this.leases.entrySet()) {
-            final Lease l = e.getValue();
-            // re-check that the lease is still the current one of this connection, so a read that
-            // just finished does not let the interrupt hit the next read on the same connection
-            if (!l.interrupted && now - l.startedAt > l.deadlineMillis && this.leases.get(e.getKey()) == l) {
-                interrupt(e.getKey(), l);
-                n++;
-            }
-        }
-        return n;
+        return interruptReaders(now, false);
     }
 
-    /** Interrupts every running read, e.g. when temp files exceed their limit. */
+    /** Interrupts every running read, e.g. when temp files exceed their limit or the store closes. */
     public int interruptAllReaders() {
+        return interruptReaders(this.clock.getAsLong(), true);
+    }
+
+    private int interruptReaders(final long now, final boolean all) {
         int n = 0;
-        for (final Map.Entry<Connection, Lease> e : this.leases.entrySet()) {
-            if (!e.getValue().interrupted) {
-                interrupt(e.getKey(), e.getValue());
-                n++;
+        for (final ReaderSlot slot : this.readers) {
+            // the lease is checked and the connection interrupted under the slot's monitor; the lease
+            // ends, and the connection is reused or closed, only under the same monitor
+            synchronized (slot) {
+                final Lease l = slot.lease;
+                if (slot.closed || l == null || !(all || l.expired(now))) {
+                    continue;
+                }
+                if (l.interrupted.compareAndSet(false, true)) {
+                    this.interruptedReads.incrementAndGet();
+                    n++;
+                }
+                final Runnable probe = this.interruptProbe;
+                if (probe != null) {
+                    probe.run();
+                }
+                interruptNative(slot.conn);
             }
         }
         return n;
     }
 
-    private void interrupt(final Connection c, final Lease l) {
-        l.interrupted = true;
-        this.interruptedReads.incrementAndGet();
+    private static void interruptNative(final Connection c) {
         if (c instanceof org.sqlite.SQLiteConnection) {
             try {
                 ((org.sqlite.SQLiteConnection) c).getDatabase().interrupt();
             } catch (final SQLException | RuntimeException e) {
-                // the read ends with an error anyway when it next touches the database
+                // the read also ends at its next statement through the lease check
             }
         }
+    }
+
+    /** Test hook, see {@link #interruptProbe}. */
+    void setInterruptProbe(final Runnable probe) {
+        this.interruptProbe = probe;
+    }
+
+    /** For tests: threads waiting for the write lock. */
+    int queuedWriters() {
+        return this.writeLock.getQueueLength();
     }
 
     // --------------------------------------------------------------- inspection
@@ -575,11 +757,17 @@ public final class KgStore implements AutoCloseable {
     }
 
     public JSONObject readerStatus(final long now) {
-        long oldest = 0L;
-        for (final Lease l : this.leases.values()) {
-            oldest = Math.max(oldest, now - l.startedAt);
+        long oldest = -1L;
+        int open = 0;
+        for (final ReaderSlot slot : this.readers) {
+            final Lease l = slot.lease;
+            if (l != null) {
+                open++;
+                oldest = Math.max(oldest, now - l.startedAt);
+            }
         }
-        return KgJson.obj("open", this.leases.size(), "oldestAgeMillis", this.leases.isEmpty() ? null : oldest,
+        return KgJson.obj("open", open, "oldestAgeMillis", open == 0 ? null : oldest,
+                "connections", this.readers.size(), "maxConnections", MAX_READERS,
                 "maxTransactionMillis", this.cfg.readMaxTransactionMillis, "interrupted", this.interruptedReads.get());
     }
 
@@ -610,7 +798,10 @@ public final class KgStore implements AutoCloseable {
         }
     }
 
-    /** Final checkpoint and close; idempotent. */
+    /**
+     * Final checkpoint and close; idempotent. Running reads are interrupted
+     * and close their connection when they end.
+     */
     @Override
     public void close() {
         if (this.closed) {
@@ -618,6 +809,11 @@ public final class KgStore implements AutoCloseable {
         }
         this.writeLock.lock();
         try {
+            if (this.closed) {
+                return;
+            }
+            this.closed = true;
+            interruptAllReaders();
             try {
                 exec(this.writer, "PRAGMA busy_timeout=" + CHECKPOINT_BUSY_TIMEOUT_MILLIS);
                 try (Statement st = this.writer.createStatement(); ResultSet rs = st.executeQuery("PRAGMA wal_checkpoint(TRUNCATE)")) {
@@ -626,12 +822,10 @@ public final class KgStore implements AutoCloseable {
             } catch (final SQLException e) {
                 // the WAL is replayed on the next open
             }
-            this.closed = true;
-            closeQuietly(this.writer);
-            Connection c;
-            while ((c = this.idleReaders.poll()) != null) {
-                closeQuietly(c);
-                this.readerCount.decrementAndGet();
+            SqliteProcess.close(this.writer);
+            ReaderSlot slot;
+            while ((slot = this.idleReaders.poll()) != null) {
+                closeReader(slot);
             }
         } finally {
             this.writeLock.unlock();
@@ -694,17 +888,6 @@ public final class KgStore implements AutoCloseable {
             exec(c, "ROLLBACK");
         } catch (final SQLException e) {
             // SQLite may already have rolled back (e.g. after SQLITE_FULL): "no transaction is active"
-        }
-    }
-
-    private static void closeQuietly(final Connection c) {
-        if (c == null) {
-            return;
-        }
-        try {
-            c.close();
-        } catch (final SQLException | RuntimeException e) {
-            // closing anyway
         }
     }
 

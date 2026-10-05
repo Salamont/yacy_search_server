@@ -46,6 +46,7 @@ public final class KgConfig {
     public static final String WAL_CHECKPOINT_BYTES = "scoutro.kg.wal.checkpointBytes";
     public static final String TMP_MAX_BYTES = "scoutro.kg.tmp.maxBytes";
     public static final String READ_MAX_TRANSACTION_MILLIS = "scoutro.kg.read.maxTransactionMillis";
+    public static final String INTEGRITY_MAX_MILLIS = "scoutro.kg.integrity.maxMillis";
     public static final String JSONLD_ENABLED = "scoutro.kg.jsonld.enabled";
     public static final String JSONLD_MAX_BYTES_PER_DOC = "scoutro.kg.jsonld.maxBytesPerDoc";
     public static final String JSONLD_MAX_BLOCKS_PER_DOC = "scoutro.kg.jsonld.maxBlocksPerDoc";
@@ -83,6 +84,8 @@ public final class KgConfig {
     public final long walCheckpointBytes;
     public final long tmpMaxBytes;
     public final long readMaxTransactionMillis;
+    /** Deadline of the integrity check (quick_check) after an unclean shutdown. */
+    public final long integrityMaxMillis;
     public final boolean jsonldEnabled;
     public final long jsonldMaxBytesPerDoc;
     public final int jsonldMaxBlocksPerDoc;
@@ -104,6 +107,7 @@ public final class KgConfig {
         this.walCheckpointBytes = p.longValue(WAL_CHECKPOINT_BYTES, 8 * MIB, MIB, 4 * GIB);
         this.tmpMaxBytes = p.longValue(TMP_MAX_BYTES, 64 * MIB, 4 * MIB, 4 * GIB);
         this.readMaxTransactionMillis = p.longValue(READ_MAX_TRANSACTION_MILLIS, 5000, 100, 60000);
+        this.integrityMaxMillis = p.longValue(INTEGRITY_MAX_MILLIS, 120_000, 100, 3_600_000);
         this.jsonldEnabled = p.bool(JSONLD_ENABLED, false);
         this.jsonldMaxBytesPerDoc = p.longValue(JSONLD_MAX_BYTES_PER_DOC, 16 * KIB, KIB, 64 * KIB);
         this.jsonldMaxBlocksPerDoc = (int) p.longValue(JSONLD_MAX_BLOCKS_PER_DOC, 8, 1, 32);

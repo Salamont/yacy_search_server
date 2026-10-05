@@ -287,5 +287,7 @@ public final class KgSchema {
     public static final String META_LAST_START = "last_start";
     public static final String META_MANUAL_PAUSE = "manual_pause";
     public static final String META_RECONCILE_REQUIRED = "reconcile_required";
+    /** "1" from an unclean start until an integrity check has passed; survives a clean stop. */
+    public static final String META_INTEGRITY_REQUIRED = "integrity_check_required";
     public static final String META_CHANGES_MIN_SEQ = "changes_min_seq";
 }

@@ -1,7 +1,9 @@
 # Scoutro Knowledge Graph (plan)
 
-Status: **revision 2; package 1 implemented** (store, storage guard, runtime,
-status and control routes; see [section 16](#16-package-1-implementation)).
+Status: **revision 2; package 1 implemented and reworked after review**
+(store, storage guard, runtime, status and control routes; see
+[section 16](#16-package-1-implementation) and the review corrections in
+[16.1](#161-review-corrections-pr-12)).
 Packages 2–5 are not started. Base: `main` at `a42cc7d` (Scoutro
 `1.942-scoutro.12`, alias `0.6.0`). Inputs: the owner's release plan
 (`Scoutro_Knowledge_Graph_Releaseplan.md`, 2026-10-05) and the earlier static
@@ -45,6 +47,7 @@ reserve, automatic pause and resume, and bounded retention.
 14. [Version recommendation](#14-version-recommendation)
 15. [Open points and missing access](#15-open-points-and-missing-access)
 16. [Package 1 implementation](#16-package-1-implementation)
+    - 16.1 [Review corrections (PR #12)](#161-review-corrections-pr-12)
 17. [Revision 2 corrections](#17-revision-2-corrections)
 
 ## 0. Decisions at a glance
@@ -181,7 +184,9 @@ Consequences:
 
 - A native library is loaded from the JVM temp directory. If that fails, the graph is disabled with reason `native_library_unavailable`.
 - The release image is amd64/glibc and is covered by the bundled natives.
-- All SQLite temp files go to `DATA/SCOUTRO/knowledge/tmp/` (`temp_store=FILE` plus `temp_store_directory`). They sit on the same filesystem as `DATA` and are measured even though SQLite unlinks them ([7.1](#71-what-is-counted)).
+- SQLite temp files go to `DATA/SCOUTRO/knowledge/tmp/` (`temp_store=FILE` plus `temp_store_directory`). They sit on the same filesystem as `DATA` and are measured even though SQLite unlinks them ([7.1](#71-what-is-counted)).
+  - `temp_store_directory` is **process-wide** (the global `sqlite3_temp_directory`, verified: set on one connection, seen by all). SQLite allows changing it only while no connection is in use. `SqliteProcess` therefore sets it on the first connection while no other SQLite connection of the process exists, and never while one is open; readers do not touch it.
+  - If the directory is missing or not writable, SQLite silently falls back to `/var/tmp` or `/tmp` (verified). Such files are still counted ([7.1](#71-what-is-counted)).
 
 Connection settings (implemented in `KgStore`):
 
@@ -195,7 +200,7 @@ Connection settings (implemented in `KgStore`):
 - `cache_size` 8 MiB for the writer and 4 MiB per reader, `mmap_size=0`;
 - `max_page_count` on the writer.
 
-One writer connection, guarded by a lock, and two reader connections with `query_only=1`, used only through read leases with a deadline ([7.3](#73-what-bounds-which-file)).
+One writer connection, guarded by a lock, and two reader connections with `query_only=1`, used only through read leases with a deadline ([7.3](#73-what-bounds-which-file)). Every connection is opened and closed through `SqliteProcess`, which counts them for the temp-directory rule.
 
 ## 4. Data model
 
@@ -628,12 +633,14 @@ Everything below `DATA/SCOUTRO/knowledge/` counts against the budget:
 ```
 DATA/SCOUTRO/knowledge/
   graph.db  graph.db-wal  graph.db-shm   database, write-ahead log, shared memory
-  tmp/                                   SQLite temp files (temp_store_directory)
+  tmp/                                   SQLite temp files (process-wide temp_store_directory)
   backup/                                local backups, if enabled
 ```
 
 - **Temp files are invisible to a directory scan.** SQLite unlinks its temp files right after creating them, so they never show up in a directory listing. Measured: a 300 000-row `DISTINCT` held a 27 MB unlinked file in `tmp/`.
-  - On Linux (the Scoutro image) the guard adds the sizes of open `… (deleted)` descriptors below `tmp/` from `/proc/self/fd` (`tmpOpen`).
+  - On Linux (the Scoutro image) the guard adds the sizes of open `… (deleted)` descriptors from `/proc/self/fd`: those below `tmp/` (`tmpOpen`) and SQLite temp files (`etilqs_*`) of the process anywhere else (`tmpOpenElsewhere`), e.g. after SQLite fell back to `/var/tmp`. Both count against `tmp.maxBytes` and the budget.
+  - `files.tmpDirectory` shows where SQLite creates them: `graph`, `other` (set while another store held connections; tests only) or `system_default`.
+  - Tested in `KgTempFilesTest`: a spilling sort creates its files in `tmp/`, unlinked, counted, and released with the lease; a second store opened while the first is open keeps the first directory and is still counted; a deleted `tmp/` falls back and is still counted.
   - Elsewhere this value is unknown (`null`). Only the free-space checks cover it there.
 - **Inside the database.** Change feed, events, cache and work queue are tables inside `graph.db`.
 - **Not counted in the graph budget.** Graph log lines go to the rotated YaCy logs (≈ 20 MiB total). The native library sits in the JVM temp directory (≈ 1 MB). `ld_json_txt` lives in Solr with its own budget ([6.2](#62-json-ld-capture-the-only-yacy-core-change)).
@@ -641,7 +648,7 @@ DATA/SCOUTRO/knowledge/
 
   | Value | Meaning |
   |---|---|
-  | `usedBytes` | Sum of all files, including `tmpOpen` |
+  | `usedBytes` | Sum of all files, including `tmpOpen` and `tmpOpenElsewhere` |
   | `files.*` | Each file separately |
   | `pages.logicalBytes` | Used pages |
   | `pages.freeInFileBytes` | Free pages inside the file |
@@ -656,6 +663,7 @@ DATA/SCOUTRO/knowledge/
 | `scoutro.kg.wal.maxBytes` / `wal.checkpointBytes` | 64 MiB / 8 MiB | Hard WAL limit of the guard; size at which a checkpoint is forced |
 | `scoutro.kg.tmp.maxBytes` | 64 MiB | Limit for temp files (visible + open unlinked) |
 | `scoutro.kg.read.maxTransactionMillis` | 5000 | Deadline of every read transaction |
+| `scoutro.kg.integrity.maxMillis` | 120 000 | Deadline of the `quick_check` after an unclean shutdown |
 | `scoutro.kg.disk.reserveBytes` / `disk.hysteresisBytes` | 1 GiB / 512 MiB | Free space kept above YaCy's `resource.disk.free.min.steadystate`; resume margin |
 | `scoutro.kg.jsonld.enabled`, `jsonld.maxBytesPerDoc`, `jsonld.maxBlocksPerDoc`, `jsonld.maxTotalBytes` | false, 16 KiB, 8, 256 MiB (provisional) | JSON-LD capture and its own Solr budget |
 | `scoutro.kg.queue.maxItems` / `capture.maxPending` | 200 000 / 100 000 | Work queue and dirty-set caps; beyond → `reconcile_required` |
@@ -665,7 +673,7 @@ DATA/SCOUTRO/knowledge/
 | `scoutro.kg.source.*` | 14 / 7 / 365 / 90 days | Currency and purge rules ([4.4](#44-quality-and-currency)) |
 | `scoutro.kg.backup.keep` / `intervalDays` | 1 / 7 | Local backups (0 = off) |
 
-- **Implemented and validated in package 1** (`KgConfig`): the budget, WAL, temp, read, disk and JSON-LD settings. The others follow with their packages.
+- **Implemented and validated in package 1** (`KgConfig`): the budget, WAL, temp, read, integrity, disk and JSON-LD settings. The others follow with their packages.
 - YaCy's `resource.disk.free.min.steadystate` and `undershot` (MB) are read, never changed.
 
 ### 7.3 What bounds which file
@@ -687,19 +695,22 @@ DATA/SCOUTRO/knowledge/
 
 1. **Every read is a lease** (`KgStore.read`) with a deadline (`read.maxTransactionMillis`).
    - Readers come from a pool of two read-only connections (`query_only`).
-   - A reader past its deadline is interrupted (`sqlite3_interrupt`) by the monitor (every second) and after every blocked checkpoint.
-   - Callers materialise a bounded page and never hold a transaction across client I/O. Export pages are separate transactions ([8.3](#83-export-and-change-feed)). Raw connections are not handed out.
+   - A reader past its deadline is interrupted (`sqlite3_interrupt`) by the watchdog thread (every 250 ms) and after every blocked checkpoint. The watchdog runs no SQL and never waits for the write lock, so supervised work (the integrity check, checkpoints) cannot hold it up.
+   - **An interrupt between two statements is lost** (verified: SQLite clears it when the next statement starts with none active). The lease therefore hands out a wrapped connection (`LeasedConnection`) that refuses every statement execution and every `ResultSet.next()` after the deadline, and the watchdog repeats the interrupt on every pass while the lease is current.
+   - **Interrupt, lease end, reuse and close are serialised per connection.** The watchdog checks the lease and calls `sqlite3_interrupt` under the connection's monitor; a lease ends (all its statements closed, then the lease cleared under the monitor, then COMMIT/ROLLBACK), and a connection is reused or closed, only under the same monitor. A late interrupt can therefore never reach the next lease, and never a closed connection (sqlite-jdbc's `interrupt` is not synchronised with `close`). An open statement would let a pending interrupt break the COMMIT (verified), hence the closing first; a connection whose transaction cannot be ended is closed, not reused.
+   - Callers materialise a bounded page and never hold a transaction across client I/O. Export pages are separate transactions ([8.3](#83-export-and-change-feed)). Raw connections are not handed out; the lease refuses transaction control.
 2. **Every checkpoint is verified.**
    - After each write, once the WAL reaches `wal.checkpointBytes`, and every 30 s, the store runs `wal_checkpoint(TRUNCATE)` with a 200 ms busy timeout.
    - It reads `busy`, the log frames and the checkpointed frames, and measures the WAL afterwards. Only `busy=0` with an empty WAL counts as complete.
    - Otherwise the guard sets `wal.blockedSince` and the store interrupts expired readers.
 3. **Write pause.**
+   - Admission runs **under the write lock, right before `BEGIN IMMEDIATE`**, with a fresh measurement. Two writers can therefore never be admitted on the same free space (tested with two synchronised writers near the pause threshold).
    - A write whose estimate would take the WAL past `wal.maxBytes` triggers one checkpoint attempt.
    - If that does not help, the write is refused with `wal_limit`, or `wal_checkpoint_blocked` while a checkpoint is blocked. This applies to every write class, **deletions included**.
    - A single transaction can therefore never exceed the WAL limit either (tested).
 4. **Maintenance reserve.** The maintenance share must hold `wal.maxBytes + tmp.maxBytes` (validated). The WAL and temp files can thus reach their limits without taking the total over the budget.
 
-The blocked-checkpoint case is a test: `StorageGuardTest.openReaderBlocksTheCheckpointAndWritesPauseUntilItEnds`.
+The blocked-checkpoint case is a test: `StorageGuardTest.openReaderBlocksTheCheckpointAndWritesPauseUntilItEnds`. The lease races are tested deterministically in `KgStoreConcurrencyTest`.
 
 **Application budget vs. real quota.**
 
@@ -709,18 +720,20 @@ The blocked-checkpoint case is a test: `StorageGuardTest.openReaderBlocksTheChec
 
 ### 7.4 Write classes and thresholds
 
-Every write declares a class and an upper estimate of its growth (database + WAL). The guard measures the database, WAL and shared-memory sizes and the free space fresh for every admission; directories every 30 s.
+Every write declares a class and an upper estimate of its growth (database + WAL). The guard measures the database, WAL and shared-memory sizes and the free space fresh for every admission, under the store's write lock; directories every 30 s.
 
-| Check (in order) | Growth (new data, backfill, backups) | Maintenance (deletions, state changes, purge, bookkeeping) |
-|---|---|---|
-| Storage error since the last good `quick_check` | refused (`storage_error`) | refused |
-| Free space − estimate < critical floor (`min(YaCy undershot, growth floor)`) | refused (`disk_critical`) | refused |
-| WAL + estimate > `wal.maxBytes` | refused (`wal_limit` / `wal_checkpoint_blocked`) | refused |
-| Manual pause | refused (`manual`) | allowed |
-| `SQLITE_FULL` seen, until usage ≤ resume threshold | refused (`budget_exhausted`) | allowed |
-| Used + estimate > pause threshold, or budget pause active (hysteresis) | refused (`budget`) | allowed up to 100 % of the budget, then `budget_exhausted` |
-| Free space − estimate < growth floor (YaCy steady state + reserve), or disk pause active (hysteresis) | refused (`disk_reserve`) | allowed |
-| Temp files > `tmp.maxBytes` | refused (`tmp_limit`) | allowed |
+| Check (in order) | Growth (new data, backfill, backups) | Maintenance (deletions, purge, vacuum) | System (start/stop marks, pause flag, events, integrity result) |
+|---|---|---|---|
+| Storage error since the last good `quick_check` | refused (`storage_error`) | refused | refused |
+| Free space − estimate < critical floor (`min(YaCy undershot, growth floor)`) | refused (`disk_critical`) | refused | refused |
+| WAL + estimate > `wal.maxBytes` | refused (`wal_limit` / `wal_checkpoint_blocked`) | refused | refused |
+| Integrity check pending or failed after an unclean shutdown | refused (`integrity_check_pending` / `integrity_check_failed`) | refused | allowed up to 100 % of the budget |
+| Start of this run not recorded | refused (`start_not_recorded`) | refused | – |
+| Manual pause | refused (`manual`) | allowed | – |
+| `SQLITE_FULL` seen, until usage ≤ resume threshold | refused (`budget_exhausted`) | allowed | – |
+| Used + estimate > pause threshold, or budget pause active (hysteresis) | refused (`budget`) | allowed up to 100 % of the budget, then `budget_exhausted` | – |
+| Free space − estimate < growth floor (YaCy steady state + reserve), or disk pause active (hysteresis) | refused (`disk_reserve`) | allowed | – |
+| Temp files > `tmp.maxBytes` | refused (`tmp_limit`) | allowed | – |
 
 A refused write changes nothing and is retried by its job later.
 
@@ -735,7 +748,10 @@ A refused write changes nothing and is retried by its job later.
 | `manual` | No growth; lifecycle work continues | `POST /kg/control {"action":"resume"}` |
 | `wal_limit`, `wal_checkpoint_blocked` | **All writes** wait | after a complete checkpoint |
 | `disk_critical` | **All writes** wait | free ≥ critical floor |
-| `storage_error` (`IOERR`, corruption, failed `quick_check`) | All writes stop; reads keep working while possible | `resume` runs `quick_check` and clears the error only on `ok` |
+| `storage_error` (`IOERR`, corruption, failed `quick_check`) | All writes stop; reads keep working while possible | `resume` requests a new `quick_check`; the error clears only on `ok` |
+| `integrity_check_pending` | Graph writes wait after an unclean shutdown (or a check that never finished, also across a clean restart); the runtime's own records continue | the check passes |
+| `integrity_check_failed` | Same, with the result or the abort reason (`aborted: read_timeout after … ms`) as detail; a damaged database adds `storage_error` | `resume` requests a new check |
+| `start_not_recorded` | Graph writes wait while the clean-shutdown mark of this run cannot be written | the maintenance thread records the start |
 | `llm_breaker` | LLM tier only (package 2) | backoff elapsed |
 | `disabled`, `config_invalid`, `schema_unsupported`, `native_library_unavailable`, `remote_solr_unsupported` | Graph off; Scoutro unaffected | fix + restart |
 
@@ -752,7 +768,12 @@ A refused write changes nothing and is retried by its job later.
   - cache rows (LRU);
   - event-ring overflow;
   - backups beyond `keep`.
-- **Shrinking the file.** Afterwards, `KgStore.incrementalVacuum` returns free pages in time slices. Measured: about 2 400 pages/s. With sqlite-jdbc each call frees one page, hence the loop.
+- **Shrinking the file.** Afterwards, `KgStore.incrementalVacuum` returns free pages in **bounded batches**:
+  - one transaction per 128 pages, each admitted on its own as maintenance with a WAL estimate of (2 × pages + 16) frames;
+  - between batches the WAL is checkpointed once it reaches `wal.checkpointBytes`;
+  - the vacuum stops at `maxPages`, at its deadline, when the guard refuses the next batch (its reason, e.g. `wal_limit`, `budget_exhausted`, `disk_critical`), and **as soon as a checkpoint between batches is blocked**: in WAL mode the main file only shrinks when a checkpoint completes, so further batches would only fill the WAL that deletions may need.
+  - Measured with sqlite-jdbc 3.53: one page per transaction writes about 3 WAL frames per freed page (up to 17 for a single page; 19 557 pages produced about 240 MiB of WAL); a 128-page batch writes at most 0.9 frames per page. With sqlite-jdbc each execution of the pragma frees one page, hence the loop inside the batch.
+  - Tested: every batch stays within its estimate on a fragmented file; with a reader holding an old snapshot and a 4 MiB WAL limit the vacuum stops with `wal_checkpoint_blocked`, the WAL never exceeds the limit, and after the reader ends it finishes and the file shrinks.
 - **Full `VACUUM`** is never automatic. It is an admin action, allowed only if free space ≥ 2 × logical size + reserve.
 - **Physical vs. logical.** File shrinking is reported separately from logical deletion (`pages.freeInFileBytes`).
 
@@ -791,6 +812,11 @@ A scratch experiment (not committed) used synthetic data from a fixed-seed gener
 | One transaction with 20 000 documents | WAL 84 MB ≈ database size |
 | WAL with one open reader | `wal_checkpoint(TRUNCATE)` → `busy=1`, 0 frames; WAL 3 MB despite a 1 MB `journal_size_limit`; reset after the reader ended |
 | `sqlite3_interrupt` on a running read | ends the statement with `SQLITE_INTERRUPT` within ≈ 200 ms |
+| `sqlite3_interrupt` between two statements (no statement running, also inside a transaction) | no effect: the next statement (2 000 000 rows) ran to completion |
+| `sqlite3_interrupt` while a result set stays open | the next statement **and the ROLLBACK** fail with `SQLITE_INTERRUPT`; after closing the result set the connection works |
+| `sqlite3_interrupt` during `PRAGMA quick_check` / `integrity_check` on a 181 MB file | ends within 2 ms (`quick_check` took 171 ms, `integrity_check` 1.3 s) |
+| `PRAGMA temp_store_directory` | process-wide: set on one connection, effective for every other; unset → `/var/tmp`; deleted directory → silent fallback to `/var/tmp` |
+| `incremental_vacuum` WAL cost | ≈ 3 frames per page in autocommit (up to 17), ≤ 0.9 frames per page in 64- or 256-page transactions |
 | Temp files of a large `DISTINCT` | 27 MB unlinked file in the configured `tmp/`, invisible to a directory scan |
 | `max_page_count` exceeded | `SQLITE_FULL`, automatic rollback, `integrity_check ok`, row count unchanged |
 
@@ -963,7 +989,7 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 |---|---|---|
 | `enabled` | `false` | yes |
 | `collections` / `llm.collections` | empty | yes |
-| `budget.*`, `disk.*`, `wal.*`, `tmp.maxBytes`, `read.maxTransactionMillis` | [7.2](#72-settings) | budget and disk yes, rest advanced |
+| `budget.*`, `disk.*`, `wal.*`, `tmp.maxBytes`, `read.maxTransactionMillis`, `integrity.maxMillis` | [7.2](#72-settings) | budget and disk yes, rest advanced |
 | `jsonld.*` | [7.2](#72-settings) | yes |
 | `queue.maxItems`, `capture.maxPending` | 200 000, 100 000 | no |
 | `extract.*` | 50, 200, 12 000 | advanced |
@@ -982,9 +1008,9 @@ Settings take effect at the next start in package 1. The settings view (package 
 
 | Area | Files |
 |---|---|
-| Store (package 1, done) | `store/KgStore.java` (connections, PRAGMAs, write lock, read leases, checkpoints, vacuum), `store/KgSchema.java` (DDL v1), `store/KgChangeLog.java`, `KgIds.java`, `KgPaths.java`, `KgException.java`, `KgJson.java` |
+| Store (package 1, done) | `store/KgStore.java` (connections, PRAGMAs, write lock with admission, read leases, checkpoints, batched vacuum), `store/LeasedConnection.java` (lease check per statement), `store/SqliteProcess.java` (process-wide temp directory, connection count), `store/KgSchema.java` (DDL v1), `store/KgChangeLog.java`, `KgIds.java`, `KgPaths.java`, `KgException.java`, `KgJson.java` |
 | Budget (package 1, done) | `budget/StorageGuard.java`, `budget/StorageProbe.java`, `budget/CheckpointResult.java`, `budget/JsonLdCapturePolicy.java` |
-| Runtime (package 1, done) | `KgConfig.java`, `KgRuntime.java` (start/stop, clean-shutdown flag, status); API in `source/net/yacy/scoutro/api/KnowledgeApi.java` |
+| Runtime (package 1, done) | `KgConfig.java`, `KgRuntime.java` (start/stop, clean-shutdown flag, watchdog and maintenance threads, integrity check, status); API in `source/net/yacy/scoutro/api/KnowledgeApi.java` |
 | Sync | `solr/KgCaptureProcessorFactory.java`, `sync/DirtySet.java`, `sync/SyncService.java`, `sync/Reconciler.java`, `sync/Backfill.java`, `sync/SolrReader.java` |
 | Extraction | `extract/JsonLdExtractor.java`, `extract/MetadataExtractor.java`, `extract/RuleExtractor.java`, `extract/LlmExtractor.java`, `extract/ExtractionCache.java`, `extract/Vocabulary.java` + `defaults/scoutro/knowledge-vocabulary.json` |
 | Resolution and publish | `resolve/IdentityResolver.java`, `resolve/Normalizers.java`, `publish/Publisher.java`, `publish/Aggregates.java` |
@@ -1021,11 +1047,11 @@ Each package is one or more reviewable PRs on its own branch from the then-curre
   - `KgConfig` (validation);
   - `KgIds`;
   - `KgSchema` v1 with foreign keys and CHECK constraints;
-  - `KgStore`: writer lock, read leases with interrupt, verified checkpoints, `max_page_count`, incremental vacuum, migration and foreign-database refusal, event ring;
+  - `KgStore`: writer lock with admission under the lock, read leases (watchdog interrupt, lease check before every statement, interrupt serialised with lease end, reuse and close), verified checkpoints, `max_page_count`, incremental vacuum in admitted batches, migration and foreign-database refusal, event ring; process-wide temp directory (`SqliteProcess`);
   - `KgChangeLog` (scope history, cursor contract, retention);
-  - `StorageGuard` (write classes, budget, WAL, temp, disk floors, hysteresis, `SQLITE_FULL`/`IOERR` handling);
+  - `StorageGuard` (growth, maintenance and system write classes, budget, WAL, temp files wherever SQLite puts them, disk floors, hysteresis, integrity and start gates, `SQLITE_FULL`/`IOERR` handling);
   - `JsonLdCapturePolicy` (contract only);
-  - `KgRuntime` (disabled = no files and no thread, native-library failure isolated, clean-shutdown flag, unclean-start detection with `quick_check`, persisted manual pause, read-only start with automatic retry when the start cannot be recorded);
+  - `KgRuntime` (disabled = no files and no thread, native-library failure isolated, clean-shutdown flag, separate watchdog and maintenance threads, unclean-start detection with a `quick_check` under deadline that gates graph writes, persisted manual pause, read-only start with automatic retry when the start cannot be recorded);
   - admin routes `GET /kg/status` and `POST /kg/control`;
   - OpenAPI and action catalog, `docs/API.md`.
 - **Acceptance:** met by the tests listed in [16](#16-package-1-implementation).
@@ -1188,7 +1214,9 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 
 - With `scoutro.kg.enabled=false` (the default) the runtime creates no directory, starts no thread and does not load the native library. `GET /kg/status` answers `state: disabled`.
 - Any failure (invalid settings, missing native library, newer or foreign schema, I/O) ends in `state: unavailable` with a reason. Scoutro starts normally.
-- If the guard refuses the start bookkeeping (for example on a disk below YaCy's undershot), the graph runs read-only with `startRecorded: false`. The monitor retries every 30 s. Later packages write no graph data before the start is recorded.
+- If the guard refuses the start bookkeeping (for example on a disk below YaCy's undershot), the graph runs read-only with `startRecorded: false`. The maintenance thread retries every second; the guard refuses graph writes (`start_not_recorded`) until the start is recorded.
+- After an unclean shutdown graph writes wait for `PRAGMA quick_check` (`integrity_check_pending`). The check runs on the maintenance thread with the deadline `scoutro.kg.integrity.maxMillis`, enforced by the watchdog. A failed or aborted check leaves `integrity_check_failed`; the flag `integrity_check_required` survives a clean restart until a check passes.
+- Two daemon threads run while the graph runs: `ScoutroKG.watchdog` (read deadlines only, every 250 ms) and `ScoutroKG.maintenance` (integrity check, retries, measurement, checkpoints, every second).
 
 **Tests** (all run by `ant scoutro-agents-test`):
 
@@ -1199,19 +1227,37 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 | `KgStoreTest` | PRAGMAs, reopen, newer schema refused and untouched, foreign database refused, foreign-key and CHECK enforcement, two tiers on one statement and document, cascade, Solr byte order, read-only readers, rollback, event ring |
 | `KgChangeLogTest` | A → B → C offline consumer, delete to every former collection, cursor advance over invisible rows, retention and expired cursors, `maxRows`, foreign or malformed cursors |
 | `StorageGuardTest` | Budget hysteresis, maintenance vs. growth, disk reserve and critical floor, WAL limit for every class, transaction larger than the WAL, temp/manual/storage error, status reasons; with real SQLite: **checkpoint blocked by an open reader and the write pause until it ends**, reader interrupted past its deadline, page limit with clean `SQLITE_FULL`, deletion and incremental vacuum |
+| `KgStoreConcurrencyTest` | **Two synchronised writers near the pause threshold** (the second is refused), **late interrupt cannot reach the next lease** on the same connection, close waits for a pending interrupt and closes every connection, statement and row step after the deadline refused without an interrupt, the lease owns its transaction, every vacuum batch within its WAL estimate, **vacuum with a blocking reader and a 4 MiB WAL limit** |
+| `KgTempFilesTest` | SQLite temp files of a spilling sort in `tmp/`, unlinked and counted; process-wide directory unchanged while another store's connections are open; fallback after a deleted `tmp/` still counted |
 | `JsonLdCapturePolicyTest` | Off states, own budget with hysteresis, disk reserve |
-| `KgRuntimeTest` | Disabled creates nothing and starts no thread, invalid settings, native-library failure (linkage error and sqlite-jdbc's `NativeLibraryNotFoundException`), monitor start and clean stop, unclean start with `reconcile_required` and `quick_check`, read-only start on a critically full disk with later recording, manual pause persisted |
+| `KgRuntimeTest` | Disabled creates nothing and starts no thread, invalid settings, native-library failure (linkage error and sqlite-jdbc's `NativeLibraryNotFoundException`), both threads start and stop, unclean start with `reconcile_required` and `quick_check`, read-only start on a critically full disk with later recording, manual pause persisted; **graph writes held back until the check passes**, **an overlong check aborted by the real watchdog while another read is interrupted on time**, aborted check required again after a clean restart, failed check stops every write with a visible reason, **lease expiring between two statements stopped through the real watchdog** |
 | `KnowledgeApiTest` | Routes, validation, 405/404, 409 disabled, 503 unavailable; through `ScoutroApiServlet`: 401 without admin, 415/403 cross-site rules, `no-store` |
 
-**Live smoke test** `test/scoutro-api/kg-live-smoke.py`: 19 checks on a disposable peer with temporary DATA, in five starts:
+**Live smoke test** `test/scoutro-api/kg-live-smoke.py`: 23 checks on a disposable peer with temporary DATA, in five starts (`JAVA=…` selects the JDK):
 
 1. disabled: no directory, 409, 401;
-2. enabled: files and status, 415, pause;
+2. enabled: files and status, integrity `not_required`, temp directory `graph`, 415, pause;
 3. SIGTERM restart: no crash reported, pause kept, resume;
-4. SIGKILL restart: unclean start detected, `quick_check ok`, event logged;
+4. SIGKILL restart: unclean start detected, integrity check `ok` with no integrity reason left, `unclean_start` and `integrity_ok` events;
 5. native library not extractable: Scoutro and `health` up, graph `unavailable`/`native_library_unavailable`, control 503.
 
 Offline contract tests `test/scoutro-api/test_flow_contract.py` and `test_mcp_adapter.py` pass, and the generated OpenAPI validates with `openapi-spec-validator`.
+
+### 16.1 Review corrections (PR #12)
+
+The review of `0b303ac` found five gaps in package 1. Each was reproduced or confirmed first, then fixed and covered by a regression test that fails on the old behaviour (checked by re-inserting the old code for findings 1 and 4).
+
+| # | Finding | Confirmed | Change | Tests |
+|---|---|---|---|---|
+| 1 | `KgStore.write()` admitted before taking the write lock: two writers could be admitted on the same free budget | With the old order, two synchronised writers 1.5 MiB below the pause threshold were both admitted and committed | Admission (fresh measurement, one checkpoint retry) runs under the write lock right before `BEGIN IMMEDIATE`; every admission sees all earlier commits | `KgStoreConcurrencyTest.twoWritersNearTheLimitAreNotAdmittedOnTheSameFreeSpace` |
+| 2 | `incrementalVacuum()` admitted 64 KiB once, then ran a long loop | One page per transaction writes ≈ 3 WAL frames per page (up to 17); 19 557 pages ≈ 240 MiB WAL ([7.9](#79-measurements-so-far)) | Batches of 128 pages in one transaction, each admitted (maintenance) with a WAL estimate of (2 × pages + 16) frames; checkpoint between batches; stop at a blocked checkpoint, at a guard refusal, at `maxPages` or the deadline; result with `stop` reason | `everyVacuumBatchStaysWithinItsWalEstimate`, `vacuumStopsAtABlockedCheckpointAndKeepsTheWalBounded` (blocking reader, 4 MiB WAL, WAL peak sampled) |
+| 3 | `tick()` ran `quick_check` on the monitor thread, which then enforced no deadline (not even the check's own) | Structural; `sqlite3_interrupt` stops `quick_check` within 2 ms | Watchdog thread (deadlines only, no SQL, no write lock, every 250 ms) separate from the maintenance thread (integrity check, retries, measurement, checkpoints). The check is a read lease with `scoutro.kg.integrity.maxMillis`. Graph writes wait for it (`integrity_check_pending`); a failed or aborted check leaves `integrity_check_failed` (plus `storage_error` when damaged); `integrity_check_required` survives a clean restart. New write class `SYSTEM` for the runtime's own records, `start_not_recorded` gate. | `KgRuntimeTest`: writes held back until the check passes; overlong check aborted by the real watchdog while another read is interrupted on time; aborted check required again after a clean restart; failed check |
+| 4 | Lease check and `sqlite3_interrupt` were not atomic against lease end, reuse and close; an interrupt between two statements is lost | Verified: an idle interrupt does not stop the next statement; with a statement left open it breaks the next statement and the ROLLBACK; sqlite-jdbc's `interrupt` is not synchronised with `close` | Per-connection monitor around lease check + interrupt, lease end, reuse and close; statements closed before COMMIT/ROLLBACK; a connection whose transaction cannot be ended is closed. `LeasedConnection` refuses statements and row steps after the deadline and refuses transaction control; the watchdog repeats the interrupt while the lease is current. | `lateInterruptCannotReachTheNextLeaseOnTheSameConnection`, `closeWaitsForAPendingInterruptAndThenClosesEveryConnection`, `statementAfterTheDeadlineIsRefusedEvenWithoutAnInterrupt`, `leaseOwnsItsTransaction`; through the real watchdog: `leaseThatExpiresBetweenTwoStatementsCannotStartTheNextOne` |
+| 5 | `configureCommon()` set the global `temp_store_directory` on every new reader, during parallel use | Verified: the setting is process-wide; unset → `/var/tmp`; a missing directory silently falls back | `SqliteProcess` sets it on the first connection while no other SQLite connection of the process exists, never while one is open. The guard counts unlinked temp files in `tmp/` and SQLite temp files (`etilqs_*`) elsewhere; status `files.tmpDirectory`, `tmpOpenElsewhere`. | `KgTempFilesTest` (location, unlinked, counted, released; second store; fallback) |
+
+**JDK 24 and the image layout.** The live smoke passes unchanged on Temurin 24.0.2 (the base of the Scoutro image), and a local image built like the final stage of `docker/Dockerfile.scoutro` (same base, user `yacy` uid 100, `startYACY.sh -f`, `DATA` volume) passes: disabled without directory or `ScoutroKG` thread; enabled with both threads and the temp directory `graph`; `docker stop` is a clean shutdown (the script `exec`s Java); `docker kill` leads to the unclean-start check. The only native-access warning (JEP 472) comes from Lucene's `PosixNativeAccess` and appears on every start, with the graph disabled too; sqlite-jdbc loads from the same unnamed module and adds none. The published image itself could not be pulled here (registry blob download refused by the sandbox proxy).
+
+**Status contract changes** (unreleased, so `scoutro.kg.status.v1` keeps its name): `store.quickCheck` is replaced by `store.integrity`; new `store.manualPauseSaved`, `storage.files.tmpOpenElsewhere`, `storage.files.tmpDirectory`, `storage.readers.connections`/`maxConnections`; new reasons `integrity_check_pending`, `integrity_check_failed`, `start_not_recorded`. `control` no longer answers `kg_write_refused`: a pause change takes effect at once and is stored later if the guard refuses the write.
 
 **Next PR (package 2a):**
 

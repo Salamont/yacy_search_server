@@ -60,6 +60,7 @@ public class KgStoreTest {
 
     @Test
     public void createsSchemaV1WithSafePragmas() throws Exception {
+        final String tmpDir = this.paths.tmp.getCanonicalPath();
         assertTrue(this.store.created());
         assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());
         assertTrue(KgIds.isEpoch(this.store.epoch()));
@@ -70,7 +71,9 @@ public class KgStoreTest {
             assertEquals(2L, KgStore.queryLong(c, "PRAGMA synchronous")); // FULL
             assertEquals(1L, KgStore.queryLong(c, "PRAGMA foreign_keys"));
             assertEquals(2L, KgStore.queryLong(c, "PRAGMA auto_vacuum")); // INCREMENTAL
-            assertEquals(this.paths.tmp.getAbsolutePath(), KgStore.queryString(c, "PRAGMA temp_store_directory"));
+            // process-wide, set by SqliteProcess on the first connection
+            assertEquals(tmpDir, KgStore.queryString(c, "PRAGMA temp_store_directory"));
+            assertEquals("1 = FILE", 1L, KgStore.queryLong(c, "PRAGMA temp_store"));
             assertEquals(this.store.maxPageCount(), KgStore.queryLong(c, "PRAGMA max_page_count"));
             assertEquals("1", KgStore.getMeta(c, KgSchema.META_CHANGES_MIN_SEQ));
             assertEquals("1", KgStore.getMeta(c, KgSchema.META_CLEAN_SHUTDOWN));

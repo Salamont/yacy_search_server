@@ -51,8 +51,8 @@ public final class KgTestSupport {
         }
 
         @Override
-        public long openUnlinkedBytes(final File dir) {
-            return this.openUnlinked.get();
+        public TempFiles openTempFiles(final File dir) {
+            return new TempFiles(this.openUnlinked.get(), 0L);
         }
     }
 

@@ -64,8 +64,8 @@ public class StorageGuardTest {
         }
 
         @Override
-        public long openUnlinkedBytes(final File dir) {
-            return this.tmpOpen.get();
+        public TempFiles openTempFiles(final File dir) {
+            return new TempFiles(this.tmpOpen.get(), 0L);
         }
     }
 
@@ -313,7 +313,9 @@ public class StorageGuardTest {
             return null;
         });
         final long before = store.paths().db.length();
-        final long freed = store.incrementalVacuum(100_000, 60_000);
+        final KgStore.VacuumResult vacuum = store.incrementalVacuum(100_000, 60_000);
+        assertEquals(KgStore.VacuumResult.DONE, vacuum.stop);
+        final long freed = vacuum.freedPages;
         store.checkpoint();
         assertTrue("freed pages: " + freed, freed > 1000);
         assertTrue(store.paths().db.length() < before);
