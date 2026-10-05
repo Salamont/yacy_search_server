@@ -1340,7 +1340,7 @@
     },
     {
       "name": "kg.status",
-      "description": "Knowledge graph status: store, storage budget, JSON-LD capture and the synchronisation with the embedded Solr core (no LLM call). The answer is 200 also when the graph is disabled (state disabled) or unavailable (state unavailable with reason). Nothing is ever written to Solr.",
+      "description": "Knowledge graph status: store, storage budget, JSON-LD capture, the synchronisation with the embedded Solr core and the optional LLM tier. The answer is 200 also when the graph is disabled (state disabled) or unavailable (state unavailable with reason). Nothing is ever written to Solr.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -1363,7 +1363,7 @@
     },
     {
       "name": "kg.control",
-      "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
+      "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
       "mutating": true,
       "auth": "admin",
       "http": {
@@ -1378,9 +1378,10 @@
             "pause",
             "resume",
             "reconcile",
-            "confirm_reconcile"
+            "confirm_reconcile",
+            "llm_retry"
           ],
-          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise.",
+          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off.",
           "in": "body",
           "required": true
         }
@@ -1397,7 +1398,7 @@
         415,
         503
       ],
-      "cli": "HTTP POST /scoutro/api/v1/kg/control {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"}",
+      "cli": "HTTP POST /scoutro/api/v1/kg/control {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"}",
       "mcpTool": "scoutro_kg_control",
       "agent": {
         "grantable": false
@@ -4447,6 +4448,36 @@
                   }
                 }
               }
+            },
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "llmCollections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "scoutro.kg.llm.collections; * for every followed collection."
+            },
+            "llmIgnoredCollections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "LLM collections that are not followed and therefore ignored."
+            },
+            "llmKinds": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "description": "Facility kinds the LLM tier may assign per collection: the start vocabulary or scoutro.kg.llm.kinds.<collection>."
             }
           }
         },
@@ -5053,6 +5084,150 @@
             }
           }
         },
+        "llm": {
+          "type": "object",
+          "description": "The optional LLM tier (tier 3): only for scoutro.kg.llm.collections and with a model selected for the usage knowledge in the LLM selection. Every entity and relation needs a quote found verbatim in the page text; statements only this tier supports stay uncertain. Its own threads (ScoutroKG.extract) and queue; a slow model blocks neither crawling nor the sync.",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "off",
+                "not_configured",
+                "starting",
+                "idle",
+                "running",
+                "paused",
+                "waiting"
+              ]
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "no_llm_collections, no_sync, circuit_breaker, a gate (indexing_queue, load, heap), full_reset, write_refused, or the missing model."
+            },
+            "model": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "service/model of the row with the usage knowledge; never host or key."
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "parallel": {
+              "type": "integer"
+            },
+            "timeoutSeconds": {
+              "type": "integer"
+            },
+            "maxAttempts": {
+              "type": "integer"
+            },
+            "maxDocsPerHost": {
+              "type": "integer"
+            },
+            "maxInputChars": {
+              "type": "integer"
+            },
+            "queue": {
+              "type": "object",
+              "properties": {
+                "items": {
+                  "type": "integer"
+                },
+                "claimed": {
+                  "type": "integer"
+                },
+                "oldestEnqueuedAt": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "max": {
+                  "type": "integer"
+                }
+              }
+            },
+            "documents": {
+              "type": "object",
+              "properties": {
+                "done": {
+                  "type": "integer"
+                },
+                "failed": {
+                  "type": "integer"
+                },
+                "skipped": {
+                  "type": "integer"
+                }
+              }
+            },
+            "cache": {
+              "type": "object",
+              "properties": {
+                "entries": {
+                  "type": "integer"
+                },
+                "bytes": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "maxBytes": {
+                  "type": "integer"
+                }
+              }
+            },
+            "breaker": {
+              "type": "object",
+              "properties": {
+                "open": {
+                  "type": "boolean"
+                },
+                "consecutiveFailures": {
+                  "type": "integer"
+                },
+                "failuresToOpen": {
+                  "type": "integer"
+                },
+                "openUntil": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "backoffMillis": {
+                  "type": "integer"
+                },
+                "timesOpened": {
+                  "type": "integer"
+                },
+                "lastFailure": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "processed": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Counters: calls, callFailures, timeouts, averageCallMillis, answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, droppedUngrounded, droppedInvalid, cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused."
+            },
+            "lastError": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
         "store": {
           "type": "object",
           "properties": {
@@ -5183,9 +5358,10 @@
             "pause",
             "resume",
             "reconcile",
-            "confirm_reconcile"
+            "confirm_reconcile",
+            "llm_retry"
           ],
-          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise."
+          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off."
         }
       }
     },

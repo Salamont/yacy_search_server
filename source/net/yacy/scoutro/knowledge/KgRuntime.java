@@ -41,6 +41,8 @@ import net.yacy.scoutro.knowledge.budget.JsonLdCapturePolicy;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.budget.StorageProbe;
+import net.yacy.scoutro.knowledge.extract.LlmClient;
+import net.yacy.scoutro.knowledge.extract.YacyLlmClient;
 import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
 import net.yacy.scoutro.knowledge.sync.Capture;
@@ -48,6 +50,7 @@ import net.yacy.scoutro.knowledge.sync.DirtySet;
 import net.yacy.scoutro.knowledge.sync.EmbeddedSolrSource;
 import net.yacy.scoutro.knowledge.sync.Gates;
 import net.yacy.scoutro.knowledge.sync.JsonLdCapture;
+import net.yacy.scoutro.knowledge.sync.LlmService;
 import net.yacy.scoutro.knowledge.sync.Reconciler;
 import net.yacy.scoutro.knowledge.sync.SyncService;
 import net.yacy.search.Switchboard;
@@ -69,6 +72,9 @@ import net.yacy.search.Switchboard;
  * embedded Solr core available, the sync thread ({@value #SYNC_THREAD}) follows
  * the index: the capture processor records every change, and every start
  * schedules a full reconcile (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, section 5).
+ * With {@code llm.collections} set, the extract threads ({@value #EXTRACT_THREAD})
+ * run the optional LLM tier ({@link LlmService}); they hold no lock while a
+ * model call runs, and a stop never waits for a call longer than two seconds.
  * <p>
  * After an unclean shutdown graph writes (growth and maintenance) stay blocked
  * until {@code PRAGMA quick_check} has passed; a failed or aborted check keeps
@@ -88,6 +94,8 @@ public final class KgRuntime {
     public static final String MAINTENANCE_THREAD = "ScoutroKG.maintenance";
     public static final String SHUTDOWN_HOOK_THREAD = "ScoutroKG.shutdown";
     public static final String SYNC_THREAD = SyncService.THREAD;
+    /** The LLM tier's threads ({@code llm.parallel}); only while {@code llm.collections} is set. */
+    public static final String EXTRACT_THREAD = "ScoutroKG.extract";
     /** Watchdog period: a read is interrupted at most this long after its deadline. */
     public static final long WATCHDOG_MILLIS = 250L;
 
@@ -106,6 +114,9 @@ public final class KgRuntime {
     private static final long SYNC_SLICE_MILLIS = 1000L;
     private static final int SYNC_SLICE_STEPS = 1000;
     private static final long FINAL_DRAIN_MILLIS = 2000L;
+    private static final long LLM_FIRST_DELAY_MILLIS = 2000L;
+    private static final long LLM_DELAY_MILLIS = 500L;
+    private static final long LLM_STOP_WAIT_MILLIS = 2000L;
 
     /** The integrity check: {@code PRAGMA quick_check}, "ok" if the database is consistent. */
     static final KgStore.SqlWork<String> QUICK_CHECK = c -> KgStore.queryString(c, "PRAGMA quick_check(1)");
@@ -125,23 +136,26 @@ public final class KgRuntime {
         /** The embedded collection1 client (null when only a remote Solr is connected); the whole supplier null = no sync. */
         final Supplier<SolrClient> solr;
         final Gates.Probe system;
+        /** The LLM tier's model (Scoutro's LLM selection, usage knowledge). */
+        final LlmClient llm;
 
         /** Without Solr synchronisation (store, budget and status only). */
         public Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread) {
-            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK, null, Gates.IDLE);
+            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK, null, Gates.IDLE, LlmClient.NONE);
         }
 
         /** With Solr synchronisation through {@code solr}. */
         public Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
                 final Supplier<SolrClient> solr, final Gates.Probe system) {
-            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK, solr, system);
+            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK, solr, system, LlmClient.NONE);
         }
 
         private Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
-                final KgStore.SqlWork<String> integrityCheck, final Supplier<SolrClient> solr, final Gates.Probe system) {
+                final KgStore.SqlWork<String> integrityCheck, final Supplier<SolrClient> solr, final Gates.Probe system,
+                final LlmClient llm) {
             this.dataRoot = dataRoot;
             this.config = config;
             this.clock = clock;
@@ -151,12 +165,19 @@ public final class KgRuntime {
             this.integrityCheck = integrityCheck;
             this.solr = solr;
             this.system = system;
+            this.llm = llm;
         }
 
         /** The same environment with another integrity check (tests). */
         Env withIntegrityCheck(final KgStore.SqlWork<String> check) {
             return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread, check,
-                    this.solr, this.system);
+                    this.solr, this.system, this.llm);
+        }
+
+        /** The same environment with another LLM model (tests). */
+        Env withLlm(final LlmClient client) {
+            return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread,
+                    this.integrityCheck, this.solr, this.system, client);
         }
 
         static Env of(final Switchboard sb) {
@@ -186,7 +207,7 @@ public final class KgRuntime {
                 }
             };
             return new Env(sb.getDataPath(), key -> sb.getConfig(key, null), System::currentTimeMillis,
-                    StorageProbe.SYSTEM, KgStore.SQLITE, true, solr, system);
+                    StorageProbe.SYSTEM, KgStore.SQLITE, true, QUICK_CHECK, solr, system, new YacyLlmClient());
         }
     }
 
@@ -204,6 +225,8 @@ public final class KgRuntime {
     private ScheduledExecutorService syncThread;
     private DirtySet dirty;
     private volatile SyncService sync;
+    private volatile LlmService llm;
+    private ScheduledExecutorService llmThreads;
     private volatile Long jsonldEstimate;
     private volatile boolean closing;
     private boolean uncleanStartDetected;
@@ -343,6 +366,12 @@ public final class KgRuntime {
                     this.syncThread = daemon(SYNC_THREAD);
                     this.syncThread.scheduleWithFixedDelay(this::syncTick, 0L, SYNC_DELAY_MILLIS, TimeUnit.MILLISECONDS);
                 }
+                if (this.llm != null) {
+                    this.llmThreads = daemons(EXTRACT_THREAD, this.config.llmParallel);
+                    for (int i = 0; i < this.config.llmParallel; i++) {
+                        this.llmThreads.scheduleWithFixedDelay(this::llmTick, LLM_FIRST_DELAY_MILLIS, LLM_DELAY_MILLIS, TimeUnit.MILLISECONDS);
+                    }
+                }
             }
             LOG.info("knowledge graph store open: " + this.paths.db + (this.uncleanStartDetected
                     ? " (unclean previous shutdown; graph writes wait for the integrity check)" : ""));
@@ -369,9 +398,25 @@ public final class KgRuntime {
     private void startSync() {
         this.dirty = new DirtySet(this.config.captureMaxPending);
         Capture.activate(this.dirty);
-        this.sync = new SyncService(this.config, this.store, this.dirty, new EmbeddedSolrSource(this.env.solr),
-                new Gates(this.config, this.env.system), this.env.clock, this.uncleanStartDetected);
+        final EmbeddedSolrSource source = new EmbeddedSolrSource(this.env.solr);
+        final Gates gates = new Gates(this.config, this.env.system);
+        this.sync = new SyncService(this.config, this.store, this.dirty, source, gates, this.env.clock, this.uncleanStartDetected);
+        if (this.config.llmEnabled()) {
+            this.llm = new LlmService(this.config, this.store, source, gates, this.env.llm, this.env.clock);
+            this.sync.onLlmInput(this.llm::wake);
+        }
         updateJsonLdCapture();
+    }
+
+    private static ScheduledExecutorService daemons(final String name, final int n) {
+        final java.util.concurrent.atomic.AtomicInteger seq = new java.util.concurrent.atomic.AtomicInteger();
+        return Executors.newScheduledThreadPool(n, r -> {
+            final int i = seq.incrementAndGet();
+            final Thread t = new Thread(r, i == 1 ? name : name + "-" + i);
+            t.setDaemon(true);
+            t.setPriority(Thread.MIN_PRIORITY);
+            return t;
+        });
     }
 
     private static ScheduledExecutorService daemon(final String name) {
@@ -450,6 +495,20 @@ public final class KgRuntime {
         final KgStore s = this.store;
         // the sync first: it finishes its step, the capture stops, and what it recorded reaches the persistent queue.
         // No Thread.interrupt here: the sync thread may be inside Solr, whose update log uses interruptible channels.
+        // the LLM tier first: a call in flight is abandoned (no interrupt, see above); its result is never written
+        if (this.llm != null) {
+            this.llm.requestStop();
+        }
+        if (this.llmThreads != null) {
+            this.llmThreads.shutdown();
+            try {
+                this.llmThreads.awaitTermination(LLM_STOP_WAIT_MILLIS, TimeUnit.MILLISECONDS);
+            } catch (final InterruptedException ie) {
+                Thread.currentThread().interrupt();
+            }
+            this.llmThreads = null;
+        }
+        this.llm = null;
         if (this.sync != null) {
             this.sync.requestStop();
         }
@@ -540,6 +599,18 @@ public final class KgRuntime {
         while (s.step() && !this.closing && !Thread.currentThread().isInterrupted() && this.env.clock.getAsLong() < until
                 && ++steps < SYNC_SLICE_STEPS) {
             // more work is due right away
+        }
+    }
+
+    /** Extract step: one document at a time, for up to a second, then yields. */
+    void llmTick() {
+        final LlmService l = this.llm;
+        if (l == null || this.state != State.RUNNING || this.closing) {
+            return;
+        }
+        final long until = this.env.clock.getAsLong() + SYNC_SLICE_MILLIS;
+        while (l.step() && !this.closing && this.env.clock.getAsLong() < until) {
+            // the next document is due right away
         }
     }
 
@@ -771,6 +842,23 @@ public final class KgRuntime {
         return status();
     }
 
+    /**
+     * Makes the documents the LLM tier gave up on due again
+     * ({@code POST /kg/control {"action":"llm_retry"}}); also closes the
+     * circuit breaker.
+     */
+    public synchronized JSONObject llmRetry() throws KgException {
+        requireRunning();
+        final LlmService l = this.llm;
+        if (l == null) {
+            throw new KgException(KgException.LLM_UNAVAILABLE, "the LLM tier is off (no llm.collections, or no Solr synchronisation)");
+        }
+        final int n = l.retryFailed();
+        final JSONObject o = status();
+        KgJson.put(o, "reopened", n);
+        return o;
+    }
+
     private SyncService requireSync() throws KgException {
         final SyncService s = this.sync;
         if (s == null) {
@@ -890,6 +978,10 @@ public final class KgRuntime {
             final SyncService sy = this.sync;
             KgJson.put(o, "sync", sy != null ? sy.status()
                     : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped"));
+            final LlmService ll = this.llm;
+            KgJson.put(o, "llm", ll != null ? ll.status()
+                    : KgJson.obj("state", "off", "reason", !this.config.llmEnabled() ? "no_llm_collections"
+                            : sy == null ? "no_sync" : "stopped", "enabled", this.config.llmEnabled()));
             KgJson.put(o, "events", recentEvents(s));
         }
         return o;

@@ -51,6 +51,7 @@ reserve, automatic pause and resume, and bounded retention.
     - 16.1 [Review corrections (PR #12)](#161-review-corrections-pr-12)
 17. [Revision 2 corrections](#17-revision-2-corrections)
 18. [Package 2a implementation](#18-package-2a-implementation)
+19. [Package 2b implementation](#19-package-2b-implementation)
 
 ## 0. Decisions at a glance
 
@@ -321,8 +322,8 @@ recreated when it changes.
 
 | Quality | Condition |
 |---|---|
-| `supported` | ≥ 1 current evidence with a verified locator |
-| `uncertain` | Current evidence exists, but only with `certainty=hedged` or only from `unavailable` documents |
+| `supported` | ≥ 1 current, stated evidence of tier 1 or 2 from an `active` document, with a verified locator |
+| `uncertain` | Current evidence exists, but only with `certainty=hedged`, only from `unavailable` documents, or only from the LLM tier (tier 3; package 2b: a verbatim quote proves that the page says it, not that the model read the relation right) |
 | `conflicting` | Functional predicate with more than one distinct currently supported object for the same subject. All of these statements are flagged. |
 | `stale` | No current evidence. Hidden by default (`include=stale`), purged after `staleRetentionDays` (default 90). |
 
@@ -540,7 +541,7 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
 - The LLM tier runs only:
   - for collections listed in `llm.collections`;
   - on candidate pages;
-  - for at most `llm.maxDocsPerHost` (default 25) documents per host and extractor version, by priority (imprint, home page, service pages first).
+  - for at most `llm.maxDocsPerHost` (default 25) documents per host (finished plus queued; a changed cap or LLM collection list re-examines skipped documents), by priority (imprint and about pages, then services, locations and contact, then the home page).
 
   This keeps the LLM work bounded by the number of hosts, not pages.
 
@@ -586,16 +587,22 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
   - every claim needs a quote ≤ 200 characters that occurs **verbatim** (whitespace-normalised) in the input text. Otherwise it is dropped.
   - The counts of invalid answers are visible.
 - **Concurrency:** `llm.parallel` (default 1, maximum 2).
+- **As implemented (2b, see [19](#19-package-2b-implementation)):**
+  - The model only proposes: no persons, no e-mail addresses, no phone numbers (contact data comes from tiers 1 and 2 only, O7); a known entity of tiers 1 and 2 is referred to by `k1`, `k2`, ...; facility kinds only from the collection's vocabulary (O2).
+  - Statements supported only by the LLM tier are `uncertain` ([4.4](#44-quality-and-currency)); a claim the quote states as planned or possible is `hedged`, also when the model says otherwise (a word list).
+  - A changed input deletes the document's tier-3 evidence in the tier-1/2 publish and asks again; tiers 1 and 2 never wait for tier 3.
+  - The raw HTTP response is read up to 1 MiB; an endpoint that refuses `response_format` (HTTP 400) is asked again without it and remembered.
+  - `last_error` is not used: `kg_doc.llm_status` (`done`, `failed`, `skipped`) and `llm_reason` record the outcome per input hash; `POST /kg/control {"action":"llm_retry"}` makes failed documents due again.
 
 ### 6.4 Cache
 
 - **Key:** SHA-256 over:
-  - the extractor ID (tier, name, version, model, prompt hash);
-  - the input hash (the exact text and JSON-LD sent to the tier);
+  - the extractor ID (name, version, model, prompt hash);
+  - the input: the chunk text, the title, the known entities of tiers 1 and 2 and the facility kinds offered (exactly what the prompt contains);
   - the context: registrable domain and language.
 
   The same text on another domain is extracted again, because "we" and the organisation name depend on the site.
-- **Value:** the raw, unresolved extraction result (deflated JSON, ≤ 64 KiB). Resolution into entities runs per document in its own context. Shared extraction therefore never mixes identities or origins.
+- **Value:** the validated, unresolved extraction result of one chunk (deflated JSON, ≤ 64 KiB), or the reason the answer was refused, so the same text is not asked again. Resolution into entities runs per document in its own context. Shared extraction therefore never mixes identities or origins.
 - **Eviction:** LRU within `cache.maxPercent` of the budget. The cache is optional: losing it only costs recomputation.
 
 ### 6.5 Scheduling and gating
@@ -993,6 +1000,7 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 |---|---|---|
 | `enabled` | `false` | yes |
 | `collections` / `llm.collections` | empty | yes |
+| `llm.kinds.<collection>` | start vocabulary for `edelsenior-web`, `checkthecoach-web`, `stackfinder-web`, `bauteamcheck-web`; empty otherwise | advanced |
 | `budget.*`, `disk.*`, `wal.*`, `tmp.maxBytes`, `read.maxTransactionMillis`, `integrity.maxMillis` | [7.2](#72-settings) | budget and disk yes, rest advanced |
 | `jsonld.*` | [7.2](#72-settings) | yes |
 | `queue.maxItems`, `capture.maxPending` | 200 000, 100 000 | no |
@@ -1072,7 +1080,7 @@ Each package is one or more reviewable PRs on its own branch from the then-curre
   - JSON-LD capture with `JsonLdCapturePolicy`;
   - tiers 1 and 2; identity resolution with discriminators;
   - change-feed writes; retention.
-- **PR 2b:**
+- **PR 2b** (implemented, see [19](#19-package-2b-implementation)):
   - `LLMUsage.knowledge`, per-call timeout, `LlmExtractor` with schema validation and verbatim check;
   - cache, circuit breaker, per-host LLM cap, `LLMSelection_p` column.
 - **Acceptance:** release checks 1–9 as automated tests with embedded Solr (`EmbeddedSolrConnectorTest` / `IndexBrowseTest` pattern), including:
@@ -1192,12 +1200,12 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 | # | Point | Effect | Needed from |
 |---|---|---|---|
 | O1 | Real server and Olares capacity: free space on the `DATA` filesystem, current index size (documents, hosts, collections), whether `limitedDisk: 20Gi` is enforced | The 1 GiB graph budget and the 256 MiB JSON-LD budget stay provisional until package 5 measurements and these figures exist. No free capacity is claimed. | Owner / operations |
-| O2 | Industry vocabulary: service and facility terms, facility kinds as merge discriminators, identifier schemes beyond the listed ones | Tiers 2 and 3 quality; identity rules | Owner |
-| O3 | LLM host and model for `knowledge` (same machine? GPU?), and the heap (`Xmx`) of the target installation | LLM throughput, `llm.maxDocsPerHost`, heap gate | Owner / operations |
+| O2 | ~~Industry vocabulary~~ — decided: extensible, collection-specific vocabulary without a schema rebuild; package 2b ships a small start vocabulary of facility kinds for `edelsenior-web`, `checkthecoach-web`, `stackfinder-web` and `bauteamcheck-web`, replaced per collection by `llm.kinds.<collection>`; kinds are entity attributes, so new ones need no schema change | Tier-3 quality; kinds are merge discriminators | Owner (further terms) |
+| O3 | ~~LLM host and model~~ — decided: the existing LLM selection is reused (usage `knowledge`, opt-in column); the LLM is optional and the graph works without it. Throughput on the target hardware is measured in package 5 | `llm.maxDocsPerHost`, heap gate | Operations (model choice) |
 | O4 | ~~Fate of branch `ccr-e3e5f88b-1fqp77`~~ — resolved: merged into `main` as PR #13 (`5ee2d29`) | Packages 3/4 integrate into the domain view and reuse its export pattern | — |
 | O5 | Existing chat gap: clients choose any collection, guests included | The graph does not widen it (guests get no facts). Fixing content RAG scoping is out of scope. | Owner decision |
 | O6 | Backup target outside `DATA` | Local backups count fully in the budget; an external target needs a mounted path, which conflicts with the Olares "no second DATA path" rule | Owner / operations |
-| O7 | Legal review of stored excerpts (imprint pages contain names) | Excerpt length and the export of excerpts | Owner |
+| O7 | Legal review of stored excerpts (imprint pages contain names) — decided: minimal data, no extra person profiling, no employee e-mails or personal contact data as an enrichment target; the LLM tier extracts no persons, e-mail addresses or phone numbers | Excerpt length and the export of excerpts | Owner |
 | O8 | Tag `v1.942-scoutro.12` is not visible in the shallow clone | Release numbering is re-checked at release time | — |
 | O9 | ~~Real-time get (`/get`) in YaCy's embedded core, the capture processor class loading, and `_version_` behaviour after a restart are verified only by documentation and reasoning~~ — resolved in package 2a: `KgCaptureProcessorTest` proves with the shipped `defaults/solr` that the processor loads in the default chain after `_version_` is assigned, that real-time get sees uncommitted adds and deletes with the captured versions, and that versions stay monotonic across a core restart; the live smoke confirms the chain in a real peer ([18](#18-package-2a-implementation)) | The version-checked search fallback is not needed; the full reconcile stays the correctness backstop | — |
 | O10 | Temp-file measurement via `/proc/self/fd` exists only on Linux | Other platforms report `tmpOpen: null` and rely on the disk floors | — |
@@ -1394,4 +1402,59 @@ The review of `0b303ac` found five gaps in package 1. Each was reproduced or con
 
 **Not in 2a:** the LLM tier and the extraction cache (2b), read routes, export, UI and chat (3, 4), backups and the admin action "re-resolve identities" (5).
 
-**Next PR (package 2b):** `LLMUsage.knowledge`, per-call timeout, `LlmExtractor` with schema validation and verbatim check, cache, circuit breaker, per-host cap, `LLMSelection_p` column.
+**Next PR (package 2b):** see [19](#19-package-2b-implementation).
+
+## 19. Package 2b implementation
+
+**Shipped in this PR** (stacked on 2a; the LLM tier is optional and off unless `scoutro.kg.llm.collections` is set **and** a model has the usage `knowledge`):
+
+| Area | Files |
+|---|---|
+| Model access | `LLM.java`: usage `knowledge`; `chat(…, readTimeoutMillis, maxResponseChars)` (the existing callers keep "no timeout, no limit"); the debug print of the schema removed. `extract/LlmClient`, `extract/YacyLlmClient` (the row with the usage `knowledge`; retry without `response_format` after HTTP 400, remembered per endpoint) |
+| Extraction | `extract/LlmExtractor` (prompt, strict schema, `PromptGuard` DATA block, chunks, validation, verbatim grounding, hedging, cache key), `extract/LlmBreaker`, `extract/KindHints` (O2 start vocabulary) |
+| Worker | `sync/LlmService` (`ScoutroKG.extract`, `llm.parallel` ≤ 2), `sync/LlmQueue`, `sync/ExtractionCache`, `sync/BaseTiers` (tiers 1 and 2 shared by the sync and the LLM tier) |
+| Publish | `Publisher.applyLlm` (tier 3 only, compare-and-set on the input hash), invalidation of tier-3 evidence when the input changes, `Aggregates` (LLM-only statements `uncertain`), `Terms.llmExtractor` |
+| Schema v3 | `kg_llm_work` (queue with attempts and claims), `kg_doc.llm_status` / `llm_hash` / `llm_reason`, partial indexes for the documents to do, the per-host count and the status counts; migrated in place from v1 and v2 |
+| Runtime and API | `KgRuntime` (extract threads only with LLM collections, stop without waiting for a call, status `llm`, `llmRetry`), `KnowledgeApi` (`llm_retry`, `llm_unavailable` 409), `KgConfig` (`llm.*`, `extract.maxInputChars`, `cache.maxPercent`, `llm.kinds.<collection>`, ignored LLM collections) |
+| Chat isolation | `RAGProxyServlet` maps the model name `knowledge` to `chat`; `OllamaTagsServlet` and `OpenAIModelsServlet` do not list it |
+| UI | `LLMSelection_p.html`/`.java`: column "knowledge", opt-in (never checked for a new row, never handed to another row on undeploy); 14 locales, `master.lng.xlf`, `help/LLMSelection_p.md` |
+| Docs and contract | this plan (4.4, 6.1, 6.3, 6.4, 9, 15), `docs/API.md`, `docs/SCOUTRO.md`; generator, `openapi.json`, `actions.json` |
+
+**Flow.**
+
+1. The sync publishes tiers 1 and 2 as before and never waits for tier 3. A new input hash deletes the document's tier-3 evidence in the same transaction and resets `llm_status`; it then wakes the LLM tier.
+2. The scan of the LLM tier walks the documents still to do (`llm_status IS NULL`, active; a partial index) and either queues them (priority: imprint and about pages 1, services, locations, contact and team 2, home page 3, others 5) or marks them `skipped` (`not_selected`, `no_host`, `host_cap`). The queue holds at most 10 000 items; the scan fills it only while it holds ≤ 100.
+3. A worker claims one item, reads the document by real-time get and checks that Solr's input hash is the one the graph published (otherwise the item waits for the sync). It runs tiers 1 and 2 again for the page's known entities and skips pages that are no candidates (`not_candidate`). It reads ≤ `extract.maxInputChars` of text in chunks of ≤ 4 000 characters.
+4. Per chunk: the cache first; otherwise one call with the read timeout `llm.timeoutSeconds`, ≤ 1 MiB raw response, the configured `max_tokens`. Nothing is locked while the call runs.
+5. Validation ([6.3](#63-llm-use)): the whole answer is refused unless it is one JSON object of the schema (≤ 64 KiB, ≤ 40 entities and claims, known fields only); single items are dropped when a rule fails (types, relation type rules, known IDs, persons) or their quote is not found verbatim in the chunk with the names involved. A hedge word in the quote makes the claim `hedged` whatever the model says.
+6. The validated chunk result (or the refusal reason) goes into the cache; all chunks of the document are applied and published in one growth transaction with a compare-and-set on the input hash; the document is marked `done`.
+7. A transport failure counts for the breaker and as an attempt; after `llm.maxAttempts` the document is `failed` (`llm_failed`) until its input changes or `llm_retry`. An answer that is refused is no transport failure: the document is `done` and the refusal is cached.
+
+**Robustness.**
+
+| Case | Behaviour | Test |
+|---|---|---|
+| Model not selected | `llm.state: not_configured`; tiers 1 and 2 as before; no queue writes | `LlmServiceTest.withoutModelOrOutsideTheLlmCollections…` |
+| Hanging model | read timeout, attempt, breaker; the sync publishes other documents meanwhile | `LlmServiceTest.aHangingModelBlocksNeither…`, live smoke 3 |
+| Unreachable, HTTP error, oversized response | IOException → attempt and breaker | `YacyLlmClientTest` |
+| Invalid JSON, prose, wrong shape, too many items | refused whole, counted by reason, cached | `LlmExtractorTest.malformedAnswersAreRefusedWhole`, `LlmServiceTest.invalidAnswers…` |
+| Hallucination, prompt injection in the page | dropped as ungrounded; page text only inside the DATA block | `LlmExtractorTest`, `LlmServiceTest.groundedRelations…`, live smoke 2 |
+| Repeated failures | breaker 5 min doubling to `llm.breakerMaxBackoffMinutes`; no unbounded retries | `LlmBreakerTest`, `LlmServiceTest.transportFailures…` |
+| Changed page | tier-3 evidence replaced, never mixed with old quotes | `LlmServiceTest.changedInputReplacesTheLlmResult` |
+| Stop during a call, restart | stop waits ≤ 2 s; the abandoned call writes nothing; the claim is released at the next start | `KgSyncRuntimeTest.theLlmTierRunsInTheRuntime…`, `LlmServiceTest.aRestartKeeps…`, live smoke 4 and 5 |
+| Full clear | the LLM queue is emptied with the graph | `LlmServiceTest.aFullResetEmptiesTheQueue` |
+| Storage guard refuses growth | item released, retried after a minute; cache writes are optional | `LlmService` (refused writes) |
+
+**Deviations from the plan:**
+
+1. LLM-only statements are `uncertain`, not `supported` (4.4): a verbatim quote proves the page says it, not that the model read the relation correctly. Consumers can still filter them in.
+2. The per-host cap counts finished plus queued documents per host, not per extractor version; a changed cap or LLM collection list re-examines skipped documents.
+3. The outcome per document lives in `kg_doc.llm_status` / `llm_reason`, not in `last_error` (which belongs to the sync); the control action is `llm_retry` instead of `retry_failed`.
+4. The scan of the LLM tier replaces a queue fed at publish time: one index-driven query finds every document still to do, so nothing is lost when the queue is full or Scoutro stops.
+5. Refused answers are cached too, so the same text is not asked again with every recrawl.
+
+**Tests** (new: `LlmExtractorTest` 9, `LlmBreakerTest` 2, `YacyLlmClientTest` 4, `LlmServiceTest` 13 including a recrawl during the call, `KgSyncRuntimeTest` +2, `KnowledgeApiTest` extended, `KgStoreTest` migration to v3). The suite (`ant scoutro-agents-test`) passes with 49 test classes; the LLM and store tests also pass on JDK 24. `LLMSelection_pTest`, `TranslatorTest`, `GenerateSourceMasterXliffTest`, `PromptGuardTest`, the flow contract, the locale identifier check and `llm-selection-live-smoke.py` (619 Playwright checks in 15 languages, now with the opt-in column) pass.
+
+**Mutation checks** (each must make a named test fail; all 11 do): no name check and no verbatim check in the grounding, LLM-only statements `supported`, hedge words ignored, no person filter, stale tier-3 evidence kept on a new input, no collection selection, unbounded attempts, no host cap, no breaker, no compare-and-set on the input.
+
+**Live smoke test** `test/scoutro-api/kg-llm-live-smoke.py` (19 checks, JDK 21 and 24) on a disposable peer with a fake OpenAI-compatible endpoint on 127.0.0.1: the knowledge usage is no chat model (`/api/tags`, `/v1/models`; the RAG proxy answers a request for the model `knowledge` with `no_chat_model` and never calls the extraction model); the extract thread runs; a page pushed through YaCy's parser is read, the quoted relation published and the hallucinated holding dropped; the request carries the strict schema and the DATA block; a hanging model times out while the sync publishes other pages; a stop during a hanging call is a clean shutdown; after the restart `llm_retry` finishes the failed documents.

@@ -297,4 +297,109 @@ public class KgSyncRuntimeTest {
         assertTrue(tracked(r, "SSSSSShost01"));
         assertEquals(1L, count(r, "SELECT jsonld_skipped FROM kg_doc WHERE doc_id = 'SSSSSShost01'"));
     }
+
+    /** A model that answers with one grounded relation, or waits for the test. */
+    static final class Model implements net.yacy.scoutro.knowledge.extract.LlmClient {
+        final java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
+        volatile java.util.concurrent.CountDownLatch entered;
+        volatile java.util.concurrent.CountDownLatch release;
+
+        @Override
+        public String model() {
+            return "TEST/fixture";
+        }
+
+        @Override
+        public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis) {
+            this.calls.incrementAndGet();
+            final java.util.concurrent.CountDownLatch in = this.entered;
+            final java.util.concurrent.CountDownLatch out = this.release;
+            if (in != null && out != null) {
+                in.countDown();
+                try {
+                    out.await(30, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (final InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+            return "{\"entities\":[{\"id\":\"e1\",\"type\":\"facility\",\"name\":\"Haus Lindenhof\",\"quote\":\"betreibt das Haus"
+                    + " Lindenhof\"}],\"claims\":[{\"subject\":\"k1\",\"predicate\":\"operates\",\"object\":\"e1\",\"quote\":"
+                    + "\"Muster Pflege gGmbH betreibt das Haus Lindenhof\"}]}";
+        }
+    }
+
+    private void addPage(final String id, final String more) throws Exception {
+        final SolrInputDocument d = doc(id, "impressum", org("Muster Pflege gGmbH"));
+        d.setField("title", List.of("Impressum"));
+        d.setField("text_t", "Impressum. Die Muster Pflege gGmbH betreibt das Haus Lindenhof in Berlin." + more);
+        d.setField("exact_signature_l", (long) more.hashCode());
+        client().add(d);
+        client().commit();
+    }
+
+    @Test
+    public void theLlmTierRunsInTheRuntimeAndAStopDoesNotWaitForAHangingCall() throws Exception {
+        final Model model = new Model();
+        KgRuntime.start(env(settings(KgConfig.LLM_COLLECTIONS, "c1")).withLlm(model));
+        final KgRuntime r = KgRuntime.current();
+        addPage("AAAAAAhost01", "");
+        settle(r);
+        for (int i = 0; i < 200 && r.status().getJSONObject("llm").getJSONObject("processed").getLong("published") < 1L; i++) {
+            r.llmTick();
+            this.clock.addAndGet(61_000L);
+        }
+        final JSONObject llm = r.status().getJSONObject("llm");
+        assertEquals("TEST/fixture", llm.getString("model"));
+        assertEquals(1L, llm.getJSONObject("processed").getLong("published"));
+        assertEquals("the name of the facility and the relation", 2L, count(r, "SELECT count(*) FROM kg_evidence WHERE tier = 3 AND kind = 4"));
+        assertEquals(0L, r.llmRetry().getLong("reopened"));
+        // a call in flight when Scoutro stops
+        model.entered = new java.util.concurrent.CountDownLatch(1);
+        model.release = new java.util.concurrent.CountDownLatch(1);
+        addPage("BBBBBBhost02", " Seit 1990.");
+        settle(r);
+        final Thread worker = new Thread(() -> {
+            for (int i = 0; i < 200 && model.entered.getCount() > 0; i++) {
+                r.llmTick();
+                this.clock.addAndGet(61_000L);
+            }
+        }, "test-extract");
+        worker.start();
+        assertTrue(model.entered.await(20, java.util.concurrent.TimeUnit.SECONDS));
+        final long t0 = System.currentTimeMillis();
+        KgRuntime.stop();
+        assertTrue("the stop does not wait for the model", System.currentTimeMillis() - t0 < 5000L);
+        model.release.countDown();
+        worker.join(20_000L);
+        assertEquals("the abandoned call wrote nothing", 1L, countClosed("SELECT count(DISTINCT doc_rowid) FROM kg_evidence WHERE tier = 3"));
+        assertEquals("1", String.valueOf(countClosed("SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_CLEAN_SHUTDOWN + "'")));
+        // the next start finishes the document
+        model.entered = null;
+        model.release = null;
+        final KgRuntime again = start(settings(KgConfig.LLM_COLLECTIONS, "c1"));
+        assertFalse(again.status().getJSONObject("store").getBoolean("uncleanStartDetected"));
+        KgRuntime.stop();
+        KgRuntime.start(env(settings(KgConfig.LLM_COLLECTIONS, "c1")).withLlm(model));
+        final KgRuntime third = KgRuntime.current();
+        settle(third);
+        for (int i = 0; i < 200 && count(third, "SELECT count(DISTINCT doc_rowid) FROM kg_evidence WHERE tier = 3") < 2L; i++) {
+            third.llmTick();
+            this.clock.addAndGet(61_000L);
+        }
+        assertEquals(2L, count(third, "SELECT count(DISTINCT doc_rowid) FROM kg_evidence WHERE tier = 3"));
+    }
+
+    @Test
+    public void withoutLlmCollectionsTheTierIsOff() throws Exception {
+        final KgRuntime r = start(settings());
+        final JSONObject llm = r.status().getJSONObject("llm");
+        assertEquals("off", llm.getString("state"));
+        assertEquals("no_llm_collections", llm.getString("reason"));
+        try {
+            r.llmRetry();
+            fail("llm_retry without the tier");
+        } catch (final KgException e) {
+            assertEquals(KgException.LLM_UNAVAILABLE, e.code());
+        }
+    }
 }

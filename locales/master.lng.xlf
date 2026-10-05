@@ -6145,6 +6145,12 @@
     <trans-unit id="5cb20e22" xml:space="preserve" approved="no" translate="yes">
        <source>This model evaluates YaCy runtime logs and creates self-enhancement reports</source>
     </trans-unit>
+    <trans-unit id="5c61687e" xml:space="preserve" approved="no" translate="yes">
+       <source>knowledge</source>
+    </trans-unit>
+    <trans-unit id="f3a3e2c3" xml:space="preserve" approved="no" translate="yes">
+       <source>Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text</source>
+    </trans-unit>
     <trans-unit id="48fd95b0" xml:space="preserve" approved="no" translate="yes">
        <source>thinking</source>
     </trans-unit>

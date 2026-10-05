@@ -68,6 +68,9 @@ try {
         check((await page.locator('#productionModelsTable tbody').textContent()).includes('fixture-model:latest'), `${width}: model added to production matrix`);
         check((await page.locator('#productionModelsTable tbody tr').first().locator('td').first().textContent()).trim() === 'OLLAMA', `${width}: production service remains canonical`);
         check(saves.some(save => save.production_models?.some(model => model.service === 'OLLAMA' && model.model === 'fixture-model:latest')), `${width}: canonical production model serialized`);
+        const deployed = saves.at(-1).production_models.find(model => model.model === 'fixture-model:latest');
+        check(deployed.knowledge === false, `${width}: the opt-in knowledge usage is not assigned automatically: ${JSON.stringify(deployed)}`);
+        check((await page.locator('#productionModelsTable thead').textContent()).includes('knowledge'), `${width}: knowledge column`);
         // Reflow must preserve the exact original controls and serialized grant.
         const beforeReflow = saves.at(-1).production_models;
         const originalControls = await page.locator('#productionModelsTable input').count();

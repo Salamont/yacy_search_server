@@ -3798,6 +3798,8 @@ This value is <b>advisory</b>: set it to match the window your backend actually 
 generated output; YaCy uses it to size prompts so they leave room to generate. The row for the==sortie générée; YaCy l'utilise pour dimensionner les invites afin qu'ils laissent de la place pour générer.
 >hoststub<==>hoststub<
 log-report==log-report
+>knowledge<==>knowledge<
+Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text==Facultatif : ce modèle lit les pages explorées pour le graphe de connaissances de Scoutro (scoutro.kg.llm.collections) ; chaque résultat est vérifié par rapport au texte de la page
 >max_tokens<==>max_tokens<
 >model<==>model<
 >num_ctx<==>num_ctx<

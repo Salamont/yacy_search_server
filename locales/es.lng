@@ -3993,6 +3993,8 @@ This model produces search queries to YaCy search from prompts in RAG or chat==E
 >format<==>formato<
 >hoststub<==>hosttub<
 log-report==log-report
+>knowledge<==>knowledge<
+Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text==Opcional: este modelo lee las páginas rastreadas para el grafo de conocimiento de Scoutro (scoutro.kg.llm.collections); cada resultado se comprueba con el texto de la página
 >max_tokens<==>max_tokens<
 >num_ctx<==>num_ctx<
 qa-pairs==Pares de qa

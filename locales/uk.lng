@@ -4036,6 +4036,8 @@ This model can be used to produce query-answer pairs which enhance search from c
 tldr-shortener==tldr-скоротник
 This model is used to make summaries from web content==Ця модель використовується для створення підсумків із веб-вмісту
 log-report==журнал-звіт
+>knowledge<==>knowledge<
+Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text==Необов'язково: ця модель читає проіндексовані сторінки для графа знань Scoutro (scoutro.kg.llm.collections); кожен результат перевіряється за текстом сторінки
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Ця модель оцінює YaCy журнали виконання та створює звіти про самопокращення
 >thinking<==>мислення<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==ми виявляємо мислення лише для того, щоб мати можливість придушити мислення. мислення не використовується в YaCy

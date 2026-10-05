@@ -96,6 +96,19 @@ mirrored from the endpoint carry `X-LLM-Upstream: 1`, so the page tells "YaCy
 administrator login required" apart from "the LLM endpoint rejected the
 credentials". `hoststub` and `api_key` accept up to 512 characters.
 
+## Scoutro: the knowledge usage
+
+The matrix column **knowledge** selects the model of the Scoutro knowledge
+graph's LLM tier (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3). It is opt-in: a newly
+deployed model never gets it automatically, and undeploying its model does not
+hand it to another row; without a model in this column the graph is built from
+structured data and rules only. The tier also needs
+`scoutro.kg.llm.collections`; it reads crawled pages of those collections,
+uses this row's endpoint, key and `max_tokens`, and keeps only what the page
+text states verbatim (see `GET /scoutro/api/v1/kg/status`, field `llm`). The
+knowledge model is never offered as a chat model: the RAG proxy and the model
+lists (`/api/tags` without hoststub, `/v1/models`) leave it out.
+
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.

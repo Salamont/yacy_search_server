@@ -549,18 +549,17 @@ null` with `referring_hosts_scope: complete_index_required`. The optional fields
 
 ## Knowledge graph
 
-Packages 1 and 2a of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
-the embedded store with its storage budget, and the synchronisation with the
+Packages 1, 2a and 2b of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
+the embedded store with its storage budget, the synchronisation with the
 embedded Solr core (change capture, persistent queue, real-time get, reconcile
 and backfill, document states, structured and rule-based extraction, identity
-resolution, change feed, retention, bounded JSON-LD capture). There is no LLM
-call yet (package 2b), no read route for graph objects (package 3) and no
-agent grant. Nothing is ever written to Solr.
+resolution, change feed, retention, bounded JSON-LD capture) and the optional
+LLM tier. Nothing is ever written to Solr.
 
 | Route | Access | Purpose |
 |---|---|---|
 | `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable |
-| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"` or `"confirm_reconcile"` |
+| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"` or `"llm_retry"` |
 
 - **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
   is created on disk, no thread runs and the SQLite native library is not
@@ -596,6 +595,18 @@ agent grant. Nothing is ever written to Solr.
     reconcile (`reconcile`: `pending`, `reason`, `current` run with phase and
     counts, `awaitingConfirmation`, `catchUp`), `retention` and `lag`
     (`pending`, `oldest_pending_age_s`, `reconcile_pending`);
+  - `llm`: the optional LLM tier (package 2b): `state` (`off`,
+    `not_configured`, `idle`, `running`, `paused` with `reason:
+    circuit_breaker`, `waiting` with a gate, `full_reset` or
+    `write_refused`), the selected `model` (`service/model`, never host or
+    key), the settings, `queue` (`items`, `claimed`, `oldestEnqueuedAt`,
+    `max`), `documents` (`done`, `failed`, `skipped`), `cache` (`entries`,
+    `bytes`, `maxBytes`), `breaker` (`open`, `consecutiveFailures`,
+    `openUntil`, `backoffMillis`, `timesOpened`, `lastFailure`) and
+    `processed` (calls, failures, timeouts, average call time, accepted and
+    refused answers by reason, accepted entities and claims, dropped
+    ungrounded and invalid items, cache hits and misses, published
+    documents and statements, skipped documents by reason);
   - `store`: schema version, dataset epoch, `uncleanStartDetected`,
     `startRecorded`, `integrity` (state of `PRAGMA quick_check`),
     `manualPause`, `manualPauseSaved`;
@@ -663,6 +674,37 @@ agent grant. Nothing is ever written to Solr.
   - On stop (servlet `destroy()` or the JVM shutdown hook) the sync finishes
     its step, the capture stops, and recorded changes are written to the
     persistent queue before the clean-shutdown mark.
+- **LLM tier (package 2b, optional):**
+  - Runs only for collections in `scoutro.kg.llm.collections` (they must also
+    be followed) and only with a model selected for the usage **knowledge**
+    in `LLMSelection_p.html` (opt-in column); endpoint, key and `max_tokens`
+    are that row's. Without either, the graph is built from tiers 1 and 2
+    and `llm.state` is `off` or `not_configured`.
+  - Its own threads (`ScoutroKG.extract`, `scoutro.kg.llm.parallel` ≤ 2) and
+    its own persistent queue; nothing is locked while a call runs, so a slow
+    or hanging model blocks neither crawling, indexing nor the sync.
+  - Per document: candidate pages only (imprint, about, services, locations,
+    contact, home page, pages with structured data), at most
+    `scoutro.kg.llm.maxDocsPerHost` per host, ≤
+    `scoutro.kg.extract.maxInputChars` of text in chunks; read timeout
+    `scoutro.kg.llm.timeoutSeconds`, ≤ 1 MiB raw response.
+  - The answer must be one JSON object of the schema; every entity and
+    relation needs a quote found verbatim in the page text that contains the
+    names involved, otherwise it is dropped and counted. Persons, e-mail
+    addresses and phone numbers are never taken from the model. Statements
+    only the LLM tier supports have quality `uncertain`; planned or possible
+    facts carry `certainty: hedged`. Evidence names the extractor (`llm`,
+    version, model, prompt hash) and the quote.
+  - Results are cached per chunk and site (`scoutro.kg.cache.maxPercent` of
+    the budget, LRU); a changed page text replaces the document's LLM
+    evidence and asks again.
+  - Transport failures (timeout, connection, HTTP error) count as attempts
+    (`scoutro.kg.llm.maxAttempts`) and for the circuit breaker
+    (`scoutro.kg.llm.breakerFailures` in a row: pause of 5 minutes, doubling
+    up to `scoutro.kg.llm.breakerMaxBackoffMinutes`); a document that used up
+    its attempts is `failed` until its content changes or `llm_retry`.
+  - Facility kinds the model may assign come from a small start vocabulary
+    per collection, replaced by `scoutro.kg.llm.kinds.<collection>`.
 - **Control:**
   - `pause` takes effect at once and survives a restart.
   - `resume` ends a manual pause and schedules a reconcile. After a storage
@@ -673,6 +715,9 @@ agent grant. Nothing is ever written to Solr.
   - `confirm_reconcile` lets a reconcile stopped by the mass-deletion brake
     (`sync.reconcile.awaitingConfirmation`) delete; 409 `nothing_to_confirm`
     otherwise.
+  - `llm_retry` makes the documents the LLM tier gave up on due again and
+    closes the circuit breaker (`reopened` counts them); 409
+    `llm_unavailable` while the tier is off.
   - 503 `sync_unavailable` for `reconcile` and `confirm_reconcile` where the
     graph does not follow an embedded Solr core.
   - If the storage guard refuses to store the change (for example during a

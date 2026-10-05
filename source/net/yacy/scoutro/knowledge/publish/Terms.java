@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import net.yacy.scoutro.knowledge.extract.JsonLdExtractor;
+import net.yacy.scoutro.knowledge.extract.LlmExtractor;
 import net.yacy.scoutro.knowledge.extract.MetadataExtractor;
 import net.yacy.scoutro.knowledge.extract.RuleExtractor;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
@@ -143,6 +144,36 @@ public final class Terms {
             throw new IllegalStateException("unknown extractor " + tier + ":" + name + ":" + version);
         }
         return id;
+    }
+
+    /**
+     * ID of the LLM tier's extractor for a model (tier 3, name, version, model,
+     * prompt hash), created on first use inside a write transaction. A new
+     * model or prompt is a new extractor; its evidence names it.
+     */
+    public int llmExtractor(final Connection tx, final String model) throws SQLException {
+        // not cached: the row may come from a transaction that is rolled back
+        try (PreparedStatement ps = tx.prepareStatement("INSERT OR IGNORE INTO kg_extractor (tier, name, version, model, prompt_hash)"
+                + " VALUES (3, ?, ?, ?, ?)")) {
+            ps.setString(1, LlmExtractor.NAME);
+            ps.setString(2, LlmExtractor.VERSION);
+            ps.setString(3, model);
+            ps.setString(4, LlmExtractor.PROMPT_HASH);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = tx.prepareStatement("SELECT ext_id FROM kg_extractor WHERE tier = 3 AND name = ? AND version = ?"
+                + " AND model = ? AND prompt_hash = ?")) {
+            ps.setString(1, LlmExtractor.NAME);
+            ps.setString(2, LlmExtractor.VERSION);
+            ps.setString(3, model);
+            ps.setString(4, LlmExtractor.PROMPT_HASH);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    throw new SQLException("extractor row missing");
+                }
+                return rs.getInt(1);
+            }
+        }
     }
 
     /** ID of a collection, created on first use (inside a write transaction). */

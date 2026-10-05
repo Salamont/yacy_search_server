@@ -49,8 +49,9 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * one claimed with the work item, and the Solr version read must not be
  * lower than the one already published (the caller additionally checks the
  * in-memory change set for a newer event right before);</li>
- * <li>the document's evidence is replaced for tiers 1 and 2 only (an LLM tier
- * keeps its evidence);</li>
+ * <li>the document's evidence is replaced for tiers 1 and 2 only; the LLM
+ * tier's evidence stays while the input is unchanged and is deleted with the
+ * document's LLM mark when it changes ({@link #applyLlm} publishes tier 3);</li>
  * <li>mentions are resolved to entities, statements upserted, evidence
  * inserted;</li>
  * <li>aggregates, scopes and the change feed of every affected statement and
@@ -94,6 +95,7 @@ public final class Publisher {
     }
 
     private static final int[] REPLACED_TIERS = {1, 2};
+    private static final int[] LLM_TIER = {3};
 
     private final KgConfig cfg;
     private final Terms terms;
@@ -221,8 +223,22 @@ public final class Publisher {
 
     private static void update(final Connection tx, final Doc doc, final Row cur, final Extraction extraction,
             final boolean stateChanged, final long now) throws SQLException {
+        // a new input invalidates the LLM tier's result (6.3): its quotes were checked against the old text
+        final boolean llmStale = extraction != null && doc.inputHash != null && !java.util.Arrays.equals(doc.inputHash, llmHash(tx, cur.rowid));
+        if (llmStale) {
+            try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_evidence WHERE doc_rowid = ? AND tier = 3")) {
+                ps.setLong(1, cur.rowid);
+                ps.executeUpdate();
+            }
+            try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_hash = NULL, llm_reason = NULL,"
+                    + " tiers = tiers & 3 WHERE doc_rowid = ?")) {
+                ps.setLong(1, cur.rowid);
+                ps.executeUpdate();
+            }
+        }
         try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET state = ?, token = ?, solr_version = ?,"
-                + " input_hash = coalesce(?, input_hash), generation = generation + 1, tiers = CASE WHEN ? THEN ? ELSE tiers END,"
+                + " input_hash = coalesce(?, input_hash), generation = generation + 1,"
+                + " tiers = CASE WHEN ? THEN ? | (tiers & 4) ELSE tiers END,"
                 + " host_id = ?, url = ?, jsonld_bytes = ?, jsonld_skipped = ?, loaded_at = ?, state_since = ?, processed_at = ?,"
                 + " last_error = NULL WHERE doc_rowid = ?")) {
             ps.setInt(1, doc.state);
@@ -244,9 +260,60 @@ public final class Publisher {
         }
     }
 
+    private static byte[] llmHash(final Connection tx, final long rowid) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("SELECT llm_hash FROM kg_doc WHERE doc_rowid = ?")) {
+            ps.setLong(1, rowid);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBytes(1) : null;
+            }
+        }
+    }
+
+    /**
+     * Publishes the LLM tier's result for one document (tier 3 only), inside
+     * the caller's transaction. Compare-and-set on the input: the document
+     * must still be active with exactly the input hash the tier read, and not
+     * yet marked; otherwise nothing changes (the newer input is examined
+     * again). The document's tier-3 evidence is replaced, tiers 1 and 2 stay;
+     * the document is marked done for this input.
+     *
+     * @param extId the extractor row of the tier (name, version, model, prompt)
+     */
+    public Result applyLlm(final Connection tx, final Doc doc, final byte[] inputHash, final Extraction extraction, final int extId,
+            final long now) throws SQLException {
+        final long rowid;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_rowid FROM kg_doc WHERE doc_id = ? AND state = 1 AND input_hash = ?"
+                + " AND llm_status IS NULL")) {
+            ps.setString(1, doc.docId);
+            ps.setBytes(2, inputHash);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return new Result(Outcome.ABORT_GENERATION);
+                }
+                rowid = rs.getLong(1);
+            }
+        }
+        final Aggregates agg = new Aggregates(this.cfg, this.terms, now);
+        agg.touchDocument(tx, rowid, 3);
+        final Result result = new Result(Outcome.PUBLISHED);
+        replaceEvidence(tx, doc, rowid, extraction, agg, result, now, LLM_TIER, extId);
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = 1, llm_hash = input_hash, llm_reason = NULL,"
+                + " tiers = tiers | 4 WHERE doc_rowid = ?")) {
+            ps.setLong(1, rowid);
+            ps.executeUpdate();
+        }
+        agg.finish(tx);
+        return result;
+    }
+
     private void replaceEvidence(final Connection tx, final Doc doc, final long rowid, final Extraction ex, final Aggregates agg,
             final Result result, final long now) throws SQLException {
-        for (final int tier : REPLACED_TIERS) {
+        replaceEvidence(tx, doc, rowid, ex, agg, result, now, REPLACED_TIERS, 0);
+    }
+
+    private void replaceEvidence(final Connection tx, final Doc doc, final long rowid, final Extraction ex, final Aggregates agg,
+            final Result result, final long now, final int[] replacedTiers, final int llmExtId) throws SQLException {
+        for (final int tier : replacedTiers) {
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_evidence WHERE doc_rowid = ? AND tier = ?")) {
                 ps.setLong(1, rowid);
                 ps.setInt(2, tier);
@@ -256,6 +323,9 @@ public final class Publisher {
         // only mentions that carry a claim become entities
         final Set<String> used = new HashSet<>();
         for (final Claim c : ex.claims()) {
+            if (!replaced(replacedTiers, c.tier)) {
+                continue;
+            }
             used.add(c.subject);
             if (c.object != null) {
                 used.add(c.object);
@@ -283,7 +353,7 @@ public final class Publisher {
                         + " kind, certainty, confidence, locator, excerpt, observed_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)")) {
             for (final Claim c : ex.claims()) {
                 final Vocabulary.Predicate p = Vocabulary.predicate(c.predicate);
-                if (p == null || p.relation != c.relation()) {
+                if (p == null || p.relation != c.relation() || !replaced(replacedTiers, c.tier)) {
                     continue;
                 }
                 final long subj = ents.get(c.subject)[0];
@@ -335,7 +405,7 @@ public final class Publisher {
                 insEv.setLong(1, stmt);
                 insEv.setLong(2, rowid);
                 insEv.setInt(3, c.tier);
-                insEv.setInt(4, extractor(c));
+                insEv.setInt(4, c.kind == Claim.KIND_LLM ? llmExtId : extractor(c));
                 insEv.setInt(5, c.kind);
                 insEv.setInt(6, c.hedged ? 2 : 1);
                 insEv.setString(7, c.locator);
@@ -350,6 +420,15 @@ public final class Publisher {
         result.entitiesCreated = rc.created;
         result.merged = rc.merged;
         result.conflicts = rc.conflicts;
+    }
+
+    private static boolean replaced(final int[] tiers, final int tier) {
+        for (final int t : tiers) {
+            if (t == tier) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int extractor(final Claim c) {
@@ -437,8 +516,8 @@ public final class Publisher {
                 ps.setLong(1, rowid);
                 ps.executeUpdate();
             }
-            try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET input_hash = NULL, tiers = 0, generation = generation + 1"
-                    + " WHERE doc_rowid = ?")) {
+            try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET input_hash = NULL, tiers = 0, generation = generation + 1,"
+                    + " llm_status = NULL, llm_hash = NULL, llm_reason = NULL WHERE doc_rowid = ?")) {
                 ps.setLong(1, rowid);
                 purged += ps.executeUpdate();
             }

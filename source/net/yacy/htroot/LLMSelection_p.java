@@ -97,6 +97,7 @@ public class LLMSelection_p {
         normalized.put("qapairs", false);
         normalized.put("tldr", row.optBoolean("tldr", false));
         normalized.put("logreport", optBooleanRole(row, "logreport", "log-report"));
+        normalized.put("knowledge", row.optBoolean("knowledge", false));
 
         normalized.put("thinking", row.optBoolean("thinking", false));
         normalized.put("tooling", row.optBoolean("tooling", false));
@@ -296,6 +297,7 @@ public class LLMSelection_p {
                 prop.put("productionmodels_" + i + "_qapairs", row.optBoolean("qapairs", false));
                 prop.put("productionmodels_" + i + "_tldr", row.optBoolean("tldr", false));
                 prop.put("productionmodels_" + i + "_logreport", row.optBoolean("logreport", false));
+                prop.put("productionmodels_" + i + "_knowledge", row.optBoolean("knowledge", false));
                 
                 final String key = capabilityKey(row);
                 JSONObject capabilityEntry = key.isEmpty() ? null : capabilities.optJSONObject(key);

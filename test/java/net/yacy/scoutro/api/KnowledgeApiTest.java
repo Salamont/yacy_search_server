@@ -105,13 +105,23 @@ public class KnowledgeApiTest {
                     assertEquals(KgException.SYNC_UNAVAILABLE, e.code());
                 }
             }
+            try {
+                api.route("POST", CONTROL, body("{\"action\":\"llm_retry\"}"));
+                fail("llm_retry without the LLM tier");
+            } catch (final ApiException e) {
+                assertEquals(409, e.status());
+                assertEquals(KgException.LLM_UNAVAILABLE, e.code());
+            }
         } finally {
             r.close();
         }
         final ApiException nothing = KnowledgeApi.toApi(new KgException(KgException.NOTHING_TO_CONFIRM, "none"));
         assertEquals(409, nothing.status());
         assertEquals(KgException.NOTHING_TO_CONFIRM, nothing.code());
-        assertEquals(java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile"), KnowledgeApi.ACTIONS);
+        assertEquals(java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile", "llm_retry"), KnowledgeApi.ACTIONS);
+        final ApiException llm = KnowledgeApi.toApi(new KgException(KgException.LLM_UNAVAILABLE, "off"));
+        assertEquals(409, llm.status());
+        assertEquals(KgException.LLM_UNAVAILABLE, llm.code());
     }
 
     @Test

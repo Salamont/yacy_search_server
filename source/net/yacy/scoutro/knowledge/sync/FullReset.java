@@ -74,6 +74,7 @@ final class FullReset {
                 KgStore.putMeta(tx, KgSchema.META_RESET_IN_PROGRESS, "1");
                 KgStore.putMeta(tx, KgSchema.META_EPOCH, epoch);
                 exec(tx, "DELETE FROM kg_work");
+                exec(tx, "DELETE FROM kg_llm_work");
                 exec(tx, "DELETE FROM kg_scan_candidate");
                 try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_scan SET state = 3, finished_at = ?, detail = 'full_reset'"
                         + " WHERE state IN (1, 3, 4)")) {
