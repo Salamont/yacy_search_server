@@ -5504,6 +5504,28 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >The knowledge graph is not running<==>Der Wissensgraph läuft nicht<
 >Facility kinds for the LLM tier<==>Einrichtungsarten für die LLM-Stufe<
 >Graph facts in the chat<==>Graph-Fakten im Chat<
+>Create backup<==>Backup erstellen<
+>Backups<==>Backups<
+>Backups are single SQLite files in DATA/SCOUTRO/knowledge/backup, inside the app's data; download one to keep a copy elsewhere. A restore replaces the graph with the backup, keeps the current graph aside as a backup, starts a new dataset epoch (export consumers sync again) and reconciles with the index.<==>Backups sind einzelne SQLite-Dateien in DATA/SCOUTRO/knowledge/backup, innerhalb der App-Daten; laden Sie eines herunter, um eine Kopie an anderer Stelle aufzubewahren. Eine Wiederherstellung ersetzt den Graphen durch das Backup, legt den aktuellen Graphen als Backup beiseite, beginnt eine neue Datensatz-Epoche (Export-Abnehmer synchronisieren neu) und gleicht mit dem Index ab.<
+>Backup<==>Backup<
+>Last backup<==>Letztes Backup<
+>Next scheduled backup<==>Nächstes geplantes Backup<
+>Backup files<==>Backup-Dateien<
+>running<==>läuft<
+>idle<==>bereit<
+>created<==>erstellt<
+>skipped<==>übersprungen<
+>failed<==>fehlgeschlagen<
+>File<==>Datei<
+>Size<==>Größe<
+>Created<==>Erstellt<
+>backup<==>Backup<
+>before a restore<==>vor einer Wiederherstellung<
+>before a rebuild<==>vor einem Neuaufbau<
+>Download<==>Herunterladen<
+>Restore<==>Wiederherstellen<
+>Replace the knowledge graph with the backup %1? The current graph is kept as a backup.<==>Den Wissensgraphen durch das Backup %1 ersetzen? Der aktuelle Graph bleibt als Backup erhalten.<
+>No backups yet.<==>Noch keine Backups.<
 >Level<==>Stufe<
 >notice (from 70 %)<==>Hinweis (ab 70 %)<
 >warning (from 80 %)<==>Warnung (ab 80 %)<

@@ -130,6 +130,29 @@ try {
   await page.locator('[data-skg-action="resume"]').click();
   await page.waitForFunction(() => !document.querySelector('#skg-storage').textContent.includes('manual'));
   check(true, 'resume through the page');
+  // backups: create through the page, listed with a download of the SQLite file, restore with a confirmation
+  page.on('dialog', d => d.accept());
+  await page.locator('[data-skg-action="backup"]').click();
+  await page.waitForFunction(() => document.querySelector('#skg-backups table tbody tr') !== null, null, { timeout: 60000 });
+  const file = (await page.locator('#skg-backups tbody tr td').first().textContent()).trim();
+  check(/^graph-\d{8}T\d{6}Z\.db$/.test(file), 'backup listed: ' + file);
+  const href = await page.locator('#skg-backups tbody tr a').first().getAttribute('href');
+  // through the page's own (Digest-authenticated) session
+  const download = await page.evaluate(async h => {
+    const r = await fetch(h, { credentials: 'same-origin' });
+    const bytes = new Uint8Array(await r.arrayBuffer());
+    return { status: r.status, head: String.fromCharCode(...bytes.slice(0, 15)), disposition: r.headers.get('content-disposition') || '',
+      type: r.headers.get('content-type') || '', size: bytes.length };
+  }, href);
+  check(download.status === 200 && download.head === 'SQLite format 3' && download.disposition.includes(file)
+    && download.type.startsWith('application/vnd.sqlite3') && download.size > 4096, 'backup download: ' + JSON.stringify(download));
+  check((await browser.newContext().then(async c => { const r = await c.request.get(base + '/scoutro/api/v1/kg/backups/' + file); await c.close(); return r.status(); })) === 401,
+    'backup download needs the administrator');
+  await page.locator(`[data-skg-restore="${file}"]`).click();
+  await page.waitForFunction(() => document.querySelector('#skg-message').textContent.length > 0 && !document.querySelector('#skg-message').textContent.includes('…'), null, { timeout: 60000 });
+  await page.waitForFunction(() => [...document.querySelectorAll('#skg-backups tbody tr')].some(r => r.textContent.includes('before-restore')), null, { timeout: 60000 });
+  check(true, 'restore through the page keeps the previous graph as a backup');
+  check((await page.locator('#skg-cards').textContent()).includes('running'), 'running after the restore');
   check(errors.length === 0, 'no JavaScript errors in the integrations: ' + errors.join(', '));
   await context.close();
 } finally { await browser.close(); }

@@ -358,4 +358,6 @@ public final class KgSchema {
     public static final String META_RESET_IN_PROGRESS = "reset_in_progress";
     /** The LLM collections and the per-host cap of the last start; a change re-examines skipped documents. */
     public static final String META_LLM_SELECTION = "llm_selection";
+    /** Time of the last verified backup (package 5); the schedule counts from it. */
+    public static final String META_LAST_BACKUP_AT = "last_backup_at";
 }

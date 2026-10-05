@@ -88,6 +88,9 @@ public final class KgConfig {
     public static final String LLM_MAX_DOCS_PER_HOST = "scoutro.kg.llm.maxDocsPerHost";
     public static final String EXTRACT_MAX_INPUT_CHARS = "scoutro.kg.extract.maxInputChars";
     public static final String CACHE_MAX_PERCENT = "scoutro.kg.cache.maxPercent";
+    public static final String BACKUP_KEEP = "scoutro.kg.backup.keep";
+    public static final String BACKUP_INTERVAL_DAYS = "scoutro.kg.backup.intervalDays";
+    public static final String BACKUP_MAX_MILLIS = "scoutro.kg.backup.maxMillis";
     public static final String CHAT_ENABLED = "scoutro.kg.chat.enabled";
     public static final String CHAT_ALLOW_GUESTS = "scoutro.kg.chat.allowGuests";
     public static final String CHAT_MAX_FACTS = "scoutro.kg.chat.maxFacts";
@@ -173,6 +176,11 @@ public final class KgConfig {
     public final int llmMaxDocsPerHost;
     public final int extractMaxInputChars;
     public final int cacheMaxPercent;
+    /** Backups kept in {@code backup/} (at least one); scheduled backups every {@link #backupIntervalMillis}, 0 = only on request. */
+    public final int backupKeep;
+    public final long backupIntervalMillis;
+    /** Deadline of one backup ({@code VACUUM INTO}); the copy is interrupted and deleted after it. */
+    public final long backupMaxMillis;
     /** Graph facts as extra sources in the RAG chat (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 8.4). */
     public final boolean chatEnabled;
     /** AI Shield guests get graph facts only with this switch (default off). */
@@ -248,6 +256,9 @@ public final class KgConfig {
         this.llmMaxDocsPerHost = (int) p.longValue(LLM_MAX_DOCS_PER_HOST, 25, 1, 10_000);
         this.extractMaxInputChars = (int) p.longValue(EXTRACT_MAX_INPUT_CHARS, 12_000, 1_000, 100_000);
         this.cacheMaxPercent = (int) p.longValue(CACHE_MAX_PERCENT, 20, 0, 50);
+        this.backupKeep = (int) p.longValue(BACKUP_KEEP, 1, 1, 20);
+        this.backupIntervalMillis = DAY * p.longValue(BACKUP_INTERVAL_DAYS, 7, 0, 365);
+        this.backupMaxMillis = p.longValue(BACKUP_MAX_MILLIS, 600_000, 10_000, 7_200_000);
         this.chatEnabled = p.bool(CHAT_ENABLED, true);
         this.chatAllowGuests = p.bool(CHAT_ALLOW_GUESTS, false);
         this.chatMaxFacts = (int) p.longValue(CHAT_MAX_FACTS, 8, 1, 30);

@@ -249,6 +249,11 @@ public class ScoutroApiServlet extends HttpServlet {
                     });
                     return null;
                 }
+                if (parts.length == 5 && "backups".equals(parts[3])) {
+                    expect(method, parts, 5, "GET");
+                    sendBackup(new KnowledgeApi(KgRuntime::current).backupFile(parts[4]), response);
+                    return null;
+                }
                 return new KnowledgeApi(KgRuntime::current).route(method, parts, queryParams(request), () -> jsonBody(request));
             case "crawls":
                 requireAdmin(request);
@@ -303,6 +308,17 @@ public class ScoutroApiServlet extends HttpServlet {
             @Override public void flush() throws IOException { this.sink.flush(); }
             @Override public void end(final long count, final boolean complete) throws IOException { this.sink.end(count, complete); }
         });
+    }
+
+    /** A knowledge graph backup as a download: one SQLite file, streamed. */
+    private static void sendBackup(final File file, final HttpServletResponse response) throws IOException {
+        response.setStatus(200);
+        response.setContentType("application/vnd.sqlite3");
+        response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName() + "\"");
+        response.setContentLengthLong(file.length());
+        try (OutputStream out = response.getOutputStream()) {
+            Files.copy(file.toPath(), out);
+        }
     }
 
     /**

@@ -36,8 +36,13 @@
 <button class="btn btn-default" type="button" data-skg-action="reconcile">Reconcile now</button>
 <button class="btn btn-default" type="button" data-skg-action="confirm_reconcile" hidden>Confirm deletions</button>
 <button class="btn btn-default" type="button" data-skg-action="llm_retry">Retry failed LLM documents</button>
+<button class="btn btn-default" type="button" data-skg-action="backup">Create backup</button>
 </div>
 <p class="sseo-note">Pausing stops new growth only; deletions and state changes continue. Nothing here changes the Solr index.</p></section>
+<section class="sseo-panel" aria-labelledby="skg-backup-title"><h3 id="skg-backup-title">Backups</h3>
+<dl id="skg-backup" class="sseo-stats"></dl>
+<div class="sseo-scroll" id="skg-backups"></div>
+<p class="sseo-note">Backups are single SQLite files in DATA/SCOUTRO/knowledge/backup, inside the app's data; download one to keep a copy elsewhere. A restore replaces the graph with the backup, keeps the current graph aside as a backup, starts a new dataset epoch (export consumers sync again) and reconciles with the index.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-events-title"><h3 id="skg-events-title">Recent events</h3><div class="sseo-scroll" id="skg-events"></div></section>
 </section>
 
@@ -145,6 +150,25 @@
 <span data-skg-label="llm_kinds">Facility kinds for the LLM tier</span>
 <span data-skg-label="chat">Graph facts in the chat</span>
 <span data-skg-label="level">Level</span>
+<span data-skg-label="backup_state">Backup</span>
+<span data-skg-label="backup_last">Last backup</span>
+<span data-skg-label="backup_next">Next scheduled backup</span>
+<span data-skg-label="backup_files">Backup files</span>
+<span data-skg-label="backup_running">running</span>
+<span data-skg-label="backup_idle">idle</span>
+<span data-skg-label="backup_created">created</span>
+<span data-skg-label="backup_skipped">skipped</span>
+<span data-skg-label="backup_failed">failed</span>
+<span data-skg-label="file">File</span>
+<span data-skg-label="size">Size</span>
+<span data-skg-label="created">Created</span>
+<span data-skg-label="kind_backup">backup</span>
+<span data-skg-label="kind_before_restore">before a restore</span>
+<span data-skg-label="kind_before_rebuild">before a rebuild</span>
+<span data-skg-label="download">Download</span>
+<span data-skg-label="restore">Restore</span>
+<span data-skg-label="restore_question">Replace the knowledge graph with the backup %1? The current graph is kept as a backup.</span>
+<span data-skg-label="no_backups">No backups yet.</span>
 <span data-skg-label="level_ok">ok</span>
 <span data-skg-label="level_notice">notice (from 70 %)</span>
 <span data-skg-label="level_warning">warning (from 80 %)</span>

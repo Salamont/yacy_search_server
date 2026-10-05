@@ -72,6 +72,35 @@
     meter.append(fill); box.append(meter, node('p', bytes(used) + ' / ' + bytes(budget) + ' (' + pct + ' %)', 'sseo-note'));
   }
 
+  // Backups: the state, the last result, the schedule and the files with download and restore.
+  async function backupsInto(b, run) {
+    const box = $('backups'); box.replaceChildren();
+    if (!b) { stats('backup', []); return; }
+    const last = b.last ? t('backup_' + b.last.result) + ' · ' + date(b.last.at) + (b.last.file ? ' · ' + b.last.file : '')
+      + (b.last.reason ? ' · ' + b.last.reason : '') : t('none');
+    stats('backup', [['backup_state', t('backup_' + b.state)], ['backup_last', last],
+      ['backup_next', b.nextScheduledAt ? date(b.nextScheduledAt) : t('none')], ['backup_files', fmt(b.files) + ' · ' + bytes(b.bytes)]]);
+    let list = null;
+    try { list = await fetch(ROOT + 'backups', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null); } catch (_) { list = null; }
+    if (run !== generation || !list) return;
+    if (!list.items.length) { box.append(node('p', t('no_backups'), 'sseo-note')); return; }
+    const table = node('table', null, 'table table-striped scoutro-cards'); const head = table.createTHead().insertRow();
+    const cols = ['file', 'kind', 'size', 'created', 'actions'];
+    for (const c of cols) head.append(node('th', c === 'actions' ? '' : t(c)));
+    const body = table.createTBody();
+    for (const f of list.items) {
+      const row = body.insertRow();
+      const actions = node('span');
+      const a = node('a', t('download')); a.href = ROOT + 'backups/' + encodeURIComponent(f.file); a.setAttribute('download', f.file);
+      const r = node('button', t('restore'), 'btn btn-default btn-xs'); r.type = 'button'; r.dataset.skgRestore = f.file;
+      r.addEventListener('click', () => guarded(() => control('restore', { backup: f.file })));
+      actions.append(a, ' ', r);
+      const cells = [f.file, t('kind_' + f.kind), bytes(f.bytes), f.created_at ? date(Date.parse(f.created_at)) : t('missing'), actions];
+      cells.forEach((v, i) => { const td = row.insertCell(); td.dataset.label = i === 4 ? '' : t(cols[i]); if (v instanceof Node) td.append(v); else td.textContent = v; });
+    }
+    box.append(table);
+  }
+
   // ------------------------------------------------------------------ overview
   async function overview() {
     const run = ++generation; message(t('loading'));
@@ -113,6 +142,7 @@
       ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', l.processed?.calls],
       ['dropped', l.processed?.droppedUngrounded], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
     document.querySelector('[data-skg-action="confirm_reconcile"]').hidden = !sy.reconcile?.awaitingConfirmation;
+    await backupsInto(s.backup, run);
     const events = $('events'); events.replaceChildren();
     if (s.events?.length) {
       const table = node('table', null, 'table table-striped scoutro-cards'); const head = table.createTHead().insertRow();
@@ -124,11 +154,12 @@
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
   }
 
-  async function control(action) {
+  async function control(action, extra) {
     if (action === 'confirm_reconcile' && !window.confirm(labels.confirm_question || action)) return;
+    if (action === 'restore' && !window.confirm(t('restore_question').replace('%1', extra.backup))) return;
     message(t('loading'));
     const response = await fetch(ROOT + 'control', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action }, extra || {})) });
     let body = null; try { body = await response.json(); } catch (_) { /* below */ }
     if (!response.ok) throw new Error(t('error') + ' (HTTP ' + response.status + ', ' + (body?.error?.code || 'error') + ')');
     await overview(); message(t('done_action'));

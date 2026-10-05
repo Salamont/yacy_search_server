@@ -15457,6 +15457,72 @@
     <trans-unit id="ed0e4eeb" xml:space="preserve" approved="no" translate="yes">
        <source>The JSON-LD budget is reached (%1 %); pages are still crawled and indexed without JSON-LD.</source>
     </trans-unit>
+    <trans-unit id="9bd59946" xml:space="preserve" approved="no" translate="yes">
+       <source>Create backup</source>
+    </trans-unit>
+    <trans-unit id="4e86dad1" xml:space="preserve" approved="no" translate="yes">
+       <source>Backups</source>
+    </trans-unit>
+    <trans-unit id="23f77612" xml:space="preserve" approved="no" translate="yes">
+       <source>Backups are single SQLite files in DATA/SCOUTRO/knowledge/backup, inside the app's data; download one to keep a copy elsewhere. A restore replaces the graph with the backup, keeps the current graph aside as a backup, starts a new dataset epoch (export consumers sync again) and reconciles with the index.</source>
+    </trans-unit>
+    <trans-unit id="762561e2" xml:space="preserve" approved="no" translate="yes">
+       <source>Backup</source>
+    </trans-unit>
+    <trans-unit id="ba06fe6c" xml:space="preserve" approved="no" translate="yes">
+       <source>Last backup</source>
+    </trans-unit>
+    <trans-unit id="3237da02" xml:space="preserve" approved="no" translate="yes">
+       <source>Next scheduled backup</source>
+    </trans-unit>
+    <trans-unit id="b282beb9" xml:space="preserve" approved="no" translate="yes">
+       <source>Backup files</source>
+    </trans-unit>
+    <trans-unit id="5c6f15bf" xml:space="preserve" approved="no" translate="yes">
+       <source>running</source>
+    </trans-unit>
+    <trans-unit id="313fd4" xml:space="preserve" approved="no" translate="yes">
+       <source>idle</source>
+    </trans-unit>
+    <trans-unit id="3d4e7ee8" xml:space="preserve" approved="no" translate="yes">
+       <source>created</source>
+    </trans-unit>
+    <trans-unit id="7fff6730" xml:space="preserve" approved="no" translate="yes">
+       <source>skipped</source>
+    </trans-unit>
+    <trans-unit id="b396943d" xml:space="preserve" approved="no" translate="yes">
+       <source>failed</source>
+    </trans-unit>
+    <trans-unit id="21699c" xml:space="preserve" approved="no" translate="yes">
+       <source>File</source>
+    </trans-unit>
+    <trans-unit id="275421" xml:space="preserve" approved="no" translate="yes">
+       <source>Size</source>
+    </trans-unit>
+    <trans-unit id="a08716c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Created</source>
+    </trans-unit>
+    <trans-unit id="acc075c2" xml:space="preserve" approved="no" translate="yes">
+       <source>backup</source>
+    </trans-unit>
+    <trans-unit id="5698ce6e" xml:space="preserve" approved="no" translate="yes">
+       <source>before a restore</source>
+    </trans-unit>
+    <trans-unit id="55a99bfb" xml:space="preserve" approved="no" translate="yes">
+       <source>before a rebuild</source>
+    </trans-unit>
+    <trans-unit id="58f52ca8" xml:space="preserve" approved="no" translate="yes">
+       <source>Download</source>
+    </trans-unit>
+    <trans-unit id="a4a36a6e" xml:space="preserve" approved="no" translate="yes">
+       <source>Restore</source>
+    </trans-unit>
+    <trans-unit id="ff401d64" xml:space="preserve" approved="no" translate="yes">
+       <source>Replace the knowledge graph with the backup %1? The current graph is kept as a backup.</source>
+    </trans-unit>
+    <trans-unit id="52ec01f4" xml:space="preserve" approved="no" translate="yes">
+       <source>No backups yet.</source>
+    </trans-unit>
   </body>
 </file>
 </xliff>

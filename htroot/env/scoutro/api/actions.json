@@ -1394,7 +1394,7 @@
     },
     {
       "name": "kg.control",
-      "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
+      "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"} (restore with \"backup\"); unknown fields are refused. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
       "mutating": true,
       "auth": "admin",
       "http": {
@@ -1403,6 +1403,13 @@
         "successStatus": 200
       },
       "parameters": {
+        "backup": {
+          "type": "string",
+          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$",
+          "description": "With action restore only: the backup file.",
+          "in": "body",
+          "required": false
+        },
         "action": {
           "type": "string",
           "enum": [
@@ -1410,9 +1417,11 @@
             "resume",
             "reconcile",
             "confirm_reconcile",
-            "llm_retry"
+            "llm_retry",
+            "backup",
+            "restore"
           ],
-          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off.",
+          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back).",
           "in": "body",
           "required": true
         }
@@ -1427,10 +1436,70 @@
         409,
         413,
         415,
+        422,
         503
       ],
       "cli": "scoutroctl kg control pause|resume|reconcile|confirm_reconcile|llm_retry (administrator)",
       "mcpTool": "scoutro_kg_control",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.backups",
+      "description": "Administrator only: the backup files in DATA/SCOUTRO/knowledge/backup, newest first, with their metadata (SHA-256, size, schema version, epoch, counts), and the backup state. A file copied into that directory by hand (named graph-<yyyyMMddTHHmmssZ>.db) is listed without metadata and can be restored.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/backups",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "KgBackupList",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg backups (administrator)",
+      "mcpTool": "scoutro_kg_backups",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.backup.download",
+      "description": "Administrator only, never an agent grant: the backup as one SQLite file (application/vnd.sqlite3, Content-Disposition), to keep it outside the app. 404 backup_not_found for anything but a listed backup name.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/backups/{file}",
+        "successStatus": 200
+      },
+      "parameters": {
+        "file": {
+          "type": "string",
+          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$",
+          "in": "path",
+          "required": true,
+          "description": "A backup file name."
+        }
+      },
+      "returns": "KgBackupFile",
+      "errors": [
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg backup-download FILE > graph.db (administrator)",
+      "mcpTool": "scoutro_kg_backup_download",
       "agent": {
         "grantable": false
       }
@@ -6115,6 +6184,116 @@
             }
           }
         },
+        "backup": {
+          "type": "object",
+          "description": "Backups (package 5): one at a time on the thread ScoutroKG.backup; scheduled every backup.intervalDays (0 = only on request), the newest backup.keep are kept.",
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "idle",
+                "running"
+              ]
+            },
+            "running": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "manual",
+                "scheduled",
+                null
+              ]
+            },
+            "last": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "created",
+                    "skipped",
+                    "failed"
+                  ]
+                },
+                "trigger": {
+                  "type": "string"
+                },
+                "file": {
+                  "type": "string"
+                },
+                "bytes": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "integer"
+                },
+                "durationMs": {
+                  "type": "integer"
+                },
+                "counts": {
+                  "type": "object"
+                },
+                "removed": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "skipped: the guard's reason (manual, budget, disk_reserve, ...); failed: the error code"
+                },
+                "detail": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            },
+            "lastBackupAt": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "nextScheduledAt": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "keep": {
+              "type": "integer"
+            },
+            "intervalDays": {
+              "type": "integer"
+            },
+            "files": {
+              "type": "integer"
+            },
+            "bytes": {
+              "type": "integer"
+            },
+            "dir": {
+              "type": "string",
+              "enum": [
+                "DATA/SCOUTRO/knowledge/backup"
+              ]
+            }
+          }
+        },
         "events": {
           "type": "array",
           "items": {
@@ -6152,6 +6331,11 @@
       ],
       "additionalProperties": false,
       "properties": {
+        "backup": {
+          "type": "string",
+          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$",
+          "description": "With action restore only: the backup file."
+        },
         "action": {
           "type": "string",
           "enum": [
@@ -6159,11 +6343,196 @@
             "resume",
             "reconcile",
             "confirm_reconcile",
-            "llm_retry"
+            "llm_retry",
+            "backup",
+            "restore"
           ],
-          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off."
+          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back)."
         }
       }
+    },
+    "KgBackupList": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "running"
+          ]
+        },
+        "running": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "manual",
+            "scheduled",
+            null
+          ]
+        },
+        "last": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "result": {
+              "type": "string",
+              "enum": [
+                "created",
+                "skipped",
+                "failed"
+              ]
+            },
+            "trigger": {
+              "type": "string"
+            },
+            "file": {
+              "type": "string"
+            },
+            "bytes": {
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "at": {
+              "type": "integer"
+            },
+            "durationMs": {
+              "type": "integer"
+            },
+            "counts": {
+              "type": "object"
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "skipped: the guard's reason (manual, budget, disk_reserve, ...); failed: the error code"
+            },
+            "detail": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "lastBackupAt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "nextScheduledAt": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "keep": {
+          "type": "integer"
+        },
+        "intervalDays": {
+          "type": "integer"
+        },
+        "files": {
+          "type": "integer"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "dir": {
+          "type": "string",
+          "enum": [
+            "DATA/SCOUTRO/knowledge/backup"
+          ]
+        },
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.backup.v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "file": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "backup",
+                  "before_restore",
+                  "before_rebuild"
+                ]
+              },
+              "bytes": {
+                "type": "integer"
+              },
+              "created_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "metadata": {
+                "type": "boolean",
+                "description": "false for a file copied in by hand: a restore then relies on quick_check and the schema check alone"
+              },
+              "kg_schema_version": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "epoch": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "counts": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "trigger": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgBackupFile": {
+      "type": "string",
+      "format": "binary",
+      "description": "A self-contained SQLite database of the knowledge graph (the JSON media type is listed only for the action catalog)."
     },
     "KgEntity": {
       "type": "object",

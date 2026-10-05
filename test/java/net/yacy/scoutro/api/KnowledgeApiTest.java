@@ -118,7 +118,18 @@ public class KnowledgeApiTest {
         final ApiException nothing = KnowledgeApi.toApi(new KgException(KgException.NOTHING_TO_CONFIRM, "none"));
         assertEquals(409, nothing.status());
         assertEquals(KgException.NOTHING_TO_CONFIRM, nothing.code());
-        assertEquals(java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile", "llm_retry"), KnowledgeApi.ACTIONS);
+        // the published contract lists exactly the actions the route accepts
+        final org.json.JSONArray published = new JSONObject(new String(java.nio.file.Files.readAllBytes(
+                new java.io.File("htroot/env/scoutro/api/openapi.json").toPath()), StandardCharsets.UTF_8))
+                .getJSONObject("components").getJSONObject("schemas").getJSONObject("KgControl").getJSONObject("properties")
+                .getJSONObject("action").getJSONArray("enum");
+        final java.util.List<String> enumValues = new java.util.ArrayList<>();
+        for (int i = 0; i < published.length(); i++) {
+            enumValues.add(published.getString(i));
+        }
+        assertEquals(enumValues, KnowledgeApi.ACTIONS);
+        assertTrue(KnowledgeApi.ACTIONS.containsAll(java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile", "llm_retry",
+                "backup", "restore")));
         final ApiException llm = KnowledgeApi.toApi(new KgException(KgException.LLM_UNAVAILABLE, "off"));
         assertEquals(409, llm.status());
         assertEquals(KgException.LLM_UNAVAILABLE, llm.code());
@@ -337,6 +348,50 @@ public class KnowledgeApiTest {
         }
     }
 
+    @Test
+    public void backupRoutesValidateAndListTheFiles() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"restore\"}"));
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"restore\",\"backup\":\"../graph.db\"}"));
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"backup\",\"backup\":\"graph-20300101T000000Z.db\"}"));
+            final ApiException missing = errorOf(api, "{\"action\":\"restore\",\"backup\":\"graph-20300101T000000Z.db\"}");
+            assertEquals(404, missing.status());
+            assertEquals(KgException.BACKUP_NOT_FOUND, missing.code());
+            final JSONObject list = api.route("GET", "/v1/kg/backups".split("/"), new HashMap<>(), body("{}"));
+            assertEquals("scoutro.kg.backup.v1", list.getString("schema"));
+            assertEquals(0, list.getJSONArray("items").length());
+            assertEquals("DATA/SCOUTRO/knowledge/backup", list.getString("dir"));
+            assertEquals(400, read(api, "GET", "backups", "x", "1"));
+            assertEquals(405, read(api, "POST", "backups"));
+            try {
+                api.backupFile("graph-20300101T000000Z.db");
+                fail("download of a missing backup");
+            } catch (final ApiException e) {
+                assertEquals(404, e.status());
+            }
+            try {
+                api.backupFile("../../yacy.conf");
+                fail("download outside the backup directory");
+            } catch (final ApiException e) {
+                assertEquals(404, e.status());
+            }
+        } finally {
+            r.close();
+        }
+    }
+
+    private static ApiException errorOf(final KnowledgeApi api, final String json) throws IOException {
+        try {
+            api.route("POST", CONTROL, body(json));
+            fail(json + " accepted");
+            return null;
+        } catch (final ApiException e) {
+            return e;
+        }
+    }
+
     // ------------------------------------------------------- through the servlet
 
     private static final class Exchange {
@@ -409,7 +464,7 @@ public class KnowledgeApiTest {
     public void servletRequiresTheAdministratorForReads() throws Exception {
         for (final String path : new String[] {"/v1/kg/entities", "/v1/kg/entities/kge_aaaaaaaaaaaaaaaaaaaa",
                 "/v1/kg/statements/kgs_aaaaaaaaaaaaaaaaaaaa/evidence", "/v1/kg/hosts/www.muster.de/entities", "/v1/kg/sources/AAAAAAhost01",
-                "/v1/kg/export", "/v1/kg/changes", "/v1/kg/export/download"}) {
+                "/v1/kg/export", "/v1/kg/changes", "/v1/kg/export/download", "/v1/kg/backups", "/v1/kg/backups/graph-20300101T000000Z.db"}) {
             assertEquals(path, 401, call("GET", path, false, null, null, null).status);
         }
         assertEquals(409, call("GET", "/v1/kg/entities", true, null, null, null).status);
