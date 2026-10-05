@@ -238,6 +238,10 @@ public class DomainCandidatesTest {
         assertEquals("", row.get(DomainCandidate.CSV_COLUMNS.indexOf("classification_verdict")));
         assertTrue(csv.endsWith("\r\n"));
         assertFalse(csv.contains("#incomplete"));
+        // an E.164 phone number stays as it is; any other text starting with + is still neutralized
+        assertEquals("+49221123456", DomainCandidate.csvCell("+49221123456"));
+        assertEquals("'+49 221 =1+1", DomainCandidate.csvCell("+49 221 =1+1"));
+        assertEquals("'+1", DomainCandidate.csvCell("+1"));
     }
 
     @Test public void largeExportsAreReadPageByPageAndStreamedWithoutSideEffects() throws Exception {

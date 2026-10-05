@@ -162,11 +162,14 @@ public final class DomainCandidate {
     static String csvCell(final Object value) {
         if (value == null) return "";
         String text = String.valueOf(value);
-        if (!(value instanceof Number) && !text.isEmpty() && "=+-@\t\r".indexOf(text.charAt(0)) >= 0) text = "'" + text;
+        if (!(value instanceof Number) && !text.isEmpty() && "=+-@\t\r".indexOf(text.charAt(0)) >= 0 && !E164.matcher(text).matches()) text = "'" + text;
         if (text.indexOf(',') < 0 && text.indexOf('"') < 0 && text.indexOf('\n') < 0 && text.indexOf('\r') < 0
                 && text.equals(text.trim())) return text;
         return '"' + text.replace("\"", "\"\"") + '"';
     }
+
+    /** A phone number in E.164 form (+ and digits only) cannot be a formula and is kept as it is. */
+    private static final Pattern E164 = Pattern.compile("\\+\\d{6,15}");
 
     static String iso(final Long millis) {
         return millis == null ? null : Instant.ofEpochMilli(millis).toString();

@@ -212,7 +212,7 @@ final class DomainEntity {
     private static final Pattern FOREIGN_LABEL = Pattern.compile("(?iu)(?:versicherung|versichert|haftpflicht|webdesign|design|hosting|hoster|gehostet|provider"
             + "|realisierung|realisiert|umsetzung|umgesetzt|programmierung|programmiert|entwicklung|entwickelt|erstellt|gestaltet|gestaltung|betreut|betreuung"
             + "|technik|technische|foto|fotos|fotografie|bild|bilder|bildnachweis|bildquellen|quelle|quellen|partner|mitglied|registergericht|amtsgericht"
-            + "|aufsicht|aufsichtsbehörde|kammer|bank|konto|kreditinstitut|agentur|konzept|layout|copyright|software|cms|shop-system|powered)"
+            + "|aufsicht|aufsichtsbehörde|kammer|bank|konto|kreditinstitut|agentur|konzept|layout|software|cms|shop-system|powered)"
             + "(?:\\s+(?:von|durch|by|mit|bei|über))?\\W*$");
     private static final Set<String> CONNECTORS = Set.of("&", "+", "und", "für", "die", "der", "des", "den", "dem", "von", "vom", "zu", "zum", "zur",
             "am", "im", "in", "an", "an der", "auf", "bei", "-", "–");
@@ -252,12 +252,15 @@ final class DomainEntity {
             int start = e;
             while (start > 0 && text.charAt(start - 1) != ' ' && text.charAt(start - 1) != '\n') start--;
             final String word = text.substring(start, e);
-            if (word.equals("-") || word.equals("–")) { stop = text.substring(Math.max(0, start - 40), start); break; }
+            // symbols ("-", "–", "©", "*") end a name
+            if (word.codePoints().noneMatch(Character::isLetterOrDigit)) { stop = text.substring(Math.max(0, start - 40), e); break; }
             if (LABELS.contains(word.toLowerCase(Locale.ROOT))) { stop = text.substring(Math.max(0, start - 40), e); break; }
             words.add(0, new int[] {start, e});
             end = start;
         }
-        while (!words.isEmpty() && CONNECTORS.contains(text.substring(words.get(0)[0], words.get(0)[1]))) words.remove(0);
+        // "© 2016–2024 Musterbau GmbH": connectors and years in front are not part of the name
+        while (!words.isEmpty() && (CONNECTORS.contains(text.substring(words.get(0)[0], words.get(0)[1]))
+                || YEARS.matcher(text.substring(words.get(0)[0], words.get(0)[1])).matches())) words.remove(0);
         if (words.isEmpty()) return null;
         if (FOREIGN_LABEL.matcher(stop.replace('\n', ' ').trim().replaceAll("[:\\s]+$", "")).find()) return null;
         final String first = text.substring(words.get(0)[0], words.get(0)[1]);
@@ -309,7 +312,9 @@ final class DomainEntity {
     /** Addresses after these words belong to someone else (court, authority, insurer, agency). */
     private static final Pattern FOREIGN_CONTEXT = Pattern.compile("(?iu)(?:amtsgericht|registergericht|aufsichtsbehörde|aufsicht|finanzamt|kammer|behörde"
             + "|datenschutzbeauftragte|datenschutzbeauftragter|beauftragte für den datenschutz|landesbeauftragte|schlichtungsstelle|verbraucherzentrale"
-            + "|versicherung|haftpflicht|hosting|hoster|provider|webdesign|agentur|bank|postfach|postanschrift|rechnungsanschrift)[^\\n]{0,80}$");
+            + "|versicherung|haftpflicht|hosting|hoster|provider|webdesign|agentur|bank|postfach|postanschrift|rechnungsanschrift)");
+    /** Segments of the text before an address: line breaks, sentence ends and list separators. */
+    private static final Pattern SEGMENT = Pattern.compile("\\n|\\. |·|\\||•|;");
     private static final Pattern GERMANY = Pattern.compile("^[\\s,.|·•–-]*(?:Deutschland|Germany|DE)(?![\\p{L}])");
 
     /** First complete German postal address: street with number, postal code and city. */
@@ -329,14 +334,27 @@ final class DomainEntity {
             final String streetWords = street(s.group(1));
             if (streetWords == null) continue;
             final int streetStart = lineStart + s.end(1) - streetWords.length();
-            final String context = text.substring(Math.max(0, streetStart - 90), streetStart);
-            if (FOREIGN_CONTEXT.matcher(context).find()) continue;
+            if (foreign(text.substring(Math.max(0, streetStart - 160), streetStart))) continue;
             final String city = city(m.group(3));
             if (city == null) continue;
             final boolean germany = GERMANY.matcher(text.substring(m.end(), Math.min(text.length(), m.end() + 20))).find();
             return new Address(streetWords + " " + s.group(2).replaceAll("\\s+", " "), postal, city, streetStart, m.group(1) != null, germany);
         }
         return null;
+    }
+
+    /**
+     * True when the address belongs to someone else: a court, authority, insurer, agency ... is
+     * named in the segment of the street or in one of the two segments before it, before any
+     * company name with legal form (that name owns the address).
+     */
+    private static boolean foreign(final String before) {
+        final String[] parts = SEGMENT.split(before, -1);
+        for (int i = parts.length - 1, n = 0; i >= 0 && n < 3; i--, n++) {
+            if (FOREIGN_CONTEXT.matcher(parts[i]).find()) return true;
+            if (LEGAL.matcher(parts[i]).find()) return false;
+        }
+        return false;
     }
 
     /** The street part of the words before the house number, or null when it does not look like a street. */

@@ -99,6 +99,17 @@ public class DomainEntityTest {
         assertNull(DomainEntity.publisher("https://muster.de/", "muster.de"));
     }
 
+    @Test public void aCopyrightFooterNamesTheOperatorButNotAPhotographer() throws Exception {
+        final DomainEntity.Page footer = page("https://musterbau.de/", 0, html("Start", "",
+                "<p>Wir bauen.</p><p>Fotos: © Bildagentur Lichtblick GmbH</p><footer>© 2016–2024 Musterbau GmbH · Musterstraße 1 · 50667 Köln</footer>"));
+        final DomainEntity.Result r = extract("musterbau.de", footer);
+        assertEquals("Musterbau GmbH", r.entity.name);
+        assertEquals("Musterstraße 1", r.entity.street);
+        assertNull(DomainEntity.legalName("Fotos: © Bildagentur Lichtblick GmbH", 36));
+        assertNull("only a photographer: no name", extract("musterbau.de", page("https://musterbau.de/", 0,
+                html("Start", "", "<p>Fotos: © Bildagentur Lichtblick GmbH</p>"))).entity.name);
+    }
+
     @Test public void jsonLdIsNotStoredByTheIndexSoNothingIsTakenFromIt() throws Exception {
         // the values exist only in JSON-LD: YaCy does not index script content, so the export has no source for them
         final String ld = "<script type=\"application/ld+json\">{\"@context\":\"https://schema.org\",\"@type\":\"Organization\","
@@ -183,6 +194,9 @@ public class DomainEntityTest {
         assertNull(r.entity.city);
         assertNull(r.entity.country);
         assertNull("a label in brackets is not a telephone label", r.entity.phone);
+        // the same with line breaks between the parts, as YaCy stores <br> and separate elements
+        assertNull(DomainEntity.address(DomainEntity.normalize("Registergericht:. Amtsgericht Köln. Luxemburger Str. 101. 50939 Köln.")));
+        assertNull(DomainEntity.address(DomainEntity.normalize("Datenschutzbeauftragter:\nMax Beispiel\nBeispielweg 3\n50667 Köln")));
         // a postal code alone or a register line is no address
         assertNull(DomainEntity.address("Musterbau GmbH, 50667 Köln, HRB 12345"));
         // a .com site without "Deutschland" has no known country

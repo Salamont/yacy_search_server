@@ -134,16 +134,16 @@ try {
     check(await page.locator('#sseo-collection').inputValue() === 'secret', 'SEO analysis opened with the collection' + where);
 
     // contact line on the card (response with entity data; the fixture index has no Impressum pages)
-    await page.route('**/scoutro/api/v1/index/domains?*', async route => {
-      const response = await route.fetch(), body = await response.json();
-      body.items.forEach(item => {
-        item.entity = {name: 'Musterbau Verwaltungs- und Betriebsgesellschaft mbH', street: 'Musterstraße 1', postal_code: '50667', city: 'Köln',
-          region: null, country: 'DE', phone: '+49221123456', email: 'info@musterbau-und-sanierung.example'};
-        item.evidence = {entity_url: 'https://a.example/impressum', contact_url: 'https://a.example/impressum', name_url: 'https://a.example/impressum',
-          name_method: 'page_text', address_url: 'https://a.example/impressum', phone_url: 'https://a.example/impressum', email_url: 'https://a.example/impressum'};
-      });
-      await route.fulfill({response, json: body});
-    });
+    // a synthetic answer: the request of the page carries the browser's login, a mock fetch would not
+    await page.route('**/scoutro/api/v1/index/domains?*', route => route.fulfill({contentType: 'application/json', body: JSON.stringify({
+      schema: 'scoutro.domains.v1', generated_at: '2026-10-05T00:00:00Z', filter: {q: null, collection: 'visible', sort: 'host'},
+      offset: 0, limit: 25, total: 1, total_hosts: 1, items: [{host: 'a.example', domain: 'a.example', scheme: 'https', website: 'https://a.example/',
+        start_url: 'https://a.example/', collection: 'visible', indexed_pages: 28, title: 'Title missing', description: null, last_loaded: null,
+        last_crawled: null, crawl_status: null, http_status: 200, classification: null, discovery: null,
+        entity: {name: 'Musterbau Verwaltungs- und Betriebsgesellschaft mbH', street: 'Musterstraße 1', postal_code: '50667', city: 'Köln',
+          region: null, country: 'DE', phone: '+49221123456', email: 'info@musterbau-und-sanierung.example'},
+        evidence: {entity_url: 'https://a.example/impressum', contact_url: 'https://a.example/impressum', name_url: 'https://a.example/impressum',
+          name_method: 'page_text', address_url: 'https://a.example/impressum', phone_url: 'https://a.example/impressum', email_url: 'https://a.example/impressum'}}]})}));
     await page.goto(base+'/IndexBrowser_p.html?collection=visible');
     await page.locator('.scoutro-domain-entity').first().waitFor();
     const entity = page.locator('.scoutro-domain-entity').first();
