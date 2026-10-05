@@ -43,6 +43,10 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * <li>strong identifiers (register with court, VAT, LEI, Wikidata, IK): global;</li>
  * <li>{@code ld_id}: the JSON-LD {@code @id}, within the declaring host;</li>
  * <li>{@code site_operator}: the declared operator's legal name, within the registrable domain;</li>
+ * <li>{@code operator_name}: the same legal name of an organisation that is <em>not</em> declared as
+ * operator (a parent organisation on a facility page, a name in running text): it resolves to the
+ * declared operator of the domain, in either order, but two such mentions never merge with each other
+ * (a portal lists unrelated organisations whose legal names may be equal);</li>
  * <li>{@code facility_address}: name and <em>full</em> address, within the registrable domain;</li>
  * <li>{@code doc_local}: the mention within its document (keeps re-extraction stable).</li>
  * </ol>
@@ -104,10 +108,10 @@ public final class IdentityResolver {
         if (m.ldId != null && host != null) {
             out.add(new Key(Vocabulary.LD_ID, m.type + "@" + host, m.ldId));
         }
-        if (m.siteOperator && Vocabulary.ORGANIZATION.equals(m.type) && domain != null) {
+        if (Vocabulary.ORGANIZATION.equals(m.type) && domain != null) {
             final String legal = Normalizers.legalNameKey(m.legalName);
             if (legal != null) {
-                out.add(new Key(Vocabulary.SITE_OPERATOR, m.type + "@" + domain, legal));
+                out.add(new Key(m.siteOperator ? Vocabulary.SITE_OPERATOR : Vocabulary.OPERATOR_NAME, m.type + "@" + domain, legal));
             }
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.address != null && m.address.complete()
@@ -130,7 +134,8 @@ public final class IdentityResolver {
         final List<Key> keys = keys(m, docId, host, domain);
         final Map<Key, Long> found = new LinkedHashMap<>();
         for (final Key k : keys) {
-            final Long ent = lookup(tx, k);
+            // an operator name looks for the declared operator only, never for another holder of the name
+            final Long ent = lookup(tx, Vocabulary.OPERATOR_NAME.equals(k.scheme) ? new Key(Vocabulary.SITE_OPERATOR, k.scope, k.value) : k);
             if (ent != null) {
                 found.put(k, ent);
             }
@@ -156,6 +161,19 @@ public final class IdentityResolver {
         if (primary == null) {
             primary = create(tx, m, creationKey(keys, found), agg);
         }
+        // the declared operator takes in the organisations of the domain that were seen under its legal name before
+        for (final Key k : keys) {
+            if (Vocabulary.SITE_OPERATOR.equals(k.scheme)) {
+                final Long named = lookup(tx, new Key(Vocabulary.OPERATOR_NAME, k.scope, k.value));
+                if (named != null && !named.equals(primary)) {
+                    if (mergeable(tx, primary, named)) {
+                        primary = merge(tx, primary, named, agg);
+                    } else {
+                        conflict(tx, agg, primary, named, m, "discriminator");
+                    }
+                }
+            }
+        }
         attach(tx, primary, keys, found);
         if (m.subkind != null) {
             try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_entity SET subkind = ? WHERE ent_rowid = ? AND subkind IS NULL")) {
@@ -174,7 +192,8 @@ public final class IdentityResolver {
      */
     static Key creationKey(final List<Key> keys, final Map<Key, Long> found) {
         for (final Key k : keys) {
-            if (!found.containsKey(k)) {
+            // an operator name is shared by unrelated organisations of a portal: never an ID
+            if (!found.containsKey(k) && !Vocabulary.OPERATOR_NAME.equals(k.scheme)) {
                 return k;
             }
         }
@@ -199,7 +218,8 @@ public final class IdentityResolver {
     private boolean compatible(final Connection tx, final long ent, final Mention m, final List<Key> keys) throws SQLException {
         final Map<String, List<String>> have = keysOf(tx, ent);
         for (final Key k : keys) {
-            if (Vocabulary.DOC_LOCAL.equals(k.scheme) || Vocabulary.SITE_OPERATOR.equals(k.scheme)) {
+            if (Vocabulary.DOC_LOCAL.equals(k.scheme) || Vocabulary.SITE_OPERATOR.equals(k.scheme)
+                    || Vocabulary.OPERATOR_NAME.equals(k.scheme)) {
                 continue;
             }
             final List<String> existing = have.get(k.scheme + "\u0000" + k.scope);
@@ -225,7 +245,7 @@ public final class IdentityResolver {
         final Map<String, List<String>> vb = keysOf(tx, b);
         for (final Map.Entry<String, List<String>> e : va.entrySet()) {
             final String scheme = e.getKey().substring(0, e.getKey().indexOf('\u0000'));
-            if (Vocabulary.DOC_LOCAL.equals(scheme) || Vocabulary.SITE_OPERATOR.equals(scheme)) {
+            if (Vocabulary.DOC_LOCAL.equals(scheme) || Vocabulary.SITE_OPERATOR.equals(scheme) || Vocabulary.OPERATOR_NAME.equals(scheme)) {
                 continue;
             }
             final List<String> other = vb.get(e.getKey());

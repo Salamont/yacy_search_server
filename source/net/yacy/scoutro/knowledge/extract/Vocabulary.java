@@ -71,6 +71,8 @@ public final class Vocabulary {
     public static final String IK = "ik";
     public static final String LD_ID = "ld_id";
     public static final String SITE_OPERATOR = "site_operator";
+    /** The legal name of an organisation that is not the declared operator: finds the operator, never merges by itself. */
+    public static final String OPERATOR_NAME = "operator_name";
     public static final String FACILITY_ADDRESS = "facility_address";
     public static final String DOC_LOCAL = "doc_local";
 
@@ -87,7 +89,8 @@ public final class Vocabulary {
     /** Strong identifiers: global scope, merge across documents and domains; at most one value per entity. */
     public static final Set<String> STRONG_SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK);
 
-    public static final Set<String> SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK, LD_ID, SITE_OPERATOR, FACILITY_ADDRESS, DOC_LOCAL);
+    public static final Set<String> SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK, LD_ID, SITE_OPERATOR, OPERATOR_NAME, FACILITY_ADDRESS,
+            DOC_LOCAL);
 
     /** A predicate: its object is an entity ({@code relation}) or a literal of {@code datatype}. */
     public static final class Predicate {

@@ -176,6 +176,45 @@ public class PublisherTest {
                 + " WHERE v.name = 'address' AND s.obj_val LIKE 'Lindenallee%'"));
     }
 
+    private static final String OPERATOR = "{\"@type\":\"Organization\",\"name\":\"Lindenhof Pflege gGmbH\",\"url\":\"https://www.lindenhof.de/\"}";
+    private static final String HOUSE = "{\"@type\":\"NursingHome\",\"name\":\"Haus %s\","
+            + "\"parentOrganization\":{\"@type\":\"Organization\",\"name\":\"Lindenhof Pflege gGmbH\"}}";
+
+    @Test
+    public void theParentOrganisationOfAFacilityPageIsTheDeclaredOperatorInEitherOrder() throws Exception {
+        // facility pages first: the parent organisation stays apart until the operator is declared, then joins it
+        final Publisher.Doc birke = doc("BBBBBBhost01", "https://www.lindenhof.de/haus-birke", "c1");
+        publish(birke, jsonld(birke, String.format(HOUSE, "Birke")));
+        final Publisher.Doc home = doc("AAAAAAhost01", "https://www.lindenhof.de/", "c1");
+        publish(home, jsonld(home, OPERATOR));
+        assertEquals(1L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type"
+                + " WHERE e.status = 1 AND v.name = 'organization'"));
+        // and a later facility page resolves to it at once
+        final Publisher.Doc linde = doc("CCCCCChost01", "https://www.lindenhof.de/haus-linde", "c1");
+        publish(linde, jsonld(linde, String.format(HOUSE, "Linde")));
+        assertEquals(1L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type"
+                + " WHERE e.status = 1 AND v.name = 'organization'"));
+        assertEquals("the operator operates both houses", 2L, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                + " JOIN kg_entity e ON e.ent_rowid = s.subj WHERE v.name = 'operates' AND e.status = 1"));
+        // the same legal name on another domain is another organisation
+        final Publisher.Doc other = doc("DDDDDDhost02", "https://www.lindenhof-nord.de/haus-nord", "c1");
+        publish(other, jsonld(other, String.format(HOUSE, "Nord")));
+        assertEquals(2L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type"
+                + " WHERE e.status = 1 AND v.name = 'organization'"));
+    }
+
+    @Test
+    public void twoOrganisationsOfThePortalWithTheSameLegalNameStaySeparate() throws Exception {
+        // a portal lists two providers called alike; neither is the portal's operator
+        final Publisher.Doc a = doc("AAAAAAhost03", "https://www.pflegeportal.de/anbieter/1", "c1");
+        publish(a, jsonld(a, "{\"@type\":\"Organization\",\"name\":\"Sonnenschein Pflegedienst GmbH\"}"));
+        final Publisher.Doc b = doc("BBBBBBhost03", "https://www.pflegeportal.de/anbieter/2", "c1");
+        publish(b, jsonld(b, "{\"@type\":\"Organization\",\"name\":\"Sonnenschein Pflegedienst GmbH\"}"));
+        final Publisher.Doc op = doc("CCCCCChost03", "https://www.pflegeportal.de/", "c1");
+        publish(op, jsonld(op, "{\"@type\":\"Organization\",\"name\":\"Pflegeportal GmbH\",\"url\":\"https://www.pflegeportal.de/\"}"));
+        assertEquals(3L, count("SELECT count(*) FROM kg_entity WHERE status = 1"));
+    }
+
     @Test
     public void sameNameWithoutAddressStaysSeparateAndDifferentKindsNeverMerge() throws Exception {
         final Publisher.Doc a = doc("AAAAAAhost01", "https://portal.example/a", "c1");
