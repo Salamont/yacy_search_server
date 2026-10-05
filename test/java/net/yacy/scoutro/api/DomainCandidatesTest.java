@@ -55,6 +55,16 @@ public class DomainCandidatesTest {
         // no title, no description, no collection
         add("https://plain.example/a", null, 3, 200, null, null, T0);
         for (int i = 0; i < BULK; i++) add(String.format("https://bulk%04d.example/", i), "bulk", 0, 200, "Bulk " + i, null, T0);
+        // entity pages, parsed like a crawl would store them; the second collection only has the start page
+        addPage("https://www.musterbau.example/", List.of("firmen", "portal"), 0,
+                DomainEntityTest.html("Musterbau – Bauen in Köln", "", "<h1>Willkommen</h1><p>Wir bauen seit 1950.</p>"));
+        addPage("https://www.musterbau.example/impressum/", List.of("firmen"), 1, DomainEntityTest.html("Impressum", "",
+                "<p>Musterbau GmbH<br>Musterstraße 1<br>50667 Köln</p><p>Telefon: 0221 / 12 34 56<br>Fax: 0221 / 12 34 57</p>"
+                + "<p>E-Mail: max.muster@musterbau.example</p><p>Registergericht: Amtsgericht Köln, HRB 12345</p>"));
+        addPage("https://www.musterbau.example/Kontakt.html", List.of("firmen"), 1,
+                DomainEntityTest.html("Kontakt", "", "<p>Schreiben Sie uns: info@musterbau.example</p>"));
+        addPage("https://www.musterbau.example/blog/neubau", List.of("firmen"), 2,
+                DomainEntityTest.html("Neubau", "", "<p>Partner: Andere Bau GmbH, Nebenweg 9, 10115 Berlin, Tel. 030 999999</p>"));
         instance.getDefaultServer().commit();
     }
 
@@ -74,6 +84,31 @@ public class DomainCandidatesTest {
         s.setField("load_date_dt", new Date(loaded));
         if (title != null) s.setField("title", List.of(title));
         if (description != null) s.setField("description_txt", List.of(description));
+        instance.getDefaultServer().add(s);
+    }
+
+    /** A page as YaCy indexes it: parsed text, title and publisher, URL path fields. */
+    private static void addPage(final String url, final List<String> collections, final int depth, final String html) throws Exception {
+        final DigestURL d = new DigestURL(url);
+        final net.yacy.document.Document doc = net.yacy.document.TextParser.parseSource(d, "text/html", "UTF-8",
+                net.yacy.document.parser.html.TagValency.EVAL, new HashSet<>(), new net.yacy.document.VocabularyScraper(), 0, depth,
+                html.getBytes(java.nio.charset.StandardCharsets.UTF_8), null)[0];
+        final SolrInputDocument s = new SolrInputDocument();
+        s.setField("id", ASCII.String(d.hash()));
+        s.setField("sku", url);
+        s.setField("host_s", d.getHost());
+        s.setField("url_protocol_s", d.getProtocol());
+        s.setField("collection_sxt", collections);
+        s.setField("crawldepth_i", depth);
+        s.setField("httpstatus_i", 200);
+        s.setField("load_date_dt", new Date(T0));
+        s.setField("title", List.of(doc.dc_title()));
+        s.setField("text_t", doc.getTextString());
+        if (!doc.dc_publisher().isEmpty()) s.setField("publisher_t", doc.dc_publisher());
+        final String file = d.getFileName();
+        final String ext = net.yacy.cora.document.id.MultiProtocolURL.getFileExtension(file);
+        s.setField("url_file_name_s", file.toLowerCase(java.util.Locale.ROOT).endsWith("." + ext) ? file.substring(0, file.length() - ext.length() - 1) : file);
+        if (d.getPaths().length > 0) s.setField("url_paths_sxt", List.of(d.getPaths()));
         instance.getDefaultServer().add(s);
     }
 
@@ -185,7 +220,7 @@ public class DomainCandidatesTest {
             final JSONObject o = items.getJSONObject(i);
             assertTrue("duplicate " + o, seen.add(o.getString("host") + "|" + o.opt("collection")));
         }
-        assertEquals(BULK + 4, items.length()); // agentur/stack, agentur/coach, broken/stack, plain without collection, bulk
+        assertEquals(BULK + 6, items.length()); // agentur/stack, agentur/coach, broken/stack, plain without collection, musterbau/firmen+portal, bulk
         assertEquals(items.length(), all.getInt("count"));
         assertTrue(all.isNull("collection"));
     }
@@ -208,7 +243,10 @@ public class DomainCandidatesTest {
     @Test public void largeExportsAreReadPageByPageAndStreamedWithoutSideEffects() throws Exception {
         final List<String> events = new ArrayList<>();
         final DomainCandidates c = new DomainCandidates(p -> {
-            events.add("query " + (p.get("json.facet") != null ? "facet" : "group"));
+            final String fl = String.valueOf(p.get("fl"));
+            events.add("query " + (p.get("json.facet") != null ? "facet" : fl.contains("text_t") ? "text" : fl.contains("crawldepth_i") ? "entity" : "group"));
+            if (fl.contains("text_t")) assertTrue("texts by identifier, at most one fetch page", p.get("q").startsWith("id:(")
+                    && Integer.parseInt(p.get("rows")) <= DomainCandidates.ENTITY_FETCH);
             assertNull("no commit or update", p.get("commit"));
             assertNull(p.get("stream.body"));
             if (p.get("json.facet") != null) {
@@ -227,9 +265,73 @@ public class DomainCandidatesTest {
             @Override public void end(final long count, final boolean complete) { events.add("end " + count + " " + complete); }
         });
         assertEquals(BULK, written[0]);
-        // three facet pages (200 + 200 + 50), each streamed before the next page is read
-        assertEquals(List.of("query facet", "query group", "begin", "flush 200", "query facet", "query group", "flush 400",
-                "query facet", "query group", "flush 450", "end 450 true"), events);
+        // three facet pages (200 + 200 + 50), each streamed before the next page is read; the entity
+        // lookup reads 50 hosts at a time (candidate pages, then their texts) inside its page
+        final List<String> entity = List.of("query entity", "query text");
+        final List<String> expected = new ArrayList<>(List.of("query facet", "query group"));
+        for (int i = 0; i < 4; i++) expected.addAll(entity);
+        expected.addAll(List.of("begin", "flush 200", "query facet", "query group"));
+        for (int i = 0; i < 4; i++) expected.addAll(entity);
+        expected.addAll(List.of("flush 400", "query facet", "query group"));
+        expected.addAll(entity);
+        expected.addAll(List.of("flush 450", "end 450 true"));
+        assertEquals(expected, events);
+    }
+
+    @Test public void entityDataComesFromTheIndexedPagesOfEachCollection() throws Exception {
+        final JSONObject page = page(Map.of("q", "musterbau"), null);
+        assertEquals(2, page.getJSONArray("items").length());
+        final JSONObject firmen = item(page, "www.musterbau.example", "firmen");
+        final JSONObject e = firmen.getJSONObject("entity"), v = firmen.getJSONObject("evidence");
+        assertEquals("Musterbau GmbH", e.getString("name"));
+        assertEquals("Musterstraße 1", e.getString("street"));
+        assertEquals("50667", e.getString("postal_code"));
+        assertEquals("Köln", e.getString("city"));
+        assertTrue("no region in the index", e.isNull("region"));
+        assertTrue(".example: country unknown", e.isNull("country"));
+        assertEquals("country unknown: the number as written", "0221123456", e.getString("phone"));
+        assertEquals("general mailbox of the contact page, not the personal one of the Impressum", "info@musterbau.example", e.getString("email"));
+        assertEquals("https://www.musterbau.example/impressum/", v.getString("entity_url"));
+        assertEquals("https://www.musterbau.example/impressum/", v.getString("contact_url"));
+        assertEquals("https://www.musterbau.example/Kontakt.html", v.getString("email_url"));
+        assertEquals("page_text", v.getString("name_method"));
+        // the same host in a second collection keeps its own entry: only its own start page counts
+        final JSONObject portal = item(page, "www.musterbau.example", "portal");
+        for (final String key : portal.getJSONObject("entity").keySet()) assertTrue(key, portal.getJSONObject("entity").isNull(key));
+        for (final String key : portal.getJSONObject("evidence").keySet()) assertTrue(key, portal.getJSONObject("evidence").isNull(key));
+        // the blog page names another company: it is neither an entity page nor the representative
+        assertFalse(firmen.toString().contains("Andere Bau"));
+        // entries without entity pages carry the objects with null values
+        final JSONObject bulk = page(Map.of("q", "bulk0001"), null).getJSONArray("items").getJSONObject(0);
+        assertTrue(bulk.getJSONObject("entity").isNull("name") && bulk.getJSONObject("evidence").isNull("entity_url"));
+
+        // export: the same values, JSON and the appended CSV columns
+        final JSONObject json = new JSONObject(export("json", Map.of("q", "musterbau"), List.of("firmen")));
+        assertEquals("Musterbau GmbH", json.getJSONArray("items").getJSONObject(0).getJSONObject("entity").getString("name"));
+        final List<List<String>> rows = parseCsv(export("csv", Map.of("q", "musterbau"), List.of("firmen")));
+        assertEquals(DomainCandidate.CSV_COLUMNS, rows.get(0));
+        assertEquals("existing columns keep their order", List.of("host", "domain", "scheme"), rows.get(0).subList(0, 3));
+        assertEquals("discovery_region", rows.get(0).get(19));
+        final List<String> row = rows.get(1);
+        assertEquals("Musterbau GmbH", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_name")));
+        assertEquals("50667", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_postal_code")));
+        assertEquals("", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_region")));
+        assertEquals("info@musterbau.example", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_email")));
+        assertEquals("https://www.musterbau.example/impressum/", row.get(DomainCandidate.CSV_COLUMNS.indexOf("evidence_entity_url")));
+    }
+
+    @Test public void theEntityLookupOnlyReadsTheIndex() throws Exception {
+        final List<ModifiableSolrParams> seen = new ArrayList<>();
+        new DomainCandidates(p -> {
+            seen.add(new ModifiableSolrParams(p));
+            return solr.getResponseByParams(p).getResponse();
+        }, DomainEnrichment.NONE, () -> T0).page(Map.of("q", "musterbau"), null);
+        assertEquals("facet, then per collection: representative, candidates, texts", 1 + 2 * 3, seen.size());
+        for (final ModifiableSolrParams p : seen) {
+            assertNull(p.get("commit")); assertNull(p.get("stream.body")); assertNull(p.get("qt")); assertNull(p.get("stream.url"));
+            final String fl = String.valueOf(p.get("fl"));
+            if (fl.contains("text_t")) assertTrue(p.get("q").startsWith("id:("));
+        }
     }
 
     @Test public void anErrorAfterTheStartEndsTheFileAsIncomplete() throws Exception {

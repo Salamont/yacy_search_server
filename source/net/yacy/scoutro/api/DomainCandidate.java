@@ -12,9 +12,10 @@ import org.json.JSONObject;
 /**
  * One indexed host in one collection: the consolidated candidate of the Index Browser and of the
  * domain export ({@code scoutro.domains.v1}). Every field is either read from Scoutro's own data
- * (index, crawl report table, Discovery jobs and state) or null; nothing is fetched or inferred
- * from web pages. The same object is serialized for the paged API, the JSON export and the CSV
- * export, so a later integration API can reuse it unchanged.
+ * (index, crawl report table, Discovery jobs and state) or null; nothing is fetched from the web.
+ * Entity and contact values are copied from pages already in the index ({@link DomainEntity}),
+ * each with the page it comes from. The same object is serialized for the paged API, the JSON
+ * export and the CSV export, so a later integration API can reuse it unchanged.
  */
 public final class DomainCandidate {
 
@@ -24,7 +25,8 @@ public final class DomainCandidate {
     public static final List<String> CSV_COLUMNS = List.of("host", "domain", "scheme", "website", "start_url", "collection",
             "indexed_pages", "title", "description", "last_loaded", "last_crawled", "crawl_status", "http_status",
             "classification_verdict", "classification_confidence", "classification_profile", "discovery_profile",
-            "discovery_source", "discovery_job", "discovery_region");
+            "discovery_source", "discovery_job", "discovery_region", "entity_name", "entity_street", "entity_postal_code", "entity_city",
+            "entity_region", "entity_country", "entity_phone", "entity_email", "evidence_entity_url", "evidence_contact_url");
 
     /** Classification of the registrable domain for this collection (Discovery state). */
     public static final class Classification {
@@ -46,18 +48,49 @@ public final class DomainCandidate {
         }
     }
 
+    /** Name, address and contact of the site's operator as found on its indexed pages; each value may be null. */
+    public static final class Entity {
+        public static final Entity NONE = new Entity(null, null, null, null, null, null, null, null);
+        public final String name, street, postalCode, city, region, country, phone, email;
+
+        public Entity(final String name, final String street, final String postalCode, final String city, final String region,
+                final String country, final String phone, final String email) {
+            this.name = name; this.street = street; this.postalCode = postalCode; this.city = city; this.region = region;
+            this.country = country; this.phone = phone; this.email = email;
+        }
+    }
+
+    /**
+     * Indexed pages the entity values come from. {@code entityUrl}: page of the address (or of the
+     * name when there is no address); {@code contactUrl}: page of the phone number (or of the
+     * e-mail address). {@code nameMethod}: {@code publisher_meta} (page metadata) or {@code page_text}.
+     */
+    public static final class Evidence {
+        public static final Evidence NONE = new Evidence(null, null, null, null, null, null, null);
+        public final String entityUrl, contactUrl, nameUrl, nameMethod, addressUrl, phoneUrl, emailUrl;
+
+        public Evidence(final String entityUrl, final String contactUrl, final String nameUrl, final String nameMethod,
+                final String addressUrl, final String phoneUrl, final String emailUrl) {
+            this.entityUrl = entityUrl; this.contactUrl = contactUrl; this.nameUrl = nameUrl; this.nameMethod = nameMethod;
+            this.addressUrl = addressUrl; this.phoneUrl = phoneUrl; this.emailUrl = emailUrl;
+        }
+    }
+
     public final String host, domain, scheme, startUrl, collection, title, description, crawlStatus;
     public final long indexedPages;
     public final Long lastLoaded, lastCrawled;
     public final Integer httpStatus;
     public final Classification classification;
     public final Discovery discovery;
+    public final Entity entity;
+    public final Evidence evidence;
 
     private DomainCandidate(final Builder b) {
         this.host = b.host; this.domain = registrableDomain(b.host); this.scheme = b.scheme; this.startUrl = b.startUrl;
         this.collection = b.collection; this.title = b.title; this.description = b.description; this.crawlStatus = b.crawlStatus;
         this.indexedPages = b.indexedPages; this.lastLoaded = b.lastLoaded; this.lastCrawled = b.lastCrawled;
         this.httpStatus = b.httpStatus; this.classification = b.classification; this.discovery = b.discovery;
+        this.entity = b.entity == null ? Entity.NONE : b.entity; this.evidence = b.evidence == null ? Evidence.NONE : b.evidence;
     }
 
     /** Root of the site for the known scheme, derived from host and scheme only. */
@@ -86,6 +119,16 @@ public final class DomainCandidate {
             put(d, "job", this.discovery.job); put(d, "region", this.discovery.region);
             put(o, "discovery", d);
         }
+        final JSONObject e = new JSONObject(true);
+        put(e, "name", this.entity.name); put(e, "street", this.entity.street); put(e, "postal_code", this.entity.postalCode);
+        put(e, "city", this.entity.city); put(e, "region", this.entity.region); put(e, "country", this.entity.country);
+        put(e, "phone", this.entity.phone); put(e, "email", this.entity.email);
+        put(o, "entity", e);
+        final JSONObject v = new JSONObject(true);
+        put(v, "entity_url", this.evidence.entityUrl); put(v, "contact_url", this.evidence.contactUrl);
+        put(v, "name_url", this.evidence.nameUrl); put(v, "name_method", this.evidence.nameMethod);
+        put(v, "address_url", this.evidence.addressUrl); put(v, "phone_url", this.evidence.phoneUrl); put(v, "email_url", this.evidence.emailUrl);
+        put(o, "evidence", v);
         return o;
     }
 
@@ -96,7 +139,9 @@ public final class DomainCandidate {
         final Object[] cells = {this.host, this.domain, this.scheme, website(), this.startUrl, this.collection,
                 this.indexedPages, this.title, this.description, iso(this.lastLoaded), iso(this.lastCrawled), this.crawlStatus,
                 this.httpStatus, c == null ? null : c.verdict, c == null ? null : c.confidence, c == null ? null : c.profile,
-                d == null ? null : d.profile, d == null ? null : d.source, d == null ? null : d.job, d == null ? null : d.region};
+                d == null ? null : d.profile, d == null ? null : d.source, d == null ? null : d.job, d == null ? null : d.region,
+                this.entity.name, this.entity.street, this.entity.postalCode, this.entity.city, this.entity.region, this.entity.country,
+                this.entity.phone, this.entity.email, this.evidence.entityUrl, this.evidence.contactUrl};
         final StringBuilder row = new StringBuilder();
         for (int i = 0; i < cells.length; i++) {
             if (i > 0) row.append(',');
@@ -167,6 +212,8 @@ public final class DomainCandidate {
         Integer httpStatus;
         Classification classification;
         Discovery discovery;
+        Entity entity;
+        Evidence evidence;
 
         Builder(final String host, final String collection) { this.host = host; this.collection = collection; }
         public Builder scheme(final String v) { this.scheme = v; return this; }
@@ -180,6 +227,8 @@ public final class DomainCandidate {
         public Builder httpStatus(final Integer v) { this.httpStatus = v; return this; }
         public Builder classification(final Classification v) { this.classification = v; return this; }
         public Builder discovery(final Discovery v) { this.discovery = v; return this; }
+        public Builder entity(final Entity v, final Evidence e) { this.entity = v; this.evidence = e; return this; }
+        public String startUrl() { return this.startUrl; }
         public String host() { return this.host; }
         public String collection() { return this.collection; }
         public String scheme() { return this.scheme; }

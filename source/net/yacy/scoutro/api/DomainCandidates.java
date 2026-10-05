@@ -41,6 +41,22 @@ final class DomainCandidates {
     static final int PAGE_DEFAULT = 25, PAGE_MAX = 100, EXPORT_PAGE = 200, GROUP_DOCS = 5, MAX_COLLECTIONS = 100;
     private static final int TIME_ALLOWED_MS = 2000;
     private static final String REPRESENTATIVE_FIELDS = "sku,host_s,title,description_txt,url_protocol_s,httpstatus_i";
+    /** Entity lookup: hosts per candidate query, candidate pages per host, texts per fetch query. */
+    static final int ENTITY_HOSTS = 50, ENTITY_CANDIDATES = 12, ENTITY_FETCH = 100;
+    /** Pages that can name the operator: Impressum, contact, about (URL path, file name or title) and start pages. */
+    private static final String ENTITY_PAGES;
+    static {
+        final List<String> files = new ArrayList<>();
+        for (final String stem : new String[] {"impressum", "Impressum", "imprint", "Imprint", "kontakt", "Kontakt", "contact", "Contact",
+                "ueber-uns", "uber-uns", "über-uns", "wir-ueber-uns", "wir-über-uns", "about-us"}) files.add(ClientUtils.escapeQueryChars(stem) + "*");
+        for (final String exact : new String[] {"legal-notice", "anbieterkennzeichnung", "ueberuns", "about", "aboutus", "unternehmen", "firma", "company"})
+            files.add(ClientUtils.escapeQueryChars(exact));
+        final List<String> paths = new ArrayList<>();
+        for (final String exact : new String[] {"impressum", "Impressum", "imprint", "kontakt", "Kontakt", "contact", "legal-notice", "ueber-uns",
+                "uber-uns", "über-uns", "ueberuns", "about", "about-us", "unternehmen", "firma", "company"}) paths.add(ClientUtils.escapeQueryChars(exact));
+        ENTITY_PAGES = "title:(impressum OR imprint OR kontakt OR contact) OR title:\"über uns\" OR title:\"ueber uns\" OR title:\"about us\""
+                + " OR url_file_name_s:(" + String.join(" OR ", files) + ") OR url_paths_sxt:(" + String.join(" OR ", paths) + ") OR crawldepth_i:0";
+    }
 
     @FunctionalInterface interface Query { NamedList<Object> execute(ModifiableSolrParams p) throws IOException; }
 
@@ -217,8 +233,12 @@ final class DomainCandidates {
             final Object missing = value(nested, "missing");
             if (f.collections == null && count(missing) > 0) add(builders, hostsByCollection, byCollection, lastHost, null, missing);
         }
-        for (final Map.Entry<String, List<String>> e : hostsByCollection.entrySet())
-            representatives(e.getKey().isEmpty() ? null : e.getKey(), e.getValue(), byCollection.get(e.getKey()));
+        for (final Map.Entry<String, List<String>> e : hostsByCollection.entrySet()) {
+            final String collection = e.getKey().isEmpty() ? null : e.getKey();
+            representatives(collection, e.getValue(), byCollection.get(e.getKey()));
+            for (int i = 0; i < e.getValue().size(); i += ENTITY_HOSTS)
+                entities(collection, e.getValue().subList(i, Math.min(e.getValue().size(), i + ENTITY_HOSTS)), byCollection.get(e.getKey()));
+        }
         final List<DomainCandidate> items = new ArrayList<>(builders.size());
         for (final DomainCandidate.Builder b : builders) {
             session.enrich(b);
@@ -273,6 +293,80 @@ final class DomainCandidates {
                     .scheme("http".equals(protocol) || "https".equals(protocol) ? (String) protocol : null)
                     .title(first(doc.getFieldValues("title"))).description(first(doc.getFieldValues("description_txt")))
                     .httpStatus(status instanceof Number ? ((Number) status).intValue() : null);
+        }
+    }
+
+    /**
+     * Entity and contact data per host of one collection, from indexed pages only: first the
+     * candidate pages (Impressum, contact, about, start page, representative page; identifiers
+     * only), then the text of at most one page per kind. Nothing is fetched from the web.
+     */
+    private void entities(final String collection, final List<String> hosts, final Map<String, DomainCandidate.Builder> builders)
+            throws ApiException {
+        final List<String> hostTerms = new ArrayList<>(), representatives = new ArrayList<>();
+        for (final String h : hosts) {
+            hostTerms.add(quoted(h));
+            final String start = builders.get(h).startUrl();
+            if (start != null) representatives.add(quoted(start));
+        }
+        final ModifiableSolrParams p = new ModifiableSolrParams();
+        p.set("defType", "lucene");
+        p.set("q", "host_s:(" + String.join(" OR ", hostTerms) + ") AND (" + ENTITY_PAGES
+                + (representatives.isEmpty() ? "" : " OR sku:(" + String.join(" OR ", representatives) + ")") + ")");
+        p.add("fq", collection == null ? "(*:* AND -collection_sxt:[* TO *])" : "collection_sxt:" + quoted(collection));
+        p.add("fq", "httpstatus_i:200");
+        p.set("group", "true"); p.set("group.field", "host_s"); p.set("group.main", "true");
+        p.set("group.limit", ENTITY_CANDIDATES); p.set("group.sort", "crawldepth_i asc,sku asc");
+        p.set("sort", "host_s asc"); p.set("start", 0); p.set("rows", hosts.size() * ENTITY_CANDIDATES);
+        p.set("fl", "id,sku,host_s,title,crawldepth_i"); p.set("timeAllowed", TIME_ALLOWED_MS);
+        final Object docs = execute(p).get("response");
+        if (!(docs instanceof SolrDocumentList)) throw unavailable();
+        final Map<String, List<DomainEntity.Page>> chosen = new LinkedHashMap<>();
+        final Map<String, String> idByUrl = new LinkedHashMap<>();
+        final Map<String, List<DomainEntity.Page>> candidates = new LinkedHashMap<>();
+        for (final SolrDocument doc : (SolrDocumentList) docs) {
+            final Object host = doc.getFieldValue("host_s");
+            final String url = string(doc.getFieldValue("sku")), id = string(doc.getFieldValue("id"));
+            if (!(host instanceof String) || !builders.containsKey(host) || url == null || id == null) continue;
+            final Object depth = doc.getFieldValue("crawldepth_i");
+            final boolean representative = url.equals(builders.get(host).startUrl());
+            candidates.computeIfAbsent((String) host, k -> new ArrayList<>()).add(new DomainEntity.Page(url, first(doc.getFieldValues("title")),
+                    depth instanceof Number ? ((Number) depth).intValue() : null, null, null, representative));
+            idByUrl.put(url, id);
+        }
+        final List<String> ids = new ArrayList<>();
+        for (final Map.Entry<String, List<DomainEntity.Page>> e : candidates.entrySet()) {
+            final List<DomainEntity.Page> pages = DomainEntity.choose(e.getValue());
+            chosen.put(e.getKey(), pages);
+            for (final DomainEntity.Page page : pages) {
+                final String id = idByUrl.get(page.url);
+                ids.add(id);
+            }
+        }
+        final Map<String, SolrDocument> texts = new LinkedHashMap<>();
+        for (int i = 0; i < ids.size(); i += ENTITY_FETCH) {
+            final List<String> chunk = ids.subList(i, Math.min(ids.size(), i + ENTITY_FETCH));
+            final List<String> terms = new ArrayList<>();
+            for (final String id : chunk) terms.add(quoted(id));
+            final ModifiableSolrParams t = new ModifiableSolrParams();
+            t.set("defType", "lucene");
+            t.set("q", "id:(" + String.join(" OR ", terms) + ")");
+            t.set("rows", chunk.size()); t.set("start", 0);
+            t.set("fl", "id,text_t,publisher_t"); t.set("timeAllowed", TIME_ALLOWED_MS);
+            final Object found = execute(t).get("response");
+            if (!(found instanceof SolrDocumentList)) throw unavailable();
+            for (final SolrDocument doc : (SolrDocumentList) found) texts.put(string(doc.getFieldValue("id")), doc);
+        }
+        for (final Map.Entry<String, List<DomainEntity.Page>> e : chosen.entrySet()) {
+            final List<DomainEntity.Page> pages = new ArrayList<>();
+            for (final DomainEntity.Page page : e.getValue()) {
+                final SolrDocument doc = texts.get(idByUrl.get(page.url));
+                pages.add(new DomainEntity.Page(page.url, page.title, page.depth == Integer.MAX_VALUE ? null : page.depth,
+                        doc == null ? null : first(doc.getFieldValues("publisher_t")), doc == null ? null : first(doc.getFieldValues("text_t")),
+                        page.kind == DomainEntity.Kind.OTHER));
+            }
+            final DomainEntity.Result r = DomainEntity.extract(e.getKey(), pages);
+            builders.get(e.getKey()).entity(r.entity, r.evidence);
         }
     }
 

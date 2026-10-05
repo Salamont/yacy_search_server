@@ -223,7 +223,21 @@ domain_item = {"type": "object", "required": ["host", "domain", "collection", "i
         "confidence": {"type": ["number", "null"]}, "profile": {"type": ["string", "null"]}, "classified_at": {"type": ["string", "null"], "format": "date-time"}}},
     "discovery": {"type": ["object", "null"], "properties": {"profile": {"type": ["string", "null"]},
         "source": {"type": ["string", "null"], "description": "Only when the Discovery job has exactly one configured source."},
-        "job": {"type": ["string", "null"]}, "region": {"type": ["string", "null"]}}}}}
+        "job": {"type": ["string", "null"]}, "region": {"type": ["string", "null"]}}},
+    "entity": {"type": "object", "description": "Operator and contact as copied from indexed pages (Impressum, contact, about, start page, representative page); null when not clearly there. Nothing is fetched or inferred by a model.",
+        "required": ["name", "street", "postal_code", "city", "region", "country", "phone", "email"], "properties": {
+        "name": {"type": ["string", "null"], "description": "Page metadata (copyright / DC.publisher) first, otherwise a company name with legal form from the page text."},
+        "street": {"type": ["string", "null"]}, "postal_code": {"type": ["string", "null"], "description": "German five-digit postal code, only together with street and city."},
+        "city": {"type": ["string", "null"]}, "region": {"type": ["string", "null"], "description": "Not in the index today; always null."},
+        "country": {"type": ["string", "null"], "description": "DE for a German address on a .de domain or with D-/Deutschland; otherwise null."},
+        "phone": {"type": ["string", "null"], "description": "Labelled telephone number (never fax); E.164 when the country is known, else as written."},
+        "email": {"type": ["string", "null"], "description": "General mailbox (info@, kontakt@, office@ ...) of the site's own domain; personal addresses are never exported."}}},
+    "evidence": {"type": "object", "description": "Indexed pages the entity values come from.",
+        "required": ["entity_url", "contact_url", "name_url", "name_method", "address_url", "phone_url", "email_url"], "properties": {
+        "entity_url": {"type": ["string", "null"], "description": "Page of the address, else of the name."},
+        "contact_url": {"type": ["string", "null"], "description": "Page of the phone number, else of the e-mail address."},
+        "name_url": {"type": ["string", "null"]}, "name_method": {"type": ["string", "null"], "enum": ["publisher_meta", "page_text", None]},
+        "address_url": {"type": ["string", "null"]}, "phone_url": {"type": ["string", "null"]}, "email_url": {"type": ["string", "null"]}}}}}
 schemas["DomainCandidate"] = domain_item
 schemas["DomainPage"] = {"type": "object", "required": ["schema", "generated_at", "filter", "offset", "limit", "items"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.domains.v1"]}, "generated_at": {"type": "string", "format": "date-time"},
@@ -242,7 +256,7 @@ paths["/v1/index/domains"] = {"get": op("index.domains", "Indexed domains", "Ind
     q("sort", {"type": "string", "enum": ["host", "pages"], "default": "host"}, "Host name ascending or most pages first."),
     q("offset", {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}, "First host."),
     q("limit", {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}, "Hosts per page.")])}
-paths["/v1/index/domains/export"] = {"get": op("index.domains.export", "Export indexed domains", "All domain candidates of the filter as a download (JSON scoutro.domains.v1 or CSV), sorted by host and streamed page by page. Same fields and rules as index.domains. Read-only.", ["index"], {"200": {"description": "Streamed export.", "content": {"application/json": {"schema": ref("DomainExport")}, "text/csv": {"schema": {"type": "string", "description": "RFC 4180, UTF-8, header row; formula-like text cells are prefixed with an apostrophe; an interrupted export ends with #incomplete."}}}}, **errs("400", "401", "503")}, params=[*domain_params,
+paths["/v1/index/domains/export"] = {"get": op("index.domains.export", "Export indexed domains", "All domain candidates of the filter as a download (JSON scoutro.domains.v1 or CSV), sorted by host and streamed page by page. Same fields and rules as index.domains. Read-only.", ["index"], {"200": {"description": "Streamed export.", "content": {"application/json": {"schema": ref("DomainExport")}, "text/csv": {"schema": {"type": "string", "description": "RFC 4180, UTF-8, header row host..discovery_region, then entity_name, entity_street, entity_postal_code, entity_city, entity_region, entity_country, entity_phone, entity_email, evidence_entity_url, evidence_contact_url; formula-like text cells are prefixed with an apostrophe; an interrupted export ends with #incomplete."}}}}, **errs("400", "401", "503")}, params=[*domain_params,
     q("format", {"type": "string", "enum": ["json", "csv"], "default": "json"}, "Export format.")])}
 paths["/v1/index"] = {"get": op("index.status", "Index status", "Document counts and crawler queues.", ["index"], {**ok("Index status.", "IndexStatus"), **errs("401", "502", "503")})}
 metric_params = [q("collection", {"type":"string","pattern":"^[A-Za-z0-9_-]{1,64}$"}, "Optional exact collection filter; server enforced.")]

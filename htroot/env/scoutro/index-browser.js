@@ -76,6 +76,26 @@
     var a = node('a', url); a.href = url; a.target = '_blank'; a.rel = 'noopener noreferrer';
     return a;
   }
+  // Operator and contact as found on the indexed pages (Impressum, contact page ...), compact.
+  function entityBlock(e, evidence) {
+    var place = [e.postal_code, e.city].filter(Boolean).join(' ');
+    if (!e.name && !place && !e.phone && !e.email) return null;
+    var box = node('div', null, 'scoutro-domain-entity');
+    box.setAttribute('aria-label', t('entity'));
+    if (e.name) box.appendChild(node('p', e.name, 'scoutro-domain-entity-name'));
+    var line = node('p', null, 'scoutro-domain-entity-contact');
+    if (place) line.appendChild(node('span', place));
+    if (e.phone) { var tel = node('a', e.phone); tel.href = 'tel:' + e.phone; tel.title = t('phone'); line.appendChild(tel); }
+    if (e.email) { var mail = node('a', e.email); mail.href = 'mailto:' + e.email; mail.title = t('email'); line.appendChild(mail); }
+    var source = evidence.entity_url || evidence.contact_url;
+    if (/^https?:\/\//i.test(source || '')) {
+      var link = node('a', t('source'), 'scoutro-domain-entity-source');
+      link.href = source; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.title = source;
+      line.appendChild(link);
+    }
+    if (line.childNodes.length) box.appendChild(line);
+    return box;
+  }
   function domainCard(item) {
     var li = node('li', null, 'scoutro-domain');
     var head = node('div', null, 'scoutro-domain-head');
@@ -90,6 +110,8 @@
     li.appendChild(pages);
     li.appendChild(node('p', item.title || t('no_title'), 'scoutro-domain-title' + (item.title ? '' : ' is-empty')));
     if (item.description) li.appendChild(node('p', item.description, 'scoutro-domain-description'));
+    var entity = entityBlock(item.entity || {}, item.evidence || {});
+    if (entity) li.appendChild(entity);
     var facts = node('dl', null, 'scoutro-domain-facts');
     fact(facts, t('website'), item.website ? external(item.website) : null);
     if (item.start_url && item.start_url !== item.website) fact(facts, t('start_url'), external(item.start_url));

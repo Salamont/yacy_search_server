@@ -4451,6 +4451,18 @@
     <trans-unit id="c19e8271" xml:space="preserve" approved="no" translate="yes">
        <source>Loading domains …</source>
     </trans-unit>
+    <trans-unit id="196ff10c" xml:space="preserve" approved="no" translate="yes">
+       <source>Operator and contact as found on the indexed pages</source>
+    </trans-unit>
+    <trans-unit id="4984d4e" xml:space="preserve" approved="no" translate="yes">
+       <source>Phone</source>
+    </trans-unit>
+    <trans-unit id="786b8a3f" xml:space="preserve" approved="no" translate="yes">
+       <source>E-mail</source>
+    </trans-unit>
+    <trans-unit id="93f5543b" xml:space="preserve" approved="no" translate="yes">
+       <source>Source</source>
+    </trans-unit>
     <trans-unit id="4b02d58c" xml:space="preserve" approved="no" translate="yes">
        <source>Index administration</source>
     </trans-unit>

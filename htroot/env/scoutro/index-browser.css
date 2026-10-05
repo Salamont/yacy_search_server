@@ -44,6 +44,13 @@
 .scoutro-domain-description {
   margin: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
+.scoutro-domain-entity { margin: 2px 0; padding: 6px 10px; border-left: 3px solid var(--scoutro-primary, #1673ff);
+  background: var(--scoutro-surface-2, #f3f7fe); border-radius: 0 8px 8px 0; min-width: 0; }
+.scoutro-domain-entity p { margin: 0; overflow-wrap: anywhere; }
+.scoutro-domain-entity-name { font-weight: 600; color: var(--scoutro-ink, #0f1f3d); }
+.scoutro-domain-entity-contact { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 14px; }
+.scoutro-domain-entity-contact a { overflow-wrap: anywhere; }
+.scoutro-domain-entity-source { font-size: 12px; color: var(--scoutro-muted, #5b6b85); }
 .scoutro-domain-facts { margin: 4px 0 0; display: grid; gap: 4px; }
 .scoutro-domain-facts > div { display: grid; grid-template-columns: minmax(7em, 34%) 1fr; gap: 8px; min-width: 0; }
 .scoutro-domain-facts dt { font-weight: 600; color: var(--scoutro-muted, #5b6b85); font-size: 13px; }

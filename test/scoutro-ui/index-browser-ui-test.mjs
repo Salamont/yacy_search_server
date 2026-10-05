@@ -9,7 +9,7 @@ assert(base && new URL(base).hostname === '127.0.0.1', 'Disposable loopback fixt
 const browser = await chromium.launch({executablePath:process.env.SCOUTRO_CHROMIUM_PATH, args:['--no-proxy-server']});
 let checks = 0;
 function check(value, label) { assert(value, label); checks++; }
-const CSV_HEADER = 'host,domain,scheme,website,start_url,collection,indexed_pages,title,description,last_loaded,last_crawled,crawl_status,http_status,classification_verdict,classification_confidence,classification_profile,discovery_profile,discovery_source,discovery_job,discovery_region';
+const CSV_HEADER = 'host,domain,scheme,website,start_url,collection,indexed_pages,title,description,last_loaded,last_crawled,crawl_status,http_status,classification_verdict,classification_confidence,classification_profile,discovery_profile,discovery_source,discovery_job,discovery_region,entity_name,entity_street,entity_postal_code,entity_city,entity_region,entity_country,entity_phone,entity_email,evidence_entity_url,evidence_contact_url';
 const get = (page, path) => page.evaluate(async url => {
   const response = await fetch(url, {credentials: 'same-origin', cache: 'no-store'});
   return {status: response.status, type: response.headers.get('content-type'), disposition: response.headers.get('content-disposition'), body: await response.text()};
@@ -34,6 +34,8 @@ try {
     const visible = all.items.find(item => keyOf(item) === 'a.example|visible');
     check(visible.website === 'https://a.example/' && visible.start_url === 'https://a.example/missing' && visible.title === 'Title missing', 'Representative from the index: ' + JSON.stringify(visible));
     check(visible.classification === null && visible.discovery === null && visible.crawl_status === null, 'Unknown enrichment stays null');
+    check(Object.values(visible.entity).every(v => v === null) && Object.values(visible.evidence).every(v => v === null)
+      && Object.keys(visible.entity).join() === 'name,street,postal_code,city,region,country,phone,email', 'No entity pages: entity and evidence objects with null values');
     const filtered = JSON.parse((await get(page, '/scoutro/api/v1/index/domains?collection=visible')).body);
     check(filtered.total === 1 && filtered.items[0].host === 'a.example' && filtered.items[0].collection === 'visible', 'Collection filter');
     const byHost = JSON.parse((await get(page, '/scoutro/api/v1/index/domains?q=' + encodeURIComponent('https://b.example/private'))).body);
@@ -57,6 +59,7 @@ try {
     const lines = csv.body.split('\r\n');
     check(lines[0] === CSV_HEADER && lines.length === 3 && lines[2] === '', 'CSV header, one row, CRLF: ' + JSON.stringify(lines));
     check(lines[1].startsWith('a.example,a.example,https,https://a.example/,https://a.example/missing,visible,28,Title missing,'), 'CSV row: ' + lines[1]);
+    check(lines[1].endsWith(',,,,,,,,,,'), 'Unknown entity values are empty CSV cells: ' + lines[1]);
     check((await get(page, '/scoutro/api/v1/index/domains/export?format=xml')).status === 400, 'Unknown export format refused');
     await context.close();
   }
@@ -129,6 +132,30 @@ try {
     await page.waitForURL(/ScoutroSEO_p\.html/);
     await page.waitForFunction(() => document.getElementById('sseo-host')?.value === 'a.example');
     check(await page.locator('#sseo-collection').inputValue() === 'secret', 'SEO analysis opened with the collection' + where);
+
+    // contact line on the card (response with entity data; the fixture index has no Impressum pages)
+    await page.route('**/scoutro/api/v1/index/domains?*', async route => {
+      const response = await route.fetch(), body = await response.json();
+      body.items.forEach(item => {
+        item.entity = {name: 'Musterbau Verwaltungs- und Betriebsgesellschaft mbH', street: 'Musterstraße 1', postal_code: '50667', city: 'Köln',
+          region: null, country: 'DE', phone: '+49221123456', email: 'info@musterbau-und-sanierung.example'};
+        item.evidence = {entity_url: 'https://a.example/impressum', contact_url: 'https://a.example/impressum', name_url: 'https://a.example/impressum',
+          name_method: 'page_text', address_url: 'https://a.example/impressum', phone_url: 'https://a.example/impressum', email_url: 'https://a.example/impressum'};
+      });
+      await route.fulfill({response, json: body});
+    });
+    await page.goto(base+'/IndexBrowser_p.html?collection=visible');
+    await page.locator('.scoutro-domain-entity').first().waitFor();
+    const entity = page.locator('.scoutro-domain-entity').first();
+    const entityText = await entity.innerText();
+    check(entityText.includes('Musterbau Verwaltungs-') && entityText.includes('50667 Köln'), 'Name, postal code and city on the card' + where);
+    check(await entity.locator('a[href="tel:+49221123456"]').count() === 1 && await entity.locator('a[href="mailto:info@musterbau-und-sanierung.example"]').count() === 1, 'Phone and e-mail links' + where);
+    check(await entity.locator('a.scoutro-domain-entity-source').getAttribute('href') === 'https://a.example/impressum', 'Source page linked' + where);
+    check(!entityText.includes('Musterstraße'), 'Street stays in the export, the card stays short' + where);
+    const height = await entity.evaluate(n => n.getBoundingClientRect().height);
+    check(height < (width < 768 ? 140 : 100), 'Compact contact block: ' + height + where);
+    check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth+1), 'Card with contact line fits' + where);
+    await page.unroute('**/scoutro/api/v1/index/domains?*');
 
     // single URLs: the former browser view
     await page.goto(base+'/IndexBrowser_p.html?view=urls&collection=visible&q=a.example');
