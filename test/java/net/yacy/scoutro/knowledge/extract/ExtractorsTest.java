@@ -184,6 +184,11 @@ public class ExtractorsTest {
         assertEquals("Inhaber: Muster Pflege GmbH", Normalizers.redactPersons("Inhaber: Muster Pflege GmbH"));
         assertEquals("Inhaber: Muster AG", Normalizers.redactPersons("Inhaber: Muster AG"));
         assertEquals("Geschäftsführer […]", Normalizers.redactPersons("Geschäftsführer Max von Mustermann"));
+        // e-mail addresses of persons in the text around a fact, also cut by the window; role mailboxes stay
+        assertEquals("Telefon: 030 1234567 E-Mail: […], info@muster.de", Normalizers.redactPersons(
+                "Telefon: 030 1234567 E-Mail: erika.musterfrau@muster.de, info@muster.de"));
+        assertEquals("Telefon: 030 1234567 E-Mail: […]", Normalizers.redactPersons("Telefon: 030 1234567 E-Mail: erika.musterfrau@mu"));
+        assertEquals("[…] Telefon", Normalizers.redactPersons("usterfrau@muster.de Telefon"));
         // a window that cuts the name: the marker is looked for before it
         final String text = "Vertreten durch die Geschäftsführerin Erika Musterfrau\nRegistergericht: Amtsgericht Charlottenburg";
         final int at = text.indexOf("Musterfrau") + 4;

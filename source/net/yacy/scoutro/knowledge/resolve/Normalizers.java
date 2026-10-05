@@ -385,15 +385,26 @@ public final class Normalizers {
         while (sm.find()) {
             out.add(new int[] {sm.start(), sm.end()});
         }
+        // an e-mail address in the text around a fact that may be a person's (also one cut by the window)
+        final Matcher em = MAIL_IN_TEXT.matcher(text);
+        while (em.find()) {
+            final String mail = em.group().toLowerCase(Locale.ROOT);
+            if (!roleEmail(mail.endsWith("@") ? mail + "x" : mail)) {
+                out.add(new int[] {em.start(), em.end()});
+            }
+        }
         return out;
     }
+
+    private static final Pattern MAIL_IN_TEXT = Pattern.compile("[A-Za-z0-9._%+\\-]{1,64}@[A-Za-z0-9.\\-]*");
 
     /**
      * An excerpt without the names of persons (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
      * O7): names after a role marker (managing director, owner, represented
      * by, contact person, responsible for the content, management, data
-     * protection officer, ...) and after a salutation become {@code […]}; the
-     * role marker stays so the excerpt still shows what the page says.
+     * protection officer, ...) and after a salutation become {@code […]}, and
+     * so does an e-mail address that is no role mailbox ({@link #roleEmail});
+     * the role marker stays so the excerpt still shows what the page says.
      */
     public static String redactPersons(final String excerpt) {
         if (excerpt == null || excerpt.isEmpty()) {
