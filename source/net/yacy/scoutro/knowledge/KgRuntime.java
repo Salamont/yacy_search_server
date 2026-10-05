@@ -69,6 +69,7 @@ public final class KgRuntime {
     public static final String STATUS_SCHEMA = "scoutro.kg.status.v1";
     public static final String WATCHDOG_THREAD = "ScoutroKG.watchdog";
     public static final String MAINTENANCE_THREAD = "ScoutroKG.maintenance";
+    public static final String SHUTDOWN_HOOK_THREAD = "ScoutroKG.shutdown";
     /** Watchdog period: a read is interrupted at most this long after its deadline. */
     public static final long WATCHDOG_MILLIS = 250L;
 
@@ -88,6 +89,7 @@ public final class KgRuntime {
     static final KgStore.SqlWork<String> QUICK_CHECK = c -> KgStore.queryString(c, "PRAGMA quick_check(1)");
 
     private static KgRuntime current;
+    private static Thread shutdownHook;
 
     /** Everything the runtime needs from its surroundings; replaceable in tests. */
     public static final class Env {
@@ -162,26 +164,67 @@ public final class KgRuntime {
 
     // ---------------------------------------------------------- static access
 
-    /** Starts the runtime once; called from ScoutroApiServlet.init. Never throws. */
+    /**
+     * Starts the runtime once; called from ScoutroApiServlet.init. Never throws.
+     * <p>
+     * While the graph runs, a JVM shutdown hook closes it as soon as the JVM
+     * shuts down (SIGTERM, {@code docker stop}). YaCy stops its HTTP server,
+     * and with it the servlet that calls {@link #stop()}, only after its main
+     * thread has finished, and its own shutdown hook lets the JVM exit after 30
+     * seconds; a slow YaCy shutdown would otherwise leave the clean-shutdown
+     * mark unwritten. Nothing is registered while the graph is disabled.
+     */
     public static synchronized void start() {
         if (current != null) {
             return;
         }
         try {
             final Switchboard sb = Switchboard.getSwitchboard();
-            if (sb == null) {
-                return;
+            if (sb != null) {
+                start(Env.of(sb));
             }
-            final KgRuntime r = new KgRuntime(Env.of(sb));
-            r.open();
-            current = r;
         } catch (final Throwable t) {
             LOG.warn("knowledge graph start failed: " + t.getClass().getSimpleName());
         }
     }
 
-    /** Stops the runtime; called from ScoutroApiServlet.destroy. Never throws. */
+    /** {@link #start()} with a given environment (tests). */
+    static synchronized void start(final Env env) {
+        if (current != null) {
+            return;
+        }
+        try {
+            final KgRuntime r = new KgRuntime(env);
+            r.open();
+            current = r;
+            if (r.state() == State.RUNNING) {
+                final Thread hook = new Thread(KgRuntime::stop, SHUTDOWN_HOOK_THREAD);
+                try {
+                    Runtime.getRuntime().addShutdownHook(hook);
+                    shutdownHook = hook;
+                } catch (final IllegalStateException | SecurityException e) {
+                    // already shutting down, or not allowed: the servlet's destroy() still stops the graph
+                }
+            }
+        } catch (final Throwable t) {
+            LOG.warn("knowledge graph start failed: " + t.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * Stops the runtime; called from ScoutroApiServlet.destroy and from the
+     * shutdown hook, whichever comes first. Never throws.
+     */
     public static synchronized void stop() {
+        final Thread hook = shutdownHook;
+        shutdownHook = null;
+        if (hook != null && hook != Thread.currentThread()) {
+            try {
+                Runtime.getRuntime().removeShutdownHook(hook);
+            } catch (final IllegalStateException | SecurityException e) {
+                // the JVM is shutting down: the hook waits for this call and then finds nothing to stop
+            }
+        }
         if (current == null) {
             return;
         }
@@ -702,6 +745,11 @@ public final class KgRuntime {
             }
         }
         return a;
+    }
+
+    /** For tests: whether the shutdown hook is registered. */
+    static synchronized boolean shutdownHookRegistered() {
+        return shutdownHook != null;
     }
 
     /** For tests: the store while running. */

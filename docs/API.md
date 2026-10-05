@@ -464,8 +464,9 @@ Agent access:
   write lock with two concurrent writers, vacuum batches against a blocked
   checkpoint, read leases (late interrupts, expiry between two statements,
   close during an interrupt), where SQLite's temp files land, the integrity
-  check aborted by the real watchdog, runtime start/stop and the admin routes
-  through the servlet.
+  check aborted by the real watchdog, runtime start/stop, a clean stop on
+  SIGTERM in a child JVM without the servlet, and the admin routes through
+  the servlet.
 - `python3 test/scoutro-api/kg-live-smoke.py` (after `ant compile`) starts a
   disposable peer five times on temporary DATA. It covers disabled, enabled,
   clean restart, hard kill with unclean-start detection and the integrity
@@ -584,6 +585,12 @@ Solr access and no LLM call yet, and there is no agent grant.
   stops) or `aborted` (deadline or other error in `error`). A failed or
   aborted check stays visible as `integrity_check_failed` until a new check
   passes.
+- **Shutdown:** while the graph runs, a JVM shutdown hook
+  (`ScoutroKG.shutdown`) closes it as soon as the JVM shuts down (SIGTERM,
+  `docker stop`) and records the clean shutdown. YaCy reaches the servlet's
+  `destroy()` only after its main thread has finished and lets the JVM exit
+  after 30 seconds, so the graph does not wait for it. SIGKILL is detected as
+  an unclean shutdown at the next start.
 - **Time limits:** two daemon threads run while the graph runs. The watchdog
   (`ScoutroKG.watchdog`, every 250 ms) only interrupts reads past their
   deadline (`scoutro.kg.read.maxTransactionMillis`, the integrity deadline for
