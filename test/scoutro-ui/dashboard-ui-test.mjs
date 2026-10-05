@@ -70,7 +70,7 @@ try {
     }
     check(await page.evaluate(w => document.documentElement.scrollWidth <= w + 1, width), `${width}: no horizontal overflow`);
     const targets = await page.locator('main a[href]').evaluateAll(links => [...new Set(links.map(a => a.getAttribute('href')))]);
-    check(targets.length === 15, `${width}: standard destinations and four collection-filtered browser links`);
+    check(targets.length === 16, `${width}: standard destinations, the knowledge graph and four collection-filtered browser links`);
     const collectionLinks = await page.locator('.scoutro-dash-collection').evaluateAll(links => links.map(link => ({collection: link.dataset.collection, href: link.getAttribute('href')})));
     for (const link of collectionLinks) check(new URL(link.href, base).searchParams.get('collection') === link.collection, `${width}: Dashboard collection URL preserved`);
     // Use a browser page for YaCy's Digest authentication, not Playwright's

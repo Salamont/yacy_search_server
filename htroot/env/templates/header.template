@@ -188,6 +188,7 @@
       <li><a href="ScoutroDiscovery_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Discovery Automation</a></li>
       <li><a href="ScoutroCrawls_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Crawls</a></li>
       <li><a href="ScoutroSEO_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">SEO / Host Analysis</a></li>
+      <li><a href="ScoutroKnowledge_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Knowledge graph</a></li>
     </ul>
     <!-- Scoutro: the AI Lab with the chat, always visible; access is still decided by the AI Shield -->
     <ul class="nav nav-sidebar menugroup" id="scoutro-ai">

@@ -15,6 +15,11 @@ fetches a website, starts a crawl, changes settings, or modifies the index.
 - **Links:** sums over finalized target URLs and two bounded top-five lists.
 - **Technology:** existing HTTP/protocol, depth, response time, dates and outgoing
   link metadata. Click any URL row to read content/crawl/reference details.
+- **Knowledge:** organisations, facilities, sites and services the knowledge
+  graph found on the host (`GET /scoutro/api/v1/kg/hosts/{host}/entities`),
+  computed only from documents of the chosen collection, with quality, source
+  count and last confirmation; each name opens the object in
+  `ScoutroKnowledge_p.html`. While the graph is disabled the tab says so.
 - **Crawl status:** the stored crawl status of the host in one collection
   (current and previous crawl, latest precheck, data age), its live page
   state, canonical links, titles and descriptions (with pages sharing a title

@@ -166,10 +166,37 @@
     pageTable('top-external', values[0].items, ['references_external', 'external_hosts']);
     pageTable('top-internal', values[1].items, ['references_internal']); message();
   }
+  async function knowledge() {
+    const run = ++generation; message(t('loading')); $('kg-body').replaceChildren(node('p', t('loading')));
+    const p = new URLSearchParams({ limit: 25 }); if (collection) p.set('collection', collection);
+    const open = new URLSearchParams({ view: 'objects', host }); if (collection) open.set('collection', collection);
+    $('kg-open').href = 'ScoutroKnowledge_p.html?' + open;
+    const response = await fetch('/scoutro/api/v1/kg/hosts/' + encodeURIComponent(host) + '/entities?' + p, { credentials: 'same-origin', cache: 'no-store' });
+    let data = null; try { data = await response.json(); } catch (_) { /* below */ }
+    if (run !== generation) return;
+    if (!response.ok) {
+      const code = data?.error?.code || 'error';
+      $('kg-body').replaceChildren(node('p', code === 'kg_disabled' ? t('kg_disabled') : t('error') + ' (HTTP ' + response.status + ', ' + code + ')'));
+      message(); return;
+    }
+    if (!data.items.length) { $('kg-body').replaceChildren(node('p', t('kg_none'))); message(); return; }
+    const table = node('table', null, 'table table-striped scoutro-cards sseo-small-table'), head = table.createTHead().insertRow(), body = table.createTBody();
+    const keys = ['kg_name', 'kg_type', 'kg_quality', 'kg_sources', 'kg_last_confirmed'];
+    for (const k of keys) head.append(node('th', t(k)));
+    for (const e of data.items) {
+      const row = body.insertRow(), a = node('a', e.name || e.id);
+      const q = new URLSearchParams({ view: 'object', id: e.id }); if (collection) q.set('collection', collection); a.href = 'ScoutroKnowledge_p.html?' + q;
+      const cells = [a, t('kg_' + e.type) + (e.kind ? ' · ' + e.kind : ''), t('kg_' + e.quality), fmt(e.counts?.sources), e.last_confirmed ? date(e.last_confirmed) : t('missing')];
+      cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = t(keys[i]); if (c instanceof Node) td.append(c); else td.textContent = c; });
+    }
+    const wrap = node('div', null, 'sseo-scroll'); wrap.append(table); $('kg-body').replaceChildren(wrap);
+    if (data.total > data.items.length) $('kg-body').append(node('p', t('kg_more'), 'sseo-note'));
+    message();
+  }
   function tab(key) {
     generation++; message();
     for (const button of document.querySelectorAll('[data-sseo-tab]')) { const active = button.dataset.sseoTab === key; button.setAttribute('aria-selected', String(active)); button.tabIndex = active ? 0 : -1; $('panel-' + button.dataset.sseoTab).hidden = !active; }
-    if (key === 'pages') guarded(pages); if (key === 'links') guarded(links);
+    if (key === 'pages') guarded(pages); if (key === 'links') guarded(links); if (key === 'knowledge') guarded(knowledge);
     if (key === 'crawl-status') { if (!$('cs-collection').value.trim()) $('cs-collection').value = collection; guarded(crawlStatus); }
   }
   async function analyze(value) {

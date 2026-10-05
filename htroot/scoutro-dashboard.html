@@ -67,6 +67,16 @@
           <span hidden data-scdd-label="active">Active</span><span hidden data-scdd-label="paused">Paused</span><span hidden data-scdd-label="disabled">Disabled</span><span hidden data-scdd-label="batch_running">Batch running</span></p>
         </a>
       </section>
+      <section aria-labelledby="scoutro-knowledge-heading">
+        <a class="scoutro-dash-card" href="ScoutroKnowledge_p.html">
+          <h2 id="scoutro-knowledge-heading">Knowledge graph</h2>
+          <dl><div><dt>State</dt><dd id="scoutro-kg-state">—</dd></div>
+            <div><dt>Storage used</dt><dd id="scoutro-kg-budget">—</dd></div>
+            <div><dt>Pending changes</dt><dd id="scoutro-kg-backlog">—</dd></div></dl>
+          <p class="scoutro-dash-caption" id="scoutro-kg-reason"></p>
+          <span hidden data-sckg-label="disabled">Disabled</span><span hidden data-sckg-label="running">Running</span><span hidden data-sckg-label="unavailable">Unavailable</span><span hidden data-sckg-label="stopped">Stopped</span><span hidden data-sckg-label="paused">Growth paused</span>
+        </a>
+      </section>
       <section class="scoutro-dash-status" aria-label="Service status">
         <a class="scoutro-dash-card" href="Crawler_p.html">
           <div class="scoutro-dash-section-heading"><h2>Crawler</h2>
@@ -114,6 +124,7 @@
       </section>
     </main>
     <script src="env/scoutro/discovery-dashboard.js"></script>
+    <script src="env/scoutro/knowledge-dashboard.js"></script>
     #%env/templates/footer.template%#
   </body>
 </html>

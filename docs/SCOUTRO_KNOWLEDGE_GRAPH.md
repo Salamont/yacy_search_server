@@ -52,6 +52,7 @@ reserve, automatic pause and resume, and bounded retention.
 17. [Revision 2 corrections](#17-revision-2-corrections)
 18. [Package 2a implementation](#18-package-2a-implementation)
 19. [Package 2b implementation](#19-package-2b-implementation)
+20. [Package 3 implementation](#20-package-3-implementation)
 
 ## 0. Decisions at a glance
 
@@ -1102,6 +1103,8 @@ Each package is one or more reviewable PRs on its own branch from the then-curre
 
 ### Package 3: Interface
 
+Implemented, see [20](#20-package-3-implementation).
+
 - **Scope:**
   - admin read routes (`entities`, `statements`, `evidence`, `hosts`, `sources`) with the visibility rules;
   - `ScoutroKnowledge_p.html` with all views, settings and controls;
@@ -1458,3 +1461,28 @@ The review of `0b303ac` found five gaps in package 1. Each was reproduced or con
 **Mutation checks** (each must make a named test fail; all 11 do): no name check and no verbatim check in the grounding, LLM-only statements `supported`, hedge words ignored, no person filter, stale tier-3 evidence kept on a new input, no collection selection, unbounded attempts, no host cap, no breaker, no compare-and-set on the input.
 
 **Live smoke test** `test/scoutro-api/kg-llm-live-smoke.py` (19 checks, JDK 21 and 24) on a disposable peer with a fake OpenAI-compatible endpoint on 127.0.0.1: the knowledge usage is no chat model (`/api/tags`, `/v1/models`; the RAG proxy answers a request for the model `knowledge` with `no_chat_model` and never calls the extraction model); the extract thread runs; a page pushed through YaCy's parser is read, the quoted relation published and the hallucinated holding dropped; the request carries the strict schema and the DATA block; a hanging model times out while the sync publishes other pages; a stop during a hanging call is a clean shutdown; after the restart `llm_retry` finishes the failed documents.
+
+## 20. Package 3 implementation
+
+**Shipped in this PR** (stacked on 2b):
+
+| Area | Files |
+|---|---|
+| Read projection | `read/KgReader` (entities, statements, evidence, hosts, sources; visibility, per-viewer quality and counts), `KgChangeLog.Viewer` (public accessors), `KgRuntime.reader()` / `lag()` |
+| Read routes | `api/KnowledgeRead` (validation, shared with the agent routes of package 4), `KnowledgeApi` (dispatch, `collection`), `ScoutroApiServlet` (query parameters) |
+| Page | `ScoutroKnowledge_p.html` / `.java`, `env/scoutro/knowledge.js`, `knowledge.css`; navigation entry in `header.template`; `UiRoutes` `knowledge.graph`; the page is read-only for YaCy's navigation history (`YaCyDefaultServlet`) |
+| Integrations | SEO host analysis tab **Knowledge** (`ScoutroSEO_p.html`, `seo.js`), Index Browser links per domain card and URL row (`IndexBrowser_p.html`, `index-browser.js`), dashboard card (`scoutro-dashboard.html`, `knowledge-dashboard.js`) |
+| Language and help | `locales/de.lng` (new section and additions for the four pages and the header), `master.lng.xlf`, `check-locale-identifiers.py`; `help/ScoutroKnowledge_p.md`, `help/ScoutroSEO_p.md`, `help/IndexBrowser_p.md`, `help/scoutro-dashboard.md` |
+| Contract | generator (7 paths, 7 schemas), `openapi.json`, `actions.json`, `docs/API.md`, `docs/SCOUTRO.md` |
+
+**Visibility, as implemented ([4.5](#45-visibility)).** A viewer is the administrator without a filter (all followed collections) or a set of collection IDs (the `collection` parameter; in package 4 an agent's scope). Every query restricts evidence to documents of those collections (`kg_doc_collection`), statements to those with visible evidence (`kg_statement_scope`), entities to those with a visible statement (`kg_entity_scope`). Names, aliases, identifiers, quality, `first_seen` (the earliest visible observation for a filtered viewer), `last_confirmed`, counts, hosts, possible duplicates and the collections listed with a source or a piece of evidence are computed from the visible evidence alone. An invisible object is `404 not_found` exactly like an unknown one, a redirect is followed only to a visible survivor, and the name search only matches visible name and alias statements. Quality is recomputed per viewer with the rules of 4.4, including the conflict rule over the viewer's statements; for the administrator it equals the stored quality.
+
+**Page.** Views `overview` (state, storage meter with 80 %/90 % colours, synchronisation, LLM tier, controls including `confirm_reconcile` only while a run waits, recent events), `objects` (name search, type, quality, host; 25 per page; cards on narrow screens), `object` (names, identifiers, hosts, possible duplicates, facts and relations in both directions with quality, hedging and an "only from the LLM tier" badge; evidence on demand with excerpt, page link, source view and Index Browser link), `source` and `settings`. Every view keeps `collection`; status, storage and events describe the whole graph and say so. All text is set with `textContent`; external links only for http(s), with `noopener noreferrer`.
+
+**Deviations from the plan:**
+
+1. The settings view is read-only: it shows the effective `scoutro.kg.*` values and their problems and points to the configuration; there is no write route or live reload. Settings keep taking effect at the next start, as in packages 1 to 2b. A write route with a validated reload is a follow-up.
+2. Reads of a disabled graph answer `409 kg_disabled` like the control route, not 503 as 8.1 listed.
+3. Entity lists are ordered newest first (`created_seq`); there is no sort parameter.
+
+**Tests.** `KgReaderTest` (5): the administrator sees everything; a viewer of one collection gets no name, alias, identifier, value, count, host, evidence row, source, search hit or host listing of the other collection, and its objects are not found; an unknown collection sees nothing; quality and the quality filter per viewer (a source gone in one collection is stale there and supported elsewhere); filters, paging and prefix search. `KnowledgeApiTest` (+2): parameter validation of every read route (400, 404, 405, limits, IDs, collection names) and Digest for every read route through the servlet. `AdminSecurityTest`, `DashboardMetricsTest` (links). Live: `test/scoutro-ui/knowledge-live-smoke.py` runs a disposable peer with two collections and the fake model, checks the read API's isolation (7 checks) and then `knowledge-ui-test.mjs` (182 Playwright checks: Digest for the page and the routes; English at 390 and 1280, German at 360, 390, 412, 768 and 1280; overview, objects with and without the collection filter, the object view in one collection without the other's alias and VAT ID, the LLM badge, the verbatim quote as evidence, the source view, not found across collections, settings; the SEO tab, the Index Browser links, the dashboard card, pause and resume through the page; no JavaScript error and no horizontal overflow). The existing SEO, Index Browser, report and dashboard UI tests pass with the new tab, links and card.

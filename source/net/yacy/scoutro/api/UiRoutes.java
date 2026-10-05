@@ -77,6 +77,8 @@ final class UiRoutes {
                 "Read indexed host, content, crawl and locally observed reference metrics.");
         route("report.crawl", "administration", "Crawl report", "/ScoutroSEO_p.html?view=report", true,
                 "Read crawl status, outcomes, prechecks, page state and daily history per collection or Discovery job.");
+        route("knowledge.graph", "administration", "Knowledge graph", "/ScoutroKnowledge_p.html", true,
+                "Entities, facts, relations and their sources from the knowledge graph, per collection; status and controls.");
         route("ranking", "administration", "Ranking and Heuristics", "/RankingSolr_p.html", true, "Search ranking settings.");
         route("api.openapi", "api", "Scoutro API description", "/scoutro/api/openapi.json", false, "OpenAPI description of this API.");
         route("api.actions", "api", "Scoutro action catalog", "/scoutro/api/actions.json", false, "Machine-readable list of actions.");

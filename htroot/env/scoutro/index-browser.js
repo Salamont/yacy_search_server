@@ -53,6 +53,13 @@
     if (name) params.set('collection', name);
     return 'ScoutroSEO_p.html?' + params;
   }
+  function knowledgeLink(query, name) {
+    var params = new URLSearchParams(query);
+    if (name) params.set('collection', name);
+    var a = node('a', t('knowledge'));
+    a.href = 'ScoutroKnowledge_p.html?' + params; a.title = t('knowledge_title');
+    return a;
+  }
   function date(value) {
     if (!value) return null;
     try { return new Date(value).toLocaleString(language, { dateStyle: 'medium', timeStyle: 'short' }); } catch (_) { return value; }
@@ -147,6 +154,9 @@
     var seo = node('a', t('seo'), 'btn btn-primary btn-sm');
     seo.href = seoLink(item.host, item.collection);
     actions.appendChild(seo);
+    var knowledge = knowledgeLink({ view: 'objects', host: item.host }, item.collection);
+    knowledge.className = 'btn btn-default btn-sm';
+    actions.appendChild(knowledge);
     li.appendChild(actions);
     return li;
   }
@@ -223,6 +233,10 @@
         var row = table.tBodies[0].insertRow();
         var urlCell = cell(row, doc.url, 0, table);
         if (/^https?:\/\//i.test(doc.url)) urlCell.replaceChildren(external(doc.url));
+        if (doc.id) {
+          urlCell.appendChild(document.createTextNode(' · '));
+          urlCell.appendChild(knowledgeLink({ view: 'source', doc: doc.id }, collection.value.trim()));
+        }
         var hostCell = cell(row, doc.host, 1, table);
         if (doc.host) {
           var link = node('a', doc.host); link.href = seoLink(doc.host, collection.value.trim() || doc.collections[0]);

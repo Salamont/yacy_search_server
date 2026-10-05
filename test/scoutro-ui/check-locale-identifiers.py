@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PAGES = sys.argv[1:] or ["index.html", "yacysearch.html", "yacychat.html", "LLMSelection_p.html", "ScoutroSEO_p.html", "ScoutroCrawls_p.html", "ScoutroDiscovery_p.html", "scoutro-dashboard.html", "IndexBrowser_p.html", "WatchWebStructure_p.html", "Collage.html", "ScoutroAgents_p.html", "ScoutroAgentWizard_p.html", "ToolsConfig_p.html", "AIShield_p.html", "env/templates/header.template", "env/templates/submenuAI.template"]
+PAGES = sys.argv[1:] or ["index.html", "yacysearch.html", "yacychat.html", "LLMSelection_p.html", "ScoutroSEO_p.html", "ScoutroKnowledge_p.html", "ScoutroCrawls_p.html", "ScoutroDiscovery_p.html", "scoutro-dashboard.html", "IndexBrowser_p.html", "WatchWebStructure_p.html", "Collage.html", "ScoutroAgents_p.html", "ScoutroAgentWizard_p.html", "ToolsConfig_p.html", "AIShield_p.html", "env/templates/header.template", "env/templates/submenuAI.template"]
 ATTR = re.compile(r'\b(?:class|id|name|for)\s*=\s*"([^"#]*)"')
 
 
