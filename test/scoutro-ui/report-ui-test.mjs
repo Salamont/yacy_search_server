@@ -79,12 +79,12 @@ try {
   await page.waitForFunction(() => document.querySelector('#sseo-r-message').textContent.includes('503'));
   check((await page.locator('#sseo-r-message').textContent()).includes(l.unavailable), 'Unavailable report localized' + where);
   await page.unroute('**/scoutro/api/v1/reports/collections/visible?*');
-  // Host analysis: crawl status tab and keyboard navigation over five tabs.
+  // Host analysis: crawl status tab and keyboard navigation over six tabs (crawl status is the last).
   await page.goto(base + '/ScoutroSEO_p.html?host=a.example&collection=visible', { waitUntil: 'networkidle' });
   await page.waitForSelector('#sseo-analysis:not([hidden])');
   check(await page.locator('#sseo-host-view').isVisible() && await page.locator('#sseo-report-view').isHidden(), 'Host view by default' + where);
   await page.locator('#sseo-tab-overview').focus(); await page.keyboard.press('End');
-  check(await page.locator('#sseo-tab-crawl-status').getAttribute('aria-selected') === 'true', 'End selects the last of five tabs' + where);
+  check(await page.locator('#sseo-tab-crawl-status').getAttribute('aria-selected') === 'true', 'End selects the last of six tabs' + where);
   await page.waitForSelector('#sseo-cs-body dl');
   check((await page.locator('#sseo-cs-body').textContent()).includes(l.partial), 'Crawl status of host and collection' + where);
   const crawlTab = await page.locator('#sseo-cs-body').textContent();
@@ -94,7 +94,7 @@ try {
   check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal page overflow in the crawl tab' + where);
   if (shots) await page.screenshot({ path: `${shots}/report-host-${language}-${width}.png`, fullPage: true });
   await page.keyboard.press('ArrowRight');
-  check(await page.locator('#sseo-tab-overview').getAttribute('aria-selected') === 'true', 'Arrow keys wrap over five tabs' + where);
+  check(await page.locator('#sseo-tab-overview').getAttribute('aria-selected') === 'true', 'Arrow keys wrap over six tabs' + where);
   await page.locator('#sseo-tab-crawl-status').click(); await page.locator('#sseo-cs-collection').fill('secret'); await page.locator('#sseo-cs-show').click();
   await page.waitForFunction(absent => document.querySelector('#sseo-cs-body').textContent.includes(absent), l.absent);
   check(await page.locator('#sseo-cs-again').getAttribute('href') === 'ScoutroCrawls_p.html?url=https%3A%2F%2Fa.example%2F&collection=secret#new-crawl', 'Absent row is an empty state with a crawl link' + where);

@@ -394,6 +394,71 @@ KG_NOTE = "Knowledge graph status: store, storage budget, JSON-LD capture, the s
 paths["/v1/kg/status"] = {"get": op("kg.status", "Knowledge graph status", KG_NOTE, ["knowledge"], {**ok("Status of the knowledge graph.", "KgStatus"), **errs("401", "404", "405")})}
 paths["/v1/kg/control"] = {"post": op("kg.control", "Control the knowledge graph", "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.", ["knowledge"], {**ok("Status after the change.", "KgStatus"), **errs("400", "401", "403", "404", "405", "409", "413", "415", "503")}, body="KgControl", mutating=True)}
 
+# knowledge graph read routes (package 3): shared by /v1/kg/... (administrator) and later /agent/v1/kg/... (kg.read)
+KG_DT = {"type": ["string", "null"], "format": "date-time"}
+KG_QUALITY = {"type": "string", "enum": ["supported", "uncertain", "conflicting", "stale"]}
+KG_AS_OF = {"type": "object", "description": "Dataset epoch and the latest change sequence when the answer was read.", "properties": {"epoch": {"type": "string"}, "seq": {"type": "integer"}}}
+KG_LAG = {"type": "object", "description": "How far the graph lags behind Solr (absent without the sync).", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}}}
+schemas["KgEntity"] = {"type": "object", "description": "An entity as one viewer sees it: name, aliases, identifiers, quality, dates, counts and hosts are computed only over evidence from the viewer's collections.", "required": ["id", "type", "quality"], "properties": {
+    "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"},
+    "type": {"type": "string", "enum": ["organization", "facility", "site", "place", "service"]},
+    "kind": {"type": ["string", "null"], "description": "Facility kind (lower-case schema.org type or a collection vocabulary term); different kinds never merge."},
+    "name": {"type": ["string", "null"]}, "aliases": {"type": "array", "items": {"type": "string"}},
+    "identifiers": {"type": "array", "items": {"type": "object", "properties": {"scheme": {"type": "string"}, "value": {"type": "string"}, "quality": KG_QUALITY}}},
+    "quality": KG_QUALITY, "first_seen": KG_DT, "last_confirmed": KG_DT,
+    "counts": {"type": "object", "properties": {"statements": {"type": "integer"}, "sources": {"type": "integer"}, "truncated": {"type": "boolean", "description": "More than 2000 statements: the counts cover the first 2000."}}},
+    "hosts": {"type": "array", "items": {"type": "string"}, "description": "Hosts of the viewer's documents with evidence (at most 20; detail only)."},
+    "possible_duplicates": {"type": "array", "items": {"type": "string"}, "description": "Visible entities of the same type with the same name (at most 5); never merged automatically."},
+    "as_of": KG_AS_OF, "lag": KG_LAG, "redirect": {"type": "string", "description": "Instead of the entity: the visible survivor of a merge."}}}
+schemas["KgStatement"] = {"type": "object", "required": ["id", "subject", "predicate", "object", "quality"], "properties": {
+    "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "id": {"type": ["string", "null"], "pattern": "^kgs_[a-z2-7]{20}$"},
+    "subject": {"type": "string"}, "subject_name": {"type": ["string", "null"]}, "predicate": {"type": "string"},
+    "object": {"type": "object", "description": "A relation ({entity, name}) or a literal ({value, datatype}).", "properties": {"entity": {"type": "string"}, "name": {"type": ["string", "null"]}, "value": {"type": "string"}, "datatype": {"type": "string", "enum": ["string", "phone", "email", "url", "address", "geo"]}}},
+    "quality": KG_QUALITY, "certainty": {"type": "string", "enum": ["stated", "hedged"]},
+    "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}, "description": "Kinds of the visible evidence; [\"llm\"] alone marks a fact only the LLM tier read (then uncertain)."},
+    "first_seen": KG_DT, "last_confirmed": KG_DT, "sources": {"type": "integer", "description": "Current visible source documents."},
+    "evidence": {"type": "object", "description": "In a source view: the evidence of this page."}, "as_of": KG_AS_OF, "lag": KG_LAG, "redirect": {"type": "string"}}}
+schemas["KgEvidence"] = {"type": "object", "properties": {"doc_id": {"type": "string"}, "url": {"type": ["string", "null"]}, "host": {"type": ["string", "null"]},
+    "collections": {"type": "array", "items": {"type": "string"}, "description": "Only the viewer's collections."},
+    "state": {"type": "string", "enum": ["active", "unavailable", "gone", "expired"]}, "loaded_at": KG_DT, "observed_at": KG_DT,
+    "kind": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}, "tier": {"type": "integer", "minimum": 1, "maximum": 3},
+    "certainty": {"type": "string", "enum": ["stated", "hedged"]}, "extractor": {"type": "string", "examples": ["llm/1 (OLLAMA/qwen3, prompt 3f2a9c1b)"]},
+    "locator": {"type": ["string", "null"], "examples": ["jsonld:0/telephone", "text:1234+56"]}, "excerpt": {"type": ["string", "null"]}}}
+def kg_page(items, extra=None):
+    props = {"schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "offset": {"type": "integer"}, "limit": {"type": "integer"},
+             "total": {"type": "integer", "description": "Counted over the viewer's collections only."}, "items": {"type": "array", "items": ref(items)}, "as_of": KG_AS_OF, "lag": KG_LAG}
+    props.update(extra or {})
+    return {"type": "object", "required": ["schema", "offset", "limit", "total", "items"], "properties": props}
+schemas["KgEntityPage"] = kg_page("KgEntity", {"host": {"type": "string"}})
+schemas["KgStatementPage"] = kg_page("KgStatement", {"entity": {"type": "string"}, "direction": {"type": "string", "enum": ["out", "in"]}, "redirect": {"type": "string"}})
+schemas["KgEvidencePage"] = kg_page("KgEvidence", {"statement": {"type": "string"}})
+schemas["KgSourcePage"] = kg_page("KgStatement", {"source": {"type": "object", "properties": {"doc_id": {"type": "string"}, "url": {"type": ["string", "null"]}, "host": {"type": ["string", "null"]},
+    "collections": {"type": "array", "items": {"type": "string"}}, "state": {"type": "string"}, "current": {"type": "boolean"}, "loaded_at": KG_DT, "processed_at": KG_DT,
+    "tiers": {"type": "array", "items": {"type": "integer"}}, "jsonld_bytes": {"type": "integer"}, "jsonld_skipped": {"type": "boolean"},
+    "llm": {"type": ["object", "null"], "properties": {"status": {"type": "string", "enum": ["done", "failed", "skipped"]}, "reason": {"type": ["string", "null"]}}}}}})
+KG_COLLECTION = q("collection", {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.")
+KG_OFFSET = q("offset", {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}, "First item.")
+def KG_LIMIT(default, maximum): return q("limit", {"type": "integer", "minimum": 1, "maximum": maximum, "default": default}, "Items per page.")
+KG_EID = {"name": "id", "in": "path", "required": True, "description": "Entity ID.", "schema": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}}
+KG_SID = {"name": "id", "in": "path", "required": True, "description": "Statement ID.", "schema": {"type": "string", "pattern": "^kgs_[a-z2-7]{20}$"}}
+KG_READ_NOTE = " Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400."
+KG_ERRS = errs("400", "401", "404", "405", "409", "503")
+paths["/v1/kg/entities"] = {"get": op("kg.entities", "List knowledge graph entities", "Newest first. q searches visible names and aliases (all words, the last as a prefix)." + KG_READ_NOTE, ["knowledge"], {**ok("Entities.", "KgEntityPage"), **KG_ERRS}, params=[
+    q("q", {"type": "string", "maxLength": 200}, "Name words."), q("type", {"type": "string", "enum": ["organization", "facility", "site", "place", "service"]}, "Entity type."),
+    q("host", {"type": "string", "maxLength": 2048}, "Host or URL: entities with visible evidence from this host (http and https)."),
+    q("quality", {"type": "string", "enum": ["supported", "uncertain", "stale"]}, "supported: a visible supported fact; uncertain: current facts, none supported; stale: no current fact."),
+    KG_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
+paths["/v1/kg/entities/{id}"] = {"get": op("kg.entity", "Knowledge graph entity", "One entity, or {\"redirect\": id} when it was merged into a visible survivor." + KG_READ_NOTE, ["knowledge"], {**ok("Entity.", "KgEntity"), **KG_ERRS}, params=[KG_EID, KG_COLLECTION])}
+paths["/v1/kg/entities/{id}/statements"] = {"get": op("kg.entity.statements", "Facts and relations of an entity", "direction=out: the entity's facts and relations; in: relations pointing to it. Stale facts only with include=stale." + KG_READ_NOTE, ["knowledge"], {**ok("Statements.", "KgStatementPage"), **KG_ERRS}, params=[KG_EID,
+    q("predicate", {"type": "string"}, "One vocabulary predicate (name, alias, phone, operates, ...)."), q("direction", {"type": "string", "enum": ["out", "in"], "default": "out"}, "Outgoing or incoming."),
+    q("include", {"type": "string", "enum": ["stale"]}, "Also facts without a current source."), KG_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
+paths["/v1/kg/statements/{id}"] = {"get": op("kg.statement", "Knowledge graph statement", "One statement as the viewer sees it." + KG_READ_NOTE, ["knowledge"], {**ok("Statement.", "KgStatement"), **KG_ERRS}, params=[KG_SID, KG_COLLECTION])}
+paths["/v1/kg/statements/{id}/evidence"] = {"get": op("kg.statement.evidence", "Evidence of a statement", "The visible sources of one statement, newest first: page, collections, state, extractor, locator and excerpt." + KG_READ_NOTE, ["knowledge"], {**ok("Evidence.", "KgEvidencePage"), **KG_ERRS}, params=[KG_SID, KG_OFFSET, KG_LIMIT(10, 50), KG_COLLECTION])}
+paths["/v1/kg/hosts/{host}/entities"] = {"get": op("kg.host.entities", "Knowledge graph entities of a host", "Entities with visible evidence from documents of the host (for the SEO analysis and the Index Browser)." + KG_READ_NOTE, ["knowledge"], {**ok("Entities.", "KgEntityPage"), **KG_ERRS}, params=[
+    {"name": "host", "in": "path", "required": True, "description": "Host name.", "schema": {"type": "string", "maxLength": 253}}, KG_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
+paths["/v1/kg/sources/{docId}"] = {"get": op("kg.source", "What the graph holds from one page", "The source document (Solr id) and every visible fact it supports, with this page's evidence." + KG_READ_NOTE, ["knowledge"], {**ok("Source.", "KgSourcePage"), **KG_ERRS}, params=[
+    {"name": "docId", "in": "path", "required": True, "description": "Solr document id.", "schema": {"type": "string", "pattern": "^[A-Za-z0-9_-]{12}$"}}, KG_OFFSET, KG_LIMIT(50, 100), KG_COLLECTION])}
+
 # ---------------------------------------------------------------------------
 # agent path /agent/v1 (Bearer agent token; mirrors AgentActionRegistry.java)
 # ---------------------------------------------------------------------------
@@ -815,6 +880,8 @@ cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "sea
 mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
+mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entity', 'kg.entity.statements': 'scoutro_kg_entity_statements', 'kg.statement': 'scoutro_kg_statement', 'kg.statement.evidence': 'scoutro_kg_statement_evidence', 'kg.host.entities': 'scoutro_kg_host_entities', 'kg.source': 'scoutro_kg_source'})
+cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
 cli.update({'kg.status': 'HTTP GET /scoutro/api/v1/kg/status', 'kg.control': 'HTTP POST /scoutro/api/v1/kg/control {"action":"pause"|"resume"|"reconcile"|"confirm_reconcile"|"llm_retry"}'})
 for suffix, operation, _, _ in seo_endpoints + report_endpoints:
     mcp[operation] = "scoutro_" + operation.replace(".", "_")

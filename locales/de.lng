@@ -1328,6 +1328,8 @@ You are using the administration interface of your own search engine. You can cr
 Tutorial==Tutorial
 #File: IndexBrowser_p.html
 #---------------------------
+>What the knowledge graph holds from this domain or page<==>Was der Wissensgraph aus dieser Domain oder Seite enthält<
+>Knowledge<==>Wissen<
 # Scoutro Index Browser: whole sentences only. Single-word keys would also hit inside the sentences
 # below (e.g. "indexed==indexiert" made "indexiert pages") and are therefore kept as >key< entries.
 <html lang="en">==<html lang="de">
@@ -3589,6 +3591,7 @@ YaCy Identifier==YaCy-Identifizierer
 #-----------------------------
 
 #File: env/templates/header.template
+>Knowledge graph<==>Wissensgraph<
 AI Lab overview==KI-Labor-Übersicht
 Chat tools==Chat-Werkzeuge
 >SEO / Host Analysis<==>SEO / Host-Analyse<
@@ -4990,6 +4993,14 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 #-----------------------------
 
 #File: scoutro-dashboard.html
+>Knowledge graph<==>Wissensgraph<
+>Pending changes<==>Ausstehende Änderungen<
+>Growth paused<==>Wachstum pausiert<
+>Storage used<==>Speicher belegt<
+>Unavailable<==>Nicht verfügbar<
+>Running<==>Läuft<
+>Stopped<==>Gestoppt<
+>State<==>Zustand<
 # Scoutro read-only overview. Preserve technical identifiers.
 >Some index statistics are temporarily unavailable. Other sections and detail links remain available.<==>Einige Indexstatistiken sind vorübergehend nicht verfügbar. Andere Bereiche und Detaillinks bleiben verfügbar.<
 >Index statistics refresh within 30 seconds. Hosts are counted separately from pages.<==>Indexstatistiken werden innerhalb von 30 Sekunden aktualisiert. Hosts werden getrennt von Seiten gezählt.<
@@ -5133,6 +5144,23 @@ Idle==Inaktiv
 >An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>Ein erfolgloses Crawl-Ergebnis bedeutet, dass keine Seite indexiert oder beim Crawl nichts neu geladen wurde. Solche Hosts werden mit dem Backoff anderer Wiederholungen erneut versucht, der sich bis zum Recrawl-Intervall verdoppelt. Setzt Wiederholen voraus.<
 
 #File: ScoutroSEO_p.html
+Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.==Organisationen, Einrichtungen, Standorte und Leistungen, die der Wissensgraph auf diesem Host gefunden hat, nur aus den Dokumenten der gewählten Collection berechnet. Qualität und Quellen stehen je Objekt; Fakten, die nur die LLM-Stufe gelesen hat, sind unsicher.
+>The host has more objects; open the knowledge graph for all of them.<==>Der Host hat weitere Objekte; der Wissensgraph zeigt alle.<
+>The knowledge graph holds no object of this host.<==>Der Wissensgraph enthält kein Objekt dieses Hosts.<
+>The knowledge graph is disabled.<==>Der Wissensgraph ist deaktiviert.<
+>Open in the knowledge graph<==>Im Wissensgraphen öffnen<
+>Last confirmed<==>Zuletzt bestätigt<
+>conflicting<==>widersprüchlich<
+>Knowledge<==>Wissen<
+>supported<==>belegt<
+>uncertain<==>unsicher<
+>Facility<==>Einrichtung<
+>Service<==>Leistung<
+>Sources<==>Quellen<
+>Quality<==>Qualität<
+>stale<==>veraltet<
+>Place<==>Ort<
+>Site<==>Standort<
 >Select a collection before starting a crawl. Indexing may continue after the crawl profile terminates.<==>Eine Collection vor dem Crawl-Start wählen. Die Indexierung kann nach Ende des Crawl-Profils weiterlaufen.<
 <html lang="en">==<html lang="de">
 >Overview<==>Übersicht<
@@ -5452,4 +5480,136 @@ Administration and technical details:==Administration und technische Details:
 #File: env/templates/scoutro/tagline.template
 #---------------------------
 Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
+#-----------------------------
+
+#File: ScoutroKnowledge_p.html
+#---------------------------
+Every number, name and source on this page is computed only from the documents of the selected collection. Without a collection, all followed collections are shown.==Jede Zahl, jeder Name und jede Quelle auf dieser Seite wird nur aus den Dokumenten der gewählten Collection berechnet. Ohne Collection werden alle verfolgten Collections gezeigt.
+Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in==Optional. Aussagen, die nur die LLM-Stufe belegt, werden als unsicher gezeigt; jede trägt ein Zitat aus der Seite. Das Modell wird gewählt in
+State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.==Zustand, Speicher, Warteschlangen und Ereignisse beschreiben den ganzen Graphen; die Zahl der Objekte folgt der gewählten Collection.
+Pausing stops new growth only; deletions and state changes continue. Nothing here changes the Solr index.==Eine Pause stoppt nur neues Wachstum; Löschungen und Zustandsänderungen laufen weiter. Nichts hier ändert den Solr-Index.
+) and take effect at the next start. Invalid values are listed here and keep the graph off.==) und wirken ab dem nächsten Start. Ungültige Werte werden hier aufgeführt und halten den Graphen aus.
+>Delete the documents this reconcile confirmed as absent from Solr?<==>Die Dokumente löschen, die dieser Abgleich als in Solr fehlend bestätigt hat?<
+>The knowledge graph is disabled (scoutro.kg.enabled=false).<==>Der Wissensgraph ist deaktiviert (scoutro.kg.enabled=false).<
+>Invalid collection name (letters, digits, - and _).<==>Ungültiger Collection-Name (Buchstaben, Ziffern, - und _).<
+Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen in der Scoutro-Konfiguration (Schlüssel
+>The knowledge graph could not be read<==>Der Wissensgraph konnte nicht gelesen werden<
+>Not found in the visible collections.<==>In den sichtbaren Collections nicht gefunden.<
+>What the graph holds from this page<==>Was der Graph aus dieser Seite enthält<
+>The knowledge graph is not running<==>Der Wissensgraph läuft nicht<
+>Facility kinds for the LLM tier<==>Einrichtungsarten für die LLM-Stufe<
+>Retry failed LLM documents<==>Fehlgeschlagene LLM-Dokumente erneut versuchen<
+>Waiting for confirmation<==>Wartet auf Bestätigung<
+>only from the LLM tier<==>nur aus der LLM-Stufe<
+>Dropped as not quoted<==>Verworfen, weil nicht zitiert<
+>Objects in this view<==>Objekte in dieser Ansicht<
+>Followed collections<==>Verfolgte Collections<
+>Facts and relations<==>Fakten und Beziehungen<
+>Published documents<==>Veröffentlichte Dokumente<
+>Advanced Properties<==>Erweiterte Einstellungen<
+>Possible duplicates<==>Mögliche Dubletten<
+>Confirm deletions<==>Löschungen bestätigen<
+>No objects match.<==>Keine passenden Objekte.<
+>Apply collection<==>Collection anwenden<
+(usage knowledge).==(Verwendung knowledge).
+>Pending changes<==>Ausstehende Änderungen<
+>LLM collections<==>LLM-Collections<
+>Circuit breaker<==>Schutzschalter<
+>Knowledge graph<==>Wissensgraph<
+<html lang="en">==<html lang="de">
+>Growth allowed<==>Wachstum erlaubt<
+>Last confirmed<==>Zuletzt bestätigt<
+>Settings valid<==>Einstellungen gültig<
+>register entry<==>Registereintrag<
+, for example in==, zum Beispiel in
+>Reconcile now<==>Jetzt abgleichen<
+>Recent events<==>Letzte Ereignisse<
+>Referenced by<==>Verwiesen von<
+>Pause reasons<==>Pausengründe<
+>Show evidence<==>Belege zeigen<
+>Hide evidence<==>Belege ausblenden<
+>LLM Selection<==>LLM-Auswahl<
+>is located at<==>befindet sich in<
+>opening hours<==>Öffnungszeiten<
+>Pause growth<==>Wachstum pausieren<
+>Identifiers<==>Kennungen<
+>Other names<==>Weitere Namen<
+>Any quality<==>Jede Qualität<
+>conflicting<==>widersprüchlich<
+>%1–%2 of %3<==>%1–%2 von %3<
+>postal code<==>Postleitzahl<
+>coordinates<==>Koordinaten<
+>Statements<==>Aussagen<
+>First seen<==>Zuerst gesehen<
+>Page state<==>Seitenzustand<
+>other name<==>weiterer Name<
+>legal form<==>Rechtsform<
+>is part of<==>gehört zu<
+>All types<==>Alle Typen<
+>Extractor<==>Extraktor<
+>Loading …<==>Lädt …<
+>Uncertain<==>Unsicher<
+>Supported<==>Belegt<
+>Reconcile<==>Abgleich<
+>supported<==>belegt<
+>uncertain<==>unsicher<
+>IK number<==>IK-Nummer<
+>Controls<==>Steuerung<
+>Settings<==>Einstellungen<
+>Overview<==>Übersicht<
+>Observed<==>Beobachtet<
+>LLM tier<==>LLM-Stufe<
+>Previous<==>Zurück<
+>Facility<==>Einrichtung<
+>operates<==>betreibt<
+>locality<==>Ort<
+>Objects<==>Objekte<
+>Storage<==>Speicher<
+>Sources<==>Quellen<
+>Service<==>Leistung<
+>Quality<==>Qualität<
+>Excerpt<==>Auszug<
+>Enabled<==>Aktiviert<
+>Skipped<==>Übersprungen<
+>address<==>Adresse<
+>website<==>Website<
+>Resume<==>Fortsetzen<
+>Search<==>Suchen<
+>Source<==>Quelle<
+>Reason<==>Grund<
+>Loaded<==>Geladen<
+>Failed<==>Fehlgeschlagen<
+>hedged<==>unter Vorbehalt<
+>closed<==>geschlossen<
+>VAT ID<==>USt-IdNr.<
+>offers<==>bietet an<
+>e-mail<==>E-Mail<
+>Model<==>Modell<
+>Queue<==>Warteschlange<
+>Calls<==>Aufrufe<
+>Event<==>Ereignis<
+>Stale<==>Veraltet<
+>State<==>Zustand<
+>Tiers<==>Stufen<
+>Place<==>Ort<
+>Done.<==>Erledigt.<
+>stale<==>veraltet<
+>is in<==>liegt in<
+>phone<==>Telefon<
+>Site<==>Standort<
+>Type<==>Typ<
+>Kind<==>Art<
+>Used<==>Belegt<
+>Time<==>Zeit<
+>Done<==>Erledigt<
+>Next<==>Weiter<
+>More<==>Mehr<
+>Page<==>Seite<
+>open<==>offen<
+>none<==>keine<
+>name<==>Name<
+>Key<==>Schlüssel<
+>yes<==>ja<
+>all<==>alle<
+>no<==>nein<
 #-----------------------------

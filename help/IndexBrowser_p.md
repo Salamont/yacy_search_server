@@ -4,4 +4,6 @@ Read-only URL browsing through `GET /scoutro/api/v1/index/browse`; administrator
 
 `IndexBrowser_p.html?collection=edelsenior-web&q=host.example` initializes both filters; Dashboard collection links use this parameter. Active filters remain visible and can be changed, removed or reset. Unknown valid collection names return an empty result; malformed names show an error without falling back to the whole index. Results include URL, host, visible collection memberships and HTTP status; pagination is bounded to 100 rows and offset 10000. Mobile uses the same rows as labelled cards.
 
+Each domain card links to **Knowledge** (`ScoutroKnowledge_p.html?view=objects&host=…&collection=…`, the objects the knowledge graph found on the domain) and each URL row to the page's source view (`?view=source&doc=<id>`, what the graph holds from that page). Both views compute everything only from documents of the chosen collection; while the graph is disabled they say so.
+
 Machine clients use `scoutroctl index browse [QUERY] --collection NAME`, or the Bearer agent path `/scoutro/api/agent/v1/index/browse` with the explicit `index.browse` grant. Collection scope always applies, including membership labels. Existing presets are unchanged. Index maintenance remains on the index administration pages; filtered browsing rejects legacy global mutation parameters.

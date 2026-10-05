@@ -68,6 +68,7 @@ collection; `—` means unavailable. Crawler/system sections remain independent.
 | Index Size, Index Administration | `IndexControlURLs_p.html` |
 | JVM Memory, JVM Heap, RAM / Disk / Updates | `Performance_p.html` |
 | System, versions/build/uptime, System Status | `Status.html?noforward=` |
+| Knowledge graph (state, storage used, pending changes) | `ScoutroKnowledge_p.html` |
 | Start Crawl | `ScoutroCrawls_p.html#new-crawl` |
 | Blacklists | `Blacklist_p.html` |
 | System Administration | `Settings_p.html` |
@@ -93,6 +94,10 @@ and `test/scoutro-ui/dashboard-ui-test.mjs` with `SCOUTRO_URL`,
 ## Discovery overview
 
 The compact Discovery Automation card links to `ScoutroDiscovery_p.html`. A read-only request to the administrator Discovery status API displays disabled/paused/enabled and job count. This neither enables the heartbeat nor creates candidate state. If status is unavailable, the existing dashboard metrics remain usable. See [Discovery Automation](ScoutroDiscovery_p.md).
+
+## Knowledge graph
+
+The Knowledge graph card reads `GET /scoutro/api/v1/kg/status` every 15 seconds: state (disabled, running, unavailable, stopped), the share of the storage budget in use, pending changes of the synchronisation (and of the LLM tier, if any) and, while growth is paused, the pause reasons. It only reads; it links to `ScoutroKnowledge_p.html`.
 
 ## Native crawls and Discovery status
 

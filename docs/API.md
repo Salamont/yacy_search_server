@@ -549,17 +549,24 @@ null` with `referring_hosts_scope: complete_index_required`. The optional fields
 
 ## Knowledge graph
 
-Packages 1, 2a and 2b of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
+Packages 1 to 3 of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
 the embedded store with its storage budget, the synchronisation with the
 embedded Solr core (change capture, persistent queue, real-time get, reconcile
 and backfill, document states, structured and rule-based extraction, identity
-resolution, change feed, retention, bounded JSON-LD capture) and the optional
-LLM tier. Nothing is ever written to Solr.
+resolution, change feed, retention, bounded JSON-LD capture), the optional
+LLM tier, and the read routes with the page `ScoutroKnowledge_p.html`.
+Nothing is ever written to Solr.
 
 | Route | Access | Purpose |
 |---|---|---|
 | `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable |
 | `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"` or `"llm_retry"` |
+| `GET /scoutro/api/v1/kg/entities?q&type&host&quality&offset&limit&collection` | administrator (Digest) | Entities, newest first (`scoutro.kg.v1`) |
+| `GET /scoutro/api/v1/kg/entities/{id}` | administrator | One entity, or `{"redirect": id}` after a merge |
+| `GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out\|in&predicate&include=stale&offset&limit&collection` | administrator | Facts and relations |
+| `GET /scoutro/api/v1/kg/statements/{id}` and `.../evidence?offset&limit&collection` | administrator | One statement and its evidence (≤ 50 per page) |
+| `GET /scoutro/api/v1/kg/hosts/{host}/entities?offset&limit&collection` | administrator | Entities of a host (SEO tab, Index Browser) |
+| `GET /scoutro/api/v1/kg/sources/{docId}?offset&limit&collection` | administrator | What the graph holds from one page |
 
 - **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
   is created on disk, no thread runs and the SQLite native library is not
@@ -705,6 +712,27 @@ LLM tier. Nothing is ever written to Solr.
     its attempts is `failed` until its content changes or `llm_retry`.
   - Facility kinds the model may assign come from a small start vocabulary
     per collection, replaced by `scoutro.kg.llm.kinds.<collection>`.
+- **Reads (package 3):**
+  - Visibility is computed from evidence: a piece of evidence is visible if its
+    document is in one of the viewer's collections (`collection`, or all
+    followed collections without it), a statement if it has visible
+    evidence, an entity if it has a visible statement.
+  - Names, aliases, identifiers, quality, `first_seen`, `last_confirmed`,
+    counts, hosts and the collections of a source are computed only over
+    visible evidence. An object without visible evidence is `404 not_found`,
+    exactly like an unknown one; a name search never matches a name that only
+    another collection carries. Unknown valid collection names see nothing.
+  - Quality per viewer: `supported` (current, stated evidence of tiers 1 or 2
+    from an active page), `uncertain` (only hedged, only unavailable pages or
+    only the LLM tier), `conflicting` (a single-valued fact with several
+    supported values), `stale` (no current source; statements only with
+    `include=stale`). `kinds` lists the kinds of the visible evidence;
+    `["llm"]` marks a fact only the LLM tier read.
+  - Lists: `{"schema":"scoutro.kg.v1","offset","limit","total","items","as_of":{"epoch","seq"},"lag"}`;
+    `limit` 1–100 (evidence 1–50), `offset` ≤ 10 000; unknown parameters
+    return 400 `invalid_request` with `details.field`.
+  - Reads stay available while growth is paused; 409 `kg_disabled` while the
+    graph is disabled, 503 `kg_unavailable` when it cannot run.
 - **Control:**
   - `pause` takes effect at once and survives a restart.
   - `resume` ends a manual pause and schedules a reconcile. After a storage

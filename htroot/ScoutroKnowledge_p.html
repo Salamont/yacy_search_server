@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><title>Knowledge graph</title>
+#%env/templates/metas.template%#
+<link rel="stylesheet" href="env/scoutro/seo.css" />
+<link rel="stylesheet" href="env/scoutro/knowledge.css" /></head>
+<body id="ScoutroKnowledge">
+#%env/templates/header.template%#
+<main class="sseo-main skg-main">
+<h1>Knowledge graph</h1>
+<nav class="sseo-views" aria-label="Views">
+<a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
+</nav>
+<form id="skg-scope" class="sseo-search skg-scope">
+<label for="skg-collection">Collection (optional)<input class="form-control" id="skg-collection" type="text" maxlength="64" list="skg-collection-list" autocomplete="off" /></label>
+<button class="btn btn-default" type="submit">Apply collection</button>
+</form>
+<datalist id="skg-collection-list"></datalist>
+<p class="sseo-note" id="skg-scope-note">Every number, name and source on this page is computed only from the documents of the selected collection. Without a collection, all followed collections are shown.</p>
+<p id="skg-message" role="status" aria-live="polite"></p>
+
+<section id="skg-overview" hidden aria-labelledby="skg-overview-title">
+<h2 id="skg-overview-title">Status</h2>
+<p class="sseo-note">State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</p>
+<div class="sseo-cards" id="skg-cards"></div>
+<section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl></section>
+<section class="sseo-panel" aria-labelledby="skg-sync-title"><h3 id="skg-sync-title">Synchronisation</h3><dl id="skg-sync" class="sseo-stats"></dl></section>
+<section class="sseo-panel" aria-labelledby="skg-llm-title"><h3 id="skg-llm-title">LLM tier</h3><dl id="skg-llm" class="sseo-stats"></dl><p class="sseo-note">Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in <a href="LLMSelection_p.html">LLM Selection</a> (usage knowledge).</p></section>
+<section class="sseo-panel" aria-labelledby="skg-controls-title"><h3 id="skg-controls-title">Controls</h3>
+<div class="sseo-controls" id="skg-controls">
+<button class="btn btn-default" type="button" data-skg-action="pause">Pause growth</button>
+<button class="btn btn-default" type="button" data-skg-action="resume">Resume</button>
+<button class="btn btn-default" type="button" data-skg-action="reconcile">Reconcile now</button>
+<button class="btn btn-default" type="button" data-skg-action="confirm_reconcile" hidden>Confirm deletions</button>
+<button class="btn btn-default" type="button" data-skg-action="llm_retry">Retry failed LLM documents</button>
+</div>
+<p class="sseo-note">Pausing stops new growth only; deletions and state changes continue. Nothing here changes the Solr index.</p></section>
+<section class="sseo-panel" aria-labelledby="skg-events-title"><h3 id="skg-events-title">Recent events</h3><div class="sseo-scroll" id="skg-events"></div></section>
+</section>
+
+<section id="skg-objects" hidden aria-labelledby="skg-objects-title">
+<h2 id="skg-objects-title">Objects</h2>
+<form id="skg-search" class="sseo-search">
+<label for="skg-q">Name<input class="form-control" id="skg-q" type="search" maxlength="200" autocomplete="off" /></label>
+<label for="skg-type">Type<select class="form-control" id="skg-type"><option value="">All types</option><option value="organization">Organisation</option><option value="facility">Facility</option><option value="site">Site</option><option value="place">Place</option><option value="service">Service</option></select></label>
+<label for="skg-quality">Quality<select class="form-control" id="skg-quality"><option value="">Any quality</option><option value="supported">Supported</option><option value="uncertain">Uncertain</option><option value="stale">Stale</option></select></label>
+<label for="skg-host">Host<input class="form-control" id="skg-host" type="text" maxlength="2048" autocomplete="off" /></label>
+<button class="btn btn-primary" type="submit">Search</button>
+</form>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-entities"><thead><tr><th>Name</th><th>Type</th><th>Quality</th><th>Sources</th><th>Last confirmed</th></tr></thead><tbody></tbody></table></div>
+<div class="sseo-controls"><button class="btn btn-default" id="skg-prev" type="button">Previous</button><span id="skg-range" role="status"></span><button class="btn btn-default" id="skg-next" type="button">Next</button></div>
+</section>
+
+<section id="skg-object" hidden aria-labelledby="skg-object-name">
+<h2 id="skg-object-name" tabindex="-1"></h2>
+<dl id="skg-object-facts" class="sseo-stats"></dl>
+<section class="sseo-panel" aria-labelledby="skg-out-title"><h3 id="skg-out-title">Facts and relations</h3><div id="skg-out"></div></section>
+<section class="sseo-panel" aria-labelledby="skg-in-title"><h3 id="skg-in-title">Referenced by</h3><div id="skg-in"></div></section>
+</section>
+
+<section id="skg-source" hidden aria-labelledby="skg-source-title">
+<h2 id="skg-source-title" tabindex="-1">Source</h2>
+<dl id="skg-source-facts" class="sseo-stats"></dl>
+<section class="sseo-panel" aria-labelledby="skg-source-items-title"><h3 id="skg-source-items-title">What the graph holds from this page</h3><div id="skg-source-items"></div></section>
+</section>
+
+<section id="skg-settings" hidden aria-labelledby="skg-settings-title">
+<h2 id="skg-settings-title">Settings</h2>
+<p class="sseo-note">Settings are stored in Scoutro's configuration (keys <code>scoutro.kg.*</code>, for example in <a href="ConfigProperties_p.html">Advanced Properties</a>) and take effect at the next start. Invalid values are listed here and keep the graph off.</p>
+<dl id="skg-config" class="sseo-stats"></dl>
+<div class="sseo-scroll" id="skg-config-errors"></div>
+</section>
+
+<div hidden id="skg-labels">
+<span data-skg-label="loading">Loading …</span>
+<span data-skg-label="error">The knowledge graph could not be read</span>
+<span data-skg-label="not_found">Not found in the visible collections.</span>
+<span data-skg-label="disabled">The knowledge graph is disabled (scoutro.kg.enabled=false).</span>
+<span data-skg-label="unavailable">The knowledge graph is not running</span>
+<span data-skg-label="invalid_collection">Invalid collection name (letters, digits, - and _).</span>
+<span data-skg-label="empty">No objects match.</span>
+<span data-skg-label="none">none</span>
+<span data-skg-label="missing">—</span>
+<span data-skg-label="state">State</span>
+<span data-skg-label="reason">Reason</span>
+<span data-skg-label="used">Used</span>
+<span data-skg-label="budget">Budget</span>
+<span data-skg-label="growth">Growth allowed</span>
+<span data-skg-label="reasons">Pause reasons</span>
+<span data-skg-label="queue">Queue</span>
+<span data-skg-label="lag">Pending changes</span>
+<span data-skg-label="published">Published documents</span>
+<span data-skg-label="reconcile">Reconcile</span>
+<span data-skg-label="awaiting">Waiting for confirmation</span>
+<span data-skg-label="model">Model</span>
+<span data-skg-label="breaker">Circuit breaker</span>
+<span data-skg-label="open">open</span>
+<span data-skg-label="closed">closed</span>
+<span data-skg-label="done">Done</span>
+<span data-skg-label="failed">Failed</span>
+<span data-skg-label="skipped">Skipped</span>
+<span data-skg-label="calls">Calls</span>
+<span data-skg-label="dropped">Dropped as not quoted</span>
+<span data-skg-label="yes">yes</span>
+<span data-skg-label="no">no</span>
+<span data-skg-label="type">Type</span>
+<span data-skg-label="kind">Kind</span>
+<span data-skg-label="quality">Quality</span>
+<span data-skg-label="supported">supported</span>
+<span data-skg-label="uncertain">uncertain</span>
+<span data-skg-label="conflicting">conflicting</span>
+<span data-skg-label="stale">stale</span>
+<span data-skg-label="hedged">hedged</span>
+<span data-skg-label="llm_only">only from the LLM tier</span>
+<span data-skg-label="aliases">Other names</span>
+<span data-skg-label="identifiers">Identifiers</span>
+<span data-skg-label="hosts">Hosts</span>
+<span data-skg-label="duplicates">Possible duplicates</span>
+<span data-skg-label="first_seen">First seen</span>
+<span data-skg-label="last_confirmed">Last confirmed</span>
+<span data-skg-label="sources">Sources</span>
+<span data-skg-label="statements">Statements</span>
+<span data-skg-label="evidence">Show evidence</span>
+<span data-skg-label="hide_evidence">Hide evidence</span>
+<span data-skg-label="page">Page</span>
+<span data-skg-label="index_browser">Index Browser</span>
+<span data-skg-label="source_view">What the graph holds from this page</span>
+<span data-skg-label="collections">Collections</span>
+<span data-skg-label="extractor">Extractor</span>
+<span data-skg-label="excerpt">Excerpt</span>
+<span data-skg-label="observed">Observed</span>
+<span data-skg-label="loaded">Loaded</span>
+<span data-skg-label="doc_state">Page state</span>
+<span data-skg-label="tiers">Tiers</span>
+<span data-skg-label="llm_status">LLM tier</span>
+<span data-skg-label="more">More</span>
+<span data-skg-label="range">%1–%2 of %3</span>
+<span data-skg-label="done_action">Done.</span>
+<span data-skg-label="enabled">Enabled</span>
+<span data-skg-label="followed">Followed collections</span>
+<span data-skg-label="llm_collections">LLM collections</span>
+<span data-skg-label="llm_kinds">Facility kinds for the LLM tier</span>
+<span data-skg-label="valid">Settings valid</span>
+<span data-skg-label="at">Time</span>
+<span data-skg-label="code">Event</span>
+<span data-skg-label="detail">Detail</span>
+<span data-skg-label="key">Key</span>
+<span data-skg-label="problem">Problem</span>
+<span data-skg-label="all">all</span>
+<span data-skg-label="objects_count">Objects in this view</span>
+<span data-skg-label="confirm_question">Delete the documents this reconcile confirmed as absent from Solr?</span>
+<span data-skg-label="organization">Organisation</span>
+<span data-skg-label="facility">Facility</span>
+<span data-skg-label="site">Site</span>
+<span data-skg-label="place">Place</span>
+<span data-skg-label="service">Service</span>
+<span data-skg-label="p_name">name</span>
+<span data-skg-label="p_alias">other name</span>
+<span data-skg-label="p_legal_form">legal form</span>
+<span data-skg-label="p_identifier:register">register entry</span>
+<span data-skg-label="p_identifier:vat">VAT ID</span>
+<span data-skg-label="p_identifier:lei">LEI</span>
+<span data-skg-label="p_identifier:wikidata">Wikidata</span>
+<span data-skg-label="p_identifier:ik">IK number</span>
+<span data-skg-label="p_operates">operates</span>
+<span data-skg-label="p_part_of">is part of</span>
+<span data-skg-label="p_located_at">is located at</span>
+<span data-skg-label="p_in_place">is in</span>
+<span data-skg-label="p_offers">offers</span>
+<span data-skg-label="p_address">address</span>
+<span data-skg-label="p_postal_code">postal code</span>
+<span data-skg-label="p_locality">locality</span>
+<span data-skg-label="p_geo">coordinates</span>
+<span data-skg-label="p_phone">phone</span>
+<span data-skg-label="p_email">e-mail</span>
+<span data-skg-label="p_website">website</span>
+<span data-skg-label="p_opening_hours">opening hours</span>
+</div>
+</main>
+#%env/templates/footer.template%#
+<script src="env/scoutro/knowledge.js"></script>
+</body></html>

@@ -32,6 +32,7 @@
 <button class="btn btn-default" type="button" id="sseo-tab-pages" role="tab" data-sseo-tab="pages" aria-controls="sseo-panel-pages" aria-selected="false" tabindex="-1">Pages</button>
 <button class="btn btn-default" type="button" id="sseo-tab-links" role="tab" data-sseo-tab="links" aria-controls="sseo-panel-links" aria-selected="false" tabindex="-1">Links</button>
 <button class="btn btn-default" type="button" id="sseo-tab-technology" role="tab" data-sseo-tab="technology" aria-controls="sseo-panel-technology" aria-selected="false" tabindex="-1">Technology</button>
+<button class="btn btn-default" type="button" id="sseo-tab-knowledge" role="tab" data-sseo-tab="knowledge" aria-controls="sseo-panel-knowledge" aria-selected="false" tabindex="-1">Knowledge</button>
 <button class="btn btn-default" type="button" id="sseo-tab-crawl-status" role="tab" data-sseo-tab="crawl-status" aria-controls="sseo-panel-crawl-status" aria-selected="false" tabindex="-1">Crawl status</button>
 </div>
 <section class="sseo-panel" id="sseo-panel-overview" role="tabpanel" aria-labelledby="sseo-tab-overview" tabindex="0" >
@@ -42,6 +43,10 @@
 <dl id="sseo-references" class="sseo-stats"></dl><p class="sseo-note">Incoming reference sums cover finalized target URLs only. External source hosts are unique per URL and are never added up as a host-wide domain count.</p><h3>Most externally referenced pages</h3><div class="sseo-scroll" id="sseo-top-external"></div><h3>Most internally referenced pages</h3><div class="sseo-scroll" id="sseo-top-internal"></div></section>
 <section class="sseo-panel" id="sseo-panel-technology" role="tabpanel" aria-labelledby="sseo-tab-technology" tabindex="0" hidden>
 <h3>Crawl metadata</h3><dl id="sseo-crawl" class="sseo-stats"></dl><h3>HTTP status</h3><dl id="sseo-status" class="sseo-stats"></dl><h3>HTTP / HTTPS</h3><dl id="sseo-protocol" class="sseo-stats"></dl><h3>Outgoing links</h3><dl id="sseo-outgoing" class="sseo-stats"></dl><p class="sseo-note">Language and protocol distributions show up to 30 values.</p></section>
+<section class="sseo-panel" id="sseo-panel-knowledge" role="tabpanel" aria-labelledby="sseo-tab-knowledge" tabindex="0" hidden>
+<div id="sseo-kg-body"></div>
+<p><a class="btn btn-default" id="sseo-kg-open" href="ScoutroKnowledge_p.html?view=objects">Open in the knowledge graph</a></p>
+<p class="sseo-note">Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.</p></section>
 <section class="sseo-panel" id="sseo-panel-crawl-status" role="tabpanel" aria-labelledby="sseo-tab-crawl-status" tabindex="0" hidden>
 <div class="sseo-controls"><label for="sseo-cs-collection">Collection<input class="form-control" id="sseo-cs-collection" type="text" maxlength="64" list="sseo-collection-list" autocomplete="off" /></label><button class="btn btn-default" id="sseo-cs-show" type="button">Show crawl status</button><a class="btn btn-default" id="sseo-cs-again" href="ScoutroCrawls_p.html#new-crawl">Crawl again</a></div>
 <div id="sseo-cs-body"></div>
@@ -278,6 +283,23 @@
 <span data-sseo-label="r_fields_disabled">Not enabled in the index schema:</span>
 <span data-sseo-label="r_fields_hint">Enable these fields in the index schema; they are filled for pages crawled afterwards.</span>
 <span data-sseo-label="r_index_schema">Open index schema</span>
+<span data-sseo-label="kg_name">Name</span>
+<span data-sseo-label="kg_type">Type</span>
+<span data-sseo-label="kg_quality">Quality</span>
+<span data-sseo-label="kg_sources">Sources</span>
+<span data-sseo-label="kg_last_confirmed">Last confirmed</span>
+<span data-sseo-label="kg_none">The knowledge graph holds no object of this host.</span>
+<span data-sseo-label="kg_disabled">The knowledge graph is disabled.</span>
+<span data-sseo-label="kg_more">The host has more objects; open the knowledge graph for all of them.</span>
+<span data-sseo-label="kg_organization">Organisation</span>
+<span data-sseo-label="kg_facility">Facility</span>
+<span data-sseo-label="kg_site">Site</span>
+<span data-sseo-label="kg_place">Place</span>
+<span data-sseo-label="kg_service">Service</span>
+<span data-sseo-label="kg_supported">supported</span>
+<span data-sseo-label="kg_uncertain">uncertain</span>
+<span data-sseo-label="kg_conflicting">conflicting</span>
+<span data-sseo-label="kg_stale">stale</span>
 </div>
 </main>
 #%env/templates/footer.template%#
