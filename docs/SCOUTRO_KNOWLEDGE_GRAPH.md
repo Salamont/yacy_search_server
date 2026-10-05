@@ -1210,7 +1210,7 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 | O4 | ~~Fate of branch `ccr-e3e5f88b-1fqp77`~~ — resolved: merged into `main` as PR #13 (`5ee2d29`) | Packages 3/4 integrate into the domain view and reuse its export pattern | — |
 | O5 | Existing chat gap: clients choose any collection, guests included | The graph does not widen it (guests get no facts). Fixing content RAG scoping is out of scope. | Owner decision |
 | O6 | ~~Backup target outside `DATA`~~ — decided: portable backups inside the app's `DATA` (`knowledge/backup`), downloadable by the administrator; an external disaster-recovery target is a later operations decision and no prerequisite (package 5) | Backups count fully in the budget | Operations (external copy) |
-| O7 | Legal review of stored excerpts (imprint pages contain names) — decided: minimal data, no extra person profiling, no employee e-mails or personal contact data as an enrichment target; the LLM tier extracts no persons, e-mail addresses or phone numbers; package 5 keeps only role mailboxes and removes person names from excerpts ([22.6](#226-data-minimality-o7)) | Excerpt length and the export of excerpts | Owner |
+| O7 | Legal review of stored excerpts (imprint pages contain names) — decided: minimal data, no extra person profiling, no employee e-mails or personal contact data as an enrichment target; the LLM tier extracts no persons, e-mail addresses or phone numbers; package 5 keeps only role mailboxes and removes person names from excerpts ([22.2](#222-data-minimality-o7)) | Excerpt length and the export of excerpts | Owner |
 | O8 | Tag `v1.942-scoutro.12` is not visible in the shallow clone | Release numbering is re-checked at release time | — |
 | O9 | ~~Real-time get (`/get`) in YaCy's embedded core, the capture processor class loading, and `_version_` behaviour after a restart are verified only by documentation and reasoning~~ — resolved in package 2a: `KgCaptureProcessorTest` proves with the shipped `defaults/solr` that the processor loads in the default chain after `_version_` is assigned, that real-time get sees uncommitted adds and deletes with the captured versions, and that versions stay monotonic across a core restart; the live smoke confirms the chain in a real peer ([18](#18-package-2a-implementation)) | The version-checked search fallback is not needed; the full reconcile stays the correctness backstop | — |
 | O10 | Temp-file measurement via `/proc/self/fd` exists only on Linux | Other platforms report `tmpOpen: null` and rely on the disk floors | — |
@@ -1626,6 +1626,15 @@ The machine had 4 CPUs (the Olares container limit is also 4 CPUs) on JDK 21.
 | 10 000 | 168 MiB | 33 MiB | 502 MiB | 9 549 | 1 319 | 4.3 MiB | 9.2 MiB | 186 |
 | 50 000 | 423 MiB | 34 MiB | 932 MiB | 47 150 | 1 722 | 5.3 MiB | 41.2 MiB | 201 |
 
+**Control run with the final code.** The tables were measured before the fixes found end to end and by the rollback test: the operator's name ([22.6](#226-identity-resolution-the-operators-name)), the excerpt redaction ([22.2](#222-data-minimality-o7)), the sync gaps ([22.9](#229-sync-lost-changes-and-a-full-queue)) and the field type ([22.10](#2210-rollback-the-fields-index-options)). A run with the final code at 10 000 pages (600 MiB):
+
+| | Entities | Statements | Evidence | Graph (logical) | per document | Solr delta of the field | Graph after the index | Heap peak | Rebuild |
+|---|---|---|---|---|---|---|---|---|---|
+| measured above | 956 | 5 537 | 20 332 | 9.3 MiB | 972 B | 2.37 MiB | 57 s (161/s) | 168 MiB | 56 s |
+| final code | 759 | 5 124 | 20 078 | 9.1 MiB | 953 B | 2.38 MiB | 58 s (155/s) | 146 MiB | 59 s |
+
+21 % fewer entities, because a facility page's parent organisation now resolves to its operator. The storage per page and the times stay within a few percent, and the token-free field type costs no measurable index space. The evaluation below holds.
+
 **Findings:**
 
 - **Linear growth.** The graph needs about 0.9–1.1 KB per crawled page, about two evidence rows per page at about 470–560 B each. Entities are about 9 % of the pages.
@@ -1732,3 +1741,70 @@ The rollback test found a gap of package 2a: the old version could not write a p
   - a term query for `organization` finds nothing after the new version's write, one page after the old version's partial update, and nothing after the new version's rewrite.
   - End to end: `kg-rollback-live.py` ([22.11](#2211-tests)).
 - **Indexes of pre-release builds.** An index written by a build of packages 2a–4 has the field with the old options, and the new type cannot write into it (the same error the other way round). Such test data must be deleted or reindexed. No release carried the field.
+
+### 22.11 Tests
+
+- **Unit and integration tests:**
+
+  | Test class | What it covers |
+  |---|---|
+  | `KgConfigTest`, `StorageGuardTest`, `JsonLdCapturePolicyTest` | Levels, thresholds and validation; `backup/` and `rebuild/` counted against the budget |
+  | `KgBackupTest` (6) | Verified portable file; restore with a new epoch, keeping the previous graph; damaged, foreign, newer and unknown files change nothing; a pause skips the backup; retention, including safety copies; the schedule |
+  | `KgRebuildTest` (6, embedded Solr) | A wrong merge is split and stored IDs redirect; more than one scan page; cancel; brake and confirm; `reconcile_busy`; no room; stop mid-rebuild; leftover shadow |
+  | `PublisherTest` (+3) | No person names in stored excerpts; the operator's name in both orders, another domain, the portal case |
+  | `ExtractorsTest` (+2) | Role mailboxes only; redaction of names and of e-mail addresses, also cut by the window |
+  | `SyncServiceTest` (+2) | Lost changes come with a later reconcile; a reconcile postponed by the full queue runs once the queue has room |
+  | `KnowledgeApiTest`, `AgentKnowledgeTest`, `AgentCatalogTest` | The new actions match the OpenAPI enum; the new admin routes are neither routed nor described for agents |
+- **Mutation checks:** 27 of 28 mutations are killed: levels and thresholds, the JSON-LD brake, `backup/` and `rebuild/` in the budget, the restore's checksum and epoch, retention and safety copies, the rebuild's brake, ID redirects, cancel, space check, leftover shadow, `reconcile_busy`, stop and the single rebuild, the operator's name (lookup, taking in, no ID), role mailboxes, e-mail addresses and names in excerpts, the excerpt window, the queue-room retry and the rescan of lost changes. The survivor makes the rebuild treat the shadow's backfill as completed as soon as nothing is pending and the queue is empty. With an empty shadow the brake cannot stop that run, so the state is equivalent in every reachable case; the check stays as a guard for a failed run.
+- **Interface:** `knowledge-ui-test.mjs` creates, downloads and restores a backup and runs a rebuild through the page (193 Playwright checks in English and German, five widths).
+- **End to end:** `kg-e2e-live.py`, 62 checks on three disposable peers, and `kg-e2e-ui.mjs`, 20 Playwright checks in English at 1280 and German at 390.
+  - **The 16 steps:** crawl a new domain (70 s for the fixture sites), JSON-LD in the index, facts, entity, evidence, API, UI, agent and chat, change and recrawl (34 s), update, deleted source, reconcile (2 s), restart, re-check, backup (0.5 s), restore in a fresh peer (0.6 s).
+  - **Edge cases:** two collections with two organisations of the same name, a large page (300 KB text, a 36 KB FAQ graph, bounded to 16 KiB), invalid JSON-LD, the model unreachable at first, a disk reserve the graph cannot meet and a 1 MiB JSON-LD budget while the crawl goes on, a queue overflow during a pause (all 1 100 pages in the graph 201 s after the resume), and a hard kill in the middle of processing and of a reconcile (recovery 12.5 s).
+  - **Rebuild:** 2.6 s; the stored ID of the operator leads to it.
+- **Rollback:** `kg-rollback-live.py`, 16 checks: the new version indexes pages with JSON-LD and builds its graph; the version before the graph (commit `5ee2d29`) starts on the same `DATA`, finds every document readable and searchable, and indexes a new page without an error; a partial update with its classes and core configuration keeps the field; the new version again: the graph is intact, reconciles, takes in the old version's page and rewrites the updated one without a token in the field.
+- **Suites:** `ant scoutro-agents-test` 55 classes and 510 tests, `scoutro-rag-test` 30, `scoutro-llm-security-test` 32, `scoutro-report-test` 127, `scoutro-dashboard-test` 17, all green on JDK 21. On Temurin/OpenJDK 24.0.2: the 15 classes of the knowledge graph's runtime, store, sync, budgets, backup, rebuild, extraction, API and agents with 142 tests. Live smokes: package 2a (`kg-live-smoke.py`, 31), 2b (`kg-llm-live-smoke.py`, 19), 3 (`knowledge-live-smoke.py`, 7 + 193 Playwright checks) and 4 (`kg-agents-live-smoke.py`, 33 + 32 chat UI checks). Contract: `openapi.json` valid (57 actions, the generator reproduces it unchanged), `test_flow_contract.py` 12, `test_mcp_adapter.py` 9, `check-locale-identifiers.py` without collisions.
+- **Image:** an image built like `docker/Dockerfile.scoutro` (Temurin 24.0.2) passes `kg-image-smoke.py`, 21 checks: disabled without directory or thread; enabled, with a page pushed through YaCy's parser captured with its JSON-LD; clean stop and unclean start; a backup in the `DATA` volume kept across a restart, restored with a safety copy; a rebuild that leaves no shadow.
+- **Diff checks** over the package's diff: `git diff --check` clean; no `System.out`, `printStackTrace` or `console.log` outside the measurement and test harnesses' report lines; no tokens, keys, passwords or private paths.
+
+### 22.12 Release acceptance
+
+The criteria of [12](#12-release-acceptance) and their evidence:
+
+| # | Check | Evidence |
+|---|---|---|
+| 1 | Sourced objects; no duplicates on reprocessing | `PublisherTest`; end to end steps 1–5 and 9–10 (recrawl keeps the IDs) |
+| 2 | Identical content shares work without mixing identity | 2b `LlmServiceTest` (cache key with the domain) |
+| 3 | Same-name organisations stay separate; several facilities per domain | `PublisherTest`; end to end: two organisations named alike in two collections, two facilities of one operator |
+| 4 | Two sources, one removed: the statement stays; the last removed: not current | end to end step 11 (the VAT ID loses one of three sources and stays supported; the facility without a source is gone) |
+| 5 | No stale publish during a recrawl, no ghost after a delete | 2a `SyncServiceTest` |
+| 6 | Deletions within the lag | 2a `SyncServiceTest`; end to end steps 11–12 |
+| 7 | Crash repaired, backfill resumable | `KgSyncRuntimeTest`; end to end: hard kill in the middle of processing and of a reconcile, integrity check, every page in the graph afterwards |
+| 8 | A hanging or faulty LLM does not block the crawler | 2b `LlmServiceTest`; end to end: the model unreachable at first, tiers 1 and 2 published, the breaker opened, `llm_retry` |
+| 9 | Budget, reserve and queue limits hold under load; resume works | `StorageGuardTest`; measurements ([22.4](#224-measurements-and-budget-evaluation)); end to end: the disk reserve and the 1 MiB JSON-LD budget while the crawl goes on, the queue overflow |
+| 10 | API, export and chat respect auth, visibility, limits | packages 3 and 4; end to end steps 6 and 8 (agent of one collection, chat in one collection, anonymous 401) |
+| 11 | A graph outage causes no error in search; UI and translations | packages 3 and 4; `knowledge-ui-test.mjs`, `kg-e2e-ui.mjs` (English and German) |
+| 12 | Upgrade keeps the index; rollback, restore | `kg-rollback-live.py` ([13](#13-migration-backup-rollback), [22.10](#2210-rollback-the-fields-index-options)); end to end steps 15–16 |
+
+### 22.13 Before merge, release and rollout
+
+**Before merging:**
+1. Merge the stack in order: #14 (2a) → #15 (2b) → #16 (3) → #17 (4) → package 5. After each merge, retarget the next PR to `main`. Package 5 corrects the field type of 2a ([22.10](#2210-rollback-the-fields-index-options)); do not release a state between them.
+2. Run `ant scoutro-agents-test` on `main` after the last merge.
+
+**Before a release** (not done here, as instructed):
+1. Raise `scoutro.release` and choose the image alias ([14](#14-version-recommendation): `1.942-scoutro.13`, alias `0.7.0`).
+2. Run the publish workflow; published tags are protected.
+3. Build and smoke the image: `test/scoutro-api/kg-image-smoke.py`.
+
+**Before the Olares rollout** (a separate task):
+1. Find out the free space on the app's `DATA` volume, the current index size, and whether `limitedDisk: 20Gi` is enforced (O1). Choose the budgets with [22.4](#224-measurements-and-budget-evaluation).
+2. Set `javastart_Xmx` to at least 2 GiB for large crawls.
+3. Switch on: `scoutro.kg.enabled`, `scoutro.kg.collections`, `scoutro.kg.jsonld.enabled`. Optionally set `scoutro.kg.llm.collections` with a model for the usage knowledge. Pages crawled before the switch get JSON-LD only when recrawled.
+4. Watch the first backfill, the storage and JSON-LD levels, and the first scheduled backup. Download a backup to keep a copy outside Olares.
+5. Make a backup before every later upgrade.
+
+**Not part of this work** (open YaCy topics):
+- YaCy's 30-second shutdown.
+- `push_p` answers 500 instead of a refusal when YaCy does not take a document: a `ClassCastException` in `Switchboard.parseDocument` when the crawl stacker rejects it, and a `NullPointerException` (`in.queueEntry`) when the parser returns nothing, for example for a host outside the network's domain (seen in the rollback test).
+- A crawl start on a page that answers 404 removes the page from the index before it is refused (seen end to end; the graph follows correctly).
+- The Olares upgrade, the rollout and a release tag.
