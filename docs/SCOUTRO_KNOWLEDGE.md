@@ -117,8 +117,11 @@ Scoutro:
   Wikidata ID and IK merge entities with an equal value across pages and
   domains.
 - **Weaker keys stay within one domain.** A site operator merges by legal
-  name within one registrable domain. A facility merges only with type,
-  kind, name and **full address** equal.
+  name within one registrable domain. An organisation named with the same
+  legal name on that domain, for example as the parent organisation of a
+  facility page, is that operator; two such names that are not the operator
+  never merge with each other. A facility merges only with type, kind, name
+  and **full address** equal.
 - **Never by name, phone, e-mail or postal code alone.** Such pairs are
   shown as *possible duplicates* in the object view. Duplicates are
   preferred to wrong merges.
@@ -320,12 +323,26 @@ would not make.
   model calls. They are missing from the moment of the swap until the LLM
   tier has gone through the pages again.
 
+### 9.4 Going back to a version without the graph
+
+- **The index keeps working.** The old version writes its own Solr
+  configuration and reads and searches every document. Its partial updates
+  (YaCy's postprocessing) also work on pages that carry `ld_json_txt`
+  (tested with the version before the graph). A page it rewrites has the
+  field indexed as text, a small growth, until Scoutro crawls it again.
+- **The graph's directory is ignored.** `DATA/SCOUTRO/knowledge/` keeps its
+  space. If you do not come back, download a backup and delete the
+  directory while Scoutro is stopped (`rm -r DATA/SCOUTRO/knowledge`).
+- **Coming back.** The graph starts, reconciles with the index and takes in
+  the pages indexed meanwhile; their JSON-LD only after they are crawled
+  again.
+
 ## 10. Behaviour under load and errors
 
 | Situation | What the graph does | What to do |
 |---|---|---|
 | Heavy crawling, high load, low heap | Its work waits behind gates: indexing queue > `gate.maxIndexingQueue` (20), load > `gate.maxLoad` (2.5), free heap < `gate.minFreeHeapMB` (256). Changes queue up, bounded | Nothing; it catches up |
-| Change set or queue full (`capture.maxPending` 100 000, `queue.maxItems` 200 000) | Further changes are dropped from the queue and a reconcile is scheduled, which finds them | Nothing |
+| Change set or queue full (`capture.maxPending` 100 000, `queue.maxItems` 200 000) | Further changes are dropped from the queue and a reconcile is scheduled at once. It repeats once the lost pages are visible to a search (after about 200 s) and once the queue has room again | Nothing |
 | Invalid JSON-LD block | Counted (`invalidBlocks`); the other blocks and the rules still apply | Nothing |
 | Very large page | JSON-LD capped at `jsonld.maxBytesPerDoc` (16 KiB) and `jsonld.maxBlocksPerDoc` (8); rule input at `extract.maxRuleInputChars` (64 Ki); at most `extract.maxStatementsPerDoc` (50) facts | Nothing |
 | LLM unreachable or slow | After `llm.breakerFailures` failures the breaker opens (status `llm.state: paused`, reason `circuit_breaker`) with growing backoff; tiers 1 and 2 go on unchanged | Fix the model; *Retry failed LLM documents* closes the breaker |
@@ -356,9 +373,15 @@ This is the default. The page shows the LLM tier as `off`.
   or, optionally, the LLM tier.
 - **No manual curation.** No manual merge, split or edit of facts. Possible
   duplicates are shown, not merged. The rebuild re-applies the rules.
-- **Statement IDs are less stable than entity IDs.** A rebuild may change the
-  statement IDs of entities whose ID changed. Export consumers sync again
-  after a rebuild in any case (new epoch).
+- **IDs can change in a rebuild, and old IDs redirect.** An entity's ID
+  derives from the first key it was seen with, and in a merge the older
+  entity survives. A rebuild reads the pages in another order and may pick
+  another surviving ID; the old ID then redirects. Statement IDs of such
+  entities change too. Export consumers sync again after a rebuild in any
+  case (new epoch).
+- **Host lookup covers ports 80 and 443 only.** The host routes and the host
+  filter find a host by name on those ports; a site on another port is
+  found through its pages.
 - **Excerpts may be over-redacted.** The person-name redaction is
   rule-based. It may also hide a capitalised word after a role marker, and
   a name without a marker or salutation is not recognised.
@@ -384,4 +407,5 @@ This is the default. The page shows the LLM tier as `off`.
   collections.
 - **On `suspect` reconciles:** find out why the index lost documents before
   confirming.
-- **Before an upgrade:** make a backup.
+- **Before an upgrade or going back to an older version:** make a backup
+  and download it.

@@ -94,9 +94,9 @@ public final class Reconciler {
     /** Changes were lost (full queue, overflowing change set) and a scan could not see them yet. */
     public static final String REASON_LOST_CHANGES = "lost_changes";
     /**
-     * When a lost change is surely visible to a scan: Solr's {@code autoCommit}
-     * (180 s, {@code defaults/solr/solrconfig.xml}) opens a new searcher; a
-     * real-time get sees a document at once, a search only after that.
+     * When a lost change is surely visible to a scan: a real-time get sees a
+     * document at once, a search only once a new searcher opens, at the latest
+     * with Solr's {@code autoCommit} (180 s, {@code defaults/solr/solrconfig.xml}).
      */
     static final long VISIBLE_AFTER_MILLIS = 200_000L;
 

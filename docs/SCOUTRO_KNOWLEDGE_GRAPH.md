@@ -289,6 +289,7 @@ recreated when it changes.
 | `register` (court + HRA/HRB/VR/GnR/PR, normalised), `vat` (validated format), `lei`, `wikidata`, `ik` | global | Organisations or facilities with the equal value, across documents and domains |
 | `ld_id` (absolute JSON-LD `@id`) | host of the declaring page | Mentions with the same `@id` on that host |
 | `site_operator` (the organisation declared as operator on an imprint or as `publisher`/`provider` of the site, with its legal name including the legal form) | registrable domain | The operator mentioned on several pages of the same domain, if the normalised legal name is equal |
+| `operator_name` (package 5: the same normalised legal name, with legal form, of an organisation **not** declared as operator, e.g. the `parentOrganization` of a facility page) | registrable domain | Only with the declared operator of that domain, in either order; two such mentions never merge with each other (a portal lists unrelated organisations with equal legal names) and the key never derives an ID |
 | `facility_address` (type + facility kind + normalised name + **full address**: street, house number, postal code, locality) | registrable domain | Facility or site mentions with all of these equal, **and** no conflicting discriminator (see below) |
 | `doc_local` (document ID + extractor-local reference) | one document | Repeated mentions inside one document only |
 | phone (E.164), e-mail, name + postal code, `homepage` domain | — | **Never.** Shown as "possible duplicates" in the detail view. |
@@ -557,7 +558,7 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
 
 **Storage contract (package 1 provides configuration and status).**
 
-- **Field type.** Stored only, not indexed: text, multi-valued, declared explicitly in `defaults/solr/schema.xml`. Its name matches the old schema's dynamic `*_txt`, which keeps rollback safe ([13](#13-migration-backup-rollback)).
+- **Field type.** Stored, not searchable: multi-valued, declared explicitly in `defaults/solr/schema.xml` with the type `text_stored`, whose analyzer emits no token. Its name matches the old schema's dynamic `*_txt`, and `text_stored` has the same Lucene index options as that field's `text_general`, which keeps rollback safe ([13](#13-migration-backup-rollback), [22.10](#2210-rollback-the-fields-index-options)).
 - **Outside the graph directory.** The field sits in the Solr index, so it does not count against the graph budget. It has **its own budget**, `jsonld.maxTotalBytes`.
 - **Estimate.** The sum of `kg_doc.jsonld_bytes` (uncompressed, an upper bound for Solr's compressed stored fields) plus an in-memory counter of bytes captured but not yet synchronised.
 - **When capture pauses** (`JsonLdCapturePolicy`, with hysteresis):
@@ -1177,15 +1178,17 @@ Implemented, see [20](#20-package-3-implementation).
   - a newer schema than the code knows is never opened (`schema_unsupported`; data untouched).
 - **Rollback to `0.6.0`** (or any version without the graph):
   1. The old image writes its own `solrconfig.xml`/`schema.xml` on start, so the update chain is gone.
-  2. Documents that carry `ld_json_txt` remain readable. The old schema maps the name to the dynamic `*_txt` field, so partial updates do not fail with "unknown field". Rewritten documents then index the field as text, a small growth.
+  2. Documents that carry `ld_json_txt` remain readable and writable. The old schema maps the name to the dynamic `*_txt` field (indexed text), so partial updates do not fail with "unknown field".
+     - Lucene refuses a field whose index options change within an index. The field's own type `text_stored` therefore has the index options of `text_general` and an analyzer that emits no token, so the old version's partial updates (YaCy's postprocessing) succeed ([22.10](#2210-rollback-the-fields-index-options)).
+     - A document rewritten by the old version has the field indexed as text, a small growth, until Scoutro writes the page again.
   3. The old `CollectionConfiguration` drops the unknown key from `solr.collection.schema` and logs it.
   4. `DATA/SCOUTRO/knowledge/` is ignored. It still occupies space; removal is documented (`rm -r DATA/SCOUTRO/knowledge` while stopped).
 
-  Package 5 tests exactly this sequence:
+  Package 5 tests exactly this sequence (`test/scoutro-api/kg-rollback-live.py`):
   1. write with the new version;
-  2. start the old image;
-  3. run postprocessing with partial updates;
-  4. expect no errors and an unchanged document count.
+  2. start the old version: every document is there, readable and searchable, and it indexes new pages without errors;
+  3. a partial update with the old classes and the old core configuration on a document that carries the field;
+  4. the new version again: the graph is intact, reconciles, takes in the old version's page and rewrites the updated one.
 - **Restore from backup** (package 5): `POST /kg/control {"action":"restore","backup":"<file>"}` or *Restore* on the page ([22.3](#223-backup-and-restore)). It checks the backup first, keeps the current graph as `graph-<UTC>-before-restore.db`, gives the restored graph a new dataset epoch and reconciles it with Solr, because the backup is older than Solr. Exact IDs are preserved. By hand, with Scoutro stopped: replace `graph.db`, delete `-wal`/`-shm`, start (no new epoch then).
 - **Rebuild without a backup.** The action *re-resolve identities* ([22.5](#225-identity-rebuild)) rebuilds from Solr while the graph keeps serving. Or delete the directory and enable the graph again: the backfill recreates tiers 1 and 2 from Solr with mostly the same IDs; tier 3 needs new LLM work.
 
@@ -1528,3 +1531,204 @@ The review of `0b303ac` found five gaps in package 1. Each was reproduced or con
 - Mutation checks: 19 of 21 mutations are killed (viewer ignored in the export, its evidence, the feed and its records; cursor checks; agent scope, grant mapping, admin routes, `lag`, `full_sync`; guest access, scope, global questions, time and character budget, uncertainty marks; the name rule). The two survivors replace the viewer in the candidate and statement queries of `ChatFacts`; both are equivalent because the per-viewer computation keeps only facts with visible current evidence.
 - Live: `test/scoutro-api/kg-agents-live-smoke.py` (disposable peer, two collections, fake model for extraction and chat; agents created in the wizard) with 33 checks: grants, isolation of reads, export and changes, 403/404/410, evidence without the model, `scoutroctl` and the MCP adapter with the token, the administrator download in both formats and its login, the chat in kga and kgb with labelled, cited, scoped graph sources, and none for a guest. Then `test/scoutro-ui/chat-graph-ui-test.mjs` (32 Playwright checks, English and German, 360 and 1280): the badge, the title, the page link, the citation link, nothing of kgb, no overflow, no JavaScript error.
 - Regression: `ant scoutro-agents-test` (53 classes), `scoutro-rag-test` (30), `scoutro-llm-security-test` (32) green; the live smokes of packages 2a (31), 2b (19) and 3 (7 + 182), LLM selection (619 + 40), SEO (282), Index Browser (433), system chat (71), AI Lab (560) and crawl flow (123) pass with the chat change; the package 4 tests also pass on JDK 24.
+
+## 22. Package 5 implementation
+
+**Shipped in this PR** (stacked on package 4):
+
+| Area | Files |
+|---|---|
+| Budgets and levels | `KgConfig` (10 GiB, 2 GiB, `budget.noticePercent`/`warnPercent`, maintenance share 10 %, `level()`), `budget/StorageGuard` (level, `backup/` and `rebuild/` counted), `budget/JsonLdCapturePolicy` (level), `KgRuntime` (level events); page meters, banner, dashboard card |
+| Backup and restore | `store/KgBackup` (verify, metadata with SHA-256, names, retention, prepare a restored or rebuilt database), `KgBackups` (thread `ScoutroKG.backup`, schedule, status), `store/KgStore.backupTo` (`VACUUM INTO` on a read-only connection), `KgRuntime.backup`/`restore`; routes `/kg/backups`, `/kg/backups/{file}` |
+| Identity rebuild | `KgRebuild` (shadow store and sync, progress, verify with the brake, ID redirects, LLM cache copy, cancel), `KgRuntime.rebuild`/`rebuildCancel`/`rebuildConfirm`/`swapIn`, `KgPaths` (`rebuild/`) |
+| Identity resolution | `resolve/IdentityResolver` and `extract/Vocabulary` (`operator_name`: the parent organisation of a facility page is the declared operator, [4.3](#43-identity-resolution)) |
+| Data minimality (O7) | `resolve/Normalizers.roleEmail`, `redactPersons`, `excerpt`; `JsonLdExtractor` and `RuleExtractor` (version 2), `publish/Publisher` |
+| API, tools, UI | `KnowledgeApi` (actions `backup`, `restore`, `rebuild`, `rebuild_cancel`, `rebuild_confirm`), `ScoutroApiServlet` (backup download), generator, `openapi.json`, `actions.json`, `scoutroctl kg backup|backups|backup-download|restore|rebuild|rebuild-cancel|rebuild-confirm`; `ScoutroKnowledge_p.html`, `knowledge.js`, `de.lng`, `master.lng.xlf` |
+| Measurement and tests | `KgLoadMeasurement` (`ant scoutro-kg-measure`), `test/scoutro-api/kg-e2e-live.py`, `test/scoutro-ui/kg-e2e-ui.mjs`, `test/scoutro-api/kg-rollback-live.py` |
+| Documentation | `docs/SCOUTRO_KNOWLEDGE.md` (operator guide), this section, `docs/API.md`, `docs/ACTIONS.md`, `docs/SCOUTRO.md`, `help/ScoutroKnowledge_p.md` |
+
+### 22.1 Budgets and levels
+
+- **Defaults (O1).** `budget.maxBytes` is 10 GiB for everything under `DATA/SCOUTRO/knowledge` (database, WAL, temp files, `backup/`, `rebuild/`). `jsonld.maxTotalBytes` is 2 GiB of uncompressed JSON-LD in the Solr index. Both are protection limits: nothing is reserved.
+- **Levels** of both budgets:
+
+  | Level | From | Effect |
+  |---|---|---|
+  | `notice` | `noticePercent` (70) | status only |
+  | `warning` | `warnPercent` (80) | banner on the page and in the dashboard |
+  | `brake` | `pausePercent` (90) | new growth pauses, with the existing hysteresis down to `resumePercent` (80); for JSON-LD the capture pauses |
+  | `full` | the budget | the hard limit (`max_page_count` / no capture) |
+
+  Every change of level is an event (`storage_level`, `jsonld_level`); warnings are logged.
+- **The crawl is never stopped.** At the JSON-LD brake, pages are indexed without the field; at the graph brake, only graph growth and backups pause. This is the deviation that the request allowed: the brake pauses rather than deletes, and nothing of the index is touched.
+- **Maintenance share** 10 % instead of 20 %, so the database file is capped at the brake rather than at 80 %. Small budgets get the smallest share that holds the WAL and temp limits.
+
+### 22.2 Data minimality (O7)
+
+The review of O7 found two gaps in the extraction of packages 2a and 2b, closed here:
+
+1. **E-mail addresses.** The JSON-LD and imprint rules kept any e-mail address of an organisation, also a person's (`max.mustermann@`). Now only role mailboxes are kept (`info@`, `kontakt@`, `verwaltung-berlin@`, … — the first token of the local part from a fixed list) and mailboxes named after the organisation's own domain. The imprint rule takes the first role mailbox.
+2. **Names in excerpts.** The ±30-character windows of the rules could carry the managing director's name from the next line of an imprint, and an employee's e-mail address from the line before. Names after a role marker (Geschäftsführer, Inhaber, vertreten durch, Ansprechpartner, Verantwortlich …, Leitung, Datenschutzbeauftragte, …) and after a salutation become `[…]`, and so does an e-mail address that is no role mailbox, also when the window cuts it. Organisations after a marker stay. Applied where the rules cut the excerpt and again where every tier's evidence is stored.
+
+Extractor versions 2: existing graphs re-extract tiers 1 and 2 at the next start.
+
+### 22.3 Backup and restore
+
+- **Backup (O6).** `VACUUM INTO` on a dedicated read-only connection writes `backup/graph-<UTC>.db`.
+  - Admitted as growth with the logical size as estimate; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed.
+  - Interrupted at `backup.maxMillis`; verified with `quick_check` and the meta table; then a metadata file with SHA-256, size, schema version, epoch and counts.
+  - One at a time on the thread `ScoutroKG.backup`, on request and every `backup.intervalDays` (7). The newest `backup.keep` (1) are kept; safety copies until the next regular backup.
+- **Restore.**
+  - It checks the file first (checksum of its metadata, `quick_check`, schema version, epoch) without touching the graph.
+  - Then it stops the graph, keeps the current database as `graph-<UTC>-before-restore.db`, and copies the backup into place with a new dataset epoch, a clean-shutdown mark and a required reconcile.
+  - It starts the graph again; if that fails, the previous graph is put back.
+- **Portable.** The file is a plain SQLite database. Restoring one from another installation is copying it into `backup/` under a backup name; without the metadata file only the SHA-256 check is skipped.
+
+### 22.4 Measurements and budget evaluation
+
+**Method** ([7.8](#78-measurement-method-package-5)). `KgLoadMeasurement` runs the graph as in production: its own threads, the real clock, real file sizes, the embedded Solr core of the shipped `defaults/solr`. It uses a synthetic corpus from a fixed seed that imitates German small-business and care websites:
+- **Hosts:** hosts of 5 to 54 pages (home, imprint, contact, 1–4 facility pages for care providers, news pages with 2–6 KB of text).
+- **JSON-LD:** 45 % of the hosts with an SEO-plugin graph on every page, 25 % with JSON-LD on home and facility pages, 30 % without; 5 % of the hosts add a 12 KB FAQ graph; 2 % of the blocks are truncated.
+- **Identities:** every 20th host is a second domain of the previous organisation; every 33rd reuses another organisation's name.
+- **LLM collection:** 30 % of the hosts are care providers in the LLM collection.
+
+Per size the run does:
+- the indexing with the graph following;
+- a full reconcile;
+- a recrawl of 10 % with changes;
+- the deletion of 5 %;
+- a backup, a restart and an identity rebuild;
+- the LLM tier with a stand-in model (50 ms per call), and its fallback when the model is unreachable.
+
+The machine had 4 CPUs (the Olares container limit is also 4 CPUs) on JDK 21.
+
+**Corpus and storage** (after the indexing):
+
+| Documents | Hosts | Entities | Statements | Evidence | Graph (logical) | per document | per evidence row | JSON-LD (raw) | per document | Solr segments (these fields) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 2 000 | 75 | 227 | 1 255 | 3 950 | 2.1 MiB | 1 098 B | 556 B | 2.1 MiB | 1 108 B | 5.1 MiB |
+| 10 000 | 349 | 956 | 5 537 | 20 332 | 9.3 MiB | 972 B | 478 B | 15.2 MiB | 1 597 B | 27.0 MiB |
+| 50 000 | 1 725 | 4 532 | 26 185 | 98 763 | 44.4 MiB | 930 B | 471 B | 80.2 MiB | 1 682 B | 136.4 MiB |
+
+**Times:**
+
+| Documents | Heap | Graph after the index (docs/s) | LLM tier (calls) | Reconcile | Recrawl 10 % | Delete 5 % | Backup | Stop / start | Start reconcile | Rebuild | after the swap |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 2 000 | 1 GiB | 13 s (133/s) | 32 s (349) | 0.6 s | 2.9 s | 1.1 s | 0.4 s, 1.9 MiB | 0.06 / 0.01 s | 0.4 s | 14 s | 7 s |
+| 10 000 | 600 MiB | 57 s (161/s) | 162 s (1 848) | 1.0 s | 6.3 s | 1.5 s | 0.4 s, 8.2 MiB | 0.04 / 0.01 s | 0.8 s | 56 s | 21 s |
+| 50 000 | 2 GiB | 235 s (197/s) | 750 s (8 352) | 3.5 s | 29.5 s | 5.8 s | 0.8 s, 38.7 MiB | 0.02 / 0.02 s | 3.2 s | 277 s | 148 s |
+
+**Memory and bounds:**
+
+| Documents | Heap peak (Solr indexing included) | Heap after GC | RSS peak | Work queue peak | Change set peak | WAL peak | Shadow peak | LLM queue peak |
+|---|---|---|---|---|---|---|---|---|
+| 2 000 | 124 MiB | 33 MiB | 424 MiB | 1 699 | 704 | 4.2 MiB | – | 198 |
+| 10 000 | 168 MiB | 33 MiB | 502 MiB | 9 549 | 1 319 | 4.3 MiB | 9.2 MiB | 186 |
+| 50 000 | 423 MiB | 34 MiB | 932 MiB | 47 150 | 1 722 | 5.3 MiB | 41.2 MiB | 201 |
+
+**Findings:**
+
+- **Linear growth.** The graph needs about 0.9–1.1 KB per crawled page, about two evidence rows per page at about 470–560 B each. Entities are about 9 % of the pages.
+  - Temp files stayed at 0, and the WAL far below its limit (64 MiB).
+  - A backup is 0.87 × the logical size.
+  - The shadow of a rebuild is about 1 × the logical size.
+  - Right after a rebuild, the directory holds the database, the regular backup and the kept previous graph: about 3 × the logical size until the next regular backup.
+- **JSON-LD.** The raw size is 1.1–1.7 KB per page with this corpus. Solr stores the field compressed: the second core without the field was 12.9 MiB smaller at 50 000 pages for 80 MiB raw, a factor of 6.5. Synthetic JSON-LD repeats itself more than real JSON-LD, so the real factor is likely lower.
+- **Throughput.** The graph follows at 130–200 pages per second. The initial backfill of one million pages takes about 1.5 h; a full reconcile scans 50 000 pages in 3.5 s.
+- **Heap.** The graph itself holds about 1 MiB of heap when idle. The peaks come from Solr's indexing of 500-document batches with the graph processing at the same time; the work queue absorbed the difference (47 150 items at 50 000 pages, cap 200 000). YaCy's default `-Xmx600m` was enough for 10 000 pages.
+- **Restart.** Stop and start take milliseconds, and the start reconcile scales with the index (3.2 s for 50 000). The hard kill is measured in the end-to-end test.
+- **LLM tier.** With 50 ms per call, the stand-in model took 8 352 calls for 50 000 pages (the per-host cap of 25 holds). With a local model at 5–20 s per page and `llm.parallel=1`, that is 12–46 h for the first pass.
+  - The cache answers unchanged pages: the rebuild copied 9 431 cached answers at 50 000 pages. The 963 model calls after it were mostly the LLM work of the recrawl (pages with changed text) that was still queued when the rebuild started.
+  - **Fallback.** After three failed calls the breaker opens (5 min, growing to 60). Tiers 1 and 2 published the 40 new pages meanwhile within 1–2.5 s, and `llm_retry` brought the tier back within the scan pause of about 60 s.
+
+**Budget evaluation** (reserve factor 1.5 on the per-unit costs):
+
+- **Graph, 10 GiB.** The brake is at 9 GiB, less 128 MiB for WAL and temp files. A database plus one regular backup takes 1.87 × the logical size, so the database may reach about 4.7 GiB: about **3.5 million pages** of this mix.
+  - If a rebuild must stay possible at any time (shadow plus the kept previous graph), about 2.3 GiB: about **1.7 million pages**.
+  - Against the Olares orientation values (1.83 TiB storage, about 1.3 TiB free, not current), 10 GiB is below 1 % of the free space. The graph is a few percent of a real index of the same pages: YaCy stores about 10–50 KB per page in `collection1` and `webgraph`, far more than the few fields measured here.
+- **JSON-LD, 2 GiB raw.** The brake is at 1.8 GiB. At 1.7 KB per page × 1.5 that is about **0.7 million pages** with SEO-plugin JSON-LD on half of the hosts. Real plugin graphs of 3–6 KB per page bring it down to 0.3–0.6 million.
+  - On disk this is only about 0.3 GiB, because Solr stores the field compressed. Reaching the brake costs no crawl, only the JSON-LD of new pages: tier 1 falls back to metadata and the rules.
+
+**Recommendation** (the defaults stay 10 GiB / 2 GiB, as asked):
+
+1. Keep **10 GiB** for the graph. It is safe and rarely reached before the index itself becomes the limit.
+2. Keep **2 GiB** for JSON-LD as the start value. For a crawl beyond about 500 000 pages with SEO plugins, raise it to **4–6 GiB** when the level reaches `warning`. That costs about 0.6–1 GiB of disk, because the budget counts uncompressed bytes.
+3. **Before rollout, find out whether the Olares manifest's `limitedDisk: 20Gi` is enforced** (O1). If it is, the whole app, index included, must fit 20 GiB: lower the graph budget to about 4 GiB and JSON-LD to about 1 GiB, or raise `limitedDisk`. The disk reserve check protects the `DATA` filesystem in any case.
+4. Give YaCy at least 2 GiB heap on Olares (container limit 6 GiB) for large crawls. The graph's gate `gate.minFreeHeapMB` (256) pauses its work before the heap gets tight.
+
+**Not measured here** (no access to the real Olares, O1): the real index size per page, real JSON-LD sizes, a real local model's latency, and the free space on the production `DATA` volume.
+
+### 22.5 Identity rebuild
+
+The administrator action "re-resolve identities" (`rebuild`, `rebuild_cancel`, `rebuild_confirm`; the page; `scoutroctl kg rebuild…`):
+
+1. **Preconditions.** The Solr sync is required, and the rebuild is refused while a backup, a restore, another rebuild, a full reset or a reconcile waiting for its confirmation runs (409 `operation_running`, reason `reconcile_busy`). The remaining budget must hold 1.2 × the logical size plus the WAL and temp limits, and at least the smallest budget (503 `kg_write_refused`, reason `rebuild_space`).
+2. **Building.**
+   - A shadow store in `rebuild/` gets its own sync: the normal backfill from Solr, tiers 1 and 2, the current identity rules. It sits behind the same gates and has the remaining budget as its own budget; the guard counts it against the graph's budget.
+   - The current graph keeps serving reads and following Solr.
+   - Progress: pages scanned, published, queued, the shadow's storage.
+3. **Verifying.** `quick_check` and the counts, then the reconcile's mass-deletion brake against the current graph: lost ≥ `reconcile.brakeMinDocs` and > `reconcile.maxDeleteFraction` of the documents, or an empty shadow. With the brake, it waits for `rebuild_confirm`.
+4. **Swapping.**
+   - Entity IDs of the current graph that the shadow does not know (merged IDs, redirects, IDs derived from another first key) become redirects to the shadow entity holding most of their identity keys.
+   - The LLM cache (with the extractor rows mapped) and the manual pause are copied.
+   - The current database is kept as `backup/graph-<UTC>-before-rebuild.db`. The shadow takes its place with its own new epoch, and the graph starts again; a full reconcile catches up.
+   - If the new graph does not start, the previous one is put back.
+5. **Ending.** A cancel, a stop of Scoutro or a failure before the swap deletes the shadow and leaves the graph unchanged. A shadow left behind by a crash is deleted at the next start (`phase: interrupted`, event `rebuild_interrupted`).
+
+**Why a rebuild from Solr** instead of re-running the resolver over cached extractions: it uses the current extractors and rules (also new ones), needs no second cache of tiers 1 and 2, and is the same path as the first backfill. LLM answers come from the copied cache, so unchanged pages cost no model call.
+
+### 22.6 Identity resolution: the operator's name
+
+The end-to-end crawl showed a gap of package 2a: the `parentOrganization` of a facility page (a name with legal form, no identifier) became a document-local organisation next to the declared operator of the same domain (three "Lindenhof Pflege gGmbH" instead of one).
+
+- **The new key.** `operator_name` (the normalised legal name within the registrable domain) is given to organisations that are not declared operators.
+- **How it resolves.** It looks up only the `site_operator` key, and the operator, once declared, takes in the organisations seen under its name before. So the result does not depend on the crawl order.
+- **What it never does.** Two `operator_name` mentions never merge with each other, so a portal that lists two providers with the same legal name keeps them apart, and the key never derives an ID.
+
+Tested in `PublisherTest` (both orders, another domain, the portal case) and end to end.
+
+### 22.7 Deviations
+
+1. **The brake pauses growth; it does not delete.** It sits at 90 % for both budgets, with the hard limit at the budget. The JSON-LD budget counts uncompressed bytes. That is conservative: Solr's share on disk is about 1/6.
+2. **The rebuild reads Solr, not cached extractions** ([22.5](#225-identity-rebuild)), and LLM-only facts return from the copied cache after the swap. Between the swap and the LLM tier's pass they are missing (148 s at 50 000 pages with the stand-in model).
+3. **Restore and rebuild give the graph a new dataset epoch.** Export consumers get 410 `epoch_changed` and sync again, instead of a feed of the differences.
+4. **No version bump, release tag, image or Olares change.** The release files of [11](#package-5-release-completion) (`scoutro.properties`, the publish alias, `BUILD.md`) stay as they are, as instructed. [14](#14-version-recommendation) remains the recommendation.
+5. **The rollback test runs the version before the graph from its sources.** It uses commit `5ee2d29`, compiled from a worktree, not the published `0.6.0` image.
+
+### 22.8 Known limits
+
+- **Host lookup.** The host routes find a host by name on the ports 80 and 443 only; a site on another port is found through its pages, not its host name.
+- **Name redaction.** The person-name redaction in excerpts is rule-based. A name without a role marker or salutation is not recognised, and a capitalised word after a marker may be hidden too.
+- **Synthetic corpus.** The measurements use synthetic pages. Real JSON-LD is less repetitive, and real YaCy documents are larger; see the evaluation for the margins.
+- **A remote Solr.** The schema that `api/schema` generates for an external Solr declares `ld_json_txt` from `CollectionSchema`, still `indexed="false"`, so a rollback on such a Solr keeps the gap of [22.10](#2210-rollback-the-fields-index-options). The embedded Solr uses `defaults/solr/schema.xml`.
+- **IDs after a rebuild.** An entity's ID derives from the first key it was seen with, and the older entity survives a merge. A rebuild reads in another order and may pick another surviving ID (seen end to end for the operator that took in its facility pages' parent organisation); the old ID redirects. Statement IDs of such entities change.
+
+### 22.9 Sync: lost changes and a full queue
+
+Two gaps of package 2a, found by the end-to-end overflow test and closed here:
+
+1. **Lost changes were not rescanned.** The work queue dropped changes (or the change set overflowed), and the reconcile requested at once could start before Solr's searcher showed the documents. The real-time get and the capture see a document at once, a search only once a new searcher opens: at the latest with the `autoCommit` (180 s). That reconcile completed without them and consumed the request.
+   - Now `Reconciler.lost` notes the time.
+   - A run that started before the lost documents are surely visible (`VISIBLE_AFTER_MILLIS`, 200 s) is followed by another one (reason `lost_changes`).
+2. **The full-queue retry waited a fixed hour.** A reconcile that could not enqueue everything because the queue was full retried after an hour. Now it runs as soon as the queue is below half of `queue.maxItems`; the hour stays the upper bound.
+
+Tests: `SyncServiceTest.changesLostBeforeASearchCanSeeThemComeWithALaterReconcile`, `SyncServiceTest.aReconcileThatTheFullQueuePostponedRunsOnceTheQueueHasRoom`. End to end: 1 100 pages pushed during a pause with caps of 1 000 are all in the graph 197 s after the resume.
+
+**The integrity state (package 1).** The suite showed a race once under load: a passed integrity check read `ok` before its write block was lifted and before `integrity_required = 0` was stored. Now `ok` is published last. With an injected delay of 300 ms before the store, `KgRuntimeTest.watchdogAbortsAnOverlongIntegrityCheckAndReadsStayBoundedMeanwhile` fails every time in the old order and passes in the new one. A crash in between was always safe: the next start checks again.
+
+### 22.10 Rollback: the field's index options
+
+The rollback test found a gap of package 2a: the old version could not write a page that carries `ld_json_txt`.
+
+- **What failed.** The field was declared `indexed="false"`. A version without the graph maps the name to its dynamic `*_txt` field, which is indexed text.
+  - Lucene fixes a field's index options for the whole index. The old version's partial update of such a page failed with `cannot change field "ld_json_txt" from index options=NONE to inconsistent index options=DOCS_AND_FREQS_AND_POSITIONS`.
+  - YaCy's postprocessing writes pages this way (`CollectionConfiguration.postprocessing`, partially or as a whole document), so it would have failed on these pages at every run.
+  - Every dynamic field of the old schema is indexed, so another field name does not help.
+- **The fix.** The new type `text_stored` is a `TextField` with the index options of `text_general` (positions and norms). Its analyzer emits no token: a keyword tokenizer, the value replaced by the empty string, empty tokens dropped.
+  - The field stays stored, has no postings and cannot be searched.
+  - The old version indexes the field as text when it rewrites a page; the next write of the page by Scoutro has no token again.
+- **Verified** on one core (new version, old version, new version):
+  - a 70 KB value and an empty value are stored;
+  - a term query for `organization` finds nothing after the new version's write, one page after the old version's partial update, and nothing after the new version's rewrite.
+  - End to end: `kg-rollback-live.py` ([22.11](#2211-tests)).
+- **Indexes of pre-release builds.** An index written by a build of packages 2a–4 has the field with the old options, and the new type cannot write into it (the same error the other way round). Such test data must be deleted or reindexed. No release carried the field.
