@@ -549,13 +549,14 @@ null` with `referring_hosts_scope: complete_index_required`. The optional fields
 
 ## Knowledge graph
 
-Packages 1 to 3 of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
+Packages 1 to 4 of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
 the embedded store with its storage budget, the synchronisation with the
 embedded Solr core (change capture, persistent queue, real-time get, reconcile
 and backfill, document states, structured and rule-based extraction, identity
 resolution, change feed, retention, bounded JSON-LD capture), the optional
-LLM tier, and the read routes with the page `ScoutroKnowledge_p.html`.
-Nothing is ever written to Solr.
+LLM tier, the read routes with the page `ScoutroKnowledge_p.html`, the
+export, the change feed, the agent grants `kg.read` and `kg.export`, and graph
+facts in the RAG chat. Nothing is ever written to Solr.
 
 | Route | Access | Purpose |
 |---|---|---|
@@ -567,6 +568,11 @@ Nothing is ever written to Solr.
 | `GET /scoutro/api/v1/kg/statements/{id}` and `.../evidence?offset&limit&collection` | administrator | One statement and its evidence (≤ 50 per page) |
 | `GET /scoutro/api/v1/kg/hosts/{host}/entities?offset&limit&collection` | administrator | Entities of a host (SEO tab, Index Browser) |
 | `GET /scoutro/api/v1/kg/sources/{docId}?offset&limit&collection` | administrator | What the graph holds from one page |
+| `GET /scoutro/api/v1/kg/export?cursor&limit&include=evidence&collection` | administrator | Export pages: entities, then statements (`limit` 1–200) |
+| `GET /scoutro/api/v1/kg/changes?cursor&limit&expand&collection` | administrator | Change feed with delete notices (`limit` 1–1000, 1–100 with `expand=true`) |
+| `GET /scoutro/api/v1/kg/export/download?format=ndjson\|json&include=evidence&collection` | administrator only, never an agent | The whole export as one streamed download |
+| `GET /scoutro/api/agent/v1/kg/{entities,statements,hosts,sources}/…` | agent with `kg.read` | The read routes for the agent's collections |
+| `GET /scoutro/api/agent/v1/kg/export`, `…/kg/changes` | agent with `kg.export` | Export pages and change feed for the agent's collections |
 
 - **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
   is created on disk, no thread runs and the SQLite native library is not
@@ -733,6 +739,48 @@ Nothing is ever written to Solr.
     return 400 `invalid_request` with `details.field`.
   - Reads stay available while growth is paused; 409 `kg_disabled` while the
     graph is disabled, 503 `kg_unavailable` when it cannot run.
+- **Export and change feed (package 4):**
+  - One projection: export records are the JSON of the read routes for the
+    same viewer, with the discriminator `record` (`entity`, `statement`; the
+    download adds `header` and `trailer`). With `include=evidence` each
+    statement carries its newest 20 pieces of visible evidence.
+  - Export pages: `{"schema","epoch","as_of_seq","items","complete","next","next_changes"}`.
+    First all visible entities, then all visible statements, each in ID
+    order; every page is one bounded read. The cursor
+    `<epoch>:<as_of_seq>:<e|s><rowid>` carries the change sequence of the
+    export's start.
+  - The export is not a snapshot. Afterwards a consumer reads
+    `GET /kg/changes?cursor=<next_changes>`: upserts by ID are idempotent,
+    the delete of an unknown ID is a no-op.
+  - Changes: `{"schema","items":[{"seq","kind","id","op","redirect_to","at","record"}],"next","has_more","as_of"}`.
+    `op` is `upsert`, `redirect` (merged into `redirect_to`) or `delete`,
+    also when the object left the viewer's collections (A → B → C still
+    reaches a consumer of A). With `expand=true` each upsert carries its
+    current record for the viewer. The cursor advances over changes the
+    viewer cannot see.
+  - Cursor errors: 400 `invalid_cursor` (malformed or ahead of the feed),
+    410 `epoch_changed` after a reset and 410 `cursor_expired` when retention
+    removed changes the cursor still needs; both 410 carry `details.full_sync`
+    with the export to start again with.
+  - Download (administrator only): NDJSON (`application/x-ndjson`) or JSON
+    with `Content-Disposition: attachment;
+    filename="scoutro-knowledge-<collection|all>-<UTC time>.<format>"`,
+    pages of 200 records each in its own read lease. Errors before the first
+    page answer as JSON; a failure later ends the stream with a trailer
+    `complete:false` and `error`.
+- **Agents (package 4):**
+  - `kg.read` and `kg.export` are separate scoped grants, absent from every
+    preset; `kg.export` is for external agents only. Details:
+    [actions](ACTIONS.md#agent-grants-scoutroapiagentv1).
+  - The server sets the viewer from the agent: the requested `collection`
+    (403 `collection_not_in_scope` outside the scope) or the whole scope;
+    there is no implicit cross-collection read.
+  - Agent answers: evidence names the extractor (`llm/1`) without the
+    configured model; no `lag` (it counts every collection);
+    `full_sync` points to `/scoutro/api/agent/v1/kg/export`.
+  - `kg/status`, `kg/control` and `kg/export/download` do not exist on the
+    agent path (404).
+- **Chat (package 4):** see [chat](#graph-facts-in-the-chat) below.
 - **Control:**
   - `pause` takes effect at once and survives a restart.
   - `resume` ends a manual pause and schedules a reconcile. After a storage
@@ -760,6 +808,45 @@ Nothing is ever written to Solr.
   the Solr index and has its own budget.
 - **Settings:** see [the plan](SCOUTRO_KNOWLEDGE_GRAPH.md#9-configuration);
   invalid values are listed in `config.errors` and keep the graph off.
+
+### Graph facts in the chat
+
+The RAG chat (`/v1/chat/completions` with a search) adds facts of the
+knowledge graph as further numbered sources after the search results:
+
+```
+[4] Scoutro knowledge graph: Muster Pflege gGmbH
+URL: https://www.muster.de/impressum
+Collection: kga
+Text: Facts the Scoutro knowledge graph recorded about Muster Pflege gGmbH (organization) from this page, not model knowledge: phone: +49301234567; operates: Haus Lindenhof (uncertain: only read from the page text by a language model).
+```
+
+- **Who:** local and administrator access only. AI Shield guests get none
+  unless `scoutro.kg.chat.allowGuests=true`; agent tokens are not admitted
+  to the chat anyway.
+- **Scope:** the request's `collection` (or `collection:` in the question),
+  otherwise every collection the graph follows. A global (P2P) question
+  without a collection gets no graph facts. Only evidence of that scope
+  counts, as in the read routes.
+- **What:** entities the question names (at least two distinctive name words,
+  or the only one) and entities with evidence on the retrieved pages, at
+  most 4; their current `supported` and `uncertain` facts (uncertain ones
+  marked, conflicting and stale ones left out), at most
+  `scoutro.kg.chat.maxFacts` (8). Each entry names the visible page the facts
+  were read from, so the answer can cite it like a search result and
+  `scoutro-citations` validates it.
+- **Budget:** at most `scoutro.kg.chat.maxChars` (1500) and a third of the
+  source budget; the search sources get the rest.
+  `scoutro.kg.chat.timeoutMs` (300) bounds the step: a timeout, an error or
+  a graph that is off skips it, and the search answer is always produced.
+- **Metadata:** `scoutro-sources` marks the entries with `"kind":"graph"`
+  (the chat page shows a "Scoutro knowledge graph" badge);
+  `scoutro-graph: {used, entities, facts, sources, timedOut, reason,
+  collection, millis}` says why facts were or were not added (`reason`:
+  `access`, `global`, `disabled`, `not_running`, `no_terms`, `no_room`,
+  `no_facts`, `timeout`, `busy`, `error`). Follow-up questions keep the
+  entries in the attached search document.
+- `scoutro.kg.chat.enabled=false` switches the step off.
 
 ## Scoutro native crawl and host flow
 
