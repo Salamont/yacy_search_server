@@ -305,7 +305,7 @@ recreated when it changes.
   A blocked merge is recorded as an `identity_conflict` event; the entities stay separate.
 - **Mentions without a merge key** stay document-local entities (`doc_local`). Duplicates are preferred to wrong merges; the detail view lists likely duplicates for later manual handling (out of scope for this version).
 - **Merge:** the older entity survives. The other entity gets `status=2` and a redirect. Its statements are re-pointed; colliding statements are merged by unioning their evidence, and the losing statement ID becomes a redirect. A `redirect` change is written.
-- **No automatic split.** If the evidence behind a merge disappears, the merge stays. The admin maintenance action "re-resolve identities" rebuilds resolution from the cached extractions without LLM calls.
+- **No automatic split.** If the evidence behind a merge disappears, the merge stays. The admin maintenance action "re-resolve identities" (package 5, [22.5](#225-identity-rebuild)) rebuilds the graph from Solr in a shadow store with the current rules; the LLM tier answers from the copied cache without new model calls for unchanged text.
 
 ### 4.4 Quality and currency
 
@@ -647,7 +647,8 @@ Everything below `DATA/SCOUTRO/knowledge/` counts against the budget:
 DATA/SCOUTRO/knowledge/
   graph.db  graph.db-wal  graph.db-shm   database, write-ahead log, shared memory
   tmp/                                   SQLite temp files (process-wide temp_store_directory)
-  backup/                                local backups, if enabled
+  backup/                                local backups and the safety copies of a restore or rebuild
+  rebuild/                               the shadow graph of a running identity rebuild
 ```
 
 - **Temp files are invisible to a directory scan.** SQLite unlinks its temp files right after creating them, so they never show up in a directory listing. Measured: a 300 000-row `DISTINCT` held a 27 MB unlinked file in `tmp/`.
@@ -670,21 +671,22 @@ DATA/SCOUTRO/knowledge/
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `scoutro.kg.budget.maxBytes` | 1 GiB (**provisional**, O1) | Total budget for the directory above |
-| `scoutro.kg.budget.pausePercent` / `resumePercent` | 90 / 80 | Hysteresis for new growth |
-| `scoutro.kg.budget.maintenancePercent` | 20 | Share for WAL, temp files, deletions, migration. Must hold `wal.maxBytes + tmp.maxBytes`; otherwise the configuration is invalid. |
+| `scoutro.kg.budget.maxBytes` | 10 GiB (package 5, O1: a protection limit, not a target; evaluated in [22.4](#224-measurements-and-budget-evaluation)) | Total budget for the directory above |
+| `scoutro.kg.budget.noticePercent` / `warnPercent` | 70 / 80 | Levels `notice` (status only) and `warning` (UI banner, dashboard) |
+| `scoutro.kg.budget.pausePercent` / `resumePercent` | 90 / 80 | Level `brake`: hysteresis for new growth; `full` at the budget |
+| `scoutro.kg.budget.maintenancePercent` | 10 (package 5; smallest share that holds WAL and temp limits for small budgets) | Share for WAL, temp files, deletions, migration. Must hold `wal.maxBytes + tmp.maxBytes`; otherwise the configuration is invalid. |
 | `scoutro.kg.wal.maxBytes` / `wal.checkpointBytes` | 64 MiB / 8 MiB | Hard WAL limit of the guard; size at which a checkpoint is forced |
 | `scoutro.kg.tmp.maxBytes` | 64 MiB | Limit for temp files (visible + open unlinked) |
 | `scoutro.kg.read.maxTransactionMillis` | 5000 | Deadline of every read transaction |
 | `scoutro.kg.integrity.maxMillis` | 120 000 | Deadline of the `quick_check` after an unclean shutdown |
 | `scoutro.kg.disk.reserveBytes` / `disk.hysteresisBytes` | 1 GiB / 512 MiB | Free space kept above YaCy's `resource.disk.free.min.steadystate`; resume margin |
-| `scoutro.kg.jsonld.enabled`, `jsonld.maxBytesPerDoc`, `jsonld.maxBlocksPerDoc`, `jsonld.maxTotalBytes` | false, 16 KiB, 8, 256 MiB (provisional) | JSON-LD capture and its own Solr budget |
+| `scoutro.kg.jsonld.enabled`, `jsonld.maxBytesPerDoc`, `jsonld.maxBlocksPerDoc`, `jsonld.maxTotalBytes` | false, 16 KiB, 8, 2 GiB (package 5, uncompressed bytes) | JSON-LD capture and its own Solr budget, with the same levels |
 | `scoutro.kg.queue.maxItems` / `capture.maxPending` | 200 000 / 100 000 | Work queue and dirty-set caps; beyond → `reconcile_required` |
 | `scoutro.kg.extract.maxStatementsPerDoc` / `maxExcerptChars` / `maxInputChars` | 50 / 200 / 12 000 | Growth per document and LLM input |
 | `scoutro.kg.cache.maxPercent` | 20 | Extraction cache share |
 | `scoutro.kg.changes.retentionDays` / `maxRows` | 30 / 1 000 000 | Change feed and delete notices |
 | `scoutro.kg.source.*` | 14 / 7 / 365 / 90 days | Currency and purge rules ([4.4](#44-quality-and-currency)) |
-| `scoutro.kg.backup.keep` / `intervalDays` | 1 / 7 | Local backups (0 = off) |
+| `scoutro.kg.backup.keep` / `intervalDays` / `maxMillis` | 1 / 7 / 600 000 | Local backups (interval 0 = only on request); deadline of one backup |
 
 - **Implemented and validated in package 1** (`KgConfig`): the budget, WAL, temp, read, integrity, disk and JSON-LD settings. **Package 2a** adds `collections` (`*` for all), `capture.maxPending`, `queue.maxItems`, `extract.*` (tiers 1 and 2), `reconcile.*`, `source.*`, `changes.*` and `gate.*`. The LLM and cache settings follow with 2b.
 - YaCy's `resource.disk.free.min.steadystate` and `undershot` (MB) are read, never changed.
@@ -696,7 +698,7 @@ DATA/SCOUTRO/knowledge/
 | `graph.db` | `max_page_count` = data share of the budget (budget − maintenance share) in pages. Refused growth ends with `SQLITE_FULL`; SQLite rolls the transaction back itself, and integrity stays `ok` (tested). | SQLite (per writer connection) |
 | `graph.db-wal` | `wal.maxBytes` | The guard only (below) |
 | `tmp/` | `tmp.maxBytes` (visible + open unlinked files) | The guard: growth stops, running readers are interrupted |
-| `backup/` | Counts fully in the budget; a backup starts only if budget and disk reserve allow its size | The guard (package 5) |
+| `backup/`, `rebuild/` | Count fully in the budget; a backup starts only if budget and disk reserve allow its size, a rebuild only if the remaining budget holds 1.2 × the logical size plus the WAL and temp limits | The guard (package 5) |
 
 **Why `journal_size_limit` and small batches are not enough.**
 
@@ -794,9 +796,10 @@ A refused write changes nothing and is retried by its job later.
 
 - `VACUUM INTO backup/graph-<UTC>.db` produces a compact, consistent snapshot.
 - It starts only if the budget and the disk reserve allow `logical_bytes` more. Otherwise it is skipped with a reason.
-- Then `quick_check` on the copy; delete beyond `keep`.
-- An external target outside `DATA` is not configured by default (the Olares rule is no second `DATA` path, O6).
+- Then `quick_check` on the copy, a metadata file with its SHA-256; delete beyond `keep`.
+- An external target outside `DATA` is not configured by default (the Olares rule is no second `DATA` path, O6); the administrator downloads a backup to keep it elsewhere.
 - Rationale: tiers 1 and 2 can be rebuilt from Solr, so backups mainly protect LLM results and exact IDs.
+- Implemented in package 5 ([22.3](#223-backup-and-restore)).
 
 ### 7.8 Measurement method (package 5)
 
@@ -1183,13 +1186,8 @@ Implemented, see [20](#20-package-3-implementation).
   2. start the old image;
   3. run postprocessing with partial updates;
   4. expect no errors and an unchanged document count.
-- **Restore from backup.**
-  1. Stop the graph (admin pause plus stop, or stop Scoutro).
-  2. Replace `graph.db` and delete `-wal`/`-shm`.
-  3. Start.
-
-  The start runs a catch-up and full reconcile, because the backup is older than Solr. Exact IDs are preserved.
-- **Rebuild without a backup.** Delete the directory and enable the graph again. The backfill recreates tiers 1 and 2 from Solr with mostly the same IDs. Tier 3 needs new LLM work.
+- **Restore from backup** (package 5): `POST /kg/control {"action":"restore","backup":"<file>"}` or *Restore* on the page ([22.3](#223-backup-and-restore)). It checks the backup first, keeps the current graph as `graph-<UTC>-before-restore.db`, gives the restored graph a new dataset epoch and reconciles it with Solr, because the backup is older than Solr. Exact IDs are preserved. By hand, with Scoutro stopped: replace `graph.db`, delete `-wal`/`-shm`, start (no new epoch then).
+- **Rebuild without a backup.** The action *re-resolve identities* ([22.5](#225-identity-rebuild)) rebuilds from Solr while the graph keeps serving. Or delete the directory and enable the graph again: the backfill recreates tiers 1 and 2 from Solr with mostly the same IDs; tier 3 needs new LLM work.
 
 ## 14. Version recommendation
 
@@ -1203,13 +1201,13 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 
 | # | Point | Effect | Needed from |
 |---|---|---|---|
-| O1 | Real server and Olares capacity: free space on the `DATA` filesystem, current index size (documents, hosts, collections), whether `limitedDisk: 20Gi` is enforced | The 1 GiB graph budget and the 256 MiB JSON-LD budget stay provisional until package 5 measurements and these figures exist. No free capacity is claimed. | Owner / operations |
+| O1 | ~~Budgets~~ — decided: configurable, 10 GiB graph and 2 GiB JSON-LD as protection limits (package 5, measured in [22.4](#224-measurements-and-budget-evaluation)). Still open: the real Olares figures (free space on `DATA`, index size, whether `limitedDisk: 20Gi` is enforced) | If `limitedDisk: 20Gi` is enforced, the budgets need lowering ([22.4](#224-measurements-and-budget-evaluation)) | Operations |
 | O2 | ~~Industry vocabulary~~ — decided: extensible, collection-specific vocabulary without a schema rebuild; package 2b ships a small start vocabulary of facility kinds for `edelsenior-web`, `checkthecoach-web`, `stackfinder-web` and `bauteamcheck-web`, replaced per collection by `llm.kinds.<collection>`; kinds are entity attributes, so new ones need no schema change | Tier-3 quality; kinds are merge discriminators | Owner (further terms) |
 | O3 | ~~LLM host and model~~ — decided: the existing LLM selection is reused (usage `knowledge`, opt-in column); the LLM is optional and the graph works without it. Throughput on the target hardware is measured in package 5 | `llm.maxDocsPerHost`, heap gate | Operations (model choice) |
 | O4 | ~~Fate of branch `ccr-e3e5f88b-1fqp77`~~ — resolved: merged into `main` as PR #13 (`5ee2d29`) | Packages 3/4 integrate into the domain view and reuse its export pattern | — |
 | O5 | Existing chat gap: clients choose any collection, guests included | The graph does not widen it (guests get no facts). Fixing content RAG scoping is out of scope. | Owner decision |
-| O6 | Backup target outside `DATA` | Local backups count fully in the budget; an external target needs a mounted path, which conflicts with the Olares "no second DATA path" rule | Owner / operations |
-| O7 | Legal review of stored excerpts (imprint pages contain names) — decided: minimal data, no extra person profiling, no employee e-mails or personal contact data as an enrichment target; the LLM tier extracts no persons, e-mail addresses or phone numbers | Excerpt length and the export of excerpts | Owner |
+| O6 | ~~Backup target outside `DATA`~~ — decided: portable backups inside the app's `DATA` (`knowledge/backup`), downloadable by the administrator; an external disaster-recovery target is a later operations decision and no prerequisite (package 5) | Backups count fully in the budget | Operations (external copy) |
+| O7 | Legal review of stored excerpts (imprint pages contain names) — decided: minimal data, no extra person profiling, no employee e-mails or personal contact data as an enrichment target; the LLM tier extracts no persons, e-mail addresses or phone numbers; package 5 keeps only role mailboxes and removes person names from excerpts ([22.6](#226-data-minimality-o7)) | Excerpt length and the export of excerpts | Owner |
 | O8 | Tag `v1.942-scoutro.12` is not visible in the shallow clone | Release numbering is re-checked at release time | — |
 | O9 | ~~Real-time get (`/get`) in YaCy's embedded core, the capture processor class loading, and `_version_` behaviour after a restart are verified only by documentation and reasoning~~ — resolved in package 2a: `KgCaptureProcessorTest` proves with the shipped `defaults/solr` that the processor loads in the default chain after `_version_` is assigned, that real-time get sees uncommitted adds and deletes with the captured versions, and that versions stay monotonic across a core restart; the live smoke confirms the chain in a real peer ([18](#18-package-2a-implementation)) | The version-checked search fallback is not needed; the full reconcile stays the correctness backstop | — |
 | O10 | Temp-file measurement via `/proc/self/fd` exists only on Linux | Other platforms report `tmpOpen: null` and rely on the disk floors | — |
