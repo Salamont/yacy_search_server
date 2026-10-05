@@ -354,13 +354,13 @@ network), the answer is `422 crawl_rejected` with YaCy's reason.
 | 403 | `cross_origin_forbidden`, `setting_not_allowed` |
 | 404 | `not_found`, `crawl_not_found`, `route_not_found` |
 | 405 | `method_not_allowed` |
-| 409 | `crawl_not_running` |
+| 409 | `crawl_not_running`, `kg_disabled` |
 | 413 | `payload_too_large` |
 | 415 | `unsupported_media_type` |
 | 422 | `crawl_rejected` |
 | 500 | `internal_error` |
 | 502 | `upstream_error`, `upstream_unreachable`, `upstream_forbidden` |
-| 503 | `unavailable` |
+| 503 | `unavailable`, `kg_unavailable`, `kg_write_refused` (both with `details.reason`; `kg_write_refused` is reserved for graph write routes) |
 
 ## scoutroctl
 
@@ -457,6 +457,21 @@ Agent access:
   tokens, authorizer, agent path, scoped actions (with a fake YaCy upstream
   that records the exact parameters sent to YaCy), the administration logic,
   the catalog consistency with `AgentActionRegistry`, and `AdminSecurityTest`.
+- `ant scoutro-agents-test` also runs the knowledge graph tests
+  (`test/java/net/yacy/scoutro/knowledge/**`, `KnowledgeApiTest`): settings,
+  IDs, schema constraints, change feed, storage guard (including a checkpoint
+  blocked by an open reader and the SQLite page limit), admission under the
+  write lock with two concurrent writers, vacuum batches against a blocked
+  checkpoint, read leases (late interrupts, expiry between two statements,
+  close during an interrupt), where SQLite's temp files land, the integrity
+  check aborted by the real watchdog, runtime start/stop, a clean stop on
+  SIGTERM in a child JVM without the servlet, and the admin routes through
+  the servlet.
+- `python3 test/scoutro-api/kg-live-smoke.py` (after `ant compile`) starts a
+  disposable peer five times on temporary DATA. It covers disabled, enabled,
+  clean restart, hard kill with unclean-start detection and the integrity
+  check, and an unloadable SQLite native library while Scoutro keeps running.
+  `JAVA=/path/to/java` selects another JDK.
 - `test/scoutro-api/test_agent_api.py` runs end to end against a disposable
   instance: it drives the wizard with the administrator account, takes the
   token from the one-time page and checks `no-store`, credentials, scope
@@ -522,6 +537,91 @@ null` with `referring_hosts_scope: complete_index_required`. The optional fields
 `canonical_s`, `canonical_equal_sku_b`, `title_exact_signature_l` and
 `description_exact_signature_l` are enabled by the administrator in
 `IndexSchema_p.html`; while disabled they are listed in `index.unavailable`.
+
+## Knowledge graph (foundation)
+
+Package 1 of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md): the
+embedded store, its storage budget and its status. There is no extraction, no
+Solr access and no LLM call yet, and there is no agent grant.
+
+| Route | Access | Purpose |
+|---|---|---|
+| `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable |
+| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}` or `{"action":"resume"}` |
+
+- **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
+  is created on disk, no thread runs and the SQLite native library is not
+  loaded; `status` answers `state: disabled`. Settings take effect at the next
+  start of Scoutro.
+- **States:** `running`, `disabled`, `unavailable` (with `reason`:
+  `config_invalid`, `native_library_unavailable`, `schema_unsupported`,
+  `storage_error`, `write_refused`, `start_failed`), `stopped`. A failure of the
+  graph never stops Scoutro.
+- **Status fields:**
+  - `storage`: budget, used bytes per file (database, WAL, shared memory,
+    visible temp files, SQLite temp files held open after unlinking in the
+    graph's `tmp/` (`tmpOpen`) or elsewhere (`tmpOpenElsewhere`), backups),
+    where SQLite creates temp files (`tmpDirectory`), pause and resume
+    thresholds, disk floors derived from YaCy's `resource.disk.free.min.*`,
+    the last verified WAL checkpoint, read leases (`readers`), page
+    statistics, `growthAllowed`, `maintenanceAllowed` and the active
+    `reasons`;
+  - `jsonld`: contract of the JSON-LD capture into Solr, not implemented in
+    this version;
+  - `store`: schema version, dataset epoch, `uncleanStartDetected`,
+    `startRecorded`, `integrity` (state of `PRAGMA quick_check`),
+    `manualPause`, `manualPauseSaved`;
+  - the last 20 `events`.
+
+  `startRecorded: false` means the guard refused the start bookkeeping (for
+  example `disk_critical`); the graph then runs read-only, graph writes wait
+  (`start_not_recorded`) and the start is recorded automatically later.
+- **Integrity check:** after an unclean shutdown (and after a check that did
+  not finish, also across a clean restart) graph writes wait until `PRAGMA
+  quick_check` reports `ok`. The check runs on the maintenance thread as one
+  read lease with the deadline `scoutro.kg.integrity.maxMillis` (default
+  120000). `store.integrity.state` is `not_required`, `pending`, `running`,
+  `ok`, `failed` (a damaged database: also `storage_error`, every write
+  stops) or `aborted` (deadline or other error in `error`). A failed or
+  aborted check stays visible as `integrity_check_failed` until a new check
+  passes.
+- **Shutdown:** while the graph runs, a JVM shutdown hook
+  (`ScoutroKG.shutdown`) closes it as soon as the JVM shuts down (SIGTERM,
+  `docker stop`) and records the clean shutdown. YaCy reaches the servlet's
+  `destroy()` only after its main thread has finished and lets the JVM exit
+  after 30 seconds, so the graph does not wait for it. SIGKILL is detected as
+  an unclean shutdown at the next start.
+- **Time limits:** two daemon threads run while the graph runs. The watchdog
+  (`ScoutroKG.watchdog`, every 250 ms) only interrupts reads past their
+  deadline (`scoutro.kg.read.maxTransactionMillis`, the integrity deadline for
+  the check). The maintenance thread (`ScoutroKG.maintenance`) runs the
+  integrity check, measurement and checkpoints. A read lease refuses every
+  statement and row step after its deadline, so a lease that expires between
+  two statements cannot start the next one.
+- **Pause reasons:**
+
+  | Reason | Stops |
+  |---|---|
+  | `storage_error`, `disk_critical`, `wal_checkpoint_blocked`, `wal_limit` | every write, deletions and the runtime's own records included |
+  | `integrity_check_pending`, `integrity_check_failed`, `start_not_recorded` | graph writes (growth and deletions); the runtime's own records continue |
+  | `manual`, `budget_exhausted`, `budget`, `disk_reserve`, `tmp_limit` | new growth only |
+
+- **Control:**
+  - `pause` takes effect at once and survives a restart.
+  - `resume` ends a manual pause. After a storage error or a failed or
+    aborted integrity check it requests a new `PRAGMA quick_check`; graph
+    writes resume only when it passes (watch `store.integrity`).
+  - If the storage guard refuses to store the change (for example during a
+    storage error), it is still in effect, `store.manualPauseSaved` is
+    `false`, and the maintenance thread stores it later.
+  - Unknown fields or actions return 400.
+  - 409 `kg_disabled` while the graph is disabled; 503 `kg_unavailable` when
+    it cannot run.
+- **Storage:** `DATA/SCOUTRO/knowledge/` (`graph.db`, `-wal`, `-shm`,
+  `tmp/`, later `backup/`). The budget is an application budget (`quota:
+  application_budget`), not a filesystem quota.
+- **Settings:** see [the plan](SCOUTRO_KNOWLEDGE_GRAPH.md#9-configuration);
+  invalid values are listed in `config.errors` and keep the graph off.
 
 ## Scoutro native crawl and host flow
 

@@ -285,6 +285,68 @@ paths["/v1/ui/routes"] = {"get": op("ui.routes", "UI routes", "Public. Stable na
 paths["/v1/ui/routes/{name}"] = {"get": op("ui.route", "One UI route", "Public. Path of one page, e.g. config.accounts.", ["ui"], {**ok("Route.", "UiRoute"), **errs("404")}, params=[{"name": "name", "in": "path", "required": True, "description": "Route name, e.g. config.accounts.", "schema": {"type": "string"}}], admin=False)}
 
 # ---------------------------------------------------------------------------
+# knowledge graph, package 1: store, storage budget and status
+# (docs/SCOUTRO_KNOWLEDGE_GRAPH.md). Administrator only; no agent grant yet.
+# ---------------------------------------------------------------------------
+KG_REASONS = ["storage_error", "disk_critical", "wal_checkpoint_blocked", "wal_limit", "integrity_check_pending", "integrity_check_failed", "start_not_recorded", "manual", "budget_exhausted", "budget", "disk_reserve", "tmp_limit"]
+schemas["KgReason"] = {"type": "object", "required": ["code"], "properties": {
+    "code": {"type": "string", "enum": KG_REASONS, "description": "Why new growth (or every write) is paused. storage_error, disk_critical, wal_checkpoint_blocked and wal_limit stop every write; integrity_check_pending, integrity_check_failed and start_not_recorded stop graph writes (growth and deletions) but not the runtime's own records."},
+    "since": {"type": ["integer", "null"], "description": "Epoch milliseconds."}, "detail": {"type": ["string", "null"]}}}
+schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "state"], "properties": {
+    "schema": {"type": "string", "enum": ["scoutro.kg.status.v1"]},
+    "enabled": {"type": "boolean", "description": "scoutro.kg.enabled. While false nothing is created on disk and no thread runs."},
+    "state": {"type": "string", "enum": ["disabled", "running", "unavailable", "stopped"]},
+    "reason": {"type": ["string", "null"], "description": "Why the graph is unavailable: config_invalid, native_library_unavailable, schema_unsupported, storage_error, write_refused, start_failed; not_started before Scoutro started it."},
+    "reasonDetail": {"type": ["string", "null"]},
+    "startedAt": {"type": ["integer", "null"]},
+    "config": {"type": ["object", "null"], "properties": {"valid": {"type": "boolean"}, "errors": {"type": "array", "items": {"type": "object", "properties": {"key": {"type": "string"}, "message": {"type": "string"}}}}}},
+    "paths": {"type": "object", "properties": {"dir": {"type": "string", "examples": ["DATA/SCOUTRO/knowledge"]}}},
+    "storage": {"type": "object", "description": "Application budget over every file of the graph directory (not a filesystem quota).", "properties": {
+        "budgetBytes": {"type": "integer"}, "usedBytes": {"type": "integer"}, "pauseAtBytes": {"type": "integer"}, "resumeAtBytes": {"type": "integer"},
+        "maintenanceReserveBytes": {"type": "integer"}, "dataShareBytes": {"type": "integer", "description": "Cap of the main database file (SQLite max_page_count)."},
+        "tmpMaxBytes": {"type": "integer"},
+        "files": {"type": "object", "properties": {"db": {"type": "integer"}, "wal": {"type": "integer"}, "shm": {"type": "integer"}, "tmpVisible": {"type": "integer"},
+            "tmpOpen": {"type": ["integer", "null"], "description": "Open but unlinked SQLite temp files in the graph's tmp directory; null where not measurable (no /proc/self/fd)."},
+            "tmpOpenElsewhere": {"type": ["integer", "null"], "description": "Open but unlinked SQLite temp files (etilqs_*) of this process elsewhere, e.g. after SQLite fell back to /var/tmp; counted like tmpOpen."},
+            "tmpDirectory": {"type": "string", "enum": ["graph", "other", "system_default"], "description": "SQLite's process-wide temp directory: the graph's tmp directory, another one (set while another store held connections), or SQLite's default."},
+            "backup": {"type": "integer"}}},
+        "wal": {"type": "object", "properties": {"bytes": {"type": "integer"}, "maxBytes": {"type": "integer"}, "checkpointAtBytes": {"type": "integer"},
+            "lastCheckpoint": {"type": ["object", "null"], "properties": {"at": {"type": "integer"}, "busy": {"type": "boolean"}, "logFrames": {"type": "integer"}, "checkpointedFrames": {"type": "integer"}, "walBytesAfter": {"type": "integer"}, "complete": {"type": "boolean"}}},
+            "blockedSince": {"type": ["integer", "null"], "description": "Set while a reader keeps the checkpoint from completing."}}},
+        "disk": {"type": "object", "properties": {"usableBytes": {"type": "integer"}, "yacySteadyStateBytes": {"type": "integer"}, "yacyUndershotBytes": {"type": "integer"},
+            "reserveBytes": {"type": "integer"}, "growthFloorBytes": {"type": "integer"}, "growthResumeFloorBytes": {"type": "integer"}, "criticalFloorBytes": {"type": "integer"}}},
+        "pages": {"type": "object", "properties": {"pageSize": {"type": "integer"}, "pageCount": {"type": "integer"}, "freelistCount": {"type": "integer"}, "maxPageCount": {"type": "integer"}, "logicalBytes": {"type": "integer"}, "freeInFileBytes": {"type": "integer"}}},
+        "readers": {"type": "object", "properties": {"open": {"type": "integer", "description": "Running read leases."}, "oldestAgeMillis": {"type": ["integer", "null"]},
+            "connections": {"type": "integer"}, "maxConnections": {"type": "integer"}, "maxTransactionMillis": {"type": "integer"},
+            "interrupted": {"type": "integer", "description": "Leases ended at their deadline (watchdog interrupt or refused statement)."}}},
+        "growthAllowed": {"type": "boolean"}, "maintenanceAllowed": {"type": "boolean"},
+        "reasons": {"type": "array", "items": ref("KgReason")},
+        "refusedWrites": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "measuredAt": {"type": "integer"}, "fullMeasuredAt": {"type": ["integer", "null"]},
+        "quota": {"type": "string", "enum": ["application_budget"]}}},
+    "jsonld": {"type": "object", "description": "Contract of the JSON-LD capture into the Solr field ld_json_txt (outside the graph directory, own budget). Not captured yet in this version.", "properties": {
+        "configured": {"type": "boolean"}, "state": {"type": "string", "enum": ["off", "active", "paused"]}, "reason": {"type": ["string", "null"]},
+        "captureImplemented": {"type": "boolean"}, "estimatedBytes": {"type": ["integer", "null"]}, "maxTotalBytes": {"type": "integer"},
+        "pauseAtBytes": {"type": "integer"}, "resumeAtBytes": {"type": "integer"}, "maxBytesPerDoc": {"type": "integer"}, "maxBlocksPerDoc": {"type": "integer"}}},
+    "store": {"type": "object", "properties": {"schemaVersion": {"type": "integer"}, "epoch": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+        "uncleanStartDetected": {"type": "boolean"}, "startRecorded": {"type": "boolean", "description": "False while the guard refuses the start bookkeeping (e.g. disk_critical); the graph then runs read-only, graph writes wait (start_not_recorded) and the maintenance thread retries."},
+        "integrity": {"type": "object", "description": "PRAGMA quick_check after an unclean shutdown, or on resume after a storage error or a failed check. Graph writes wait until it passes.", "properties": {
+            "state": {"type": "string", "enum": ["not_required", "pending", "running", "ok", "failed", "aborted"]},
+            "blocksGraphWrites": {"type": "boolean"},
+            "trigger": {"type": ["string", "null"], "enum": ["unclean_start", "incomplete_check", "resume", None]},
+            "result": {"type": ["string", "null"], "description": "ok, or the first problem quick_check reported."},
+            "error": {"type": ["string", "null"], "description": "Why the check was aborted, e.g. read_timeout at scoutro.kg.integrity.maxMillis."},
+            "startedAt": {"type": ["integer", "null"]}, "finishedAt": {"type": ["integer", "null"]}, "maxMillis": {"type": "integer"}}},
+        "manualPause": {"type": "boolean"},
+        "manualPauseSaved": {"type": "boolean", "description": "False while a pause change is in effect but the guard refused to store it; the maintenance thread stores it later."}}},
+    "events": {"type": "array", "items": {"type": "object", "properties": {"at": {"type": "integer"}, "level": {"type": "string", "enum": ["info", "warn", "error"]}, "code": {"type": "string"}, "detail": {"type": ["string", "null"]}}}}}}
+schemas["KgControl"] = {"type": "object", "required": ["action"], "additionalProperties": False, "properties": {
+    "action": {"type": "string", "enum": ["pause", "resume"], "description": "pause stops new growth (stored across restarts); deletions and bookkeeping continue. resume ends a manual pause and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity)."}}}
+KG_NOTE = "Knowledge graph foundation (store, storage budget, status). Read-only, no Solr access, no LLM call. The answer is 200 also when the graph is disabled (state disabled) or unavailable (state unavailable with reason)."
+paths["/v1/kg/status"] = {"get": op("kg.status", "Knowledge graph status", KG_NOTE, ["knowledge"], {**ok("Status of the knowledge graph.", "KgStatus"), **errs("401", "404", "405")})}
+paths["/v1/kg/control"] = {"post": op("kg.control", "Pause or resume the knowledge graph", "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 503 kg_unavailable (details.reason) when the graph cannot run. The change takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.", ["knowledge"], {**ok("Status after the change.", "KgStatus"), **errs("400", "401", "403", "404", "405", "409", "413", "415", "503")}, body="KgControl", mutating=True)}
+
+# ---------------------------------------------------------------------------
 # agent path /agent/v1 (Bearer agent token; mirrors AgentActionRegistry.java)
 # ---------------------------------------------------------------------------
 AGENT_AUTH = [{"agentBearer": []}]
@@ -689,7 +751,7 @@ openapi["components"] = {"schemas": schemas, "securitySchemes": {
     "digest": {"type": "http", "scheme": "digest", "description": "YaCy administrator account (user 'admin' by default)."},
     "agentBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "sca_<publicId>.<secret>",
                     "description": "Agent token issued in Administration > Agents & Access. Only valid on /scoutro/api/agent/v1/*; never an administrator credential."}}}
-openapi["tags"] = [{"name": t} for t in ["system", "search", "index", "crawls", "config", "ui", "agent", "seo", "reports", "discovery"]]
+openapi["tags"] = [{"name": t} for t in ["system", "search", "index", "crawls", "config", "ui", "agent", "seo", "reports", "discovery", "knowledge"]]
 
 # action catalog derived from the same definitions
 actions = []
@@ -704,6 +766,8 @@ cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "sea
        "config.set": "scoutroctl config set KEY VALUE", "ui.routes": "scoutroctl ui routes", "ui.route": "scoutroctl ui route NAME"}
 mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
+mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
+cli.update({'kg.status': 'HTTP GET /scoutro/api/v1/kg/status', 'kg.control': 'HTTP POST /scoutro/api/v1/kg/control {"action":"pause"|"resume"}'})
 for suffix, operation, _, _ in seo_endpoints + report_endpoints:
     mcp[operation] = "scoutro_" + operation.replace(".", "_")
     cli[operation] = "HTTP GET /scoutro/api/v1" + suffix

@@ -174,6 +174,10 @@
       <dependency org="org.ow2.asm" name="asm-commons" rev="9.9" conf="solr9-bridge-tool->master"/>
       <dependency org="com.github.luben" name="zstd-jni" rev="1.5.7-11"></dependency>
       <dependency org="ai.djl" name ="api" rev="0.36.0"></dependency>
+      <!-- Scoutro knowledge graph store (docs/SCOUTRO_KNOWLEDGE_GRAPH.md). Apache-2.0;
+           bundles SQLite (public domain) and its native libraries. Loaded only when
+           scoutro.kg.enabled=true. -->
+      <dependency org="org.xerial" name="sqlite-jdbc" rev="3.53.4.0" conf="compile->master"/>
       <!-- Different coordinates prevent Ivy from evicting duplicate Servlet API jars. -->
       <exclude org="javax.servlet" module="javax.servlet-api"/>
     </dependencies>
