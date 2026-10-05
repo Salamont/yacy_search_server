@@ -43,7 +43,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class JsonLdExtractor {
 
     public static final String NAME = "jsonld";
-    public static final String VERSION = "1";
+    public static final String VERSION = "2";
 
     private final int maxExcerpt;
 
@@ -329,7 +329,10 @@ public final class JsonLdExtractor {
             literal(run, m, Vocabulary.PHONE, Normalizers.phone(t, run.callingCode), p + "/telephone", "telephone: " + t);
         }
         for (final String e : strings(o.opt("email"))) {
-            literal(run, m, Vocabulary.EMAIL, Normalizers.email(e), p + "/email", "email: " + e);
+            final String mail = Normalizers.email(e);
+            if (Normalizers.roleEmail(mail)) { // no addresses of persons (O7)
+                literal(run, m, Vocabulary.EMAIL, mail, p + "/email", "email: " + mail);
+            }
         }
         for (final String u : strings(o.opt("url"))) {
             literal(run, m, Vocabulary.WEBSITE, Normalizers.url(absolute(run, u)), p + "/url", "url: " + u);

@@ -308,6 +308,131 @@ public final class Normalizers {
         return EMAIL.matcher(t).matches() && t.length() <= 254 ? t : null;
     }
 
+    /**
+     * Role mailboxes the graph keeps (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, O7): the
+     * first part of the local part, split at {@code . _ - +}.
+     */
+    private static final Set<String> ROLE_MAILBOXES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "info", "infos", "information", "kontakt", "contact", "office", "buero", "mail", "email", "post", "poststelle", "postfach",
+            "service", "kundenservice", "customerservice", "support", "hello", "hallo", "moin", "team", "verwaltung", "administration",
+            "empfang", "rezeption", "reception", "anfrage", "anfragen", "enquiries", "inquiries", "bewerbung", "bewerbungen", "jobs", "job",
+            "karriere", "career", "careers", "ausbildung", "presse", "press", "media", "medien", "marketing", "vertrieb", "sales", "zentrale",
+            "sekretariat", "praxis", "kanzlei", "pflege", "pflegedienst", "termine", "termin", "buchung", "booking", "reservierung",
+            "reservation", "bestellung", "bestellungen", "order", "orders", "shop", "webmaster", "datenschutz", "privacy", "dsgvo", "gdpr",
+            "dpo", "legal", "recht", "impressum", "rechnung", "rechnungen", "buchhaltung", "finanzen", "accounting", "billing", "invoice",
+            "einkauf", "purchasing", "personal", "hr", "mitglieder", "members", "membership", "spenden", "donations", "fundraising",
+            "events", "veranstaltungen", "beratung", "auskunft", "hilfe", "help", "notfall", "aufnahme", "anmeldung", "leitung", "pdl",
+            "heimleitung", "geschaeftsstelle", "geschaeftsfuehrung", "vorstand", "redaktion", "news", "newsletter", "feedback",
+            "beschwerde", "qualitaet", "ambulant", "station", "kita", "schule", "haus", "standort", "filiale", "werkstatt", "technik", "it",
+            "admin", "zentrum", "klinik", "ambulanz", "sozialdienst", "ehrenamt", "verein"));
+
+    /**
+     * True for a role mailbox (info@, kontakt@, verwaltung-berlin@, ...) or a
+     * mailbox named after the organisation's own domain (sonnenschein@pflege-sonnenschein.de);
+     * false for anything that may be a person's address (max.mustermann@,
+     * m.mustermann@, erika@): the graph stores no employee e-mail addresses.
+     */
+    public static boolean roleEmail(final String email) {
+        if (email == null) {
+            return false;
+        }
+        final int at = email.indexOf('@');
+        if (at <= 0) {
+            return false;
+        }
+        final String local = email.substring(0, at).toLowerCase(Locale.ROOT);
+        final String first = local.split("[._+\\-]", 2)[0];
+        if (ROLE_MAILBOXES.contains(first)) {
+            return true;
+        }
+        if (local.length() < 4 || !local.matches("[a-z0-9]+")) {
+            return false;
+        }
+        for (final String label : email.substring(at + 1).toLowerCase(Locale.ROOT).split("[.-]")) {
+            if (label.equals(local) || label.length() > local.length() && label.contains(local) && local.length() >= 5) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final String PERSON_ROLE = "(?iu:gesch(?:ä|ae)ftsf(?:ü|ue)hr(?:er(?:in(?:nen)?)?|ung)|inhaber(?:in)?|prokurist(?:in)?"
+            + "|vorstand(?:svorsitzende[rn]?)?|vorsitzende[rn]?|vertreten\\s+durch(?:\\s+(?:den|die|das))?(?:\\s+gesch(?:ä|ae)ftsf(?:ü|ue)hrer(?:in)?)?"
+            + "|vertretungsberechtigt(?:e[rn]?)?(?:\\s+gesch(?:ä|ae)ftsf(?:ü|ue)hrer(?:in)?)?|ansprechpartner(?:in(?:nen)?)?|ansprechperson"
+            + "|verantwortlich(?:e[rn]?)?(?:\\s+f(?:ü|ue)r\\s+den\\s+inhalt)?(?:\\s+(?:nach|gem(?:ä|ae)(?:ß|ss)|gem\\.|i\\.\\s?s\\.\\s?d\\.)\\s*§?\\s*[^:\\n]{0,30})?"
+            + "|redaktion(?:sleitung)?|(?:pflegedienst|heim|einrichtungs|praxis|haus|stations)?leitung|datenschutzbeauftragte[rn]?"
+            + "|managing\\s+directors?|directors?|owner|ceo|contact\\s+person)";
+    // a name stays on its line: tokens joined by spaces only
+    private static final String NAME_TOKEN = "\\p{Lu}\\p{Ll}[\\p{L}'\\-]*";
+    private static final String PERSON_NAME = "(?:(?:Herr|Frau|Hr\\.|Fr\\.|Dr\\.|Prof\\.|Dipl\\.-?\\p{L}*\\.?|med\\.|Mag\\.)[ \\t\\u00A0]*)*"
+            + NAME_TOKEN + "(?:[ \\t\\u00A0]+(?:(?:von|van|de|der|den|zu|vom|zur|di|da|le|la)[ \\t\\u00A0]+)?" + NAME_TOKEN + "){0,3}";
+    private static final Pattern PERSON_AFTER_ROLE = Pattern.compile("((?<!\\p{L})" + PERSON_ROLE + "\\s*[:\\-–]?\\s*)(" + PERSON_NAME
+            + "(?:[ \\t\\u00A0]*(?:,|und|and|&)[ \\t\\u00A0]*(?=" + NAME_TOKEN + "[ \\t\\u00A0]+" + NAME_TOKEN + ")" + PERSON_NAME + "){0,3})");
+    private static final Pattern SALUTATION = Pattern.compile("\\b(?:Herr|Frau|Hr\\.|Fr\\.)[ \\t\\u00A0]+(?:(?:Dr|Prof)\\.[ \\t\\u00A0]*)*"
+            + NAME_TOKEN + "(?:[ \\t\\u00A0]+(?:(?:von|van|de|der|den|zu|vom|zur)[ \\t\\u00A0]+)?" + NAME_TOKEN + ")?");
+
+    /** Spans [start, end) of person names in {@code text}: after a role marker (not an organisation) or a salutation. */
+    static java.util.List<int[]> personSpans(final String text) {
+        final java.util.List<int[]> out = new java.util.ArrayList<>();
+        final Matcher m = PERSON_AFTER_ROLE.matcher(text);
+        while (m.find()) {
+            // an organisation after the marker ("Inhaber: Muster GmbH") stays
+            if (!ORGANISATION.matcher(text.substring(m.start(2), Math.min(text.length(), m.end(2) + 16))).find()) {
+                out.add(new int[] {m.start(2), m.end(2)});
+            }
+        }
+        final Matcher sm = SALUTATION.matcher(text);
+        while (sm.find()) {
+            out.add(new int[] {sm.start(), sm.end()});
+        }
+        return out;
+    }
+
+    /**
+     * An excerpt without the names of persons (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
+     * O7): names after a role marker (managing director, owner, represented
+     * by, contact person, responsible for the content, management, data
+     * protection officer, ...) and after a salutation become {@code […]}; the
+     * role marker stays so the excerpt still shows what the page says.
+     */
+    public static String redactPersons(final String excerpt) {
+        if (excerpt == null || excerpt.isEmpty()) {
+            return excerpt;
+        }
+        return excerpt(excerpt, 0, excerpt.length());
+    }
+
+    /**
+     * {@code text[from, to)} without the names of persons, also of a name the
+     * window cuts: the markers are looked for in the text around it.
+     */
+    public static String excerpt(final String text, final int from, final int to) {
+        final int wa = Math.max(0, from - 200);
+        final int wb = Math.min(text.length(), to + 100);
+        final java.util.List<int[]> spans = personSpans(text.substring(wa, wb));
+        if (spans.isEmpty()) {
+            return text.substring(from, to);
+        }
+        final boolean[] person = new boolean[to - from];
+        for (final int[] sp : spans) {
+            for (int i = Math.max(from, sp[0] + wa); i < Math.min(to, sp[1] + wa); i++) {
+                person[i - from] = true;
+            }
+        }
+        final StringBuilder b = new StringBuilder(to - from);
+        for (int i = 0; i < person.length; i++) {
+            if (!person[i]) {
+                b.append(text.charAt(from + i));
+            } else if (i == 0 || !person[i - 1]) {
+                b.append("[…]");
+            }
+        }
+        return b.toString();
+    }
+
+    private static final Pattern ORGANISATION = Pattern.compile("(?<!\\p{L})(?:GmbH|gGmbH|mbH|AG|KG|KGaA|UG|OHG|GbR|eG|SE|PartG|Stiftung"
+            + "|Ltd|Inc|LLC|Verein|Verband|Werk|Haus|Zentrum|Klinik|Praxis)(?!\\p{L})");
+
     /** Absolute http(s) URL with lower-case scheme and host and without fragment, else null. */
     public static String url(final String s) {
         if (s == null) {

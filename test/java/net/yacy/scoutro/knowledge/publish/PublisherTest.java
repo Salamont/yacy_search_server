@@ -104,6 +104,22 @@ public class PublisherTest {
             + "\"telephone\":\"030 1234567\"}";
 
     @Test
+    public void storedExcerptsCarryNoNamesOfPersons() throws Exception {
+        final Publisher.Doc d = doc("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1");
+        final Extraction ex = new Extraction(50);
+        new net.yacy.scoutro.knowledge.extract.RuleExtractor(200, 65536).extract(
+                net.yacy.scoutro.knowledge.extract.ExtractorsTest.IMPRINT, d.url, d.host, d.language, ex);
+        // a quote of another tier that names a person
+        ex.add(new net.yacy.scoutro.knowledge.extract.Claim(net.yacy.scoutro.knowledge.extract.RuleExtractor.OPERATOR_REF,
+                net.yacy.scoutro.knowledge.extract.Vocabulary.LOCALITY, null, "Berlin", 2,
+                net.yacy.scoutro.knowledge.extract.Claim.KIND_RULE, false, "text:0+6", "Geschäftsführerin Erika Musterfrau, Berlin"));
+        publish(d, ex);
+        assertTrue(count("SELECT count(*) FROM kg_evidence") > 3);
+        assertEquals(0L, count("SELECT count(*) FROM kg_evidence WHERE excerpt LIKE '%Musterfrau%' OR excerpt LIKE '%Erika%'"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_statement WHERE obj_val LIKE '%Musterfrau%'"));
+    }
+
+    @Test
     public void reprocessingTheSameDocumentCreatesNoDuplicates() throws Exception {
         final Publisher.Doc d = doc("AAAAAAhost01", "https://www.muster.de/", "c1");
         assertEquals(Publisher.Outcome.PUBLISHED, publish(d, jsonld(d, ORG)).outcome);

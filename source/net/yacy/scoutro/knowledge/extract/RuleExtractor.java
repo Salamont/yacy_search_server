@@ -38,14 +38,15 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * contact values are attached only if the page's structured data describes
  * exactly one organisation or facility; otherwise nothing is guessed.</li>
  * </ul>
- * Persons are never extracted (managing directors, responsible persons).
+ * Persons are never extracted (managing directors, responsible persons), nor
+ * e-mail addresses that may be a person's ({@link Normalizers#roleEmail}).
  * Every claim keeps its text location ({@code text:offset+length}) and an
  * excerpt of at most {@code maxExcerpt} characters.
  */
 public final class RuleExtractor {
 
     public static final String NAME = "rule";
-    public static final String VERSION = "1";
+    public static final String VERSION = "2";
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;
@@ -237,7 +238,7 @@ public final class RuleExtractor {
         final Matcher em = EMAIL.matcher(text).region(from, end);
         while (em.find()) {
             final String mail = Normalizers.email(em.group());
-            if (mail != null) {
+            if (mail != null && Normalizers.roleEmail(mail)) { // no addresses of persons (O7)
                 claim(out, m, Vocabulary.EMAIL, mail, text, em.start(), em.end());
                 break;
             }
@@ -303,7 +304,7 @@ public final class RuleExtractor {
         final int a = Math.max(0, start - 30);
         final int b = Math.min(text.length(), Math.max(end, start) + 30);
         out.add(new Claim(m.ref, predicate, null, value, 2, Claim.KIND_RULE, false, "text:" + start + "+" + (end - start),
-                Normalizers.clip(text.substring(a, b), this.maxExcerpt)));
+                Normalizers.clip(Normalizers.excerpt(text, a, b), this.maxExcerpt)));
     }
 
     /** Register entry from a string such as "HRB 12345 B, Amtsgericht Charlottenburg", or null. */
