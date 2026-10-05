@@ -198,6 +198,23 @@ public final class Reconciler {
         }
     }
 
+    /** True while a run waits because the work queue was full; {@link #queueHasRoom} brings it forward. */
+    boolean waitsForQueueRoom() {
+        synchronized (this.lock) {
+            return this.pending && REASON_QUEUE_FULL.equals(this.pendingReason) && this.run == null
+                    && this.dueAt > this.clock.getAsLong();
+        }
+    }
+
+    /** The work queue has room again: a run that the full queue postponed is due now, not in an hour. */
+    void queueHasRoom(final long now) {
+        synchronized (this.lock) {
+            if (this.pending && REASON_QUEUE_FULL.equals(this.pendingReason) && this.dueAt > now) {
+                this.dueAt = now;
+            }
+        }
+    }
+
     /** Requests a run after a quiet period; every further request of this kind moves it back (delete by query). */
     void requestDebounced(final String reason, final long due) {
         synchronized (this.lock) {
@@ -692,7 +709,8 @@ public final class Reconciler {
             }
         }
         if (r.dropped > 0L) {
-            // the queue was full: the documents that did not fit come with the next run
+            // the queue was full: the documents that did not fit come with the next run, as soon as the
+            // queue has room again (SyncService.step), at the latest after QUEUE_FULL_RETRY
             request(REASON_QUEUE_FULL, now + QUEUE_FULL_RETRY);
         }
         JsonLdCapture.reconciled();

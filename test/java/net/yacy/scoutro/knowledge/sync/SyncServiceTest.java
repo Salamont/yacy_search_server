@@ -567,6 +567,25 @@ public class SyncServiceTest {
     }
 
     @Test
+    public void aReconcileThatTheFullQueuePostponedRunsOnceTheQueueHasRoom() throws Exception {
+        settle();
+        this.sync.queueMax(2);
+        // during a pause the queue fills, the reconcile it triggers finds no room either
+        this.guard.setManualPause(true);
+        for (int i = 0; i < 5; i++) {
+            add("AAAAA" + i + "host01", "https://www.muster.de/" + i, org("Firma " + i + " GmbH", "030 100000" + i));
+        }
+        commit();
+        settle(() -> this.dirty.size() == 0 && !this.sync.reconciler().pending() || this.sync.reconciler().waitsForQueueRoom());
+        assertTrue("the reconcile could not enqueue everything", this.sync.reconciler().waitsForQueueRoom());
+        this.guard.setManualPause(false);
+        final long resumed = this.clock.get();
+        settle(() -> this.dirty.size() == 0 && queue() == 0L && count("SELECT count(*) FROM kg_doc") == 5L);
+        assertTrue("within minutes after the queue drained, not after the hour of the retry: " + (this.clock.get() - resumed),
+                this.clock.get() - resumed < 10L * 60_000L);
+    }
+
+    @Test
     public void deleteByQueryIsDebouncedAndVerified() throws Exception {
         add("AAAAAAhost01", "https://a.example/", org("A GmbH", "030 1111111"));
         add("BBBBBBhost02", "https://b.example/", org("B GmbH", "030 2222222"));

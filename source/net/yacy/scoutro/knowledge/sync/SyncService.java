@@ -268,6 +268,11 @@ public final class SyncService {
             boolean more = this.reconciler.step();
             more |= processBatch();
             more |= this.retention.step();
+            if (!more && this.reconciler.waitsForQueueRoom()
+                    && this.store.read(WorkQueue::size) < Math.max(1L, this.queueMax / 2L)) {
+                // the queue drained: the reconcile it postponed picks up what did not fit
+                this.reconciler.queueHasRoom(this.clock.getAsLong());
+            }
             checkpoint(this.clock.getAsLong());
             this.lastError = null;
             return more;
