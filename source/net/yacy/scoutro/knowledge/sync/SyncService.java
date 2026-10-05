@@ -258,7 +258,7 @@ public final class SyncService {
                 drain(now);
             }
             if (this.dirty.takeOverflow()) {
-                this.reconciler.request(Reconciler.REASON_OVERFLOW, now);
+                this.reconciler.lost(Reconciler.REASON_OVERFLOW, now);
             }
             final long qd = this.dirty.queryDeletes();
             if (qd != this.handledQueryDeletes) {
@@ -316,7 +316,7 @@ public final class SyncService {
             this.nextClaimAt = 0L;
             if (a.dropped > 0) {
                 this.counters.queueDropped.addAndGet(a.dropped);
-                this.reconciler.request(Reconciler.REASON_QUEUE_FULL, now);
+                this.reconciler.lost(Reconciler.REASON_QUEUE_FULL, now);
             }
         }
     }
