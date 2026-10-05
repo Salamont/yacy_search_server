@@ -36,7 +36,6 @@ This is a list of searches that had been requested from remote peer search inter
 Peer Name==Ім’я вузла
 #-----------------------------
 
-
 Host==Хост
 This is a list of requests (max. 1000) to the local http server within the last hour.==Це список запитів (макс. 1000) до локального http-сервера за останню годину.
 Date==Дата
@@ -212,7 +211,6 @@ Image Collage==Суміш картинок
 Private Queue==Приватна черга
 Public Queue==Публічна черга
 #-----------------------------
-
 
 #File: compare_yacy.html
 #---------------------------
@@ -1017,7 +1015,6 @@ again and add new sites automatically to indexer.==і додавати нові 
 Sites that do not appear during a scheduled scan period will be excluded from search results.==Сайти, які не з’являться під час сканування, будуть усунуті з результатів пошуку.
 "Scan"=="Сканувати"
 
-
 Time-Out==Чекати
 Subnet==Підмережа
 
@@ -1620,7 +1617,6 @@ Location==Місце
 "Accept Crawl: yes"=="Прийом сканувань: так"
 "crawl possible"=="Сканування можливе"
 
-
 URLs for<br/>Remote Crawl==Надає<br/>URL
 "The YaCy Network"=="Мережа YaCy"
 
@@ -1855,7 +1851,6 @@ used memory in the JVM within total amount==використана пам’ят
 Table RAM Index==Пам’ять RAM індексу таблиць
 Object Index Caches==Кеші індексу об’єктів
 Needed Memory==Потрібна пам’ять
-
 
 Other Caching Structures==Інші кешувальні структури
 DNSNoCache==DNSБезКешу
@@ -2633,7 +2628,6 @@ Primary Key==Первинний ключ
 "Commit"=="Надіслати"
 #-----------------------------
 
-
 "Tables"=="Таблиці"
 all==все
 reverse:==зворотний:
@@ -2969,6 +2963,8 @@ Not supported==Не підтримується
 "Table"=="Таблиця"
 PK==ПК
 #File: env/templates/header.template
+AI Lab overview==Огляд AI Lab
+Chat tools==Інструменти чату
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Автоматизація пошуку<
 >Dashboard<==>Панель керування<
@@ -3152,7 +3148,6 @@ Did you mean:==Ви мали на увазі:
 Server Access Grid==Сітка доступу до сервера
 This images shows incoming connections to your YaCy peer and outgoing connections from your peer to other peers and web servers==Ці зображення показують вхідні з’єднання до вашого вузла і вихідні з’єднання до інших вузлів та веб-серверів
 #-----------------------------
-
 
 ### Subdirectory jquery/js ###
 "YaCy Access Grid"=="YaCy Сітка доступу"
@@ -3385,37 +3380,10 @@ Remote crawl start points, finished:==Початкові точки віддал
 #File: IndexBrowser_p.html
 #---------------------------
 Index Browser==Index Перегляд
-Path==Каталог
 #-----------------------------
 
-"Delete Subpath"=="Видалити підшлях"
-"Re-load load-failure docs (404s etc)"=="Перезавантажити документи про помилку завантаження (404s тощо)"
-"Directory"=="Довідник"
-"Delete Load Errors"=="Видалити помилки завантаження"
-Host/URL==Хост/URL
-Browse Host==Огляд хосту
-Host List==Список хостів
-URLs==URL-адреси
-Count Colors:==Підрахунок кольорів:
-Documents without Errors==Документи без помилок
-Pending in Crawler==Очікує на розгляд у сканері
-Crawler Excludes==Виключено сканер
-Load Errors==Помилки завантаження
-Host Analysis==Аналіз хоста
-Add to blacklist==Додати в чорний список
-stored==зберігається
-linked==пов'язані
-pending==в очікуванні
-excluded==виключено
-failed==не вдалося
-Metadata==Метадані
-link, detected from context==посилання, визначене з контексту
-load &amp; index==завантажити індекс &amp;
 indexed==індексується
 loading==завантаження
-Administration Options==Параметри адміністрування
-Delete all==Видалити все
-from index==з індексу
 #File: IndexDeletion_p.html
 #---------------------------
 hours==годин
@@ -3778,29 +3746,15 @@ domaingraph : Built with Processing==domaingraph : створено за доп�
 Built with Processing==Створено з обробкою
 #File: yacychat.html
 #---------------------------
-"Search"=="Пошук"
 #-----------------------------
 
-"Attach search results by default"=="Додавати результати пошуку за умовчанням"
 "Attach a file"=="Прикріпити файл"
 "Send"=="Надіслати"
 "Clear chat"=="Очистити чат"
 "Download chat"=="Завантажити чат"
 "Upload chat"=="Завантажити чат"
 "Show system prompt"=="Показати системне повідомлення"
-YaCy Chat==YaCy Чат
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Цей чат приватний. YaCy не зберігає жодної історії — лише ваш браузер запам’ятовує поточну розмову.
-Default Dialog Augmentation:==Розширення діалогового вікна за замовчуванням:
-no search, allow attachments==немає пошуку, дозволити вкладення
-use local search==використовувати локальний пошук
-use global search==використовувати глобальний пошук
-User==Користувач
-Attach Search Results==Прикріпити результати пошуку
 Attach PNG/JPG or text (.txt/.md/.tex)==Додайте PNG/JPG або текст (.txt/.md/.tex)
-Clear Chat==Очистити чат
-Download Chat==Завантажити Чат
-Upload Chat==Завантажити чат
-Show System==Показати систему
 #File: yacysearch_location.html
 #---------------------------
 Click the API icon to see the XML.==Натисніть значок API для відображення XML.
@@ -4333,15 +4287,7 @@ Define URL substitution rules which allow navigating in proxy environment. Possi
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==Інструменти
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Додайте надздібності до чату YaCy. Інструменти можна вимкнути, встановивши для maxCallsPerTurn значення 0.
 Tool settings were saved.==Налаштування інструменту збережено.
-Basic Tools==Основні інструменти
-maxCallsPerTurn==maxCallsPerTurn
-disable==відключити
-Visualization Tools==Інструменти візуалізації
-Data Retrieval Tools==Інструменти пошуку даних
-Save Tools Configuration==Зберегти конфігурацію інструментів
 #-----------------------------
 
 #File: Trails.html
@@ -4488,10 +4434,10 @@ Administration &raquo;==Адміністрація &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Інструменти чату
 AI Lab==AI Lab
 LLM Selection==LLM Вибір
 RAG Config==RAG конфіг
-Tools Config==Конфігурація інструментів
 Log Reports==Журнал звітів
 AI Shield==AI Shield
 Chat==Чат
@@ -4615,7 +4561,6 @@ rss terminal==rss термінал
 &laquo;==&laquo;
 &raquo;==&raquo;
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Автоматизація пошуку<
@@ -4917,7 +4862,6 @@ rss terminal==rss термінал
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Перегляд індексованих URL без завантаження або сканування.
 Apply filters==Застосувати фільтри
 Reset filters==Скинути фільтри
 Active collection:==Активна колекція:
@@ -4927,7 +4871,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Д
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Недійсна колекція. До 64 латинських літер, цифр, підкреслень або дефісів.
 indexed URLs==індексовані URL
 Index pages==Сторінки індексу
-Host/URL==Хост/URL
 Collection==Колекція
 URL==URL
 Host==Хост

@@ -1,83 +1,52 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <title>YaCy '#[clientname]#': Tools Config</title>
+    <title>Scoutro: Chat tools</title>
     #%env/templates/metas.template%#
     <style type="text/css">
+      .tool-intro { max-width: 60em; }
+      .tool-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; padding: 0; margin: 8px 0 16px; list-style: none; }
+      .tool-legend li { display: flex; align-items: center; gap: 8px; }
+      .tool-group { margin-top: 24px; }
+      .tool-group h3 { margin-bottom: 4px; }
+      .tool-group-intro { color: #5b6b85; margin-bottom: 12px; }
+      .skills-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); }
       .tool-card {
-        border: 1px solid #e6e9ef;
-        border-left: 6px solid #5bc0de;
-        padding: 10px 18px 18px 18px;
-        margin-bottom: 16px;
-        background: #fff;
-        box-shadow: 0 3px 10px rgba(0,0,0,0.06);
+        min-width: 0; padding: 14px 16px; background: #fff; color: #2f3f5c;
+        border: 1px solid #dbe5f4; border-left: 4px solid #8fa3c4; border-radius: 12px;
+        box-shadow: 0 1px 2px rgba(15, 31, 61, .08); display: flex; flex-direction: column; gap: 8px;
       }
-      .tool-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 10px;
-      }
-      .tool-header h3 {
-        margin: 0;
-        color: #0f2b46;
-      }
-      .tool-limit {
-        display: flex;
-        align-items: stretch;
-        gap: 8px;
-        color: #3b4a5e;
-        white-space: nowrap;
-      }
-      .tool-limit label {
-        display: inline-flex;
-        align-items: center;
-      }
-      .tool-limit input {
-        width: 56px;
-        height: 34px;
-        padding: 6px 8px;
-      }
-      .tool-limit .toggle-button {
-        min-width: 70px;
-        height: 34px;
-        padding: 6px 10px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-      }
-      .tool-description {
-        width: 100%;
-        resize: vertical;
-      }
-      .tool-release {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        min-height: 40px;
-        margin-bottom: 6px;
-      }
-      .tool-release input {
-        width: 20px;
-        height: 20px;
-        margin: 0;
-      }
-      .skills-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 18px;
-        align-items: stretch;
-      }
-      .skills-grid .tool-card {
-        flex: 1 1 48%;
-        min-width: 320px;
-        margin-bottom: 0;
-      }
+      .tool-card.is-released { border-left-color: #1f9d55; }
+      .tool-card.is-unreleased { border-left-color: #d99a00; }
+      .tool-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; }
+      .tool-title { margin: 0; font-size: 18px; font-weight: 600; color: #0f1f3d; min-width: 0; overflow-wrap: anywhere; }
+      .tool-name { display: block; margin-top: 2px; padding: 0; background: none; color: #5b6b85; font-size: 12px; font-weight: normal; }
+      .tool-status { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 13px; line-height: 20px; white-space: nowrap; }
+      .tool-status.is-released { background: #e3f6e9; color: #14532d; }
+      .tool-status.is-unreleased { background: #fff4dd; color: #6b4500; }
+      .tool-status.is-disabled { background: #eef1f6; color: #3b4a5e; }
+      .tool-card p { margin: 0; overflow-wrap: anywhere; }
+      .tool-example, .tool-safety { font-size: 14px; }
+      .tool-safety { color: #3b4a5e; }
+      .tool-controls { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 24px; margin-top: 4px; padding-top: 8px; border-top: 1px solid #eef1f6; }
+      .tool-release { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+      .tool-release input { width: 20px; height: 20px; margin: 0; }
+      .tool-release label, .tool-limit > label { margin: 0; font-weight: 600; text-align: left; }
+      .tool-limit { align-items: flex-start; }
+      .tool-limit { display: flex; flex-direction: column; gap: 4px; }
+      .tool-limit-row { display: flex; gap: 8px; }
+      .tool-limit input { width: 72px; height: 40px; padding: 6px 8px; }
+      .tool-limit .toggle-button { min-width: 104px; min-height: 40px; }
+      .tool-advanced summary { cursor: pointer; color: #0b4fc4; min-height: 32px; display: flex; align-items: center; }
+      .tool-advanced-help { font-size: 13px; color: #5b6b85; margin: 4px 0 6px !important; }
+      .tool-description { width: 100%; resize: vertical; font-size: 13px; }
+      .tool-save { margin-top: 24px; }
       @media (max-width: 767px) {
-        .skills-grid .tool-card {
-          flex-basis: 100%;
-        }
+        .tool-card { padding: 12px; }
+        .tool-controls { flex-direction: column; align-items: stretch; }
+        .tool-limit-row input { flex: 0 0 88px; width: 88px; }
+        .tool-limit-row .toggle-button { flex: 1 1 auto; }
+        .tool-save { width: 100%; }
       }
     </style>
   </head>
@@ -85,121 +54,225 @@
     #%env/templates/header.template%#
     #%env/templates/submenuAI.template%#
 
-    <h2>Tools</h2>
-    <p>Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.</p>
-    <p class="alert alert-info">A tool is offered to the chat model only when it is <b>released for the chat</b> here and its maxCallsPerTurn is above 0. A model with tool support alone does not release any tool. The web tools <code>http_json</code> (GET only) and <code>webfetch</code> reach only public http(s) addresses.</p>
+    <h2>Chat tools</h2>
+    <p class="tool-intro">Tools are small helper functions the AI may call while it writes an answer, for example to calculate exactly or to read a web page. Whether the chat model can use tools at all is set in LLM Selection.</p>
+    <p class="alert alert-info">A tool is used only when it is <b>released for the chat</b> and its <b>maximum calls per answer</b> is above 0. A model with tool support alone releases no tool. The web tools “Query JSON API” and “Fetch web page” reach only public http(s) addresses.</p>
+    <ul class="tool-legend" aria-label="Status of a tool">
+      <li><span class="tool-status is-released">Released for the chat</span> the AI may use the tool</li>
+      <li><span class="tool-status is-unreleased">Not released</span> the release for the chat is missing</li>
+      <li><span class="tool-status is-disabled">Deactivated</span> maximum calls per answer is 0</li>
+    </ul>
+    <p id="tool-limit-help" class="tool-group-intro">Maximum calls per answer: how often the AI may use this tool while writing one answer. 0 = deactivated.</p>
 
     #(status)#
     ::<div class="alert alert-success">Tool settings were saved.</div>
     #(/status)#
     #(status_hasInvalidMaxCalls)#
-    ::<div class="alert alert-warning">#[status_invalidMaxCalls]# invalid maxCallsPerTurn value(s) were reset to the previous values.</div>
+    ::<div class="alert alert-warning">#[status_invalidMaxCalls]# invalid value(s) for “Maximum calls per answer” were reset to the previous values.</div>
     #(/status_hasInvalidMaxCalls)#
 
     <form action="ToolsConfig_p.html" method="post" accept-charset="UTF-8">
       <input type="hidden" name="save" value="1" />
 
-      <h3>Basic Tools</h3>
+      <section class="tool-group" aria-labelledby="tool-group-basic">
+      <h3 id="tool-group-basic">Calculation and helper tools</h3>
+      <p class="tool-group-intro">These tools work on the Scoutro server with the data the AI already has; most of them need no network access.</p>
       <div class="skills-grid">
       #{basic_tools}#
-      <div class="tool-card">
-        <div class="tool-header">
-          <h3><code>#[name]#</code></h3>
+      <div class="tool-card" data-tool="#[name]#">
+        <div class="tool-head">
+          <h4 class="tool-title"><span class="tool-label">#[name]#</span> <code class="tool-name">#[name]#</code></h4>
+          <span class="tool-status" aria-live="polite"></span>
+        </div>
+        <p class="tool-what"></p>
+        <p class="tool-example" hidden><strong>Example:</strong> <span></span></p>
+        <p class="tool-safety" hidden><strong>Security:</strong> <span></span></p>
+        <div class="tool-controls">
+          <div class="tool-release">
+            <input id="tool-release-basic-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
+            <label for="tool-release-basic-#[name]#">Release for the chat</label>
+          </div>
           <div class="tool-limit">
-            <label for="tool-limit-basic-#[name]#">maxCallsPerTurn</label>
-            <input id="tool-limit-basic-#[name]#" type="number" class="form-control max-calls-input" min="0" max="99" name="ai.tools.#[name]#.maxCallsPerTurn" value="#[maxCallsPerTurn]#" />
-            <button type="button" class="btn btn-default toggle-button">disable</button>
+            <label for="tool-limit-basic-#[name]#">Maximum calls per answer</label>
+            <div class="tool-limit-row">
+              <input id="tool-limit-basic-#[name]#" type="number" class="form-control max-calls-input" min="0" max="99" name="ai.tools.#[name]#.maxCallsPerTurn" value="#[maxCallsPerTurn]#" aria-describedby="tool-limit-help" />
+              <button type="button" class="btn btn-default toggle-button">Deactivate</button>
+            </div>
           </div>
         </div>
-        <div class="tool-release">
-          <input id="tool-release-basic-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
-          <label for="tool-release-basic-#[name]#">released for the chat</label>
-        </div>
-        <textarea class="tool-description form-control" name="ai.tools.#[name]#.description" rows="2">#[description]#</textarea>
+        <details class="tool-advanced">
+          <summary>Description for the AI model (advanced)</summary>
+          <p class="tool-advanced-help">The model reads this English text to decide when to use the tool. Change it only if the model uses the tool too often or too rarely.</p>
+          <label class="sr-only" for="tool-description-basic-#[name]#">Description for the AI model</label>
+          <textarea id="tool-description-basic-#[name]#" class="tool-description form-control" name="ai.tools.#[name]#.description" rows="3">#[description]#</textarea>
+        </details>
       </div>
       #{/basic_tools}#
       </div>
+      </section>
 
-      <h3>Visualization Tools</h3>
+      <section class="tool-group" aria-labelledby="tool-group-vis">
+      <h3 id="tool-group-vis">Diagrams</h3>
+      <p class="tool-group-intro">These tools draw diagrams in the answer.</p>
       <div class="skills-grid">
       #{visualization_tools}#
-      <div class="tool-card">
-        <div class="tool-header">
-          <h3><code>#[name]#</code></h3>
+      <div class="tool-card" data-tool="#[name]#">
+        <div class="tool-head">
+          <h4 class="tool-title"><span class="tool-label">#[name]#</span> <code class="tool-name">#[name]#</code></h4>
+          <span class="tool-status" aria-live="polite"></span>
+        </div>
+        <p class="tool-what"></p>
+        <p class="tool-example" hidden><strong>Example:</strong> <span></span></p>
+        <p class="tool-safety" hidden><strong>Security:</strong> <span></span></p>
+        <div class="tool-controls">
+          <div class="tool-release">
+            <input id="tool-release-vis-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
+            <label for="tool-release-vis-#[name]#">Release for the chat</label>
+          </div>
           <div class="tool-limit">
-            <label for="tool-limit-vis-#[name]#">maxCallsPerTurn</label>
-            <input id="tool-limit-vis-#[name]#" type="number" class="form-control max-calls-input" min="0" max="99" name="ai.tools.#[name]#.maxCallsPerTurn" value="#[maxCallsPerTurn]#" />
-            <button type="button" class="btn btn-default toggle-button">disable</button>
+            <label for="tool-limit-vis-#[name]#">Maximum calls per answer</label>
+            <div class="tool-limit-row">
+              <input id="tool-limit-vis-#[name]#" type="number" class="form-control max-calls-input" min="0" max="99" name="ai.tools.#[name]#.maxCallsPerTurn" value="#[maxCallsPerTurn]#" aria-describedby="tool-limit-help" />
+              <button type="button" class="btn btn-default toggle-button">Deactivate</button>
+            </div>
           </div>
         </div>
-        <div class="tool-release">
-          <input id="tool-release-vis-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
-          <label for="tool-release-vis-#[name]#">released for the chat</label>
-        </div>
-        <textarea class="tool-description form-control" name="ai.tools.#[name]#.description" rows="2">#[description]#</textarea>
+        <details class="tool-advanced">
+          <summary>Description for the AI model (advanced)</summary>
+          <p class="tool-advanced-help">The model reads this English text to decide when to use the tool. Change it only if the model uses the tool too often or too rarely.</p>
+          <label class="sr-only" for="tool-description-vis-#[name]#">Description for the AI model</label>
+          <textarea id="tool-description-vis-#[name]#" class="tool-description form-control" name="ai.tools.#[name]#.description" rows="3">#[description]#</textarea>
+        </details>
       </div>
       #{/visualization_tools}#
       </div>
+      </section>
 
-      <h3>Data Retrieval Tools</h3>
+      <section class="tool-group" aria-labelledby="tool-group-ret">
+      <h3 id="tool-group-ret">Search and web access</h3>
+      <p class="tool-group-intro">These tools bring further information into the answer: from your index or, for “Fetch web page”, live from the internet.</p>
       <div class="skills-grid">
       #{retrieval_tools}#
-      <div class="tool-card">
-        <div class="tool-header">
-          <h3><code>#[name]#</code></h3>
+      <div class="tool-card" data-tool="#[name]#">
+        <div class="tool-head">
+          <h4 class="tool-title"><span class="tool-label">#[name]#</span> <code class="tool-name">#[name]#</code></h4>
+          <span class="tool-status" aria-live="polite"></span>
+        </div>
+        <p class="tool-what"></p>
+        <p class="tool-example" hidden><strong>Example:</strong> <span></span></p>
+        <p class="tool-safety" hidden><strong>Security:</strong> <span></span></p>
+        <div class="tool-controls">
+          <div class="tool-release">
+            <input id="tool-release-ret-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
+            <label for="tool-release-ret-#[name]#">Release for the chat</label>
+          </div>
           <div class="tool-limit">
-            <label for="tool-limit-ret-#[name]#">maxCallsPerTurn</label>
-            <input id="tool-limit-ret-#[name]#" type="number" class="form-control max-calls-input" min="0" max="99" name="ai.tools.#[name]#.maxCallsPerTurn" value="#[maxCallsPerTurn]#" />
-            <button type="button" class="btn btn-default toggle-button">disable</button>
+            <label for="tool-limit-ret-#[name]#">Maximum calls per answer</label>
+            <div class="tool-limit-row">
+              <input id="tool-limit-ret-#[name]#" type="number" class="form-control max-calls-input" min="0" max="99" name="ai.tools.#[name]#.maxCallsPerTurn" value="#[maxCallsPerTurn]#" aria-describedby="tool-limit-help" />
+              <button type="button" class="btn btn-default toggle-button">Deactivate</button>
+            </div>
           </div>
         </div>
-        <div class="tool-release">
-          <input id="tool-release-ret-#[name]#" type="checkbox" name="ai.tools.#[name]#.enabled" value="true" #(released)#::checked="checked"#(/released)# />
-          <label for="tool-release-ret-#[name]#">released for the chat</label>
-        </div>
-        <textarea class="tool-description form-control" name="ai.tools.#[name]#.description" rows="2">#[description]#</textarea>
+        <details class="tool-advanced">
+          <summary>Description for the AI model (advanced)</summary>
+          <p class="tool-advanced-help">The model reads this English text to decide when to use the tool. Change it only if the model uses the tool too often or too rarely.</p>
+          <label class="sr-only" for="tool-description-ret-#[name]#">Description for the AI model</label>
+          <textarea id="tool-description-ret-#[name]#" class="tool-description form-control" name="ai.tools.#[name]#.description" rows="3">#[description]#</textarea>
+        </details>
       </div>
       #{/retrieval_tools}#
       </div>
-      <button type="submit" class="btn btn-primary">Save Tools Configuration</button>
+      </section>
+      <button type="submit" class="btn btn-primary tool-save">Save tool settings</button>
     </form>
+
+    <div hidden id="tool-catalog">
+      <div data-tool="datetime"><span data-k="label">Date &amp; time</span><span data-k="what">Tells the AI the current date and time, optionally for a time zone.</span><span data-k="example">What time is it in New York right now?</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="date_math"><span data-k="label">Date calculation</span><span data-k="what">Calculates with dates: adds or subtracts days, weeks or months, measures the time between two dates, finds the start or end of a period.</span><span data-k="example">Which date is 90 days after 1 March 2026?</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="calculator"><span data-k="label">Calculator</span><span data-k="what">Evaluates formulas exactly instead of letting the AI estimate the result.</span><span data-k="example">What is 17.5 % of 2,340?</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="number_parser"><span data-k="label">Number words</span><span data-k="what">Turns written numbers into digits (German, English, French, Spanish, Italian).</span><span data-k="example">“einundzwanzig” becomes 21.</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="unit_converter"><span data-k="label">Unit converter</span><span data-k="what">Converts length, weight, temperature, volume and speed.</span><span data-k="example">How many kilometres are 26.2 miles?</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="http_json"><span data-k="label">Query JSON API</span><span data-k="what">Reads data from a public web interface (API) that answers in JSON.</span><span data-k="example">Ask the public API of a weather service for the forecast for Berlin.</span><span data-k="safety">Only GET requests to public http(s) addresses; private and internal addresses are blocked, responses are limited to 2 MB. The AI chooses the address itself: release this tool only if the chat may reach the internet.</span></div>
+      <div data-tool="table_ops"><span data-k="label">Table operations</span><span data-k="what">Filters, sorts, groups and counts table rows the AI already has, for example search hits.</span><span data-k="example">Sort the hits by city and count them per city.</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="update_plan"><span data-k="label">Show plan</span><span data-k="what">Shows a step list in the chat while the AI works on a task with several steps.</span><span data-k="example">Plan the steps to compare three providers.</span><span data-k="safety">Only changes the display in the chat; no network access.</span></div>
+      <div data-tool="self_reflect"><span data-k="label">Chat help</span><span data-k="what">Explains what the chat can do and why it works the way it does.</span><span data-k="example">What can you do?</span><span data-k="safety">Answers with fixed texts; no network access.</span></div>
+      <div data-tool="chitchat"><span data-k="label">Small talk</span><span data-k="what">Answers greetings and test messages in a friendly way and names what the chat can do.</span><span data-k="example">Hello, are you there?</span><span data-k="safety">Answers with fixed texts; no network access.</span></div>
+      <div data-tool="prompt_to_mermaid"><span data-k="label">Create diagram</span><span data-k="what">Turns a description into a Mermaid diagram, for example a flowchart or a sequence.</span><span data-k="example">Draw the way from a crawl to the index as a flowchart.</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="mermaid_to_ascii"><span data-k="label">Diagram as text</span><span data-k="what">Draws a Mermaid diagram as text graphics that every chat window can show.</span><span data-k="example">Show this flowchart as text.</span><span data-k="safety">Computed on the Scoutro server; no network access.</span></div>
+      <div data-tool="search"><span data-k="label">Index search</span><span data-k="what">Lets the AI run additional searches of its own while answering, besides the automatic search for the question.</span><span data-k="example">Also look up the opening hours of these places.</span><span data-k="safety">Reads search results from your index, or from the YaCy network when global search is switched on; it starts no crawl. It does not use the collection chosen in the chat.</span></div>
+      <div data-tool="wikipedia_link_creator"><span data-k="label">Wikipedia link</span><span data-k="what">Builds the address of a Wikipedia article from a topic. Together with “Fetch web page” the AI can then read the article.</span><span data-k="example">Topic “Kurzzeitpflege” becomes https://de.wikipedia.org/wiki/Kurzzeitpflege.</span><span data-k="safety">Only builds an address and loads nothing itself.</span></div>
+      <div data-tool="webfetch"><span data-k="label">Fetch web page</span><span data-k="what">Loads a public web page live from the internet and gives the AI its text (up to about 12,000 characters).</span><span data-k="example">Read https://example.org/about and summarize it.</span><span data-k="safety">Only public http(s) addresses; private and internal addresses are blocked. The page is loaded from the internet, not from the index: release this tool only if the chat may reach the internet.</span></div>
+      <span data-label="status_released">Released for the chat</span>
+      <span data-label="status_unreleased">Not released</span>
+      <span data-label="status_disabled">Deactivated</span>
+      <span data-label="unsaved">not saved yet</span>
+      <span data-label="deactivate">Deactivate</span>
+      <span data-label="activate">Activate</span>
+    </div>
 
     <script type="text/javascript">
       (function() {
+        var labels = {};
+        Array.prototype.forEach.call(document.querySelectorAll("#tool-catalog [data-label]"), function(span) {
+          labels[span.getAttribute("data-label")] = span.textContent;
+        });
+
         function readValue(input) {
           if (!input) return 0;
           var value = parseInt(input.value, 10);
           return isNaN(value) ? 0 : value;
         }
 
-        function updateToggleLabel(input, button) {
-          if (!input || !button) return;
-          button.textContent = readValue(input) > 0 ? "disable" : "enable";
+        // Same rule as ToolProvider: offered to the model only when released and maxCallsPerTurn > 0.
+        function statusOf(release, input) {
+          if (readValue(input) <= 0) return "disabled";
+          return release && release.checked ? "released" : "unreleased";
         }
 
-        var inputs = document.querySelectorAll(".max-calls-input");
-        Array.prototype.forEach.call(inputs, function(input) {
-          var wrapper = input.parentElement;
-          var button = wrapper ? wrapper.querySelector(".toggle-button") : null;
-          if (!button) return;
+        Array.prototype.forEach.call(document.querySelectorAll(".tool-card[data-tool]"), function(card) {
+          var info = document.querySelector('#tool-catalog [data-tool="' + card.getAttribute("data-tool") + '"]');
+          if (info) {
+            var part = function(key) { var node = info.querySelector('[data-k="' + key + '"]'); return node ? node.textContent : ""; };
+            card.querySelector(".tool-label").textContent = part("label");
+            card.querySelector(".tool-what").textContent = part("what");
+            [["example", ".tool-example"], ["safety", ".tool-safety"]].forEach(function(pair) {
+              var row = card.querySelector(pair[1]);
+              row.querySelector("span").textContent = part(pair[0]);
+              row.hidden = !part(pair[0]);
+            });
+          }
+          var input = card.querySelector(".max-calls-input");
+          var release = card.querySelector('input[type="checkbox"]');
+          var button = card.querySelector(".toggle-button");
+          var badge = card.querySelector(".tool-status");
+          var saved = statusOf(release, input) + "|" + readValue(input);
+          var lastActive = readValue(input) > 0 ? readValue(input) : 1;
 
-          updateToggleLabel(input, button);
+          function update() {
+            var status = statusOf(release, input);
+            card.classList.remove("is-released", "is-unreleased", "is-disabled");
+            card.classList.add("is-" + status);
+            badge.className = "tool-status is-" + status;
+            var text = labels["status_" + status] || status;
+            if (status + "|" + readValue(input) !== saved) text += " (" + (labels.unsaved || "not saved yet") + ")";
+            badge.textContent = text;
+            button.textContent = readValue(input) > 0 ? labels.deactivate : labels.activate;
+          }
 
           button.addEventListener("click", function() {
             if (readValue(input) > 0) {
+              lastActive = readValue(input);
               input.value = "0";
             } else {
-              input.value = "1";
+              input.value = String(lastActive);
             }
-            updateToggleLabel(input, button);
+            update();
           });
-
-          input.addEventListener("input", function() {
-            updateToggleLabel(input, button);
-          });
-          input.addEventListener("change", function() {
-            updateToggleLabel(input, button);
-          });
+          input.addEventListener("input", function() { if (readValue(input) > 0) lastActive = readValue(input); update(); });
+          input.addEventListener("change", update);
+          if (release) release.addEventListener("change", update);
+          update();
         });
       })();
     </script>

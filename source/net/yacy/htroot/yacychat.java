@@ -28,7 +28,7 @@ import net.yacy.server.serverSwitch;
 
 public class yacychat {
 
-    public static serverObjects respond(@SuppressWarnings("unused") final RequestHeader header, final serverObjects post, final serverSwitch env) {
+    public static serverObjects respond(final RequestHeader header, final serverObjects post, final serverSwitch env) {
         // return variable that accumulates replacements
         final serverObjects prop = new serverObjects();
 
@@ -38,7 +38,10 @@ public class yacychat {
         // escape for safe embedding in a JS single-quoted string literal
         final String systemPromptJs = systemPrompt.replace("\\", "\\\\").replace("'", "\\'").replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n");
         prop.put("system_prompt", systemPromptJs);
-        prop.put("topmenu",sb.getConfigBool("ai.shield.show-chat-link", false) ? (sb.getConfigBool("publicTopmenu", true) ? 1 : 0) : 2);
+        // Administrators always get the administration navigation with the AI Lab; the front page link
+        // (ai.shield.show-chat-link) only selects the public header for visitors. Access stays with the AI Shield.
+        final boolean publicChat = sb.getConfigBool("ai.shield.show-chat-link", false) && !sb.verifyAuthentication(header);
+        prop.put("topmenu", publicChat ? (sb.getConfigBool("publicTopmenu", true) ? 1 : 0) : 2);
 
         String promoteChatPageGreeting = env.getConfig("promoteChatPageGreeting", "");
         if (env.getConfigBool(SwitchboardConstants.GREETING_NETWORK_NAME, false)) promoteChatPageGreeting = env.getConfig("network.unit.description", "");

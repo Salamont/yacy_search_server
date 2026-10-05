@@ -1501,36 +1501,9 @@ More Tutorials==अधिक ट्यूटोरियल
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="उपपथ हटाएँ"
-"Re-load load-failure docs (404s etc)"=="लोड-विफलता दस्तावेज़ (404 आदि) पुनः लोड करें"
-"Directory"=="निर्देशिका"
-"Delete Load Errors"=="लोड त्रुटियाँ हटाएँ"
 Index Browser==अनुक्रमणिका ब्राउज़र
-Host/URL==होस्ट/URL
-Browse Host==होस्ट ब्राउज़ करें
-Host List==मेज़बान सूची
-URLs==यूआरएल
-Count Colors:==रंग गिनें:
-Documents without Errors==त्रुटियों के बिना दस्तावेज़
-Pending in Crawler==क्रॉलर में लंबित
-Crawler Excludes==क्रॉलर बहिष्कृत
-Load Errors==त्रुटियाँ लोड करें
-Host Analysis==मेजबान विश्लेषण
-Add to blacklist==ब्लैकलिस्ट में जोड़ें
-Path==पथ
-stored==संग्रहित
-linked==जुड़ा हुआ
-pending==लंबित
-excluded==छोड़ा गया
-failed==असफल
-Metadata==मेटाडाटा
-link, detected from context==लिंक, संदर्भ से पता लगाया गया
-load &amp; index==&amp; सूचकांक लोड करें
 indexed==अनुक्रमित
 loading==लोड हो रहा है
-Administration Options==प्रशासन विकल्प
-Delete all==सभी हटा दो
-from index==सूचकांक से
 #-----------------------------
 
 #File: IndexControlRWIs_p.html
@@ -3487,15 +3460,7 @@ Threaddump==थ्रेडडम्प
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==औजार
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==YaCy चैट में महाशक्तियाँ जोड़ें। maxCallsPerTurn को 0 पर सेट करके टूल को अक्षम किया जा सकता है।
 Tool settings were saved.==टूल सेटिंग्स सहेजी गईं.
-Basic Tools==बुनियादी उपकरण
-maxCallsPerTurn==maxCallsPerTurn
-disable==अक्षम करना
-Visualization Tools==विज़ुअलाइज़ेशन उपकरण
-Data Retrieval Tools==डेटा पुनर्प्राप्ति उपकरण
-Save Tools Configuration==उपकरण कॉन्फ़िगरेशन सहेजें
 #-----------------------------
 
 #File: Trails.html
@@ -3886,6 +3851,8 @@ gracious: 50 &euro;==दयालु: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==एआई लैब अवलोकन
+Chat tools==चैट टूल
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>डिस्कवरी स्वचालन<
 >Dashboard<==>डैशबोर्ड<
@@ -4005,10 +3972,10 @@ Administration &raquo;==प्रशासन &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==चैट टूल
 AI Lab==एआई लैब
 LLM Selection==LLM चयन
 RAG Config==RAG कॉन्फ़िगरेशन
-Tools Config==उपकरण कॉन्फ़िग
 Log Reports==रिपोर्ट लॉग करें
 AI Shield==AI सुरक्षा
 Chat==बात करना
@@ -4408,27 +4375,13 @@ Network Monitor==नेटवर्क मॉनिटर
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="डिफ़ॉल्ट रूप से खोज परिणाम संलग्न करें"
-"Search"==" सर्च "
 "Attach a file"=="दस्तावेज संलग्न करें"
 "Send"=="भेजना"
 "Clear chat"=="यह स्पष्ट है कि"
 "Download chat"=="चैट डाउनलोड करें"
 "Upload chat"=="चैट अपलोड करें"
 "Show system prompt"=="सिस्टम प्रॉम्प्ट दिखाएँ"
-YaCy Chat==YaCy चैट
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==यह चैट निजी है. YaCy कोई इतिहास नहीं रखता - केवल आपका ब्राउज़र वर्तमान वार्तालाप को याद रखता है।
-Default Dialog Augmentation:==डिफ़ॉल्ट संवाद विस्तार:
-no search, allow attachments==कोई खोज नहीं, अनुलग्नकों की अनुमति दें
-use local search==स्थानीय खोज का उपयोग करें
-use global search==वैश्विक खोज का उपयोग करें
-User==उपयोगकर्ता
-Attach Search Results==खोज परिणाम संलग्न करें
 Attach PNG/JPG or text (.txt/.md/.tex)==PNG/JPG या टेक्स्ट (.txt/.md/.tex)) संलग्न करें
-Clear Chat==यह स्पष्ट है कि
-Download Chat==चैट डाउनलोड करें
-Upload Chat==चैट अपलोड करें
-Show System==सिस्टम दिखाएँ
 #-----------------------------
 
 #File: yacyinteractive.html
@@ -4542,7 +4495,6 @@ Extended==विस्तारित
 Strict==कठोर
 Location==जगह
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro डिस्कवरी स्वचालन<
@@ -4844,7 +4796,6 @@ Location==जगह
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==पृष्ठ लोड या क्रॉल किए बिना अनुक्रमित URL देखें।
 Apply filters==फ़िल्टर लागू करें
 Reset filters==फ़िल्टर रीसेट करें
 Active collection:==सक्रिय संग्रह:
@@ -4854,7 +4805,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==�
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==अमान्य संग्रह। अधिकतम 64 अंग्रेज़ी अक्षर, अंक, अंडरस्कोर या हाइफ़न प्रयोग करें।
 indexed URLs==अनुक्रमित URL
 Index pages==अनुक्रमणिका पृष्ठ
-Host/URL==होस्ट/URL
 Collection==संग्रह
 URL==URL
 Host==मेज़बान

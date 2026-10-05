@@ -75,7 +75,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
                     time.sleep(0.5)
             # YaCy records newly loaded servlet names in its built-in called counter.
             # Warm shells before the strict settings/index/queue/Scoutro hash baseline.
-            readonly_urls = ["/ScoutroCrawls_p.html", "/scoutro/api/v1/crawls", "/scoutro/api/v1/hosts/resolve?input=https%3A%2F%2Fabsent.example%2Fpath", "/scoutro/api/v1/collections", "/ScoutroSEO_p.html", "/scoutro/api/v1/seo/hosts", "/scoutro/api/v1/seo/hosts/a.example", "/scoutro/api/v1/seo/hosts/a.example/pages?sort=references_external&order=desc"]
+            readonly_urls = ["/ScoutroCrawls_p.html", "/scoutro/api/v1/crawls", "/scoutro/api/v1/hosts/resolve?input=https%3A%2F%2Fabsent.example%2Fpath", "/scoutro/api/v1/collections", "/ScoutroSEO_p.html", "/scoutro/api/v1/seo/hosts", "/scoutro/api/v1/seo/hosts/a.example", "/scoutro/api/v1/seo/hosts/a.example/pages?sort=references_external&order=desc", "/IndexBrowser_p.html", "/scoutro/api/v1/index/domains", "/scoutro/api/v1/index/domains?collection=visible&sort=pages", "/scoutro/api/v1/index/domains/export?format=json", "/scoutro/api/v1/index/domains/export?format=csv&collection=secret"]
             for path in readonly_urls:
                 with client.open(BASE + path, timeout=15) as response: assert response.status == 200
             tracked = [root / "DATA/SETTINGS", root / "DATA/INDEX/webportal/SEGMENTS", root / "DATA/QUEUES", root / "DATA/SCOUTRO"]
@@ -100,7 +100,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
             a, b = settings(config_before), settings(config.read_text())
             if a != b: print("Changed setting names:", [key for key in a.keys() | b.keys() if a.get(key) != b.get(key)], flush=True)
             assert before == after, "SEO GET mutated settings, index or crawl queues: " + ", ".join(changed)
-            print("PASS: 9 live authenticated/non-mutation checks", flush=True)
+            print("PASS: 14 live authenticated/non-mutation checks (SEO, Index Browser, domain export)", flush=True)
             env = {**os.environ, "SCOUTRO_URL": BASE, "SCOUTRO_ADMIN_USER": "admin", "SCOUTRO_ADMIN_PASSWORD": "yacy"}
             shots = os.environ.get("SCOUTRO_SCREENSHOTS", "/tmp/scoutro-seo-shots")
             subprocess.run(["node", str(REPO / "test/scoutro-ui/seo-ui-test.mjs"), "--screenshots", shots], cwd=REPO, env=env, check=True)
@@ -110,6 +110,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
 
             subprocess.run(["python3", str(REPO / "test/scoutro-api/test_system_questions_api.py"), "-v"], cwd=REPO, env=env, check=True)
             subprocess.run(["node", str(REPO / "test/scoutro-ui/system-chat-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
+            subprocess.run(["node", str(REPO / "test/scoutro-ui/ai-lab-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
             assert not (root / "DATA/SCOUTRO/crawls.ndjson").exists(), "Invalid/API/UI GETs must not create a crawl ledger"
             subprocess.run(["node", str(REPO / "test/scoutro-ui/crawl-flow-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
         finally:

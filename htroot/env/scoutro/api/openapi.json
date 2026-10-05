@@ -320,6 +320,210 @@
         "x-scoutro-mutating": false
       }
     },
+    "/v1/index/domains": {
+      "get": {
+        "operationId": "index.domains",
+        "summary": "Indexed domains",
+        "description": "Indexed URLs consolidated per host and collection, with the representative page, page count, latest load date and, when recorded, crawl status, classification and Discovery context. Read-only: no fetch, crawl, LLM call or commit. Bounded; partial results fail closed.",
+        "tags": [
+          "index"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Literal host name or part of it; a URL is reduced to its host. Never Solr query syntax.",
+            "schema": {
+              "type": "string",
+              "maxLength": 250
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Exact collection filter. Unknown valid names return no items.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Host name ascending or most pages first.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "host",
+                "pages"
+              ],
+              "default": "host"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First host.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Hosts per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "One page of domain candidates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/index/domains/export": {
+      "get": {
+        "operationId": "index.domains.export",
+        "summary": "Export indexed domains",
+        "description": "All domain candidates of the filter as a download (JSON scoutro.domains.v1 or CSV), sorted by host and streamed page by page. Same fields and rules as index.domains. Read-only.",
+        "tags": [
+          "index"
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Literal host name or part of it; a URL is reduced to its host. Never Solr query syntax.",
+            "schema": {
+              "type": "string",
+              "maxLength": 250
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Exact collection filter. Unknown valid names return no items.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "description": "Export format.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "json",
+                "csv"
+              ],
+              "default": "json"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Streamed export.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainExport"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "description": "RFC 4180, UTF-8, header row; formula-like text cells are prefixed with an apostrophe; an interrupted export ends with #incomplete."
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
     "/v1/index": {
       "get": {
         "operationId": "index.status",
@@ -8515,6 +8719,290 @@
                 }
               }
             }
+          }
+        }
+      },
+      "DomainCandidate": {
+        "type": "object",
+        "required": [
+          "host",
+          "domain",
+          "collection",
+          "indexed_pages"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "description": "Indexed host name."
+          },
+          "domain": {
+            "type": "string",
+            "description": "Registrable domain, computed exactly as scoutro-discovery does."
+          },
+          "scheme": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "http",
+              "https",
+              null
+            ],
+            "description": "Scheme of the representative page, else of the recorded crawl."
+          },
+          "website": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "scheme://host/ derived from scheme and host; null without a known scheme."
+          },
+          "start_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Indexed representative page: lowest crawl depth, https first, shortest URL, HTTP 200 preferred."
+          },
+          "collection": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "indexed_pages": {
+            "type": "integer",
+            "description": "Indexed URLs of this host in this collection (error records included)."
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Meta description of the representative page."
+          },
+          "last_loaded": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Newest load date of the host's pages in the index."
+          },
+          "last_crawled": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "End of the latest crawl recorded in the crawl report table."
+          },
+          "crawl_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "indexed",
+              "partial",
+              "not_reloaded",
+              "not_indexed",
+              "unknown",
+              null
+            ]
+          },
+          "http_status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "HTTP status of the representative page."
+          },
+          "classification": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "verdict": {
+                "type": "string",
+                "enum": [
+                  "PASS",
+                  "FAIL",
+                  "UNSURE"
+                ]
+              },
+              "confidence": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "profile": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "classified_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          },
+          "discovery": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "profile": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "source": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Only when the Discovery job has exactly one configured source."
+              },
+              "job": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "region": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "DomainPage": {
+        "type": "object",
+        "required": [
+          "schema",
+          "generated_at",
+          "filter",
+          "offset",
+          "limit",
+          "items"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "scoutro.domains.v1"
+            ]
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filter": {
+            "type": "object",
+            "properties": {
+              "q": {
+                "type": "string"
+              },
+              "collection": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "sort": {
+                "type": "string"
+              }
+            }
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Host/collection items of the filter."
+          },
+          "total_hosts": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DomainCandidate"
+            }
+          }
+        }
+      },
+      "DomainExport": {
+        "type": "object",
+        "required": [
+          "schema",
+          "generated_at",
+          "filter",
+          "items",
+          "count",
+          "complete"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "scoutro.domains.v1"
+            ]
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "filter": {
+            "type": "object"
+          },
+          "collection": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DomainCandidate"
+            }
+          },
+          "count": {
+            "type": "integer",
+            "description": "Written items; follows the items because the export is streamed."
+          },
+          "complete": {
+            "type": "boolean",
+            "description": "False when the index stopped answering during the export."
           }
         }
       },

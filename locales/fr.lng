@@ -917,37 +917,10 @@ documents==documents
 #---------------------------
 
 #File: IndexBrowser_p.html
-Path==Chemin
 #---------------------------
-Host/URL==Nom de domaine/URL
-Browse Host==Explorer
-"Delete Subpath"=="Supprimer la sous-arborescence"
 Index Browser==Explorateur d'index
-"Re-load load-failure docs (404s etc)"=="Recharger les documents en erreur (404s etc.)"
-Count Colors:==Couleurs :
-Documents without Errors==Documents sans erreurs
-Pending in Crawler==En attente d'indexation
-link, detected from context==lien, détecté depuis le contexte
-load &amp; index==charger &amp; indexer
-Administration Options==Options d'administration
-Delete all==Supprimer toutes les
-from index==de l'index
-"Delete Load Errors"=="Supprimer"
-"Directory"=="Répertoire"
-Add to blacklist==Ajouter à la liste noire
-Crawler Excludes==Exclusions du crawler
-Host Analysis==Analyse de l'hôte
-Host List==Liste des hôtes
-Load Errors==Charger les erreurs
-Metadata==Métadonnées
-URLs==URLs
-excluded==exclu
-failed==échec
 indexed==indexé
-linked==lié
 loading==chargement
-pending==en attente
-stored==stocké
 #-----------------------------
 
 #File: IndexCreateLoaderQueue_p.html
@@ -1094,8 +1067,6 @@ Sent<br/>DHT Word Chunks==DHT Word Chunks<br/>envoy&eacute;s
 Sent<br/>URLs==URLs<br/>envoy&eacute;es
 Received<br/>DHT Word Chunks==DHT Word Chunks<br/>re&ccedil;us
 Received<br/>URLs==URLs<br/>re&ccedil;ues
-
-
 
 "Profile updated"=="Profil mis &agrave; jour"
 "Accept Crawl: no"=="Accepter le crawl : non"
@@ -1567,8 +1538,6 @@ You are running a server in senior mode and you support the global internet inde
 You have a principal peer because you publish your seed-list to a public accessible server==Votre pair est un serveur principal car vous publiez votre seed-list sur un serveur accessible publiquement
 If you need professional support, please write to==Si vous avez besoin d'une assistance professionnelle, vous pouvez &eacute;crire &agrave;
 
-
-
 #---
 #---
 #---
@@ -1956,6 +1925,8 @@ Strict==Strict
 
 ### Subdirectory env/templates ###
 #File: env/templates/header.template
+AI Lab overview==Aperçu du laboratoire d'IA
+Chat tools==Outils du chat
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automatisation de la découverte<
 >Dashboard<==>Tableau de bord<
@@ -3398,27 +3369,13 @@ YaCy-Peer &quot;==YaCy-Peer &quot;
 
 #File: yacychat.html
 #---------------------------
-"Search"==Rechercher
 "Attach a file"=="Joindre un fichier"
-"Attach search results by default"=="Joindre les résultats de recherche par défaut"
 "Clear chat"=="Effacer le chat"
 "Download chat"=="Télécharger le chat"
 "Send"=="Send"
 "Show system prompt"=="Afficher l'invite du système"
 "Upload chat"=="Télécharger le chat"
 Attach PNG/JPG or text (.txt/.md/.tex)==Joindre un PNG/JPG ou du texte (.txt/.md/.tex)
-Attach Search Results==Joindre les résultats de la recherche
-Clear Chat==Effacer le clavardage
-Default Dialog Augmentation:==Augmentation de la boîte de dialogue par défaut:
-Download Chat==Télécharger le clavardage
-Show System==Afficher le système
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Ce Chat est privé. YaCy ne garde aucune histoire — seul votre navigateur se souvient de la conversation actuelle.
-Upload Chat==Télécharger le clavardage
-User==Utilisateur
-YaCy Chat==YaCy Chat
-no search, allow attachments==pas de recherche, autoriser les pièces jointes
-use global search==utiliser la recherche globale
-use local search==utiliser la recherche locale
 #-----------------------------
 
 #File: yacysearch_location.html
@@ -4266,15 +4223,7 @@ YaCy Debugging: Thread Dump==Déboguement YaCy: Dump de filetage
 
 #File: ToolsConfig_p.html
 #---------------------------
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Les outils peuvent être désactivés en réglant maxCallsPerTurn à 0.
-Basic Tools==Outils de base
-Data Retrieval Tools==Outils de récupération de données
-Save Tools Configuration==Configuration de sauvegarde des outils
 Tool settings were saved.==Les paramètres de l'outil ont été enregistrés.
-Tools==Outils
-Visualization Tools==Outils de visualisation
-disable==désactiver
-maxCallsPerTurn==maxCallsPerTurn
 #-----------------------------
 
 #File: Trails.html
@@ -4400,13 +4349,13 @@ gracious: 50 &euro;==gracieusement: 50 &euro;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Outils du chat
 AI Lab==Laboratoire d'IA
 AI Shield==Bouclier AI
 Chat==Chat
 LLM Selection==Sélection LLM
 Log Reports==Rapports de journaux
 RAG Config==RAG Config
-Tools Config==Outils Config
 #-----------------------------
 
 #File: env/templates/submenuCrawlMonitor.template
@@ -4575,7 +4524,6 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 &laquo;==&laquo;
 &raquo;==&raquo;
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Automatisation de la découverte<
@@ -4877,7 +4825,6 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Parcourir les URL indexées sans les charger ni les explorer.
 Apply filters==Appliquer les filtres
 Reset filters==Réinitialiser les filtres
 Active collection:==Collection active :
@@ -4887,7 +4834,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Do
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Collection invalide. Utilisez au plus 64 lettres, chiffres, tirets ou traits de soulignement.
 indexed URLs==URL indexées
 Index pages==Pages de l’index
-Host/URL==Nom de domaine/URL
 Collection==Collection
 URL==URL
 Host==Hôte

@@ -254,7 +254,6 @@ Private Queue==Личная очередь
 Public Queue==Публичная очередь
 #-----------------------------
 
-
 #File: compare_yacy.html
 #---------------------------
 Websearch Comparison==Сравнение вэб-поиска
@@ -425,7 +424,6 @@ Peer-to-Peer Operation==P2P-операции
 The 'RWI' (Reverse Word Index) is necessary for index transmission in distributed mode. For portal or intranet mode this must be switched off.=='RWI' (Обратный индекс слов) необходим для передачи индекса в распределённом режиме. Для поиска в интранете или на локальном сайте он должен быть отключен.
 support peer-to-peer index transmission (DHT RWI index)==Включить поддержку P2P-передачи индекса (DHT RWI индекс)
 #-----------------------------
-
 
 YaCy supports multiple index storage locations.==YaCy поддерживает несколько мест хранения индексов.
 Lazy Value Initialization==Ленивая инициализация значений
@@ -762,7 +760,6 @@ Description and text snippet of the search result==Описание и фраг�
 "Set Default Values"=="Установить значения по-умолчанию"
 #-----------------------------
 
-
 "Top navigation bar"=="Верхняя панель навигации"
 "Enable login link/status"=="Включить ссылку для входа/status"
 "Log in to use extended search features"=="Войдите, чтобы использовать расширенные функции поиска."
@@ -897,7 +894,6 @@ Dest. IP[:Port]==IP-адрес назначения[:порт]
 Outgoing Connections==Исходящие соединения
 #-----------------------------
 
-
 Protocol==Протокол
 Command==Команда
 ID==ИДЕНТИФИКАТОР
@@ -977,7 +973,6 @@ Select the profile to edit==Выбор профиля для изменения
 #Indexing Content Must-Match Filter
 #Indexing Content Must-Not-Match Filter
 #-----------------------------
-
 
 Crawl Scheduler==Планировщик сканирования
 Scheduled Crawls can be modified in this table==Запланированные сканирования можно изменить в этой таблице.
@@ -1066,7 +1061,6 @@ A Crawl Job consist of one or more start point, crawl limitations and document f
 One Start URL or a list of URLs:<br/>(must start with http:// https:// ftp:// smb:// file://)==Одна или несколько ссылок:<br/>(должна начинаться с http:// https:// ftp:// smb:// file://)
 Define the start-url(s) here. You can submit more than one URL, each line one URL please.==Укажите одну или несколько начальных ссылок здесь. Несколько ссылок указывайте отдельными строками.
 Each of these URLs are the root for a crawl start, existing start URLs are always re-loaded.==Каждая из этих ссылок загружается в начале индексирования, существующие ссылки всегда перезагружаются.
-
 
 From File (enter a path<br/>within your local file system)==Из файла (укажите путь<br/>в пределах вашей локальной системы)
 Other already visited URLs are sorted out as "double", if they are not allowed using the re-crawl option.==Уже посещённые ссылки сортируются как повторные, если не разрешена их переиндексация.
@@ -1299,38 +1293,11 @@ Tutorial==Учебное пособие
 You are using the administration interface of your own search engine. You can create your own search index with YaCy.==Вы используете интерфейс администрирования собственной поисковой системы. Вы можете создать свой собственный поисковый индекс с помощью YaCy.
 To learn how to do that, watch one of the demonstration videos below:==Чтобы узнать, как это сделать, посмотрите одно из демонстрационных видеороликов ниже:
 #File: IndexBrowser_p.html
-Path==Путь
 #---------------------------
 Index Browser==Просмотр хостов
-Host/URL==Хост/ссылка:
-Browse Host==Поиск хоста
-"Delete Subpath"=="Удалить путь"
-"Re-load load-failure docs (404s etc)"=="Перезагрузить документы в случае ошибки 404"
-Count Colors:==Обозначение цветов:
-Documents without Errors==Проиндексированные документы без ошибок
-Pending in Crawler==Ожидающие в индексаторе
 
-link, detected from context==ссылки, выявленные из контекста
-load &amp; index==Загрузить &amp; индекс
-Administration Options==Расширенные опции
-Delete all==Удалить все
-from index==из индекса
-"Delete Load Errors"=="Удалить"
 #-----------------------------
 
-"Directory"=="Каталог"
-Host List==Список хостов
-URLs==URL-адреса
-Crawler Excludes==Краулер исключает
-Load Errors==Ошибки загрузки
-Host Analysis==Анализ хоста
-Add to blacklist==Добавить в черный список
-stored==хранится
-linked==связанный
-pending==в ожидании
-excluded==исключен
-failed==неуспешный
-Metadata==Метаданные
 indexed==индексируется
 loading==загрузка
 #File: index.html
@@ -1568,7 +1535,6 @@ Host==Хост
 
 #-----------------------------
 
-
 "API"=="API"
 URL==URL
 #File: ContentIntegrationPHPBB3_p.html
@@ -1673,7 +1639,6 @@ Delete all documents which are assigned to the following collection(s)==Удал
 This is the most generic option: select a set of documents using a solr query.==Это наиболее универсальный вариант: выберите набор документов с помощью запроса в базу Solr.
 #-----------------------------
 
-
 Index deletion will not immediately reduce the storage size on disk because entries are only marked as deleted in a first step.==Удаление индекса не приведет к немедленному уменьшению размера хранилища на диске, поскольку записи помечаются как удаленные только на первом этапе.
 Delete by URL Matching==Удалить по URL Соответствию
 Matching Method==Метод сопоставления
@@ -1767,7 +1732,6 @@ reindex documents containing these fields:==Переиндексировать �
 # The following lines are hard-coded and would need to be translated in the .java bean
 #-----------------------------
 
-
 "Simulate"=="Имитировать"
 "Check only how many documents would be selected for recrawl"=="Проверьте только, сколько документов будет выбрано для повторного сканирования."
 "Set defaults"=="Установить настройки по умолчанию"
@@ -1825,7 +1789,6 @@ For minTokenLen = 2 the quantRate value should not be below 0.24; for minTokenLe
 "Set"=="Установить"
 "Re-Set to default"=="Вернуть значения по-умолчанию"
 #---------------------------
-
 
 minTokenLen==минТокенЛен
 quantRate==количественная ставка
@@ -2202,7 +2165,6 @@ Table RAM Index==Таблица индекса RAM
 Object Index Caches==Кэш индекса объектов
 Needed Memory==Необходимо памяти
 
-
 Other Caching Structures==Другие структуры кэша
 #-----------------------------
 
@@ -2379,7 +2341,6 @@ The size in MB of the cache.==Размер кэша в MB.
 "Set proxy profile"=="Сохранить настройки"
 Changes will take effect after restart only.==Изменения будут применены только после перезапуска.
 You can see a snapshot of recently indexed pages==Вы можете увидеть недавно проиндексированные данные
-
 
 #-----------------------------
 
@@ -3059,7 +3020,6 @@ Primary Key==Первичный ключ
 "Commit"=="Отправить"
 #-----------------------------
 
-
 "Tables"=="Таблицы"
 all==все
 entries,==записи,
@@ -3495,6 +3455,8 @@ Strict==Строгий
 "Table"=="Стол"
 PK==ПК
 #File: env/templates/header.template
+AI Lab overview==Обзор лаборатории искусственного интеллекта
+Chat tools==Инструменты чата
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Автоматизация обнаружения<
 >Dashboard<==>Панель управления<
@@ -3611,7 +3573,6 @@ Web Cache==Вэб-кэш
 Download System Update==Обновление системы
 #---------------------------
 
-
 Performance==Производительность
 #File: env/templates/submenuBlacklist.template
 #---------------------------
@@ -3655,7 +3616,6 @@ Site Crawling==Индексирование сайта
 Parser Configuration==Конфигурация парсера
 #-----------------------------
 
-
 #File: env/templates/submenuConfig.template
 #---------------------------
 System Administration==Настройки системы
@@ -3689,8 +3649,6 @@ Basic Configuration==Основные настройки
 Network Configuration==Настройка сети
 #---------------------------
 
-
-
 Accounts==Счета
 #File: env/templates/submenuRanking.template
 #---------------------------
@@ -3698,7 +3656,6 @@ Solr Ranking Config==Конфигурация Solr
 RWI Ranking Config==Конфигурация RWI
 Ranking and Heuristics==Ранжирование и эвристика
 #-----------------------------
-
 
 Heuristics==Эвристика
 #File: env/templates/submenuCrawlMonitor.template
@@ -3713,7 +3670,6 @@ No-Load==Холостая
 Crawler Steering==Управление индексатором
 robots.txt Monitor==Монитор robots.txt
 #-----------------------------
-
 
 Web Crawler==Веб-сканер
 Crawler==Гусеничный
@@ -3805,8 +3761,6 @@ Did you mean:==Вы имели ввиду:
 #---------------------------
 List of other web pages with citations==Список других вэб-страниц с цитатами
 #-----------------------------
-
-
 
 # EOF
 
@@ -4456,15 +4410,7 @@ this can be a valuable option.==это может быть ценным вари
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==Инструменты
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Добавьте суперспособности в чат YaCy. Инструменты можно отключить, установив для maxCallsPerTurn значение 0.
 Tool settings were saved.==Настройки инструмента сохранены.
-Basic Tools==Основные инструменты
-maxCallsPerTurn==maxCallsPerTurn
-disable==запрещать
-Visualization Tools==Инструменты визуализации
-Data Retrieval Tools==Инструменты поиска данных
-Save Tools Configuration==Сохранить конфигурацию инструментов
 #-----------------------------
 
 #File: Trails.html
@@ -4542,10 +4488,10 @@ gracious: 50 &euro;==любезно: 50 евро;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Инструменты чата
 AI Lab==Лаборатория искусственного интеллекта
 LLM Selection==Выбор LLM
 RAG Config==RAG Конфигурация
-Tools Config==Конфигурация инструментов
 Log Reports==Журнал отчетов
 AI Shield==AI-защита
 Chat==Чат
@@ -4616,27 +4562,13 @@ rss terminal==RSS-терминал
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="Прикрепите результаты поиска по умолчанию"
-"Search"=="Поиск"
 "Attach a file"=="Прикрепить файл"
 "Send"=="Отправлять"
 "Clear chat"=="Очистить чат"
 "Download chat"=="Скачать чат"
 "Upload chat"=="Загрузить чат"
 "Show system prompt"=="Показать системное приглашение"
-YaCy Chat==YaCy Чат
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Этот чат является приватным. YaCy не сохраняет никакой истории — текущий разговор помнит только ваш браузер.
-Default Dialog Augmentation:==Расширение диалога по умолчанию:
-no search, allow attachments==нет поиска, разрешить вложения
-use local search==используйте локальный поиск
-use global search==используйте глобальный поиск
-User==Пользователь
-Attach Search Results==Прикрепите результаты поиска
 Attach PNG/JPG or text (.txt/.md/.tex)==Прикрепите PNG/JPG или текстовое сообщение (.txt/.md/.tex)).
-Clear Chat==Очистить чат
-Download Chat==Скачать чат
-Upload Chat==Загрузить чат
-Show System==Показать систему
 #-----------------------------
 
 #File: yacysearchpagination.html
@@ -4646,7 +4578,6 @@ Show System==Показать систему
 &laquo;==&laquo;
 &raquo;==&raquo;
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Автоматизация обнаружения<
@@ -4948,7 +4879,6 @@ Show System==Показать систему
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Просмотр индексированных URL без загрузки или сканирования.
 Apply filters==Применить фильтры
 Reset filters==Сбросить фильтры
 Active collection:==Активная коллекция:
@@ -4958,7 +4888,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Д
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Недопустимая коллекция. До 64 латинских букв, цифр, подчёркиваний или дефисов.
 indexed URLs==индексированные URL
 Index pages==Страницы индекса
-Host/URL==Хост/ссылка:
 Collection==Коллекция
 URL==URL
 Host==Хост
