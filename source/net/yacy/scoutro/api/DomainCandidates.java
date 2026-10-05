@@ -168,7 +168,9 @@ final class DomainCandidates {
                 if (page.hosts < EXPORT_PAGE || page.lastHost == null) break;
                 page = hostPage(byHost, 0, EXPORT_PAGE, page.lastHost, false, session);
             }
-        } catch (final ApiException interrupted) {
+        } catch (final ApiException | RuntimeException interrupted) {
+            // the response has started: the file ends as incomplete instead of carrying an error document
+            ConcurrentLog.warn("SCOUTRO-API", "domain export interrupted after " + count + " entries: " + interrupted.getClass().getSimpleName());
             sink.end(count, false);
             return;
         }

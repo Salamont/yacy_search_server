@@ -232,6 +232,21 @@ public class DomainCandidatesTest {
                 "query facet", "query group", "flush 450", "end 450 true"), events);
     }
 
+    @Test public void anErrorAfterTheStartEndsTheFileAsIncomplete() throws Exception {
+        final int[] enriched = {0};
+        final DomainEnrichment failing = () -> b -> {
+            if (++enriched[0] > DomainCandidates.EXPORT_PAGE) throw new IllegalStateException("broken state record");
+        };
+        final StringWriter out = new StringWriter();
+        new DomainCandidates(p -> solr.getResponseByParams(p).getResponse(), failing, () -> T0)
+                .export(Map.of("format", "json"), List.of("bulk"), DomainExport.sink("json", out));
+        final JSONObject json = new JSONObject(out.toString());
+        assertFalse(json.getBoolean("complete"));
+        assertEquals(DomainCandidates.EXPORT_PAGE, json.getInt("count"));
+        assertEquals(DomainCandidates.EXPORT_PAGE, json.getJSONArray("items").length());
+        assertFalse("no error document inside the file", out.toString().contains("\"error\""));
+    }
+
     @Test public void anUnavailableIndexFailsBeforeAnythingIsWritten() throws Exception {
         final DomainCandidates c = new DomainCandidates(p -> { throw new java.io.IOException("down"); }, DomainEnrichment.NONE, () -> T0);
         final StringWriter out = new StringWriter();
