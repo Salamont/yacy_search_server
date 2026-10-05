@@ -202,6 +202,7 @@ public class RAGProxyServlet extends HttpServlet {
             // resolve true model name from configuration
             LLM.LLMUsage usage = LLM.LLMUsage.chat;
             try {usage = LLM.LLMUsage.valueOf(model);} catch (IllegalArgumentException e) {}
+            if (usage == LLM.LLMUsage.knowledge) usage = LLM.LLMUsage.chat; // the extraction model is never a chat model
             LLM.LLMModel llm4Chat = LLM.llmFromUsage(usage, runId, "rag-chat");
             LLM.LLMModel llm4tldr = LLM.llmFromUsage(LLM.LLMUsage.tldr, runId, "rag-query-generator");
             if (llm4Chat == null) {

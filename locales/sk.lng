@@ -2120,6 +2120,8 @@ This model can be used to produce query-answer pairs which enhance search from c
 tldr-shortener==tldr-skracovač
 This model is used to make summaries from web content==Tento model sa používa na vytváranie súhrnov z webového obsahu
 log-report==log-report
+>knowledge<==>knowledge<
+Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text==Voliteľné: tento model číta prehľadané stránky pre znalostný graf Scoutro (scoutro.kg.llm.collections); každý výsledok sa overuje voči textu stránky
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Tento model vyhodnocuje YaCy denníky spustenia a vytvára prehľady vlastného vylepšenia
 >thinking<==>myslenie<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==myslenie zisťujeme len preto, aby sme mohli myslenie potlačiť. myslenie sa nepoužíva v YaCy

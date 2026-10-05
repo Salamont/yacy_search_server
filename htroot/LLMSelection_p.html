@@ -53,13 +53,13 @@
         required: ["mood"]
       };
 
-      const PRODUCTION_MODEL_TOTAL_COLUMNS = 18;
+      const PRODUCTION_MODEL_TOTAL_COLUMNS = 19;
       const PRODUCTION_MODEL_MODEL_COLUMN_INDEX = 1;
       const PRODUCTION_MODEL_MAX_TOKENS_COLUMN_INDEX = 4;
       const PRODUCTION_MODEL_USAGE_COLUMN_START = 5;
-      const PRODUCTION_MODEL_USAGE_COLUMN_END = 12; // including
-      const PRODUCTION_MODEL_FEATURE_COLUMN_START = 13;
-      const PRODUCTION_MODEL_FEATURE_COLUMN_END = 16; // including
+      const PRODUCTION_MODEL_USAGE_COLUMN_END = 13; // including
+      const PRODUCTION_MODEL_FEATURE_COLUMN_START = 14;
+      const PRODUCTION_MODEL_FEATURE_COLUMN_END = 17; // including
       const PRODUCTION_MODEL_ACTION_COLUMN_INDEX = PRODUCTION_MODEL_TOTAL_COLUMNS - 1;
       const PRODUCTION_MODEL_THINKING_COLUMN_INDEX = PRODUCTION_MODEL_FEATURE_COLUMN_START;
       const PRODUCTION_MODEL_TOOLING_COLUMN_INDEX = PRODUCTION_MODEL_FEATURE_COLUMN_START + 1;
@@ -68,7 +68,12 @@
       const PRODUCTION_MODEL_ENABLED_USAGE_COLUMNS = new Set([
         6,  // chat
         11, // tldr
-        12  // log-report
+        12, // log-report
+        13  // knowledge
+      ]);
+      // opt-in usages: never checked automatically for a new row, never handed to another row on undeploy
+      const PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS = new Set([
+        13  // knowledge (Scoutro knowledge graph extraction)
       ]);
       const PRODUCTION_MODEL_API_KEY_COLUMN_INDEX = 3;
       const PRODUCTION_MODEL_COLUMN_NAMES = [
@@ -86,6 +91,7 @@
         "qapairs",
         "tldr",
         "logreport",
+        "knowledge",
 
         "thinking",
         "tooling",
@@ -1262,7 +1268,7 @@
             checkbox.type = "checkbox";
             cell.textContent = "";
             cell.appendChild(checkbox);
-            checkbox.checked = !!defaultChecked && isSelectableUsageColumn(col);
+            checkbox.checked = !!defaultChecked && isSelectableUsageColumn(col) && !PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS.has(col);
             isNewCheckbox = true;
           }
           checkbox.disabled = !isSelectableUsageColumn(col);
@@ -1342,7 +1348,7 @@
             const cell = row.cells[col];
             if (!cell) continue;
             const checkbox = cell.querySelector('input[type="checkbox"]');
-            if (checkbox && checkbox.checked) {
+            if (checkbox && checkbox.checked && !PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS.has(col)) {
               ensureFeatureAssignedToAnotherModel(col, row);
             }
           }
@@ -2302,6 +2308,7 @@
                     <td class="narrow">qa-pairs<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model can be used to produce query-answer pairs which enhance search from chat prompts</span></span></td>
                     <td class="narrow">tldr-shortener<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model is used to make summaries from web content</span></span></td>
                     <td class="narrow">log-report<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>This model evaluates YaCy runtime logs and creates self-enhancement reports</span></span></td>
+                    <td class="narrow">knowledge<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text</span></span></td>
                     
                     <td class="narrow">thinking<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>we detect thinking only to be able to suppress thinking. thinking is not used in YaCy</span></span></td>
                     <td class="narrow">tooling<br/><span class="info"><img src="env/grafics/i16.gif" width="16" height="16" alt="info"/><span>tooling is required for agentic abilities.</span></span></td>
@@ -2327,6 +2334,7 @@
                 <td><input type="checkbox" #(qapairs)#::checked=true#(/qapairs)# disabled="disabled"></td>
                 <td><input type="checkbox" #(tldr)#::checked=true#(/tldr)#></td>
                 <td><input type="checkbox" #(logreport)#::checked=true#(/logreport)#></td>
+                <td><input type="checkbox" #(knowledge)#::checked=true#(/knowledge)#></td>
                 
                 <td>#[thinking]#</td>
                 <td>#[tooling]#</td>

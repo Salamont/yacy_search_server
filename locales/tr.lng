@@ -2128,6 +2128,8 @@ This model can be used to produce query-answer pairs which enhance search from c
 tldr-shortener==tldr kısaltıcı
 This model is used to make summaries from web content==Bu model web içeriğinden özetler yapmak için kullanılır
 log-report==günlük raporu
+>knowledge<==>knowledge<
+Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text==İsteğe bağlı: bu model Scoutro bilgi grafiği için taranan sayfaları okur (scoutro.kg.llm.collections); her sonuç sayfa metnine göre denetlenir
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Bu model, YaCy çalışma zamanı günlüklerini değerlendirir ve kendini geliştirme raporları oluşturur
 >thinking<==>düşünme<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==Düşünceyi ancak düşünceyi bastırabilmek için tespit ederiz. YaCy'de düşünme kullanılmaz

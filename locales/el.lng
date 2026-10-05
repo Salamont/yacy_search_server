@@ -2121,6 +2121,8 @@ This model can be used to produce query-answer pairs which enhance search from c
 tldr-shortener==tldr-shortener
 This model is used to make summaries from web content==Αυτό το μοντέλο χρησιμοποιείται για τη δημιουργία περιλήψεων από περιεχόμενο ιστού
 log-report==ημερολόγιο-αναφορά
+>knowledge<==>knowledge<
+Optional: this model reads crawled pages for the Scoutro knowledge graph (scoutro.kg.llm.collections); every result is checked against the page text==Προαιρετικό: αυτό το μοντέλο διαβάζει σελίδες που έχουν ανιχνευθεί για τον γράφο γνώσης του Scoutro (scoutro.kg.llm.collections)· κάθε αποτέλεσμα ελέγχεται με βάση το κείμενο της σελίδας
 This model evaluates YaCy runtime logs and creates self-enhancement reports==Αυτό το μοντέλο αξιολογεί YaCy αρχεία καταγραφής χρόνου εκτέλεσης και δημιουργεί αναφορές αυτοβελτίωσης
 >thinking<==>σκέψη<
 we detect thinking only to be able to suppress thinking. thinking is not used in YaCy==ανιχνεύουμε τη σκέψη μόνο για να είμαστε σε θέση να καταστείλουμε τη σκέψη. η σκέψη δεν χρησιμοποιείται στο YaCy

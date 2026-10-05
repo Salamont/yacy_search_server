@@ -71,7 +71,9 @@ public class LLM {
         query,
         qapairs,
         tldr,
-        logreport
+        logreport,
+        /** Scoutro knowledge graph extraction (tier 3); opt-in, never a chat or RAG model. */
+        knowledge
     }
     
     public static class LLMModel {
@@ -261,13 +263,22 @@ public class LLM {
     // API Helper Methods
 
     private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey) throws IOException, URISyntaxException {
-        final URL url = new URI(urls).toURL();
-        final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         // Batch calls like the log report generation run large models on CPU and may
         // take many minutes for a single response. Nothing on our side is allowed to
         // abort such a call: connecting must fail fast, but reading must never time out.
+        return sendPostRequest(urls, data, apiKey, 0, 0);
+    }
+
+    /**
+     * @param readTimeoutMillis read timeout, 0 for none
+     * @param maxResponseChars  the response is refused (IOException) beyond this many characters, 0 for no limit
+     */
+    private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey, final int readTimeoutMillis,
+            final int maxResponseChars) throws IOException, URISyntaxException {
+        final URL url = new URI(urls).toURL();
+        final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setConnectTimeout(10000);
-        conn.setReadTimeout(0);
+        conn.setReadTimeout(Math.max(0, readTimeoutMillis));
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
         if (apiKey != null && !apiKey.isEmpty()) {
@@ -284,6 +295,18 @@ public class LLM {
         if (responseCode == HttpURLConnection.HTTP_OK) {
             try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"))) {
                 final StringBuilder response = new StringBuilder();
+                if (maxResponseChars > 0) {
+                    // bounded read: a single-line response must not be read into memory beyond the limit
+                    final char[] buf = new char[8192];
+                    int n;
+                    while ((n = br.read(buf)) >= 0) {
+                        response.append(buf, 0, n);
+                        if (response.length() > maxResponseChars) {
+                            throw new IOException("response exceeds " + maxResponseChars + " characters");
+                        }
+                    }
+                    return response.toString().trim();
+                }
                 String responseLine;
                 while ((responseLine = br.readLine()) != null) {
                     response.append(responseLine.trim());
@@ -400,6 +423,15 @@ public class LLM {
 
     // OpenAI chat client, works with llama.cpp and Ollama
     public String chat(final String model, final Context context, JSONObject schema, final int max_tokens) throws IOException {
+        return chat(model, context, schema, max_tokens, 0, 0);
+    }
+
+    /**
+     * Like {@link #chat(String, Context, JSONObject, int)}, with a read timeout and a
+     * size limit for the raw response (both 0 for none, the default of the other callers).
+     */
+    public String chat(final String model, final Context context, JSONObject schema, final int max_tokens,
+            final int readTimeoutMillis, final int maxResponseChars) throws IOException {
         final JSONObject data = new JSONObject();
         
         try {
@@ -418,7 +450,6 @@ public class LLM {
             applyNoThinkingParameters(data);
 
             if (schema != null) {
-                System.out.println(schema.toString());
                 JSONObject json_schema = new JSONObject(true);
                 json_schema.put("strict", true);
                 json_schema.put("schema", schema);
@@ -428,7 +459,8 @@ public class LLM {
                 data.put("response_format", response_format);
             }
             
-            final String response = sendPostRequest(this.hoststub + "/v1/chat/completions", data, this.api_key);
+            final String response = sendPostRequest(this.hoststub + "/v1/chat/completions", data, this.api_key, readTimeoutMillis,
+                    maxResponseChars);
             final JSONObject responseObject = new JSONObject(response);
             final JSONArray choices = responseObject.getJSONArray("choices");
             final JSONObject choice = choices.getJSONObject(0);

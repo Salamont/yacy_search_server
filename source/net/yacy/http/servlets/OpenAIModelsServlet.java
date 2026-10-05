@@ -73,6 +73,7 @@ public class OpenAIModelsServlet extends HttpServlet {
             
             // the model names are not the real model names but the usage classes that can be assigned to a model
             for (LLM.LLMUsage usage: LLM.LLMUsage.values()) {
+                if (usage == LLM.LLMUsage.knowledge) continue; // extraction only, never a chat model
                 String modelName = usage.name();
                 JSONObject model = new JSONObject();
                 model.put("id", modelName);
