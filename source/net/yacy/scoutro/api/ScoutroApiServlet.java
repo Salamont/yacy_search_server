@@ -40,6 +40,7 @@ import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.scoutro.agents.AgentException;
 import net.yacy.scoutro.agents.ScoutroAgents;
+import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.search.Switchboard;
 import net.yacy.search.SwitchboardConstants;
 
@@ -226,6 +227,9 @@ public class ScoutroApiServlet extends HttpServlet {
                     return this.actions.configSet(jsonBody(request));
                 }
                 break;
+            case "kg":
+                requireAdmin(request);
+                return new KnowledgeApi(KgRuntime::current).route(method, parts, () -> jsonBody(request));
             case "crawls":
                 requireAdmin(request);
                 if (parts.length == 3) {
@@ -255,15 +259,29 @@ public class ScoutroApiServlet extends HttpServlet {
         throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
     }
 
-    /** Loaded at startup (web.xml) so that crawl report capture also runs without API traffic. */
+    /**
+     * Loaded at startup (web.xml) so that crawl report capture also runs without API traffic.
+     * The knowledge graph starts here too; it does nothing while disabled and never fails the start.
+     */
     @Override
     public void init() throws javax.servlet.ServletException {
         super.init();
         CaptureRuntime.start();
+        try {
+            KgRuntime.start();
+        } catch (final Throwable t) {
+            // the knowledge graph must never keep the Scoutro API from starting
+            LOG.warn("knowledge graph not started: " + t.getClass().getSimpleName());
+        }
     }
 
     @Override
     public void destroy() {
+        try {
+            KgRuntime.stop();
+        } catch (final Throwable t) {
+            LOG.warn("knowledge graph stop failed: " + t.getClass().getSimpleName());
+        }
         CaptureRuntime.stop();
         net.yacy.scoutro.discovery.DiscoveryService.closeCurrent();
         super.destroy();

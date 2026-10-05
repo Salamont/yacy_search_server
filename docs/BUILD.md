@@ -105,10 +105,14 @@ YaCy 1.942 image (`SETTINGS/yacy.conf`, `INDEX`, `HTCACHE`, `LOG`, `QUEUES`,
    documents present, no errors.
 
 Scoutro adds UI files under `htroot/` and the API classes (package
-`net.yacy.scoutro.api`, registered in `defaults/web.xml`). It does not add
-files to `DATA`, and it does not change configuration defaults or the index
-schema. The API only writes the two allowlisted settings to `yacy.conf` when
-`config.set` is called.
+`net.yacy.scoutro.api`, registered in `defaults/web.xml`). It does not change
+configuration defaults or the index schema. The API only writes the two
+allowlisted settings to `yacy.conf` when `config.set` is called. Scoutro's own
+data lives in `DATA/SETTINGS` (agents), `DATA/WORK` (crawl report table) and
+`DATA/SCOUTRO` (crawl ledger, rollups, Discovery). The knowledge graph adds
+`DATA/SCOUTRO/knowledge/` only when `scoutro.kg.enabled=true`; a rollback to an
+older image ignores that directory (remove it while Scoutro is stopped to free
+the space).
 
 ## Security notes
 

@@ -1,0 +1,122 @@
+/*
+ *  KnowledgeApi
+ *  Copyright 2026 by Scoutro contributors
+ *  Scoutro is an independent community project based on YaCy.
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation; either version 2
+ *  of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  General Public License for more details.
+ */
+
+package net.yacy.scoutro.api;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.function.Supplier;
+
+import org.json.JSONObject;
+
+import net.yacy.scoutro.knowledge.KgConfig;
+import net.yacy.scoutro.knowledge.KgException;
+import net.yacy.scoutro.knowledge.KgRuntime;
+
+/**
+ * Administrator routes of the knowledge graph (package 1):
+ * {@code GET /v1/kg/status} and {@code POST /v1/kg/control}.
+ * The servlet checks the administrator role before calling this class; the
+ * control body goes through the servlet's cross-site checks.
+ */
+final class KnowledgeApi {
+
+    /** The request body of a mutating call, read only after path and method are valid. */
+    interface Body {
+        JSONObject get() throws ApiException, IOException;
+    }
+
+    private final Supplier<KgRuntime> runtime;
+
+    KnowledgeApi(final Supplier<KgRuntime> runtime) {
+        this.runtime = runtime;
+    }
+
+    JSONObject route(final String method, final String[] parts, final Body body) throws ApiException, IOException {
+        if (parts.length != 4) {
+            throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+        }
+        switch (parts[3]) {
+            case "status":
+                allow(method, "GET");
+                return status();
+            case "control":
+                allow(method, "POST");
+                return control(body.get());
+            default:
+                throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+        }
+    }
+
+    private static void allow(final String method, final String allowed) throws ApiException {
+        if (!allowed.equals(method)) {
+            throw new ApiException(405, "method_not_allowed", "Method " + method + " is not allowed here. Allowed: "
+                    + allowed + ".", Json.obj("allowed", allowed));
+        }
+    }
+
+    /** Status of the running instance; before start (or when Scoutro runs without it) the disabled status. */
+    private JSONObject status() {
+        final KgRuntime r = this.runtime.get();
+        if (r == null) {
+            return Json.obj("schema", KgRuntime.STATUS_SCHEMA, "enabled", false, "state", "disabled",
+                    "reason", "not_started");
+        }
+        return r.status();
+    }
+
+    private JSONObject control(final JSONObject body) throws ApiException {
+        final Iterator<?> keys = body.keys();
+        while (keys.hasNext()) {
+            final String k = String.valueOf(keys.next());
+            if (!"action".equals(k)) {
+                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action.");
+            }
+        }
+        final String action = body.optString("action", "");
+        if (!"pause".equals(action) && !"resume".equals(action)) {
+            throw ApiException.invalid("action", "Field 'action' must be 'pause' or 'resume'.");
+        }
+        final KgRuntime r = this.runtime.get();
+        if (r == null) {
+            throw new ApiException(409, KgException.DISABLED,
+                    "The knowledge graph is disabled. Set " + KgConfig.ENABLED + "=true and restart Scoutro.");
+        }
+        try {
+            return "pause".equals(action) ? r.pause() : r.resume();
+        } catch (final KgException e) {
+            throw toApi(e);
+        }
+    }
+
+    static ApiException toApi(final KgException e) {
+        switch (e.code()) {
+            case KgException.DISABLED:
+                return new ApiException(409, KgException.DISABLED,
+                        "The knowledge graph is disabled. Set " + KgConfig.ENABLED + "=true and restart Scoutro.");
+            case KgException.UNAVAILABLE:
+                return new ApiException(503, KgException.UNAVAILABLE, "The knowledge graph is not running.",
+                        Json.obj("reason", e.reason()));
+            case KgException.WRITE_REFUSED:
+                return new ApiException(503, "kg_write_refused",
+                        "The knowledge graph cannot write right now; see GET /scoutro/api/v1/kg/status.",
+                        Json.obj("reason", e.reason()));
+            default:
+                return new ApiException(503, KgException.UNAVAILABLE, "The knowledge graph store failed.",
+                        Json.obj("reason", e.code()));
+        }
+    }
+}

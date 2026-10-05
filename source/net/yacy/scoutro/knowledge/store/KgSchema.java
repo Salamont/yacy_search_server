@@ -1,0 +1,291 @@
+/*
+ *  KgSchema
+ *  Copyright 2026 by Scoutro contributors
+ *  Scoutro is an independent community project based on YaCy.
+ *
+ *  This library is free software; you can redistribute it and/or
+ *  modify it under the terms of the GNU General Public License
+ *  as published by the Free Software Foundation; either version 2
+ *  of the License, or (at your option) any later version.
+ *
+ *  This library is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ *  General Public License for more details.
+ */
+
+package net.yacy.scoutro.knowledge.store;
+
+/**
+ * Schema version 1 of the knowledge graph store (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
+ * section "Physical schema"). Until the first release, v1 is a draft:
+ * development databases are recreated when it changes.
+ * <p>
+ * Rules encoded here:
+ * <ul>
+ * <li>Solr document ids are kept as 12-character TEXT with BINARY collation,
+ * which orders exactly like Solr's string sort (unsigned UTF-8 bytes), so a
+ * reconcile can merge both lists.</li>
+ * <li>Evidence is keyed by (statement, document, tier): several extraction
+ * tiers can support the same statement from the same document without
+ * overwriting each other; a document's evidence is replaced per tier.</li>
+ * <li>The change feed keeps, per coalesced object, the collections it is
+ * visible in now and every collection it was visible in since its first
+ * recorded change ({@code scopes_seen}), so a removal is never lost.</li>
+ * <li>Foreign keys are enforced ({@code PRAGMA foreign_keys=ON} on every
+ * connection); enumerations and lengths are CHECK constraints.</li>
+ * </ul>
+ */
+public final class KgSchema {
+
+    public static final int CURRENT_VERSION = 1;
+
+    private KgSchema() {}
+
+    private static final String DOC_ID_CHECK = "length(%1$s) = 12 AND %1$s NOT GLOB '*[^A-Za-z0-9_-]*'";
+    private static final String PUBLIC_ID_CHECK = "length(%1$s) = 24 AND substr(%1$s, 1, 4) = '%2$s' AND substr(%1$s, 5) NOT GLOB '*[^a-z2-7]*'";
+    private static final String SCOPES_CHECK = "%1$s NOT GLOB '*[^0-9,]*'";
+
+    private static String docId(final String column) {
+        return String.format(DOC_ID_CHECK, column);
+    }
+
+    private static String publicId(final String column, final String prefix) {
+        return String.format(PUBLIC_ID_CHECK, column, prefix);
+    }
+
+    private static String scopes(final String column) {
+        return String.format(SCOPES_CHECK, column);
+    }
+
+    /** DDL of version 1, one statement per element, in dependency order. */
+    static final String[] DDL_V1 = {
+        "CREATE TABLE kg_meta ("
+            + " key TEXT PRIMARY KEY CHECK (length(key) BETWEEN 1 AND 64),"
+            + " value TEXT NOT NULL CHECK (length(value) <= 4096)"
+            + ") WITHOUT ROWID",
+
+        "CREATE TABLE kg_collection ("
+            + " coll_id INTEGER PRIMARY KEY,"
+            + " name TEXT NOT NULL UNIQUE CHECK (length(name) BETWEEN 1 AND 64 AND name NOT GLOB '*[^A-Za-z0-9_-]*')"
+            + ")",
+
+        // 1 entity type, 2 predicate, 3 identifier scheme
+        "CREATE TABLE kg_vocab ("
+            + " term_id INTEGER PRIMARY KEY,"
+            + " kind INTEGER NOT NULL CHECK (kind IN (1, 2, 3)),"
+            + " name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 64),"
+            + " functional INTEGER NOT NULL DEFAULT 0 CHECK (functional IN (0, 1)),"
+            + " UNIQUE (kind, name)"
+            + ")",
+
+        "CREATE TABLE kg_extractor ("
+            + " ext_id INTEGER PRIMARY KEY,"
+            + " tier INTEGER NOT NULL CHECK (tier IN (1, 2, 3)),"
+            + " name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 64),"
+            + " version TEXT NOT NULL CHECK (length(version) BETWEEN 1 AND 32),"
+            + " model TEXT NOT NULL DEFAULT '' CHECK (length(model) <= 200),"
+            + " prompt_hash TEXT NOT NULL DEFAULT '' CHECK (length(prompt_hash) <= 64),"
+            + " UNIQUE (tier, name, version, model, prompt_hash)"
+            + ")",
+
+        // one row per tracked Solr document of an enabled collection; state 1 active, 2 unavailable, 3 gone, 4 expired
+        "CREATE TABLE kg_doc ("
+            + " doc_rowid INTEGER PRIMARY KEY,"
+            + " doc_id TEXT NOT NULL UNIQUE COLLATE BINARY CHECK (" + docId("doc_id") + "),"
+            + " state INTEGER NOT NULL CHECK (state IN (1, 2, 3, 4)),"
+            + " token BLOB NOT NULL CHECK (length(token) = 8),"
+            + " solr_version INTEGER NOT NULL CHECK (solr_version >= 0),"
+            + " input_hash BLOB CHECK (input_hash IS NULL OR length(input_hash) = 16),"
+            + " generation INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0),"
+            + " tiers INTEGER NOT NULL DEFAULT 0 CHECK (tiers BETWEEN 0 AND 7),"
+            + " host_id TEXT CHECK (host_id IS NULL OR length(host_id) = 6),"
+            + " url TEXT CHECK (url IS NULL OR length(url) <= 4096),"
+            + " jsonld_bytes INTEGER NOT NULL DEFAULT 0 CHECK (jsonld_bytes >= 0),"
+            + " jsonld_skipped INTEGER NOT NULL DEFAULT 0 CHECK (jsonld_skipped IN (0, 1)),"
+            + " loaded_at INTEGER,"
+            + " state_since INTEGER NOT NULL,"
+            + " processed_at INTEGER,"
+            + " last_error TEXT CHECK (last_error IS NULL OR length(last_error) <= 64)"
+            + ")",
+        "CREATE INDEX kg_doc_host ON kg_doc (host_id) WHERE host_id IS NOT NULL",
+
+        "CREATE TABLE kg_doc_collection ("
+            + " doc_rowid INTEGER NOT NULL REFERENCES kg_doc (doc_rowid) ON DELETE CASCADE,"
+            + " coll_id INTEGER NOT NULL REFERENCES kg_collection (coll_id),"
+            + " PRIMARY KEY (doc_rowid, coll_id)"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_doc_collection_coll ON kg_doc_collection (coll_id)",
+
+        // status 1 active, 2 merged (then merged_into names the survivor)
+        "CREATE TABLE kg_entity ("
+            + " ent_rowid INTEGER PRIMARY KEY,"
+            + " public_id TEXT NOT NULL UNIQUE CHECK (" + publicId("public_id", "kge_") + "),"
+            + " type INTEGER NOT NULL REFERENCES kg_vocab (term_id),"
+            + " status INTEGER NOT NULL CHECK (status IN (1, 2)),"
+            + " merged_into INTEGER REFERENCES kg_entity (ent_rowid),"
+            + " created_seq INTEGER NOT NULL,"
+            + " CHECK ((status = 2) = (merged_into IS NOT NULL)),"
+            + " CHECK (merged_into IS NULL OR merged_into <> ent_rowid)"
+            + ")",
+        "CREATE INDEX kg_entity_type ON kg_entity (type)",
+        "CREATE INDEX kg_entity_merged ON kg_entity (merged_into) WHERE merged_into IS NOT NULL",
+
+        // scope '' = global key (strong identifiers); otherwise the host or registrable domain the key is valid in
+        "CREATE TABLE kg_entity_key ("
+            + " scheme INTEGER NOT NULL REFERENCES kg_vocab (term_id),"
+            + " scope TEXT NOT NULL CHECK (length(scope) <= 253),"
+            + " value TEXT NOT NULL CHECK (length(value) BETWEEN 1 AND 512),"
+            + " ent_rowid INTEGER NOT NULL REFERENCES kg_entity (ent_rowid) ON DELETE CASCADE,"
+            + " PRIMARY KEY (scheme, scope, value)"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_entity_key_ent ON kg_entity_key (ent_rowid)",
+
+        "CREATE TABLE kg_entity_redirect ("
+            + " public_id TEXT PRIMARY KEY CHECK (" + publicId("public_id", "kge_") + "),"
+            + " target_rowid INTEGER NOT NULL REFERENCES kg_entity (ent_rowid) ON DELETE CASCADE"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_entity_redirect_target ON kg_entity_redirect (target_rowid)",
+
+        // quality 1 supported, 2 uncertain, 3 conflicting, 4 stale; exactly one of obj_ent / obj_val
+        "CREATE TABLE kg_statement ("
+            + " stmt_rowid INTEGER PRIMARY KEY,"
+            + " public_id TEXT NOT NULL UNIQUE CHECK (" + publicId("public_id", "kgs_") + "),"
+            + " subj INTEGER NOT NULL REFERENCES kg_entity (ent_rowid),"
+            + " pred INTEGER NOT NULL REFERENCES kg_vocab (term_id),"
+            + " obj_ent INTEGER REFERENCES kg_entity (ent_rowid),"
+            + " obj_val TEXT CHECK (obj_val IS NULL OR length(obj_val) <= 1000),"
+            + " obj_key BLOB NOT NULL CHECK (length(obj_key) = 16),"
+            + " quality INTEGER NOT NULL CHECK (quality IN (1, 2, 3, 4)),"
+            + " current_sources INTEGER NOT NULL DEFAULT 0 CHECK (current_sources >= 0),"
+            + " first_seen INTEGER NOT NULL,"
+            + " last_confirmed INTEGER,"
+            + " CHECK ((obj_ent IS NULL) <> (obj_val IS NULL)),"
+            + " UNIQUE (subj, pred, obj_key)"
+            + ")",
+        "CREATE INDEX kg_statement_obj ON kg_statement (obj_ent) WHERE obj_ent IS NOT NULL",
+        "CREATE INDEX kg_statement_pred ON kg_statement (pred)",
+
+        "CREATE TABLE kg_statement_redirect ("
+            + " public_id TEXT PRIMARY KEY CHECK (" + publicId("public_id", "kgs_") + "),"
+            + " target_rowid INTEGER NOT NULL REFERENCES kg_statement (stmt_rowid) ON DELETE CASCADE"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_statement_redirect_target ON kg_statement_redirect (target_rowid)",
+
+        // tier 1 structured, 2 rules, 3 llm; kind 1 jsonld, 2 metadata, 3 rule, 4 llm; certainty 1 stated, 2 hedged
+        "CREATE TABLE kg_evidence ("
+            + " stmt_rowid INTEGER NOT NULL REFERENCES kg_statement (stmt_rowid) ON DELETE CASCADE,"
+            + " doc_rowid INTEGER NOT NULL REFERENCES kg_doc (doc_rowid) ON DELETE CASCADE,"
+            + " tier INTEGER NOT NULL CHECK (tier IN (1, 2, 3)),"
+            + " ext_id INTEGER NOT NULL REFERENCES kg_extractor (ext_id),"
+            + " kind INTEGER NOT NULL CHECK (kind IN (1, 2, 3, 4)),"
+            + " certainty INTEGER NOT NULL CHECK (certainty IN (1, 2)),"
+            + " confidence REAL CHECK (confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),"
+            + " locator TEXT CHECK (locator IS NULL OR length(locator) <= 200),"
+            + " excerpt TEXT CHECK (excerpt IS NULL OR length(excerpt) <= 1000),"
+            + " observed_at INTEGER NOT NULL,"
+            + " PRIMARY KEY (stmt_rowid, doc_rowid, tier)"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_evidence_doc ON kg_evidence (doc_rowid, tier, stmt_rowid)",
+        "CREATE INDEX kg_evidence_ext ON kg_evidence (ext_id)",
+
+        // derived visibility and lookup tables, maintained in the publish transaction
+        "CREATE TABLE kg_statement_scope ("
+            + " stmt_rowid INTEGER NOT NULL REFERENCES kg_statement (stmt_rowid) ON DELETE CASCADE,"
+            + " coll_id INTEGER NOT NULL REFERENCES kg_collection (coll_id),"
+            + " n INTEGER NOT NULL CHECK (n > 0),"
+            + " PRIMARY KEY (stmt_rowid, coll_id)"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_statement_scope_coll ON kg_statement_scope (coll_id)",
+        "CREATE TABLE kg_entity_scope ("
+            + " ent_rowid INTEGER NOT NULL REFERENCES kg_entity (ent_rowid) ON DELETE CASCADE,"
+            + " coll_id INTEGER NOT NULL REFERENCES kg_collection (coll_id),"
+            + " n INTEGER NOT NULL CHECK (n > 0),"
+            + " PRIMARY KEY (ent_rowid, coll_id)"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_entity_scope_coll ON kg_entity_scope (coll_id, ent_rowid)",
+        "CREATE TABLE kg_host_entity ("
+            + " host_id TEXT NOT NULL CHECK (length(host_id) = 6),"
+            + " ent_rowid INTEGER NOT NULL REFERENCES kg_entity (ent_rowid) ON DELETE CASCADE,"
+            + " n INTEGER NOT NULL CHECK (n > 0),"
+            + " PRIMARY KEY (host_id, ent_rowid)"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_host_entity_ent ON kg_host_entity (ent_rowid)",
+        // rowid = stmt_rowid of name/alias statements; consistency is maintained by the publisher
+        "CREATE VIRTUAL TABLE kg_name_fts USING fts5 (name, content='', contentless_delete=1,"
+            + " tokenize='unicode61 remove_diacritics 2')",
+
+        // change feed: coalesced per object; kind 1 entity, 2 statement; op 1 upsert, 2 delete, 3 redirect
+        "CREATE TABLE kg_change ("
+            + " seq INTEGER PRIMARY KEY AUTOINCREMENT,"
+            + " kind INTEGER NOT NULL CHECK (kind IN (1, 2)),"
+            + " public_id TEXT NOT NULL CHECK (length(public_id) = 24),"
+            + " op INTEGER NOT NULL CHECK (op IN (1, 2, 3)),"
+            + " redirect_to TEXT CHECK (redirect_to IS NULL OR length(redirect_to) = 24),"
+            + " scopes_now TEXT NOT NULL DEFAULT '' CHECK (" + scopes("scopes_now") + "),"
+            + " scopes_seen TEXT NOT NULL DEFAULT '' CHECK (" + scopes("scopes_seen") + "),"
+            + " at INTEGER NOT NULL,"
+            + " CHECK ((op = 3) = (redirect_to IS NOT NULL)),"
+            + " UNIQUE (kind, public_id)"
+            + ")",
+        "CREATE INDEX kg_change_at ON kg_change (at)",
+
+        // persistent work queue; reason 1 event add, 2 event delete, 3 reconcile, 4 backfill, 5 retry
+        "CREATE TABLE kg_work ("
+            + " doc_id TEXT PRIMARY KEY COLLATE BINARY CHECK (" + docId("doc_id") + "),"
+            + " reason INTEGER NOT NULL CHECK (reason IN (1, 2, 3, 4, 5)),"
+            + " event_version INTEGER NOT NULL DEFAULT 0 CHECK (event_version >= 0),"
+            + " priority INTEGER NOT NULL CHECK (priority BETWEEN 0 AND 9),"
+            + " not_before INTEGER NOT NULL,"
+            + " attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),"
+            + " claimed_at INTEGER"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_work_next ON kg_work (priority, not_before)",
+
+        // optional extraction cache; status 1 ok, 2 failed
+        "CREATE TABLE kg_extraction ("
+            + " cache_key BLOB PRIMARY KEY CHECK (length(cache_key) = 32),"
+            + " ext_id INTEGER NOT NULL REFERENCES kg_extractor (ext_id) ON DELETE CASCADE,"
+            + " status INTEGER NOT NULL CHECK (status IN (1, 2)),"
+            + " result BLOB CHECK (result IS NULL OR length(result) <= 65536),"
+            + " bytes INTEGER NOT NULL CHECK (bytes >= 0),"
+            + " last_used INTEGER NOT NULL"
+            + ") WITHOUT ROWID",
+        "CREATE INDEX kg_extraction_lru ON kg_extraction (last_used)",
+        "CREATE INDEX kg_extraction_ext ON kg_extraction (ext_id)",
+
+        // reconcile and backfill runs; kind 1 reconcile, 2 backfill; state 1 running, 2 completed, 3 aborted, 4 suspect
+        "CREATE TABLE kg_scan ("
+            + " run_id INTEGER PRIMARY KEY,"
+            + " kind INTEGER NOT NULL CHECK (kind IN (1, 2)),"
+            + " state INTEGER NOT NULL CHECK (state IN (1, 2, 3, 4)),"
+            + " started_at INTEGER NOT NULL,"
+            + " finished_at INTEGER,"
+            + " cursor TEXT COLLATE BINARY CHECK (cursor IS NULL OR (" + docId("cursor") + ")),"
+            + " scanned INTEGER NOT NULL DEFAULT 0 CHECK (scanned >= 0),"
+            + " enqueued INTEGER NOT NULL DEFAULT 0 CHECK (enqueued >= 0),"
+            + " delete_candidates INTEGER NOT NULL DEFAULT 0 CHECK (delete_candidates >= 0),"
+            + " deleted INTEGER NOT NULL DEFAULT 0 CHECK (deleted >= 0),"
+            + " detail TEXT CHECK (detail IS NULL OR length(detail) <= 500)"
+            + ")",
+
+        // bounded event ring; level 1 info, 2 warn, 3 error
+        "CREATE TABLE kg_event ("
+            + " seq INTEGER PRIMARY KEY,"
+            + " at INTEGER NOT NULL,"
+            + " level INTEGER NOT NULL CHECK (level IN (1, 2, 3)),"
+            + " code TEXT NOT NULL CHECK (length(code) BETWEEN 1 AND 64),"
+            + " detail TEXT CHECK (detail IS NULL OR length(detail) <= 500)"
+            + ")",
+    };
+
+    /** Keys of kg_meta written by the store. */
+    public static final String META_SCHEMA_VERSION = "schema_version";
+    public static final String META_EPOCH = "dataset_epoch";
+    public static final String META_CREATED_AT = "created_at";
+    public static final String META_CLEAN_SHUTDOWN = "clean_shutdown";
+    public static final String META_LAST_START = "last_start";
+    public static final String META_MANUAL_PAUSE = "manual_pause";
+    public static final String META_RECONCILE_REQUIRED = "reconcile_required";
+    public static final String META_CHANGES_MIN_SEQ = "changes_min_seq";
+}
