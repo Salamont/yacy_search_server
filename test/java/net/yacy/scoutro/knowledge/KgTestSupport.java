@@ -56,6 +56,11 @@ public final class KgTestSupport {
         }
     }
 
+    /** The store of a running runtime, for fixtures outside this package. */
+    public static net.yacy.scoutro.knowledge.store.KgStore store(final KgRuntime r) {
+        return r.store();
+    }
+
     public static KgRuntime.Env env(final File dataRoot, final Map<String, String> settings, final StorageProbe probe) {
         return new KgRuntime.Env(dataRoot, settings::get, System::currentTimeMillis, probe, KgStore.SQLITE, false);
     }

@@ -83,11 +83,34 @@ public final class KgReader {
     private final KgStore store;
     private final KgConfig cfg;
     private final LongSupplier clock;
+    /** False on the agent routes: the extractor of a piece of evidence without the model name and prompt hash. */
+    private final boolean modelDetail;
 
     public KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock) {
+        this(store, cfg, clock, true);
+    }
+
+    private KgReader(final KgStore store, final KgConfig cfg, final LongSupplier clock, final boolean modelDetail) {
         this.store = store;
         this.cfg = cfg;
         this.clock = clock;
+        this.modelDetail = modelDetail;
+    }
+
+    /**
+     * The reader for agents: the same projection, but evidence names only the
+     * extractor and its version ({@code llm/1}), not the configured model.
+     */
+    public KgReader forAgents() {
+        return new KgReader(this.store, this.cfg, this.clock, false);
+    }
+
+    KgStore store() {
+        return this.store;
+    }
+
+    long now() {
+        return this.clock.getAsLong();
     }
 
     /** Thrown for an unknown or invisible object (404 {@code not_found}). */
@@ -227,9 +250,9 @@ public final class KgReader {
         }
     }
 
-    private static final String STMT_COLUMNS = "s.stmt_rowid, s.subj, v.name, s.obj_ent, s.obj_val, s.public_id, s.first_seen";
+    static final String STMT_COLUMNS = "s.stmt_rowid, s.subj, v.name, s.obj_ent, s.obj_val, s.public_id, s.first_seen";
 
-    private static Stat stat(final ResultSet rs) throws SQLException {
+    static Stat stat(final ResultSet rs) throws SQLException {
         return new Stat(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getObject(4) == null ? null : rs.getLong(4), rs.getString(5),
                 rs.getString(6), rs.getLong(7));
     }
@@ -458,7 +481,7 @@ public final class KgReader {
      * merged entity or a redirect ID answers with the survivor if that is
      * visible to the viewer.
      */
-    private static long[] entityRow(final Connection c, final String id, final Viewer v) throws SQLException {
+    static long[] entityRow(final Connection c, final String id, final Viewer v) throws SQLException {
         long rowid = 0L;
         int status = 0;
         long merged = 0L;
@@ -513,7 +536,7 @@ public final class KgReader {
     }
 
     /** Names, identifiers, quality, dates and counts of one entity over the viewer's evidence. */
-    private JSONObject summary(final Connection c, final long rowid, final Viewer v, final long now, final boolean detail)
+    JSONObject summary(final Connection c, final long rowid, final Viewer v, final long now, final boolean detail)
             throws SQLException {
         String publicId = null;
         String type = null;
@@ -751,7 +774,7 @@ public final class KgReader {
     }
 
     /** The statement row for an ID or a redirect ID (then {@code publicId} is null); null if unknown or invisible. */
-    private static Stat statementRow(final Connection c, final String id, final Viewer v) throws SQLException {
+    static Stat statementRow(final Connection c, final String id, final Viewer v) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("SELECT " + STMT_COLUMNS + " FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
                 + " WHERE s.public_id = ? AND " + visibleStatement(v, "s"))) {
             ps.setString(1, id);
@@ -771,7 +794,7 @@ public final class KgReader {
         }
     }
 
-    private JSONObject statementJson(final Connection c, final Stat s, final Viewer v) throws SQLException {
+    JSONObject statementJson(final Connection c, final Stat s, final Viewer v) throws SQLException {
         final Vocabulary.Predicate p = Vocabulary.predicate(s.predicate);
         final JSONObject object;
         if (s.objEnt != null) {
@@ -839,13 +862,13 @@ public final class KgReader {
     }
 
     /** One evidence row: columns doc_rowid, doc_id, url, state, loaded_at, observed_at, kind, tier, certainty, locator, excerpt, extractor (4). */
-    private static JSONObject evidenceJson(final Connection c, final ResultSet rs, final Viewer v) throws SQLException {
+    JSONObject evidenceJson(final Connection c, final ResultSet rs, final Viewer v) throws SQLException {
         final int state = rs.getInt(4);
         final int kind = rs.getInt(7);
         final String model = rs.getString(14);
         final String prompt = rs.getString(15);
         String extractor = rs.getString(12) + "/" + rs.getString(13);
-        if (model != null && !model.isEmpty()) {
+        if (this.modelDetail && model != null && !model.isEmpty()) {
             extractor += " (" + model + (prompt == null || prompt.isEmpty() ? "" : ", prompt " + prompt.substring(0, Math.min(8, prompt.length())))
                     + ")";
         }
@@ -1004,7 +1027,7 @@ public final class KgReader {
         KgJson.put(o, "as_of", KgJson.obj("epoch", this.store.epoch(), "seq", KgStore.queryLong(c, "SELECT coalesce(max(seq), 0) FROM kg_change")));
     }
 
-    private static String publicId(final Connection c, final long ent) throws SQLException {
+    static String publicId(final Connection c, final long ent) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("SELECT public_id FROM kg_entity WHERE ent_rowid = ?")) {
             ps.setLong(1, ent);
             try (ResultSet rs = ps.executeQuery()) {

@@ -239,6 +239,16 @@ public class ScoutroApiServlet extends HttpServlet {
                 break;
             case "kg":
                 requireAdmin(request);
+                if (parts.length == 5 && "export".equals(parts[3]) && "download".equals(parts[4])) {
+                    expect(method, parts, 5, "GET");
+                    new KnowledgeApi(KgRuntime::current).download(queryParams(request), (contentType, filename) -> {
+                        response.setStatus(200);
+                        response.setContentType(contentType);
+                        response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+                        return response.getWriter();
+                    });
+                    return null;
+                }
                 return new KnowledgeApi(KgRuntime::current).route(method, parts, queryParams(request), () -> jsonBody(request));
             case "crawls":
                 requireAdmin(request);

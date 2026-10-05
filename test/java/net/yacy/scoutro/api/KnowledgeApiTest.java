@@ -220,6 +220,123 @@ public class KnowledgeApiTest {
         }
     }
 
+    private static ApiException error(final KnowledgeApi api, final String path, final String... query) throws IOException {
+        final Map<String, String> q = new HashMap<>();
+        for (int i = 0; i + 1 < query.length; i += 2) {
+            q.put(query[i], query[i + 1]);
+        }
+        try {
+            api.route("GET", ("/v1/kg/" + path).split("/"), q, body("{}"));
+            fail(path + " " + q + " accepted");
+            return null;
+        } catch (final ApiException e) {
+            return e;
+        }
+    }
+
+    @Test
+    public void exportAndChangesValidateTheirParametersAndCursors() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            final JSONObject page = api.route("GET", "/v1/kg/export".split("/"), new HashMap<>(), body("{}"));
+            assertTrue(page.getBoolean("complete"));
+            assertEquals(page.getString("epoch") + ":" + page.getLong("as_of_seq"), page.getString("next_changes"));
+            assertEquals(200, read(api, "GET", "export", "limit", "200", "include", "evidence", "collection", "c1"));
+            assertEquals(200, read(api, "GET", "changes", "limit", "1000"));
+            assertEquals(200, read(api, "GET", "changes", "limit", "100", "expand", "true", "cursor", page.getString("next_changes")));
+            assertEquals(400, read(api, "GET", "export", "limit", "201"));
+            assertEquals(400, read(api, "GET", "export", "include", "secrets"));
+            assertEquals(400, read(api, "GET", "export", "offset", "1"));
+            assertEquals(400, read(api, "GET", "changes", "limit", "101", "expand", "true"));
+            assertEquals(400, read(api, "GET", "changes", "limit", "1001"));
+            assertEquals(400, read(api, "GET", "changes", "expand", "yes"));
+            assertEquals(404, read(api, "GET", "export/more"));
+            assertEquals(404, read(api, "GET", "changes/more"));
+            assertEquals(405, read(api, "POST", "export"));
+            assertEquals(KgException.INVALID_CURSOR, error(api, "export", "cursor", "nonsense").code());
+            assertEquals(KgException.INVALID_CURSOR, error(api, "changes", "cursor", "x".repeat(81)).code());
+            final ApiException epoch = error(api, "changes", "cursor", "0123456789abcdef:0");
+            assertEquals(410, epoch.status());
+            assertEquals(KgException.EPOCH_CHANGED, epoch.code());
+            assertEquals("/scoutro/api/v1/kg/export", epoch.toJson().getJSONObject("error").getJSONObject("details").getString("full_sync"));
+            final ApiException agent = assertThrows410(new KnowledgeRead(() -> r, KnowledgeRead.AGENT_BASE), "0123456789abcdef:0:e0");
+            assertEquals("/scoutro/api/agent/v1/kg/export", agent.toJson().getJSONObject("error").getJSONObject("details").getString("full_sync"));
+        } finally {
+            r.close();
+        }
+    }
+
+    private static ApiException assertThrows410(final KnowledgeRead read, final String cursor) throws Exception {
+        final Map<String, String> q = new HashMap<>();
+        q.put("cursor", cursor);
+        try {
+            read.route("GET", java.util.List.of("export"), q, java.util.List.of("c1"));
+            fail("cursor of another epoch accepted");
+            return null;
+        } catch (final ApiException e) {
+            assertEquals(410, e.status());
+            return e;
+        }
+    }
+
+    @Test
+    public void theDownloadStreamsNdjsonOrJsonAndAnswersErrorsBeforeWriting() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            final String[] opened = new String[2];
+            final java.io.StringWriter nd = new java.io.StringWriter();
+            api.download(new HashMap<>(), (type, name) -> {
+                opened[0] = type;
+                opened[1] = name;
+                return nd;
+            });
+            assertTrue(opened[0].startsWith("application/x-ndjson"));
+            assertTrue(opened[1], opened[1].matches("scoutro-knowledge-all-\\d{8}T\\d{6}Z\\.ndjson"));
+            final String[] lines = nd.toString().split("\n");
+            assertEquals("header", new JSONObject(lines[0]).getString("record"));
+            assertEquals("trailer", new JSONObject(lines[lines.length - 1]).getString("record"));
+            assertTrue(new JSONObject(lines[lines.length - 1]).getBoolean("complete"));
+            final java.io.StringWriter js = new java.io.StringWriter();
+            final Map<String, String> q = new HashMap<>();
+            q.put("format", "json");
+            q.put("collection", "c1");
+            q.put("include", "evidence");
+            api.download(q, (type, name) -> {
+                assertTrue(type.startsWith("application/json"));
+                assertTrue(name.startsWith("scoutro-knowledge-c1-") && name.endsWith(".json"));
+                return js;
+            });
+            final JSONObject whole = new JSONObject(js.toString());
+            assertEquals("c1", whole.getJSONObject("header").getString("collection"));
+            assertEquals(0, whole.getJSONArray("items").length());
+            assertTrue(whole.getJSONObject("trailer").getBoolean("complete"));
+            for (final String[] bad : new String[][] {{"format", "csv"}, {"include", "all"}, {"collection", "a b"}, {"cursor", "x"}}) {
+                final Map<String, String> b = new HashMap<>();
+                b.put(bad[0], bad[1]);
+                try {
+                    api.download(b, (type, name) -> {
+                        throw new AssertionError("opened before the parameters were checked");
+                    });
+                    fail(bad[0]);
+                } catch (final ApiException e) {
+                    assertEquals(400, e.status());
+                }
+            }
+        } finally {
+            r.close();
+        }
+        try {
+            new KnowledgeApi(() -> null).download(new HashMap<>(), (type, name) -> {
+                throw new AssertionError("opened for a disabled graph");
+            });
+            fail("download of a disabled graph");
+        } catch (final ApiException e) {
+            assertEquals(KgException.DISABLED, e.code());
+        }
+    }
+
     // ------------------------------------------------------- through the servlet
 
     private static final class Exchange {
@@ -291,10 +408,14 @@ public class KnowledgeApiTest {
     @Test
     public void servletRequiresTheAdministratorForReads() throws Exception {
         for (final String path : new String[] {"/v1/kg/entities", "/v1/kg/entities/kge_aaaaaaaaaaaaaaaaaaaa",
-                "/v1/kg/statements/kgs_aaaaaaaaaaaaaaaaaaaa/evidence", "/v1/kg/hosts/www.muster.de/entities", "/v1/kg/sources/AAAAAAhost01"}) {
+                "/v1/kg/statements/kgs_aaaaaaaaaaaaaaaaaaaa/evidence", "/v1/kg/hosts/www.muster.de/entities", "/v1/kg/sources/AAAAAAhost01",
+                "/v1/kg/export", "/v1/kg/changes", "/v1/kg/export/download"}) {
             assertEquals(path, 401, call("GET", path, false, null, null, null).status);
         }
         assertEquals(409, call("GET", "/v1/kg/entities", true, null, null, null).status);
+        assertEquals(409, call("GET", "/v1/kg/export/download", true, null, null, null).status);
+        assertEquals(405, call("POST", "/v1/kg/export/download", true, "application/json", null, "{}").status);
+        assertEquals(404, call("GET", "/v1/kg/export/download/x", true, null, null, null).status);
     }
 
     @Test

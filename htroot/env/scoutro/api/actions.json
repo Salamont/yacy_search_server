@@ -190,6 +190,37 @@
         }
       },
       {
+        "name": "kg.read",
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities",
+          "query": {}
+        }
+      },
+      {
+        "name": "kg.export",
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/export",
+          "query": {}
+        }
+      },
+      {
         "name": "index.metrics",
         "risk": "read",
         "scoped": true,
@@ -1355,7 +1386,7 @@
         404,
         405
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/status",
+      "cli": "scoutroctl kg status (administrator)",
       "mcpTool": "scoutro_kg_status",
       "agent": {
         "grantable": false
@@ -1398,7 +1429,7 @@
         415,
         503
       ],
-      "cli": "HTTP POST /scoutro/api/v1/kg/control {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"}",
+      "cli": "scoutroctl kg control pause|resume|reconcile|confirm_reconcile|llm_retry (administrator)",
       "mcpTool": "scoutro_kg_control",
       "agent": {
         "grantable": false
@@ -1488,10 +1519,23 @@
         409,
         503
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=",
+      "cli": "scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--collection NAME]",
       "mcpTool": "scoutro_kg_entities",
       "agent": {
-        "grantable": false
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities"
+        },
+        "grant": "kg.read"
       }
     },
     {
@@ -1529,10 +1573,23 @@
         409,
         503
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/entities/{id}",
+      "cli": "scoutroctl kg entity ID",
       "mcpTool": "scoutro_kg_entity",
       "agent": {
-        "grantable": false
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities/{id}"
+        },
+        "grant": "kg.read"
       }
     },
     {
@@ -1614,10 +1671,23 @@
         409,
         503
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in",
+      "cli": "scoutroctl kg statements ID [--direction out|in] [--predicate P] [--include-stale]",
       "mcpTool": "scoutro_kg_entity_statements",
       "agent": {
-        "grantable": false
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities/{id}/statements"
+        },
+        "grant": "kg.read"
       }
     },
     {
@@ -1655,10 +1725,23 @@
         409,
         503
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/statements/{id}",
+      "cli": "scoutroctl kg statement ID",
       "mcpTool": "scoutro_kg_statement",
       "agent": {
-        "grantable": false
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/statements/{id}"
+        },
+        "grant": "kg.read"
       }
     },
     {
@@ -1714,10 +1797,23 @@
         409,
         503
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence",
+      "cli": "scoutroctl kg evidence ID",
       "mcpTool": "scoutro_kg_statement_evidence",
       "agent": {
-        "grantable": false
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/statements/{id}/evidence"
+        },
+        "grant": "kg.read"
       }
     },
     {
@@ -1773,10 +1869,23 @@
         409,
         503
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities",
+      "cli": "scoutroctl kg host HOST",
       "mcpTool": "scoutro_kg_host_entities",
       "agent": {
-        "grantable": false
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/hosts/{host}/entities"
+        },
+        "grant": "kg.read"
       }
     },
     {
@@ -1832,8 +1941,219 @@
         409,
         503
       ],
-      "cli": "HTTP GET /scoutro/api/v1/kg/sources/{docId}",
+      "cli": "scoutroctl kg source DOC_ID",
       "mcpTool": "scoutro_kg_source",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/sources/{docId}"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
+      "name": "kg.export",
+      "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/export",
+        "successStatus": 200
+      },
+      "parameters": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[es][0-9]{1,18}$",
+          "in": "query",
+          "required": false,
+          "description": "From next of the previous page; absent to start."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 100,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "include": {
+          "type": "string",
+          "enum": [
+            "evidence"
+          ],
+          "in": "query",
+          "required": false,
+          "description": "Also the evidence of each statement."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgExportPage",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        410,
+        503
+      ],
+      "cli": "scoutroctl kg export [--evidence] [--collection NAME] [--all]",
+      "mcpTool": "scoutro_kg_export",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/export"
+        },
+        "grant": "kg.export"
+      }
+    },
+    {
+      "name": "kg.changes",
+      "description": "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100). 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/changes",
+        "successStatus": 200
+      },
+      "parameters": {
+        "cursor": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[0-9a-f]{16}:[0-9]{1,18}$",
+          "in": "query",
+          "required": false,
+          "description": "next_changes of an export or next of the previous page."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 100,
+          "in": "query",
+          "required": false,
+          "description": "Changes per page (at most 100 with expand=true)."
+        },
+        "expand": {
+          "type": "boolean",
+          "default": false,
+          "in": "query",
+          "required": false,
+          "description": "Add the current record of every upsert."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgChanges",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        410,
+        503
+      ],
+      "cli": "scoutroctl kg changes [--cursor C] [--expand]",
+      "mcpTool": "scoutro_kg_changes",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/changes"
+        },
+        "grant": "kg.export"
+      }
+    },
+    {
+      "name": "kg.download",
+      "description": "Administrator only, never an agent grant: the whole export as one streamed download (Content-Disposition), NDJSON lines header, entities, statements, trailer, or format=json. Pages of 200 records, each in its own read lease. Errors before the first page answer as JSON; a failure later ends the stream with a trailer complete:false. The export is not a snapshot: apply /kg/changes from the header's next_changes.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/export/download",
+        "successStatus": 200
+      },
+      "parameters": {
+        "format": {
+          "type": "string",
+          "enum": [
+            "ndjson",
+            "json"
+          ],
+          "default": "ndjson",
+          "in": "query",
+          "required": false,
+          "description": "Download format."
+        },
+        "include": {
+          "type": "string",
+          "enum": [
+            "evidence"
+          ],
+          "in": "query",
+          "required": false,
+          "description": "Also the evidence of each statement."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgExportDownload",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg download [--format ndjson|json] [--evidence] [--collection NAME] (administrator)",
+      "mcpTool": "scoutro_kg_download",
       "agent": {
         "grantable": false
       }
@@ -6551,6 +6871,299 @@
                   ]
                 }
               }
+            }
+          }
+        }
+      }
+    },
+    "KgExportRecord": {
+      "type": "object",
+      "required": [
+        "record",
+        "id"
+      ],
+      "description": "An entity or statement exactly as the read routes show it to the same viewer, with the discriminator record.",
+      "properties": {
+        "record": {
+          "type": "string",
+          "enum": [
+            "entity",
+            "statement"
+          ],
+          "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first)."
+        },
+        "id": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgEvidence"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "KgExportPage": {
+      "type": "object",
+      "required": [
+        "schema",
+        "epoch",
+        "as_of_seq",
+        "items",
+        "complete",
+        "next",
+        "next_changes"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.v1"
+          ]
+        },
+        "epoch": {
+          "type": "string"
+        },
+        "as_of_seq": {
+          "type": "integer",
+          "description": "Change sequence when this export started (carried in the cursor)."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgExportRecord"
+          },
+          "description": "First all visible entities, then all visible statements, each in ID order."
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "next": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Cursor of the next page; null when complete."
+        },
+        "next_changes": {
+          "type": "string",
+          "description": "Cursor for /kg/changes after the export (<epoch>:<as_of_seq>). The export is not a snapshot: apply the changes from here; upserts by ID are idempotent, the delete of an unknown ID is a no-op."
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "KgChange": {
+      "type": "object",
+      "required": [
+        "seq",
+        "kind",
+        "id",
+        "op"
+      ],
+      "properties": {
+        "seq": {
+          "type": "integer"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "entity",
+            "statement"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "upsert",
+            "delete",
+            "redirect"
+          ],
+          "description": "delete also when the object left the viewer's collections; redirect: merged into redirect_to."
+        },
+        "redirect_to": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "record": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "With expand=true for an upsert: the current KgEntity or KgStatement for this viewer (null if it is no longer visible)."
+        }
+      }
+    },
+    "KgChanges": {
+      "type": "object",
+      "required": [
+        "schema",
+        "items",
+        "next",
+        "has_more"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgChange"
+          }
+        },
+        "next": {
+          "type": "string",
+          "description": "Cursor to continue with; it advances over changes this viewer cannot see."
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "as_of": {
+          "type": "object",
+          "description": "Dataset epoch and the latest change sequence when the answer was read.",
+          "properties": {
+            "epoch": {
+              "type": "string"
+            },
+            "seq": {
+              "type": "integer"
+            }
+          }
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "KgExportDownload": {
+      "type": "object",
+      "description": "format=json: header, items and trailer in one object; format=ndjson (default): one JSON object per line, the same header, records and trailer, each with the discriminator record (header, entity, statement, trailer).",
+      "properties": {
+        "header": {
+          "type": "object",
+          "properties": {
+            "record": {
+              "type": "string",
+              "enum": [
+                "header"
+              ]
+            },
+            "schema": {
+              "type": "string"
+            },
+            "epoch": {
+              "type": "string"
+            },
+            "as_of_seq": {
+              "type": "integer"
+            },
+            "next_changes": {
+              "type": "string"
+            },
+            "generated_at": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time"
+            },
+            "collection": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "evidence": {
+              "type": "boolean"
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgExportRecord"
+          }
+        },
+        "trailer": {
+          "type": "object",
+          "properties": {
+            "record": {
+              "type": "string",
+              "enum": [
+                "trailer"
+              ]
+            },
+            "counts": {
+              "type": "object",
+              "properties": {
+                "entities": {
+                  "type": "integer"
+                },
+                "statements": {
+                  "type": "integer"
+                },
+                "evidence": {
+                  "type": "integer"
+                }
+              }
+            },
+            "complete": {
+              "type": "boolean",
+              "description": "false: the stream ended early (error names the code); start again."
+            },
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         }

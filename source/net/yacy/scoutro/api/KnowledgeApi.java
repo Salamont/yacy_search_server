@@ -25,13 +25,16 @@ import org.json.JSONObject;
 import net.yacy.scoutro.knowledge.KgConfig;
 import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgRuntime;
+import net.yacy.scoutro.knowledge.read.KgExport;
+import net.yacy.scoutro.knowledge.read.KgReader;
 
 /**
  * Administrator routes of the knowledge graph: the read routes of
  * {@link KnowledgeRead} (filtered by the optional {@code collection}),
  * {@code GET /v1/kg/status} and {@code POST /v1/kg/control} with the actions
  * {@code pause}, {@code resume}, {@code reconcile}, {@code confirm_reconcile} and
- * {@code llm_retry}.
+ * {@code llm_retry}, and the streamed download {@code GET /v1/kg/export/download}
+ * ({@link #download}), which agents never get.
  * The servlet checks the administrator role before calling this class; the
  * control body goes through the servlet's cross-site checks.
  */
@@ -41,6 +44,14 @@ final class KnowledgeApi {
     interface Body {
         JSONObject get() throws ApiException, IOException;
     }
+
+    /** Where the download is written; opened only after the first export page was read. */
+    interface Download {
+        java.io.Writer open(String contentType, String filename) throws IOException;
+    }
+
+    /** Records per read lease of the download. */
+    static final int DOWNLOAD_PAGE = 200;
 
     /** Allowed values of {@code action}. */
     static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
@@ -59,7 +70,8 @@ final class KnowledgeApi {
     /** Status, control and (package 3) the read routes, for the administrator; {@code collection} filters the reads. */
     JSONObject route(final String method, final String[] parts, final java.util.Map<String, String> query, final Body body)
             throws ApiException, IOException {
-        if (parts.length >= 5 && KnowledgeRead.handles(parts[3]) || parts.length == 4 && "entities".equals(parts[3])) {
+        if (parts.length >= 5 && KnowledgeRead.handles(parts[3])
+                || parts.length == 4 && ("entities".equals(parts[3]) || "export".equals(parts[3]) || "changes".equals(parts[3]))) {
             return new KnowledgeRead(this.runtime).route(method, java.util.Arrays.asList(parts).subList(3, parts.length), query,
                     SeoAnalysis.adminCollections(query));
         }
@@ -75,6 +87,68 @@ final class KnowledgeApi {
                 return control(body.get());
             default:
                 throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+        }
+    }
+
+    /**
+     * The whole export as a download ({@code format=ndjson|json}, {@code include=evidence},
+     * {@code collection}): NDJSON lines header, entities, statements, trailer
+     * (discriminator {@code record}), or the same as one JSON object. Errors
+     * before the first page answer as JSON; a failure later ends the stream with
+     * a trailer {@code complete:false}.
+     */
+    void download(final java.util.Map<String, String> q, final Download target) throws ApiException, IOException {
+        for (final String k : q.keySet()) {
+            if (!java.util.Set.of("format", "include", "collection").contains(k)) {
+                throw ApiException.invalid(k, "Unknown parameter '" + k + "'. Allowed: format, include, collection.");
+            }
+        }
+        final String format = q.get("format") == null || q.get("format").isEmpty() ? "ndjson" : q.get("format");
+        if (!"ndjson".equals(format) && !"json".equals(format)) {
+            throw ApiException.invalid("format", "Field 'format' must be one of: json, ndjson.");
+        }
+        final String include = q.get("include");
+        if (include != null && !include.isEmpty() && !"evidence".equals(include)) {
+            throw ApiException.invalid("include", "Field 'include' must be one of: evidence.");
+        }
+        final java.util.List<String> collections = SeoAnalysis.adminCollections(q);
+        final KgRuntime r = this.runtime.get();
+        if (r == null) {
+            throw toApi(new KgException(KgException.DISABLED, "not started"));
+        }
+        final String collection = collections == null ? null : collections.get(0);
+        final String filename = "scoutro-knowledge-" + (collection == null ? "all" : collection) + "-"
+                + java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(java.time.ZoneOffset.UTC)
+                        .format(java.time.Instant.now()) + "." + format;
+        final boolean json = "json".equals(format);
+        try {
+            final KgReader reader = r.reader();
+            new KgExport(reader).stream(reader.viewer(collections), "evidence".equals(include), collection, DOWNLOAD_PAGE, new KgExport.Sink() {
+                private java.io.Writer out;
+                private long n;
+
+                @Override
+                public void begin(final JSONObject header) throws IOException {
+                    this.out = target.open(json ? "application/json;charset=utf-8" : "application/x-ndjson;charset=utf-8", filename);
+                    this.out.write(json ? "{\"header\":" + header + ",\"items\":[" : header + "\n");
+                }
+
+                @Override
+                public void record(final JSONObject record) throws IOException {
+                    this.out.write(json ? (this.n == 0 ? "\n" : ",\n") + record : record + "\n");
+                    if (++this.n % DOWNLOAD_PAGE == 0) {
+                        this.out.flush();
+                    }
+                }
+
+                @Override
+                public void end(final JSONObject trailer) throws IOException {
+                    this.out.write(json ? "\n],\"trailer\":" + trailer + "}\n" : trailer + "\n");
+                    this.out.flush();
+                }
+            });
+        } catch (final KgException e) {
+            throw toApi(e);
         }
     }
 
@@ -131,7 +205,21 @@ final class KnowledgeApi {
     }
 
     static ApiException toApi(final KgException e) {
+        return toApi(e, KnowledgeRead.ADMIN_BASE + "/export");
+    }
+
+    /** @param fullSync the export route a consumer restarts with after 410 */
+    static ApiException toApi(final KgException e, final String fullSync) {
         switch (e.code()) {
+            case KgException.INVALID_CURSOR:
+                return new ApiException(400, KgException.INVALID_CURSOR, "The cursor is not valid: " + e.getMessage() + ".",
+                        Json.obj("field", "cursor"));
+            case KgException.CURSOR_EXPIRED:
+                return new ApiException(410, KgException.CURSOR_EXPIRED, "The cursor has expired: " + e.getMessage() + ".",
+                        Json.obj("full_sync", fullSync));
+            case KgException.EPOCH_CHANGED:
+                return new ApiException(410, KgException.EPOCH_CHANGED, "The knowledge graph was reset; start with a full export.",
+                        Json.obj("full_sync", fullSync));
             case KgException.DISABLED:
                 return new ApiException(409, KgException.DISABLED,
                         "The knowledge graph is disabled. Set " + KgConfig.ENABLED + "=true and restart Scoutro.");

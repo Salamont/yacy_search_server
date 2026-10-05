@@ -23,6 +23,7 @@ E = {
  "405": err("Method not allowed."),
  "409": err("Conflict (e.g. the crawl is not running)."),
  "413": err("Request body too large (max 16 KiB)."),
+ "410": err("Gone: a knowledge graph cursor expired (cursor_expired) or the graph was reset (epoch_changed); details.full_sync names the export to start again with."),
  "415": err("Request body must be application/json."),
  "422": err("YaCy refused the request (e.g. crawl rejected; message contains YaCy's reason)."),
  "502": err("YaCy returned an error or an unreadable answer on the loopback interface."),
@@ -37,6 +38,7 @@ EA = {
  "405": err("Method not allowed."),
  "409": err("Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically)."),
  "413": err("Request body too large (max 16 KiB)."),
+ "410": err("Gone: a knowledge graph cursor expired (cursor_expired) or the graph was reset (epoch_changed); details.full_sync names the agent export to start again with."),
  "415": err("Request body must be application/json."),
  "422": err("YaCy refused the request."),
  "429": err("rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client)."),
@@ -459,6 +461,45 @@ paths["/v1/kg/hosts/{host}/entities"] = {"get": op("kg.host.entities", "Knowledg
 paths["/v1/kg/sources/{docId}"] = {"get": op("kg.source", "What the graph holds from one page", "The source document (Solr id) and every visible fact it supports, with this page's evidence." + KG_READ_NOTE, ["knowledge"], {**ok("Source.", "KgSourcePage"), **KG_ERRS}, params=[
     {"name": "docId", "in": "path", "required": True, "description": "Solr document id.", "schema": {"type": "string", "pattern": "^[A-Za-z0-9_-]{12}$"}}, KG_OFFSET, KG_LIMIT(50, 100), KG_COLLECTION])}
 
+# knowledge graph export, change feed and download (package 4)
+KG_RECORD = {"type": "string", "enum": ["entity", "statement"], "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first)."}
+schemas["KgExportRecord"] = {"type": "object", "required": ["record", "id"], "description": "An entity or statement exactly as the read routes show it to the same viewer, with the discriminator record.", "properties": {
+    "record": KG_RECORD, "id": {"type": "string"}, "evidence": {"type": "array", "items": ref("KgEvidence")}}, "additionalProperties": True}
+schemas["KgExportPage"] = {"type": "object", "required": ["schema", "epoch", "as_of_seq", "items", "complete", "next", "next_changes"], "properties": {
+    "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "epoch": {"type": "string"},
+    "as_of_seq": {"type": "integer", "description": "Change sequence when this export started (carried in the cursor)."},
+    "items": {"type": "array", "items": ref("KgExportRecord"), "description": "First all visible entities, then all visible statements, each in ID order."},
+    "complete": {"type": "boolean"}, "next": {"type": ["string", "null"], "description": "Cursor of the next page; null when complete."},
+    "next_changes": {"type": "string", "description": "Cursor for /kg/changes after the export (<epoch>:<as_of_seq>). The export is not a snapshot: apply the changes from here; upserts by ID are idempotent, the delete of an unknown ID is a no-op."},
+    "lag": KG_LAG}}
+schemas["KgChange"] = {"type": "object", "required": ["seq", "kind", "id", "op"], "properties": {
+    "seq": {"type": "integer"}, "kind": {"type": "string", "enum": ["entity", "statement"]}, "id": {"type": "string"},
+    "op": {"type": "string", "enum": ["upsert", "delete", "redirect"], "description": "delete also when the object left the viewer's collections; redirect: merged into redirect_to."},
+    "redirect_to": {"type": ["string", "null"]}, "at": KG_DT,
+    "record": {"type": ["object", "null"], "description": "With expand=true for an upsert: the current KgEntity or KgStatement for this viewer (null if it is no longer visible)."}}}
+schemas["KgChanges"] = {"type": "object", "required": ["schema", "items", "next", "has_more"], "properties": {
+    "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "items": {"type": "array", "items": ref("KgChange")},
+    "next": {"type": "string", "description": "Cursor to continue with; it advances over changes this viewer cannot see."},
+    "has_more": {"type": "boolean"}, "as_of": KG_AS_OF, "lag": KG_LAG}}
+schemas["KgExportDownload"] = {"type": "object", "description": "format=json: header, items and trailer in one object; format=ndjson (default): one JSON object per line, the same header, records and trailer, each with the discriminator record (header, entity, statement, trailer).", "properties": {
+    "header": {"type": "object", "properties": {"record": {"type": "string", "enum": ["header"]}, "schema": {"type": "string"}, "epoch": {"type": "string"}, "as_of_seq": {"type": "integer"},
+        "next_changes": {"type": "string"}, "generated_at": KG_DT, "collection": {"type": ["string", "null"]}, "evidence": {"type": "boolean"}}},
+    "items": {"type": "array", "items": ref("KgExportRecord")},
+    "trailer": {"type": "object", "properties": {"record": {"type": "string", "enum": ["trailer"]}, "counts": {"type": "object", "properties": {"entities": {"type": "integer"}, "statements": {"type": "integer"}, "evidence": {"type": "integer"}}},
+        "complete": {"type": "boolean", "description": "false: the stream ended early (error names the code); start again."}, "error": {"type": ["string", "null"]}}}}}
+KG_CURSOR_NOTE = " 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync."
+KG_EXPORT_DESC = "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes." + KG_CURSOR_NOTE
+KG_CHANGES_DESC = "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100)." + KG_CURSOR_NOTE
+KG_EXPORT_PARAMS = [q("cursor", {"type": "string", "maxLength": 80, "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[es][0-9]{1,18}$"}, "From next of the previous page; absent to start."),
+    KG_LIMIT(100, 200), q("include", {"type": "string", "enum": ["evidence"]}, "Also the evidence of each statement."), KG_COLLECTION]
+KG_CHANGES_PARAMS = [q("cursor", {"type": "string", "maxLength": 80, "pattern": "^[0-9a-f]{16}:[0-9]{1,18}$"}, "next_changes of an export or next of the previous page."),
+    q("limit", {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}, "Changes per page (at most 100 with expand=true)."),
+    q("expand", {"type": "boolean", "default": False}, "Add the current record of every upsert."), KG_COLLECTION]
+paths["/v1/kg/export"] = {"get": op("kg.export", "Export the knowledge graph (pages)", KG_EXPORT_DESC + KG_READ_NOTE, ["knowledge"], {**ok("One export page.", "KgExportPage"), **errs("400", "401", "404", "405", "409", "410", "503")}, params=KG_EXPORT_PARAMS)}
+paths["/v1/kg/changes"] = {"get": op("kg.changes", "Knowledge graph change feed", KG_CHANGES_DESC + KG_READ_NOTE, ["knowledge"], {**ok("Changes.", "KgChanges"), **errs("400", "401", "404", "405", "409", "410", "503")}, params=KG_CHANGES_PARAMS)}
+paths["/v1/kg/export/download"] = {"get": op("kg.download", "Download the knowledge graph", "Administrator only, never an agent grant: the whole export as one streamed download (Content-Disposition), NDJSON lines header, entities, statements, trailer, or format=json. Pages of 200 records, each in its own read lease. Errors before the first page answer as JSON; a failure later ends the stream with a trailer complete:false. The export is not a snapshot: apply /kg/changes from the header's next_changes.", ["knowledge"], {"200": {"description": "Streamed export.", "content": {"application/json": {"schema": ref("KgExportDownload")}, "application/x-ndjson": {"schema": {"type": "string", "description": "One JSON object per line: header, entity and statement records, trailer."}}}}, **errs("400", "401", "404", "405", "409", "503")}, params=[
+    q("format", {"type": "string", "enum": ["ndjson", "json"], "default": "ndjson"}, "Download format."), q("include", {"type": "string", "enum": ["evidence"]}, "Also the evidence of each statement."), KG_COLLECTION])}
+
 # ---------------------------------------------------------------------------
 # agent path /agent/v1 (Bearer agent token; mirrors AgentActionRegistry.java)
 # ---------------------------------------------------------------------------
@@ -473,6 +514,9 @@ GRANTS = O([
     ("report.read", ("read", True, False, ["external", "research_worker"], "GET", "/agent/v1/reports/jobs", "report.jobs")),
     ("index.evidence", ("read", True, True, ["external", "research_worker"], "GET", "/agent/v1/index/evidence", "index.evidence")),
     ("index.browse", ("read", True, False, ["external", "research_worker"], "GET", "/agent/v1/index/browse", "index.browse")),
+
+    ("kg.read", ("read", True, False, ["external", "research_worker"], "GET", "/agent/v1/kg/entities", "kg.entities")),
+    ("kg.export", ("read", True, False, ["external"], "GET", "/agent/v1/kg/export", "kg.export")),
 
     ("index.metrics", ("read", True, False, ["external", "research_worker"], "GET", "/agent/v1/index/metrics", "index.metrics")),
     ("index.lookup", ("read", True, True, ["external", "research_worker"], "GET", "/agent/v1/index/lookup", "index.lookup")),
@@ -645,6 +689,17 @@ REPORT_NOTE = "Read-only crawl report: the live YaCy index (current page state),
 for suffix, operation, result_schema, parameters in report_endpoints:
     paths["/v1" + suffix] = {"get": op(operation, "Crawl report", REPORT_NOTE, ["reports"], {**ok("Crawl report.", result_schema), **errs("400", "401", "404", "405", "503")}, params=parameters)}
     paths["/agent/v1" + suffix] = {"get": aop("agent." + operation, "Crawl report (scoped)", REPORT_NOTE + " Requires explicit report.read, absent from presets; foreign collections are refused (403), jobs with a collection outside the scope are not visible (404).", ["agent", "reports"], {**ok("Scoped crawl report.", result_schema), **aerrs("400", "401", "403", "404", "405", "429", "503")}, params=parameters, grants=["report.read"])}
+
+# Knowledge graph on the agent path: the read routes (kg.read) and export/changes (kg.export), never status, control or the download.
+KG_AGENT_NOTE = " On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field."
+for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/export/download")]:
+    o = paths[path]["get"]
+    grant = "kg.export" if o["operationId"] in ("kg.export", "kg.changes") else "kg.read"
+    responses = {c: (EA[c] if c in EA else r) for c, r in o["responses"].items() if c != "401"}
+    responses.update(aerrs("401", "403", "429"))
+    paths["/agent/v1" + path[3:]] = {"get": aop("agent." + o["operationId"], o["summary"] + " (scoped)",
+        o["description"].replace(KG_READ_NOTE, "") + KG_AGENT_NOTE + " Requires the explicit grant " + grant + ", absent from presets.",
+        ["agent", "knowledge"], dict(sorted(responses.items())), params=o.get("parameters"), grants=[grant])}
 
 
 # Existing Discovery V1 endpoints are generated here too (previously maintained manually).
@@ -882,7 +937,13 @@ cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME]
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
 mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entity', 'kg.entity.statements': 'scoutro_kg_entity_statements', 'kg.statement': 'scoutro_kg_statement', 'kg.statement.evidence': 'scoutro_kg_statement_evidence', 'kg.host.entities': 'scoutro_kg_host_entities', 'kg.source': 'scoutro_kg_source'})
 cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
-cli.update({'kg.status': 'HTTP GET /scoutro/api/v1/kg/status', 'kg.control': 'HTTP POST /scoutro/api/v1/kg/control {"action":"pause"|"resume"|"reconcile"|"confirm_reconcile"|"llm_retry"}'})
+mcp.update({'kg.export': 'scoutro_kg_export', 'kg.changes': 'scoutro_kg_changes', 'kg.download': 'scoutro_kg_download'})
+cli.update({'kg.entities': 'scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--collection NAME]', 'kg.entity': 'scoutroctl kg entity ID',
+            'kg.entity.statements': 'scoutroctl kg statements ID [--direction out|in] [--predicate P] [--include-stale]', 'kg.statement': 'scoutroctl kg statement ID',
+            'kg.statement.evidence': 'scoutroctl kg evidence ID', 'kg.host.entities': 'scoutroctl kg host HOST', 'kg.source': 'scoutroctl kg source DOC_ID',
+            'kg.export': 'scoutroctl kg export [--evidence] [--collection NAME] [--all]', 'kg.changes': 'scoutroctl kg changes [--cursor C] [--expand]',
+            'kg.download': 'scoutroctl kg download [--format ndjson|json] [--evidence] [--collection NAME] (administrator)'})
+cli.update({'kg.status': 'scoutroctl kg status (administrator)', 'kg.control': 'scoutroctl kg control pause|resume|reconcile|confirm_reconcile|llm_retry (administrator)'})
 for suffix, operation, _, _ in seo_endpoints + report_endpoints:
     mcp[operation] = "scoutro_" + operation.replace(".", "_")
     cli[operation] = "HTTP GET /scoutro/api/v1" + suffix
@@ -1097,7 +1158,9 @@ actions.extend([{'name': 'discovery.catalog',
   'errors': [400, 401, 403, 404, 409, 428, 503],
   'agent': {'grantable': False}}])
 # agent view of every action: may it be granted, and where does an agent call it
-FAMILIES = {"seo.": "seo.read", "report.": "report.read"}  # several admin operations behind one grant
+FAMILIES = {"seo.": "seo.read", "report.": "report.read",  # several admin operations behind one grant
+            "kg.entit": "kg.read", "kg.statement": "kg.read", "kg.host.": "kg.read", "kg.source": "kg.read",
+            "kg.export": "kg.export", "kg.changes": "kg.export"}  # never plain "kg.": status, control and download stay admin-only
 for a in actions:
     family = next((grant for prefix, grant in FAMILIES.items() if a["name"].startswith(prefix)), None)
     g = GRANTS.get(family or a["name"])

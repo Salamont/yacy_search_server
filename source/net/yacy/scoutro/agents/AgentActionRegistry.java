@@ -114,6 +114,15 @@ public final class AgentActionRegistry {
                 "Read bounded URL rows using literal host/URL input in granted collections; never fetches or crawls.",
                 Risk.READ, true, "GET", "/index/browse", false, ext, worker));
 
+        add(new Action("kg.read", "Knowledge graph",
+                "Read entities, facts, relations, evidence and sources of the knowledge graph; names, values, counts and "
+                        + "evidence come only from documents of granted collections.",
+                Risk.READ, true, "GET", "/kg/entities", false, ext, worker));
+        add(new Action("kg.export", "Knowledge graph export",
+                "Export the knowledge graph of granted collections page by page and follow its change feed with delete "
+                        + "notices; separate from kg.read.",
+                Risk.READ, true, "GET", "/kg/export", false, ext));
+
         add(new Action("index.metrics", "Scoped index metrics",
                 "Bounded local document, successful-page and distinct-host counts within granted collections; no queue metadata.",
                 Risk.READ, true, "GET", "/index/metrics", false, ext, worker));

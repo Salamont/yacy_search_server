@@ -49,6 +49,9 @@ import net.yacy.scoutro.agents.CrawlRecord;
  * <li>crawls: collection in scope, allowed domain, depth and page limits,
  * parallelism, no wide crawls, no crawl on a host another crawl is busy
  * with; agents see and stop only crawls they started</li>
+ * <li>knowledge graph (kg.read, kg.export): the viewer is the requested
+ * collection or the scope; every name, value, count and piece of evidence
+ * comes from documents of those collections only</li>
  * </ul>
  */
 class ScopedActions {
@@ -61,10 +64,18 @@ class ScopedActions {
 
     private final ScoutroActions actions;
     private final AgentStore store;
+    private final java.util.function.Supplier<net.yacy.scoutro.knowledge.KgRuntime> knowledge;
 
     ScopedActions(final ScoutroActions actions, final AgentStore store) {
+        this(actions, store, net.yacy.scoutro.knowledge.KgRuntime::current);
+    }
+
+    /** @param knowledge the running knowledge graph (replaceable in tests) */
+    ScopedActions(final ScoutroActions actions, final AgentStore store,
+            final java.util.function.Supplier<net.yacy.scoutro.knowledge.KgRuntime> knowledge) {
         this.actions = actions;
         this.store = store;
+        this.knowledge = knowledge;
     }
 
     AgentApi.Response execute(final String action, final String id, final AgentApi.Call call)
@@ -93,6 +104,16 @@ class ScopedActions {
                         q, filterCollections(agent, q.get("collection"))));
             case "report.read":
                 return ok(ReportApi.current().route(call.request.path.subList(1, call.request.path.size()), q, ReportApi.Scope.of(agent)));
+            case "kg.read":
+            case "kg.export": {
+                final List<String> kg = call.request.path.subList(1, call.request.path.size());
+                final boolean exportPath = !kg.isEmpty() && ("export".equals(kg.get(0)) || "changes".equals(kg.get(0)));
+                if (exportPath != "kg.export".equals(action)) {
+                    throw new ApiException(404, "not_found", "Unknown action '" + action + "' for this path.");
+                }
+                return ok(new KnowledgeRead(this.knowledge, KnowledgeRead.AGENT_BASE)
+                        .route(call.request.method, kg, q, filterCollections(agent, q.get("collection"))));
+            }
             case "search":
                 return ok(search(agent, q));
             case "search.network":
