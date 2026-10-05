@@ -27,7 +27,8 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgRuntime;
 
 /**
- * Administrator routes of the knowledge graph:
+ * Administrator routes of the knowledge graph: the read routes of
+ * {@link KnowledgeRead} (filtered by the optional {@code collection}),
  * {@code GET /v1/kg/status} and {@code POST /v1/kg/control} with the actions
  * {@code pause}, {@code resume}, {@code reconcile}, {@code confirm_reconcile} and
  * {@code llm_retry}.
@@ -52,6 +53,16 @@ final class KnowledgeApi {
     }
 
     JSONObject route(final String method, final String[] parts, final Body body) throws ApiException, IOException {
+        return route(method, parts, java.util.Collections.emptyMap(), body);
+    }
+
+    /** Status, control and (package 3) the read routes, for the administrator; {@code collection} filters the reads. */
+    JSONObject route(final String method, final String[] parts, final java.util.Map<String, String> query, final Body body)
+            throws ApiException, IOException {
+        if (parts.length >= 5 && KnowledgeRead.handles(parts[3]) || parts.length == 4 && "entities".equals(parts[3])) {
+            return new KnowledgeRead(this.runtime).route(method, java.util.Arrays.asList(parts).subList(3, parts.length), query,
+                    SeoAnalysis.adminCollections(query));
+        }
         if (parts.length != 4) {
             throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }

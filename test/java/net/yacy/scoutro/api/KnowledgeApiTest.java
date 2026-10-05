@@ -163,6 +163,63 @@ public class KnowledgeApiTest {
         }
     }
 
+    private static int read(final KnowledgeApi api, final String method, final String path, final String... query) throws IOException {
+        final Map<String, String> q = new HashMap<>();
+        for (int i = 0; i + 1 < query.length; i += 2) {
+            q.put(query[i], query[i + 1]);
+        }
+        try {
+            api.route(method, ("/v1/kg/" + path).split("/"), q, body("{}"));
+            return 200;
+        } catch (final ApiException e) {
+            return e.status();
+        }
+    }
+
+    @Test
+    public void readRoutesValidateTheirParameters() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            final Map<String, String> none = new HashMap<>();
+            final JSONObject page = api.route("GET", "/v1/kg/entities".split("/"), none, body("{}"));
+            assertEquals("scoutro.kg.v1", page.getString("schema"));
+            assertEquals(0L, page.getLong("total"));
+            assertEquals(200, read(api, "GET", "entities", "q", "Muster", "type", "facility", "quality", "supported", "limit", "100",
+                    "offset", "10000", "collection", "c1", "host", "https://www.muster.de/impressum"));
+            assertEquals(200, read(api, "GET", "hosts/www.muster.de/entities", "limit", "5"));
+            assertEquals(400, read(api, "GET", "entities", "sort", "name"));
+            assertEquals(400, read(api, "GET", "entities", "limit", "0"));
+            assertEquals(400, read(api, "GET", "entities", "limit", "101"));
+            assertEquals(400, read(api, "GET", "entities", "offset", "10001"));
+            assertEquals(400, read(api, "GET", "entities", "type", "person"));
+            assertEquals(400, read(api, "GET", "entities", "quality", "conflicting"));
+            assertEquals(400, read(api, "GET", "entities", "collection", "a b"));
+            assertEquals(400, read(api, "GET", "entities", "q", "x".repeat(201)));
+            assertEquals(400, read(api, "GET", "entities/not-an-id"));
+            assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20)));
+            assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/statements", "direction", "in"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/statements", "direction", "up"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/statements", "predicate", "salary"));
+            assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/nothing"));
+            assertEquals(404, read(api, "GET", "statements/kgs_" + "b".repeat(20)));
+            assertEquals(404, read(api, "GET", "statements/kgs_" + "b".repeat(20) + "/evidence", "limit", "50"));
+            assertEquals(400, read(api, "GET", "statements/kgs_" + "b".repeat(20) + "/evidence", "limit", "51"));
+            assertEquals(404, read(api, "GET", "sources/AAAAAAhost01"));
+            assertEquals(400, read(api, "GET", "sources/AAAA'host01"));
+            assertEquals(404, read(api, "GET", "hosts/www.muster.de"));
+            assertEquals(405, read(api, "POST", "entities"));
+        } finally {
+            r.close();
+        }
+        try {
+            new KnowledgeApi(() -> null).route("GET", "/v1/kg/entities".split("/"), new HashMap<>(), body("{}"));
+            fail("reads of a disabled graph");
+        } catch (final ApiException e) {
+            assertEquals(KgException.DISABLED, e.code());
+        }
+    }
+
     // ------------------------------------------------------- through the servlet
 
     private static final class Exchange {
@@ -229,6 +286,15 @@ public class KnowledgeApiTest {
         assertEquals(200, ok.status);
         assertEquals(KgRuntime.STATUS_SCHEMA, ok.json().optString("schema"));
         assertEquals("no-store", ok.headers.get("Cache-Control"));
+    }
+
+    @Test
+    public void servletRequiresTheAdministratorForReads() throws Exception {
+        for (final String path : new String[] {"/v1/kg/entities", "/v1/kg/entities/kge_aaaaaaaaaaaaaaaaaaaa",
+                "/v1/kg/statements/kgs_aaaaaaaaaaaaaaaaaaaa/evidence", "/v1/kg/hosts/www.muster.de/entities", "/v1/kg/sources/AAAAAAhost01"}) {
+            assertEquals(path, 401, call("GET", path, false, null, null, null).status);
+        }
+        assertEquals(409, call("GET", "/v1/kg/entities", true, null, null, null).status);
     }
 
     @Test

@@ -239,7 +239,7 @@ public class ScoutroApiServlet extends HttpServlet {
                 break;
             case "kg":
                 requireAdmin(request);
-                return new KnowledgeApi(KgRuntime::current).route(method, parts, () -> jsonBody(request));
+                return new KnowledgeApi(KgRuntime::current).route(method, parts, queryParams(request), () -> jsonBody(request));
             case "crawls":
                 requireAdmin(request);
                 if (parts.length == 3) {

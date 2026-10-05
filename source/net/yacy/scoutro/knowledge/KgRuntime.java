@@ -43,6 +43,7 @@ import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.budget.StorageProbe;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.YacyLlmClient;
+import net.yacy.scoutro.knowledge.read.KgReader;
 import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
 import net.yacy.scoutro.knowledge.sync.Capture;
@@ -857,6 +858,18 @@ public final class KgRuntime {
         final JSONObject o = status();
         KgJson.put(o, "reopened", n);
         return o;
+    }
+
+    /** The read projection over the running store (package 3); reads stay available while growth is paused. */
+    public KgReader reader() throws KgException {
+        requireRunning();
+        return new KgReader(this.store, this.config, this.env.clock);
+    }
+
+    /** How far the graph lags behind Solr ({@code sync.lag}), or null without the sync. */
+    public JSONObject lag() {
+        final SyncService s = this.sync;
+        return s == null ? null : s.status().optJSONObject("lag");
     }
 
     private SyncService requireSync() throws KgException {

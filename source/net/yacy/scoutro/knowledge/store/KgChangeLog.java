@@ -91,8 +91,14 @@ public final class KgChangeLog {
             return new Viewer(Collections.unmodifiableSet(new TreeSet<>(collections)));
         }
 
-        boolean all() {
+        /** True for the administrator without a collection filter. */
+        public boolean all() {
             return this.collections == null;
+        }
+
+        /** The visible collection IDs (empty: nothing is visible); null for {@link #ALL}. */
+        public Set<Integer> collections() {
+            return this.collections;
         }
 
         boolean intersects(final Set<Integer> scopes) {
