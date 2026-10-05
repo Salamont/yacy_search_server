@@ -15523,6 +15523,81 @@
     <trans-unit id="52ec01f4" xml:space="preserve" approved="no" translate="yes">
        <source>No backups yet.</source>
     </trans-unit>
+    <trans-unit id="b8a21a4a" xml:space="preserve" approved="no" translate="yes">
+       <source>Re-resolve identities</source>
+    </trans-unit>
+    <trans-unit id="b5a5ef21" xml:space="preserve" approved="no" translate="yes">
+       <source>Rebuild identities</source>
+    </trans-unit>
+    <trans-unit id="d226aae6" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel the rebuild</source>
+    </trans-unit>
+    <trans-unit id="19913dbc" xml:space="preserve" approved="no" translate="yes">
+       <source>Swap in the rebuilt graph</source>
+    </trans-unit>
+    <trans-unit id="77277410" xml:space="preserve" approved="no" translate="yes">
+       <source>Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</source>
+    </trans-unit>
+    <trans-unit id="a3b437fb" xml:space="preserve" approved="no" translate="yes">
+       <source>Rebuild</source>
+    </trans-unit>
+    <trans-unit id="ed77d994" xml:space="preserve" approved="no" translate="yes">
+       <source>Progress of the rebuilt graph</source>
+    </trans-unit>
+    <trans-unit id="23e05c9b" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages read from the index, %2 published, %3 queued</source>
+    </trans-unit>
+    <trans-unit id="cda2602b" xml:space="preserve" approved="no" translate="yes">
+       <source>Check before the swap</source>
+    </trans-unit>
+    <trans-unit id="7f349fd3" xml:space="preserve" approved="no" translate="yes">
+       <source>pages %1 → %2, objects %3 → %4, integrity %5</source>
+    </trans-unit>
+    <trans-unit id="3d335f60" xml:space="preserve" approved="no" translate="yes">
+       <source>The rebuilt graph has far fewer pages than the current one; it is swapped in only after your confirmation.</source>
+    </trans-unit>
+    <trans-unit id="d53e9099" xml:space="preserve" approved="no" translate="yes">
+       <source>Previous graph kept as</source>
+    </trans-unit>
+    <trans-unit id="16feb1e0" xml:space="preserve" approved="no" translate="yes">
+       <source>Stored IDs redirected</source>
+    </trans-unit>
+    <trans-unit id="2ceced0" xml:space="preserve" approved="no" translate="yes">
+       <source>Storage for the rebuild</source>
+    </trans-unit>
+    <trans-unit id="6d909f86" xml:space="preserve" approved="no" translate="yes">
+       <source>not run yet</source>
+    </trans-unit>
+    <trans-unit id="34650d73" xml:space="preserve" approved="no" translate="yes">
+       <source>building the new graph</source>
+    </trans-unit>
+    <trans-unit id="9d9eb619" xml:space="preserve" approved="no" translate="yes">
+       <source>checking the new graph</source>
+    </trans-unit>
+    <trans-unit id="7584e9d8" xml:space="preserve" approved="no" translate="yes">
+       <source>waiting for your confirmation</source>
+    </trans-unit>
+    <trans-unit id="ed119185" xml:space="preserve" approved="no" translate="yes">
+       <source>swapping</source>
+    </trans-unit>
+    <trans-unit id="d7d8c072" xml:space="preserve" approved="no" translate="yes">
+       <source>finished</source>
+    </trans-unit>
+    <trans-unit id="f0f8e884" xml:space="preserve" approved="no" translate="yes">
+       <source>cancelled, graph unchanged</source>
+    </trans-unit>
+    <trans-unit id="79a83318" xml:space="preserve" approved="no" translate="yes">
+       <source>failed, graph unchanged</source>
+    </trans-unit>
+    <trans-unit id="a34aab49" xml:space="preserve" approved="no" translate="yes">
+       <source>interrupted by a stop, graph unchanged</source>
+    </trans-unit>
+    <trans-unit id="f028d8ec" xml:space="preserve" approved="no" translate="yes">
+       <source>Rebuild every identity from the Solr index? The current graph keeps serving until the new one is ready and is kept as a backup.</source>
+    </trans-unit>
+    <trans-unit id="f1855669" xml:space="preserve" approved="no" translate="yes">
+       <source>Swap in the rebuilt graph although it has far fewer pages than the current one?</source>
+    </trans-unit>
   </body>
 </file>
 </xliff>

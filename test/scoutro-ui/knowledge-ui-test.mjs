@@ -153,7 +153,20 @@ try {
   await page.waitForFunction(() => [...document.querySelectorAll('#skg-backups tbody tr')].some(r => r.textContent.includes('before-restore')), null, { timeout: 60000 });
   check(true, 'restore through the page keeps the previous graph as a backup');
   check((await page.locator('#skg-cards').textContent()).includes('running'), 'running after the restore');
+  // identity rebuild: started with a confirmation, the panel refreshes itself until the swap, the previous graph is kept
+  check(await page.locator('[data-skg-action="rebuild_cancel"]').isHidden() && await page.locator('[data-skg-action="rebuild_confirm"]').isHidden(),
+    'no cancel or confirm without a rebuild');
+  await page.locator('[data-skg-action="rebuild"]').click();
+  await page.waitForFunction(() => document.querySelector('#skg-rebuild').textContent.includes('finished'), null, { timeout: 240000 });
+  check(true, 'rebuild through the page, refreshed until finished');
+  check(/graph-\d{8}T\d{6}Z-before-rebuild\.db/.test(await page.locator('#skg-rebuild').textContent()), 'the previous graph is named');
+  await page.waitForFunction(() => [...document.querySelectorAll('#skg-backups tbody tr')].some(r => r.textContent.includes('before a rebuild')), null, { timeout: 60000 });
+  check(true, 'the previous graph is listed as a backup before a rebuild');
+  check(await page.locator('[data-skg-action="rebuild"]').isVisible() && await page.locator('[data-skg-action="rebuild_cancel"]').isHidden(),
+    'rebuild available again, nothing to cancel');
+  const rebuilt = await page.evaluate(async e => (await fetch('/scoutro/api/v1/kg/entities/' + e, { credentials: 'same-origin' })).status, entity);
+  check(rebuilt === 200, 'the entity ID still resolves after the rebuild: ' + rebuilt);
   check(errors.length === 0, 'no JavaScript errors in the integrations: ' + errors.join(', '));
   await context.close();
 } finally { await browser.close(); }
-console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, SEO tab, Index Browser, dashboard, controls)`);
+console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);

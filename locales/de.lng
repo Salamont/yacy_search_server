@@ -5526,6 +5526,31 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Restore<==>Wiederherstellen<
 >Replace the knowledge graph with the backup %1? The current graph is kept as a backup.<==>Den Wissensgraphen durch das Backup %1 ersetzen? Der aktuelle Graph bleibt als Backup erhalten.<
 >No backups yet.<==>Noch keine Backups.<
+>Re-resolve identities<==>Identitäten neu auflösen<
+>Rebuild identities<==>Identitäten neu aufbauen<
+>Cancel the rebuild<==>Neuaufbau abbrechen<
+>Swap in the rebuilt graph<==>Neu aufgebauten Graphen übernehmen<
+>Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.<==>Baut den ganzen Graphen mit den aktuellen Identitätsregeln neu aus dem Solr-Index auf, in DATA/SCOUTRO/knowledge/rebuild und innerhalb des verbleibenden Speicherbudgets, während der aktuelle Graph weiter antwortet: falsche Zusammenführungen werden getrennt, jeder Fakt behält seine Belege. Vor dem Tausch wird der neue Graph geprüft; würde er viele Dokumente verlieren, wartet er wie ein Abgleich auf Ihre Bestätigung. Der aktuelle Graph bleibt als Backup erhalten (vor einem Neuaufbau), gespeicherte Objekt-IDs führen weiter zu ihren Objekten, und Export-Abnehmer synchronisieren neu. Abbrechen oder ein Stopp von Scoutro vor dem Tausch löscht den neuen Graphen und ändert nichts.<
+>Rebuild<==>Neuaufbau<
+>Progress of the rebuilt graph<==>Fortschritt des neuen Graphen<
+>%1 pages read from the index, %2 published, %3 queued<==>%1 Seiten aus dem Index gelesen, %2 veröffentlicht, %3 in der Warteschlange<
+>Check before the swap<==>Prüfung vor dem Tausch<
+>pages %1 → %2, objects %3 → %4, integrity %5<==>Seiten %1 → %2, Objekte %3 → %4, Integrität %5<
+>The rebuilt graph has far fewer pages than the current one; it is swapped in only after your confirmation.<==>Der neue Graph hat weit weniger Seiten als der aktuelle; er wird erst nach Ihrer Bestätigung übernommen.<
+>Previous graph kept as<==>Vorheriger Graph gesichert als<
+>Stored IDs redirected<==>Umgeleitete gespeicherte IDs<
+>Storage for the rebuild<==>Speicher für den Neuaufbau<
+>not run yet<==>noch nicht gelaufen<
+>building the new graph<==>baut den neuen Graphen auf<
+>checking the new graph<==>prüft den neuen Graphen<
+>waiting for your confirmation<==>wartet auf Ihre Bestätigung<
+>swapping<==>tauscht<
+>finished<==>abgeschlossen<
+>cancelled, graph unchanged<==>abgebrochen, Graph unverändert<
+>failed, graph unchanged<==>fehlgeschlagen, Graph unverändert<
+>interrupted by a stop, graph unchanged<==>durch einen Stopp unterbrochen, Graph unverändert<
+>Rebuild every identity from the Solr index? The current graph keeps serving until the new one is ready and is kept as a backup.<==>Alle Identitäten aus dem Solr-Index neu aufbauen? Der aktuelle Graph antwortet weiter, bis der neue fertig ist, und bleibt als Backup erhalten.<
+>Swap in the rebuilt graph although it has far fewer pages than the current one?<==>Den neuen Graphen übernehmen, obwohl er weit weniger Seiten hat als der aktuelle?<
 >Level<==>Stufe<
 >notice (from 70 %)<==>Hinweis (ab 70 %)<
 >warning (from 80 %)<==>Warnung (ab 80 %)<

@@ -265,7 +265,22 @@ public final class KgBackup {
      * Solr), and an event.
      */
     public static void prepareRestored(final File db, final String epoch, final String detail, final long now) throws KgException {
-        if (!KgIds.isEpoch(epoch)) {
+        prepare(db, epoch, java.util.Collections.emptyMap(), "restored", detail, now);
+    }
+
+    /**
+     * The same for the shadow graph of a rebuild, which has its own new
+     * epoch already: the settings of the running graph in {@code carry}
+     * (manual pause, time of the last backup) are kept.
+     */
+    public static void prepareRebuilt(final File db, final java.util.Map<String, String> carry, final String detail, final long now)
+            throws KgException {
+        prepare(db, null, carry, "rebuilt", detail, now);
+    }
+
+    private static void prepare(final File db, final String epoch, final java.util.Map<String, String> carry, final String code,
+            final String detail, final long now) throws KgException {
+        if (epoch != null && !KgIds.isEpoch(epoch)) {
             throw new IllegalArgumentException("invalid epoch");
         }
         Connection c = null;
@@ -275,11 +290,16 @@ public final class KgBackup {
                 st.execute("PRAGMA busy_timeout=5000");
             }
             c.setAutoCommit(false);
-            KgStore.putMeta(c, KgSchema.META_EPOCH, epoch);
+            if (epoch != null) {
+                KgStore.putMeta(c, KgSchema.META_EPOCH, epoch);
+            }
+            for (final java.util.Map.Entry<String, String> e : carry.entrySet()) {
+                KgStore.putMeta(c, e.getKey(), e.getValue());
+            }
             KgStore.putMeta(c, KgSchema.META_CLEAN_SHUTDOWN, "1");
             KgStore.putMeta(c, KgSchema.META_INTEGRITY_REQUIRED, "0");
             KgStore.putMeta(c, KgSchema.META_RECONCILE_REQUIRED, "1");
-            KgStore.event(c, 1, "restored", clip(detail), now);
+            KgStore.event(c, 1, code, clip(detail), now);
             c.commit();
         } catch (final SQLException e) {
             throw new KgException(KgException.RESTORE_FAILED, "prepare", "the restored database could not be prepared: " + clip(e.getMessage()), e);

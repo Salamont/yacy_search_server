@@ -101,6 +101,30 @@
     box.append(table);
   }
 
+  // The identity rebuild: phase, progress, the check before the swap and the buttons for its phase.
+  const REBUILD_ACTIVE = ['building', 'verifying', 'awaiting_confirmation', 'swapping'];
+  let rebuildTimer = 0;
+  function rebuildInto(rb) {
+    rb = rb || { phase: 'none' };
+    const p = rb.progress || {}, v = rb.verify;
+    const rows = [['rebuild_phase', t('phase_' + rb.phase) + (rb.startedAt ? ' · ' + date(rb.startedAt) : '')]];
+    if (rb.phase === 'building' || rb.phase === 'verifying')
+      rows.push(['rebuild_progress', t('rebuild_progress_value').replace('%1', fmt(p.scanned)).replace('%2', fmt(p.published)).replace('%3', fmt(p.queue))]);
+    if (rb.budgetBytes) rows.push(['rebuild_space', bytes(p.storage?.usedBytes) + ' / ' + bytes(rb.budgetBytes)]);
+    if (v) rows.push(['rebuild_check', t('rebuild_check_value').replace('%1', fmt(v.documentsBefore)).replace('%2', fmt(v.documentsAfter))
+      .replace('%3', fmt(v.entitiesBefore)).replace('%4', fmt(v.entitiesAfter)).replace('%5', fmt(v.quickCheck))]);
+    if (rb.awaitingConfirmation) rows.push(['rebuild_check', t('rebuild_brake')]);
+    if (rb.keptAs) rows.push(['rebuild_kept', rb.keptAs]);
+    if (rb.idsRedirected != null) rows.push(['rebuild_ids', rb.idsRedirected]);
+    if (rb.error) rows.push(['rebuild_error', rb.error]);
+    stats('rebuild', rows);
+    const active = REBUILD_ACTIVE.includes(rb.phase);
+    document.querySelector('[data-skg-action="rebuild"]').hidden = active;
+    document.querySelector('[data-skg-action="rebuild_cancel"]').hidden = !active || rb.phase === 'swapping';
+    document.querySelector('[data-skg-action="rebuild_confirm"]').hidden = !rb.awaitingConfirmation;
+    return active;
+  }
+
   // ------------------------------------------------------------------ overview
   async function overview() {
     const run = ++generation; message(t('loading'));
@@ -143,6 +167,10 @@
       ['dropped', l.processed?.droppedUngrounded], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
     document.querySelector('[data-skg-action="confirm_reconcile"]').hidden = !sy.reconcile?.awaitingConfirmation;
     await backupsInto(s.backup, run);
+    if (run !== generation) return;
+    // while a rebuild runs, the overview refreshes itself
+    clearTimeout(rebuildTimer);
+    if (rebuildInto(s.rebuild)) rebuildTimer = setTimeout(() => { if (run === generation && view === 'overview') guarded(overview); }, 3000);
     const events = $('events'); events.replaceChildren();
     if (s.events?.length) {
       const table = node('table', null, 'table table-striped scoutro-cards'); const head = table.createTHead().insertRow();
@@ -157,6 +185,8 @@
   async function control(action, extra) {
     if (action === 'confirm_reconcile' && !window.confirm(labels.confirm_question || action)) return;
     if (action === 'restore' && !window.confirm(t('restore_question').replace('%1', extra.backup))) return;
+    if (action === 'rebuild' && !window.confirm(t('rebuild_question'))) return;
+    if (action === 'rebuild_confirm' && !window.confirm(t('rebuild_confirm_question'))) return;
     message(t('loading'));
     const response = await fetch(ROOT + 'control', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action }, extra || {})) });

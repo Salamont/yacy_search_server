@@ -276,6 +276,22 @@ public class KgBackupTest {
     }
 
     @Test
+    public void safetyCopiesDoNotPushOutRegularBackups() throws Exception {
+        this.runtime.close();
+        this.runtime = open(KgConfig.BACKUP_KEEP, "2");
+        final String first = backup().getString("file");
+        this.now.addAndGet(2000L);
+        this.runtime.restore(first); // the current graph becomes a safety copy, newer than the first backup
+        this.now.addAndGet(2000L);
+        final JSONObject second = backup();
+        assertEquals("created", second.getString("result"));
+        assertEquals(1, second.getJSONArray("removed").length());
+        assertTrue(second.getJSONArray("removed").getString(0).endsWith(KgBackup.BEFORE_RESTORE + ".db"));
+        assertTrue("two regular backups are kept", new File(dir(), first).exists());
+        assertEquals(2, this.runtime.backups().getJSONArray("items").length());
+    }
+
+    @Test
     public void theScheduleRunsADueBackupFromTheMaintenanceStep() throws Exception {
         this.runtime.close();
         this.runtime = open(KgConfig.BACKUP_INTERVAL_DAYS, "1", KgConfig.BACKUP_KEEP, "2");

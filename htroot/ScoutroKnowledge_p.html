@@ -43,6 +43,14 @@
 <dl id="skg-backup" class="sseo-stats"></dl>
 <div class="sseo-scroll" id="skg-backups"></div>
 <p class="sseo-note">Backups are single SQLite files in DATA/SCOUTRO/knowledge/backup, inside the app's data; download one to keep a copy elsewhere. A restore replaces the graph with the backup, keeps the current graph aside as a backup, starts a new dataset epoch (export consumers sync again) and reconciles with the index.</p></section>
+<section class="sseo-panel" aria-labelledby="skg-rebuild-title"><h3 id="skg-rebuild-title">Re-resolve identities</h3>
+<dl id="skg-rebuild" class="sseo-stats"></dl>
+<div class="sseo-controls">
+<button class="btn btn-default" type="button" data-skg-action="rebuild">Rebuild identities</button>
+<button class="btn btn-default" type="button" data-skg-action="rebuild_cancel" hidden>Cancel the rebuild</button>
+<button class="btn btn-default" type="button" data-skg-action="rebuild_confirm" hidden>Swap in the rebuilt graph</button>
+</div>
+<p class="sseo-note">Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-events-title"><h3 id="skg-events-title">Recent events</h3><div class="sseo-scroll" id="skg-events"></div></section>
 </section>
 
@@ -169,6 +177,27 @@
 <span data-skg-label="restore">Restore</span>
 <span data-skg-label="restore_question">Replace the knowledge graph with the backup %1? The current graph is kept as a backup.</span>
 <span data-skg-label="no_backups">No backups yet.</span>
+<span data-skg-label="rebuild_phase">Rebuild</span>
+<span data-skg-label="rebuild_progress">Progress of the rebuilt graph</span>
+<span data-skg-label="rebuild_progress_value">%1 pages read from the index, %2 published, %3 queued</span>
+<span data-skg-label="rebuild_check">Check before the swap</span>
+<span data-skg-label="rebuild_check_value">pages %1 → %2, objects %3 → %4, integrity %5</span>
+<span data-skg-label="rebuild_brake">The rebuilt graph has far fewer pages than the current one; it is swapped in only after your confirmation.</span>
+<span data-skg-label="rebuild_kept">Previous graph kept as</span>
+<span data-skg-label="rebuild_ids">Stored IDs redirected</span>
+<span data-skg-label="rebuild_space">Storage for the rebuild</span>
+<span data-skg-label="rebuild_error">Reason</span>
+<span data-skg-label="phase_none">not run yet</span>
+<span data-skg-label="phase_building">building the new graph</span>
+<span data-skg-label="phase_verifying">checking the new graph</span>
+<span data-skg-label="phase_awaiting_confirmation">waiting for your confirmation</span>
+<span data-skg-label="phase_swapping">swapping</span>
+<span data-skg-label="phase_done">finished</span>
+<span data-skg-label="phase_cancelled">cancelled, graph unchanged</span>
+<span data-skg-label="phase_failed">failed, graph unchanged</span>
+<span data-skg-label="phase_interrupted">interrupted by a stop, graph unchanged</span>
+<span data-skg-label="rebuild_question">Rebuild every identity from the Solr index? The current graph keeps serving until the new one is ready and is kept as a backup.</span>
+<span data-skg-label="rebuild_confirm_question">Swap in the rebuilt graph although it has far fewer pages than the current one?</span>
 <span data-skg-label="level_ok">ok</span>
 <span data-skg-label="level_notice">notice (from 70 %)</span>
 <span data-skg-label="level_warning">warning (from 80 %)</span>

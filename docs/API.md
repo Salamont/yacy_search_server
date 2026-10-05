@@ -549,19 +549,23 @@ null` with `referring_hosts_scope: complete_index_required`. The optional fields
 
 ## Knowledge graph
 
-Packages 1 to 4 of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
+Packages 1 to 5 of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
 the embedded store with its storage budget, the synchronisation with the
 embedded Solr core (change capture, persistent queue, real-time get, reconcile
 and backfill, document states, structured and rule-based extraction, identity
 resolution, change feed, retention, bounded JSON-LD capture), the optional
 LLM tier, the read routes with the page `ScoutroKnowledge_p.html`, the
-export, the change feed, the agent grants `kg.read` and `kg.export`, and graph
-facts in the RAG chat. Nothing is ever written to Solr.
+export, the change feed, the agent grants `kg.read` and `kg.export`, graph
+facts in the RAG chat, budgets with notice, warning, brake and full levels,
+backups and restore inside the app's DATA, and the identity rebuild. Nothing
+is ever written to Solr.
 
 | Route | Access | Purpose |
 |---|---|---|
 | `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable |
-| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"` or `"llm_retry"` |
+| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"`, `"llm_retry"`, `"backup"`, `"restore"` (with `"backup": "<file>"`), `"rebuild"`, `"rebuild_cancel"` or `"rebuild_confirm"` |
+| `GET /scoutro/api/v1/kg/backups` | administrator (Digest) | The backup files with their metadata (`scoutro.kg.backup.v1`), newest first |
+| `GET /scoutro/api/v1/kg/backups/{file}` | administrator only, never an agent | One backup as a SQLite file (`application/vnd.sqlite3`), to keep it outside the app |
 | `GET /scoutro/api/v1/kg/entities?q&type&host&quality&offset&limit&collection` | administrator (Digest) | Entities, newest first (`scoutro.kg.v1`) |
 | `GET /scoutro/api/v1/kg/entities/{id}` | administrator | One entity, or `{"redirect": id}` after a merge |
 | `GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out\|in&predicate&include=stale&offset&limit&collection` | administrator | Facts and relations |
@@ -794,8 +798,37 @@ facts in the RAG chat. Nothing is ever written to Solr.
   - `llm_retry` makes the documents the LLM tier gave up on due again and
     closes the circuit breaker (`reopened` counts them); 409
     `llm_unavailable` while the tier is off.
-  - 503 `sync_unavailable` for `reconcile` and `confirm_reconcile` where the
-    graph does not follow an embedded Solr core.
+  - `backup` writes a verified copy (`VACUUM INTO`, `quick_check`, SHA-256
+    in a metadata file) into `DATA/SCOUTRO/knowledge/backup` on its own
+    thread; `backup.state` and `backup.last` in the status show the result.
+    While growth is paused (manual pause, budget brake, disk reserve) the
+    backup is skipped with that reason. Scheduled every
+    `scoutro.kg.backup.intervalDays` (default 7, 0 = only on request); the
+    newest `scoutro.kg.backup.keep` (default 1) are kept; the safety copies of a restore or rebuild stay until the next regular backup.
+  - `restore` checks the backup first (name, SHA-256, `quick_check`, schema
+    version, epoch) without touching the graph: 404 `backup_not_found`, 422
+    `backup_invalid` (`details.reason`). It then stops the graph, keeps the
+    current database as `graph-<UTC>-before-restore.db`, puts the backup in
+    place with a new dataset epoch (cursors answer 410 `epoch_changed`) and
+    starts the graph again, which reconciles with Solr; 503 `restore_failed`
+    if it does not start (the previous graph is back).
+  - `rebuild` re-resolves every identity: a shadow graph is built from Solr
+    in `DATA/SCOUTRO/knowledge/rebuild` with the current rules while the
+    graph keeps serving (progress in `rebuild`), checked (`quick_check`, the
+    reconcile's mass-deletion brake) and swapped in with a new epoch; the
+    previous graph is kept as `graph-<UTC>-before-rebuild.db` and entity IDs
+    the new graph does not know become redirects. 409 `operation_running`
+    while a backup, restore or rebuild runs (`details.reason`
+    `reconcile_busy` while a reconcile waits for its confirmation or a reset
+    runs); 503 `kg_write_refused` with `details.reason` `rebuild_space` when
+    the budget has no room for the shadow.
+  - `rebuild_cancel` deletes the shadow before the swap; the graph stays as
+    it is. `rebuild_confirm` lets a rebuild stopped by the brake
+    (`rebuild.awaitingConfirmation`) swap. 409 `no_rebuild` otherwise. A
+    stop of Scoutro cancels a running rebuild; a shadow left behind by a
+    crash is deleted at the next start (`rebuild.phase: interrupted`).
+  - 503 `sync_unavailable` for `reconcile`, `confirm_reconcile` and
+    `rebuild` where the graph does not follow an embedded Solr core.
   - If the storage guard refuses to store the change (for example during a
     storage error), it is still in effect, `store.manualPauseSaved` is
     `false`, and the maintenance thread stores it later.
@@ -803,9 +836,15 @@ facts in the RAG chat. Nothing is ever written to Solr.
   - 409 `kg_disabled` while the graph is disabled; 503 `kg_unavailable` when
     it cannot run.
 - **Storage:** `DATA/SCOUTRO/knowledge/` (`graph.db`, `-wal`, `-shm`,
-  `tmp/`, later `backup/`). The budget is an application budget (`quota:
-  application_budget`), not a filesystem quota. The JSON-LD field lives in
-  the Solr index and has its own budget.
+  `tmp/`, `backup/`, `rebuild/` while a rebuild runs), all counted against
+  `scoutro.kg.budget.maxBytes` (default 10 GiB). The budget is an
+  application budget (`quota: application_budget`), not a filesystem quota.
+  The JSON-LD field lives in the Solr index and has its own budget
+  (`scoutro.kg.jsonld.maxTotalBytes`, default 2 GiB). Levels in
+  `storage.level` and `jsonld.level`: `notice` from 70 %, `warning` from
+  80 % (UI banner, dashboard), `brake` from 90 % (new graph growth pauses;
+  the JSON-LD capture pauses while pages are still crawled and indexed),
+  `full` at the budget. Neither budget ever stops the crawl.
 - **Settings:** see [the plan](SCOUTRO_KNOWLEDGE_GRAPH.md#9-configuration);
   invalid values are listed in `config.errors` and keep the graph off.
 

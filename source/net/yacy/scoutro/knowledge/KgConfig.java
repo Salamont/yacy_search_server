@@ -106,6 +106,8 @@ public final class KgConfig {
     static final long MIB = 1024L * KIB;
     static final long GIB = 1024L * MIB;
     static final long TIB = 1024L * GIB;
+    /** The smallest budget a graph (and a rebuild's shadow graph) can have. */
+    static final long MIN_BUDGET_BYTES = 64L * MIB;
 
     /** One problem with one setting. */
     public static final class Problem {
@@ -200,13 +202,13 @@ public final class KgConfig {
     private KgConfig(final Parser p) {
         this.enabled = p.bool(ENABLED, false);
         // a protection limit, not a target or a reservation (package 5, O1)
-        this.budgetMaxBytes = p.longValue(BUDGET_MAX_BYTES, 10 * GIB, 64 * MIB, 16 * TIB);
+        this.budgetMaxBytes = p.longValue(BUDGET_MAX_BYTES, 10 * GIB, MIN_BUDGET_BYTES, 16 * TIB);
         this.pausePercent = (int) p.longValue(BUDGET_PAUSE_PERCENT, 90, 50, 99);
         this.resumePercent = (int) p.longValue(BUDGET_RESUME_PERCENT, 80, 10, 94);
         // default: 10 % (the database file is capped at the brake, 90 %; WAL, temp files, backups and deletions use the
         // rest), raised for a small budget to the smallest share that holds the WAL and temp limits
         this.maintenancePercent = (int) p.longValue(BUDGET_MAINTENANCE_PERCENT,
-                defaultMaintenancePercent(p.longValue(BUDGET_MAX_BYTES, 10 * GIB, 64 * MIB, 16 * TIB),
+                defaultMaintenancePercent(p.longValue(BUDGET_MAX_BYTES, 10 * GIB, MIN_BUDGET_BYTES, 16 * TIB),
                         p.longValue(WAL_MAX_BYTES, 64 * MIB, 4 * MIB, 4 * GIB), p.longValue(TMP_MAX_BYTES, 64 * MIB, 4 * MIB, 4 * GIB)),
                 5, 50);
         this.noticePercent = (int) p.longValue(BUDGET_NOTICE_PERCENT, 70, 10, 98);

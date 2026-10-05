@@ -41,6 +41,7 @@ public class StorageGuardTest {
         final AtomicLong wal = new AtomicLong();
         final AtomicLong usable = new AtomicLong(100L * GIB);
         final AtomicLong tmpOpen = new AtomicLong();
+        final java.util.Map<String, Long> dirs = new java.util.concurrent.ConcurrentHashMap<>();
 
         @Override
         public long fileBytes(final File file) {
@@ -55,7 +56,7 @@ public class StorageGuardTest {
 
         @Override
         public long dirBytes(final File dir) {
-            return 0L;
+            return this.dirs.getOrDefault(dir.getName(), 0L);
         }
 
         @Override
@@ -134,6 +135,25 @@ public class StorageGuardTest {
         q.db.set(850 * MIB);
         assertEquals(KgConfig.LEVEL_WARNING, fresh.level());
         assertNull(refusal(fresh, WriteClass.GROWTH, MIB));
+    }
+
+    @Test
+    public void backupsAndARebuildCountAgainstTheBudget() throws Exception {
+        final FakeProbe p = new FakeProbe();
+        final StorageGuard g = guard(p, KgConfig.BUDGET_MAX_BYTES, Long.toString(1000 * MIB));
+        p.db.set(400 * MIB);
+        p.dirs.put("backup", 300 * MIB);
+        p.dirs.put("rebuild", 250 * MIB);
+        g.refresh();
+        final org.json.JSONObject st = g.status();
+        assertEquals(950 * MIB, st.getLong("usedBytes"));
+        assertEquals(300 * MIB, st.getJSONObject("files").getLong("backup"));
+        assertEquals(250 * MIB, st.getJSONObject("files").getLong("rebuild"));
+        assertEquals(StorageGuard.BUDGET, refusal(g, WriteClass.GROWTH, 0));
+        // the shadow deleted (a cancel): growth again below the pause threshold minus the hysteresis
+        p.dirs.remove("rebuild");
+        g.refresh();
+        assertNull(refusal(g, WriteClass.GROWTH, MIB));
     }
 
     @Test

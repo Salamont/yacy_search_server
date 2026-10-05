@@ -97,6 +97,7 @@ public final class StorageGuard {
     private long tmpElsewhereBytes = -1L;
     private String tmpDirectory = TMP_DIR_UNSET;
     private long backupBytes;
+    private long rebuildBytes;
     private long usableBytes;
     private long measuredAt;
     private long fullMeasuredAt;
@@ -133,6 +134,7 @@ public final class StorageGuard {
         this.tmpOpenBytes = open.inDirBytes;
         this.tmpElsewhereBytes = open.elsewhereBytes;
         this.backupBytes = this.probe.dirBytes(this.paths.backup);
+        this.rebuildBytes = this.probe.dirBytes(this.paths.rebuild);
         this.fullMeasuredAt = this.clock.getAsLong();
         measureFast();
     }
@@ -167,7 +169,7 @@ public final class StorageGuard {
     }
 
     private long usedBytes() {
-        return this.dbBytes + this.walBytes + this.shmBytes + tmpBytes() + this.backupBytes;
+        return this.dbBytes + this.walBytes + this.shmBytes + tmpBytes() + this.backupBytes + this.rebuildBytes;
     }
 
     /** Visible temp files plus the unlinked ones SQLite holds open, in the graph directory or elsewhere. */
@@ -391,7 +393,7 @@ public final class StorageGuard {
         final JSONObject files = KgJson.obj("db", this.dbBytes, "wal", this.walBytes, "shm", this.shmBytes,
                 "tmpVisible", this.tmpVisibleBytes, "tmpOpen", this.tmpOpenBytes >= 0 ? this.tmpOpenBytes : null,
                 "tmpOpenElsewhere", this.tmpElsewhereBytes >= 0 ? this.tmpElsewhereBytes : null,
-                "tmpDirectory", this.tmpDirectory, "backup", this.backupBytes);
+                "tmpDirectory", this.tmpDirectory, "backup", this.backupBytes, "rebuild", this.rebuildBytes);
         final JSONObject wal = KgJson.obj("bytes", this.walBytes, "maxBytes", this.cfg.walMaxBytes,
                 "checkpointAtBytes", this.cfg.walCheckpointBytes,
                 "lastCheckpoint", this.lastCheckpoint == null ? null : this.lastCheckpoint.toJson(),

@@ -233,6 +233,11 @@ public final class KgRuntime {
     private volatile LlmService llm;
     private ScheduledExecutorService llmThreads;
     private volatile KgBackups backups;
+    private EmbeddedSolrSource source;
+    private Gates gates;
+    private volatile KgRebuild rebuild;
+    /** The outcome of the last rebuild of this process, or "interrupted" when a start found its shadow. */
+    private volatile JSONObject lastRebuild;
     private volatile Long jsonldEstimate;
     private volatile boolean closing;
     private boolean uncleanStartDetected;
@@ -367,6 +372,12 @@ public final class KgRuntime {
                     KgStore.getMeta(c, KgSchema.META_CREATED_AT)});
             this.backups = new KgBackups(() -> this.store, this.paths, this.config, this.guard, this.env.clock,
                     (level, code, detail) -> recordEvent(level, code, detail, false), parseLong(backupMeta[0]), parseLong(backupMeta[1]));
+            if (this.rebuild == null && KgRebuild.discardLeftover(this.paths)) {
+                // a stop or crash in the middle of a rebuild: its shadow is gone, the graph is unchanged
+                this.lastRebuild = KgJson.obj("phase", "interrupted", "finishedAt", this.startedAt);
+                recordEvent(2, "rebuild_interrupted", "a shadow graph of an unfinished rebuild was deleted; the graph is unchanged", false);
+                this.guard.refresh();
+            }
             set(State.RUNNING, null, null);
             if (this.env.solr != null) {
                 startSync();
@@ -414,6 +425,8 @@ public final class KgRuntime {
         Capture.activate(this.dirty);
         final EmbeddedSolrSource source = new EmbeddedSolrSource(this.env.solr);
         final Gates gates = new Gates(this.config, this.env.system);
+        this.source = source;
+        this.gates = gates;
         this.sync = new SyncService(this.config, this.store, this.dirty, source, gates, this.env.clock, this.uncleanStartDetected);
         if (this.config.llmEnabled()) {
             this.llm = new LlmService(this.config, this.store, source, gates, this.env.llm, this.env.clock);
@@ -507,6 +520,12 @@ public final class KgRuntime {
     public synchronized void close() {
         this.closing = true;
         final KgStore s = this.store;
+        final KgRebuild rb = this.rebuild;
+        if (rb != null && rb.active() && !rb.isRebuildThread()) {
+            // a stop in the middle of a rebuild: the shadow is deleted, the graph stays as it is
+            rb.cancel();
+            rb.join(15_000L);
+        }
         // the sync first: it finishes its step, the capture stops, and what it recorded reaches the persistent queue.
         // No Thread.interrupt here: the sync thread may be inside Solr, whose update log uses interruptible channels.
         // the LLM tier first: a call in flight is abandoned (no interrupt, see above); its result is never written
@@ -1065,6 +1084,8 @@ public final class KgRuntime {
             if (b != null) {
                 KgJson.put(o, "backup", b.status());
             }
+            final KgRebuild rb = this.rebuild;
+            KgJson.put(o, "rebuild", rb != null ? rb.status() : this.lastRebuild != null ? this.lastRebuild : KgJson.obj("phase", "none"));
             KgJson.put(o, "events", recentEvents(s));
         }
         return o;
@@ -1075,6 +1096,120 @@ public final class KgRuntime {
             return v == null ? 0L : Long.parseLong(v);
         } catch (final NumberFormatException e) {
             return 0L;
+        }
+    }
+
+    // ---------------------------------------------------------------- rebuild
+
+    /**
+     * Starts the identity rebuild ({@link KgRebuild}): needs the Solr sync,
+     * no other running backup, restore or rebuild, no reconcile waiting for
+     * its confirmation and no full reset, and room in the budget for the
+     * shadow graph.
+     */
+    public synchronized JSONObject rebuild() throws KgException {
+        requireRunning();
+        final SyncService sy = requireSync();
+        final KgRebuild running = this.rebuild;
+        if (running != null && running.active()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a rebuild is running");
+        }
+        final KgBackups b = this.backups;
+        if (b == null || b.busy()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup or restore is running");
+        }
+        final JSONObject syncStatus = sy.status();
+        final JSONObject rec = syncStatus.optJSONObject("reconcile");
+        if (syncStatus.optBoolean("resetInProgress") || rec != null && rec.optBoolean("awaitingConfirmation")) {
+            throw new KgException(KgException.OPERATION_RUNNING, "reconcile_busy",
+                    "a reconcile waits for its confirmation or a full reset runs; finish it first", null);
+        }
+        final long used = this.guard.status().optLong("usedBytes");
+        final long logical = this.store.pageStats().optLong("logicalBytes");
+        this.rebuild = KgRebuild.start(new KgRebuild.Host() {
+            @Override
+            public void swapIn(final File shadowDb, final File keepAs, final java.util.Map<String, String> carry) throws KgException {
+                KgRuntime.this.swapIn(shadowDb, keepAs, carry);
+            }
+
+            @Override
+            public void event(final int level, final String code, final String detail) {
+                recordEvent(level, code, detail, false);
+            }
+        }, this.config, this.env.config, this.paths, this.store, this.source, this.gates, this.env.probe, this.env.clock, used, logical);
+        this.lastRebuild = null;
+        return status();
+    }
+
+    /** Cancels a running rebuild; the shadow is deleted and the graph stays as it is. */
+    public synchronized JSONObject rebuildCancel() throws KgException {
+        requireRunning();
+        final KgRebuild rb = this.rebuild;
+        if (rb == null || !rb.active() || rb.phase() == KgRebuild.Phase.SWAPPING) {
+            throw new KgException(KgException.NO_REBUILD, "no rebuild to cancel");
+        }
+        rb.cancel();
+        rb.join(15_000L);
+        return status();
+    }
+
+    /** Lets a rebuild that the brake stopped swap in. */
+    public synchronized JSONObject rebuildConfirm() throws KgException {
+        requireRunning();
+        final KgRebuild rb = this.rebuild;
+        if (rb == null || !rb.confirm()) {
+            throw new KgException(KgException.NO_REBUILD, "no rebuild waits for a confirmation");
+        }
+        return status();
+    }
+
+    /**
+     * The swap of a rebuild, on the rebuild thread: stops the graph, keeps the
+     * current database as {@code keepAs}, puts the shadow in its place with the
+     * carried settings and starts the graph again; if it does not start, the
+     * previous database is put back.
+     */
+    private synchronized void swapIn(final File shadowDb, final File keepAs, final java.util.Map<String, String> carry) throws KgException {
+        if (this.closing || this.state != State.RUNNING) {
+            throw new KgException(KgException.UNAVAILABLE, "stopped", "the graph was stopped before the swap", null);
+        }
+        final KgBackups b = this.backups;
+        final long until = this.env.clock.getAsLong() + this.config.backupMaxMillis;
+        while (b != null && !b.claim()) {
+            if (this.env.clock.getAsLong() > until) {
+                throw new KgException(KgException.OPERATION_RUNNING, "a backup does not end");
+            }
+            try {
+                wait(200L);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new KgException(KgException.UNAVAILABLE, "interrupted", "the swap was interrupted", null);
+            }
+        }
+        final long now = this.env.clock.getAsLong();
+        try {
+            close();
+            moveDatabase(this.paths.db, keepAs);
+            try {
+                moveDatabase(shadowDb, this.paths.db);
+                KgBackup.prepareRebuilt(this.paths.db, carry, "rebuilt from Solr; previous graph kept as " + keepAs.getName(), now);
+            } catch (final KgException e) {
+                rollBack(keepAs);
+                open();
+                throw e;
+            }
+            open();
+            if (this.state != State.RUNNING) {
+                final String why = this.reason;
+                close();
+                rollBack(keepAs);
+                open();
+                throw new KgException(KgException.RESTORE_FAILED, why, "the rebuilt graph did not start (" + why + "); the previous graph is back", null);
+            }
+        } finally {
+            if (b != null) {
+                b.release();
+            }
         }
     }
 

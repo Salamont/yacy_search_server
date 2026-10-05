@@ -55,7 +55,7 @@ final class KnowledgeApi {
 
     /** Allowed values of {@code action}. */
     static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
-            "llm_retry", "backup", "restore");
+            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm");
 
     private final Supplier<KgRuntime> runtime;
 
@@ -240,6 +240,12 @@ final class KnowledgeApi {
                     return r.backup();
                 case "restore":
                     return r.restore(backup);
+                case "rebuild":
+                    return r.rebuild();
+                case "rebuild_cancel":
+                    return r.rebuildCancel();
+                case "rebuild_confirm":
+                    return r.rebuildConfirm();
                 default:
                     return r.confirmReconcile();
             }
@@ -256,7 +262,8 @@ final class KnowledgeApi {
     static ApiException toApi(final KgException e, final String fullSync) {
         switch (e.code()) {
             case KgException.OPERATION_RUNNING:
-                return new ApiException(409, KgException.OPERATION_RUNNING, "A backup, restore or rebuild is running; see GET /scoutro/api/v1/kg/status.");
+                return new ApiException(409, KgException.OPERATION_RUNNING, "A backup, restore or rebuild is running; see GET /scoutro/api/v1/kg/status.",
+                        Json.obj("reason", e.reason() == null ? "running" : e.reason()));
             case KgException.BACKUP_NOT_FOUND:
                 return new ApiException(404, KgException.BACKUP_NOT_FOUND, "No such backup; see GET /scoutro/api/v1/kg/backups.");
             case KgException.BACKUP_INVALID:
