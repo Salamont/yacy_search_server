@@ -1,12 +1,23 @@
 # Scoutro Knowledge Graph (plan)
 
-Status: **plan (Auftrag 0), nothing implemented.** Base: `main` at `a42cc7d`
-(Scoutro `1.942-scoutro.12`, alias `0.6.0`). Inputs: the owner's release plan
+Status: **revision 2; package 1 implemented** (store, storage guard, runtime,
+status and control routes; see [section 16](#16-package-1-implementation)).
+Packages 2–5 are not started. Base: `main` at `a42cc7d` (Scoutro
+`1.942-scoutro.12`, alias `0.6.0`). Inputs: the owner's release plan
 (`Scoutro_Knowledge_Graph_Releaseplan.md`, 2026-10-05) and the earlier static
 analysis (`YaCy_Knowledge_Graph_Architekturanalyse.md`). Every finding of that
-analysis was re-checked against the code; the results are in
-[section 1](#1-verified-starting-point). Where this plan deviates from the analysis,
-it says so.
+analysis was re-checked against the code ([section 1](#1-verified-starting-point)).
+
+Revision 2 corrects six findings of the review of revision 1 (`9f475a6`):
+
+- storage limits beyond the main file;
+- the Solr storage of `ld_json_txt`;
+- the real consistency guarantee of the synchronisation;
+- the reconcile order;
+- the identity rules and schema keys;
+- the change feed.
+
+Details are in [section 17](#17-revision-2-corrections).
 
 Goal: a complete, regular Scoutro release (no pilot) that extracts organisations,
 operators, facilities, sites, places and services from enabled collections, links
@@ -33,23 +44,25 @@ reserve, automatic pause and resume, and bounded retention.
 13. [Migration, backup, rollback](#13-migration-backup-rollback)
 14. [Version recommendation](#14-version-recommendation)
 15. [Open points and missing access](#15-open-points-and-missing-access)
-16. [First implementation PR](#16-first-implementation-pr)
+16. [Package 1 implementation](#16-package-1-implementation)
+17. [Revision 2 corrections](#17-revision-2-corrections)
 
 ## 0. Decisions at a glance
 
 | Topic | Decision | Section |
 |---|---|---|
-| Backend | **Embedded SQLite** (`org.xerial:sqlite-jdbc`, one database file under `DATA/SCOUTRO/knowledge/`), WAL mode, `synchronous=FULL`, one writer connection, a small reader pool. No second process and no RDF/graph server. | [3](#3-storage-backend-decision) |
-| Data model | Property graph in relational tables: entities, identity keys, **merged statements** with a separate **evidence row per (statement, source document)**. Document-scoped replacement happens on the evidence layer inside one transaction. | [4](#4-data-model) |
-| Identity | Deterministic public IDs. Automatic merge only on strong identifiers (register number, VAT ID, LEI, Wikidata QID, IK) or on site-scoped keys inside one registrable domain. Unclear cases stay separate. Merges leave redirects. | [4.3](#43-identity-resolution) |
-| Change capture | A Solr `UpdateRequestProcessor` on `collection1` records changed and deleted IDs into a bounded in-memory set. A sync thread moves them into a persistent work queue. | [5.1](#51-change-capture) |
-| Consistency | Catch-up by Solr `_version_` after an unclean stop, a periodic full reconcile (merge join of Solr IDs and graph documents), and publish only with a generation check (compare-and-set) plus a dirty-set check. | [5.3](#53-reconcile-and-catch-up), [5.5](#55-stale-results-and-ghost-documents) |
-| Solr write-back | **None.** The processing state lives only in the graph store. No new Solr fields for the graph state. | [5.6](#56-no-solr-write-back) |
-| Structured data | One small, additive core change: JSON-LD blocks are captured at parse time into a stored-only Solr field `ld_json_txt`. Scoutro crawls keep no HTCache, so this is the only way to keep structured data for asynchronous processing. | [6.2](#62-json-ld-capture-the-only-yacy-core-change) |
-| Extraction | Three tiers: JSON-LD/metadata, deterministic rules (imprint/contact data), and LLM (targeted pages only, one request at a time, finite timeouts, circuit breaker). Cache key = extractor version + input hash + domain context. | [6](#6-extraction) |
-| Storage | Application budget over **all** files of the graph directory. Hard cap on the main file via `max_page_count`. Free-space reserve coordinated with YaCy's own disk thresholds. Pause at 90 %, resume at 80 %. Deletions keep running. Incremental vacuum returns space without a full copy. | [7](#7-storage-and-resource-contract) |
-| Access | Admin: `/scoutro/api/v1/kg/*` (Digest). Agents: `/scoutro/api/agent/v1/kg/*` with new grants `kg.read` and `kg.export`, scoped by collection. Visibility is computed from the evidence: a fact is visible only through a source document in a visible collection. | [8](#8-interfaces-api-export-chat-ui) |
-| Chat | A graph-facts step in `RAGProxyServlet` between retrieval and context build. Facts become citable numbered sources. 300 ms limit, silent fallback to plain search. Off for AI Shield guests. | [8.4](#84-chat) |
+| Backend | **Embedded SQLite** (`org.xerial:sqlite-jdbc` 3.53.4.0) in `DATA/SCOUTRO/knowledge/`. WAL mode, `synchronous=FULL`, enforced foreign keys. One writer connection; two read-only readers with deadlines. No second process, no RDF/graph server. | [3](#3-storage-backend-decision) |
+| Data model | **Merged statements** with an evidence row per (statement, source document, **tier**). Several extraction tiers can support the same statement from the same document without overwriting each other. A document's evidence is replaced per tier in one transaction. | [4](#4-data-model) |
+| Identity | Deterministic public IDs. Automatic cross-document merges happen only for: <br>• equal strong identifiers; <br>• the same JSON-LD `@id`; <br>• the declared operator of a site; <br>• facilities with the same full address and name and no conflicting discriminator. <br>Unclear cases stay separate; merges leave redirects. | [4.3](#43-identity-resolution) |
+| Change capture | A Solr `UpdateRequestProcessor` on `collection1` records changed and deleted IDs, together with Solr's version, in a bounded in-memory set. A sync thread moves them into a persistent work queue. | [5.1](#51-change-capture) |
+| Consistency | **Eventual convergence, not a shared transaction.** <br>• Results are published only for the newest Solr version seen for a document, read with real-time get. <br>• A later event always supersedes an earlier result. <br>• Lost events, deletions and reactivations are repaired by a full reconcile. <br>• `_version_` catch-up is only an optimisation. | [5.5](#55-consistency-guarantee) |
+| Reconcile | Merge join in one byte order: Solr's string sort equals SQLite `TEXT COLLATE BINARY`. A deletion happens only after a direct lookup confirms it. An aborted or implausible scan deletes nothing. The reconcile also runs while extraction is paused. | [5.3](#53-reconcile-catch-up-and-backfill) |
+| Solr write-back | **None.** The processing state lives only in the graph store. | [5.6](#56-no-solr-write-back) |
+| JSON-LD | Stored-only Solr field `ld_json_txt`, written only for documents of enabled collections. Bounded per document and by its own total budget. The capture pauses on budget or low disk; crawling and indexing go on without the field. | [6.2](#62-json-ld-capture-the-only-yacy-core-change) |
+| Storage | Application budget over **all** files of the graph directory. <br>• `max_page_count` caps only the main file. <br>• The WAL is bounded by the guard: a limit, verified checkpoints, a write pause and read deadlines with interrupt. <br>• Temp files are measured, including the unlinked ones. <br>• Growth writes and maintenance writes have separate thresholds. <br>• On a really full disk even deletions fail; they fail in a controlled way and are retried. | [7](#7-storage-and-resource-contract) |
+| Change feed | Coalesced per object, keeping every collection the object was visible in (`scopes_seen`). Removal notices are never lost, but may be redundant. Cursor `<epoch>:<seq>`. | [8.3](#83-export-and-change-feed) |
+| Access | Admin: `/scoutro/api/v1/kg/*` (Digest). Agents: `/scoutro/api/agent/v1/kg/*` with new grants `kg.read` and `kg.export`, scoped by collection. A fact is visible only through a source document in a visible collection. | [8](#8-interfaces-api-export-chat-ui) |
+| Chat | A graph-facts step in `RAGProxyServlet`. Facts become citable numbered sources. 300 ms limit, silent fallback to plain search, off for AI Shield guests. | [8.4](#84-chat) |
 | Release | `1.942-scoutro.13`, alias `0.7.0`. The Olares chart is a separate follow-up. | [14](#14-version-recommendation) |
 
 ## 1. Verified starting point
@@ -168,20 +181,21 @@ Consequences:
 
 - A native library is loaded from the JVM temp directory. If that fails, the graph is disabled with reason `native_library_unavailable`.
 - The release image is amd64/glibc and is covered by the bundled natives.
-- All SQLite temp files go to `DATA/SCOUTRO/knowledge/tmp/` (`temp_store=FILE` plus temp directory), so they count against the budget and sit on the same filesystem as `DATA`.
+- All SQLite temp files go to `DATA/SCOUTRO/knowledge/tmp/` (`temp_store=FILE` plus `temp_store_directory`). They sit on the same filesystem as `DATA` and are measured even though SQLite unlinks them ([7.1](#71-what-is-counted)).
 
-Connection settings:
+Connection settings (implemented in `KgStore`):
 
 - `journal_mode=WAL`;
 - `synchronous=FULL` (change-feed sequence numbers must never roll back after a power loss);
-- `foreign_keys=ON`;
+- `foreign_keys=ON` (verified at open);
 - `auto_vacuum=INCREMENTAL` (set before the first table);
-- `journal_size_limit=64 MiB`;
-- `wal_autocheckpoint=1000`;
-- `busy_timeout=5000`;
-- `cache_size` 8 MiB per connection, `mmap_size=0`.
+- `journal_size_limit` = `wal.checkpointBytes`;
+- SQLite's own `wal_autocheckpoint` stays at its default;
+- `busy_timeout=5000` (200 ms for the explicit checkpoints);
+- `cache_size` 8 MiB for the writer and 4 MiB per reader, `mmap_size=0`;
+- `max_page_count` on the writer.
 
-One writer connection, guarded by a lock; 2 to 4 reader connections.
+One writer connection, guarded by a lock, and two reader connections with `query_only=1`, used only through read leases with a deadline ([7.3](#73-what-bounds-which-file)).
 
 ## 4. Data model
 
@@ -214,113 +228,73 @@ Predicates in v1 (from a versioned vocabulary file):
 
 Each predicate is flagged as functional (single-valued) or not. The vocabulary is extensible without a schema change. New industries add types, predicates and service terms.
 
-### 4.2 Physical schema v1 (draft)
+### 4.2 Physical schema v1
 
-Final DDL ships in PR 1, together with the storage benchmark. Until the first release, v1 is a draft: development databases are recreated when it changes.
+The authoritative DDL is `KgSchema.DDL_V1`
+(`source/net/yacy/scoutro/knowledge/store/KgSchema.java`), tested by
+`KgStoreTest`. Until the first release, v1 is a draft: development databases are
+recreated when it changes.
 
-```sql
-CREATE TABLE kg_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
-  -- schema_version, dataset_epoch, clean_shutdown, backfill_cursor, backfill_signature,
-  -- version_checkpoint, reconcile_required, last_reconcile_at, storage_error
-CREATE TABLE kg_collection (coll_id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE);
-CREATE TABLE kg_vocab (term_id INTEGER PRIMARY KEY, kind INTEGER NOT NULL, name TEXT NOT NULL,
-  functional INTEGER NOT NULL DEFAULT 0, UNIQUE (kind, name));            -- types, predicates, schemes
-CREATE TABLE kg_extractor (ext_id INTEGER PRIMARY KEY, tier INTEGER NOT NULL, name TEXT NOT NULL,
-  version TEXT NOT NULL, model TEXT, prompt_hash TEXT, UNIQUE (tier, name, version, model, prompt_hash));
+| Table | Content | Key rules |
+|---|---|---|
+| `kg_meta` | `schema_version`, `dataset_epoch`, `clean_shutdown`, `manual_pause`, `reconcile_required`, `changes_min_seq`, … | — |
+| `kg_collection`, `kg_vocab`, `kg_extractor` | Collection names; types, predicates, identifier schemes (with a `functional` flag); extractor versions per tier | Names validated by CHECK |
+| `kg_doc` | One row per tracked Solr document: `doc_id`, state, token, `solr_version`, input hash, `generation`, tiers, `host_id`, URL, `jsonld_bytes`, `jsonld_skipped`, timestamps | `doc_id` is 12-char **TEXT COLLATE BINARY**, the same order as Solr's string sort ([5.3](#53-reconcile-catch-up-and-backfill)); CHECK on states and lengths |
+| `kg_doc_collection` | Collections per document | FK → `kg_doc` ON DELETE CASCADE, FK → `kg_collection` |
+| `kg_entity`, `kg_entity_key`, `kg_entity_redirect` | Entities with public ID, type, status; identity keys (scheme, scope, value); redirects of merged IDs | `status=2` ⇔ `merged_into` set; public IDs `kge_` + 20 base32 characters (CHECK) |
+| `kg_statement`, `kg_statement_redirect` | Merged statements, unique per (subject, predicate, object key); redirects | Exactly one of `obj_ent` and `obj_val` (CHECK); FKs to entity and vocabulary |
+| `kg_evidence` | One row per **(statement, document, tier)** with extractor, kind, certainty, optional confidence, locator, excerpt (≤ 1000 characters by CHECK, 200 by setting) | FKs with ON DELETE CASCADE from statement and document |
+| `kg_statement_scope`, `kg_entity_scope`, `kg_host_entity`, `kg_name_fts` | Derived visibility and lookup tables, maintained in the publish transaction; contentless FTS5 with `contentless_delete=1` | FKs with CASCADE |
+| `kg_change` | Coalesced change feed: `scopes_now`, `scopes_seen` | `AUTOINCREMENT` sequence; UNIQUE (kind, public_id) |
+| `kg_work`, `kg_extraction`, `kg_scan`, `kg_event` | Persistent work queue (with `event_version`); extraction cache; reconcile and backfill runs (cursor, counters, state); bounded event ring (1000) | CHECK on enumerations |
 
-CREATE TABLE kg_doc (                         -- every tracked Solr document of an enabled collection
-  doc_rowid  INTEGER PRIMARY KEY,
-  doc_id     BLOB NOT NULL UNIQUE,            -- Solr id, 12 Base64 chars decoded to 9 bytes
-  state      INTEGER NOT NULL,                -- 1 active, 2 unavailable, 3 gone, 4 expired
-  token      BLOB NOT NULL,                   -- 8 bytes, see 5.2
-  input_hash BLOB,                            -- 16 bytes, hash of the extraction input used
-  generation INTEGER NOT NULL,                -- +1 on every lifecycle change (CAS for publish)
-  tiers      INTEGER NOT NULL DEFAULT 0,      -- bitmask of applied tiers
-  host_id TEXT, url TEXT,                     -- only filled when the document has evidence
-  loaded_at INTEGER, state_since INTEGER, processed_at INTEGER, last_error INTEGER);
-CREATE INDEX kg_doc_host ON kg_doc (host_id) WHERE host_id IS NOT NULL;
-CREATE TABLE kg_doc_collection (doc_rowid INTEGER NOT NULL, coll_id INTEGER NOT NULL,
-  PRIMARY KEY (doc_rowid, coll_id)) WITHOUT ROWID;
+**Notes:**
 
-CREATE TABLE kg_entity (ent_rowid INTEGER PRIMARY KEY, public_id BLOB NOT NULL UNIQUE,
-  type INTEGER NOT NULL, status INTEGER NOT NULL, merged_into INTEGER, created_seq INTEGER NOT NULL);
-CREATE TABLE kg_entity_key (scheme INTEGER NOT NULL, scope TEXT NOT NULL, value TEXT NOT NULL,
-  ent_rowid INTEGER NOT NULL, PRIMARY KEY (scheme, scope, value)) WITHOUT ROWID;
-CREATE INDEX kg_entity_key_ent ON kg_entity_key (ent_rowid);
-CREATE TABLE kg_redirect (public_id BLOB PRIMARY KEY, target_rowid INTEGER NOT NULL,
-  kind INTEGER NOT NULL) WITHOUT ROWID;                                  -- merged entities/statements
-
-CREATE TABLE kg_statement (stmt_rowid INTEGER PRIMARY KEY, public_id BLOB NOT NULL UNIQUE,
-  subj INTEGER NOT NULL, pred INTEGER NOT NULL, obj_ent INTEGER, obj_val TEXT, obj_key BLOB NOT NULL,
-  quality INTEGER NOT NULL, current_sources INTEGER NOT NULL, first_seen INTEGER NOT NULL,
-  last_confirmed INTEGER, UNIQUE (subj, pred, obj_key));
-CREATE INDEX kg_statement_obj ON kg_statement (obj_ent) WHERE obj_ent IS NOT NULL;
-CREATE TABLE kg_evidence (stmt_rowid INTEGER NOT NULL, doc_rowid INTEGER NOT NULL,
-  kind INTEGER NOT NULL, ext_id INTEGER NOT NULL, certainty INTEGER NOT NULL,
-  locator TEXT, excerpt TEXT, observed_at INTEGER NOT NULL,
-  PRIMARY KEY (stmt_rowid, doc_rowid)) WITHOUT ROWID;
-CREATE INDEX kg_evidence_doc ON kg_evidence (doc_rowid, stmt_rowid);
-
--- derived visibility and lookup tables, maintained in the publish transaction
-CREATE TABLE kg_stmt_scope (stmt_rowid INTEGER NOT NULL, coll_id INTEGER NOT NULL, n INTEGER NOT NULL,
-  PRIMARY KEY (stmt_rowid, coll_id)) WITHOUT ROWID;
-CREATE TABLE kg_entity_scope (ent_rowid INTEGER NOT NULL, coll_id INTEGER NOT NULL, n INTEGER NOT NULL,
-  PRIMARY KEY (ent_rowid, coll_id)) WITHOUT ROWID;
-CREATE INDEX kg_entity_scope_coll ON kg_entity_scope (coll_id, ent_rowid);
-CREATE TABLE kg_host_entity (host_id TEXT NOT NULL, ent_rowid INTEGER NOT NULL, n INTEGER NOT NULL,
-  PRIMARY KEY (host_id, ent_rowid)) WITHOUT ROWID;
-CREATE VIRTUAL TABLE kg_name_fts USING fts5 (name, content='', contentless_delete=1,
-  tokenize='unicode61 remove_diacritics 2');
-  -- rowid = stmt_rowid of name/alias statements
-
-CREATE TABLE kg_change (seq INTEGER PRIMARY KEY AUTOINCREMENT, kind INTEGER NOT NULL,
-  public_id BLOB NOT NULL, op INTEGER NOT NULL, redirect_to BLOB, scopes_before TEXT,
-  scopes_after TEXT, at INTEGER NOT NULL, UNIQUE (kind, public_id));   -- coalesced: DELETE + INSERT
-
-CREATE TABLE kg_work (doc_id BLOB PRIMARY KEY, reason INTEGER NOT NULL, priority INTEGER NOT NULL,
-  not_before INTEGER NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, claimed_at INTEGER) WITHOUT ROWID;
-CREATE INDEX kg_work_next ON kg_work (priority, not_before);
-CREATE TABLE kg_extraction (cache_key BLOB PRIMARY KEY, ext_id INTEGER NOT NULL, status INTEGER NOT NULL,
-  result BLOB, bytes INTEGER NOT NULL, last_used INTEGER NOT NULL) WITHOUT ROWID;   -- deflated JSON
-CREATE INDEX kg_extraction_lru ON kg_extraction (last_used);
-CREATE TABLE kg_event (seq INTEGER PRIMARY KEY, at INTEGER NOT NULL, level INTEGER NOT NULL,
-  code TEXT NOT NULL, detail TEXT);                                       -- ring, at most 10 000 rows
-```
-
-Notes:
-
-- **Sources are paginated and never grow inside one field.** A statement's sources are `kg_evidence` rows, read with keyset pagination.
-- **Identical content stays separated by origin.** Two documents with identical text share one cache row (`kg_extraction`). They still produce separate `kg_evidence` rows, and therefore separate document and collection assignments.
-- **Integer row IDs stay internal.** Public IDs are separate and stable ([4.3](#43-identity-resolution)).
+- **Constraint enforcement.** Foreign keys are enforced on every connection (`PRAGMA foreign_keys=ON`, verified at open). Enumerations, ID formats and lengths are CHECK constraints. `KgStoreTest` proves that violations are rejected.
+- **Paginated sources.** A statement's sources are `kg_evidence` rows read with keyset pagination, never a growing list in one field.
+- **Shared extraction, separate origin.** Identical content shares one cache row but keeps separate evidence rows, and therefore separate document and collection assignments.
+- **Internal IDs.** Integer row IDs stay internal; public IDs are separate and stable ([4.3](#43-identity-resolution)).
 
 ### 4.3 Identity resolution
 
 **Public IDs.**
 
-- Entity: `kge_` + 20 base32 characters (100 bits) of SHA-256 over `scoutro-kg/entity/v1`, the type and the *primary key at creation*. Statement: `kgs_` + 20 characters over `scoutro-kg/statement/v1`, the subject ID at creation, the predicate and the canonical object.
-- Both are stored and never recomputed.
-- A rebuild from the same data yields the same IDs in the normal case. Order effects are possible; backups preserve exact IDs.
+- An entity ID is `kge_` + 20 base32 characters (100 bits) of SHA-256 over:
+  - `scoutro-kg/entity/v1`;
+  - the type;
+  - the **identity key it was created with** (scheme, scope, value).
+- A statement ID is `kgs_` + 20 characters over:
+  - `scoutro-kg/statement/v1`;
+  - the subject ID at creation;
+  - the predicate;
+  - the canonical object.
+- Every part is NFC-normalised and separated by NUL (`KgIds`, tested in `KgIdsTest`).
+- IDs are stored once and never recomputed. A rebuild from the same data normally yields the same IDs; backups preserve exact IDs.
 
-**Key schemes.**
+**Keys and what they may merge:**
 
-| Strength | Schemes | Merge rule |
+| Key (scheme) | Scope | Merges automatically |
 |---|---|---|
-| Strong (global) | `register` (court + HRA/HRB/VR/GnR/PR, normalised), `vat` (validated format), `lei`, `wikidata`, `ik` | Equal value → same entity, across domains |
-| Site-scoped | `ld_id` (absolute JSON-LD `@id`, scoped to its host), `site_name` (registrable domain + type + normalised name, plus postal code if present) | Equal key inside one registrable domain → same entity |
-| Medium | `homepage` (registrable domain of the declared `url` of an organisation) | Merges across domains only if the normalised names are compatible (legal form stripped) and no strong key conflicts |
-| Hints only | phone (E.164), e-mail, name + postal code | Never merge. Shown as "possible duplicates" in the detail view. |
+| `register` (court + HRA/HRB/VR/GnR/PR, normalised), `vat` (validated format), `lei`, `wikidata`, `ik` | global | Organisations or facilities with the equal value, across documents and domains |
+| `ld_id` (absolute JSON-LD `@id`) | host of the declaring page | Mentions with the same `@id` on that host |
+| `site_operator` (the organisation declared as operator on an imprint or as `publisher`/`provider` of the site, with its legal name including the legal form) | registrable domain | The operator mentioned on several pages of the same domain, if the normalised legal name is equal |
+| `facility_address` (type + normalised name + **full address**: street, house number, postal code, locality) | registrable domain | Facility or site mentions with all of these equal, **and** no conflicting discriminator (see below) |
+| `doc_local` (document ID + extractor-local reference) | one document | Repeated mentions inside one document only |
+| phone (E.164), e-mail, name + postal code, `homepage` domain | — | **Never.** Shown as "possible duplicates" in the detail view. |
 
-**Rules.**
+**Rules:**
 
-- The primary key at creation is the strongest key known at that time.
-- A mention without a postal code attaches to an existing site-scoped entity only if exactly one candidate with that name exists in the domain. Otherwise it stays a separate entity.
-- **Merge:** when a new strong key links two entities, the older one survives.
-  - The other entity gets `status=merged` and a `kg_redirect` row.
-  - Its statements are re-pointed to the survivor. Statements that collide (same predicate and object) are merged; their evidence is unioned and the losing statement ID becomes a redirect.
-  - A `redirect` change is written.
-- **No automatic split.** If the evidence that justified a merge disappears, the merge stays. The key row remains as an identity fact.
-- **Recovery:** an admin maintenance action "re-resolve identities" rebuilds the resolution from the cached extractions without calling an LLM.
-- Same-name organisations on different domains without a strong or medium key stay separate. One domain can hold any number of facilities, distinguished by name and postal code.
+- **Postal code alone is not enough.** The same domain, the same name and the same postal code do **not** merge facilities. One provider can run two facilities with the same name in one postal-code area, and a portal domain lists unrelated organisations.
+- **Discriminators block a merge** even when a merge key matches:
+  - two different values of the same strong scheme (for example two VAT IDs);
+  - two different JSON-LD `@id`s;
+  - different facility kinds from the vocabulary (for example day care vs. residential care);
+  - different full addresses.
+
+  A blocked merge is recorded as an `identity_conflict` event; the entities stay separate.
+- **Mentions without a merge key** stay document-local entities (`doc_local`). Duplicates are preferred to wrong merges; the detail view lists likely duplicates for later manual handling (out of scope for this version).
+- **Merge:** the older entity survives. The other entity gets `status=2` and a redirect. Its statements are re-pointed; colliding statements are merged by unioning their evidence, and the losing statement ID becomes a redirect. A `redirect` change is written.
+- **No automatic split.** If the evidence behind a merge disappears, the merge stays. The admin maintenance action "re-resolve identities" rebuilds resolution from the cached extractions without LLM calls.
 
 ### 4.4 Quality and currency
 
@@ -364,6 +338,13 @@ Notes:
 
 ## 5. Synchronisation with Solr
 
+The graph and Solr are two stores without a shared transaction. Nothing in
+this design makes a Solr update and a SQLite commit atomic. The guarantee is
+convergence: every Solr change is eventually reflected, a result derived from
+an older Solr state never replaces one from a newer state, and lost signals
+are repaired by a full reconcile. [5.5](#55-consistency-guarantee) states it
+precisely.
+
 ### 5.1 Change capture
 
 **Update processor.** `net.yacy.scoutro.knowledge.solr.KgCaptureProcessorFactory` is added to `defaults/solr/solrconfig.xml` as the default update chain:
@@ -377,90 +358,138 @@ Notes:
 </updateRequestProcessorChain>
 ```
 
-- It records after a successful `super.process*()`:
-  - add → `dirty(id)`;
-  - delete by ID → `deleted(id)`;
-  - delete by query → `queryDeleteEpoch++`, plus a `full_reset` marker for `*:*`.
-- It is a no-op on the `webgraph` core (both cores share the file) and when the graph is disabled.
-- Every `Throwable` is caught: the processor can never fail a Solr update.
-- Cost per update is one bounded `ConcurrentHashMap` insert.
-- It covers every writer of the embedded core: `Segment.storeDocument`, `ErrorCache.push`, `JsonListImporter`, surrogates, `ReindexSolrBusyThread`, P2P `putMetadata`, `/solr/collection1/update` and all deletes, including the bypasses listed in 1.2.
+- **What it records,** after a successful `super.process*()`, with the version Solr assigned:
+  - add → `dirty(id, version)`;
+  - delete by ID → `deleted(id, version)`;
+  - delete by query → `queryDeleteEpoch++` and a debounced reconcile request; `*:*` → `full_reset`.
+- **Safe to run in Solr's update path.**
+  - It is a no-op on the `webgraph` core (both cores share the file) and while the graph is disabled.
+  - It catches every `Throwable` and never fails a Solr update.
+  - Each update costs one bounded `ConcurrentHashMap` insert.
+- **Coverage.** It sees every writer of the embedded core, including the bypasses listed in 1.2.
 
 **Dirty set.**
 
-- Coalesced per ID (last operation wins), capped at `capture.maxPending` (default 100 000 IDs, a few MB).
-- On overflow, new IDs are dropped and `reconcile_required` is set.
+- Coalesced per ID; the highest version wins, and a delete wins over an older add.
+- Capped at `capture.maxPending` (100 000 IDs). On overflow it drops new IDs and sets `reconcile_required`.
 
 **Sync thread.**
 
-- Every 2 s it drains the dirty set into `kg_work`, in batches of ≤ 500 IDs per transaction.
-- In the same transaction it increments `kg_doc.generation` for these IDs, which invalidates in-flight work ([5.5](#55-stale-results-and-ghost-documents)).
-- While paused for budget, `kg_work` is capped at `queue.maxItems`. Beyond that, `reconcile_required` is set instead of growing.
+- Every 2 s it drains the dirty set into `kg_work` (≤ 500 IDs per transaction, keeping the highest `event_version`).
+- In the same transaction it increments `kg_doc.generation` for these IDs.
+- Draining is a maintenance write. While the storage guard refuses even those ([7.4](#74-write-classes-and-thresholds)), the set keeps coalescing in memory up to its cap, and then falls back to `reconcile_required`.
 
-**Remote Solr** has no update processor. The graph requires the embedded Solr and refuses to start otherwise (reason `remote_solr_unsupported`).
+**Remote Solr** has no update processor. The graph requires the embedded Solr (`remote_solr_unsupported`).
 
 ### 5.2 Processing a document
 
-1. **Claim.** Take the next `kg_work` row (priority, `not_before`). Remember `generation` and the dirty-set epoch.
-2. **Read metadata from Solr.**
-   - Fields: `id, sku, host_s, host_id_s, httpstatus_i, failtype_s, exact_signature_l, collection_sxt, language_s, load_date_dt, ld_json_txt` (no `text_t`). Wait at least 6 s after the event so the soft commit has made it visible.
-   - Not found → document removed.
-   - No enabled collection → removed (out of scope).
-   - Fail document → state change ([4.4](#44-quality-and-currency)).
-3. **Token.** 8 bytes of SHA-256 over `sku | httpstatus_i | exact_signature_l | sorted(collection_sxt) | language_s`.
-   - Token and `ld_json` hash unchanged → only update `loaded_at`. No extraction.
-   - Only collections changed → update `kg_doc_collection` and the scope tables. No extraction.
-4. **Extract** the needed tiers ([6](#6-extraction)). `text_t` is read only for tier 2/3 candidates. The cache is consulted first.
-5. **Publish** in one write transaction ([5.4](#54-transactional-publish)).
+1. **Claim** the next `kg_work` row. Remember its `generation` and `event_version`.
+2. **Read the current Solr state with real-time get** (`/get`, served from Solr's update log), not with a search.
+   - A search sees a change only after the soft commit. A fixed wait does not prove visibility, so none is used.
+   - The answer carries `_version_`:
+     - **add event, version ≥ `event_version`:** current. Process it.
+     - **add event, version lower or document missing:** not yet visible. Requeue with backoff. After a bounded number of attempts, fall back to the reconcile.
+     - **delete event, document absent:** confirmed. Remove the document from the graph.
+     - **delete event, document present with a higher version:** it was re-added (reactivated). Process it as an add.
+   - Fields read: `id, sku, host_s, host_id_s, httpstatus_i, failtype_s, exact_signature_l, collection_sxt, language_s, load_date_dt, _version_, ld_json_txt`.
+   - If `/get` turns out not to work in the embedded core (verified in package 2, O9), the fallback is a version-checked search with the same requeue rule.
+3. **Classify:**
+   - not found → removed;
+   - no enabled collection → out of scope (removed);
+   - fail document → state change ([4.4](#44-quality-and-currency)).
+4. **Token** (8 bytes of SHA-256 over `sku | httpstatus_i | exact_signature_l | sorted(collection_sxt) | language_s`) and JSON-LD hash:
+   - both unchanged → update `loaded_at` and `solr_version` only;
+   - only collections changed → update the scopes only.
+5. **Extract** the needed tiers ([6](#6-extraction)). `text_t` is read only for tier 2/3 candidates; the cache is consulted first.
+6. **Publish** ([5.4](#54-transactional-publish)).
 
-### 5.3 Reconcile and catch-up
+### 5.3 Reconcile, catch-up and backfill
 
-- **Full reconcile.**
-  - Streams Solr `id`, plus the token fields, for `httpstatus_i:*` documents of the enabled collections.
-  - Sorted by `id`, paged with `id:{last TO *]` (the pattern used for domain export on the open branch).
-  - Merge join against `kg_doc` sorted by `doc_id`:
+**One sort order.**
 
-| Case | Action |
-|---|---|
-| Missing in graph | Enqueue |
-| Missing in Solr | Remove |
-| Token differs | Enqueue |
+- Solr sorts the string field `id` by unsigned UTF-8 bytes (Lucene term order). Range queries `id:{x TO *]` and `cursorMark` use the same order.
+- `kg_doc.doc_id` is the same 12-character ASCII text with SQLite's `BINARY` collation (memcmp), so it sorts identically. `KgStoreTest.documentIdsSortLikeSolrStrings` checks this against an unsigned byte comparison.
+- Document IDs are never stored decoded: decoded bytes of YaCy's Base64 alphabet would sort differently.
 
-  - Runs daily (`reconcile.hour`, default 03:00) and when `reconcile_required` is set: dirty-set or queue overflow, collection allowlist change, unclean start.
-  - Runs 5 minutes after the last delete by query (debounced).
-  - Gated like the backfill. Resumable from the last `id`.
-  - Cost is O(N) in the number of documents, over light fields only.
-- **Catch-up by `_version_`.**
-  - Every 60 s, once the dirty set is drained, the sync thread stores `version_checkpoint` = the highest Solr `_version_` observed at least 30 s earlier.
-  - After an unclean stop (`clean_shutdown=false`), every ID with `_version_ ≥ version_checkpoint` is enqueued immediately (indexed `_version_`, `schema.xml:58`). A full reconcile is then scheduled, because deletions are not visible by version.
-- **Initial backfill.**
-  - The same scan as reconcile with an empty graph, cursor in `kg_meta.backfill_cursor`.
-  - Interruptible and resumable; one rule set for new and existing documents.
-  - JSON-LD exists only for documents indexed after the capture was enabled ([6.2](#62-json-ld-capture-the-only-yacy-core-change)). Older documents get it on recrawl (Scoutro crawls reload after 3 days by default, `ScoutroActions.java:750-752`).
-- **Extractor version change.** Documents whose tier result has an older extractor ID are re-queued at low priority. The LLM tier is re-run only by explicit admin action or within the per-host cap.
+**Full reconcile.**
+
+1. Streams Solr IDs and token fields for the enabled collections, sorted by `id`, in pages of 1000.
+2. Merge-joins them with `kg_doc` in the same order:
+
+   | Case | Action |
+   |---|---|
+   | Missing in the graph | Enqueue (this also covers reactivated documents) |
+   | Token differs | Enqueue |
+   | Missing in Solr | Deletion **candidate** only |
+
+3. Deletes nothing directly. A candidate is deleted only after a direct real-time-get lookup in batches of ≤ 100 IDs confirms that the document is absent or out of scope.
+4. Has safety stops:
+   - A page that fails, is partial (`partialResults`) or breaks the expected ascending order ends the run as `aborted`.
+   - Candidates already verified stay correct; the rest are not deleted.
+   - The run records its cursor in `kg_scan` and resumes from there.
+5. Has a mass-deletion brake:
+   - If verified deletions would exceed `reconcile.maxDeleteFraction` (0.2) of the tracked documents, or Solr reports zero documents while the graph tracks some, the run stops before deleting.
+   - It is then marked `suspect` with the counts and needs `POST /kg/control {"action":"confirm_reconcile"}` (package 2).
+   - A real `*:*` clear arrives as `full_reset` and is not subject to the brake.
+6. Is lifecycle work (reads plus maintenance writes): it runs while extraction is manually or budget-paused. It stops only when maintenance writes are refused, and resumes from its cursor.
+
+**When it runs:**
+
+- daily (`reconcile.hour`);
+- 5 minutes after the last delete by query;
+- after a dirty-set or queue overflow;
+- after a change of the collection allowlist;
+- after an unclean start.
+
+**Catch-up by `_version_` (optimisation only).**
+
+- Every 60 s, after a complete drain, the sync thread stores `version_checkpoint`, the highest Solr version seen at least 30 s earlier.
+- After an unclean stop, every ID with `_version_ ≥ version_checkpoint` is enqueued at once, so recent adds are processed before the full reconcile reaches them.
+- It sees no deletions; with clock jumps it can miss adds. The full reconcile that always follows an unclean start is what makes recovery correct.
+
+**Initial backfill.**
+
+- The same scan with an empty graph, cursor in `kg_scan`; interruptible and resumable.
+- JSON-LD exists only for documents indexed after the capture was enabled ([6.2](#62-json-ld-capture-the-only-yacy-core-change)).
+
+**Extractor version change.** Re-queues documents with an older extractor at low priority. The LLM tier is re-run only by admin action or within the per-host cap.
 
 ### 5.4 Transactional publish
 
 One `BEGIN IMMEDIATE` transaction per document, with these steps:
 
-1. Check that `kg_doc.generation` still has the claimed value and that the ID is not in the dirty set. Otherwise abort and requeue.
-2. Delete this document's evidence for the replaced tiers, and collect the affected statements.
-3. Resolve entities and keys; upsert statements; insert evidence (bounded: ≤ 50 statements per document, excerpt ≤ 200 characters).
-4. Recompute the aggregates of the affected statements and entities: `current_sources`, quality, conflicts, `kg_stmt_scope`, `kg_entity_scope`, `kg_host_entity`, FTS rows. Delete statements without evidence.
-5. Write coalesced `kg_change` rows with scopes before and after.
-6. Update `kg_doc`: token, input hash, tiers, `processed_at`, `generation+1`.
+1. Check, under the write lock:
+   - `kg_doc.generation` still equals the claimed value;
+   - the document is not in the dirty set with a version newer than the one read;
+   - the version read is not lower than the `kg_doc.solr_version` already published.
+
+   Otherwise abort and requeue.
+2. Delete this document's evidence **for the replaced tier(s) only** and collect the affected statements.
+3. Resolve entities; upsert statements; insert evidence (≤ 50 statements per document, excerpt ≤ 200 characters).
+4. Recompute aggregates, quality, scopes, host links and FTS rows of the affected statements and entities. Delete statements without evidence.
+5. Write coalesced `kg_change` rows ([8.3](#83-export-and-change-feed)).
+6. Update `kg_doc`: token, input hash, tiers, `solr_version`, `processed_at`, `generation+1`.
 
 Lifecycle events (remove, state change) use the same aggregate code in batches of ≤ 200 documents.
 
-### 5.5 Stale results and ghost documents
+### 5.5 Consistency guarantee
 
-- **Generation CAS.** Every lifecycle event for a document increments its generation in the same transaction that queues it. A worker result for an older generation is discarded at commit.
-- **Dirty-set check under the write lock.** Changes not yet drained are still in the dirty set. The update processor writes them synchronously inside Solr's update path, so a Solr change made before the commit cannot slip through.
-- **Delete by query.**
-  - If `queryDeleteEpoch` changed since the claim, the worker waits for the soft-commit interval plus 1 s and checks again that the document exists before publishing.
-  - The debounced reconcile removes the rest.
-- **No ghost documents in Solr.** The graph never writes to Solr.
-- **No ghost documents in the graph.** Publish requires an existing `kg_doc` row in a non-removed state and the right generation. A crash after a Solr delete is repaired by catch-up and reconcile.
+The dirty-set check and the SQLite commit are **not atomic** with respect to Solr. A Solr update can land between the check and the commit. What the design does guarantee:
+
+1. **Monotonic per document.**
+   - The graph's data for a document is always derived from one Solr version, stored in `kg_doc.solr_version`.
+   - A publish with an older version than the stored one is refused, so an older result never replaces a newer one.
+2. **Later events supersede.**
+   - The update processor records a change synchronously, after Solr applied it.
+   - So a Solr change that lands after the commit check is already, or soon will be, an event with a higher version. Processing that event bumps the generation, re-reads Solr and replaces the published result.
+   - A result derived from an older state can therefore be visible for at most the processing latency of the next event.
+3. **No resurrection.** A deleted document can be published briefly only if Solr deleted it after the real-time get read. The delete event then removes it.
+   - A delete event lost in a crash is repaired by the full reconcile after an unclean start. That reconcile deletes only after a verified lookup.
+   - The graph writes nothing to Solr, so it can never create a ghost document there.
+4. **Convergence.** Every change while the graph runs is processed through its event. Changes during overflow, pause overflow, downtime or a crash, including deletions and reactivations, are repaired by the next full reconcile. The `_version_` catch-up only shortens the delay.
+5. **Read path.**
+   - Detail, evidence and chat views verify their (≤ 50) source documents with one real-time-get batch and hide missing ones (and enqueue them).
+   - Lists, counts and the export may lag. Every list response carries `lag` (`pending`, `oldest_pending_age_s`, `reconcile_pending`), so clients can see it.
 
 ### 5.6 No Solr write-back
 
@@ -475,18 +504,17 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
 
 | Path (code) | Solr operation | Graph reaction | Lag |
 |---|---|---|---|
-| `Fulltext.remove(id/ids)` (Crawler_p, `Switchboard.remove`, `CrawlStacker`, `IndexControlURLs_p`, `URIMetadataNode`, `Segment.removeAllUrlReferences`) | delete by ID | Document removed, evidence deleted | seconds |
+| `Fulltext.remove(id/ids)` (Crawler_p, `Switchboard.remove`, `CrawlStacker`, `IndexControlURLs_p`, `URIMetadataNode`, `Segment.removeAllUrlReferences`) | delete by ID | Remove after real-time-get confirmation | seconds |
 | `RecrawlBusyThread.java:326`, postprocessing `failids` | delete by ID (bypass) | same (captured in Solr) | seconds |
-| `Fulltext.deleteStaleDomain*`, `deleteOldDocuments`, `deleteDomainErrors`, `IndexDeletion_p` queries, `ErrorCache.clear` | delete by query | Epoch++, debounced reconcile | ≤ 5 min + reconcile run |
+| `Fulltext.deleteStaleDomain*`, `deleteOldDocuments`, `deleteDomainErrors`, `IndexDeletion_p` queries, `ErrorCache.clear` | delete by query | Epoch++, debounced reconcile with verified deletions | ≤ 5 min + reconcile run |
 | `clearLocalSolr` / `connector.clear()` | `*:*` | Full reset: new `dataset_epoch`, database recreated, cursors invalid (`epoch_changed`) | seconds to minutes |
 | `ErrorCache.push` over a status-200 document | add (fail doc) | `unavailable` or `gone` | seconds |
 | Recrawl/reindex (`yacy2solr`) | add | Token check: nothing, scope update or re-extraction | seconds plus queue |
+| Delete followed by a re-add (reactivation) | delete, then add with a higher version | Processed as an add; a lost event is repaired by the reconcile ("missing in graph") | seconds / reconcile |
 | Collection change of a document | add | Scope update; out of scope → removed | seconds |
 | Allowlist change in the graph settings | — | Reconcile | reconcile run |
 | Imports, surrogates, P2P, `/solr/collection1/update` | add/delete | as above | seconds |
-| Crash between Solr commit and drain | — | `_version_` catch-up plus reconcile | after restart |
-
-**Read path.** Detail and evidence views, and chat facts, check their (≤ 50) source documents against Solr in one `id:(…)` query and hide missing ones (and enqueue them). Lists and aggregates may lag. The lag is shown as `pending`, `oldest_pending_age_s` and `reconcile_pending` in every list response and on the status page.
+| Crash between Solr commit and drain | — | `_version_` catch-up (optimisation) plus full reconcile (correctness) | after restart |
 
 ## 6. Extraction
 
@@ -509,12 +537,30 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
 
 ### 6.2 JSON-LD capture (the only YaCy core change)
 
-- **Where:** in `ContentScraper` (script branch, `ContentScraper.java:1011-1020`), `<script type="application/ld+json">` content is collected, bounded to 8 blocks and 32 KiB in total.
-  - A block is kept only if it parses as JSON (depth ≤ 8, ≤ 500 nodes) and contains a relevant `@type`.
-  - It is exposed through `Document` and written by `CollectionConfiguration.yacy2solr` into a new `CollectionSchema` entry `ld_json_txt`.
-- **Field type:** text, multi-valued, **stored, not indexed**. Declared explicitly in `defaults/solr/schema.xml`, so it adds no inverted index. The name matches the old schema's dynamic `*_txt`, which keeps rollback safe ([13](#13-migration-backup-rollback)).
-- **Default:** disabled in `defaults/solr.collection.schema`. Enabling the graph enables the field through the existing schema configuration (the same mechanism the crawl report uses for optional fields). Installations without the graph pay nothing.
-- **Cost:** part of the Solr index, not of the graph budget. It is measured in package 5 (stored-field bytes with and without the field) and shown on the status page.
+**Capture (package 2).**
+
+- **Where:** in `ContentScraper` (script branch, `ContentScraper.java:1011-1020`), `<script type="application/ld+json">` content is collected.
+- **Limits:** at most `jsonld.maxBlocksPerDoc` (8) blocks and `jsonld.maxBytesPerDoc` (16 KiB) per document. A block that would exceed them is dropped whole, never cut. A block is kept only if it parses (depth ≤ 8, ≤ 500 nodes) and has a relevant `@type`.
+- **Who:** `yacy2solr` writes the field `ld_json_txt` **only for documents of collections enabled for the graph**. All other documents never carry it.
+
+**Storage contract (package 1 provides configuration and status).**
+
+- **Field type.** Stored only, not indexed: text, multi-valued, declared explicitly in `defaults/solr/schema.xml`. Its name matches the old schema's dynamic `*_txt`, which keeps rollback safe ([13](#13-migration-backup-rollback)).
+- **Outside the graph directory.** The field sits in the Solr index, so it does not count against the graph budget. It has **its own budget**, `jsonld.maxTotalBytes`.
+- **Estimate.** The sum of `kg_doc.jsonld_bytes` (uncompressed, an upper bound for Solr's compressed stored fields) plus an in-memory counter of bytes captured but not yet synchronised.
+- **When capture pauses** (`JsonLdCapturePolicy`, with hysteresis):
+
+  | Reason | Pauses at | Resumes at |
+  |---|---|---|
+  | `jsonld_budget` | estimate ≥ `pausePercent` of `jsonld.maxTotalBytes` | `resumePercent` |
+  | `disk_reserve` | DATA free space below the graph's growth floor (YaCy steady state + `disk.reserveBytes`) | growth floor + hysteresis |
+
+  It is `off` while the graph or the capture is disabled, or the runtime is not running.
+- **The crawl is never blocked.** The parser reads one volatile flag per document. While capture is paused or off, the document is indexed normally without the field.
+  - Skipped document IDs go to a bounded set, and the sync marks them `jsonld_skipped`. Their JSON-LD is picked up at the next recrawl.
+  - No page is re-fetched for the graph.
+- **Display.** The status (`jsonld`) shows state, reason, estimate (null while not measured), limits and later the count of skipped documents. Package 1 reports `captureImplemented: false`.
+- **Solr's own growth** stays governed by YaCy's `ResourceObserver`. Space of deleted documents returns only after Solr segment merges; this is a Solr property and is documented, not hidden.
 
 ### 6.3 LLM use
 
@@ -586,87 +632,129 @@ DATA/SCOUTRO/knowledge/
   backup/                                local backups, if enabled
 ```
 
-- **Not counted:** the change feed, events, cache and work queue are tables inside `graph.db`, so they are already counted. YaCy logs (rotated, about 20 MiB in total, `defaults/yacy.logging:51-53`) carry graph log lines. Export and download are streamed and create no files.
-- **Not part of the graph budget:** the native library in the JVM temp directory (about 1 MB, removed at shutdown) and the `ld_json_txt` stored field in Solr. Both are reported separately.
-- **Measured values:**
-  - `used_bytes` = sum of all file sizes, from a directory scan every 30 s and before every write batch;
-  - `logical_bytes` = (`page_count` − `freelist_count`) × `page_size`;
-  - `free_in_file` = `freelist_count` × `page_size`.
+- **Temp files are invisible to a directory scan.** SQLite unlinks its temp files right after creating them, so they never show up in a directory listing. Measured: a 300 000-row `DISTINCT` held a 27 MB unlinked file in `tmp/`.
+  - On Linux (the Scoutro image) the guard adds the sizes of open `… (deleted)` descriptors below `tmp/` from `/proc/self/fd` (`tmpOpen`).
+  - Elsewhere this value is unknown (`null`). Only the free-space checks cover it there.
+- **Inside the database.** Change feed, events, cache and work queue are tables inside `graph.db`.
+- **Not counted in the graph budget.** Graph log lines go to the rotated YaCy logs (≈ 20 MiB total). The native library sits in the JVM temp directory (≈ 1 MB). `ld_json_txt` lives in Solr with its own budget ([6.2](#62-json-ld-capture-the-only-yacy-core-change)).
+- **Measured values** (`GET /kg/status`):
+
+  | Value | Meaning |
+  |---|---|
+  | `usedBytes` | Sum of all files, including `tmpOpen` |
+  | `files.*` | Each file separately |
+  | `pages.logicalBytes` | Used pages |
+  | `pages.freeInFileBytes` | Free pages inside the file |
 
 ### 7.2 Settings
 
 | Setting | Default | Meaning |
 |---|---|---|
-| `scoutro.kg.budget.maxBytes` | 1 GiB (**provisional**, see O1) | Total budget for the directory above |
-| `scoutro.kg.budget.pausePercent` / `resumePercent` | 90 / 80 | Hysteresis for new extraction |
-| `scoutro.kg.budget.maintenancePercent` | 20 | Share reserved for WAL, temp files, deletions, migration |
-| `scoutro.kg.disk.reserveBytes` | 1 GiB | Extra free space above YaCy's `resource.disk.free.min.steadystate` that the graph leaves on the `DATA` filesystem |
-| `scoutro.kg.disk.hysteresisBytes` | 512 MiB | Resume only above reserve + hysteresis |
-| `scoutro.kg.queue.maxItems` | 200 000 | Work queue cap; beyond it → `reconcile_required` |
-| `scoutro.kg.capture.maxPending` | 100 000 | Dirty-set cap |
+| `scoutro.kg.budget.maxBytes` | 1 GiB (**provisional**, O1) | Total budget for the directory above |
+| `scoutro.kg.budget.pausePercent` / `resumePercent` | 90 / 80 | Hysteresis for new growth |
+| `scoutro.kg.budget.maintenancePercent` | 20 | Share for WAL, temp files, deletions, migration. Must hold `wal.maxBytes + tmp.maxBytes`; otherwise the configuration is invalid. |
+| `scoutro.kg.wal.maxBytes` / `wal.checkpointBytes` | 64 MiB / 8 MiB | Hard WAL limit of the guard; size at which a checkpoint is forced |
+| `scoutro.kg.tmp.maxBytes` | 64 MiB | Limit for temp files (visible + open unlinked) |
+| `scoutro.kg.read.maxTransactionMillis` | 5000 | Deadline of every read transaction |
+| `scoutro.kg.disk.reserveBytes` / `disk.hysteresisBytes` | 1 GiB / 512 MiB | Free space kept above YaCy's `resource.disk.free.min.steadystate`; resume margin |
+| `scoutro.kg.jsonld.enabled`, `jsonld.maxBytesPerDoc`, `jsonld.maxBlocksPerDoc`, `jsonld.maxTotalBytes` | false, 16 KiB, 8, 256 MiB (provisional) | JSON-LD capture and its own Solr budget |
+| `scoutro.kg.queue.maxItems` / `capture.maxPending` | 200 000 / 100 000 | Work queue and dirty-set caps; beyond → `reconcile_required` |
 | `scoutro.kg.extract.maxStatementsPerDoc` / `maxExcerptChars` / `maxInputChars` | 50 / 200 / 12 000 | Growth per document and LLM input |
 | `scoutro.kg.cache.maxPercent` | 20 | Extraction cache share |
-| `scoutro.kg.changes.retentionDays` / `maxRows` | 30 / 1 000 000 | Change-feed and delete-notice retention |
-| `scoutro.kg.source.unavailableGraceDays` / `goneRetentionDays` / `maxAgeDays` / `staleRetentionDays` | 14 / 7 / 365 / 90 | Currency and purge rules ([4.4](#44-quality-and-currency)) |
+| `scoutro.kg.changes.retentionDays` / `maxRows` | 30 / 1 000 000 | Change feed and delete notices |
+| `scoutro.kg.source.*` | 14 / 7 / 365 / 90 days | Currency and purge rules ([4.4](#44-quality-and-currency)) |
 | `scoutro.kg.backup.keep` / `intervalDays` | 1 / 7 | Local backups (0 = off) |
 
-The YaCy keys (`resource.disk.free.min.steadystate`, 4096 MB) are read, not changed.
+- **Implemented and validated in package 1** (`KgConfig`): the budget, WAL, temp, read, disk and JSON-LD settings. The others follow with their packages.
+- YaCy's `resource.disk.free.min.steadystate` and `undershot` (MB) are read, never changed.
 
-### 7.3 Hard limits inside the application
+### 7.3 What bounds which file
 
-- **Main file:** `PRAGMA max_page_count` = (budget × (1 − maintenancePercent) − backup allowance) / `page_size`.
-  - SQLite then refuses growth with `SQLITE_FULL`.
-  - Measured: SQLite rolls the whole transaction back by itself and integrity stays `ok` ([7.9](#79-measurements-so-far)). Code must tolerate "no transaction active" on its own rollback.
-  - `SQLITE_FULL` sets the pause reason `budget_exhausted`.
-- **This cap does not cover the WAL, temp files or backups.** They are bounded as follows:
+| File | Bound | Enforced by |
+|---|---|---|
+| `graph.db` | `max_page_count` = data share of the budget (budget − maintenance share) in pages. Refused growth ends with `SQLITE_FULL`; SQLite rolls the transaction back itself, and integrity stays `ok` (tested). | SQLite (per writer connection) |
+| `graph.db-wal` | `wal.maxBytes` | The guard only (below) |
+| `tmp/` | `tmp.maxBytes` (visible + open unlinked files) | The guard: growth stops, running readers are interrupted |
+| `backup/` | Counts fully in the budget; a backup starts only if budget and disk reserve allow its size | The guard (package 5) |
 
-| File | Bound |
-|---|---|
-| WAL | Size ≈ changed pages of the open transaction (measured: one 20 000-document transaction produced an 84 MB WAL). Transactions are limited to one document or ≤ 200/500 lifecycle rows. Checkpoint after every batch; `journal_size_limit` truncates. No read transaction stays open longer than one export page. |
-| Temp files | Queries avoid large sorts (keyset pagination, indexes). Growth is monitored. |
-| Backups | Count in the budget. With `keep=1` the usable data capacity is roughly half of (budget − maintenance). The settings page says so. |
+**Why `journal_size_limit` and small batches are not enough.**
 
-- **Application budget vs. real quota.** The budget is enforced by monitoring plus the `max_page_count` cap. It is not a filesystem quota.
-  - If the operator adds a real quota or a separate volume (for example a dedicated mount below `DATA/SCOUTRO/knowledge`), ENOSPC appears as `SQLITE_FULL`/`SQLITE_IOERR`.
-  - The transaction rolls back and the graph pauses with `storage_error`.
-  - Resume requires `PRAGMA quick_check` = ok.
-  - The graph cannot protect a `DATA` disk that other components fill. It stops early and keeps deletions going, nothing more.
+- `journal_size_limit` only truncates the WAL **after a successful reset checkpoint**.
+- Small transactions do not help either. A checkpoint cannot copy frames beyond the snapshot of the oldest reader, and cannot reset the WAL while any reader uses it.
+- Measured: with one open reader, `wal_checkpoint(TRUNCATE)` reported `busy=1` and 0 checkpointed frames, and the WAL grew to 3 MB despite a 1 MB `journal_size_limit`. One 20 000-document transaction produced an 84 MB WAL.
 
-### 7.4 Before every write batch
+**How the WAL is bounded:**
 
-`allowed = used + estimate(batch) ≤ pausePercent × budget` **and** `usable(DATA) − estimate ≥ steadystate + reserveBytes`.
+1. **Every read is a lease** (`KgStore.read`) with a deadline (`read.maxTransactionMillis`).
+   - Readers come from a pool of two read-only connections (`query_only`).
+   - A reader past its deadline is interrupted (`sqlite3_interrupt`) by the monitor (every second) and after every blocked checkpoint.
+   - Callers materialise a bounded page and never hold a transaction across client I/O. Export pages are separate transactions ([8.3](#83-export-and-change-feed)). Raw connections are not handed out.
+2. **Every checkpoint is verified.**
+   - After each write, once the WAL reaches `wal.checkpointBytes`, and every 30 s, the store runs `wal_checkpoint(TRUNCATE)` with a 200 ms busy timeout.
+   - It reads `busy`, the log frames and the checkpointed frames, and measures the WAL afterwards. Only `busy=0` with an empty WAL counts as complete.
+   - Otherwise the guard sets `wal.blockedSince` and the store interrupts expired readers.
+3. **Write pause.**
+   - A write whose estimate would take the WAL past `wal.maxBytes` triggers one checkpoint attempt.
+   - If that does not help, the write is refused with `wal_limit`, or `wal_checkpoint_blocked` while a checkpoint is blocked. This applies to every write class, **deletions included**.
+   - A single transaction can therefore never exceed the WAL limit either (tested).
+4. **Maintenance reserve.** The maintenance share must hold `wal.maxBytes + tmp.maxBytes` (validated). The WAL and temp files can thus reach their limits without taking the total over the budget.
 
-The estimate is an upper bound from the per-document limits: 50 statements × (row + index + excerpt) + scope rows + change rows, about 64 KiB per document plus WAL. Lifecycle batches (deletions, state changes) may use the maintenance share instead.
+The blocked-checkpoint case is a test: `StorageGuardTest.openReaderBlocksTheCheckpointAndWritesPauseUntilItEnds`.
+
+**Application budget vs. real quota.**
+
+- The budget is an application budget (`quota: application_budget` in the status), not a filesystem quota.
+- If the operator adds a real quota or a separate volume for `DATA/SCOUTRO/knowledge`, ENOSPC arrives as `SQLITE_FULL`/`SQLITE_IOERR`. The transaction rolls back and the guard records `budget_exhausted` or `storage_error`.
+- The graph cannot protect a `DATA` disk that others fill; it stops early.
+
+### 7.4 Write classes and thresholds
+
+Every write declares a class and an upper estimate of its growth (database + WAL). The guard measures the database, WAL and shared-memory sizes and the free space fresh for every admission; directories every 30 s.
+
+| Check (in order) | Growth (new data, backfill, backups) | Maintenance (deletions, state changes, purge, bookkeeping) |
+|---|---|---|
+| Storage error since the last good `quick_check` | refused (`storage_error`) | refused |
+| Free space − estimate < critical floor (`min(YaCy undershot, growth floor)`) | refused (`disk_critical`) | refused |
+| WAL + estimate > `wal.maxBytes` | refused (`wal_limit` / `wal_checkpoint_blocked`) | refused |
+| Manual pause | refused (`manual`) | allowed |
+| `SQLITE_FULL` seen, until usage ≤ resume threshold | refused (`budget_exhausted`) | allowed |
+| Used + estimate > pause threshold, or budget pause active (hysteresis) | refused (`budget`) | allowed up to 100 % of the budget, then `budget_exhausted` |
+| Free space − estimate < growth floor (YaCy steady state + reserve), or disk pause active (hysteresis) | refused (`disk_reserve`) | allowed |
+| Temp files > `tmp.maxBytes` | refused (`tmp_limit`) | allowed |
+
+A refused write changes nothing and is retried by its job later.
 
 ### 7.5 Pause and resume
 
 | Reason | Effect | Resume |
 |---|---|---|
-| `budget` (≥ pausePercent or estimate too large) | No new extraction or backfill. Capture, deletions, state changes, retention and vacuum continue. | used ≤ resumePercent |
-| `disk_reserve` | Same | usable ≥ steadystate + reserve + hysteresis |
-| `budget_exhausted` (`SQLITE_FULL`) | Same, plus a `storage_error` event | as `budget`, after `quick_check` |
-| `storage_error` (`IOERR`, corruption) | All writes stop; reads keep working while `quick_check` passes | admin action after a successful `quick_check` |
-| `llm_breaker` | LLM tier only | backoff elapsed |
-| `manual` | Like `budget` | admin resume |
-| `disabled`, `schema_unsupported`, `native_library_unavailable`, `remote_solr_unsupported` | Graph off; search unaffected | fix + restart |
+| `budget` | No new growth; deletions, state changes, retention, vacuum continue while maintenance is admitted | used ≤ `resumePercent` |
+| `disk_reserve` | Same | free ≥ growth floor + hysteresis |
+| `budget_exhausted` | Same (SQLite refused growth) | as `budget` |
+| `tmp_limit` | No growth; running readers are interrupted | temp files below the limit |
+| `manual` | No growth; lifecycle work continues | `POST /kg/control {"action":"resume"}` |
+| `wal_limit`, `wal_checkpoint_blocked` | **All writes** wait | after a complete checkpoint |
+| `disk_critical` | **All writes** wait | free ≥ critical floor |
+| `storage_error` (`IOERR`, corruption, failed `quick_check`) | All writes stop; reads keep working while possible | `resume` runs `quick_check` and clears the error only on `ok` |
+| `llm_breaker` | LLM tier only (package 2) | backoff elapsed |
+| `disabled`, `config_invalid`, `schema_unsupported`, `native_library_unavailable`, `remote_solr_unsupported` | Graph off; Scoutro unaffected | fix + restart |
 
-- Existing data stays readable at the limit.
-- Nothing in Solr and no valid statement is deleted to gain space.
-- During a pause the queue does not grow beyond `queue.maxItems`. Changes are coalesced per document, and anything beyond that is recovered by reconcile.
+- **Existing data stays readable at the limit.** Nothing in Solr and no valid statement is deleted to gain space.
+- **Queues stay bounded during a pause.** Changes coalesce per document, and overflow falls back to the reconcile.
+- **No unlimited cleanup is promised.** Below the critical floor or at the WAL limit, deletions and purges fail too. They fail in a controlled way: the transaction rolls back, the refusal is counted in the status (`refusedWrites`), and the job retries later. The graph cannot free space when there is none to write the deletion.
 
 ### 7.6 Cleanup
 
-- Daily, and whenever usage reaches the pause threshold, these are purged in small transactions:
+- **What is purged,** daily and whenever usage reaches the pause threshold, in small maintenance transactions:
   - stale statements older than `staleRetentionDays`;
-  - evidence of `gone`/`expired` documents older than their retention;
-  - change rows outside the retention;
+  - evidence of `gone`/`expired` documents past retention;
+  - change rows outside retention (which raises `changes_min_seq`);
   - cache rows (LRU);
   - event-ring overflow;
   - backups beyond `keep`.
-- Afterwards, `incremental_vacuum` returns free pages to the filesystem in chunks.
-  - Measured: about 2 400 pages/s.
-  - With sqlite-jdbc every `execute` frees only one page, so the loop runs until `freelist_count` is 0 or a time slice ends.
-- A full `VACUUM` is never automatic. It is an admin action, allowed only if `usable(DATA) ≥ 2 × logical_bytes + reserve`. Physical shrinking is reported separately from logical deletion.
+- **Shrinking the file.** Afterwards, `KgStore.incrementalVacuum` returns free pages in time slices. Measured: about 2 400 pages/s. With sqlite-jdbc each call frees one page, hence the loop.
+- **Full `VACUUM`** is never automatic. It is an admin action, allowed only if free space ≥ 2 × logical size + reserve.
+- **Physical vs. logical.** File shrinking is reported separately from logical deletion (`pages.freeInFileBytes`).
 
 ### 7.7 Backups
 
@@ -691,7 +779,7 @@ The estimate is an upper bound from the per-document limits: 50 statements × (r
 
 ### 7.9 Measurements so far
 
-A scratch experiment (not committed) used synthetic data from a fixed-seed generator: 25 pages per host, 1 to 4 entities and 6 to 10 statements per page, 240-character excerpts. It ran with sqlite-jdbc 3.53.4.0, a 4 KiB page size and an earlier draft of the 4.2 schema with text IDs. It shows mechanisms, not capacity:
+A scratch experiment (not committed) used synthetic data from a fixed-seed generator: 25 pages per host, 1 to 4 entities and 6 to 10 statements per page, 240-character excerpts. It ran with sqlite-jdbc 3.53.4.0 and a 4 KiB page size. It shows mechanisms, not capacity:
 
 | Measurement | Result |
 |---|---|
@@ -700,10 +788,13 @@ A scratch experiment (not committed) used synthetic data from a fixed-seed gener
 | Delete 10 000 documents incl. aggregates | 0.6 s; 46 % of pages free; file unchanged |
 | Re-add 10 000 documents | free pages reused, file +4 % |
 | `incremental_vacuum` | 9 759 pages (40 MB) returned in 4 s; file 86.9 → 46.9 MB without a copy |
-| One transaction with 20 000 documents | WAL 84 MB ≈ database size → small transactions are mandatory |
+| One transaction with 20 000 documents | WAL 84 MB ≈ database size |
+| WAL with one open reader | `wal_checkpoint(TRUNCATE)` → `busy=1`, 0 frames; WAL 3 MB despite a 1 MB `journal_size_limit`; reset after the reader ended |
+| `sqlite3_interrupt` on a running read | ends the statement with `SQLITE_INTERRUPT` within ≈ 200 ms |
+| Temp files of a large `DISTINCT` | 27 MB unlinked file in the configured `tmp/`, invisible to a directory scan |
 | `max_page_count` exceeded | `SQLITE_FULL`, automatic rollback, `integrity_check ok`, row count unchanged |
 
-Consequences already applied in 4.2: binary 9-byte document IDs and binary public IDs, excerpt length as the main lever, and a per-document transaction size.
+The automated tests of package 1 reproduce the WAL, interrupt, page-limit and vacuum behaviour.
 
 ## 8. Interfaces: API, export, chat, UI
 
@@ -791,17 +882,40 @@ Consequences already applied in 4.2: binary 9-byte document IDs and binary publi
   5. trailer `{"type":"trailer","counts":{…},"complete":true}`.
 
   JSON is the same content in one object. Details:
-  - Internally keyset pages of ≤ 1 000 rows, each in its own short read transaction, so the WAL can checkpoint.
-  - A failure ends the stream with `complete:false` (the pattern of `DomainExport` on the open branch).
-  - The download sets `Content-Disposition: attachment; filename="scoutro-kg-<collection|all>-<yyyyMMdd>.ndjson"`.
-  - Because pages are separate transactions, the export is not a snapshot. Consumers apply `/kg/changes` from `as_of_seq` afterwards; upserts by ID are idempotent.
-- **Changes.**
-  - Coalesced per object (`UNIQUE(kind, public_id)`, monotonic `AUTOINCREMENT` sequence).
-  - Items: `{seq, kind, id, op: upsert|delete|redirect, redirect_to?, at}`; `expand=true` adds the current object (limit ≤ 100).
-  - **Cursor validity:**
-    - the epoch must match;
-    - `seq` must be ≥ the oldest retained change. Otherwise 410 `cursor_expired` with `details.full_sync="/scoutro/api/v1/kg/export"`.
-  - **Delete notices** are kept for `changes.retentionDays`. Visibility follows [4.5](#45-visibility).
+  - Internally keyset pages of ≤ 1 000 rows, each in its own read lease, so the WAL can checkpoint ([7.3](#73-what-bounds-which-file)).
+  - A failure ends the stream with `complete:false`.
+  - The download sets `Content-Disposition`.
+  - The export is not a snapshot. Consumers apply `/kg/changes` from `as_of_seq` afterwards; upserts by ID are idempotent.
+
+**Change feed** (`KgChangeLog`, implemented and tested in package 1):
+
+- **One row per object** (`UNIQUE(kind, public_id)`). A new change replaces the row with a higher `AUTOINCREMENT` sequence.
+- **Scope history.**
+  - `scopes_now` holds the collections the object is visible in after the change.
+  - `scopes_seen` accumulates every collection the object was visible in since the row was first written, before and after each change. Coalescing therefore never loses an earlier collection assignment.
+- **What a viewer with collection set V sees per row:**
+
+  | Condition | Item |
+  |---|---|
+  | The administrator without a filter | the actual operation |
+  | The object is visible to V now | the change (`upsert`/`redirect`) |
+  | Not visible now, but V intersects `scopes_seen` | `delete` |
+  | Otherwise | nothing |
+
+  Example: a consumer limited to A that was offline while an object moved A → B → C gets the removal (`KgChangeLogTest.offlineConsumerStillGetsTheRemovalAfterAtoBtoC`).
+- **Removal notices are never missing, but can be redundant,** for example for an object the consumer never stored. Consumers treat the delete of an unknown ID as a no-op. A notice reveals only an opaque ID, and only to a viewer whose collections contained the object at some time.
+- **Cursor `<epoch>:<seq>`:**
+  - The cursor advances over rows the viewer cannot see.
+  - It is valid while the dataset epoch is unchanged and `seq ≥ changes_min_seq − 1`.
+
+  | Answer | When |
+  |---|---|
+  | 410 `epoch_changed` | the dataset was reset (`*:*`) |
+  | 410 `cursor_expired` | older than retention; `details.full_sync` points to the export |
+  | 400 `invalid_cursor` | malformed, or ahead of the feed |
+
+  A missing cursor is accepted only while nothing was purged yet.
+- **Retention.** Retention removes rows older than `changes.retentionDays` or beyond `changes.maxRows`, oldest first. It then raises `changes_min_seq` in the same transaction.
 - **Portal matching.** Consumers get stable IDs and identifiers. No portal status exists or is invented.
 
 ### 8.4 Chat
@@ -843,25 +957,24 @@ The normal YaCy search path (`yacysearch`, `SearchEvent`) is not touched, so a g
 
 ## 9. Configuration
 
-All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro convention). They are listed in `help/ScoutroKnowledge_p.md` and `docs/API.md`, and the settings view writes them through the existing config mechanism.
+All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro convention). [7.2](#72-settings) lists the storage keys and marks the ones validated in package 1. Invalid values are reported in `config.errors` and keep the graph off. They never fall back silently.
 
 | Key | Default | UI |
 |---|---|---|
 | `enabled` | `false` | yes |
-| `collections` | empty (nothing is ingested) | yes |
-| `llm.collections` | empty (no LLM tier) | yes |
-| `budget.maxBytes`, `budget.pausePercent`, `budget.resumePercent`, `budget.maintenancePercent` | 1 GiB, 90, 80, 20 | yes |
-| `disk.reserveBytes`, `disk.hysteresisBytes` | 1 GiB, 512 MiB | yes |
+| `collections` / `llm.collections` | empty | yes |
+| `budget.*`, `disk.*`, `wal.*`, `tmp.maxBytes`, `read.maxTransactionMillis` | [7.2](#72-settings) | budget and disk yes, rest advanced |
+| `jsonld.*` | [7.2](#72-settings) | yes |
 | `queue.maxItems`, `capture.maxPending` | 200 000, 100 000 | no |
-| `extract.maxStatementsPerDoc`, `extract.maxExcerptChars`, `extract.maxInputChars` | 50, 200, 12 000 | advanced |
+| `extract.*` | 50, 200, 12 000 | advanced |
 | `llm.parallel`, `llm.timeoutSeconds`, `llm.maxAttempts`, `llm.breakerFailures`, `llm.breakerMaxBackoffMinutes`, `llm.maxDocsPerHost` | 1, 120, 2, 3, 60, 25 | advanced |
 | `gate.maxIndexingQueue`, `gate.maxLoad`, `gate.minFreeHeapMB` | 20, 2.5, 256 | advanced |
-| `source.unavailableGraceDays`, `source.goneRetentionDays`, `source.maxAgeDays`, `source.staleRetentionDays` | 14, 7, 365, 90 | advanced |
-| `changes.retentionDays`, `changes.maxRows` | 30, 1 000 000 | advanced |
-| `cache.maxPercent` | 20 | advanced |
-| `reconcile.hour`, `reconcile.debounceSeconds` | 3, 300 | advanced |
+| `source.*`, `changes.*`, `cache.maxPercent` | [7.2](#72-settings) | advanced |
+| `reconcile.hour`, `reconcile.debounceSeconds`, `reconcile.maxDeleteFraction` | 3, 300, 0.2 | advanced |
 | `backup.keep`, `backup.intervalDays` | 1, 7 | yes |
 | `chat.enabled`, `chat.allowGuests`, `chat.maxFacts`, `chat.maxChars`, `chat.timeoutMs` | true, false, 8, 1 500, 300 | yes |
+
+Settings take effect at the next start in package 1. The settings view (package 3) adds a reload that re-validates and re-opens the store.
 
 ## 10. Affected files
 
@@ -869,9 +982,9 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 
 | Area | Files |
 |---|---|
-| Store | `store/KgStore.java` (connections, PRAGMAs, write lock), `store/KgSchema.java` + `schema-v1.sql`, `store/KgMigrations.java`, `store/KgIds.java` |
-| Budget | `budget/StorageGuard.java`, `budget/PauseState.java` |
-| Runtime | `KgConfig.java`, `KgRuntime.java` (start/stop, clean-shutdown flag), `KgStatus.java` |
+| Store (package 1, done) | `store/KgStore.java` (connections, PRAGMAs, write lock, read leases, checkpoints, vacuum), `store/KgSchema.java` (DDL v1), `store/KgChangeLog.java`, `KgIds.java`, `KgPaths.java`, `KgException.java`, `KgJson.java` |
+| Budget (package 1, done) | `budget/StorageGuard.java`, `budget/StorageProbe.java`, `budget/CheckpointResult.java`, `budget/JsonLdCapturePolicy.java` |
+| Runtime (package 1, done) | `KgConfig.java`, `KgRuntime.java` (start/stop, clean-shutdown flag, status); API in `source/net/yacy/scoutro/api/KnowledgeApi.java` |
 | Sync | `solr/KgCaptureProcessorFactory.java`, `sync/DirtySet.java`, `sync/SyncService.java`, `sync/Reconciler.java`, `sync/Backfill.java`, `sync/SolrReader.java` |
 | Extraction | `extract/JsonLdExtractor.java`, `extract/MetadataExtractor.java`, `extract/RuleExtractor.java`, `extract/LlmExtractor.java`, `extract/ExtractionCache.java`, `extract/Vocabulary.java` + `defaults/scoutro/knowledge-vocabulary.json` |
 | Resolution and publish | `resolve/IdentityResolver.java`, `resolve/Normalizers.java`, `publish/Publisher.java`, `publish/Aggregates.java` |
@@ -901,33 +1014,34 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 
 Each package is one or more reviewable PRs on its own branch from the then-current `main`. The graph stays behind `scoutro.kg.enabled=false` until package 5, so merged intermediate states change nothing for existing installations. No package is released on its own as "finished".
 
-### Package 1: Foundation
+### Package 1: Foundation (implemented on this branch)
 
 - **Scope:**
-  - sqlite-jdbc dependency and notice;
-  - `KgStore` with PRAGMAs, schema v1, migrations, schema-version refusal, dataset epoch, IDs;
-  - `KgConfig` with validation;
-  - `StorageGuard`: directory accounting, `max_page_count`, thresholds, hysteresis, disk reserve coordinated with `ResourceObserver` keys, `SQLITE_FULL` handling, chunked incremental vacuum;
-  - `KgRuntime` (start/stop, clean-shutdown flag, unclean detection, event ring);
-  - admin routes `GET /kg/status` and `POST /kg/control` (pause/resume only);
-  - API docs and catalog regeneration;
-  - storage benchmark test (the spike made reproducible).
-- **Acceptance:**
-  - Data survives a restart.
-  - A newer schema is refused and the graph is disabled.
-  - The budget pauses at 90 % and resumes at 80 % (simulated sizes).
-  - The main file never exceeds the page cap; `SQLITE_FULL` leaves the database consistent.
-  - The vacuum loop returns space.
-  - The routes need admin Digest and the CSRF rules for POST.
-  - With `enabled=false` nothing is created on disk.
+  - sqlite-jdbc dependency and `NOTICE`;
+  - `KgConfig` (validation);
+  - `KgIds`;
+  - `KgSchema` v1 with foreign keys and CHECK constraints;
+  - `KgStore`: writer lock, read leases with interrupt, verified checkpoints, `max_page_count`, incremental vacuum, migration and foreign-database refusal, event ring;
+  - `KgChangeLog` (scope history, cursor contract, retention);
+  - `StorageGuard` (write classes, budget, WAL, temp, disk floors, hysteresis, `SQLITE_FULL`/`IOERR` handling);
+  - `JsonLdCapturePolicy` (contract only);
+  - `KgRuntime` (disabled = no files and no thread, native-library failure isolated, clean-shutdown flag, unclean-start detection with `quick_check`, persisted manual pause, read-only start with automatic retry when the start cannot be recorded);
+  - admin routes `GET /kg/status` and `POST /kg/control`;
+  - OpenAPI and action catalog, `docs/API.md`.
+- **Acceptance:** met by the tests listed in [16](#16-package-1-implementation).
 
 ### Package 2: Lifecycle and extraction
 
 - **PR 2a** (no LLM):
-  - update processor, dirty set, sync, work queue, backfill, reconcile, `_version_` catch-up;
-  - document states and expiry; publish with CAS; aggregates and scope tables;
-  - JSON-LD capture (core change);
-  - tiers 1 and 2; identity resolution and merges; change feed; retention.
+  - update processor with a version-carrying dirty set, sync, work queue;
+  - real-time-get reader;
+  - backfill;
+  - reconcile in byte order with verified deletions, abort handling and mass-deletion brake;
+  - `_version_` catch-up;
+  - document states and expiry; publish with CAS and version monotonicity; aggregates and scope tables;
+  - JSON-LD capture with `JsonLdCapturePolicy`;
+  - tiers 1 and 2; identity resolution with discriminators;
+  - change-feed writes; retention.
 - **PR 2b:**
   - `LLMUsage.knowledge`, per-call timeout, `LlmExtractor` with schema validation and verbatim check;
   - cache, circuit breaker, per-host LLM cap, `LLMSelection_p` column.
@@ -939,9 +1053,14 @@ Each package is one or more reviewable PRs on its own branch from the then-curre
   - a hanging LLM (test server that never answers);
   - invalid and oversized LLM output.
 
-  Also verified in the tests:
+  Also verified in the tests (O9):
   - the update processor class loads in the embedded core;
-  - `_version_` is monotonic within a run.
+  - real-time get sees uncommitted adds and deletes;
+  - `_version_` is monotonic within a run;
+  - an aborted reconcile deletes nothing;
+  - the mass-deletion brake triggers;
+  - a reactivated document is restored;
+  - two facilities with the same name and postal code but different addresses stay separate.
 
 ### Package 3: Interface
 
@@ -991,11 +1110,11 @@ Each package is one or more reviewable PRs on its own branch from the then-curre
 | 2 | Identical content shares work without mixing origin/identity | 2b: cache key incl. domain context; separate evidence rows; test with the same text on two domains |
 | 3 | Same-name organisations stay separate; several facilities per domain | 2a: key rules in [4.3](#43-identity-resolution); resolver tests |
 | 4 | Two sources → one removed: statement remains; last removed: not current | 2a: aggregates and states in [4.4](#44-quality-and-currency) |
-| 5 | Recrawl during extraction publishes nothing stale; delete during processing makes no ghost | 2a: CAS, dirty-set check, epoch wait in [5.5](#55-stale-results-and-ghost-documents) |
+| 5 | Recrawl during extraction publishes nothing stale; delete during processing makes no ghost | 2a: generation CAS, version monotonicity, real-time get, superseding events in [5.5](#55-consistency-guarantee) |
 | 6 | ID, query, collection/domain deletion and full clear within the defined lag; temporary errors follow the status rule | 2a: path table in [5.7](#57-delete-and-change-paths); state tests |
-| 7 | Crash between index change, event and graph commit repaired; backfill resumable | 2a: `_version_` catch-up, reconcile, cursor; kill tests |
+| 7 | Crash between index change, event and graph commit repaired; backfill resumable | 1: unclean-start detection (`KgRuntimeTest`); 2a: full reconcile with verified deletions, `_version_` catch-up as optimisation, `kg_scan` cursor; kill tests |
 | 8 | Hanging/faulty LLM does not block the crawler; invalid output bounded; content untrusted | 2b: timeouts, breaker, schema and verbatim check, PromptGuard |
-| 9 | Budget, reserve and queue limits hold under load; cleanup and resume work; no unbounded logs/temp files | 1 + 5: StorageGuard tests, load test on the corpus |
+| 9 | Budget, reserve and queue limits hold under load; cleanup and resume work; no unbounded logs/temp files | 1: `StorageGuardTest` (budget, reserve, WAL limit, checkpoint blocked by a reader, read interrupt, page limit, vacuum); 5: load test on the corpus |
 | 10 | API/export/chat respect auth, visibility, pagination, limits; chat keeps sources and fallback | 3 + 4: route tests per role, visibility tests, chat tests |
 | 11 | Graph outage causes no uncaught error in search; mobile UI and translations work | 4 + 3: graph disabled/broken database tests; search path untouched; Playwright |
 | 12 | Upgrade keeps the index; rollback, schema compatibility, restore described and tested | 5: [13](#13-migration-backup-rollback) |
@@ -1042,40 +1161,79 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 
 | # | Point | Effect | Needed from |
 |---|---|---|---|
-| O1 | Real server and Olares capacity: free space on the `DATA` filesystem, current index size (documents, hosts, collections), whether `limitedDisk: 20Gi` is enforced | The 1 GiB default stays provisional until package 5 measurements and these figures exist. No free capacity is claimed. | Owner / operations |
-| O2 | Industry vocabulary: which service and facility terms, which identifier schemes beyond the listed ones (for example IK numbers) | Tiers 2 and 3 quality; vocabulary file | Owner |
+| O1 | Real server and Olares capacity: free space on the `DATA` filesystem, current index size (documents, hosts, collections), whether `limitedDisk: 20Gi` is enforced | The 1 GiB graph budget and the 256 MiB JSON-LD budget stay provisional until package 5 measurements and these figures exist. No free capacity is claimed. | Owner / operations |
+| O2 | Industry vocabulary: service and facility terms, facility kinds as merge discriminators, identifier schemes beyond the listed ones | Tiers 2 and 3 quality; identity rules | Owner |
 | O3 | LLM host and model for `knowledge` (same machine? GPU?), and the heap (`Xmx`) of the target installation | LLM throughput, `llm.maxDocsPerHost`, heap gate | Owner / operations |
 | O4 | Fate of branch `ccr-e3e5f88b-1fqp77` (Index Browser domains, export, AI Lab) | Packages 3/4 integrate into the domain view and reuse its export pattern if it is merged first; otherwise the URL view and own code | Owner |
 | O5 | Existing chat gap: clients choose any collection, guests included | The graph does not widen it (guests get no facts). Fixing content RAG scoping is out of scope. | Owner decision |
-| O6 | Backup target outside `DATA` | Local backups halve capacity; an external target needs a mounted path, which conflicts with the Olares "no second DATA path" rule | Owner / operations |
+| O6 | Backup target outside `DATA` | Local backups count fully in the budget; an external target needs a mounted path, which conflicts with the Olares "no second DATA path" rule | Owner / operations |
 | O7 | Legal review of stored excerpts (imprint pages contain names) | Excerpt length and the export of excerpts | Owner |
 | O8 | Tag `v1.942-scoutro.12` is not visible in the shallow clone | Release numbering is re-checked at release time | — |
+| O9 | Real-time get (`/get`) in YaCy's embedded core, the capture processor class loading, and `_version_` behaviour after a restart are verified only by documentation and reasoning | Package 2 starts with tests for exactly these. The fallbacks (version-checked search, full reconcile) are defined. | Package 2 |
+| O10 | Temp-file measurement via `/proc/self/fd` exists only on Linux | Other platforms report `tmpOpen: null` and rely on the disk floors | — |
 
-Verified only by reasoning or documentation, and covered by tests in package 2:
+## 16. Package 1 implementation
 
-- the update processor class loads in the embedded core;
-- `_version_` semantics after a restart (clock jumps are covered by the reconcile after an unclean start);
-- the ordering of atomic-update merging relative to the processor.
+**Shipped in this PR:**
 
-## 16. First implementation PR
-
-**PR 1 (package 1, part 1): "Knowledge graph foundation: store, budget, status".** Branch from the then-current `main`.
-
-- **Scope:**
-  - `ivy.xml`: `org.xerial:sqlite-jdbc` (current release, 3.53.4.0 at planning time); `NOTICE` entry.
-  - `KgConfig`, `KgStore` (PRAGMAs as in [3.3](#33-decision), single writer lock, reader pool), `schema-v1.sql` ([4.2](#42-physical-schema-v1-draft)), `KgMigrations` (version check, refuse newer), `KgIds`.
-  - `StorageGuard` with directory accounting, `max_page_count`, thresholds and hysteresis, disk reserve from the `resource.disk.free.min.steadystate` key, pause reasons, chunked `incremental_vacuum`.
-  - `KgRuntime` started from `ScoutroApiServlet.init`, stopped in `destroy`; the clean-shutdown flag; the event ring.
-  - Routes `GET /scoutro/api/v1/kg/status` and `POST /scoutro/api/v1/kg/control` (`pause`/`resume`), admin only.
-  - Generator entries and regenerated `openapi.json`/`actions.json`; `docs/API.md`.
-- **Tests** (run by the existing `net/yacy/scoutro/**/*Test.java` glob):
-
-| Test | Checks |
+| Area | Files |
 |---|---|
-| `KgStoreTest` | Create, reopen, epoch, newer schema refused |
-| `StorageGuardTest` | Simulated sizes, pause/resume hysteresis, `SQLITE_FULL` → `budget_exhausted` and a consistent database, vacuum frees pages |
-| `KgRuntimeTest` | Unclean start detected |
-| `KgStatusRouteTest` | 401 without admin; CSRF rules on POST |
-| `KgStorageBenchmark` | Reproducible spike; manual target, not in CI |
+| Dependency | `ivy.xml` (`org.xerial:sqlite-jdbc` 3.53.4.0, `compile->master`), `NOTICE` (Apache-2.0, Zentus BSD notice, SQLite public domain) |
+| Knowledge package | `source/net/yacy/scoutro/knowledge/`: `KgConfig`, `KgPaths`, `KgIds`, `KgException`, `KgJson`, `KgRuntime`, `budget/StorageGuard`, `budget/StorageProbe`, `budget/CheckpointResult`, `budget/JsonLdCapturePolicy`, `store/KgSchema`, `store/KgStore`, `store/KgChangeLog` |
+| API | `source/net/yacy/scoutro/api/KnowledgeApi.java`; `ScoutroApiServlet` (`case "kg"`, start/stop in `init`/`destroy`) |
+| Catalog | `tools/scoutro/generate_api_description.py`; regenerated `htroot/env/scoutro/api/openapi.json` and `actions.json` (`kg.status`, `kg.control`; admin only, not grantable) |
+| Docs | `docs/API.md`, `docs/SCOUTRO.md`, `docs/BUILD.md`, this plan |
 
-- **Not in PR 1:** no Solr changes, no extraction, no UI page, no agent grants. With `scoutro.kg.enabled=false` (the default) nothing is created on disk, so the PR can be merged without effect on existing installations.
+**Behaviour:**
+
+- With `scoutro.kg.enabled=false` (the default) the runtime creates no directory, starts no thread and does not load the native library. `GET /kg/status` answers `state: disabled`.
+- Any failure (invalid settings, missing native library, newer or foreign schema, I/O) ends in `state: unavailable` with a reason. Scoutro starts normally.
+- If the guard refuses the start bookkeeping (for example on a disk below YaCy's undershot), the graph runs read-only with `startRecorded: false`. The monitor retries every 30 s. Later packages write no graph data before the start is recorded.
+
+**Tests** (all run by `ant scoutro-agents-test`):
+
+| Test | Covers |
+|---|---|
+| `KgConfigTest` | Defaults, YaCy MB thresholds, invalid values, resume < pause, WAL/checkpoint relation, maintenance share |
+| `KgIdsTest` | Determinism, part boundaries, NFC, formats, epochs, YaCy document IDs |
+| `KgStoreTest` | PRAGMAs, reopen, newer schema refused and untouched, foreign database refused, foreign-key and CHECK enforcement, two tiers on one statement and document, cascade, Solr byte order, read-only readers, rollback, event ring |
+| `KgChangeLogTest` | A → B → C offline consumer, delete to every former collection, cursor advance over invisible rows, retention and expired cursors, `maxRows`, foreign or malformed cursors |
+| `StorageGuardTest` | Budget hysteresis, maintenance vs. growth, disk reserve and critical floor, WAL limit for every class, transaction larger than the WAL, temp/manual/storage error, status reasons; with real SQLite: **checkpoint blocked by an open reader and the write pause until it ends**, reader interrupted past its deadline, page limit with clean `SQLITE_FULL`, deletion and incremental vacuum |
+| `JsonLdCapturePolicyTest` | Off states, own budget with hysteresis, disk reserve |
+| `KgRuntimeTest` | Disabled creates nothing and starts no thread, invalid settings, native-library failure (linkage error and sqlite-jdbc's `NativeLibraryNotFoundException`), monitor start and clean stop, unclean start with `reconcile_required` and `quick_check`, read-only start on a critically full disk with later recording, manual pause persisted |
+| `KnowledgeApiTest` | Routes, validation, 405/404, 409 disabled, 503 unavailable; through `ScoutroApiServlet`: 401 without admin, 415/403 cross-site rules, `no-store` |
+
+**Live smoke test** `test/scoutro-api/kg-live-smoke.py`: 19 checks on a disposable peer with temporary DATA, in five starts:
+
+1. disabled: no directory, 409, 401;
+2. enabled: files and status, 415, pause;
+3. SIGTERM restart: no crash reported, pause kept, resume;
+4. SIGKILL restart: unclean start detected, `quick_check ok`, event logged;
+5. native library not extractable: Scoutro and `health` up, graph `unavailable`/`native_library_unavailable`, control 503.
+
+Offline contract tests `test/scoutro-api/test_flow_contract.py` and `test_mcp_adapter.py` pass, and the generated OpenAPI validates with `openapi-spec-validator`.
+
+**Next PR (package 2a):**
+
+- update processor with the version-carrying dirty set;
+- sync thread and work queue;
+- real-time-get reader with the tests for O9;
+- reconcile with verified deletions, abort handling and mass-deletion brake;
+- backfill;
+- document states;
+- publish with CAS and version monotonicity;
+- JSON-LD capture with its pause;
+- tiers 1 and 2;
+- identity resolution;
+- retention.
+
+## 17. Revision 2 corrections
+
+| # | Finding on revision 1 | Correction | Where |
+|---|---|---|---|
+| 1 | `max_page_count` limits only the main file; small batches and `journal_size_limit` do not bound the WAL | WAL bounded by the guard: limit, verified `TRUNCATE` checkpoints, write pause for every class, read leases with deadline and interrupt, maintenance share ≥ WAL + temp limit. Unlinked temp files measured. Deletions may fail at the limit, in a controlled way; no unlimited cleanup is promised. Blocked-checkpoint test added. | [7.1](#71-what-is-counted)–[7.6](#76-cleanup), `StorageGuard`, `KgStore`, `StorageGuardTest` |
+| 2 | `ld_json_txt` grows outside the graph directory | Own budget, estimate, pause on budget or disk with hysteresis, only for enabled collections, crawl never blocked, skipped documents marked. Package 1: settings and status contract. | [6.2](#62-json-ld-capture-the-only-yacy-core-change), `JsonLdCapturePolicy` |
+| 3 | Dirty-set check and commit are not atomic against Solr; a fixed 6 s wait proves nothing | Stated guarantee: monotonic per document, later events supersede, no resurrection, convergence through the full reconcile. Real-time get with version comparison instead of waiting. `_version_` catch-up only an optimisation; deletions and reactivations through the full reconcile. | [5.2](#52-processing-a-document), [5.4](#54-transactional-publish), [5.5](#55-consistency-guarantee) |
+| 4 | Solr string order ≠ order of decoded BLOB IDs; delete reconcile under pause; aborted scans | `doc_id` as TEXT with BINARY collation (tested against unsigned byte order). Verified deletions only, abort without deletions, mass-deletion brake, reconcile runs while extraction is paused. | [5.3](#53-reconcile-catch-up-and-backfill), `KgSchema`, `KgStoreTest` |
+| 5 | Domain + name + postal code is not a safe merge; real constraints; evidence keys | Merge keys per type with discriminators that block merges; document-local entities otherwise. Foreign keys and CHECK constraints in v1; evidence key (statement, document, tier). | [4.2](#42-physical-schema-v1), [4.3](#43-identity-resolution), `KgStoreTest` |
+| 6 | Coalescing loses earlier collection assignments (A → B → C) | `scopes_seen` per change row; viewer rule; cursor contract with epoch, retention and redundant-but-never-missing removals | [8.3](#83-export-and-change-feed), `KgChangeLog`, `KgChangeLogTest` |
