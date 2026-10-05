@@ -354,13 +354,13 @@ network), the answer is `422 crawl_rejected` with YaCy's reason.
 | 403 | `cross_origin_forbidden`, `setting_not_allowed` |
 | 404 | `not_found`, `crawl_not_found`, `route_not_found` |
 | 405 | `method_not_allowed` |
-| 409 | `crawl_not_running`, `kg_disabled` |
+| 409 | `crawl_not_running`, `kg_disabled`, `nothing_to_confirm` |
 | 413 | `payload_too_large` |
 | 415 | `unsupported_media_type` |
 | 422 | `crawl_rejected` |
 | 500 | `internal_error` |
 | 502 | `upstream_error`, `upstream_unreachable`, `upstream_forbidden` |
-| 503 | `unavailable`, `kg_unavailable`, `kg_write_refused` (both with `details.reason`; `kg_write_refused` is reserved for graph write routes) |
+| 503 | `unavailable`, `kg_unavailable`, `kg_write_refused` (both with `details.reason`; `kg_write_refused` is reserved for graph write routes), `sync_unavailable` |
 
 ## scoutroctl
 
@@ -466,11 +466,20 @@ Agent access:
   close during an interrupt), where SQLite's temp files land, the integrity
   check aborted by the real watchdog, runtime start/stop, a clean stop on
   SIGTERM in a child JVM without the servlet, and the admin routes through
-  the servlet.
+  the servlet. The package-2a tests run against an embedded Solr core with
+  the shipped configuration: the capture processor and real-time get,
+  extractors, identity rules and publish, backfill, recrawl and delete during
+  processing, crash, restart and reactivation, overflow, delete by query,
+  full clear, an aborted reconcile, the mass-deletion brake, storage and gate
+  limits, retention, and the JSON-LD capture in YaCy's HTML parser.
 - `python3 test/scoutro-api/kg-live-smoke.py` (after `ant compile`) starts a
   disposable peer five times on temporary DATA. It covers disabled, enabled,
   clean restart, hard kill with unclean-start detection and the integrity
   check, and an unloadable SQLite native library while Scoutro keeps running.
+  With the graph enabled it pushes pages through YaCy's parser and index path
+  (`api/push_p`) and checks the start backfill, the JSON-LD capture and the
+  publish, that a page of another collection is not tracked, and the
+  reconcile after the clean restart and after the hard kill.
   `JAVA=/path/to/java` selects another JDK.
 - `test/scoutro-api/test_agent_api.py` runs end to end against a disposable
   instance: it drives the wizard with the administrator account, takes the
@@ -538,16 +547,20 @@ null` with `referring_hosts_scope: complete_index_required`. The optional fields
 `description_exact_signature_l` are enabled by the administrator in
 `IndexSchema_p.html`; while disabled they are listed in `index.unavailable`.
 
-## Knowledge graph (foundation)
+## Knowledge graph
 
-Package 1 of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md): the
-embedded store, its storage budget and its status. There is no extraction, no
-Solr access and no LLM call yet, and there is no agent grant.
+Packages 1 and 2a of the [knowledge graph plan](SCOUTRO_KNOWLEDGE_GRAPH.md):
+the embedded store with its storage budget, and the synchronisation with the
+embedded Solr core (change capture, persistent queue, real-time get, reconcile
+and backfill, document states, structured and rule-based extraction, identity
+resolution, change feed, retention, bounded JSON-LD capture). There is no LLM
+call yet (package 2b), no read route for graph objects (package 3) and no
+agent grant. Nothing is ever written to Solr.
 
 | Route | Access | Purpose |
 |---|---|---|
 | `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable |
-| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}` or `{"action":"resume"}` |
+| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"` or `"confirm_reconcile"` |
 
 - **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
   is created on disk, no thread runs and the SQLite native library is not
@@ -566,8 +579,23 @@ Solr access and no LLM call yet, and there is no agent grant.
     the last verified WAL checkpoint, read leases (`readers`), page
     statistics, `growthAllowed`, `maintenanceAllowed` and the active
     `reasons`;
-  - `jsonld`: contract of the JSON-LD capture into Solr, not implemented in
-    this version;
+  - `jsonld`: the JSON-LD capture into the Solr field `ld_json_txt` with its
+    own budget (`scoutro.kg.jsonld.maxTotalBytes`): `state` (`off`, `active`,
+    `paused`), `reason` (`jsonld_disabled`, `kg_not_running`,
+    `jsonld_budget`, `disk_reserve`, ...), `estimatedBytes` (sum of the
+    captured bytes the graph tracks plus bytes not yet synchronised) and the
+    `capture` counters (`capturedDocs`, `skippedDocs`, `droppedBlocks`,
+    `invalidBlocks`, `pendingBytes`). A paused capture never blocks crawling
+    or indexing: the document is indexed without the field and counted as
+    skipped;
+  - `sync`: the synchronisation with Solr (only while the graph runs; `state:
+    off` without an embedded Solr core, `unavailable` with
+    `remote_solr_unsupported` when only a remote Solr is connected): the
+    in-memory change set (`changes`), the persistent queue (`queue`), the
+    processing counters (`processed`), the `_version_` checkpoint, the
+    reconcile (`reconcile`: `pending`, `reason`, `current` run with phase and
+    counts, `awaitingConfirmation`, `catchUp`), `retention` and `lag`
+    (`pending`, `oldest_pending_age_s`, `reconcile_pending`);
   - `store`: schema version, dataset epoch, `uncleanStartDetected`,
     `startRecorded`, `integrity` (state of `PRAGMA quick_check`),
     `manualPause`, `manualPauseSaved`;
@@ -606,11 +634,47 @@ Solr access and no LLM call yet, and there is no agent grant.
   | `integrity_check_pending`, `integrity_check_failed`, `start_not_recorded` | graph writes (growth and deletions); the runtime's own records continue |
   | `manual`, `budget_exhausted`, `budget`, `disk_reserve`, `tmp_limit` | new growth only |
 
+- **Synchronisation (package 2a):**
+  - The Solr update processor records every add and delete of
+    `collection1` with Solr's version into a bounded change set
+    (`scoutro.kg.capture.maxPending`); the sync thread `ScoutroKG.sync`
+    drains it into the persistent queue (`scoutro.kg.queue.maxItems`), reads
+    each document by real-time get and publishes it with a generation and
+    version check. An overflow of either schedules a full reconcile.
+  - Only documents of the followed collections (`scoutro.kg.collections`,
+    `*` for all) are tracked; states follow `httpstatus_i`/`failtype_s`
+    (`active`, `unavailable`, `gone`, `expired`).
+  - **Every start and every reactivation** (also after a clean stop and
+    after a disabled period) schedules a full reconcile, because Solr may
+    have changed meanwhile. After an unclean stop, documents newer than the
+    stored `_version_` checkpoint are enqueued first. A delete by query
+    schedules a reconcile after `scoutro.kg.reconcile.debounceSeconds`; a
+    full clear (`*:*`) resets the graph with a new dataset epoch.
+  - A reconcile deletes nothing before its scan has completed; each deletion
+    candidate is verified by real-time get, again right before the delete.
+    A failing, partial or out-of-order page aborts the run without any
+    deletion, and it resumes from its cursor. Above the mass-deletion brake
+    (`scoutro.kg.reconcile.maxDeleteFraction` of the tracked documents and at
+    least `scoutro.kg.reconcile.brakeMinDocs`, or an empty Solr against a
+    non-empty graph) the run stops as `suspect` until `confirm_reconcile`.
+  - New growth (extraction) waits behind the gates (`scoutro.kg.gate.*`) and
+    the storage guard; removals, state and scope changes continue during a
+    pause.
+  - On stop (servlet `destroy()` or the JVM shutdown hook) the sync finishes
+    its step, the capture stops, and recorded changes are written to the
+    persistent queue before the clean-shutdown mark.
 - **Control:**
   - `pause` takes effect at once and survives a restart.
-  - `resume` ends a manual pause. After a storage error or a failed or
-    aborted integrity check it requests a new `PRAGMA quick_check`; graph
-    writes resume only when it passes (watch `store.integrity`).
+  - `resume` ends a manual pause and schedules a reconcile. After a storage
+    error or a failed or aborted integrity check it requests a new `PRAGMA
+    quick_check`; graph writes resume only when it passes (watch
+    `store.integrity`).
+  - `reconcile` schedules a full reconcile now.
+  - `confirm_reconcile` lets a reconcile stopped by the mass-deletion brake
+    (`sync.reconcile.awaitingConfirmation`) delete; 409 `nothing_to_confirm`
+    otherwise.
+  - 503 `sync_unavailable` for `reconcile` and `confirm_reconcile` where the
+    graph does not follow an embedded Solr core.
   - If the storage guard refuses to store the change (for example during a
     storage error), it is still in effect, `store.manualPauseSaved` is
     `false`, and the maintenance thread stores it later.
@@ -619,7 +683,8 @@ Solr access and no LLM call yet, and there is no agent grant.
     it cannot run.
 - **Storage:** `DATA/SCOUTRO/knowledge/` (`graph.db`, `-wal`, `-shm`,
   `tmp/`, later `backup/`). The budget is an application budget (`quota:
-  application_budget`), not a filesystem quota.
+  application_budget`), not a filesystem quota. The JSON-LD field lives in
+  the Solr index and has its own budget.
 - **Settings:** see [the plan](SCOUTRO_KNOWLEDGE_GRAPH.md#9-configuration);
   invalid values are listed in `config.errors` and keep the graph off.
 

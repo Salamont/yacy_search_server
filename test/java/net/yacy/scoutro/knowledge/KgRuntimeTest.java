@@ -163,7 +163,7 @@ public class KgRuntimeTest {
             assertTrue(s.getJSONObject("storage").optBoolean("growthAllowed"));
             assertNotNull(s.getJSONObject("storage").optJSONObject("pages"));
             assertNotNull(s.getJSONObject("storage").optJSONObject("readers"));
-            assertEquals(1, s.getJSONObject("store").optInt("schemaVersion"));
+            assertEquals(KgSchema.CURRENT_VERSION, s.getJSONObject("store").optInt("schemaVersion"));
             assertFalse(s.getJSONObject("store").optBoolean("uncleanStartDetected"));
             assertEquals("not_required", s.getJSONObject("store").getJSONObject("integrity").optString("state"));
             assertEquals("off", s.getJSONObject("jsonld").optString("state"));

@@ -274,6 +274,11 @@ public final class KgChangeLog {
      * @return removed rows
      */
     public static int purge(final Connection tx, final long cutoff, final long maxRows) throws SQLException {
+        return purge(tx, cutoff, maxRows, Long.MAX_VALUE);
+    }
+
+    /** {@link #purge(Connection, long, long)} that removes at most {@code maxDelete} rows (bounded transactions). */
+    public static int purge(final Connection tx, final long cutoff, final long maxRows, final long maxDelete) throws SQLException {
         long upTo = 0L;
         try (PreparedStatement ps = tx.prepareStatement("SELECT max(seq) FROM kg_change WHERE at < ?")) {
             ps.setLong(1, cutoff);
@@ -296,6 +301,17 @@ public final class KgChangeLog {
         }
         if (upTo <= 0L) {
             return 0;
+        }
+        if (maxDelete < Long.MAX_VALUE) {
+            try (PreparedStatement ps = tx.prepareStatement("SELECT seq FROM kg_change WHERE seq <= ? ORDER BY seq LIMIT 1 OFFSET ?")) {
+                ps.setLong(1, upTo);
+                ps.setLong(2, Math.max(0L, maxDelete - 1L));
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        upTo = Math.min(upTo, rs.getLong(1));
+                    }
+                }
+            }
         }
         final int removed;
         try (PreparedStatement del = tx.prepareStatement("DELETE FROM kg_change WHERE seq <= ?")) {

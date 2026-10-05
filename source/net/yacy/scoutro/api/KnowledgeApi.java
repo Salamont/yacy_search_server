@@ -27,8 +27,9 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgRuntime;
 
 /**
- * Administrator routes of the knowledge graph (package 1):
- * {@code GET /v1/kg/status} and {@code POST /v1/kg/control}.
+ * Administrator routes of the knowledge graph:
+ * {@code GET /v1/kg/status} and {@code POST /v1/kg/control} with the actions
+ * {@code pause}, {@code resume}, {@code reconcile} and {@code confirm_reconcile}.
  * The servlet checks the administrator role before calling this class; the
  * control body goes through the servlet's cross-site checks.
  */
@@ -38,6 +39,9 @@ final class KnowledgeApi {
     interface Body {
         JSONObject get() throws ApiException, IOException;
     }
+
+    /** Allowed values of {@code action}. */
+    static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile");
 
     private final Supplier<KgRuntime> runtime;
 
@@ -87,8 +91,8 @@ final class KnowledgeApi {
             }
         }
         final String action = body.optString("action", "");
-        if (!"pause".equals(action) && !"resume".equals(action)) {
-            throw ApiException.invalid("action", "Field 'action' must be 'pause' or 'resume'.");
+        if (!ACTIONS.contains(action)) {
+            throw ApiException.invalid("action", "Field 'action' must be one of: " + String.join(", ", ACTIONS) + ".");
         }
         final KgRuntime r = this.runtime.get();
         if (r == null) {
@@ -96,7 +100,16 @@ final class KnowledgeApi {
                     "The knowledge graph is disabled. Set " + KgConfig.ENABLED + "=true and restart Scoutro.");
         }
         try {
-            return "pause".equals(action) ? r.pause() : r.resume();
+            switch (action) {
+                case "pause":
+                    return r.pause();
+                case "resume":
+                    return r.resume();
+                case "reconcile":
+                    return r.reconcile();
+                default:
+                    return r.confirmReconcile();
+            }
         } catch (final KgException e) {
             throw toApi(e);
         }
@@ -110,6 +123,12 @@ final class KnowledgeApi {
             case KgException.UNAVAILABLE:
                 return new ApiException(503, KgException.UNAVAILABLE, "The knowledge graph is not running.",
                         Json.obj("reason", e.reason()));
+            case KgException.NOTHING_TO_CONFIRM:
+                return new ApiException(409, KgException.NOTHING_TO_CONFIRM,
+                        "No reconcile is waiting for confirmation; see sync.reconcile in GET /scoutro/api/v1/kg/status.");
+            case KgException.SYNC_UNAVAILABLE:
+                return new ApiException(503, KgException.SYNC_UNAVAILABLE,
+                        "The knowledge graph does not follow the embedded Solr index here.");
             case KgException.WRITE_REFUSED:
                 return new ApiException(503, "kg_write_refused",
                         "The knowledge graph cannot write right now; see GET /scoutro/api/v1/kg/status.",

@@ -302,7 +302,7 @@ public final class KgStore implements AutoCloseable {
                         }
                     }
                     final long now = this.clock.getAsLong();
-                    putMeta(this.writer, KgSchema.META_SCHEMA_VERSION, Integer.toString(KgSchema.CURRENT_VERSION));
+                    putMeta(this.writer, KgSchema.META_SCHEMA_VERSION, "1"); // migrated below like any v1 database
                     putMeta(this.writer, KgSchema.META_EPOCH, KgIds.newEpoch());
                     putMeta(this.writer, KgSchema.META_CREATED_AT, Long.toString(now));
                     putMeta(this.writer, KgSchema.META_CLEAN_SHUTDOWN, "1");
@@ -321,8 +321,21 @@ public final class KgStore implements AutoCloseable {
                     throw new KgException(KgException.SCHEMA_UNSUPPORTED, "schema version " + version
                             + " is not supported by this Scoutro version (supports " + KgSchema.CURRENT_VERSION + ")");
                 }
-                // future: migrations from version to CURRENT_VERSION, each in this transaction
-                this.schemaVersion = version;
+                int migrated = version;
+                while (migrated < KgSchema.CURRENT_VERSION) {
+                    try (Statement st = this.writer.createStatement()) {
+                        for (final String ddl : KgSchema.MIGRATIONS[migrated - 1]) {
+                            st.execute(ddl);
+                        }
+                    }
+                    migrated++;
+                    putMeta(this.writer, KgSchema.META_SCHEMA_VERSION, Integer.toString(migrated));
+                    if (!this.created) {
+                        event(this.writer, 1, "schema_migrated", "schema " + (migrated - 1) + " -> " + migrated,
+                                this.clock.getAsLong());
+                    }
+                }
+                this.schemaVersion = migrated;
                 this.epoch = getMeta(this.writer, KgSchema.META_EPOCH);
                 if (!KgIds.isEpoch(this.epoch)) {
                     throw new KgException(KgException.SCHEMA_UNSUPPORTED, "invalid dataset epoch");
@@ -769,6 +782,14 @@ public final class KgStore implements AutoCloseable {
         return KgJson.obj("open", open, "oldestAgeMillis", open == 0 ? null : oldest,
                 "connections", this.readers.size(), "maxConnections", MAX_READERS,
                 "maxTransactionMillis", this.cfg.readMaxTransactionMillis, "interrupted", this.interruptedReads.get());
+    }
+
+    /** After a full reset wrote a new {@code dataset_epoch} (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 5.7). */
+    public void epochReset(final String newEpoch) {
+        if (!KgIds.isEpoch(newEpoch)) {
+            throw new IllegalArgumentException("invalid epoch");
+        }
+        this.epoch = newEpoch;
     }
 
     public String epoch() {

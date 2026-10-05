@@ -26,11 +26,12 @@ import net.yacy.scoutro.knowledge.KgJson;
  * {@code ld_json_txt} (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, "JSON-LD capture").
  * <p>
  * The field lives in the Solr index, outside the graph directory, so it has
- * its own budget. The capture itself (package 2) asks this policy for every
- * document; when the policy says no, the document is indexed normally
- * without the field, so crawling and indexing are never blocked. Package 1
- * provides the contract and the configuration; nothing is captured yet, so
- * the estimate is unknown ({@code null}).
+ * its own budget. The runtime evaluates this policy when it measures and sets
+ * the flag that the parser reads per document ({@code JsonLdCapture}); when
+ * the policy says no, the document is indexed normally without the field, so
+ * crawling and indexing are never blocked. The estimate is the sum of
+ * {@code kg_doc.jsonld_bytes} plus the bytes captured but not yet
+ * synchronised; {@code null} while unknown (graph or sync not running).
  */
 public final class JsonLdCapturePolicy {
 
@@ -101,7 +102,7 @@ public final class JsonLdCapturePolicy {
 
     public synchronized JSONObject status() {
         return KgJson.obj("configured", this.cfg.jsonldEnabled, "state", this.state.name().toLowerCase(),
-                "reason", this.reason, "captureImplemented", false,
+                "reason", this.reason, "captureImplemented", true,
                 "estimatedBytes", this.estimatedBytes, "maxTotalBytes", this.cfg.jsonldMaxTotalBytes,
                 "pauseAtBytes", pauseAtBytes(), "resumeAtBytes", resumeAtBytes(),
                 "maxBytesPerDoc", this.cfg.jsonldMaxBytesPerDoc, "maxBlocksPerDoc", this.cfg.jsonldMaxBlocksPerDoc);

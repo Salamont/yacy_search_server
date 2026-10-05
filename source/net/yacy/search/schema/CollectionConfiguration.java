@@ -101,6 +101,7 @@ import net.yacy.kelondro.index.RowHandleMap;
 import net.yacy.kelondro.rwi.ReferenceContainer;
 import net.yacy.kelondro.util.Bitfield;
 import net.yacy.kelondro.util.MemoryControl;
+import net.yacy.scoutro.knowledge.sync.JsonLdCapture;
 import net.yacy.search.index.Segment;
 import net.yacy.search.index.Segment.ReferenceReport;
 import net.yacy.search.index.Segment.ReferenceReportCache;
@@ -626,6 +627,13 @@ public class CollectionConfiguration extends SchemaConfiguration implements Seri
         if (scraper instanceof ContentScraper) {
             final ContentScraper html = (ContentScraper) scraper;
             final List<ImageEntry> images = html.getImages();
+
+            // bounded JSON-LD for the Scoutro knowledge graph, only for documents of the collections it follows
+            if (allAttr || this.contains(CollectionSchema.ld_json_txt)) {
+                final List<String> ld = JsonLdCapture.field((String) doc.getFieldValue(CollectionSchema.id.getSolrFieldName()),
+                        doc.getFieldValues(CollectionSchema.collection_sxt.getSolrFieldName()), html.getLdJsonBlocks(), html.ldJsonScraped());
+                if (ld != null) this.add(doc, CollectionSchema.ld_json_txt, ld);
+            }
 
             // header tags
             int h = 0;

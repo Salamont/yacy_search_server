@@ -92,6 +92,29 @@ public class KnowledgeApiTest {
     }
 
     @Test
+    public void reconcileActionsNeedTheSyncAndMapTheirErrors() throws Exception {
+        final KgRuntime r = running(); // the package-1 environment: no embedded Solr
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            for (final String action : new String[] {"reconcile", "confirm_reconcile"}) {
+                try {
+                    api.route("POST", CONTROL, body("{\"action\":\"" + action + "\"}"));
+                    fail(action);
+                } catch (final ApiException e) {
+                    assertEquals(503, e.status());
+                    assertEquals(KgException.SYNC_UNAVAILABLE, e.code());
+                }
+            }
+        } finally {
+            r.close();
+        }
+        final ApiException nothing = KnowledgeApi.toApi(new KgException(KgException.NOTHING_TO_CONFIRM, "none"));
+        assertEquals(409, nothing.status());
+        assertEquals(KgException.NOTHING_TO_CONFIRM, nothing.code());
+        assertEquals(java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile"), KnowledgeApi.ACTIONS);
+    }
+
+    @Test
     public void validationMethodsAndStates() throws Exception {
         final KgRuntime r = running();
         try {

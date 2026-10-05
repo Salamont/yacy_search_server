@@ -1181,6 +1181,19 @@
        http://wiki.apache.org/solr/UpdateRequestProcessor
 
     --> 
+  <!-- Scoutro knowledge graph: the default update chain records changed and
+       deleted document IDs with their Solr version for the graph
+       (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 5.1). The capture processor must
+       follow DistributedUpdateProcessorFactory, which assigns _version_. It is
+       skipped on the webgraph core and while the graph is not running, and it
+       never fails an update. -->
+  <updateRequestProcessorChain name="scoutro-kg" default="true">
+    <processor class="solr.LogUpdateProcessorFactory"/>
+    <processor class="solr.DistributedUpdateProcessorFactory"/>
+    <processor class="net.yacy.scoutro.knowledge.solr.KgCaptureProcessorFactory"/>
+    <processor class="solr.RunUpdateProcessorFactory"/>
+  </updateRequestProcessorChain>
+
   <!-- Deduplication
 
        An example dedup update processor that creates the "id" field

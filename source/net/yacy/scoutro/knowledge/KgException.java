@@ -47,6 +47,10 @@ public class KgException extends Exception {
     public static final String INVALID_CURSOR = "invalid_cursor";
     public static final String CURSOR_EXPIRED = "cursor_expired";
     public static final String EPOCH_CHANGED = "epoch_changed";
+    /** {@code confirm_reconcile} without a reconcile stopped by the mass-deletion brake. */
+    public static final String NOTHING_TO_CONFIRM = "nothing_to_confirm";
+    /** The graph runs, but its Solr synchronisation does not (e.g. remote Solr only). */
+    public static final String SYNC_UNAVAILABLE = "sync_unavailable";
 
     private final String code;
     private final String reason;

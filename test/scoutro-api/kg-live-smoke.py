@@ -1,15 +1,20 @@
 #!/usr/bin/env python3
-"""Live smoke test of the knowledge graph foundation (package 1) on a disposable peer.
+"""Live smoke test of the knowledge graph (packages 1 and 2a) on a disposable peer.
 
 Starts YaCy/Scoutro five times on a temporary DATA directory (no existing peer,
 DATA directory or external state is touched):
 
 1. graph disabled (default): status "disabled", no graph directory, control 409,
    no access without the administrator account;
-2. graph enabled: status "running", database files, pause persisted;
-3. clean restart (SIGTERM): no unclean start, pause still active, resume;
+2. graph enabled: status "running", database files, the sync starts with a
+   backfill, a page pushed through YaCy's parser and index path (push_p) is
+   captured with its JSON-LD and published, a page of another collection is not
+   tracked, pause persisted;
+3. clean restart (SIGTERM): no unclean start, pause still active, the start
+   runs a full reconcile, resume;
 4. hard kill (SIGKILL) and restart: unclean start detected, graph writes held
-   back until the integrity check (quick_check) has passed;
+   back until the integrity check (quick_check) has passed, then the reconcile
+   of the unclean start;
 5. SQLite native library not loadable: Scoutro starts, the graph is unavailable.
 
 Run after `ant compile`:  python3 test/scoutro-api/kg-live-smoke.py
@@ -112,6 +117,50 @@ def control(client, action, content_type="application/json"):
         return e.code, (json.loads(body) if body.startswith(b"{") else None)
 
 
+def wait_status(client, what, predicate, timeout=90):
+    deadline = time.monotonic() + timeout
+    while True:
+        s = status(client)
+        if predicate(s):
+            return s
+        if time.monotonic() > deadline:
+            raise AssertionError(f"timed out waiting for {what}: {json.dumps(s.get('sync'))[:3000]}")
+        time.sleep(0.5)
+
+
+def push(client, url, html, collection):
+    """Indexes one page through YaCy's parser, condenser and yacy2solr (api/push_p, synchronous, committed)."""
+    boundary = f"----scoutro{time.time_ns()}"
+    fields = {"count": "1", "synchronous": "true", "commit": "true", "url-0": url, "collection-0": collection,
+              "contentType-0": "text/html", "lastModified-0": "Tue, 15 Nov 1994 12:45:26 GMT", "responseHeader-0": ""}
+    body = b"".join(f"--{boundary}\r\nContent-Disposition: form-data; name=\"{k}\"\r\n\r\n{v}\r\n".encode()
+                    for k, v in fields.items())
+    body += (f"--{boundary}\r\nContent-Disposition: form-data; name=\"data-0\"; filename=\"page.html\"\r\n"
+             "Content-Type: text/html\r\n\r\n").encode() + html.encode() + f"\r\n--{boundary}--\r\n".encode()
+    request = urllib.request.Request(BASE + "/api/push_p.json", data=body, method="POST",
+                                     headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    with client.open(request, timeout=120) as response:
+        answer = json.loads(response.read())
+    assert answer.get("countsuccess") == 1, answer
+    return answer
+
+
+PAGE = """<html><head><title>Impressum Muster Pflege</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"Muster Pflege gGmbH",
+"url":"https://www.muster-pflege-scoutro-smoke.de/","telephone":"030 1234567","vatID":"DE123456789"}</script></head>
+<body><h1>Impressum</h1><p>Muster Pflege gGmbH, Lindenallee 3, 12345 Berlin</p></body></html>"""
+
+
+def published(s):
+    return s.get("sync", {}).get("processed", {}).get("published", 0)
+
+
+def reconciled(s, reason):
+    r = s.get("sync", {}).get("reconcile", {})
+    last = r.get("last") or {}
+    return not r.get("pending", True) and last.get("reason") == reason and last.get("state") == "completed"
+
+
 checks = 0
 with tempfile.TemporaryDirectory(prefix="scoutro-kg-") as temporary:
     root = Path(temporary)
@@ -136,11 +185,22 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-") as temporary:
             checks += 4
             stop(process)
 
-            # 2. enabled
-            write_config(root, ["scoutro.kg.enabled=true"])
+            # 2. enabled, following the collection kgsmoke, with the JSON-LD capture
+            write_config(root, ["scoutro.kg.enabled=true", "scoutro.kg.collections=kgsmoke", "scoutro.kg.jsonld.enabled=true"])
             process, client = start(root, log)
             s = status(client)
             assert s["state"] == "running", s
+            s = wait_status(client, "the start backfill", lambda x: reconciled(x, "start"))
+            assert s["sync"]["state"] == "running" and s["sync"]["reconcile"]["last"]["kind"] == "backfill", s["sync"]
+            assert s["jsonld"]["state"] == "active" and s["jsonld"]["captureImplemented"] is True, s["jsonld"]
+            push(client, "https://www.muster-pflege-scoutro-smoke.de/impressum", PAGE, "kgsmoke")
+            s = wait_status(client, "the pushed page in the graph", lambda x: published(x) >= 1)
+            assert s["jsonld"]["capture"]["capturedDocs"] >= 1, s["jsonld"]
+            push(client, "https://www.andere-scoutro-smoke.de/impressum", PAGE, "otherstuff")
+            s = wait_status(client, "the page of another collection", lambda x: x["sync"]["processed"]["untracked"] >= 1)
+            assert published(s) == 1, s["sync"]["processed"]
+            assert s["sync"]["lag"]["pending"] == 0, s["sync"]["lag"]
+            checks += 6
             assert (graph_dir / "graph.db").is_file(), "no database file"
             assert s["store"]["uncleanStartDetected"] is False and s["store"]["startRecorded"] is True, s["store"]
             assert s["storage"]["growthAllowed"] is True, s["storage"]
@@ -154,11 +214,15 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-") as temporary:
             checks += 8
             stop(process)  # SIGTERM: Scoutro shuts down cleanly
 
-            # 3. clean restart keeps the pause and reports no crash
+            # 3. clean restart keeps the pause, reports no crash and reconciles (Solr may have changed meanwhile)
             process, client = start(root, log)
             s = status(client)
             assert s["state"] == "running" and s["store"]["uncleanStartDetected"] is False, s["store"]
             assert s["store"]["manualPause"] is True, s["store"]
+            s = wait_status(client, "the reconcile of the clean start", lambda x: reconciled(x, "start"))
+            last = s["sync"]["reconcile"]["last"]
+            assert last["kind"] == "reconcile" and last["deleted"] == 0 and last["tracked"] == 1, last
+            checks += 1
             code, body = control(client, "resume")
             assert code == 200 and body["storage"]["growthAllowed"] is True, (code, body)
             checks += 3
@@ -178,7 +242,9 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-") as temporary:
             assert not [r for r in s["storage"]["reasons"] if r["code"].startswith("integrity")], s["storage"]["reasons"]
             codes = [e["code"] for e in s["events"]]
             assert "unclean_start" in codes and "integrity_ok" in codes, codes
-            checks += 5
+            s = wait_status(client, "the reconcile of the unclean start", lambda x: reconciled(x, "unclean_start"))
+            assert s["sync"]["reconcile"]["last"]["deleted"] == 0, s["sync"]["reconcile"]
+            checks += 6
             stop(process)
 
             # 5. the SQLite native library cannot be extracted: Scoutro still starts, the graph reports why
@@ -191,6 +257,10 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-") as temporary:
             assert code == 503 and body["error"]["code"] == "kg_unavailable", (code, body)
             checks += 3
             print(f"PASS: {checks} live knowledge graph checks", flush=True)
+        except BaseException:
+            log.flush()
+            print("--- end of peer.log ---\n" + (root / "peer.log").read_text(errors="replace")[-60000:], flush=True)
+            raise
         finally:
             if process is not None:
                 stop(process)

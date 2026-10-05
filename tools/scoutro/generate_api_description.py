@@ -324,10 +324,42 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "refusedWrites": {"type": "object", "additionalProperties": {"type": "integer"}},
         "measuredAt": {"type": "integer"}, "fullMeasuredAt": {"type": ["integer", "null"]},
         "quota": {"type": "string", "enum": ["application_budget"]}}},
-    "jsonld": {"type": "object", "description": "Contract of the JSON-LD capture into the Solr field ld_json_txt (outside the graph directory, own budget). Not captured yet in this version.", "properties": {
-        "configured": {"type": "boolean"}, "state": {"type": "string", "enum": ["off", "active", "paused"]}, "reason": {"type": ["string", "null"]},
-        "captureImplemented": {"type": "boolean"}, "estimatedBytes": {"type": ["integer", "null"]}, "maxTotalBytes": {"type": "integer"},
-        "pauseAtBytes": {"type": "integer"}, "resumeAtBytes": {"type": "integer"}, "maxBytesPerDoc": {"type": "integer"}, "maxBlocksPerDoc": {"type": "integer"}}},
+    "jsonld": {"type": "object", "description": "Bounded JSON-LD capture into the Solr field ld_json_txt (outside the graph directory, own budget scoutro.kg.jsonld.maxTotalBytes). Only for documents of followed collections, only while scoutro.kg.jsonld.enabled and the sync run; a paused capture never blocks crawling or indexing, the document is indexed without the field and counted as skipped.", "properties": {
+        "configured": {"type": "boolean"}, "state": {"type": "string", "enum": ["off", "active", "paused"]},
+        "reason": {"type": ["string", "null"], "description": "kg_disabled, jsonld_disabled, kg_not_running, jsonld_budget or disk_reserve."},
+        "captureImplemented": {"type": "boolean"}, "estimatedBytes": {"type": ["integer", "null"], "description": "Sum of kg_doc.jsonld_bytes plus bytes captured but not yet synchronised (upper bound of the field in Solr); null while unknown."},
+        "maxTotalBytes": {"type": "integer"},
+        "pauseAtBytes": {"type": "integer"}, "resumeAtBytes": {"type": "integer"}, "maxBytesPerDoc": {"type": "integer"}, "maxBlocksPerDoc": {"type": "integer"},
+        "capture": {"type": "object", "properties": {"capturedDocs": {"type": "integer"}, "skippedDocs": {"type": "integer"},
+            "skippedPending": {"type": "integer"}, "droppedBlocks": {"type": "integer", "description": "Blocks dropped whole at the per-document limits."},
+            "invalidBlocks": {"type": "integer", "description": "Blocks that did not parse within depth 8 / 500 nodes or carry no relevant @type."},
+            "pendingBytes": {"type": "integer"}}}}},
+    "sync": {"type": "object", "description": "Synchronisation with the embedded Solr core (package 2a): capture, persistent queue, real-time get, reconcile and backfill, retention. Present while the graph runs; state off without an embedded Solr environment.", "properties": {
+        "state": {"type": "string", "enum": ["starting", "waiting", "running", "resetting", "unavailable", "off"]},
+        "reason": {"type": ["string", "null"], "description": "e.g. remote_solr_unsupported, or the refusal that delays the start (graph writes wait for the integrity check)."},
+        "initialized": {"type": "boolean"}, "resetInProgress": {"type": "boolean", "description": "A full clear of the index (*:*) is being applied: new dataset epoch, graph data deleted in bounded batches."},
+        "lastError": {"type": ["string", "null"]}, "gate": {"type": ["string", "null"], "enum": ["indexing_queue", "load", "heap", "online_caution", None]},
+        "growthBlocked": {"type": "boolean"},
+        "changes": {"type": "object", "description": "The in-memory change set of the Solr update processor (capped at scoutro.kg.capture.maxPending; overflow schedules a reconcile).", "additionalProperties": True},
+        "queue": {"type": "object", "properties": {"items": {"type": ["integer", "null"]}, "maxItems": {"type": "integer"}, "oldestAgeSeconds": {"type": ["integer", "null"]}}},
+        "processed": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Counters: published, unchanged, lifecycle, removed, untracked, abortedSuperseded, abortedGeneration, abortedOlder, notYetVisible, deferred, growthRefused, maintenanceRefused, drainRefused, queueDropped, solrErrors, failedDocs, drained, fullResets."},
+        "versionCheckpoint": {"type": ["integer", "null"], "description": "Highest Solr _version_ seen at least 30 s before a complete drain; after an unclean stop newer documents are enqueued first."},
+        "reconcile": {"type": "object", "description": "Every start and reactivation schedules a full reconcile. Deletions happen only after a complete scan, a real-time-get verification and below the mass-deletion brake; an aborted run deletes nothing and resumes from its cursor.", "properties": {
+            "pending": {"type": "boolean"}, "reason": {"type": ["string", "null"], "description": "start, unclean_start, collections_changed, extractor_changed, query_delete, overflow, queue_full, daily, admin, resume, full_reset."},
+            "dueAt": {"type": ["integer", "null"]}, "reextract": {"type": "boolean"},
+            "current": {"type": ["object", "null"], "properties": {"id": {"type": "integer"}, "kind": {"type": "string", "enum": ["reconcile", "backfill"]},
+                "state": {"type": "string", "enum": ["running", "completed", "aborted", "suspect"]}, "phase": {"type": "string", "enum": ["scan", "verify", "delete", "done"]},
+                "reason": {"type": ["string", "null"]}, "startedAt": {"type": "integer"}, "cursor": {"type": ["string", "null"]},
+                "scanned": {"type": "integer"}, "enqueued": {"type": "integer"}, "deleteCandidates": {"type": "integer"}, "confirmedAbsent": {"type": "integer"},
+                "deleted": {"type": "integer"}, "solrSeen": {"type": "integer"}, "tracked": {"type": "integer"}, "enqueueDropped": {"type": "integer"},
+                "detail": {"type": ["string", "null"]}}},
+            "retryAt": {"type": ["integer", "null"]}, "awaitingConfirmation": {"type": "boolean", "description": "The mass-deletion brake stopped the run before deleting; POST /kg/control {\"action\":\"confirm_reconcile\"} lets it delete."},
+            "last": {"type": ["object", "null"]}, "lastCompletedAt": {"type": ["integer", "null"]},
+            "catchUp": {"type": "object", "properties": {"active": {"type": "boolean"}, "fromVersion": {"type": ["integer", "null"]}, "enqueued": {"type": "integer"}}},
+            "gate": {"type": ["string", "null"]}}},
+        "retention": {"type": "object", "properties": {"running": {"type": "boolean"}, "lastRunAt": {"type": ["integer", "null"]}, "nextRunAt": {"type": ["integer", "null"]},
+            "last": {"type": ["object", "null"], "additionalProperties": {"type": "integer"}}}},
+        "lag": {"type": "object", "description": "How far the graph lags behind Solr.", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}}}}},
     "store": {"type": "object", "properties": {"schemaVersion": {"type": "integer"}, "epoch": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
         "uncleanStartDetected": {"type": "boolean"}, "startRecorded": {"type": "boolean", "description": "False while the guard refuses the start bookkeeping (e.g. disk_critical); the graph then runs read-only, graph writes wait (start_not_recorded) and the maintenance thread retries."},
         "integrity": {"type": "object", "description": "PRAGMA quick_check after an unclean shutdown, or on resume after a storage error or a failed check. Graph writes wait until it passes.", "properties": {
@@ -341,10 +373,10 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "manualPauseSaved": {"type": "boolean", "description": "False while a pause change is in effect but the guard refused to store it; the maintenance thread stores it later."}}},
     "events": {"type": "array", "items": {"type": "object", "properties": {"at": {"type": "integer"}, "level": {"type": "string", "enum": ["info", "warn", "error"]}, "code": {"type": "string"}, "detail": {"type": ["string", "null"]}}}}}}
 schemas["KgControl"] = {"type": "object", "required": ["action"], "additionalProperties": False, "properties": {
-    "action": {"type": "string", "enum": ["pause", "resume"], "description": "pause stops new growth (stored across restarts); deletions and bookkeeping continue. resume ends a manual pause and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity)."}}}
-KG_NOTE = "Knowledge graph foundation (store, storage budget, status). Read-only, no Solr access, no LLM call. The answer is 200 also when the graph is disabled (state disabled) or unavailable (state unavailable with reason)."
+    "action": {"type": "string", "enum": ["pause", "resume", "reconcile", "confirm_reconcile"], "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise."}}}
+KG_NOTE = "Knowledge graph status: store, storage budget, JSON-LD capture and the synchronisation with the embedded Solr core (no LLM call). The answer is 200 also when the graph is disabled (state disabled) or unavailable (state unavailable with reason). Nothing is ever written to Solr."
 paths["/v1/kg/status"] = {"get": op("kg.status", "Knowledge graph status", KG_NOTE, ["knowledge"], {**ok("Status of the knowledge graph.", "KgStatus"), **errs("401", "404", "405")})}
-paths["/v1/kg/control"] = {"post": op("kg.control", "Pause or resume the knowledge graph", "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 503 kg_unavailable (details.reason) when the graph cannot run. The change takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.", ["knowledge"], {**ok("Status after the change.", "KgStatus"), **errs("400", "401", "403", "404", "405", "409", "413", "415", "503")}, body="KgControl", mutating=True)}
+paths["/v1/kg/control"] = {"post": op("kg.control", "Control the knowledge graph", "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"}; unknown fields are refused. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.", ["knowledge"], {**ok("Status after the change.", "KgStatus"), **errs("400", "401", "403", "404", "405", "409", "413", "415", "503")}, body="KgControl", mutating=True)}
 
 # ---------------------------------------------------------------------------
 # agent path /agent/v1 (Bearer agent token; mirrors AgentActionRegistry.java)
@@ -767,7 +799,7 @@ cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "sea
 mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
-cli.update({'kg.status': 'HTTP GET /scoutro/api/v1/kg/status', 'kg.control': 'HTTP POST /scoutro/api/v1/kg/control {"action":"pause"|"resume"}'})
+cli.update({'kg.status': 'HTTP GET /scoutro/api/v1/kg/status', 'kg.control': 'HTTP POST /scoutro/api/v1/kg/control {"action":"pause"|"resume"|"reconcile"|"confirm_reconcile"}'})
 for suffix, operation, _, _ in seo_endpoints + report_endpoints:
     mcp[operation] = "scoutro_" + operation.replace(".", "_")
     cli[operation] = "HTTP GET /scoutro/api/v1" + suffix
