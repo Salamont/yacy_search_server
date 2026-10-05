@@ -11,7 +11,9 @@
       if (!response.ok) throw new Error(); const s = await response.json(); if (!alive) return;
       set('scoutro-kg-state', text(s.state));
       const st = s.storage || {};
-      set('scoutro-kg-budget', st.usedBytes != null && st.budgetBytes ? Math.round(st.usedBytes * 100 / st.budgetBytes) + ' %' : '—');
+      const level = st.level && st.level !== 'ok' ? ' · ' + text('level_' + st.level) : '';
+      set('scoutro-kg-budget', st.usedBytes != null && st.budgetBytes ? Math.round(st.usedBytes * 100 / st.budgetBytes) + ' %' + level : '—');
+      document.getElementById('scoutro-kg-budget').classList.toggle('scoutro-kg-alert', st.level === 'warning' || st.level === 'brake' || st.level === 'full');
       const pending = s.sync?.lag?.pending, llm = s.llm?.queue?.items;
       set('scoutro-kg-backlog', pending == null ? '—' : String(pending) + (llm ? ' · LLM ' + llm : ''));
       const reasons = (st.reasons || []).map(r => r.code).join(', ');

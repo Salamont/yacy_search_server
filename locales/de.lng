@@ -4997,6 +4997,10 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 >Knowledge graph<==>Wissensgraph<
 >Pending changes<==>Ausstehende Änderungen<
 >Growth paused<==>Wachstum pausiert<
+>notice<==>Hinweis<
+>warning<==>Warnung<
+>growth paused<==>Wachstum pausiert<
+>budget reached<==>Budget erreicht<
 >Storage used<==>Speicher belegt<
 >Unavailable<==>Nicht verfügbar<
 >Running<==>Läuft<
@@ -5500,6 +5504,24 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >The knowledge graph is not running<==>Der Wissensgraph läuft nicht<
 >Facility kinds for the LLM tier<==>Einrichtungsarten für die LLM-Stufe<
 >Graph facts in the chat<==>Graph-Fakten im Chat<
+>Level<==>Stufe<
+>notice (from 70 %)<==>Hinweis (ab 70 %)<
+>warning (from 80 %)<==>Warnung (ab 80 %)<
+>brake: growth paused (from 90 %)<==>Bremse: Wachstum pausiert (ab 90 %)<
+>full: budget reached<==>voll: Budget erreicht<
+>JSON-LD capture<==>JSON-LD-Erfassung<
+>JSON-LD stored<==>JSON-LD gespeichert<
+>active<==>aktiv<
+>paused<==>pausiert<
+>off<==>aus<
+>JSON-LD in the Solr index<==>JSON-LD im Solr-Index<
+>Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.<==>Stufen: ab 70 % ein Hinweis, ab 80 % eine Warnung, ab 90 % pausiert neues Wachstum (JSON-LD: die Erfassung pausiert, Seiten werden ohne sie indexiert), das Budget ist die harte Grenze. Crawlen und Indexieren halten wegen dieser Budgets nie an.<
+>The knowledge graph uses %1 % of its storage budget.<==>Der Wissensgraph belegt %1 % seines Speicherbudgets.<
+>New growth of the knowledge graph is paused at %1 % of its storage budget; reads, deletions and the crawl continue.<==>Neues Wachstum des Wissensgraphen pausiert bei %1 % seines Speicherbudgets; Lesen, Löschen und der Crawl laufen weiter.<
+>The knowledge graph has reached its storage budget (%1 %); only reads and deletions continue, the crawl is not affected.<==>Der Wissensgraph hat sein Speicherbudget erreicht (%1 %); nur Lesen und Löschen laufen weiter, der Crawl ist nicht betroffen.<
+>JSON-LD uses %1 % of its budget in the Solr index.<==>JSON-LD belegt %1 % seines Budgets im Solr-Index.<
+>The JSON-LD capture is paused at %1 % of its budget; pages are still crawled and indexed without it.<==>Die JSON-LD-Erfassung pausiert bei %1 % ihres Budgets; Seiten werden weiter gecrawlt und ohne sie indexiert.<
+>The JSON-LD budget is reached (%1 %); pages are still crawled and indexed without JSON-LD.<==>Das JSON-LD-Budget ist erreicht (%1 %); Seiten werden weiter gecrawlt und ohne JSON-LD indexiert.<
 >yes: at most %1 facts and %2 characters within %3 ms; AI Shield guests: %4<==>ja: höchstens %1 Fakten und %2 Zeichen in %3 ms; AI-Shield-Gäste: %4<
 >Retry failed LLM documents<==>Fehlgeschlagene LLM-Dokumente erneut versuchen<
 >Waiting for confirmation<==>Wartet auf Bestätigung<

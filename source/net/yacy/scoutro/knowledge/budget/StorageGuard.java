@@ -231,6 +231,12 @@ public final class StorageGuard {
         return null;
     }
 
+    /** The level of the measured usage ({@link KgConfig#level}). */
+    public synchronized String level() {
+        measureFast();
+        return this.cfg.level(usedBytes(), this.cfg.budgetMaxBytes);
+    }
+
     /** True if new growth would currently be admitted (without an estimate). */
     public synchronized boolean growthAllowed() {
         measureFast();
@@ -402,7 +408,11 @@ public final class StorageGuard {
         for (final JSONObject r : reasons()) {
             reasons.put(r);
         }
-        return KgJson.obj("budgetBytes", this.cfg.budgetMaxBytes, "usedBytes", usedBytes(),
+        final long used = usedBytes();
+        return KgJson.obj("budgetBytes", this.cfg.budgetMaxBytes, "usedBytes", used,
+                "usedPercent", this.cfg.budgetMaxBytes > 0 ? Math.round(used * 1000.0 / this.cfg.budgetMaxBytes) / 10.0 : null,
+                "level", this.cfg.level(used, this.cfg.budgetMaxBytes),
+                "noticeAtBytes", this.cfg.noticeAtBytes(), "warnAtBytes", this.cfg.warnAtBytes(),
                 "pauseAtBytes", this.cfg.pauseAtBytes(), "resumeAtBytes", this.cfg.resumeAtBytes(),
                 "maintenanceReserveBytes", this.cfg.maintenanceBytes(), "dataShareBytes", this.cfg.dataBytes(),
                 "tmpMaxBytes", this.cfg.tmpMaxBytes, "files", files, "wal", wal, "disk", disk,

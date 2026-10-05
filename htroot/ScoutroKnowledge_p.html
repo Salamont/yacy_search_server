@@ -23,7 +23,10 @@
 <h2 id="skg-overview-title">Status</h2>
 <p class="sseo-note">State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</p>
 <div class="sseo-cards" id="skg-cards"></div>
-<section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl></section>
+<div id="skg-budget-banner" role="alert" hidden></div>
+<section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl>
+<h4>JSON-LD in the Solr index</h4><div id="skg-jsonld-budget" class="skg-budget"></div>
+<p class="sseo-note">Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-sync-title"><h3 id="skg-sync-title">Synchronisation</h3><dl id="skg-sync" class="sseo-stats"></dl></section>
 <section class="sseo-panel" aria-labelledby="skg-llm-title"><h3 id="skg-llm-title">LLM tier</h3><dl id="skg-llm" class="sseo-stats"></dl><p class="sseo-note">Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in <a href="LLMSelection_p.html">LLM Selection</a> (usage knowledge).</p></section>
 <section class="sseo-panel" aria-labelledby="skg-controls-title"><h3 id="skg-controls-title">Controls</h3>
@@ -141,6 +144,23 @@
 <span data-skg-label="llm_collections">LLM collections</span>
 <span data-skg-label="llm_kinds">Facility kinds for the LLM tier</span>
 <span data-skg-label="chat">Graph facts in the chat</span>
+<span data-skg-label="level">Level</span>
+<span data-skg-label="level_ok">ok</span>
+<span data-skg-label="level_notice">notice (from 70 %)</span>
+<span data-skg-label="level_warning">warning (from 80 %)</span>
+<span data-skg-label="level_brake">brake: growth paused (from 90 %)</span>
+<span data-skg-label="level_full">full: budget reached</span>
+<span data-skg-label="jsonld">JSON-LD capture</span>
+<span data-skg-label="jsonld_used">JSON-LD stored</span>
+<span data-skg-label="jsonld_active">active</span>
+<span data-skg-label="jsonld_paused">paused</span>
+<span data-skg-label="jsonld_off">off</span>
+<span data-skg-label="level_warning_graph">The knowledge graph uses %1 % of its storage budget.</span>
+<span data-skg-label="level_brake_graph">New growth of the knowledge graph is paused at %1 % of its storage budget; reads, deletions and the crawl continue.</span>
+<span data-skg-label="level_full_graph">The knowledge graph has reached its storage budget (%1 %); only reads and deletions continue, the crawl is not affected.</span>
+<span data-skg-label="level_warning_jsonld">JSON-LD uses %1 % of its budget in the Solr index.</span>
+<span data-skg-label="level_brake_jsonld">The JSON-LD capture is paused at %1 % of its budget; pages are still crawled and indexed without it.</span>
+<span data-skg-label="level_full_jsonld">The JSON-LD budget is reached (%1 %); pages are still crawled and indexed without JSON-LD.</span>
 <span data-skg-label="chat_detail">yes: at most %1 facts and %2 characters within %3 ms; AI Shield guests: %4</span>
 <span data-skg-label="valid">Settings valid</span>
 <span data-skg-label="at">Time</span>

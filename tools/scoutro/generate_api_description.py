@@ -294,6 +294,7 @@ KG_REASONS = ["storage_error", "disk_critical", "wal_checkpoint_blocked", "wal_l
 schemas["KgReason"] = {"type": "object", "required": ["code"], "properties": {
     "code": {"type": "string", "enum": KG_REASONS, "description": "Why new growth (or every write) is paused. storage_error, disk_critical, wal_checkpoint_blocked and wal_limit stop every write; integrity_check_pending, integrity_check_failed and start_not_recorded stop graph writes (growth and deletions) but not the runtime's own records."},
     "since": {"type": ["integer", "null"], "description": "Epoch milliseconds."}, "detail": {"type": ["string", "null"]}}}
+KG_LEVEL = {"type": "string", "enum": ["ok", "notice", "warning", "brake", "full"], "description": "notice from budget.noticePercent (70) of the budget (status only), warning from budget.warnPercent (80, shown in the UI and the dashboard), brake from budget.pausePercent (90: new growth pauses; for JSON-LD the capture pauses, pages are still indexed), full at the budget (the hard limit). Every change is an event (storage_level, jsonld_level)."}
 schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "state"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.kg.status.v1"]},
     "enabled": {"type": "boolean", "description": "scoutro.kg.enabled. While false nothing is created on disk and no thread runs."},
@@ -308,6 +309,7 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
     "paths": {"type": "object", "properties": {"dir": {"type": "string", "examples": ["DATA/SCOUTRO/knowledge"]}}},
     "storage": {"type": "object", "description": "Application budget over every file of the graph directory (not a filesystem quota).", "properties": {
         "budgetBytes": {"type": "integer"}, "usedBytes": {"type": "integer"}, "pauseAtBytes": {"type": "integer"}, "resumeAtBytes": {"type": "integer"},
+        "usedPercent": {"type": ["number", "null"]}, "level": KG_LEVEL, "noticeAtBytes": {"type": "integer"}, "warnAtBytes": {"type": "integer"},
         "maintenanceReserveBytes": {"type": "integer"}, "dataShareBytes": {"type": "integer", "description": "Cap of the main database file (SQLite max_page_count)."},
         "tmpMaxBytes": {"type": "integer"},
         "files": {"type": "object", "properties": {"db": {"type": "integer"}, "wal": {"type": "integer"}, "shm": {"type": "integer"}, "tmpVisible": {"type": "integer"},
@@ -334,6 +336,7 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "reason": {"type": ["string", "null"], "description": "kg_disabled, jsonld_disabled, kg_not_running, jsonld_budget or disk_reserve."},
         "captureImplemented": {"type": "boolean"}, "estimatedBytes": {"type": ["integer", "null"], "description": "Sum of kg_doc.jsonld_bytes plus bytes captured but not yet synchronised (upper bound of the field in Solr); null while unknown."},
         "maxTotalBytes": {"type": "integer"},
+        "usedPercent": {"type": ["number", "null"]}, "level": KG_LEVEL, "noticeAtBytes": {"type": "integer"}, "warnAtBytes": {"type": "integer"},
         "pauseAtBytes": {"type": "integer"}, "resumeAtBytes": {"type": "integer"}, "maxBytesPerDoc": {"type": "integer"}, "maxBlocksPerDoc": {"type": "integer"},
         "capture": {"type": "object", "properties": {"capturedDocs": {"type": "integer"}, "skippedDocs": {"type": "integer"},
             "skippedPending": {"type": "integer"}, "droppedBlocks": {"type": "integer", "description": "Blocks dropped whole at the per-document limits."},

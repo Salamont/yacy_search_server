@@ -110,6 +110,33 @@ public class StorageGuardTest {
     }
 
     @Test
+    public void levelsNoticeWarnBrakeAndFull() throws Exception {
+        final FakeProbe p = new FakeProbe();
+        final StorageGuard g = guard(p, KgConfig.BUDGET_MAX_BYTES, Long.toString(1000 * MIB));
+        final long[] used = {100, 700, 800, 900, 1000};
+        final String[] levels = {KgConfig.LEVEL_OK, KgConfig.LEVEL_NOTICE, KgConfig.LEVEL_WARNING, KgConfig.LEVEL_BRAKE, KgConfig.LEVEL_FULL};
+        for (int i = 0; i < used.length; i++) {
+            p.db.set(used[i] * MIB);
+            assertEquals(used[i] + " MiB", levels[i], g.level());
+            final org.json.JSONObject st = g.status();
+            assertEquals(levels[i], st.getString("level"));
+            assertEquals(used[i] / 10.0, st.getDouble("usedPercent"), 0.05);
+        }
+        final org.json.JSONObject st = g.status();
+        assertEquals(1000 * MIB / 100 * 70, st.getLong("noticeAtBytes"));
+        assertEquals(1000 * MIB / 100 * 80, st.getLong("warnAtBytes"));
+        // after the brake the pause holds down to the resume threshold (hysteresis)
+        p.db.set(850 * MIB);
+        assertEquals(StorageGuard.BUDGET, refusal(g, WriteClass.GROWTH, 0));
+        // notice and warning only inform: on the way up, growth is admitted below the brake
+        final FakeProbe q = new FakeProbe();
+        final StorageGuard fresh = guard(q, KgConfig.BUDGET_MAX_BYTES, Long.toString(1000 * MIB));
+        q.db.set(850 * MIB);
+        assertEquals(KgConfig.LEVEL_WARNING, fresh.level());
+        assertNull(refusal(fresh, WriteClass.GROWTH, MIB));
+    }
+
+    @Test
     public void diskReserveAndCriticalFloor() {
         final FakeProbe p = new FakeProbe();
         final StorageGuard g = guard(p, "resource.disk.free.min.steadystate", "4096", "resource.disk.free.min.undershot", "2048",

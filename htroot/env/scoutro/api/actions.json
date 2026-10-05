@@ -5262,6 +5262,29 @@
             "resumeAtBytes": {
               "type": "integer"
             },
+            "usedPercent": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "level": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "notice",
+                "warning",
+                "brake",
+                "full"
+              ],
+              "description": "notice from budget.noticePercent (70) of the budget (status only), warning from budget.warnPercent (80, shown in the UI and the dashboard), brake from budget.pausePercent (90: new growth pauses; for JSON-LD the capture pauses, pages are still indexed), full at the budget (the hard limit). Every change is an event (storage_level, jsonld_level)."
+            },
+            "noticeAtBytes": {
+              "type": "integer"
+            },
+            "warnAtBytes": {
+              "type": "integer"
+            },
             "maintenanceReserveBytes": {
               "type": "integer"
             },
@@ -5507,6 +5530,29 @@
               "description": "Sum of kg_doc.jsonld_bytes plus bytes captured but not yet synchronised (upper bound of the field in Solr); null while unknown."
             },
             "maxTotalBytes": {
+              "type": "integer"
+            },
+            "usedPercent": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "level": {
+              "type": "string",
+              "enum": [
+                "ok",
+                "notice",
+                "warning",
+                "brake",
+                "full"
+              ],
+              "description": "notice from budget.noticePercent (70) of the budget (status only), warning from budget.warnPercent (80, shown in the UI and the dashboard), brake from budget.pausePercent (90: new growth pauses; for JSON-LD the capture pauses, pages are still indexed), full at the budget (the hard limit). Every change is an event (storage_level, jsonld_level)."
+            },
+            "noticeAtBytes": {
+              "type": "integer"
+            },
+            "warnAtBytes": {
               "type": "integer"
             },
             "pauseAtBytes": {

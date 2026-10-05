@@ -13777,6 +13777,18 @@
     <trans-unit id="74b01187" xml:space="preserve" approved="no" translate="yes">
        <source>Growth paused</source>
     </trans-unit>
+    <trans-unit id="c20796d8" xml:space="preserve" approved="no" translate="yes">
+       <source>notice</source>
+    </trans-unit>
+    <trans-unit id="4305af9c" xml:space="preserve" approved="no" translate="yes">
+       <source>warning</source>
+    </trans-unit>
+    <trans-unit id="4510e1a7" xml:space="preserve" approved="no" translate="yes">
+       <source>growth paused</source>
+    </trans-unit>
+    <trans-unit id="2eb88b77" xml:space="preserve" approved="no" translate="yes">
+       <source>budget reached</source>
+    </trans-unit>
   </body>
 </file>
 
@@ -15387,6 +15399,63 @@
     </trans-unit>
     <trans-unit id="ad7ccab3" xml:space="preserve" approved="no" translate="yes">
        <source>yes: at most %1 facts and %2 characters within %3 ms; AI Shield guests: %4</source>
+    </trans-unit>
+    <trans-unit id="37b662bb" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD in the Solr index</source>
+    </trans-unit>
+    <trans-unit id="e2d320b3" xml:space="preserve" approved="no" translate="yes">
+       <source>Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.</source>
+    </trans-unit>
+    <trans-unit id="45eab64" xml:space="preserve" approved="no" translate="yes">
+       <source>Level</source>
+    </trans-unit>
+    <trans-unit id="ddc" xml:space="preserve" approved="no" translate="yes">
+       <source>ok</source>
+    </trans-unit>
+    <trans-unit id="53f34c35" xml:space="preserve" approved="no" translate="yes">
+       <source>notice (from 70 %)</source>
+    </trans-unit>
+    <trans-unit id="2cec767a" xml:space="preserve" approved="no" translate="yes">
+       <source>warning (from 80 %)</source>
+    </trans-unit>
+    <trans-unit id="7f5f4915" xml:space="preserve" approved="no" translate="yes">
+       <source>brake: growth paused (from 90 %)</source>
+    </trans-unit>
+    <trans-unit id="c3c13cac" xml:space="preserve" approved="no" translate="yes">
+       <source>full: budget reached</source>
+    </trans-unit>
+    <trans-unit id="58285aa3" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD capture</source>
+    </trans-unit>
+    <trans-unit id="50bd30a6" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD stored</source>
+    </trans-unit>
+    <trans-unit id="ab2f7f06" xml:space="preserve" approved="no" translate="yes">
+       <source>active</source>
+    </trans-unit>
+    <trans-unit id="c4ac992e" xml:space="preserve" approved="no" translate="yes">
+       <source>paused</source>
+    </trans-unit>
+    <trans-unit id="1ad6f" xml:space="preserve" approved="no" translate="yes">
+       <source>off</source>
+    </trans-unit>
+    <trans-unit id="3a986101" xml:space="preserve" approved="no" translate="yes">
+       <source>The knowledge graph uses %1 % of its storage budget.</source>
+    </trans-unit>
+    <trans-unit id="10125289" xml:space="preserve" approved="no" translate="yes">
+       <source>New growth of the knowledge graph is paused at %1 % of its storage budget; reads, deletions and the crawl continue.</source>
+    </trans-unit>
+    <trans-unit id="a1e89bd9" xml:space="preserve" approved="no" translate="yes">
+       <source>The knowledge graph has reached its storage budget (%1 %); only reads and deletions continue, the crawl is not affected.</source>
+    </trans-unit>
+    <trans-unit id="8e64a9c8" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD uses %1 % of its budget in the Solr index.</source>
+    </trans-unit>
+    <trans-unit id="9d749f78" xml:space="preserve" approved="no" translate="yes">
+       <source>The JSON-LD capture is paused at %1 % of its budget; pages are still crawled and indexed without it.</source>
+    </trans-unit>
+    <trans-unit id="ed0e4eeb" xml:space="preserve" approved="no" translate="yes">
+       <source>The JSON-LD budget is reached (%1 %); pages are still crawled and indexed without JSON-LD.</source>
     </trans-unit>
   </body>
 </file>

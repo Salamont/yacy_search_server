@@ -62,6 +62,16 @@
     load();
   }
 
+  // A budget meter: blue below notice, then amber (notice), orange (warning), red (brake and full).
+  function meterInto(box, used, budget, level) {
+    if (used == null || !budget) return;
+    const pct = Math.min(100, Math.round(used * 100 / budget));
+    const meter = node('div', null, 'skg-meter'); meter.setAttribute('role', 'img'); meter.setAttribute('aria-label', t('used') + ' ' + pct + ' %');
+    const cls = { notice: ' skg-notice', warning: ' skg-warn', brake: ' skg-critical', full: ' skg-critical' }[level] || '';
+    const fill = node('div', null, 'skg-meter-fill' + cls); fill.style.width = pct + '%';
+    meter.append(fill); box.append(meter, node('p', bytes(used) + ' / ' + bytes(budget) + ' (' + pct + ' %)', 'sseo-note'));
+  }
+
   // ------------------------------------------------------------------ overview
   async function overview() {
     const run = ++generation; message(t('loading'));
@@ -75,17 +85,25 @@
     card('state', s.state + (s.reason ? ' · ' + s.reason : ''));
     card('objects_count', objects);
     card('lag', s.sync?.lag?.pending);
-    const st = s.storage || {};
+    const st = s.storage || {}, jl = s.jsonld || {};
     const used = st.usedBytes, budget = st.budgetBytes;
     const bar = $('budget'); bar.replaceChildren();
-    if (used != null && budget) {
-      const pct = Math.min(100, Math.round(used * 100 / budget));
-      const meter = node('div', null, 'skg-meter'); meter.setAttribute('role', 'img'); meter.setAttribute('aria-label', t('used') + ' ' + pct + ' %');
-      const fill = node('div', null, 'skg-meter-fill' + (pct >= 90 ? ' skg-critical' : pct >= 80 ? ' skg-warn' : '')); fill.style.width = pct + '%';
-      meter.append(fill); bar.append(meter, node('p', bytes(used) + ' / ' + bytes(budget) + ' (' + pct + ' %)', 'sseo-note'));
+    meterInto(bar, used, budget, st.level);
+    const jbar = $('jsonld-budget'); jbar.replaceChildren();
+    meterInto(jbar, jl.estimatedBytes, jl.maxTotalBytes, jl.level);
+    // warning, brake and full are shown as a banner; notice only in the level row
+    const banner = $('budget-banner'); banner.replaceChildren();
+    for (const [what, level, pct] of [['graph', st.level, st.usedPercent], ['jsonld', jl.level, jl.usedPercent]]) {
+      if (level === 'warning' || level === 'brake' || level === 'full')
+        banner.append(node('p', t('level_' + level + '_' + what).replace('%1', fmt(pct)), 'skg-banner skg-banner-' + level));
     }
-    stats('storage', [['used', bytes(used)], ['budget', bytes(budget)], ['growth', st.growthAllowed == null ? null : t(st.growthAllowed ? 'yes' : 'no')],
-      ['reasons', (st.reasons || []).map(r => r.code).join(', ') || t('none')]]);
+    banner.hidden = !banner.children.length;
+    stats('storage', [['used', bytes(used)], ['budget', bytes(budget)], ['level', st.level ? t('level_' + st.level) : null],
+      ['growth', st.growthAllowed == null ? null : t(st.growthAllowed ? 'yes' : 'no')],
+      ['reasons', (st.reasons || []).map(r => r.code).join(', ') || t('none')],
+      ['jsonld', jl.state ? t('jsonld_' + jl.state) + (jl.reason && jl.state !== 'active' ? ' · ' + jl.reason : '') : null],
+      ['jsonld_used', jl.estimatedBytes == null ? null : bytes(jl.estimatedBytes) + ' / ' + bytes(jl.maxTotalBytes)
+        + (jl.level ? ' · ' + t('level_' + jl.level) : '')]]);
     const sy = s.sync || {};
     stats('sync', [['state', sy.state], ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],

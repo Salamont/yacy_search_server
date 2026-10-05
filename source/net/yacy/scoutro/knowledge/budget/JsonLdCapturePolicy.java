@@ -100,10 +100,18 @@ public final class JsonLdCapturePolicy {
         return this.state;
     }
 
+    /** The level of the estimate against the JSON-LD budget ({@link KgConfig#level}); ok while unknown. */
+    public synchronized String level() {
+        return this.estimatedBytes == null ? KgConfig.LEVEL_OK : this.cfg.level(this.estimatedBytes, this.cfg.jsonldMaxTotalBytes);
+    }
+
     public synchronized JSONObject status() {
+        final long max = this.cfg.jsonldMaxTotalBytes;
         return KgJson.obj("configured", this.cfg.jsonldEnabled, "state", this.state.name().toLowerCase(),
                 "reason", this.reason, "captureImplemented", true,
-                "estimatedBytes", this.estimatedBytes, "maxTotalBytes", this.cfg.jsonldMaxTotalBytes,
+                "estimatedBytes", this.estimatedBytes, "maxTotalBytes", max,
+                "usedPercent", this.estimatedBytes == null || max <= 0 ? null : Math.round(this.estimatedBytes * 1000.0 / max) / 10.0,
+                "level", level(), "noticeAtBytes", max / 100L * this.cfg.noticePercent, "warnAtBytes", max / 100L * this.cfg.warnPercent,
                 "pauseAtBytes", pauseAtBytes(), "resumeAtBytes", resumeAtBytes(),
                 "maxBytesPerDoc", this.cfg.jsonldMaxBytesPerDoc, "maxBlocksPerDoc", this.cfg.jsonldMaxBlocksPerDoc);
     }

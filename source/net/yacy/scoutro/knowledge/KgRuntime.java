@@ -238,6 +238,9 @@ public final class KgRuntime {
     private final Object pauseLock = new Object();
     private long startedAt;
     private long lastMeasure;
+    /** The last recorded levels of the graph and JSON-LD budgets (events on every change). */
+    private String storageLevel = KgConfig.LEVEL_OK;
+    private String jsonldLevel = KgConfig.LEVEL_OK;
 
     private final Object integrityLock = new Object();
     private Integrity integrity = Integrity.NOT_REQUIRED;
@@ -668,12 +671,32 @@ public final class KgRuntime {
                     s.checkpoint();
                 }
                 updateJsonLdCapture();
+                this.storageLevel = noteLevel("storage_level", this.storageLevel, this.guard.level(), this.config.budgetMaxBytes);
+                this.jsonldLevel = noteLevel("jsonld_level", this.jsonldLevel, this.jsonld.level(), this.config.jsonldMaxTotalBytes);
             }
         } catch (final KgException e) {
             // recorded by the guard and visible in the status
         } catch (final RuntimeException e) {
             LOG.warn("knowledge graph maintenance step failed: " + e);
         }
+    }
+
+    /**
+     * Records a change of a budget level as an event (info when it falls or
+     * reaches notice, warning from warning on) and logs warnings.
+     */
+    private String noteLevel(final String code, final String before, final String now, final long budget) {
+        if (now.equals(before)) {
+            return before;
+        }
+        final boolean rising = KgConfig.LEVELS.indexOf(now) > KgConfig.LEVELS.indexOf(before);
+        final boolean serious = rising && KgConfig.LEVELS.indexOf(now) >= KgConfig.LEVELS.indexOf(KgConfig.LEVEL_WARNING);
+        final String detail = before + " -> " + now + " (budget " + budget + " bytes)";
+        if (serious) {
+            LOG.warn("knowledge graph " + code.replace('_', ' ') + ": " + detail);
+        }
+        recordEvent(serious ? 2 : 1, code, detail, false);
+        return now;
     }
 
     // -------------------------------------------------------------- integrity
