@@ -798,10 +798,7 @@ public final class KgRuntime {
             if (failure != null) {
                 this.integrity = Integrity.ABORTED;
                 this.integrityError = failure.code();
-            } else if ("ok".equals(result)) {
-                this.integrity = Integrity.OK;
-                this.integrityResult = "ok";
-            } else {
+            } else if (!"ok".equals(result)) {
                 this.integrity = Integrity.FAILED;
                 this.integrityResult = clip(String.valueOf(result));
             }
@@ -817,6 +814,11 @@ public final class KgRuntime {
             this.guard.setIntegrityBlock(null, null);
             LOG.info("knowledge graph integrity check passed in " + took + " ms");
             recordEvent(1, "integrity_ok", took + " ms", true);
+            // published last: once the check reads OK, writes are admitted and the passed check is recorded
+            synchronized (this.integrityLock) {
+                this.integrity = Integrity.OK;
+                this.integrityResult = "ok";
+            }
         } else {
             // a damaged database: every write stops, the stored flag keeps the check required
             this.guard.storageError("integrity_check");
