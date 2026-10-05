@@ -66,6 +66,7 @@ import net.yacy.document.parser.html.Evaluation.Element;
 import net.yacy.kelondro.io.CharBuffer;
 import net.yacy.kelondro.util.FileUtils;
 import net.yacy.kelondro.util.ISO639;
+import net.yacy.scoutro.knowledge.sync.JsonLdCapture;
 
 /**
  * A content scraper supporting HTML tags.
@@ -222,6 +223,10 @@ public class ContentScraper extends AbstractScraper implements Scraper {
      * annotations such as RDFa, microdata, microformats or JSON-LD
      */
     private final SizeLimitedSet<DigestURL> linkedDataTypes;
+
+    /** Bounded JSON-LD blocks for the Scoutro knowledge graph; null unless its capture is active (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.2) */
+    private JsonLdCapture.Blocks ldJson;
+    private final boolean ldJsonScraped = JsonLdCapture.isActive();
 
     private final SizeLimitedMap<String, String> metas;
     private final SizeLimitedMap<String, DigestURL> hreflang, navigation;
@@ -1018,6 +1023,9 @@ public class ContentScraper extends AbstractScraper implements Scraper {
                 this.evaluationScores.match(Element.scriptpath, src);
             } else {
                 this.evaluationScores.match(Element.scriptcode, LB.matcher(new String(tag.content.getChars())).replaceAll(" "));
+                if (this.ldJsonScraped && "application/ld+json".equalsIgnoreCase(tag.opts.getProperty("type", EMPTY_STRING).trim())) {
+                    this.ldJson = JsonLdCapture.offer(this.ldJson, tag.content.getChars());
+                }
             }
         } else if (tag.tagType == TagType.article) {
             h = cleanLine(CharacterCoding.html2unicode(stripAllTags(tag.content.getChars())));
@@ -1251,6 +1259,16 @@ public class ContentScraper extends AbstractScraper implements Scraper {
      */
     public SizeLimitedSet<DigestURL> getLinkedDataTypes() {
         return this.linkedDataTypes;
+    }
+
+    /** JSON-LD blocks kept for the knowledge graph, or null */
+    public JsonLdCapture.Blocks getLdJsonBlocks() {
+        return this.ldJson;
+    }
+
+    /** true if the knowledge graph's JSON-LD capture was active while this document was parsed */
+    public boolean ldJsonScraped() {
+        return this.ldJsonScraped;
     }
 
     public Set<AnchorURL> getScript() {
@@ -1542,6 +1560,7 @@ public class ContentScraper extends AbstractScraper implements Scraper {
         this.frames.clear();
         this.iframes.clear();
         this.linkedDataTypes.clear();
+        this.ldJson = null;
         this.embeds.clear();
         this.images.clear();
         this.icons.clear();

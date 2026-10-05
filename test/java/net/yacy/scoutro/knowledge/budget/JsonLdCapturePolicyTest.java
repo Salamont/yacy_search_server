@@ -2,6 +2,7 @@ package net.yacy.scoutro.knowledge.budget;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import org.json.JSONObject;
 import org.junit.Test;
@@ -37,7 +38,7 @@ public class JsonLdCapturePolicyTest {
         assertEquals(State.PAUSED, p.evaluate(true, 85 * MIB, 100 * GIB));
         assertEquals(State.ACTIVE, p.evaluate(true, 79 * MIB, 100 * GIB));
         final JSONObject s = p.status();
-        assertFalse(s.optBoolean("captureImplemented", true));
+        assertTrue(s.optBoolean("captureImplemented", false));
         assertEquals(100 * MIB, s.optLong("maxTotalBytes"));
     }
 

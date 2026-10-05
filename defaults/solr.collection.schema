@@ -216,6 +216,9 @@ responsetime_i
 ## all visible text, text
 text_t
 
+## JSON-LD blocks (application/ld+json) of the page, stored only and bounded (Scoutro knowledge graph); written only for documents of collections enabled for the graph while its capture is active. Keep it enabled: YaCy rewrites documents only with enabled fields.
+ld_json_txt
+
 ## additional synonyms to the words in the text
 synonyms_sxt
 

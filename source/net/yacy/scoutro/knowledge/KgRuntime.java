@@ -26,21 +26,35 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
+
+import org.apache.solr.client.solrj.SolrClient;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import net.yacy.cora.federate.solr.instance.EmbeddedInstance;
 import net.yacy.cora.util.ConcurrentLog;
+import net.yacy.cora.util.Memory;
+import net.yacy.kelondro.util.MemoryControl;
 import net.yacy.scoutro.knowledge.budget.JsonLdCapturePolicy;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.budget.StorageProbe;
 import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
+import net.yacy.scoutro.knowledge.sync.Capture;
+import net.yacy.scoutro.knowledge.sync.DirtySet;
+import net.yacy.scoutro.knowledge.sync.EmbeddedSolrSource;
+import net.yacy.scoutro.knowledge.sync.Gates;
+import net.yacy.scoutro.knowledge.sync.JsonLdCapture;
+import net.yacy.scoutro.knowledge.sync.Reconciler;
+import net.yacy.scoutro.knowledge.sync.SyncService;
 import net.yacy.search.Switchboard;
 
 /**
- * Lifecycle of the knowledge graph (package 1: store, budget, status).
+ * Lifecycle of the knowledge graph (package 1: store, budget, status;
+ * package 2a: synchronisation with Solr).
  * <p>
  * With {@code scoutro.kg.enabled=false} (the default) nothing happens: no
  * directory, no file, no thread, and the SQLite native library is not
@@ -51,7 +65,10 @@ import net.yacy.search.Switchboard;
  * waits for the write lock, so nothing the maintenance thread does can keep
  * it from interrupting a read. The maintenance thread
  * ({@value #MAINTENANCE_THREAD}) runs the supervised work: the integrity check
- * after an unclean shutdown, measurement, checkpoints and retries.
+ * after an unclean shutdown, measurement, checkpoints and retries. With the
+ * embedded Solr core available, the sync thread ({@value #SYNC_THREAD}) follows
+ * the index: the capture processor records every change, and every start
+ * schedules a full reconcile (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, section 5).
  * <p>
  * After an unclean shutdown graph writes (growth and maintenance) stay blocked
  * until {@code PRAGMA quick_check} has passed; a failed or aborted check keeps
@@ -70,6 +87,7 @@ public final class KgRuntime {
     public static final String WATCHDOG_THREAD = "ScoutroKG.watchdog";
     public static final String MAINTENANCE_THREAD = "ScoutroKG.maintenance";
     public static final String SHUTDOWN_HOOK_THREAD = "ScoutroKG.shutdown";
+    public static final String SYNC_THREAD = SyncService.THREAD;
     /** Watchdog period: a read is interrupted at most this long after its deadline. */
     public static final long WATCHDOG_MILLIS = 250L;
 
@@ -84,6 +102,10 @@ public final class KgRuntime {
     private static final long MEASURE_EVERY_MILLIS = 30_000L;
     private static final long STOP_WAIT_MILLIS = 5000L;
     private static final int STATUS_EVENTS = 20;
+    private static final long SYNC_DELAY_MILLIS = 200L;
+    private static final long SYNC_SLICE_MILLIS = 1000L;
+    private static final int SYNC_SLICE_STEPS = 1000;
+    private static final long FINAL_DRAIN_MILLIS = 2000L;
 
     /** The integrity check: {@code PRAGMA quick_check}, "ok" if the database is consistent. */
     static final KgStore.SqlWork<String> QUICK_CHECK = c -> KgStore.queryString(c, "PRAGMA quick_check(1)");
@@ -100,15 +122,26 @@ public final class KgRuntime {
         final KgStore.ConnectionFactory connections;
         final boolean monitorThread;
         final KgStore.SqlWork<String> integrityCheck;
+        /** The embedded collection1 client (null when only a remote Solr is connected); the whole supplier null = no sync. */
+        final Supplier<SolrClient> solr;
+        final Gates.Probe system;
 
+        /** Without Solr synchronisation (store, budget and status only). */
         public Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread) {
-            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK);
+            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK, null, Gates.IDLE);
+        }
+
+        /** With Solr synchronisation through {@code solr}. */
+        public Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
+                final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
+                final Supplier<SolrClient> solr, final Gates.Probe system) {
+            this(dataRoot, config, clock, probe, connections, monitorThread, QUICK_CHECK, solr, system);
         }
 
         private Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
-                final KgStore.SqlWork<String> integrityCheck) {
+                final KgStore.SqlWork<String> integrityCheck, final Supplier<SolrClient> solr, final Gates.Probe system) {
             this.dataRoot = dataRoot;
             this.config = config;
             this.clock = clock;
@@ -116,16 +149,44 @@ public final class KgRuntime {
             this.connections = connections;
             this.monitorThread = monitorThread;
             this.integrityCheck = integrityCheck;
+            this.solr = solr;
+            this.system = system;
         }
 
         /** The same environment with another integrity check (tests). */
         Env withIntegrityCheck(final KgStore.SqlWork<String> check) {
-            return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread, check);
+            return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread, check,
+                    this.solr, this.system);
         }
 
         static Env of(final Switchboard sb) {
+            final Supplier<SolrClient> solr = () -> {
+                final EmbeddedInstance e = sb.index.fulltext().getEmbeddedInstance();
+                return e == null ? null : e.getDefaultServer();
+            };
+            final Gates.Probe system = new Gates.Probe() {
+                @Override
+                public int indexingQueue() {
+                    return sb.getIndexingProcessorsQueueSize();
+                }
+
+                @Override
+                public double load() {
+                    return Memory.getSystemLoadAverage();
+                }
+
+                @Override
+                public long freeHeapBytes() {
+                    return MemoryControl.available();
+                }
+
+                @Override
+                public String onlineCaution() {
+                    return sb.onlineCaution();
+                }
+            };
             return new Env(sb.getDataPath(), key -> sb.getConfig(key, null), System::currentTimeMillis,
-                    StorageProbe.SYSTEM, KgStore.SQLITE, true);
+                    StorageProbe.SYSTEM, KgStore.SQLITE, true, solr, system);
         }
     }
 
@@ -140,6 +201,10 @@ public final class KgRuntime {
     private volatile KgStore store;
     private ScheduledExecutorService watchdog;
     private ScheduledExecutorService maintenance;
+    private ScheduledExecutorService syncThread;
+    private DirtySet dirty;
+    private volatile SyncService sync;
+    private volatile Long jsonldEstimate;
     private volatile boolean closing;
     private boolean uncleanStartDetected;
     /** False while the start could not be written; the guard holds graph writes back until it is true. */
@@ -266,11 +331,18 @@ public final class KgRuntime {
             this.guard.refresh();
             this.lastMeasure = this.env.clock.getAsLong();
             set(State.RUNNING, null, null);
+            if (this.env.solr != null) {
+                startSync();
+            }
             if (this.env.monitorThread) {
                 this.watchdog = daemon(WATCHDOG_THREAD);
                 this.watchdog.scheduleWithFixedDelay(this::watchdogTick, WATCHDOG_MILLIS, WATCHDOG_MILLIS, TimeUnit.MILLISECONDS);
                 this.maintenance = daemon(MAINTENANCE_THREAD);
                 this.maintenance.scheduleWithFixedDelay(this::tick, 0L, MAINTENANCE_MILLIS, TimeUnit.MILLISECONDS);
+                if (this.sync != null) {
+                    this.syncThread = daemon(SYNC_THREAD);
+                    this.syncThread.scheduleWithFixedDelay(this::syncTick, 0L, SYNC_DELAY_MILLIS, TimeUnit.MILLISECONDS);
+                }
             }
             LOG.info("knowledge graph store open: " + this.paths.db + (this.uncleanStartDetected
                     ? " (unclean previous shutdown; graph writes wait for the integrity check)" : ""));
@@ -289,6 +361,19 @@ public final class KgRuntime {
         }
     }
 
+    /**
+     * Starts following Solr: the capture processor records from now on, so
+     * no change between this point and the reconcile the sync schedules at
+     * its start can be missed.
+     */
+    private void startSync() {
+        this.dirty = new DirtySet(this.config.captureMaxPending);
+        Capture.activate(this.dirty);
+        this.sync = new SyncService(this.config, this.store, this.dirty, new EmbeddedSolrSource(this.env.solr),
+                new Gates(this.config, this.env.system), this.env.clock, this.uncleanStartDetected);
+        updateJsonLdCapture();
+    }
+
     private static ScheduledExecutorService daemon(final String name) {
         return Executors.newSingleThreadScheduledExecutor(r -> {
             final Thread t = new Thread(r, name);
@@ -301,9 +386,10 @@ public final class KgRuntime {
     /**
      * Reads the clean-shutdown flag, the manual pause and the integrity flag,
      * then marks this run as started. A clean-shutdown flag left at 0 by the
-     * previous run means it ended without {@link #close()}: the sync (package
-     * 2) must then run a full reconcile, and graph writes wait for the
-     * integrity check. The integrity flag stays set across a clean stop until
+     * previous run means it ended without {@link #close()}: graph writes wait
+     * for the integrity check, and the sync enqueues the recent changes
+     * ({@code _version_} catch-up) before the full reconcile that every start
+     * runs. The integrity flag stays set across a clean stop until
      * a check has passed.
      * <p>
      * If the storage guard refuses the bookkeeping write (e.g. the disk is
@@ -362,6 +448,24 @@ public final class KgRuntime {
     public synchronized void close() {
         this.closing = true;
         final KgStore s = this.store;
+        // the sync first: it finishes its step, the capture stops, and what it recorded reaches the persistent queue.
+        // No Thread.interrupt here: the sync thread may be inside Solr, whose update log uses interruptible channels.
+        if (this.sync != null) {
+            this.sync.requestStop();
+        }
+        if (this.syncThread != null) {
+            this.syncThread.shutdown();
+            awaitQuietly(this.syncThread);
+            this.syncThread = null;
+        }
+        if (this.dirty != null) {
+            Capture.deactivate(this.dirty);
+        }
+        if (this.sync != null) {
+            JsonLdCapture.off();
+            this.sync.finalDrain(this.env.clock.getAsLong() + FINAL_DRAIN_MILLIS);
+            this.sync = null;
+        }
         if (this.maintenance != null) {
             this.maintenance.shutdownNow();
             if (s != null) {
@@ -425,6 +529,20 @@ public final class KgRuntime {
 
     // ------------------------------------------------------------ background
 
+    /** Sync step: runs bounded sync steps for up to a second, then yields. */
+    void syncTick() {
+        final SyncService s = this.sync;
+        if (s == null || this.state != State.RUNNING || this.closing) {
+            return;
+        }
+        final long until = this.env.clock.getAsLong() + SYNC_SLICE_MILLIS;
+        int steps = 0;
+        while (s.step() && !this.closing && !Thread.currentThread().isInterrupted() && this.env.clock.getAsLong() < until
+                && ++steps < SYNC_SLICE_STEPS) {
+            // more work is due right away
+        }
+    }
+
     /** Watchdog step: interrupts reads past their deadline. No SQL, no locks shared with the work it supervises. */
     void watchdogTick() {
         final KgStore s = this.store;
@@ -477,6 +595,7 @@ public final class KgRuntime {
                 if (this.guard.walBytes() >= this.config.walCheckpointBytes) {
                     s.checkpoint();
                 }
+                updateJsonLdCapture();
             }
         } catch (final KgException e) {
             // recorded by the guard and visible in the status
@@ -627,7 +746,68 @@ public final class KgRuntime {
         }
         this.guard.setManualPause(false);
         saveManualPause();
+        final SyncService s = this.sync;
+        if (s != null) {
+            // a reactivation: Solr may have changed in ways the events did not carry (overflow while blocked)
+            s.requestReconcile(Reconciler.REASON_RESUME);
+        }
         return status();
+    }
+
+    /** Schedules a full reconcile now ({@code POST /kg/control {"action":"reconcile"}}). */
+    public synchronized JSONObject reconcile() throws KgException {
+        requireRunning();
+        requireSync().requestReconcile(Reconciler.REASON_ADMIN);
+        return status();
+    }
+
+    /**
+     * Lets a reconcile that the mass-deletion brake stopped delete the
+     * documents it confirmed as absent ({@code confirm_reconcile}).
+     */
+    public synchronized JSONObject confirmReconcile() throws KgException {
+        requireRunning();
+        requireSync().confirmReconcile();
+        return status();
+    }
+
+    private SyncService requireSync() throws KgException {
+        final SyncService s = this.sync;
+        if (s == null) {
+            throw new KgException(KgException.SYNC_UNAVAILABLE, "the knowledge graph does not follow Solr in this environment");
+        }
+        return s;
+    }
+
+    /**
+     * Re-evaluates the JSON-LD capture with its own budget: the estimate is
+     * the sum of {@code kg_doc.jsonld_bytes} plus the bytes captured but not
+     * yet synchronised. The parser only ever reads the resulting flag, so a
+     * pause never blocks crawling or indexing.
+     */
+    private void updateJsonLdCapture() {
+        final KgStore s = this.store;
+        final boolean running = this.state == State.RUNNING && s != null && this.sync != null && !this.closing;
+        Long estimate = null;
+        if (running) {
+            try {
+                estimate = s.read(c -> KgStore.queryLong(c, "SELECT coalesce(sum(jsonld_bytes), 0) FROM kg_doc"))
+                        + JsonLdCapture.pendingBytes();
+            } catch (final KgException e) {
+                estimate = this.jsonldEstimate;
+            }
+        }
+        this.jsonldEstimate = estimate;
+        final JsonLdCapturePolicy.State st = this.jsonld.evaluate(running, estimate,
+                this.guard == null ? 0L : diskUsable(this.guard.status()));
+        if (st == JsonLdCapturePolicy.State.ACTIVE) {
+            JsonLdCapture.activate(this.config.jsonldMaxBlocksPerDoc, (int) Math.min(Integer.MAX_VALUE, this.config.jsonldMaxBytesPerDoc),
+                    this.config.allCollections, this.config.collections);
+        } else if (st == JsonLdCapturePolicy.State.PAUSED) {
+            JsonLdCapture.pause(this.config.allCollections, this.config.collections);
+        } else {
+            JsonLdCapture.off();
+        }
     }
 
     /**
@@ -692,17 +872,24 @@ public final class KgRuntime {
                 KgJson.put(storage, "readers", s.readerStatus(this.env.clock.getAsLong()));
             }
             KgJson.put(o, "storage", storage);
-            // nothing is captured yet (package 2), so the field size in Solr is unknown
-            this.jsonld.evaluate(running, null, diskUsable(storage));
+            if (this.sync == null) {
+                // without the sync nothing is captured, so the field size in Solr is unknown
+                this.jsonld.evaluate(false, null, diskUsable(storage));
+            }
         } else {
             this.jsonld.evaluate(false, null, 0L);
         }
-        KgJson.put(o, "jsonld", this.jsonld.status());
+        final JSONObject jl = this.jsonld.status();
+        KgJson.put(jl, "capture", JsonLdCapture.status());
+        KgJson.put(o, "jsonld", jl);
         if (running) {
             KgJson.put(o, "store", KgJson.obj("schemaVersion", s.schemaVersion(), "epoch", s.epoch(),
                     "uncleanStartDetected", this.uncleanStartDetected, "startRecorded", this.startRecorded,
                     "integrity", integrityStatus(), "manualPause", this.guard.manualPause(),
                     "manualPauseSaved", this.unsavedManualPause == null));
+            final SyncService sy = this.sync;
+            KgJson.put(o, "sync", sy != null ? sy.status()
+                    : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped"));
             KgJson.put(o, "events", recentEvents(s));
         }
         return o;
@@ -747,9 +934,28 @@ public final class KgRuntime {
         return a;
     }
 
+    /** For tests: the process "dies" without stop(): forget the instance and its hook. */
+    static synchronized void forgetForTests() {
+        final Thread hook = shutdownHook;
+        shutdownHook = null;
+        if (hook != null) {
+            try {
+                Runtime.getRuntime().removeShutdownHook(hook);
+            } catch (final IllegalStateException | SecurityException e) {
+                // shutting down
+            }
+        }
+        current = null;
+    }
+
     /** For tests: whether the shutdown hook is registered. */
     static synchronized boolean shutdownHookRegistered() {
         return shutdownHook != null;
+    }
+
+    /** For tests: the sync while running. */
+    SyncService sync() {
+        return this.sync;
     }
 
     /** For tests: the store while running. */

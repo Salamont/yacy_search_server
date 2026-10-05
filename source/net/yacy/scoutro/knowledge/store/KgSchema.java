@@ -38,7 +38,7 @@ package net.yacy.scoutro.knowledge.store;
  */
 public final class KgSchema {
 
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = 2;
 
     private KgSchema() {}
 
@@ -279,6 +279,40 @@ public final class KgSchema {
             + ")",
     };
 
+    /**
+     * Forward migrations; {@code MIGRATIONS[v - 1]} turns version v into v + 1.
+     * Each runs in the schema transaction of {@link KgStore}; a new database
+     * is created as version 1 and migrated, so both paths are the same.
+     */
+    static final String[][] MIGRATIONS = {
+        // 1 -> 2 (package 2a): reconcile phases and delete candidates, facility kind, state and age indexes
+        {
+            "ALTER TABLE kg_scan ADD COLUMN phase INTEGER NOT NULL DEFAULT 1 CHECK (phase IN (1, 2, 3, 4))",
+            "ALTER TABLE kg_scan ADD COLUMN reason TEXT CHECK (reason IS NULL OR length(reason) <= 64)",
+            "ALTER TABLE kg_scan ADD COLUMN solr_seen INTEGER NOT NULL DEFAULT 0 CHECK (solr_seen >= 0)",
+            "ALTER TABLE kg_scan ADD COLUMN tracked INTEGER NOT NULL DEFAULT 0 CHECK (tracked >= 0)",
+            "ALTER TABLE kg_scan ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0 CHECK (confirmed >= 0)",
+            // verdict 0 unverified, 1 confirmed absent or out of scope, 2 present (re-queued)
+            "CREATE TABLE kg_scan_candidate ("
+                + " run_id INTEGER NOT NULL REFERENCES kg_scan (run_id) ON DELETE CASCADE,"
+                + " doc_id TEXT NOT NULL COLLATE BINARY CHECK (" + docId("doc_id") + "),"
+                + " verdict INTEGER NOT NULL DEFAULT 0 CHECK (verdict IN (0, 1, 2)),"
+                + " generation INTEGER NOT NULL DEFAULT 0 CHECK (generation >= 0),"
+                + " PRIMARY KEY (run_id, doc_id)"
+                + ") WITHOUT ROWID",
+            "CREATE INDEX kg_scan_candidate_verdict ON kg_scan_candidate (run_id, verdict)",
+            "ALTER TABLE kg_entity ADD COLUMN subkind TEXT CHECK (subkind IS NULL OR length(subkind) BETWEEN 1 AND 64)",
+            "CREATE INDEX kg_doc_state ON kg_doc (state, state_since)",
+            "CREATE INDEX kg_doc_loaded ON kg_doc (loaded_at)",
+            "CREATE INDEX kg_statement_subj ON kg_statement (subj, pred)",
+            "CREATE INDEX kg_statement_quality ON kg_statement (quality, last_confirmed)",
+            // when the oldest change of a queued document arrived (lag in the status)
+            "ALTER TABLE kg_work ADD COLUMN enqueued_at INTEGER NOT NULL DEFAULT 0 CHECK (enqueued_at >= 0)",
+            "CREATE INDEX kg_work_claimed ON kg_work (claimed_at) WHERE claimed_at IS NOT NULL",
+            "CREATE INDEX kg_entity_seq ON kg_entity (created_seq)",
+        },
+    };
+
     /** Keys of kg_meta written by the store. */
     public static final String META_SCHEMA_VERSION = "schema_version";
     public static final String META_EPOCH = "dataset_epoch";
@@ -290,4 +324,14 @@ public final class KgSchema {
     /** "1" from an unclean start until an integrity check has passed; survives a clean stop. */
     public static final String META_INTEGRITY_REQUIRED = "integrity_check_required";
     public static final String META_CHANGES_MIN_SEQ = "changes_min_seq";
+    /** End of the last completed reconcile or backfill (daily schedule). */
+    public static final String META_RECONCILE_LAST_COMPLETED = "reconcile_last_completed_at";
+    /** Extractor versions of the last start; a change re-queues every document at low priority. */
+    public static final String META_EXTRACTORS = "extractors";
+    /** Highest Solr version seen at least 30 s before a complete drain (catch-up after an unclean stop). */
+    public static final String META_VERSION_CHECKPOINT = "version_checkpoint";
+    /** The followed collections when the last scan started ({@code KgConfig.collectionsKey}). */
+    public static final String META_COLLECTIONS = "collections";
+    /** "1" while a full reset (Solr *:*) is being applied. */
+    public static final String META_RESET_IN_PROGRESS = "reset_in_progress";
 }

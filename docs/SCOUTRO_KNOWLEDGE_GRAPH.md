@@ -1,10 +1,11 @@
 # Scoutro Knowledge Graph (plan)
 
-Status: **revision 2; package 1 implemented and reworked after review**
-(store, storage guard, runtime, status and control routes; see
-[section 16](#16-package-1-implementation) and the review corrections in
-[16.1](#161-review-corrections-pr-12)).
-Packages 2–5 are not started. Base: `main` at `a42cc7d` (Scoutro
+Status: **revision 2; package 1 merged (PR #12), package 2a implemented**
+(package 1: store, storage guard, runtime, status and control routes, see
+[section 16](#16-package-1-implementation) and [16.1](#161-review-corrections-pr-12);
+package 2a: synchronisation with Solr, tiers 1 and 2, identity resolution,
+change feed, retention and the JSON-LD capture, see
+[section 18](#18-package-2a-implementation)). Packages 2b–5 are not started. Base: `main` at `a42cc7d` (Scoutro
 `1.942-scoutro.12`, alias `0.6.0`). Inputs: the owner's release plan
 (`Scoutro_Knowledge_Graph_Releaseplan.md`, 2026-10-05) and the earlier static
 analysis (`YaCy_Knowledge_Graph_Architekturanalyse.md`). Every finding of that
@@ -49,6 +50,7 @@ reserve, automatic pause and resume, and bounded retention.
 16. [Package 1 implementation](#16-package-1-implementation)
     - 16.1 [Review corrections (PR #12)](#161-review-corrections-pr-12)
 17. [Revision 2 corrections](#17-revision-2-corrections)
+18. [Package 2a implementation](#18-package-2a-implementation)
 
 ## 0. Decisions at a glance
 
@@ -284,7 +286,7 @@ recreated when it changes.
 | `register` (court + HRA/HRB/VR/GnR/PR, normalised), `vat` (validated format), `lei`, `wikidata`, `ik` | global | Organisations or facilities with the equal value, across documents and domains |
 | `ld_id` (absolute JSON-LD `@id`) | host of the declaring page | Mentions with the same `@id` on that host |
 | `site_operator` (the organisation declared as operator on an imprint or as `publisher`/`provider` of the site, with its legal name including the legal form) | registrable domain | The operator mentioned on several pages of the same domain, if the normalised legal name is equal |
-| `facility_address` (type + normalised name + **full address**: street, house number, postal code, locality) | registrable domain | Facility or site mentions with all of these equal, **and** no conflicting discriminator (see below) |
+| `facility_address` (type + facility kind + normalised name + **full address**: street, house number, postal code, locality) | registrable domain | Facility or site mentions with all of these equal, **and** no conflicting discriminator (see below) |
 | `doc_local` (document ID + extractor-local reference) | one document | Repeated mentions inside one document only |
 | phone (E.164), e-mail, name + postal code, `homepage` domain | — | **Never.** Shown as "possible duplicates" in the detail view. |
 
@@ -424,8 +426,8 @@ precisely.
 
    | Case | Action |
    |---|---|
-   | Missing in the graph | Enqueue (this also covers reactivated documents) |
-   | Token differs | Enqueue |
+   | Missing in the graph | Enqueue (this also covers reactivated documents; fail documents of URLs never seen active are not tracked) |
+   | Token differs, or a newer `_version_` | Enqueue |
    | Missing in Solr | Deletion **candidate** only |
 
 3. Deletes nothing directly. A candidate is deleted only after a direct real-time-get lookup in batches of ≤ 100 IDs confirms that the document is absent or out of scope.
@@ -434,18 +436,19 @@ precisely.
    - Candidates already verified stay correct; the rest are not deleted.
    - The run records its cursor in `kg_scan` and resumes from there.
 5. Has a mass-deletion brake:
-   - If verified deletions would exceed `reconcile.maxDeleteFraction` (0.2) of the tracked documents, or Solr reports zero documents while the graph tracks some, the run stops before deleting.
+   - If verified deletions would exceed `reconcile.maxDeleteFraction` (0.2) of the tracked documents (and at least `reconcile.brakeMinDocs`, 50), or Solr reports zero documents while the graph tracks some, the run stops before deleting.
    - It is then marked `suspect` with the counts and needs `POST /kg/control {"action":"confirm_reconcile"}` (package 2).
    - A real `*:*` clear arrives as `full_reset` and is not subject to the brake.
 6. Is lifecycle work (reads plus maintenance writes): it runs while extraction is manually or budget-paused. It stops only when maintenance writes are refused, and resumes from its cursor.
 
 **When it runs:**
 
+- **at every start and every reactivation**, also after a clean stop: Solr may have changed while the graph was disabled or stopped (package 2a; previously planned only after an unclean start);
 - daily (`reconcile.hour`);
 - 5 minutes after the last delete by query;
 - after a dirty-set or queue overflow;
 - after a change of the collection allowlist;
-- after an unclean start.
+- on `resume` and on the control action `reconcile`.
 
 **Catch-up by `_version_` (optimisation only).**
 
@@ -674,7 +677,7 @@ DATA/SCOUTRO/knowledge/
 | `scoutro.kg.source.*` | 14 / 7 / 365 / 90 days | Currency and purge rules ([4.4](#44-quality-and-currency)) |
 | `scoutro.kg.backup.keep` / `intervalDays` | 1 / 7 | Local backups (0 = off) |
 
-- **Implemented and validated in package 1** (`KgConfig`): the budget, WAL, temp, read, integrity, disk and JSON-LD settings. The others follow with their packages.
+- **Implemented and validated in package 1** (`KgConfig`): the budget, WAL, temp, read, integrity, disk and JSON-LD settings. **Package 2a** adds `collections` (`*` for all), `capture.maxPending`, `queue.maxItems`, `extract.*` (tiers 1 and 2), `reconcile.*`, `source.*`, `changes.*` and `gate.*`. The LLM and cache settings follow with 2b.
 - YaCy's `resource.disk.free.min.steadystate` and `undershot` (MB) are read, never changed.
 
 ### 7.3 What bounds which file
@@ -993,11 +996,11 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 | `budget.*`, `disk.*`, `wal.*`, `tmp.maxBytes`, `read.maxTransactionMillis`, `integrity.maxMillis` | [7.2](#72-settings) | budget and disk yes, rest advanced |
 | `jsonld.*` | [7.2](#72-settings) | yes |
 | `queue.maxItems`, `capture.maxPending` | 200 000, 100 000 | no |
-| `extract.*` | 50, 200, 12 000 | advanced |
+| `extract.maxStatementsPerDoc`, `extract.maxExcerptChars`, `extract.maxRuleInputChars` (tier 2), `extract.maxInputChars` (LLM, 2b) | 50, 200, 65 536, 12 000 | advanced |
 | `llm.parallel`, `llm.timeoutSeconds`, `llm.maxAttempts`, `llm.breakerFailures`, `llm.breakerMaxBackoffMinutes`, `llm.maxDocsPerHost` | 1, 120, 2, 3, 60, 25 | advanced |
 | `gate.maxIndexingQueue`, `gate.maxLoad`, `gate.minFreeHeapMB` | 20, 2.5, 256 | advanced |
 | `source.*`, `changes.*`, `cache.maxPercent` | [7.2](#72-settings) | advanced |
-| `reconcile.hour`, `reconcile.debounceSeconds`, `reconcile.maxDeleteFraction` | 3, 300, 0.2 | advanced |
+| `reconcile.hour`, `reconcile.debounceSeconds`, `reconcile.maxDeleteFraction`, `reconcile.brakeMinDocs` | 3, 300, 0.2, 50 | advanced |
 | `backup.keep`, `backup.intervalDays` | 1, 7 | yes |
 | `chat.enabled`, `chat.allowGuests`, `chat.maxFacts`, `chat.maxChars`, `chat.timeoutMs` | true, false, 8, 1 500, 300 | yes |
 
@@ -1026,7 +1029,7 @@ Settings take effect at the next start in package 1. The settings view (package 
 |---|---|
 | `ivy.xml`, `NOTICE` | `org.xerial:sqlite-jdbc` (Apache-2.0), license notice |
 | `defaults/solr/solrconfig.xml` | Update chain ([5.1](#51-change-capture)) |
-| `defaults/solr/schema.xml`, `defaults/solr.collection.schema` | Stored-only `ld_json_txt` (disabled by default) |
+| `defaults/solr/schema.xml`, `defaults/solr.collection.schema` | Stored-only `ld_json_txt` (listed as enabled, written only while the capture runs; see [18](#18-package-2a-implementation)) |
 | `ContentScraper.java`, `Document.java`, `CollectionSchema.java`, `CollectionConfiguration.java` (`yacy2solr`) | Bounded JSON-LD capture |
 | `LLM.java`, `LLMSelection_p.html`/`.java` | Usage `knowledge`, optional per-call read timeout |
 | `ScoutroApiServlet.java` | `case "kg"` routes; `KgRuntime.start/stop` in `init`/`destroy` |
@@ -1059,7 +1062,7 @@ Each package is one or more reviewable PRs on its own branch from the then-curre
 
 ### Package 2: Lifecycle and extraction
 
-- **PR 2a** (no LLM):
+- **PR 2a** (no LLM; implemented, see [18](#18-package-2a-implementation)):
   - update processor with a version-carrying dirty set, sync, work queue;
   - real-time-get reader;
   - backfill;
@@ -1288,3 +1291,105 @@ The review of `0b303ac` found five gaps in package 1. Each was reproduced or con
 | 4 | Solr string order ≠ order of decoded BLOB IDs; delete reconcile under pause; aborted scans | `doc_id` as TEXT with BINARY collation (tested against unsigned byte order). Verified deletions only, abort without deletions, mass-deletion brake, reconcile runs while extraction is paused. | [5.3](#53-reconcile-catch-up-and-backfill), `KgSchema`, `KgStoreTest` |
 | 5 | Domain + name + postal code is not a safe merge; real constraints; evidence keys | Merge keys per type with discriminators that block merges; document-local entities otherwise. Foreign keys and CHECK constraints in v1; evidence key (statement, document, tier). | [4.2](#42-physical-schema-v1), [4.3](#43-identity-resolution), `KgStoreTest` |
 | 6 | Coalescing loses earlier collection assignments (A → B → C) | `scopes_seen` per change row; viewer rule; cursor contract with epoch, retention and redundant-but-never-missing removals | [8.3](#83-export-and-change-feed), `KgChangeLog`, `KgChangeLogTest` |
+
+## 18. Package 2a implementation
+
+**Shipped in this PR** (package 2a; disabled by default like everything before):
+
+| Area | Files |
+|---|---|
+| Change capture | `solr/KgCaptureProcessorFactory`, `sync/DirtySet`, `sync/Capture`; `defaults/solr/solrconfig.xml` (default chain `scoutro-kg`) |
+| Synchronisation | `sync/SyncService`, `sync/WorkQueue`, `sync/SolrSource`, `sync/EmbeddedSolrSource`, `sync/SolrDoc`, `sync/Reconciler`, `sync/FullReset`, `sync/Retention`, `sync/Gates` |
+| JSON-LD capture | `sync/JsonLdCapture`; `ContentScraper` (script branch), `CollectionConfiguration.yacy2solr`, `CollectionSchema.ld_json_txt`, `defaults/solr/schema.xml`, `defaults/solr.collection.schema`; `budget/JsonLdCapturePolicy` is now applied |
+| Extraction (tiers 1 and 2) | `extract/Vocabulary`, `JsonLdBlocks`, `JsonLdExtractor`, `MetadataExtractor`, `RuleExtractor`, `Mention`, `Claim`, `Address`, `Extraction` |
+| Resolution and publish | `resolve/Normalizers`, `resolve/IdentityResolver`, `publish/Terms`, `publish/Aggregates`, `publish/Publisher` |
+| Schema | `store/KgSchema` v2, migrated in place from v1; `KgChangeLog.purge` with a batch limit |
+| Runtime and API | `KgRuntime` (sync thread, start and stop order, JSON-LD evaluation, status `sync`, control `reconcile`/`confirm_reconcile`), `KgConfig` (new keys), `KnowledgeApi`; generator, `openapi.json`, `actions.json` |
+| Docs | `docs/API.md`, `docs/SCOUTRO.md`, this plan |
+
+**O9 resolved.** With the shipped `defaults/solr`, the processor loads in the default chain of `collection1` after the processor that assigns `_version_`. Real-time get sees uncommitted adds and deletes with exactly the versions the processor recorded; deletes carry negative versions, a re-add after a delete a higher one; versions stay monotonic across a restart of the core; the `webgraph` core (same configuration) is ignored; a failing sink never fails a Solr update (`KgCaptureProcessorTest`). The version-checked search fallback of 5.2 is not needed and not built.
+
+**Processing.**
+
+- One thread, `ScoutroKG.sync`, runs bounded steps: a pending full reset first, the drain (≤ 500 events per maintenance transaction, refused events go back into the set), one reconcile slice, one batch of ≤ 50 work items (≤ 3 s), one retention slice, the version checkpoint.
+- Per item: the claim writes a token into `claimed_at`; one real-time get per batch (≤ 100 IDs); then
+
+  | Solr answer | Action |
+  |---|---|
+  | absent, delete event (or after two more lookups with backoff for an add event) | remove (maintenance) |
+  | no followed collection | remove (out of scope) |
+  | `excl`, HTTP 404/410 | `gone`, evidence kept but not current (maintenance) |
+  | other fail document or non-200 status | `unavailable` (maintenance) |
+  | fail document of a URL never seen active | not tracked |
+  | active, token and input hash unchanged | `loaded_at` and version only |
+  | active, same input hash (collections or status changed) | state and scopes (maintenance) |
+  | active, new input | extraction of tiers 1 and 2, publish as growth |
+
+- The input hash (16 bytes) covers the extractor versions, URL, host, language, `exact_signature_l` (the text), the JSON-LD blocks, titles, publisher and coordinate; the text itself (`text_t`) is read only for tier-2 candidates.
+- New growth waits behind the gates (`gate.*`, online caution for scans) and the storage guard. While it is blocked, delete events are processed at once and other items once per 30 s, so removals and state changes continue; an item needing extraction is deferred without counting an attempt.
+- The publish transaction checks, under the write lock, that the change set holds no newer event and that no full clear arrived, then the generation and version (`Publisher`). It completes the work row only if the row still carries its claim; a row re-armed by a newer event stays for the next round.
+
+**Start, stop and restart.**
+
+- **Every start and every reactivation schedules a full reconcile**, also after a clean stop and after a disabled period (reason `start`, `unclean_start`, `collections_changed`; `resume` and the control action `reconcile` request one too). The capture is active from the moment the store is open, before the reconcile scans, so no change in between can be missed.
+- After an unclean stop the sync first enqueues every document with `_version_ ≥ version_checkpoint` (the highest version seen at least 30 s before a complete drain), then reconciles.
+- Stop (servlet `destroy()` or the JVM shutdown hook, both through `KgRuntime.stop()`): the sync thread finishes its step, the capture stops, the change set is drained into `kg_work` (≤ 2 s; a refused drain is covered by the next start's reconcile), then the clean-shutdown mark is written. The next start releases old claims and processes `kg_work` while the reconcile runs.
+- A reconcile interrupted by a stop is started again from the beginning at the next start; an interrupted backfill resumes from its cursor and is followed by a reconcile.
+
+**Reconcile and backfill.**
+
+- One run in `kg_scan` with phases `scan` → `verify` → `delete` → `done`; a run on an empty graph is a backfill.
+- Scan pages are bounded on both sides: ≤ 1000 Solr documents (`id` ascending, committed, followed collections) and ≤ 1000 graph rows after the cursor; the step covers both up to the smaller last ID. Missing in the graph (active documents only), a newer `_version_` or another token → enqueued; missing in Solr → a candidate in `kg_scan_candidate` with the document's generation.
+- A failing, partial or out-of-order page aborts the run (`aborted`, detail, retry with backoff from 1 to 30 minutes, from the cursor). Nothing is deleted before the scan has seen every page.
+- Verify: real-time get per ≤ 100 candidates; present in a followed collection → enqueued, otherwise confirmed absent.
+- Mass-deletion brake: confirmed > `reconcile.maxDeleteFraction` × tracked **and** ≥ `reconcile.brakeMinDocs`, or Solr returned no document while the graph tracks some → `suspect`, event `reconcile_suspect`, nothing deleted until `confirm_reconcile`.
+- Delete: in batches of ≤ 200, each candidate verified again by real-time get right before the delete, removed only with the generation of the scan and without a pending event.
+- Delete by query: a reconcile after `reconcile.debounceSeconds` (moved back by every further one). Overflow of the change set or a full queue: a reconcile at once; documents a full queue could not take come with a follow-up run an hour later. Daily at `reconcile.hour`.
+- Full clear (`*:*`): a new `dataset_epoch` first (old cursors get `epoch_changed`), then all graph data in batches of 1000 rows; `reset_in_progress` survives a restart; `changes_min_seq` is raised; then a backfill. Not subject to the brake.
+
+**Retention** (hourly, maintenance transactions of ≤ 200 rows):
+
+| Rule | Action |
+|---|---|
+| `unavailable` longer than `source.unavailableGraceDays` | `expired` |
+| `active` with `loaded_at` older than `source.maxAgeDays` | `expired` |
+| `gone` longer than `source.goneRetentionDays` | removed (Solr holds only a fail document, which is never tracked again) |
+| `expired` longer than `source.goneRetentionDays` | evidence deleted, input hash cleared; the row stays, otherwise every reconcile would add an old but active document again |
+| `stale` statements older than `source.staleRetentionDays` | deleted; their sources extract again on a recrawl |
+| change rows outside `changes.retentionDays` / `changes.maxRows` | deleted in batches of 5000, `changes_min_seq` raised |
+
+**JSON-LD capture.** The scraper reads one volatile flag per document; while the capture is active it keeps ≤ `jsonld.maxBlocksPerDoc` blocks and ≤ `jsonld.maxBytesPerDoc`, drops a block that would exceed them whole, and keeps only blocks that parse within depth 8 and 500 nodes and carry a relevant `@type`. `yacy2solr` writes `ld_json_txt` only for documents of followed collections. The maintenance thread evaluates the policy every 30 s with the estimate "sum of `kg_doc.jsonld_bytes` + bytes captured but not yet synchronised". While paused, documents of followed collections are indexed without the field and recorded as skipped (`kg_doc.jsonld_skipped`, status `jsonld.capture`). Nothing waits on the graph in the parse or index path.
+
+**Identity, as implemented.** All keys are scoped by the entity type (`type`, `type@host`, `type@domain`, `type#doc`). The facility kind is part of the `facility_address` key, and a new entity takes its public ID from the strongest key no contradicting entity holds: a day care and a residential home with one name at one address stay two entities, as do same-name facilities of one domain without a full address (document-local). When one of two conflicting values of a functional predicate loses its last source, the other becomes `supported` again.
+
+**No write-back.** The graph never writes to Solr. The only Solr change is `ld_json_txt`, written by `yacy2solr` with the document at index time; a test asserts that indexed documents carry no graph field.
+
+**Deviations from the plan above:**
+
+1. A full reconcile runs at every start and reactivation, not only after an unclean start (owner requirement; 5.3 updated).
+2. `ld_json_txt` is enabled in `defaults/solr.collection.schema` (10 said disabled). YaCy writes only enabled fields, and `SchemaConfiguration.fill` adds a new key with its default state to existing installations, so a disabled default would keep the capture off everywhere. Nothing is written unless the graph runs with `scoutro.kg.jsonld.enabled=true`. An older version does not know the key and ignores it; the stored values stay readable through the dynamic `*_txt` field.
+3. One sync thread for drain, reconcile, tiers 1 and 2 and retention instead of separate `extract` and `maintenance` work (6.5); tiers 1 and 2 take milliseconds per document. The `extract` thread comes with the LLM tier (2b). Vacuum, checkpoints and the integrity check stay on the maintenance thread.
+4. The reconcile also compares `_version_`; a token alone misses changes of fields outside the token (JSON-LD, load date).
+5. New setting `reconcile.brakeMinDocs` (default 50): with the fraction alone, a graph of three documents would brake on one deletion.
+6. With only a remote Solr the sync reports `unavailable` / `remote_solr_unsupported`; store and status stay available (7.5 said graph off).
+7. Expired documents keep their row without evidence (see retention).
+
+**Schema v2** (forward migration in the schema transaction; a new database is created as v1 and migrated the same way): `kg_scan.phase`, `reason`, `solr_seen`, `tracked`, `confirmed`; `kg_scan_candidate`; `kg_entity.subkind`; `kg_work.enqueued_at`; indexes on document state and load date, statement subject and quality, claimed work rows and entity order. Tested by `KgStoreTest.schemaV1IsMigratedInPlaceKeepingItsData`.
+
+**Tests** (all run by `ant scoutro-agents-test`; Solr tests use an embedded core with the shipped `defaults/solr`):
+
+| Test | Covers |
+|---|---|
+| `KgCaptureProcessorTest` | O9: processor in the default chain after `_version_`, real-time get of uncommitted adds and deletes, coalescing, delete by query and `*:*` as signals, `webgraph` ignored, broken sink never fails an update, overflow, versions across a restart |
+| `ExtractorsTest` | JSON-LD (`@graph`, `@id` references, types, identifiers, address, relations, site operator), metadata, imprint rules (register, VAT, IK, address, phone, e-mail), bounded and invalid input |
+| `PublisherTest` | Idempotent reprocessing, two sources → one → none, same name and postal code with different addresses, same name without address, facility kinds, strong-identifier merge and conflict, stale claims and older versions refused, states and scopes, functional conflict and its recovery, removal with the expected generation |
+| `SyncServiceTest` | Backfill of followed collections only and idempotent recrawl, **recrawl during processing publishes nothing stale**, **delete during processing leaves no ghost** (tracked and new document), deletion and reactivation, fail-document states, **crash between Solr change and drain** (catch-up and reconcile), **every start reconciles also after a clean stop**, **aborted and partial reconcile deletes nothing and resumes from its cursor**, **mass-deletion brake until confirmed**, empty Solr, change-set overflow, full queue, debounced delete by query, **full clear with a new epoch** and an interrupted one finished after a restart, **refused growth (manual pause, disk reserve) defers extraction while deletions continue**, closed gates, collection change of a document, allowlist change, retention, no graph field in Solr |
+| `KgSyncRuntimeTest` | Through `KgRuntime.start/stop` (the shutdown hook's path): capture on and off with the graph, **stop drains pending changes and the next start processes and reconciles**, **reactivation after a disabled period**, unclean start waiting for the integrity check, control actions, **JSON-LD budget pause without blocking indexing** |
+| `JsonLdCaptureTest` | YaCy's HTML parser: nothing collected while off or paused, block and byte limits with whole-block drops, invalid and irrelevant blocks, field only for followed collections, skip records, pending bytes |
+| `KgStoreTest`, `KnowledgeApiTest`, `JsonLdCapturePolicyTest` | Migration v1 → v2; new control actions and their errors; capture implemented |
+
+**Live smoke test** `test/scoutro-api/kg-live-smoke.py`, now 31 checks in the same five starts, on JDK 21 and Temurin 24.0.2: additionally the start backfill, a page pushed through YaCy's parser and index path (`api/push_p`) captured with its JSON-LD and published, a page of an unfollowed collection not tracked, the reconcile of the clean restart (during the manual pause, nothing deleted) and of the restart after SIGKILL. The suite (`ant clean scoutro-agents-test`: 45 test classes, 430 tests) also passes; the Solr-backed sync tests pass on JDK 24 too.
+
+**Not in 2a:** the LLM tier and the extraction cache (2b), read routes, export, UI and chat (3, 4), backups and the admin action "re-resolve identities" (5).
+
+**Next PR (package 2b):** `LLMUsage.knowledge`, per-call timeout, `LlmExtractor` with schema validation and verbatim check, cache, circuit breaker, per-host cap, `LLMSelection_p` column.

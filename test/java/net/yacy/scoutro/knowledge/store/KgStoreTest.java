@@ -119,6 +119,45 @@ public class KgStoreTest {
     }
 
     @Test
+    public void schemaV1IsMigratedInPlaceKeepingItsData() throws Exception {
+        this.store.close();
+        this.store = null;
+        final KgPaths v1 = new KgPaths(this.tmp.newFolder("v1"));
+        assertTrue(v1.dir.mkdirs());
+        try (Connection c = new org.sqlite.JDBC().connect("jdbc:sqlite:" + v1.db.getAbsolutePath(), new Properties());
+                Statement st = c.createStatement()) {
+            st.execute("PRAGMA auto_vacuum=INCREMENTAL");
+            st.execute("PRAGMA journal_mode=WAL");
+            for (final String ddl : KgSchema.DDL_V1) {
+                st.execute(ddl);
+            }
+            st.execute("INSERT INTO kg_meta (key, value) VALUES ('" + KgSchema.META_SCHEMA_VERSION + "', '1'), ('"
+                    + KgSchema.META_EPOCH + "', '" + KgIds.newEpoch() + "'), ('" + KgSchema.META_CLEAN_SHUTDOWN + "', '1'), ('"
+                    + KgSchema.META_CHANGES_MIN_SEQ + "', '1')");
+            st.execute("INSERT INTO kg_work (doc_id, reason, event_version, priority, not_before) VALUES ('AAAAAAhost01', 1, 7, 3, 0)");
+            st.execute("INSERT INTO kg_scan (kind, state, started_at) VALUES (1, 2, 5)");
+        }
+        this.store = KgStore.open(v1, this.cfg, this.guard, KgStore.SQLITE, System::currentTimeMillis);
+        assertFalse(this.store.created());
+        assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());
+        this.store.read(c -> {
+            assertEquals(Integer.toString(KgSchema.CURRENT_VERSION), KgStore.getMeta(c, KgSchema.META_SCHEMA_VERSION));
+            assertEquals(1L, KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'"));
+            assertEquals("v1 rows keep their values and get the defaults", 7L,
+                    KgStore.queryLong(c, "SELECT event_version FROM kg_work WHERE enqueued_at = 0"));
+            assertEquals(1L, KgStore.queryLong(c, "SELECT phase FROM kg_scan"));
+            assertEquals(0L, KgStore.queryLong(c, "SELECT count(*) FROM kg_scan_candidate"));
+            assertEquals(0L, KgStore.queryLong(c, "SELECT count(subkind) FROM kg_entity"));
+            assertEquals("ok", KgStore.queryString(c, "PRAGMA foreign_key_check") == null ? "ok" : "violations");
+            return null;
+        });
+        // a second open finds the current version and migrates nothing
+        this.store.close();
+        this.store = KgStore.open(v1, this.cfg, this.guard, KgStore.SQLITE, System::currentTimeMillis);
+        assertEquals(1L, (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'")));
+    }
+
+    @Test
     public void foreignDatabaseIsRefused() throws Exception {
         this.store.close();
         this.store = null;

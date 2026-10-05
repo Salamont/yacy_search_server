@@ -109,6 +109,7 @@ public enum CollectionSchema implements SchemaDeclaration {
     imagescount_i(SolrType.num_integer, true, true, false, false, false, "number of images"),
     responsetime_i(SolrType.num_integer, true, true, false, false, false, "response time of target server in milliseconds"),
     text_t(SolrType.text_general, true, true, false, false, true, "all visible text"),
+    ld_json_txt(SolrType.text_general, false, true, true, false, false, "JSON-LD blocks (application/ld+json) of the page, stored only and bounded; written only for documents of collections enabled for the Scoutro knowledge graph while its capture is active"),
     synonyms_sxt(SolrType.string, true, true, true, false, true, "additional synonyms to the words in the text"),
     h1_txt(SolrType.text_general, true, true, true, false, true, "h1 header"),
     h2_txt(SolrType.text_general, true, true, true, false, true, "h2 header"),

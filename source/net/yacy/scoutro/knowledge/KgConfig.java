@@ -20,7 +20,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -51,6 +54,30 @@ public final class KgConfig {
     public static final String JSONLD_MAX_BYTES_PER_DOC = "scoutro.kg.jsonld.maxBytesPerDoc";
     public static final String JSONLD_MAX_BLOCKS_PER_DOC = "scoutro.kg.jsonld.maxBlocksPerDoc";
     public static final String JSONLD_MAX_TOTAL_BYTES = "scoutro.kg.jsonld.maxTotalBytes";
+    public static final String COLLECTIONS = "scoutro.kg.collections";
+    public static final String CAPTURE_MAX_PENDING = "scoutro.kg.capture.maxPending";
+    public static final String QUEUE_MAX_ITEMS = "scoutro.kg.queue.maxItems";
+    public static final String EXTRACT_MAX_STATEMENTS_PER_DOC = "scoutro.kg.extract.maxStatementsPerDoc";
+    public static final String EXTRACT_MAX_EXCERPT_CHARS = "scoutro.kg.extract.maxExcerptChars";
+    public static final String EXTRACT_MAX_RULE_INPUT_CHARS = "scoutro.kg.extract.maxRuleInputChars";
+    public static final String RECONCILE_HOUR = "scoutro.kg.reconcile.hour";
+    public static final String RECONCILE_DEBOUNCE_SECONDS = "scoutro.kg.reconcile.debounceSeconds";
+    public static final String RECONCILE_MAX_DELETE_FRACTION = "scoutro.kg.reconcile.maxDeleteFraction";
+    public static final String RECONCILE_BRAKE_MIN_DOCS = "scoutro.kg.reconcile.brakeMinDocs";
+    public static final String SOURCE_UNAVAILABLE_GRACE_DAYS = "scoutro.kg.source.unavailableGraceDays";
+    public static final String SOURCE_GONE_RETENTION_DAYS = "scoutro.kg.source.goneRetentionDays";
+    public static final String SOURCE_MAX_AGE_DAYS = "scoutro.kg.source.maxAgeDays";
+    public static final String SOURCE_STALE_RETENTION_DAYS = "scoutro.kg.source.staleRetentionDays";
+    public static final String CHANGES_RETENTION_DAYS = "scoutro.kg.changes.retentionDays";
+    public static final String CHANGES_MAX_ROWS = "scoutro.kg.changes.maxRows";
+    public static final String GATE_MAX_INDEXING_QUEUE = "scoutro.kg.gate.maxIndexingQueue";
+    public static final String GATE_MAX_LOAD = "scoutro.kg.gate.maxLoad";
+    public static final String GATE_MIN_FREE_HEAP_MB = "scoutro.kg.gate.minFreeHeapMB";
+
+    /** Collection names the graph follows; {@code *} follows every collection. */
+    public static final String ALL_COLLECTIONS = "*";
+    private static final Pattern COLLECTION_NAME = Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
+    static final long DAY = 24L * 3600L * 1000L;
 
     static final long KIB = 1024L;
     static final long MIB = 1024L * KIB;
@@ -90,6 +117,28 @@ public final class KgConfig {
     public final long jsonldMaxBytesPerDoc;
     public final int jsonldMaxBlocksPerDoc;
     public final long jsonldMaxTotalBytes;
+    /** Followed collections (sorted); empty means none, see {@link #allCollections}. */
+    public final Set<String> collections;
+    /** True for {@code scoutro.kg.collections=*}. */
+    public final boolean allCollections;
+    public final int captureMaxPending;
+    public final long queueMaxItems;
+    public final int extractMaxStatementsPerDoc;
+    public final int extractMaxExcerptChars;
+    public final int extractMaxRuleInputChars;
+    public final int reconcileHour;
+    public final long reconcileDebounceMillis;
+    public final double reconcileMaxDeleteFraction;
+    public final long reconcileBrakeMinDocs;
+    public final long unavailableGraceMillis;
+    public final long goneRetentionMillis;
+    public final long maxAgeMillis;
+    public final long staleRetentionMillis;
+    public final long changesRetentionMillis;
+    public final long changesMaxRows;
+    public final int gateMaxIndexingQueue;
+    public final double gateMaxLoad;
+    public final long gateMinFreeHeapBytes;
     /** YaCy's own free-space thresholds for the DATA filesystem, in bytes. */
     public final long yacySteadyStateBytes;
     public final long yacyUndershotBytes;
@@ -112,6 +161,28 @@ public final class KgConfig {
         this.jsonldMaxBytesPerDoc = p.longValue(JSONLD_MAX_BYTES_PER_DOC, 16 * KIB, KIB, 64 * KIB);
         this.jsonldMaxBlocksPerDoc = (int) p.longValue(JSONLD_MAX_BLOCKS_PER_DOC, 8, 1, 32);
         this.jsonldMaxTotalBytes = p.longValue(JSONLD_MAX_TOTAL_BYTES, 256 * MIB, MIB, 16 * TIB);
+        final Set<String> colls = p.collections(COLLECTIONS);
+        this.allCollections = colls.contains(ALL_COLLECTIONS);
+        colls.remove(ALL_COLLECTIONS);
+        this.collections = Collections.unmodifiableSet(colls);
+        this.captureMaxPending = (int) p.longValue(CAPTURE_MAX_PENDING, 100_000, 1_000, 1_000_000);
+        this.queueMaxItems = p.longValue(QUEUE_MAX_ITEMS, 200_000, 1_000, 10_000_000);
+        this.extractMaxStatementsPerDoc = (int) p.longValue(EXTRACT_MAX_STATEMENTS_PER_DOC, 50, 1, 500);
+        this.extractMaxExcerptChars = (int) p.longValue(EXTRACT_MAX_EXCERPT_CHARS, 200, 20, 1000);
+        this.extractMaxRuleInputChars = (int) p.longValue(EXTRACT_MAX_RULE_INPUT_CHARS, 65_536, 1_024, 1_048_576);
+        this.reconcileHour = (int) p.longValue(RECONCILE_HOUR, 3, 0, 23);
+        this.reconcileDebounceMillis = 1000L * p.longValue(RECONCILE_DEBOUNCE_SECONDS, 300, 0, 86_400);
+        this.reconcileMaxDeleteFraction = p.doubleValue(RECONCILE_MAX_DELETE_FRACTION, 0.2, 0.0, 1.0);
+        this.reconcileBrakeMinDocs = p.longValue(RECONCILE_BRAKE_MIN_DOCS, 50, 0, 1_000_000_000L);
+        this.unavailableGraceMillis = DAY * p.longValue(SOURCE_UNAVAILABLE_GRACE_DAYS, 14, 1, 365);
+        this.goneRetentionMillis = DAY * p.longValue(SOURCE_GONE_RETENTION_DAYS, 7, 0, 365);
+        this.maxAgeMillis = DAY * p.longValue(SOURCE_MAX_AGE_DAYS, 365, 1, 3650);
+        this.staleRetentionMillis = DAY * p.longValue(SOURCE_STALE_RETENTION_DAYS, 90, 1, 3650);
+        this.changesRetentionMillis = DAY * p.longValue(CHANGES_RETENTION_DAYS, 30, 1, 3650);
+        this.changesMaxRows = p.longValue(CHANGES_MAX_ROWS, 1_000_000, 1_000, 100_000_000);
+        this.gateMaxIndexingQueue = (int) p.longValue(GATE_MAX_INDEXING_QUEUE, 20, 0, 100_000);
+        this.gateMaxLoad = p.doubleValue(GATE_MAX_LOAD, 2.5, 0.0, 1024.0);
+        this.gateMinFreeHeapBytes = MIB * p.longValue(GATE_MIN_FREE_HEAP_MB, 256, 0, 1_048_576);
         // YaCy's keys are megabytes; read with YaCy's own code defaults (SwitchboardConstants)
         this.yacySteadyStateBytes = MIB * p.yacyLong(SwitchboardConstants.RESOURCE_DISK_FREE_MIN_STEADYSTATE,
                 SwitchboardConstants.RESOURCE_DISK_FREE_MIN_STEADYSTATE_DEFAULT);
@@ -140,6 +211,21 @@ public final class KgConfig {
 
     public boolean valid() {
         return this.problems.isEmpty();
+    }
+
+    /** True if documents of {@code collection} are followed by the graph. */
+    public boolean follows(final String collection) {
+        return collection != null && (this.allCollections || this.collections.contains(collection));
+    }
+
+    /** True if at least one collection is followed. */
+    public boolean followsAny() {
+        return this.allCollections || !this.collections.isEmpty();
+    }
+
+    /** Stable description of the followed collections ({@code *} or the sorted names). */
+    public String collectionsKey() {
+        return this.allCollections ? ALL_COLLECTIONS : String.join(",", this.collections);
     }
 
     public List<Problem> problems() {
@@ -188,7 +274,14 @@ public final class KgConfig {
         for (final Problem p : this.problems) {
             errors.put(KgJson.obj("key", p.key, "message", p.message));
         }
-        return KgJson.obj("valid", valid(), "errors", errors);
+        final JSONArray colls = new JSONArray();
+        if (this.allCollections) {
+            colls.put(ALL_COLLECTIONS);
+        }
+        for (final String c : this.collections) {
+            colls.put(c);
+        }
+        return KgJson.obj("valid", valid(), "errors", errors, "collections", colls);
     }
 
     private static final class Parser {
@@ -236,6 +329,44 @@ public final class KgConfig {
                 problem(key, "must be a whole number, not '" + clip(v) + "'");
                 return dflt;
             }
+        }
+
+        double doubleValue(final String key, final double dflt, final double min, final double max) {
+            final String v = raw(key);
+            if (v == null || v.isEmpty()) {
+                return dflt;
+            }
+            try {
+                final double n = Double.parseDouble(v);
+                if (Double.isNaN(n) || n < min || n > max) {
+                    problem(key, "must be between " + min + " and " + max + ", not " + clip(v));
+                    return dflt;
+                }
+                return n;
+            } catch (final NumberFormatException e) {
+                problem(key, "must be a number, not '" + clip(v) + "'");
+                return dflt;
+            }
+        }
+
+        /** Comma- or space-separated collection names, or {@code *}. */
+        Set<String> collections(final String key) {
+            final Set<String> out = new TreeSet<>();
+            final String v = raw(key);
+            if (v == null || v.isEmpty()) {
+                return out;
+            }
+            for (final String part : v.split("[,\\s]+")) {
+                if (part.isEmpty()) {
+                    continue;
+                }
+                if (ALL_COLLECTIONS.equals(part) || COLLECTION_NAME.matcher(part).matches()) {
+                    out.add(part);
+                } else {
+                    problem(key, "invalid collection name '" + clip(part) + "' (letters, digits, '_' and '-', or *)");
+                }
+            }
+            return out;
         }
 
         /** YaCy's own keys: reported if unusable, but never part of the graph's validity. */
