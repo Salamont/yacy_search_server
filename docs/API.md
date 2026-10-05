@@ -622,4 +622,6 @@ Collection is now mandatory for every Scoutro crawl, including administrators. S
 
 `GET /v1/index/browse` and `GET /agent/v1/index/browse` provide literal host/URL browsing with an exact, server-enforced collection filter. The agent route requires explicit `index.browse` and never extends presets. See [Index Browser](SCOUTRO_INDEX_BROWSER.md) for parameters, empty/error behavior and CLI usage.
 
+`GET /v1/index/domains` lists the index consolidated per host and collection; `GET /v1/index/domains/export?format=json|csv` downloads all entries of the same filter as `scoutro.domains.v1` (administrator only, read-only, streamed). Contract and field sources: [Index Browser](SCOUTRO_INDEX_BROWSER.md#export-contract-scoutrodomainsv1).
+
 Structured system facts: `GET /v1/index/metrics` and `GET /v1/system/questions`, with corresponding authorized agent routes. CLI `index metrics`/`ask`, JSON/SSE chat behavior and real read-only stdio MCP adapter are documented in [System questions and MCP](SCOUTRO_SYSTEM_QUESTIONS_MCP.md). The question router delegates to existing grants; it is not a broad system/admin grant.

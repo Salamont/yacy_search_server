@@ -79,6 +79,7 @@ reserve, automatic pause and resume, and bounded retention.
   - locale rewrites.
 
   Its `Sink`/cursor/`complete` pattern is the template for the graph export. Conflicts with this plan are expected in `ScoutroApiServlet.java`, `IndexBrowser_p.html`, `index-browser.js`, `header.template`, all `locales/*`, `openapi.json`/`actions.json` and `generate_api_description.py` (see [open point O4](#15-open-points-and-missing-access)).
+- **Update:** that branch was merged into `main` as PR #13 (`5ee2d29`) while package 1 was under review. The package 1 branch merged that `main`: `ScoutroApiServlet.java` combined by hand (domain export and graph start next to each other), `openapi.json`/`actions.json` regenerated with the merged generator (45 actions: the domain actions and `kg.status`/`kg.control`).
 - `AGENTS.md`: HTML changes need `locales/` and `help/` updates. API/servlet changes need `help/` or doc updates. Tests are improved incrementally in the reviewed area.
 - Existing Scoutro persistence uses kelondro tables (`DATA/WORK`), atomically rewritten JSON (`DATA/SETTINGS`) and append-only NDJSON (`DATA/SCOUTRO/...`). No SQL or graph library is bundled yet (`ivy.xml`). Scoutro config keys have code defaults and are not in `defaults/yacy.init`.
 - Container: `eclipse-temurin:24-jdk-noble` (Ubuntu 24.04, glibc), `linux/amd64` only (`.github/workflows/publish-scoutro.yml:90`), compiled with `javacRelease=17`.
@@ -1190,7 +1191,7 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 | O1 | Real server and Olares capacity: free space on the `DATA` filesystem, current index size (documents, hosts, collections), whether `limitedDisk: 20Gi` is enforced | The 1 GiB graph budget and the 256 MiB JSON-LD budget stay provisional until package 5 measurements and these figures exist. No free capacity is claimed. | Owner / operations |
 | O2 | Industry vocabulary: service and facility terms, facility kinds as merge discriminators, identifier schemes beyond the listed ones | Tiers 2 and 3 quality; identity rules | Owner |
 | O3 | LLM host and model for `knowledge` (same machine? GPU?), and the heap (`Xmx`) of the target installation | LLM throughput, `llm.maxDocsPerHost`, heap gate | Owner / operations |
-| O4 | Fate of branch `ccr-e3e5f88b-1fqp77` (Index Browser domains, export, AI Lab) | Packages 3/4 integrate into the domain view and reuse its export pattern if it is merged first; otherwise the URL view and own code | Owner |
+| O4 | ~~Fate of branch `ccr-e3e5f88b-1fqp77`~~ — resolved: merged into `main` as PR #13 (`5ee2d29`) | Packages 3/4 integrate into the domain view and reuse its export pattern | — |
 | O5 | Existing chat gap: clients choose any collection, guests included | The graph does not widen it (guests get no facts). Fixing content RAG scoping is out of scope. | Owner decision |
 | O6 | Backup target outside `DATA` | Local backups count fully in the budget; an external target needs a mounted path, which conflicts with the Olares "no second DATA path" rule | Owner / operations |
 | O7 | Legal review of stored excerpts (imprint pages contain names) | Excerpt length and the export of excerpts | Owner |

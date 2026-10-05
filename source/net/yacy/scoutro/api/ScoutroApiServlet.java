@@ -84,7 +84,7 @@ public class ScoutroApiServlet extends HttpServlet {
                 return;
             }
             final JSONObject result = route(method, path, request, response);
-            send(response, response.getStatus() == 0 ? 200 : response.getStatus(), result);
+            if (result != null) send(response, response.getStatus() == 0 ? 200 : response.getStatus(), result); // null: streamed
         } catch (final ApiException e) {
             send(response, e.status(), e.toJson());
         } catch (final RuntimeException e) {
@@ -199,6 +199,16 @@ public class ScoutroApiServlet extends HttpServlet {
                     final Map<String, String> browseQuery = queryParams(request);
                     return IndexBrowse.current().browse(browseQuery, SeoAnalysis.adminCollections(browseQuery));
                 }
+                if (parts.length == 4 && "domains".equals(parts[3])) {
+                    expect(method, parts, 4, "GET");
+                    final Map<String, String> domainQuery = queryParams(request);
+                    return DomainCandidates.current().page(domainQuery, SeoAnalysis.adminCollections(domainQuery));
+                }
+                if (parts.length == 5 && "domains".equals(parts[3]) && "export".equals(parts[4])) {
+                    expect(method, parts, 5, "GET");
+                    exportDomains(queryParams(request), response);
+                    return null;
+                }
                 if (parts.length == 4 && "metrics".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
                     final Map<String, String> q = queryParams(request);
@@ -257,6 +267,32 @@ public class ScoutroApiServlet extends HttpServlet {
                 break;
         }
         throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+    }
+
+    /**
+     * Read-only domain export as a download, streamed page by page. Invalid filters and an
+     * unavailable index answer with the usual JSON error before anything is written.
+     */
+    private static void exportDomains(final Map<String, String> query, final HttpServletResponse response)
+            throws ApiException, IOException {
+        final String format = DomainExport.format(query.get("format"));
+        final List<String> collections = SeoAnalysis.adminCollections(query);
+        final DomainCandidates candidates = DomainCandidates.current();
+        final long now = System.currentTimeMillis();
+        final DomainCandidates.Filter filter = DomainCandidates.filter(query, collections, java.util.Set.of("q", "collection", "format"));
+        candidates.export(query, collections, new DomainCandidates.Sink() {
+            private DomainCandidates.Sink sink;
+            @Override public void begin(final DomainCandidates.Filter f, final long generatedAt) throws IOException {
+                response.setStatus(200);
+                response.setContentType(DomainExport.contentType(format));
+                response.setHeader("Content-Disposition", "attachment; filename=\"" + DomainExport.filename(filter, format, now) + "\"");
+                this.sink = DomainExport.sink(format, response.getWriter());
+                this.sink.begin(f, generatedAt);
+            }
+            @Override public void item(final DomainCandidate c) throws IOException { this.sink.item(c); }
+            @Override public void flush() throws IOException { this.sink.flush(); }
+            @Override public void end(final long count, final boolean complete) throws IOException { this.sink.end(count, complete); }
+        });
     }
 
     /**

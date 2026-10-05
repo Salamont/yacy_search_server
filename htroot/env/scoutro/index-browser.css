@@ -1,0 +1,77 @@
+/* Copyright 2026 Scoutro contributors. GPL-2.0-or-later. Index Browser: domain cards, views, export. */
+.scoutro-index-intro { color: var(--scoutro-muted, #5b6b85); max-width: 60em; }
+.scoutro-index-views { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.scoutro-index-views a {
+  display: inline-flex; align-items: center; min-height: 40px; padding: 8px 16px;
+  border: 1px solid var(--scoutro-border, #dbe5f4); border-radius: var(--scoutro-radius-pill, 999px);
+  background: var(--scoutro-surface, #fff); color: var(--scoutro-ink-2, #2f3f5c); text-decoration: none;
+}
+.scoutro-index-views a[aria-current="page"] {
+  border-color: var(--scoutro-primary, #1673ff); background: var(--scoutro-primary, #1673ff); color: #fff;
+}
+.scoutro-index-filters .scoutro-index-actions { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 100%; }
+.scoutro-export { margin-bottom: 16px; }
+.scoutro-export h2 { margin-top: 0; font-size: 18px; }
+.scoutro-export-formats { border: 0; padding: 0; margin: 8px 0; }
+.scoutro-export-formats legend { font-size: 14px; font-weight: 600; border: 0; margin-bottom: 4px; }
+.scoutro-export-formats label { display: flex; align-items: center; gap: 8px; min-height: 40px; font-weight: normal; }
+.scoutro-export-formats input { width: 20px; height: 20px; margin: 0; }
+.scoutro-index-note { color: var(--scoutro-muted, #5b6b85); font-size: 13px; margin-top: 10px; }
+.scoutro-domain-caption { font-weight: 600; }
+.scoutro-domain-list {
+  list-style: none; margin: 0; padding: 0; display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+}
+.scoutro-domain {
+  min-width: 0; padding: 16px; background: var(--scoutro-surface, #fff); color: var(--scoutro-ink-2, #2f3f5c);
+  border: 1px solid var(--scoutro-border, #dbe5f4); border-radius: var(--scoutro-radius, 12px);
+  box-shadow: var(--scoutro-shadow-sm, none); display: flex; flex-direction: column; gap: 6px;
+}
+.scoutro-domain-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.scoutro-domain-host {
+  font-size: 18px; font-weight: 600; color: var(--scoutro-primary-dark, #0b4fc4);
+  overflow-wrap: anywhere; word-break: break-word;
+}
+.scoutro-domain-collection, .scoutro-badge {
+  display: inline-block; padding: 2px 10px; border-radius: var(--scoutro-radius-pill, 999px);
+  background: var(--scoutro-primary-soft, #e7f0ff); color: var(--scoutro-ink, #0f1f3d); font-size: 13px; line-height: 20px;
+}
+.scoutro-domain-collection.is-empty { background: var(--scoutro-surface-2, #f3f7fe); color: var(--scoutro-muted, #5b6b85); }
+.scoutro-domain-pages { margin: 0; color: var(--scoutro-muted, #5b6b85); }
+.scoutro-domain-pages strong { color: var(--scoutro-ink, #0f1f3d); }
+.scoutro-domain-title { margin: 0; font-weight: 600; color: var(--scoutro-ink, #0f1f3d); overflow-wrap: anywhere; }
+.scoutro-domain-title.is-empty { font-weight: normal; font-style: italic; color: var(--scoutro-muted, #5b6b85); }
+.scoutro-domain-description {
+  margin: 0; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.scoutro-domain-entity { margin: 2px 0; padding: 6px 10px; border-left: 3px solid var(--scoutro-primary, #1673ff);
+  background: var(--scoutro-surface-2, #f3f7fe); border-radius: 0 8px 8px 0; min-width: 0; }
+.scoutro-domain-entity p { margin: 0; overflow-wrap: anywhere; }
+.scoutro-domain-entity-name { font-weight: 600; color: var(--scoutro-ink, #0f1f3d); }
+.scoutro-domain-entity-name.is-candidate { font-weight: normal; font-style: italic; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+.scoutro-domain-entity-mark { font-style: normal; font-size: 12px; padding: 0 8px; border-radius: var(--scoutro-radius-pill, 999px);
+  border: 1px dashed var(--scoutro-muted, #5b6b85); color: var(--scoutro-muted, #5b6b85); }
+.scoutro-domain-entity-contact { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 14px; }
+.scoutro-domain-entity-contact a { overflow-wrap: anywhere; }
+.scoutro-domain-entity-source { font-size: 12px; color: var(--scoutro-muted, #5b6b85); }
+.scoutro-domain-facts { margin: 4px 0 0; display: grid; gap: 4px; }
+.scoutro-domain-facts > div { display: grid; grid-template-columns: minmax(7em, 34%) 1fr; gap: 8px; min-width: 0; }
+.scoutro-domain-facts dt { font-weight: 600; color: var(--scoutro-muted, #5b6b85); font-size: 13px; }
+.scoutro-domain-facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; word-break: break-word; font-size: 14px; }
+.scoutro-domain-actions { margin-top: auto; padding-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+.scoutro-domain-actions .btn { min-height: 40px; display: inline-flex; align-items: center; font-size: 14px; padding: 6px 14px; }
+.scoutro-domain-actions a.btn-primary, .scoutro-domain-actions a.btn-primary:visited,
+.scoutro-export a.btn-primary, .scoutro-export a.btn-primary:visited { color: #fff; text-decoration: none; font-weight: 600; }
+.scoutro-domain-actions a.btn-primary:hover, .scoutro-domain-actions a.btn-primary:focus,
+.scoutro-export a.btn-primary:hover, .scoutro-export a.btn-primary:focus { color: #fff; text-decoration: none; }
+.scoutro-domain-host { text-decoration: none; }
+.scoutro-domain-host:hover, .scoutro-domain-host:focus { text-decoration: underline; }
+.scoutro-status-indexed, .scoutro-verdict-PASS { background: #e3f6e9; color: #14532d; }
+.scoutro-status-partial, .scoutro-status-not_reloaded, .scoutro-verdict-UNSURE { background: #fff4dd; color: #6b4500; }
+.scoutro-status-not_indexed, .scoutro-verdict-FAIL { background: #fde8e8; color: #7f1d1d; }
+.scoutro-index-pages { align-items: center; flex-wrap: wrap; }
+@media (max-width: 767px) {
+  .scoutro-domain { padding: 14px 12px; }
+  .scoutro-domain-facts > div { grid-template-columns: 1fr; gap: 0; }
+  .scoutro-index-filters .scoutro-index-actions .btn { flex: 1 1 auto; }
+}

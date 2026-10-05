@@ -1516,36 +1516,9 @@ More Tutorials==Więcej samouczków
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="Usuń podścieżkę"
-"Re-load load-failure docs (404s etc)"=="Załaduj ponownie dokumenty z błędami ładowania (404 itp.)"
-"Directory"=="Katalog"
-"Delete Load Errors"=="Usuń błędy ładowania"
 Index Browser==Przeglądarka indeksu
-Host/URL==Host/URL
-Browse Host==Przeglądaj host
-Host List==Lista hostów
-URLs==URLs
-Count Colors:==Legenda kolorów liczb:
-Documents without Errors==Dokumenty bez błędów
-Pending in Crawler==Oczekujące w crawlerze
-Crawler Excludes==Wykluczenia crawlera
-Load Errors==Błędy ładowania
-Host Analysis==Analiza hosta
-Add to blacklist==Dodaj do czarnej listy
-Path==Ścieżka
-stored==przechowane
-linked==połączone
-pending==oczekujące
-excluded==wykluczone
-failed==nie powiodło się
-Metadata==Metadane
-link, detected from context==link, wykryty z kontekstu
-load &amp; index==załaduj &amp; indeksuj
 indexed==zindeksowane
 loading==ładowanie
-Administration Options==Opcje administracyjne
-Delete all==Usuń wszystkie
-from index==z indeksu
 #-----------------------------
 
 #File: IndexControlRWIs_p.html
@@ -3502,15 +3475,7 @@ Threaddump==Zrzut wątków
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==Narzędzia
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Dodaj supermoce do czatu YaCy. Narzędzia można wyłączyć, ustawiając maxCallsPerTurn na 0.
 Tool settings were saved.==Ustawienia narzędzi zostały zapisane.
-Basic Tools==Narzędzia podstawowe
-maxCallsPerTurn==maxCallsPerTurn
-disable==wyłącz
-Visualization Tools==Narzędzia wizualizacji
-Data Retrieval Tools==Narzędzia pobierania danych
-Save Tools Configuration==Zapisz konfigurację narzędzi
 #-----------------------------
 
 #File: Trails.html
@@ -3901,6 +3866,8 @@ gracious: 50 &euro;==łaskawy: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==Przegląd Laboratorium AI
+Chat tools==Narzędzia czatu
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automatyzacja odkrywania<
 >Dashboard<==>Panel<
@@ -4020,10 +3987,10 @@ Administration &raquo;==Administracja &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Narzędzia czatu
 AI Lab==Laboratorium AI
 LLM Selection==Wybór LLM
 RAG Config==Konfiguracja RAG
-Tools Config==Konfiguracja narzędzi
 Log Reports==Raporty logów
 AI Shield==Zabezpieczenia AI
 Chat==Czat
@@ -4423,27 +4390,13 @@ Network Monitor==Monitor sieci
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="Domyślnie dołączaj wyniki wyszukiwania"
-"Search"=="Szukaj"
 "Attach a file"=="Załącz plik"
 "Send"=="Wysłać"
 "Clear chat"=="Wyczyść czat"
 "Download chat"=="Pobierz czat"
 "Upload chat"=="Prześlij czat"
 "Show system prompt"=="Pokaż monit systemowy"
-YaCy Chat==YaCy Czat
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Ten czat jest prywatny. YaCy nie przechowuje żadnej historii — tylko Twoja przeglądarka pamięta bieżącą rozmowę.
-Default Dialog Augmentation:==Domyślne rozszerzenie okna dialogowego:
-no search, allow attachments==bez wyszukiwania, zezwól na załączniki
-use local search==skorzystaj z wyszukiwania lokalnego
-use global search==użyj wyszukiwania globalnego
-User==Użytkownik
-Attach Search Results==Dołącz wyniki wyszukiwania
 Attach PNG/JPG or text (.txt/.md/.tex)==Załącz PNG/JPG lub tekst (.txt/.md/.tex)
-Clear Chat==Wyczyść czat
-Download Chat==Pobierz Czat
-Upload Chat==Prześlij czat
-Show System==Pokaż system
 #-----------------------------
 
 #File: yacyinteractive.html
@@ -4557,7 +4510,6 @@ Extended==Rozszerzone
 Strict==Ścisłe
 Location==Lokalizacja
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Automatyzacja odkrywania<
@@ -4859,7 +4811,6 @@ Location==Lokalizacja
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Przeglądaj zaindeksowane adresy URL bez pobierania i indeksowania.
 Apply filters==Zastosuj filtry
 Reset filters==Wyczyść filtry
 Active collection:==Aktywna kolekcja:
@@ -4869,7 +4820,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Da
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Nieprawidłowa kolekcja. Użyj do 64 liter, cyfr, podkreśleń lub łączników.
 indexed URLs==zaindeksowane URL
 Index pages==Strony indeksu
-Host/URL==Host/URL
 Collection==Kolekcja
 URL==URL
 Host==Host

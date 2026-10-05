@@ -206,6 +206,60 @@ browse_params = [q("q", {"type": "string", "maxLength": 250}, "Literal host/URL 
     q("offset", {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}, "First row."),
     q("limit", {"type": "integer", "minimum": 1, "maximum": 100, "default": 50}, "Maximum rows.")]
 paths["/v1/index/browse"] = {"get": op("index.browse", "Browse indexed URLs", "Read-only literal host/URL search with an independent collection filter. No URL fetch, DNS, crawl, commit or raw Solr parameters. Bounded rows; partial results fail closed.", ["index"], {**ok("Visible indexed URL rows.", "IndexBrowse"), **errs("400", "401", "503")}, params=browse_params)}
+domain_item = {"type": "object", "required": ["host", "domain", "collection", "indexed_pages"], "properties": {
+    "host": {"type": "string", "description": "Indexed host name."},
+    "domain": {"type": "string", "description": "Registrable domain, computed exactly as scoutro-discovery does."},
+    "scheme": {"type": ["string", "null"], "enum": ["http", "https", None], "description": "Scheme of the representative page, else of the recorded crawl."},
+    "website": {"type": ["string", "null"], "description": "scheme://host/ derived from scheme and host; null without a known scheme."},
+    "start_url": {"type": ["string", "null"], "description": "Indexed representative page: lowest crawl depth, https first, shortest URL, HTTP 200 preferred."},
+    "collection": {"type": ["string", "null"]},
+    "indexed_pages": {"type": "integer", "description": "Indexed URLs of this host in this collection (error records included)."},
+    "title": {"type": ["string", "null"]}, "description": {"type": ["string", "null"], "description": "Meta description of the representative page."},
+    "last_loaded": {"type": ["string", "null"], "format": "date-time", "description": "Newest load date of the host's pages in the index."},
+    "last_crawled": {"type": ["string", "null"], "format": "date-time", "description": "End of the latest crawl recorded in the crawl report table."},
+    "crawl_status": {"type": ["string", "null"], "enum": ["indexed", "partial", "not_reloaded", "not_indexed", "unknown", None]},
+    "http_status": {"type": ["integer", "null"], "description": "HTTP status of the representative page."},
+    "classification": {"type": ["object", "null"], "properties": {"verdict": {"type": "string", "enum": ["PASS", "FAIL", "UNSURE"]},
+        "confidence": {"type": ["number", "null"]}, "profile": {"type": ["string", "null"]}, "classified_at": {"type": ["string", "null"], "format": "date-time"}}},
+    "discovery": {"type": ["object", "null"], "properties": {"profile": {"type": ["string", "null"]},
+        "source": {"type": ["string", "null"], "description": "Only when the Discovery job has exactly one configured source."},
+        "job": {"type": ["string", "null"]}, "region": {"type": ["string", "null"]}}},
+    "entity": {"type": "object", "description": "Operator and contact as copied from indexed pages (Impressum, contact, about, start page, representative page); null when not clearly there. Nothing is fetched or inferred by a model.",
+        "required": ["name", "name_candidate", "name_confidence", "street", "postal_code", "city", "region", "country", "phone", "email"], "properties": {
+        "name": {"type": ["string", "null"], "description": "Certain name only: a name with legal form, from the page metadata (copyright / DC.publisher) first, otherwise from the page text."},
+        "name_candidate": {"type": ["string", "null"], "description": "The certain name, or else a cautious candidate: publisher metadata without legal form, then the title of the Impressum, the start page, the contact or the about page (page names, slogans and SEO parts removed; null when unsure)."},
+        "name_confidence": {"type": ["string", "null"], "enum": ["high", "medium", None], "description": "high: name is set; medium: only name_candidate is set."},
+        "street": {"type": ["string", "null"]}, "postal_code": {"type": ["string", "null"], "description": "German five-digit postal code, only together with street and city."},
+        "city": {"type": ["string", "null"]}, "region": {"type": ["string", "null"], "description": "Not in the index today; always null."},
+        "country": {"type": ["string", "null"], "description": "DE for a German address on a .de domain or with D-/Deutschland; otherwise null."},
+        "phone": {"type": ["string", "null"], "description": "Labelled telephone number (never fax); E.164 when the country is known, else as written."},
+        "email": {"type": ["string", "null"], "description": "General mailbox (info@, kontakt@, office@ ...) of the site's own domain; personal addresses are never exported."}}},
+    "evidence": {"type": "object", "description": "Indexed pages the entity values come from.",
+        "required": ["entity_url", "contact_url", "name_url", "name_method", "address_url", "phone_url", "email_url"], "properties": {
+        "entity_url": {"type": ["string", "null"], "description": "Page of the address, else of the name."},
+        "contact_url": {"type": ["string", "null"], "description": "Page of the phone number, else of the e-mail address."},
+        "name_url": {"type": ["string", "null"]}, "name_method": {"type": ["string", "null"], "enum": ["publisher_metadata", "page_text_legal_form", "imprint_title", "homepage_title", "contact_title", "about_title", None], "description": "Source of name or name_candidate."},
+        "address_url": {"type": ["string", "null"]}, "phone_url": {"type": ["string", "null"]}, "email_url": {"type": ["string", "null"]}}}}}
+schemas["DomainCandidate"] = domain_item
+schemas["DomainPage"] = {"type": "object", "required": ["schema", "generated_at", "filter", "offset", "limit", "items"], "properties": {
+    "schema": {"type": "string", "enum": ["scoutro.domains.v1"]}, "generated_at": {"type": "string", "format": "date-time"},
+    "filter": {"type": "object", "properties": {"q": {"type": "string"}, "collection": {"type": ["string", "null"]}, "sort": {"type": "string"}}},
+    "offset": {"type": "integer"}, "limit": {"type": "integer"},
+    "total": {"type": ["integer", "null"], "description": "Host/collection items of the filter."}, "total_hosts": {"type": ["integer", "null"]},
+    "items": {"type": "array", "items": ref("DomainCandidate")}}}
+schemas["DomainExport"] = {"type": "object", "required": ["schema", "generated_at", "filter", "items", "count", "complete"], "properties": {
+    "schema": {"type": "string", "enum": ["scoutro.domains.v1"]}, "generated_at": {"type": "string", "format": "date-time"},
+    "filter": {"type": "object"}, "collection": {"type": ["string", "null"]}, "items": {"type": "array", "items": ref("DomainCandidate")},
+    "count": {"type": "integer", "description": "Written items; follows the items because the export is streamed."},
+    "complete": {"type": "boolean", "description": "False when the index stopped answering during the export."}}}
+domain_params = [q("q", {"type": "string", "maxLength": 250}, "Literal host name or part of it; a URL is reduced to its host. Never Solr query syntax."),
+    q("collection", {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "Exact collection filter. Unknown valid names return no items.")]
+paths["/v1/index/domains"] = {"get": op("index.domains", "Indexed domains", "Indexed URLs consolidated per host and collection, with the representative page, page count, latest load date and, when recorded, crawl status, classification and Discovery context. Read-only: no fetch, crawl, LLM call or commit. Bounded; partial results fail closed.", ["index"], {**ok("One page of domain candidates.", "DomainPage"), **errs("400", "401", "503")}, params=[*domain_params,
+    q("sort", {"type": "string", "enum": ["host", "pages"], "default": "host"}, "Host name ascending or most pages first."),
+    q("offset", {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}, "First host."),
+    q("limit", {"type": "integer", "minimum": 1, "maximum": 100, "default": 25}, "Hosts per page.")])}
+paths["/v1/index/domains/export"] = {"get": op("index.domains.export", "Export indexed domains", "All domain candidates of the filter as a download (JSON scoutro.domains.v1 or CSV), sorted by host and streamed page by page. Same fields and rules as index.domains. Read-only.", ["index"], {"200": {"description": "Streamed export.", "content": {"application/json": {"schema": ref("DomainExport")}, "text/csv": {"schema": {"type": "string", "description": "RFC 4180, UTF-8, header row host..discovery_region, then entity_name, entity_street, entity_postal_code, entity_city, entity_region, entity_country, entity_phone, entity_email, evidence_entity_url, evidence_contact_url, entity_name_candidate, entity_name_confidence; formula-like text cells are prefixed with an apostrophe; an interrupted export ends with #incomplete."}}}}, **errs("400", "401", "503")}, params=[*domain_params,
+    q("format", {"type": "string", "enum": ["json", "csv"], "default": "json"}, "Export format.")])}
 paths["/v1/index"] = {"get": op("index.status", "Index status", "Document counts and crawler queues.", ["index"], {**ok("Index status.", "IndexStatus"), **errs("401", "502", "503")})}
 metric_params = [q("collection", {"type":"string","pattern":"^[A-Za-z0-9_-]{1,64}$"}, "Optional exact collection filter; server enforced.")]
 question_params = [q("q", {"type":"string","maxLength":1000}, "DE/EN system question; no content search.", True), *metric_params]
@@ -715,6 +769,9 @@ cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME]
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
 cli.update({'kg.status': 'HTTP GET /scoutro/api/v1/kg/status', 'kg.control': 'HTTP POST /scoutro/api/v1/kg/control {"action":"pause"|"resume"}'})
 for suffix, operation, _, _ in seo_endpoints + report_endpoints:
+    mcp[operation] = "scoutro_" + operation.replace(".", "_")
+    cli[operation] = "HTTP GET /scoutro/api/v1" + suffix
+for suffix, operation in [("/index/domains", "index.domains"), ("/index/domains/export", "index.domains.export")]:
     mcp[operation] = "scoutro_" + operation.replace(".", "_")
     cli[operation] = "HTTP GET /scoutro/api/v1" + suffix
 for path, methods in paths.items():

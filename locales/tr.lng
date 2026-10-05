@@ -1518,36 +1518,9 @@ More Tutorials==Daha Fazla Anlatım
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="Alt Dizin Sil"
-"Re-load load-failure docs (404s etc)"=="Yükleme hatası belgelerini (404'ler vb.) yeniden yükleyin"
-"Directory"=="Rehber"
-"Delete Load Errors"=="Yükleme Hatalarını Sil"
 Index Browser==Dizin Tarayıcısı
-Host/URL==Ana makine/URL
-Browse Host==Ana Bilgisayara Göz Atın
-Host List==Ana Bilgisayar Listesi
-URLs==URL'ler
-Count Colors:==Renk Sayısı:
-Documents without Errors==Hatasız Belgeler
-Pending in Crawler==Crawler'da Bekleyen
-Crawler Excludes==Tarayıcı Hariç Tutulanlar
-Load Errors==Yükleme Hataları
-Host Analysis==Ana Bilgisayar Analizi
-Add to blacklist==Kara listeye ekle
-Path==Yol
-stored==saklandı
-linked==bağlantılı
-pending==askıda olması
-excluded==hariç tutuldu
-failed==arızalı
-Metadata==Meta veriler
-link, detected from context==Bağlantı, bağlamdan algılandı
-load &amp; index==Yükle ve İndeksle
 indexed==indekslenmiş
 loading==yükleniyor
-Administration Options==Yönetici Seçenekleri
-Delete all==Hepsini sil
-from index==indeksten
 #-----------------------------
 
 #File: IndexControlRWIs_p.html
@@ -3504,15 +3477,7 @@ Threaddump==Konu dökümü
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==Aletler
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==YaCy Sohbete süper güçler ekleyin. Araçlar maxCallsPerTurn 0'a ayarlanarak devre dışı bırakılabilir.
 Tool settings were saved.==Araç ayarları kaydedildi.
-Basic Tools==Temel Araçlar
-maxCallsPerTurn==maxCallsPerTurn
-disable==devre dışı bırakmak
-Visualization Tools==Görselleştirme Araçları
-Data Retrieval Tools==Veri Alma Araçları
-Save Tools Configuration==Araç Yapılandırmasını Kaydet
 #-----------------------------
 
 #File: Trails.html
@@ -3903,6 +3868,8 @@ gracious: 50 &euro;==zarif: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==Yapay Zeka Laboratuvarı genel bakış
+Chat tools==Sohbet araçları
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Keşif Otomasyonu<
 >Dashboard<==>Kontrol paneli<
@@ -4022,10 +3989,10 @@ Administration &raquo;==Yönetim &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Sohbet araçları
 AI Lab==Yapay Zeka Laboratuvarı
 LLM Selection==LLM Seçim
 RAG Config==RAG Yapılandırma
-Tools Config==Araçlar Yapılandırması
 Log Reports==Günlük Raporları
 AI Shield==Yapay Zeka Kalkanı
 Chat==Sohbet
@@ -4425,27 +4392,13 @@ Network Monitor==Ağ Monitörü
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="Arama sonuçlarını varsayılan olarak ekle"
-"Search"=="Ara"
 "Attach a file"=="Dosya ekle"
 "Send"=="Göndermek"
 "Clear chat"=="Sohbeti temizle"
 "Download chat"=="Sohbeti indir"
 "Upload chat"=="Sohbeti yükle"
 "Show system prompt"=="Sistem istemini göster"
-YaCy Chat==YaCy Sohbet
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Bu Sohbet özeldir. YaCy herhangi bir geçmiş tutmaz; yalnızca tarayıcınız mevcut konuşmayı hatırlar.
-Default Dialog Augmentation:==Varsayılan İletişim Kutusunun Genişletilmesi:
-no search, allow attachments==arama yok, eklere izin ver
-use local search==yerel aramayı kullan
-use global search==genel aramayı kullan
-User==Kullanıcı
-Attach Search Results==Arama Sonuçlarını Ekle
 Attach PNG/JPG or text (.txt/.md/.tex)==PNG/JPG veya metin (.txt/.md/.tex)) ekleyin
-Clear Chat==Sohbeti Temizle
-Download Chat==Sohbeti İndir
-Upload Chat==Sohbeti Yükle
-Show System==Sistemi Göster
 #-----------------------------
 
 #File: yacyinteractive.html
@@ -4559,7 +4512,6 @@ Extended==Uzatılmış
 Strict==Sıkı
 Location==Konum
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Keşif Otomasyonu<
@@ -4861,7 +4813,6 @@ Location==Konum
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Dizinlenen URL’leri yüklemeden veya taramadan gözden geçirin.
 Apply filters==Filtreleri uygula
 Reset filters==Filtreleri sıfırla
 Active collection:==Etkin koleksiyon:
@@ -4871,7 +4822,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Di
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Geçersiz koleksiyon. En fazla 64 harf, rakam, alt çizgi veya kısa çizgi kullanın.
 indexed URLs==dizinlenmiş URL’ler
 Index pages==Dizin sayfaları
-Host/URL==Ana makine/URL
 Collection==Koleksiyon
 URL==URL
 Host==Ev sahibi

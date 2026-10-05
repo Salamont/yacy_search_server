@@ -1272,36 +1272,9 @@ Tutorial==Tutorial
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="Eliminar Subruta"
-Count Colors:==Contar colores:
-Documents without Errors==Documentos sin errores
-Pending in Crawler==Pendiente en Crawler
-link, detected from context==enlace, detectado desde el contexto
-load &amp; index==cargar el índice&amp;
-Administration Options==Opciones de Administración
-Delete all==Eliminar todo
-from index==desde index
-"Delete Load Errors"=="Elimina los errores de carga"
-Metadata==Metadatos
-Path==Ruta
-URLs==URLs
 indexed==indizados
-Host List==Lista de máquinas
-"Directory"=="Directorio"
-Add to blacklist==Añadir a la lista negra
-Crawler Excludes==Crawler Excluye
-Host Analysis==Análisis del host
-Load Errors==Errores de carga
-excluded==excluidos
-failed==Falló
-linked==vinculado
 loading==carga
-pending==pendiente
-stored==almacenados
-Browse Host==Examinar el host
-Host/URL==Host/URL
 Index Browser==Navegador de índices
-"Re-load load-failure docs (404s etc)"=="Recargar documentos de fallo de carga (404s, etc)"
 #-----------------------------
 
 #File: index.html
@@ -3464,6 +3437,8 @@ YaCy Identifier==Identificador YaCy
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==Resumen de AI Lab
+Chat tools==Herramientas del chat
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automatización del descubrimiento<
 >Dashboard<==>Panel de control<
@@ -3737,8 +3712,8 @@ Did you mean:==Quizás quizo decir:
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Herramientas del chat
 LLM Selection==LLM Selection
-Tools Config==Herramientas Config
 Log Reports==Informes de registro
 RAG Config==RAG Config
 AI Shield==AI Shield
@@ -3961,15 +3936,7 @@ Per day:==Por día:
 
 #File: ToolsConfig_p.html
 #---------------------------
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Añadir superpoderes a la charla de YaCy. Las herramientas pueden ser deshabilitadas configurando maxCallsPerTurn a0.
-Save Tools Configuration==Guardar configuración de herramientas
-Data Retrieval Tools==Herramientas de recuperación de datos
-Visualization Tools==Herramientas de visualización
-Basic Tools==Herramientas básicas
-disable==desactivar
-Tools==Herramientas
 Tool settings were saved.==Se guardaron los ajustes de la herramienta.
-maxCallsPerTurn==maxCallsPerTurn
 #-----------------------------
 
 #File: RAGConfig_p.html
@@ -4417,27 +4384,13 @@ Log in==Iniciar sesión
 
 #File: yacychat.html
 #---------------------------
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Esta charla es privada.YaCy no guarda ningún historial — sólo su navegador recuerda la conversación actual.
-no search, allow attachments==sin búsqueda, permitir archivos adjuntos
-use global search==usar búsqueda global
-use local search==usar búsqueda local
-Download Chat==Descargar chat
-Upload Chat==Charla de carga
-Clear Chat==Borrar el chat
-YaCy Chat==Chat de YaCy
-User==Usuario
 "Attach a file"=="Atacar un archivo"
-"Attach search results by default"=="Atacar los resultados de búsqueda por defecto"
 "Clear chat"=="Conversación clara"
 "Download chat"=="Descargar chat"
-"Search"=="Buscar"
 "Send"=="Enviar"
 "Show system prompt"=="Mostrar el indicador del sistema"
 "Upload chat"=="Subir chat"
 Attach PNG/JPG or text (.txt/.md/.tex)==Adjuntar PNG/JPGo texto (.txt/.md/.tex)
-Attach Search Results==Adjuntar los resultados de la búsqueda
-Default Dialog Augmentation:==Aumento predeterminado del diálogo:
-Show System==Mostrar sistema
 #-----------------------------
 
 #File: jslicense.html
@@ -4552,7 +4505,6 @@ YaCy Portalsearch:==YaCyPortalsearch:
 #---------------------------
 rss terminal==terminal rss
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Automatización del descubrimiento<
@@ -4854,7 +4806,6 @@ rss terminal==terminal rss
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Explorar las URL indexadas sin cargarlas ni rastrearlas.
 Apply filters==Aplicar filtros
 Reset filters==Restablecer filtros
 Active collection:==Colección activa:
@@ -4864,7 +4815,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Da
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Colección no válida. Use hasta 64 letras, números, guiones o guiones bajos.
 indexed URLs==URL indexadas
 Index pages==Páginas del índice
-Host/URL==Host/URL
 Collection==Recogida
 URL==URL
 Host==Servidor

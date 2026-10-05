@@ -1510,36 +1510,9 @@ More Tutorials==Ďalšie návody
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="Odstrániť podcestu"
-"Re-load load-failure docs (404s etc)"=="Znova načítať dokumenty o zlyhaní načítania (404s atď.)"
-"Directory"=="Adresár"
-"Delete Load Errors"=="Odstrániť chyby načítania"
 Index Browser==Indexový prehliadač
-Host/URL==Host/URL
-Browse Host==Prehľadávať hostiteľa
-Host List==Zoznam hostiteľov
-URLs==URL
-Count Colors:==Počet farieb:
-Documents without Errors==Dokumenty bez chýb
-Pending in Crawler==Čaká na spracovanie v Crawleri
-Crawler Excludes==Crawler nezahŕňa
-Load Errors==Chyby načítania
-Host Analysis==Analýza hostiteľa
-Add to blacklist==Pridať na čiernu listinu
-Path==Adresar
-stored==uložené
-linked==prepojené
-pending==čakajúce
-excluded==vylúčené
-failed==nepodarilo
-Metadata==Metadáta
-link, detected from context==odkaz, zistený z kontextu
-load &amp; index==načítať index &amp;
 indexed==indexované
 loading==načítavanie
-Administration Options==Možnosti správy
-Delete all==Odstrániť všetky
-from index==z indexu
 #-----------------------------
 
 #File: IndexControlRWIs_p.html
@@ -3496,15 +3469,7 @@ Threaddump==Threaddump
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==Nástroje
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Pridajte superschopnosti do chatu YaCy. Nástroje možno deaktivovať nastavením maxCallsPerTurn na 0.
 Tool settings were saved.==Nastavenia nástroja boli uložené.
-Basic Tools==Základné nástroje
-maxCallsPerTurn==maxCallsPerTurn
-disable==zakázať
-Visualization Tools==Vizualizačné nástroje
-Data Retrieval Tools==Nástroje na získavanie údajov
-Save Tools Configuration==Uložiť konfiguráciu nástrojov
 #-----------------------------
 
 #File: Trails.html
@@ -3895,6 +3860,8 @@ gracious: 50 &euro;==milostivý: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==Prehľad AI Lab
+Chat tools==Nástroje chatu
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automatizácia objavovania<
 >Dashboard<==>Prehľad<
@@ -4014,10 +3981,10 @@ Administration &raquo;==Správa &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Nástroje chatu
 AI Lab==AI Lab
 LLM Selection==Výber LLM
 RAG Config==RAG Konfigurácia
-Tools Config==Nástroje Konfigur
 Log Reports==Log správy
 AI Shield==AI ochrana
 Chat==Chat
@@ -4417,27 +4384,13 @@ Network Monitor==Monitor siete
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="Predvolene pripojiť výsledky vyhľadávania"
-"Search"=="Hľadať"
 "Attach a file"=="Pripojte súbor"
 "Send"=="Odoslať"
 "Clear chat"=="Vymazať chat"
 "Download chat"=="Stiahnite si chat"
 "Upload chat"=="Nahrať čet"
 "Show system prompt"=="Zobraziť výzvu systému"
-YaCy Chat==YaCy Rozhovor
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Tento rozhovor je súkromný. YaCy neuchováva žiadnu históriu – iba váš prehliadač si pamätá aktuálnu konverzáciu.
-Default Dialog Augmentation:==Predvolené rozšírenie dialógového okna:
-no search, allow attachments==žiadne vyhľadávanie, povoliť prílohy
-use local search==použiť lokálne vyhľadávanie
-use global search==použiť globálne vyhľadávanie
-User==Používateľ
-Attach Search Results==Pripojte výsledky vyhľadávania
 Attach PNG/JPG or text (.txt/.md/.tex)==Pripojte PNG/JPG alebo text (.txt/.md/.tex)
-Clear Chat==Vymazať rozhovor
-Download Chat==Stiahnite si Chat
-Upload Chat==Nahrať rozhovor
-Show System==Zobraziť systém
 #-----------------------------
 
 #File: yacyinteractive.html
@@ -4551,7 +4504,6 @@ Extended==Rozšírené
 Strict==Prísne
 Location==Miesto
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Automatizácia objavovania<
@@ -4853,7 +4805,6 @@ Location==Miesto
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Prehliadajte indexované URL bez sťahovania alebo prehľadávania.
 Apply filters==Použiť filtre
 Reset filters==Obnoviť filtre
 Active collection:==Aktívna kolekcia:
@@ -4863,7 +4814,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Ú
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Neplatná kolekcia. Použite najviac 64 písmen, číslic, podčiarkovníkov alebo spojovníkov.
 indexed URLs==indexované URL
 Index pages==Stránky indexu
-Host/URL==Host/URL
 Collection==Zbierka
 URL==URL adresa
 Host==Hostiteľ

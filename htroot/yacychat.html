@@ -1,7 +1,7 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <title>YaCy '#[clientname]#': Chat</title>
+    <title>Scoutro Chat</title>
     #%env/templates/metas.template%#
     <link rel="stylesheet" href="js/styles/a11y-dark.min.css" type="text/css" />
     <link rel="stylesheet" href="env/markdown.css" type="text/css" />
@@ -785,6 +785,80 @@
         align-items: center;
         gap: 6px;
       }
+
+      /* 8. Scoutro look: readable sans-serif text, rounded cards, calm notices; code stays monospace. */
+      .scoutro-chat-header { margin: 4px 0 16px; }
+      .scoutro-chat-header h1 { margin: 0 0 6px; font-size: 26px; font-weight: 700; color: var(--scoutro-ink, #0f1f3d); }
+      .scoutro-chat-subtitle { margin: 0 0 4px; max-width: 60em; color: var(--scoutro-ink-2, #2f3f5c); font-size: 15px; }
+      .scoutro-chat-privacy { margin: 0; color: var(--scoutro-muted, #5b6b85); font-size: 13px; }
+      .scoutro-chat-settings {
+        padding: 12px 16px; background: var(--scoutro-surface, #fff);
+        border: 1px solid var(--scoutro-border, #dbe5f4); border-radius: var(--scoutro-radius, 12px);
+      }
+      .scoutro-chat-settings .search-default-control { margin: 0 0 10px; }
+      .scoutro-chat-settings .collection-control { margin: 0 0 8px; }
+      .scoutro-chat-current { margin: 0; color: var(--scoutro-ink-2, #2f3f5c); font-size: 14px; overflow-wrap: anywhere; }
+      .scoutro-chat-current strong {
+        display: inline-block; padding: 1px 10px; border-radius: var(--scoutro-radius-pill, 999px);
+        background: var(--scoutro-primary-soft, #e7f0ff); color: var(--scoutro-ink, #0f1f3d);
+      }
+      .collection-control label, .search-default-control > span { font-weight: 600; }
+      .chat-turn, .chat-turn.user, .chat-turn.assistant, .chat-turn.tool {
+        border-radius: var(--scoutro-radius, 12px); border-left-width: 4px;
+        box-shadow: var(--scoutro-shadow-sm, 0 1px 2px rgba(15, 31, 61, .08));
+      }
+      .chat-turn:hover { box-shadow: var(--scoutro-shadow-sm, 0 1px 2px rgba(15, 31, 61, .08)); }
+      .chat-turn.user { background-color: #f3f7fe; border-color: #dbe5f4; border-left-color: #1673ff; }
+      .chat-turn.assistant { background-color: #fff; border-color: #dbe5f4; border-left-color: #0b4fc4; color: #0f1f3d; }
+      /* a small speaker pill, not the full-width card title of the theme (.main fieldset > legend) */
+      .chat-panel fieldset.chat-turn > legend {
+        float: none; display: table; width: auto; max-width: 100%; margin: 0 0 8px; padding: 2px 12px;
+        border-radius: var(--scoutro-radius-pill, 999px); font-size: 13px; line-height: 20px; letter-spacing: 0; text-transform: none;
+      }
+      .chat-panel fieldset.chat-turn.user > legend { background: #1673ff; border: 1px solid #1673ff; color: #fff; }
+      .chat-panel fieldset.chat-turn.assistant > legend { background: #0b4fc4; border: 1px solid #0b4fc4; color: #fff; }
+      .chat-panel fieldset.chat-turn.tool > legend { background: #3d6b2f; border: 1px solid #3d6b2f; color: #fff; }
+      .chat-turn.system {
+        border-radius: var(--scoutro-radius, 12px); background: #fff8e6; border-color: #f3dfae;
+        border-left: 4px solid #d99a00; color: #5c3d00; font-family: inherit; font-size: 15px;
+      }
+      .chat-panel fieldset.chat-turn.system > legend { background: #d99a00; border: 1px solid #d99a00; color: #fff; }
+      .scoutro-chat-settings .search-default-options { height: 34px; width: 520px; }
+      .scoutro-chat-settings .search-default-options label { margin: 0; font-size: 13px; padding: 0 6px; transform: none; }
+      .chat-turn .chat-body, .chat-turn .chat-body.plain-text, .composer textarea, .attachment-filename, .search-hint {
+        font-family: inherit; font-size: 16px; line-height: 1.55;
+      }
+      .attachment-filename, .search-hint { font-size: 14px; }
+      .chat-turn .chat-body.markdown-body, .chat-turn .chat-body.markdown-body * { font-family: inherit !important; }
+      .chat-turn .chat-body.markdown-body :is(pre, code, kbd, samp),
+      .chat-turn .chat-body.markdown-body :is(pre, code) * { font-family: 'Roboto Mono', 'Menlo', 'Consolas', monospace !important; }
+      .chat-turn .chat-body.markdown-body :is(p, li, h1, h2, h3, h4, h5, h6) { font-size: 16px; line-height: 1.55; }
+      .chat-turn .chat-body.markdown-body :is(h1, h2, h3) { font-size: 18px; }
+      .chat-turn .chat-body.markdown-body code { font-size: 14px; }
+      .composer .btn {
+        border-radius: 8px; border-color: #1673ff; background: #1673ff;
+        font-family: inherit; font-size: 16px; text-transform: none;
+      }
+      .composer .btn:hover, .composer .btn:focus { border-color: #0b4fc4; background: #0b4fc4; }
+      .chat-sources {
+        padding: 8px 12px; background: #f6f9ff; border: 1px solid #dbe5f4; border-radius: 8px; font-size: 15px;
+      }
+      .chat-sources-title { font-weight: 600; color: #0f1f3d; }
+      .chat-sources li { margin: 4px 0; }
+      @media (max-width: 767px) {
+        .scoutro-chat-header h1 { font-size: 22px; }
+        .scoutro-chat-settings { padding: 10px 12px; }
+        .scoutro-chat-settings .search-default-control { flex-wrap: wrap; }
+        .scoutro-chat-settings .search-default-options { width: 100%; height: 40px; }
+        .chat-turn .chat-body, .chat-turn .chat-body.markdown-body :is(p, li) { font-size: 15px; }
+        /* The question field stays reachable while reading a long answer. */
+        #chatForm {
+          position: sticky; bottom: 0; z-index: 5; padding-bottom: env(safe-area-inset-bottom, 0);
+          background: linear-gradient(to bottom, rgba(244, 247, 252, 0), var(--scoutro-page, #f4f7fc) 12px);
+        }
+        #chatForm .chat-turn.user { box-shadow: 0 -2px 10px rgba(15, 31, 61, .12); }
+        .composer textarea { max-height: 40vh; overflow-y: auto; }
+      }
     </style>
   </head>
   <body id="IndexControl">
@@ -808,40 +882,48 @@
     ::
     #(/topmenu)#
 
-    <h2>YaCy Chat</h2>
-    <p>This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.</p>
+    <header class="scoutro-chat-header">
+      <h1>Scoutro Chat</h1>
+      <p class="scoutro-chat-subtitle">AI search in your Scoutro index. Answers name their sources as [1], [2] … – check important facts on the linked pages.</p>
+      <p class="scoutro-chat-privacy">This chat is private. Scoutro keeps no history – only your browser remembers the current conversation.</p>
+    </header>
 
       <div class="chat-panel">
         <div class="chat-flow">
+          <section class="scoutro-chat-settings" aria-label="Chat settings">
           <div class="search-default-control">
-            <span>Default Dialog Augmentation:</span>
-<div class="search-default-options" id="searchDefaultOptions" role="radiogroup" aria-label="Attach search results by default">
+            <span id="searchDefaultLabel">Answers based on:</span>
+<div class="search-default-options" id="searchDefaultOptions" role="radiogroup" aria-labelledby="searchDefaultLabel">
                <input type="radio" id="searchDefaultNone" name="searchDefault" value="no"/>
-               <label for="searchDefaultNone">no search, allow attachments</label>
+               <label for="searchDefaultNone" title="Answers only from the conversation and your attachments">no search</label>
                <input type="radio" id="searchDefaultLocal" name="searchDefault" value="local" checked="checked"/>
-               <label for="searchDefaultLocal">use local search</label>
+               <label for="searchDefaultLocal" title="Answers from the pages in your Scoutro index">Scoutro index</label>
                <input type="radio" id="searchDefaultGlobal" name="searchDefault" value="global" class="global-option"/>
-               <label for="searchDefaultGlobal" class="global-label">use global search</label>
+               <label for="searchDefaultGlobal" class="global-label" title="Also searches other peers of the YaCy network">index + YaCy network</label>
                <span class="search-default-slider" aria-hidden="true"></span>
              </div>
           </div>
           <div class="collection-control">
-            <label for="collectionInput">Collection (portal):</label>
-            <input type="text" id="collectionInput" maxlength="64" pattern="[A-Za-z0-9_\-]{1,64}" placeholder="all collections" autocomplete="off" spellcheck="false" aria-describedby="collectionHint"/>
-            <span class="collection-hint" id="collectionHint">Search only this collection, e.g. edelsenior-web</span>
+            <label for="collectionInput">Collection:</label>
+            <input type="text" id="collectionInput" list="collectionChoices" maxlength="64" pattern="[A-Za-z0-9_\-]{1,64}" placeholder="all collections" autocomplete="off" spellcheck="false" aria-describedby="collectionHint collectionCurrent"/>
+            <datalist id="collectionChoices"></datalist>
+            <span class="collection-hint" id="collectionHint">Empty: whole index. Enter or choose a collection to search only its pages.</span>
           </div>
+          <p class="scoutro-chat-current" id="collectionCurrent" aria-live="polite"><span id="collectionCurrentLabel">Current search scope:</span> <strong id="collectionCurrentValue">all collections</strong></p>
+          </section>
           <div class="chat-messages" id="chatMessages" aria-live="polite"></div>
           <form id="chatForm">
             <fieldset class="chat-turn user">
-              <legend>User</legend>
+              <legend>Your question</legend>
               <div class="composer">
                 <div class="composer-main" id="composerMain">
-                  <textarea class="chat-body" id="userInput" rows="3" placeholder="Ask me anything..." required="required"></textarea>
+                  <label for="userInput" class="sr-only">Your question</label>
+                  <textarea class="chat-body" id="userInput" rows="3" placeholder="Ask a question about the pages in your index …" required="required"></textarea>
                   <div class="attachment-row" id="attachmentRow">
-                    <button type="button" class="search-button" id="searchButton" aria-label="Search">
+                    <button type="button" class="search-button" id="searchButton" aria-label="Search the index for this question" title="Search the index for this question">
                       <span class="glyphicon glyphicon-search" aria-hidden="true"></span>
                     </button>
-                    <span class="search-hint" id="searchHint">Attach Search Results</span>
+                    <span class="search-hint" id="searchHint">Search the index for this question</span>
                     <button type="button" class="attachment-button" id="addFileButton" aria-label="Attach a file">
                       <span class="glyphicon glyphicon-paperclip" aria-hidden="true"></span>
                     </button>
@@ -856,20 +938,20 @@
           <div class="clear-chat-row" id="clearChatRow">
             <button type="button" class="btn btn-inverse label-warning" id="clearChatButton" aria-label="Clear chat">
               <span class="glyphicon glyphicon-trash" aria-hidden="true"></span>
-              Clear Chat
+              Clear chat
             </button>
             <button type="button" class="btn btn-inverse label-success" id="downloadChatButton" aria-label="Download chat">
               <span class="glyphicon glyphicon-download" aria-hidden="true"></span>
-              Download Chat
+              Download chat
             </button>
             <button type="button" class="btn btn-inverse label-primary" id="uploadChatButton" aria-label="Upload chat">
               <span class="glyphicon glyphicon-upload" aria-hidden="true"></span>
-              Upload Chat
+              Upload chat
             </button>
             <input type="file" id="uploadChatInput" class="hidden-file-input" accept="application/json"/>
             <button type="button" class="btn btn-inverse label-info" id="toggleSystemButton" aria-label="Show system prompt">
               <span class="glyphicon glyphicon-star" aria-hidden="true"></span>
-              <span class="toggle-label">Show System</span>
+              <span class="toggle-label">Show system prompt</span>
             </button>
           </div>
         </div>
@@ -884,6 +966,8 @@
     const SYSTEM_PROMPT = '#[system_prompt]#';
     const defaultApiHost = '';
     const P2P_MODE = #[p2p_mode]# === 1;
+    // Administrator page view (template flag of the lock symbols); only then the collections are suggested.
+    const ADMIN_VIEW = #(authorized)#false::true#(/authorized)#;
 
     // Messages for the error codes of /v1/chat/completions (see LLMAccess.java).
     const CHAT_ERRORS = {
@@ -903,6 +987,24 @@
         invalidTitle: 'No source of this answer has this number',
         unverifiedTitle: 'Not among the sources of this answer: not linked'
     };
+    // Texts of the chat surface: who speaks, what the chat is doing, what went wrong.
+    const CHAT_TEXT = {
+        assistant: 'Scoutro',
+        user: 'You',
+        tool: 'Tool',
+        system: 'Notice',
+        searching: 'Searching the index and writing the answer …',
+        writing: 'Writing the answer …',
+        offline: 'The Scoutro server cannot be reached. Check the network connection and try again.',
+        interrupted: 'The connection broke off before the answer was complete. Please ask again.',
+        serverError: 'The server could not create an answer. Please try again later; the Scoutro log has the details.',
+        unexpected: 'Something went wrong in the chat page. Please reload the page and ask again.',
+        failed: 'The answer could not be created:',
+        allCollections: 'all collections',
+        noStreaming: 'This browser cannot receive streamed answers. Please use a current browser.'
+    };
+    // An error whose message is meant for the reader; any other error is shown as CHAT_TEXT.unexpected.
+    class ChatError extends Error {}
     const COLLECTION_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
     const COLLECTION_STORAGE_KEY = 'scoutro.chat.collection';
     const SEARCH_FILE_PREFIXES = ['scoutro-sources', 'search_result_'];
@@ -953,7 +1055,9 @@
         searchDefaultNone: document.getElementById('searchDefaultNone'),
         searchDefaultLocal: document.getElementById('searchDefaultLocal'),
         searchDefaultGlobal: document.getElementById('searchDefaultGlobal'),
-        collectionInput: document.getElementById('collectionInput')
+        collectionInput: document.getElementById('collectionInput'),
+        collectionChoices: document.getElementById('collectionChoices'),
+        collectionCurrentValue: document.getElementById('collectionCurrentValue')
     };
 
     // configure search default options based on P2P mode
@@ -1420,6 +1524,7 @@
         const clean = (value || '').trim();
         if (clean && !COLLECTION_PATTERN.test(clean)) return false;
         state.config.collection = clean;
+        showCollectionScope();
         if (persist) {
             try {
                 if (clean) window.localStorage.setItem(COLLECTION_STORAGE_KEY, clean);
@@ -1429,6 +1534,32 @@
             }
         }
         return true;
+    }
+
+    // The search scope of the next question, next to the collection field.
+    function showCollectionScope() {
+        if (dom.collectionCurrentValue) dom.collectionCurrentValue.textContent = state.config.collection || CHAT_TEXT.allCollections;
+    }
+
+    // Suggestions for the collection field. Only administrators may list collections: for anyone else
+    // the API answers with a login challenge, so the list is not requested and the field stays plain text.
+    async function loadCollectionChoices() {
+        if (!dom.collectionChoices || !ADMIN_VIEW) return;
+        try {
+            const response = await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+            if (!response.ok) return;
+            const data = await response.json();
+            const items = Array.isArray(data?.collections) ? data.collections : [];
+            for (const item of items) {
+                const id = String(item?.id || '');
+                if (!COLLECTION_PATTERN.test(id)) continue;
+                const option = document.createElement('option');
+                option.value = id;
+                dom.collectionChoices.appendChild(option);
+            }
+        } catch (err) {
+            // suggestions are optional
+        }
     }
 
     if (dom.collectionInput) {
@@ -1456,7 +1587,7 @@
         if (icon) {
             icon.className = `glyphicon ${state.showSystem ? 'glyphicon-star-empty' : 'glyphicon-star'}`;
         }
-        const label = state.showSystem ? 'Hide System' : 'Show System';
+        const label = state.showSystem ? 'Hide system prompt' : 'Show system prompt';
         dom.toggleSystemButton.querySelector('.toggle-label').textContent = label;
     }
 
@@ -1469,13 +1600,13 @@
         }
         const legend = document.createElement('legend');
         if (role === 'assistant') {
-            legend.textContent = 'Assistant';
+            legend.textContent = CHAT_TEXT.assistant;
         } else if (role === 'user') {
-            legend.textContent = 'User';
+            legend.textContent = CHAT_TEXT.user;
         } else if (role === 'tool') {
-            legend.textContent = 'Tool';
+            legend.textContent = CHAT_TEXT.tool;
         } else {
-            legend.textContent = 'System';
+            legend.textContent = CHAT_TEXT.system;
         }
         entry.appendChild(legend);
 
@@ -1965,25 +2096,33 @@
         };
         if (state.config.collection) payload.collection = state.config.collection;
         const headers = { 'Content-Type': 'application/json' };
-        const response = await fetch(state.config.apiHost.replace(/\/$/, '') + '/v1/chat/completions', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(payload)
-        });
+        let response;
+        try {
+            response = await fetch(state.config.apiHost.replace(/\/$/, '') + '/v1/chat/completions', {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload)
+            });
+        } catch (err) {
+            console.warn('Chat request failed', err);
+            throw new ChatError(CHAT_TEXT.offline);
+        }
         if (!response.ok) {
             let failure;
             try { failure = await response.json(); } catch (_) { failure = null; }
             const errorCode = typeof failure?.error?.code === 'string' ? failure.error.code : '';
-            if (Object.prototype.hasOwnProperty.call(CHAT_ERRORS, errorCode)) throw new Error(CHAT_ERRORS[errorCode]);
-            if (response.status === 429) throw new Error(CHAT_ERRORS.ai_shield_rate_limited);
-            if (failure?.error?.message) throw new Error(String(failure.error.message));
+            if (Object.prototype.hasOwnProperty.call(CHAT_ERRORS, errorCode)) throw new ChatError(CHAT_ERRORS[errorCode]);
+            if (response.status === 429) throw new ChatError(CHAT_ERRORS.ai_shield_rate_limited);
+            // messages of client errors (4xx) are written for the reader; server errors may carry internals
+            if (failure?.error?.message && response.status < 500) throw new ChatError(String(failure.error.message));
             if (response.status === 401 || response.status === 403) {
-                throw new Error('System data requires an authorized administrator or agent token. No web answer is substituted.');
+                throw new ChatError('System data requires an authorized administrator or agent token. No web answer is substituted.');
             }
-            throw new Error(`Request failed: ${response.status} ${response.statusText}`);
+            console.warn('Chat request answered', response.status, failure);
+            throw new ChatError(`${CHAT_TEXT.serverError} (HTTP ${response.status}${errorCode ? ', ' + errorCode : ''})`);
         }
         if (!response.body) {
-            throw new Error('Streaming not supported by this browser.');
+            throw new ChatError(CHAT_TEXT.noStreaming);
         }
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
@@ -2120,7 +2259,7 @@
                     if (assistantNode) delete assistantNode.dataset.pendingReply;
                     if (!sawFirstDelta) {
                         sawFirstDelta = true;
-                        applyMessageContent(assistantNode, 'assistant', 'waiting for an answer...');
+                        applyMessageContent(assistantNode, 'assistant', CHAT_TEXT.writing);
                         if (!focusShown && typeof onFirstToken === 'function') {
                             focusShown = true;
                             onFirstToken();
@@ -2176,7 +2315,14 @@
         };
         let done = false;
         while (!done) {
-            const { value, done: readerDone } = await reader.read();
+            let chunkRead;
+            try {
+                chunkRead = await reader.read();
+            } catch (err) {
+                console.warn('Chat stream interrupted', err);
+                throw new ChatError(CHAT_TEXT.interrupted);
+            }
+            const { value, done: readerDone } = chunkRead;
             if (readerDone) break;
             const chunk = decoder.decode(value, { stream: true });
             if (!focusShown && chunk && chunk.trim() && typeof onFirstToken === 'function') {
@@ -2317,7 +2463,7 @@
     }
 
     function initialAssistantPlaceholder(message) {
-        return 'waiting for an answer...';
+        return message?.search && message.search !== SEARCH_DEFAULTS.none ? CHAT_TEXT.searching : CHAT_TEXT.writing;
     }
 
     function inferAttachmentFromContent(content) {
@@ -3027,7 +3173,8 @@
             if (assistantNode && assistantNode.dataset.pendingReply === 'true') {
                 assistantNode.closest('.chat-turn')?.remove();
             }
-            appendMessage('system', `Error: ${err.message}`);
+            if (!(err instanceof ChatError)) console.warn('Chat turn failed', err);
+            appendMessage('system', `${CHAT_TEXT.failed} ${err instanceof ChatError ? err.message : CHAT_TEXT.unexpected}`);
             showComposer();
         } finally {
             state.busy = false;
@@ -3123,6 +3270,7 @@
     async function initializeChat() {
         applyCollectionSetting(readCollectionSetting(), false);
         if (dom.collectionInput) dom.collectionInput.value = state.config.collection;
+        loadCollectionChoices();
         await loadSearchDefault();
         await hydrateConversation();
         updateSystemToggleButton();

@@ -1506,36 +1506,9 @@ More Tutorials==その他のチュートリアル
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="サブパスの削除"
-"Re-load load-failure docs (404s etc)"=="ロード失敗ドキュメントを再ロードします (404 など)"
-"Directory"=="ディレクトリ"
-"Delete Load Errors"=="読み込みエラーを削除する"
 Index Browser==索引ブラウザー
-Host/URL==ホスト/URL
-Browse Host==ホストの参照
-Host List==ホストリスト
-URLs==URL
-Count Colors:==色の数を数える:
-Documents without Errors==エラーのない文書
-Pending in Crawler==クローラーで保留中
-Crawler Excludes==クローラーは除外します
-Load Errors==ロードエラー
-Host Analysis==ホスト分析
-Add to blacklist==ブラックリストに追加する
-Path==パス
-stored==保管されている
-linked==リンクされた
-pending==保留中
-excluded==除外される
-failed==失敗した
-Metadata==メタデータ
-link, detected from context==リンク、コンテキストから検出
-load &amp; index==&amp; インデックスをロードする
 indexed==インデックス付き
 loading==読み込み中
-Administration Options==管理オプション
-Delete all==全部を削除する
-from index==索引から
 #-----------------------------
 
 #File: IndexControlRWIs_p.html
@@ -3492,15 +3465,7 @@ Threaddump==スレッドダンプ
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==ツール
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==YaCy チャットにスーパーパワーを追加します。 Tools may be disabled by setting maxCallsPerTurn to 0.
 Tool settings were saved.==ツール設定が保存されました。
-Basic Tools==基本的なツール
-maxCallsPerTurn==maxCallsPerTurn
-disable==無効にする
-Visualization Tools==視覚化ツール
-Data Retrieval Tools==データ検索ツール
-Save Tools Configuration==ツール設定の保存
 #-----------------------------
 
 #File: Trails.html
@@ -3891,6 +3856,8 @@ gracious: 50 &euro;==親切です: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==AIラボの概要
+Chat tools==チャットツール
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>ディスカバリー自動化<
 >Dashboard<==>ダッシュボード<
@@ -4010,10 +3977,10 @@ Administration &raquo;==管理 &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==チャットツール
 AI Lab==AIラボ
 LLM Selection==LLM 選択
 RAG Config==RAG 構成
-Tools Config==ツール構成
 Log Reports==ログレポート
 AI Shield==AI 保護
 Chat==チャット
@@ -4413,27 +4380,13 @@ Network Monitor==ネットワーク モニター
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="デフォルトで検索結果を添付する"
-"Search"=="検索"
 "Attach a file"=="ファイルを添付する"
 "Send"=="送信"
 "Clear chat"=="クリアチャット"
 "Download chat"=="チャットをダウンロード"
 "Upload chat"=="チャットをアップロードする"
 "Show system prompt"=="システムプロンプトを表示"
-YaCy Chat==YaCy チャット
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==このチャットは非公開です。 YaCy は履歴を保持しません。ブラウザのみが現在の会話を記憶します。
-Default Dialog Augmentation:==デフォルトのダイアログ拡張:
-no search, allow attachments==検索なし、添付を許可する
-use local search==ローカル検索を使用する
-use global search==グローバル検索を使用する
-User==ユーザー
-Attach Search Results==検索結果を添付する
 Attach PNG/JPG or text (.txt/.md/.tex)==PNG/JPG またはテキスト (.txt/.md/.tex)) を添付してください
-Clear Chat==チャットをクリアする
-Download Chat==チャットをダウンロード
-Upload Chat==チャットをアップロードする
-Show System==ショーシステム
 #-----------------------------
 
 #File: yacyinteractive.html
@@ -4547,7 +4500,6 @@ Extended==拡張された
 Strict==厳しい
 Location==位置
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro ディスカバリー自動化<
@@ -4849,7 +4801,6 @@ Location==位置
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==ページを取得・クロールせずに索引済みURLを閲覧します。
 Apply filters==フィルターを適用
 Reset filters==フィルターをリセット
 Active collection:==現在のコレクション：
@@ -4859,7 +4810,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==�
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==コレクション名が無効です。64文字以内の英数字、アンダースコア、ハイフンを使用してください。
 indexed URLs==索引済みURL
 Index pages==索引ページ
-Host/URL==ホスト/URL
 Collection==コレクション
 URL==URL
 Host==ホスト

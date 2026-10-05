@@ -1278,36 +1278,9 @@ Tutorial==Tutorial
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="Cancella sottopercorso"
-Count Colors:==Colori del conteggio:
-Documents without Errors==Documenti privi di errori
-Pending in Crawler==In attesa di crawler
-link, detected from context==collegamento, rilevato dal contesto
-load &amp; index==carico indice&amp;
-Administration Options==Opzioni amministrazione
-Delete all==Elimina tutti
-from index==dall'indice
-"Delete Load Errors"=="Elimina tutti gli errori di caricamento"
-Metadata==Metadati
-Path==Percorso
-URLs==URL
 indexed==indicizzata
-Host List==Elenco host
-"Directory"=="Directory"
-Add to blacklist==Aggiungi alla lista nera
-Crawler Excludes==crawler Esclude
-Host Analysis==Analisi host
-Load Errors==Carica errori
-excluded==esclusi
-failed==non riuscito
-linked==collegato
 loading==carico
-pending==in attesa
-stored==memorizzati
-Browse Host==Sfoglia host
-Host/URL==Host/URL
 Index Browser==Browser indice
-"Re-load load-failure docs (404s etc)"=="Documenti di carico-fallimento di ricarica (404 ecc.) "
 #-----------------------------
 
 #File: index.html
@@ -3470,6 +3443,8 @@ YaCy Identifier==Identifier YaCy
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==Panoramica AI Lab
+Chat tools==Strumenti della chat
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Automazione della scoperta<
 >Dashboard<==>Panoramica<
@@ -3743,8 +3718,8 @@ Did you mean:==Forse intendevi cercare:
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Strumenti della chat
 LLM Selection==LLM Selection
-Tools Config==Strumenti Configura
 Log Reports==Rapporti di registro
 RAG Config==RAG Config
 AI Shield==AI Shield
@@ -3967,15 +3942,7 @@ Per day:==Al giorno:
 
 #File: ToolsConfig_p.html
 #---------------------------
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.
-Save Tools Configuration==Configurazione Salva strumenti
-Data Retrieval Tools==Strumenti di recupero dati
-Visualization Tools==Strumenti di visualizzazione
-Basic Tools==Strumenti di base
-disable==disabilita
-Tools==Strumenti
 Tool settings were saved.==Le impostazioni degli strumenti sono state salvate.
-maxCallsPerTurn==maxCallsPerTurn
 #-----------------------------
 
 #File: RAGConfig_p.html
@@ -4423,27 +4390,13 @@ Log in==Accedi
 
 #File: yacychat.html
 #---------------------------
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Questa chat è privata. YaCy non mantiene alcuna cronologia ® solo il browser ricorda la conversazione corrente.
-no search, allow attachments==nessuna ricerca, permetti allegati
-use global search==usa la ricerca globale
-use local search==usa la ricerca locale
-Download Chat==Scarica Chat
-Upload Chat==Carica chat
-Clear Chat==Pulisci conversazione
-YaCy Chat==Chat YaCy
-User==Utente
 "Attach a file"=="Attiva un file"
-"Attach search results by default"=="Attiva i risultati della ricerca per impostazione predefinita"
 "Clear chat"=="Chat pulita"
 "Download chat"=="Scarica chat"
-"Search"=="Cerca"
 "Send"=="Invia"
 "Show system prompt"=="Mostra prompt del sistema"
 "Upload chat"=="Carica chat"
 Attach PNG/JPG or text (.txt/.md/.tex)==Allega PNG/JPGo testo (.txt/.md/.tex)
-Attach Search Results==Allega i risultati della ricerca
-Default Dialog Augmentation:==Augmentazioni di dialogo predefinite:
-Show System==Mostra sistema
 #-----------------------------
 
 #File: jslicense.html
@@ -4558,7 +4511,6 @@ YaCy Portalsearch:==Ricerca portale YaCy:
 #---------------------------
 rss terminal==terminale rss
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Automazione della scoperta<
@@ -4860,7 +4812,6 @@ rss terminal==terminale rss
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Sfoglia gli URL indicizzati senza caricarli o scansionarli.
 Apply filters==Applica filtri
 Reset filters==Reimposta filtri
 Active collection:==Collezione attiva:
@@ -4870,7 +4821,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Da
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Collezione non valida. Usa fino a 64 lettere, numeri, trattini o trattini bassi.
 indexed URLs==URL indicizzati
 Index pages==Pagine dell’indice
-Host/URL==Host/URL
 Collection==Raccolta
 URL==URL
 Host==HostCity name (optional, probably does not need a translation)
