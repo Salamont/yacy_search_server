@@ -109,6 +109,10 @@ public final class KgReader {
         return this.store;
     }
 
+    KgConfig config() {
+        return this.cfg;
+    }
+
     long now() {
         return this.clock.getAsLong();
     }
@@ -809,7 +813,7 @@ public final class KgReader {
     }
 
     /** The best name of an entity among the viewer's name statements (stored order; nothing invisible is read). */
-    private static String visibleName(final Connection c, final long ent, final Viewer v) throws SQLException {
+    static String visibleName(final Connection c, final long ent, final Viewer v) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("SELECT s.obj_val FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
                 + " WHERE s.subj = ? AND v.kind = 2 AND v.name = 'name' AND " + visibleStatement(v, "s")
                 + " ORDER BY s.quality, s.current_sources DESC, s.last_confirmed DESC LIMIT 1")) {
@@ -881,7 +885,7 @@ public final class KgReader {
     }
 
     /** Collections of a document the viewer may see. */
-    private static JSONArray docCollections(final Connection c, final long docRowid, final Viewer v) throws SQLException {
+    static JSONArray docCollections(final Connection c, final long docRowid, final Viewer v) throws SQLException {
         final JSONArray out = new JSONArray();
         try (PreparedStatement ps = c.prepareStatement("SELECT k.coll_id, k.name FROM kg_doc_collection dc JOIN kg_collection k"
                 + " ON k.coll_id = dc.coll_id WHERE dc.doc_rowid = ? ORDER BY k.name")) {

@@ -48,6 +48,7 @@ import net.yacy.ai.LLM;
 import net.yacy.ai.PromptGuard;
 import net.yacy.ai.RAGAugmentor;
 import net.yacy.ai.ToolCallProtocol;
+import net.yacy.ai.rag.GraphFacts;
 import net.yacy.ai.rag.RagCitations;
 import net.yacy.ai.rag.RagContext;
 import net.yacy.ai.rag.RagConversation;
@@ -318,32 +319,42 @@ public class RAGProxyServlet extends HttpServlet {
                         result = retriever.retrieve(query, scope, global, ragSettings.maxSources);
                     }
                 }
-                final RagContext.Built built = RagContext.build(result.selected, query,
-                        Math.max(0, budget.sourceChars(RagConversation.historyChars(messages)) - currentExtraChars),
+                final int sourceChars = Math.max(0, budget.sourceChars(RagConversation.historyChars(messages)) - currentExtraChars);
+                // Scoutro knowledge graph: facts of the entities the question names or the found pages hold, as further
+                // numbered sources after the search results; local and administrator access only (guests by setting)
+                final GraphFacts.Selected graphSelection = GraphFacts.collect(GraphFacts.runtime(),
+                        shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN, shield == LLMAccess.Shield.GUEST,
+                        scope, global, result.selected, query, sourceChars);
+                final RagContext.Built built = RagContext.build(result.selected, query, Math.max(0, sourceChars - graphSelection.reservedChars()),
                         ragSettings.documentMaxLength, ragSettings.maxSources, scope);
+                final GraphFacts.Built graph = GraphFacts.format(graphSelection, built.sources.size() + 1);
                 sources = new ArrayList<>(built.sources);
+                sources.addAll(graph.sources);
+                final String contextText = graph.text.isEmpty() ? built.text : built.text.isEmpty() ? graph.text : built.text + "\n\n" + graph.text;
                 user += userPrefix;
-                user += guard.data(built.text.isEmpty() ? "(no search results)" : built.text);
+                user += guard.data(contextText.isEmpty() ? "(no search results)" : contextText);
                 userObject.setContentText(user);
                 ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-retrieval phase=end ragMode=" + ragMode + " terms=" + query.terms.size()
                         + " stage=" + result.stage + " candidates=" + result.candidates + " foreignDropped=" + result.foreignDropped
-                        + " sources=" + built.sources.size() + " contextChars=" + built.text.length() + " searchMs=" + (System.currentTimeMillis() - searchStart));
+                        + " sources=" + built.sources.size() + " graphFacts=" + graph.meta.optInt("facts") + " graphReason=" + graph.meta.opt("reason")
+                        + " contextChars=" + contextText.length() + " searchMs=" + (System.currentTimeMillis() - searchStart));
                 initialMetadata = new JSONObject(true);
-                initialMetadata.put("scoutro-sources", built.sourcesJson());
+                initialMetadata.put("scoutro-sources", RagContext.sourcesJson(sources));
+                initialMetadata.put("scoutro-graph", graph.meta);
                 final JSONObject retrieval = new JSONObject(true);
                 retrieval.put("query", query.searchString(false));
                 retrieval.put("stage", result.stage);
                 retrieval.put("collection", scope == null ? JSONObject.NULL : scope);
                 retrieval.put("global", result.global);
                 retrieval.put("candidates", result.candidates);
-                retrieval.put("contextChars", built.text.length());
-                retrieval.put("contextTokens", RagContext.tokens(built.text.length()));
+                retrieval.put("contextChars", contextText.length());
+                retrieval.put("contextTokens", RagContext.tokens(contextText.length()));
                 retrieval.put("numCtx", llm4Chat.llm.num_ctx);
                 initialMetadata.put("scoutro-retrieval", retrieval);
-                if (!built.text.isEmpty()) {
+                if (!contextText.isEmpty()) {
                     // the attachment the chat page keeps for follow-up questions: exactly what the model saw
                     initialMetadata.put("search-filename", "scoutro-sources-" + (scope == null ? "index" : scope) + ".md");
-                    initialMetadata.put("search-text-base64", Base64.getEncoder().encodeToString(built.text.getBytes(StandardCharsets.UTF_8)));
+                    initialMetadata.put("search-text-base64", Base64.getEncoder().encodeToString(contextText.getBytes(StandardCharsets.UTF_8)));
                 }
             } else if (!sources.isEmpty()) {
                 initialMetadata = new JSONObject(true);

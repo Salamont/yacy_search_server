@@ -76,6 +76,19 @@ no YaCy administrator permission, blocked by the AI Shield, rate limit, no chat
 model configured, LLM endpoint not reachable, LLM endpoint rejected the
 credentials. Details: `docs/SCOUTRO_LLM_SECURITY.md`.
 
+## Scoutro: knowledge graph sources
+
+When the knowledge graph runs, an answer can also cite facts Scoutro recorded
+about organisations and facilities, for example "[4] Scoutro knowledge graph:
+Muster Pflege gGmbH". These sources are marked **Scoutro knowledge graph** in
+the source list and link the page the facts were read from; uncertain facts
+are marked as such in what the model sees. They are facts from your index,
+not knowledge of the language model. They come only from the collection you
+chose (or from every collection the graph follows), only for local and
+administrator use, and never for a search across the YaCy network. If the
+graph is slow or off, the answer uses the search results alone. Settings:
+`scoutro.kg.chat.*`, see [Knowledge graph](ScoutroKnowledge_p.md).
+
 ## Related Pages
 
 - Related search work usually continues on `yacysearch.html`, `index.html`, `ViewFile.html`, quick crawl, or the search integration pages.

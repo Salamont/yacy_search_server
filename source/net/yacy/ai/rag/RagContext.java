@@ -89,18 +89,27 @@ public final class RagContext {
 
     /** A numbered source as shown to the model and to the user. */
     public static final class Source {
+        /** {@link #kind} of an entry of the Scoutro knowledge graph ({@link GraphFacts}). */
+        public static final String KIND_GRAPH = "graph";
         public final int id;
         public final String title;
         public final String url;
         public final String host;
         public final String collection;
+        /** null for a search result, {@link #KIND_GRAPH} for knowledge graph facts */
+        public final String kind;
 
         Source(final int id, final String title, final String url, final String host, final String collection) {
+            this(id, title, url, host, collection, null);
+        }
+
+        Source(final int id, final String title, final String url, final String host, final String collection, final String kind) {
             this.id = id;
             this.title = title;
             this.url = url;
             this.host = host;
             this.collection = collection;
+            this.kind = kind;
         }
 
         JSONObject toJson() throws JSONException {
@@ -110,6 +119,7 @@ public final class RagContext {
             json.put("url", this.url);
             json.put("host", this.host);
             if (this.collection != null) json.put("collection", this.collection);
+            if (this.kind != null) json.put("kind", this.kind);
             return json;
         }
     }
@@ -252,7 +262,9 @@ public final class RagContext {
             } catch (final Exception e) {
                 host = "";
             }
-            sources.add(new Source(Integer.parseInt(entry.group(1)), entry.group(2).trim(), url, host == null ? "" : host, entry.group(4)));
+            final String title = entry.group(2).trim();
+            sources.add(new Source(Integer.parseInt(entry.group(1)), title, url, host == null ? "" : host, entry.group(4),
+                    title.startsWith(GraphFacts.TITLE) ? Source.KIND_GRAPH : null));
         }
         return sources;
     }
