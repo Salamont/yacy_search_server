@@ -26,7 +26,8 @@ public final class DomainCandidate {
             "indexed_pages", "title", "description", "last_loaded", "last_crawled", "crawl_status", "http_status",
             "classification_verdict", "classification_confidence", "classification_profile", "discovery_profile",
             "discovery_source", "discovery_job", "discovery_region", "entity_name", "entity_street", "entity_postal_code", "entity_city",
-            "entity_region", "entity_country", "entity_phone", "entity_email", "evidence_entity_url", "evidence_contact_url");
+            "entity_region", "entity_country", "entity_phone", "entity_email", "evidence_entity_url", "evidence_contact_url",
+            "entity_name_candidate", "entity_name_confidence");
 
     /** Classification of the registrable domain for this collection (Discovery state). */
     public static final class Classification {
@@ -48,22 +49,28 @@ public final class DomainCandidate {
         }
     }
 
-    /** Name, address and contact of the site's operator as found on its indexed pages; each value may be null. */
+    /**
+     * Name, address and contact of the site's operator as found on its indexed pages; each value may
+     * be null. {@code name}: only a name with legal form ({@code nameConfidence} "high");
+     * {@code nameCandidate}: that name, or else a cautious candidate from the page metadata or a
+     * page title ("medium").
+     */
     public static final class Entity {
-        public static final Entity NONE = new Entity(null, null, null, null, null, null, null, null);
-        public final String name, street, postalCode, city, region, country, phone, email;
+        public static final Entity NONE = new Entity(null, null, null, null, null, null, null, null, null, null);
+        public final String name, nameCandidate, nameConfidence, street, postalCode, city, region, country, phone, email;
 
-        public Entity(final String name, final String street, final String postalCode, final String city, final String region,
-                final String country, final String phone, final String email) {
-            this.name = name; this.street = street; this.postalCode = postalCode; this.city = city; this.region = region;
-            this.country = country; this.phone = phone; this.email = email;
+        public Entity(final String name, final String nameCandidate, final String nameConfidence, final String street,
+                final String postalCode, final String city, final String region, final String country, final String phone, final String email) {
+            this.name = name; this.nameCandidate = nameCandidate; this.nameConfidence = nameConfidence; this.street = street;
+            this.postalCode = postalCode; this.city = city; this.region = region; this.country = country; this.phone = phone; this.email = email;
         }
     }
 
     /**
      * Indexed pages the entity values come from. {@code entityUrl}: page of the address (or of the
      * name when there is no address); {@code contactUrl}: page of the phone number (or of the
-     * e-mail address). {@code nameMethod}: {@code publisher_meta} (page metadata) or {@code page_text}.
+     * e-mail address). {@code nameMethod} (source of name or name candidate): {@code publisher_metadata},
+     * {@code page_text_legal_form}, {@code imprint_title}, {@code homepage_title}, {@code contact_title} or {@code about_title}.
      */
     public static final class Evidence {
         public static final Evidence NONE = new Evidence(null, null, null, null, null, null, null);
@@ -120,7 +127,8 @@ public final class DomainCandidate {
             put(o, "discovery", d);
         }
         final JSONObject e = new JSONObject(true);
-        put(e, "name", this.entity.name); put(e, "street", this.entity.street); put(e, "postal_code", this.entity.postalCode);
+        put(e, "name", this.entity.name); put(e, "name_candidate", this.entity.nameCandidate);
+        put(e, "name_confidence", this.entity.nameConfidence); put(e, "street", this.entity.street); put(e, "postal_code", this.entity.postalCode);
         put(e, "city", this.entity.city); put(e, "region", this.entity.region); put(e, "country", this.entity.country);
         put(e, "phone", this.entity.phone); put(e, "email", this.entity.email);
         put(o, "entity", e);
@@ -141,7 +149,8 @@ public final class DomainCandidate {
                 this.httpStatus, c == null ? null : c.verdict, c == null ? null : c.confidence, c == null ? null : c.profile,
                 d == null ? null : d.profile, d == null ? null : d.source, d == null ? null : d.job, d == null ? null : d.region,
                 this.entity.name, this.entity.street, this.entity.postalCode, this.entity.city, this.entity.region, this.entity.country,
-                this.entity.phone, this.entity.email, this.evidence.entityUrl, this.evidence.contactUrl};
+                this.entity.phone, this.entity.email, this.evidence.entityUrl, this.evidence.contactUrl,
+                this.entity.nameCandidate, this.entity.nameConfidence};
         final StringBuilder row = new StringBuilder();
         for (int i = 0; i < cells.length; i++) {
             if (i > 0) row.append(',');

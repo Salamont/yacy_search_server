@@ -487,7 +487,7 @@
               "text/csv": {
                 "schema": {
                   "type": "string",
-                  "description": "RFC 4180, UTF-8, header row host..discovery_region, then entity_name, entity_street, entity_postal_code, entity_city, entity_region, entity_country, entity_phone, entity_email, evidence_entity_url, evidence_contact_url; formula-like text cells are prefixed with an apostrophe; an interrupted export ends with #incomplete."
+                  "description": "RFC 4180, UTF-8, header row host..discovery_region, then entity_name, entity_street, entity_postal_code, entity_city, entity_region, entity_country, entity_phone, entity_email, evidence_entity_url, evidence_contact_url, entity_name_candidate, entity_name_confidence; formula-like text cells are prefixed with an apostrophe; an interrupted export ends with #incomplete."
                 }
               }
             }
@@ -8898,6 +8898,8 @@
             "description": "Operator and contact as copied from indexed pages (Impressum, contact, about, start page, representative page); null when not clearly there. Nothing is fetched or inferred by a model.",
             "required": [
               "name",
+              "name_candidate",
+              "name_confidence",
               "street",
               "postal_code",
               "city",
@@ -8912,7 +8914,26 @@
                   "string",
                   "null"
                 ],
-                "description": "Page metadata (copyright / DC.publisher) first, otherwise a company name with legal form from the page text."
+                "description": "Certain name only: a name with legal form, from the page metadata (copyright / DC.publisher) first, otherwise from the page text."
+              },
+              "name_candidate": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The certain name, or else a cautious candidate: publisher metadata without legal form, then the title of the Impressum, the start page, the contact or the about page (page names, slogans and SEO parts removed; null when unsure)."
+              },
+              "name_confidence": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "high",
+                  "medium",
+                  null
+                ],
+                "description": "high: name is set; medium: only name_candidate is set."
               },
               "street": {
                 "type": [
@@ -9002,10 +9023,15 @@
                   "null"
                 ],
                 "enum": [
-                  "publisher_meta",
-                  "page_text",
+                  "publisher_metadata",
+                  "page_text_legal_form",
+                  "imprint_title",
+                  "homepage_title",
+                  "contact_title",
+                  "about_title",
                   null
-                ]
+                ],
+                "description": "Source of name or name_candidate."
               },
               "address_url": {
                 "type": [

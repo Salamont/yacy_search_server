@@ -298,16 +298,30 @@ public class DomainCandidatesTest {
         assertEquals("https://www.musterbau.example/impressum/", v.getString("entity_url"));
         assertEquals("https://www.musterbau.example/impressum/", v.getString("contact_url"));
         assertEquals("https://www.musterbau.example/Kontakt.html", v.getString("email_url"));
-        assertEquals("page_text", v.getString("name_method"));
-        // the same host in a second collection keeps its own entry: only its own start page counts
+        assertEquals("page_text_legal_form", v.getString("name_method"));
+        assertEquals("high", e.getString("name_confidence"));
+        assertEquals("Musterbau GmbH", e.getString("name_candidate"));
+        assertEquals("https://www.musterbau.example/impressum/", v.getString("name_url"));
+        // the same host in a second collection keeps its own entry: only its own start page counts,
+        // whose title "Musterbau – Bauen in Köln" gives a cautious name candidate and nothing else
         final JSONObject portal = item(page, "www.musterbau.example", "portal");
-        for (final String key : portal.getJSONObject("entity").keySet()) assertTrue(key, portal.getJSONObject("entity").isNull(key));
-        for (final String key : portal.getJSONObject("evidence").keySet()) assertTrue(key, portal.getJSONObject("evidence").isNull(key));
+        final JSONObject pe = portal.getJSONObject("entity"), pv = portal.getJSONObject("evidence");
+        assertTrue(pe.isNull("name"));
+        assertEquals("Musterbau", pe.getString("name_candidate"));
+        assertEquals("medium", pe.getString("name_confidence"));
+        assertEquals("homepage_title", pv.getString("name_method"));
+        assertEquals("https://www.musterbau.example/", pv.getString("name_url"));
+        for (final String key : List.of("street", "postal_code", "city", "region", "country", "phone", "email")) assertTrue(key, pe.isNull(key));
+        for (final String key : List.of("contact_url", "address_url", "phone_url", "email_url")) assertTrue(key, pv.isNull(key));
+        assertEquals("name, then the new fields, then the address", List.of("name", "name_candidate", "name_confidence", "street", "postal_code",
+                "city", "region", "country", "phone", "email"), new ArrayList<>(pe.keySet()));
         // the blog page names another company: it is neither an entity page nor the representative
         assertFalse(firmen.toString().contains("Andere Bau"));
         // entries without entity pages carry the objects with null values
         final JSONObject bulk = page(Map.of("q", "bulk0001"), null).getJSONArray("items").getJSONObject(0);
-        assertTrue(bulk.getJSONObject("entity").isNull("name") && bulk.getJSONObject("evidence").isNull("entity_url"));
+        assertTrue(bulk.getJSONObject("entity").isNull("name") && bulk.getJSONObject("evidence").isNull("address_url"));
+        final JSONObject plain = page(Map.of("q", "plain"), null).getJSONArray("items").getJSONObject(0);
+        for (final String key : List.of("name", "name_candidate", "name_confidence")) assertTrue(key, plain.getJSONObject("entity").isNull(key));
 
         // export: the same values, JSON and the appended CSV columns
         final JSONObject json = new JSONObject(export("json", Map.of("q", "musterbau"), List.of("firmen")));
@@ -322,6 +336,15 @@ public class DomainCandidatesTest {
         assertEquals("", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_region")));
         assertEquals("info@musterbau.example", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_email")));
         assertEquals("https://www.musterbau.example/impressum/", row.get(DomainCandidate.CSV_COLUMNS.indexOf("evidence_entity_url")));
+        assertEquals("new columns at the end", List.of("evidence_contact_url", "entity_name_candidate", "entity_name_confidence"),
+                rows.get(0).subList(rows.get(0).size() - 3, rows.get(0).size()));
+        assertEquals("Musterbau GmbH", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_name_candidate")));
+        assertEquals("high", row.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_name_confidence")));
+        final List<String> portalRow = parseCsv(export("csv", Map.of("q", "musterbau"), List.of("portal"))).get(1);
+        assertEquals("", portalRow.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_name")));
+        assertEquals("Musterbau", portalRow.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_name_candidate")));
+        assertEquals("medium", portalRow.get(DomainCandidate.CSV_COLUMNS.indexOf("entity_name_confidence")));
+        assertEquals(DomainCandidate.CSV_COLUMNS.size(), portalRow.size());
     }
 
     @Test public void theEntityLookupOnlyReadsTheIndex() throws Exception {

@@ -1333,6 +1333,7 @@ Tutorial==Tutorial
 <html lang="en">==<html lang="de">
 One entry per domain and collection, not per URL, sorted by domain. Values Scoutro does not know stay empty. The export only reads the index: it starts no crawl and calls no AI model.==Ein Eintrag pro Domain und Collection, nicht pro URL, sortiert nach Domain. Werte, die Scoutro nicht kennt, bleiben leer. Der Export liest nur den Index: Er startet keinen Crawl und ruft kein KI-Modell auf.
 Websites in the index, one entry per domain and collection. Viewing starts no crawl and loads no page.==Websites im Index, ein Eintrag pro Domain und Collection. Das Ansehen startet keinen Crawl und lädt keine Seite.
+Not certain: taken from the page metadata or a page title, not from a name with legal form==Nicht sicher: aus den Seitenmetadaten oder einem Seitentitel übernommen, nicht aus einem Namen mit Rechtsform
 Operator and contact as found on the indexed pages==Betreiber und Kontakt laut den indexierten Seiten
 Index data unavailable or access denied. Sign in as administrator and retry.==Indexdaten nicht verfügbar oder Zugriff verweigert. Als Administrator anmelden und erneut versuchen.
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Ungültige Collection. Bis zu 64 Buchstaben, Ziffern, Unterstriche oder Bindestriche verwenden.
@@ -1394,6 +1395,7 @@ PASS (fits)==PASS (passt)
 >Phone<==>Telefon<
 >E-mail<==>E-Mail<
 >Source<==>Quelle<
+>Name candidate<==>Namenskandidat<
 #-----------------------------
 
 #File: index.html

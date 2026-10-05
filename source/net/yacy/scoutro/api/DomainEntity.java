@@ -128,20 +128,36 @@ final class DomainEntity {
             address = address(p.text);
             if (address != null) { addressPage = p; break; }
         }
-        // name: structured publisher value first, then a company name with legal form
+        // name (high): a name with legal form, from the publisher metadata first, then from the page text
         String name = null, nameMethod = null;
         Page namePage = null;
         for (final Page p : pages) {
             final String v = publisher(p.publisher, host);
-            if (v != null) { name = v; nameMethod = "publisher_meta"; namePage = p; break; }
+            if (v != null && LEGAL.matcher(v).find()) { name = v; nameMethod = "publisher_metadata"; namePage = p; break; }
         }
         if (name == null && addressPage != null) {
             name = legalName(addressPage.text, address.start);
-            if (name != null) { nameMethod = "page_text"; namePage = addressPage; }
+            if (name != null) { nameMethod = "page_text_legal_form"; namePage = addressPage; }
         }
         if (name == null) for (final Page p : pages) {
             name = legalName(p.text, p.text.length());
-            if (name != null) { nameMethod = "page_text"; namePage = p; break; }
+            if (name != null) { nameMethod = "page_text_legal_form"; namePage = p; break; }
+        }
+        // name candidate (medium): publisher metadata without legal form, then the titles of the
+        // Impressum, the start page, the contact and the about page
+        String nameCandidate = name;
+        String nameConfidence = name == null ? null : "high";
+        if (name == null) {
+            for (final Page p : pages) {
+                final String v = publisher(p.publisher, host);
+                if (v != null && plausibleName(v, MAX_PUBLISHER_CANDIDATE, 8)) { nameCandidate = v; nameMethod = "publisher_metadata"; namePage = p; break; }
+            }
+            if (nameCandidate == null) for (final Kind kind : new Kind[] {Kind.IMPRESSUM, Kind.START, Kind.CONTACT, Kind.ABOUT}) {
+                final Page p = page(pages, kind);
+                final String v = p == null ? null : titleCandidate(p.title, domain);
+                if (v != null) { nameCandidate = v; nameMethod = TITLE_METHOD[kind.ordinal()]; namePage = p; break; }
+            }
+            if (nameCandidate != null) nameConfidence = "medium";
         }
         final String country = address == null ? null : address.germanPrefix || address.germanyNamed || germanDomain ? "DE" : null;
 
@@ -164,7 +180,7 @@ final class DomainEntity {
             if (m != null && m.rank < bestRank) { email = m.address; emailPage = p; bestRank = m.rank; }
         }
 
-        final DomainCandidate.Entity entity = new DomainCandidate.Entity(name,
+        final DomainCandidate.Entity entity = new DomainCandidate.Entity(name, nameCandidate, nameConfidence,
                 address == null ? null : address.street, address == null ? null : address.postalCode,
                 address == null ? null : address.city, null, country, phone, email);
         final String addressUrl = addressPage == null ? null : addressPage.url;
@@ -193,7 +209,7 @@ final class DomainEntity {
         v = YEARS.matcher(v).replaceAll(" ");
         v = v.replaceAll("\\s+", " ").replaceAll("^[\\s,.;:|·–-]+|[\\s,.;:|·–-]+$", "").trim();
         if (v.length() < 2 || v.length() > 100 || v.toLowerCase(Locale.ROOT).contains("http")) return null;
-        if (HOSTLIKE.matcher(v).matches()) return null;
+        if (HOSTLIKE.matcher(v).matches() || FOREIGN_NAME.matcher(v).find()) return null;
         if (v.codePoints().filter(Character::isLetter).count() < 2) return null;
         final String h = host == null ? "" : host.toLowerCase(Locale.ROOT);
         final String lower = v.toLowerCase(Locale.ROOT);
@@ -284,6 +300,124 @@ final class DomainEntity {
         while (s > 0 && Character.isLetter(text.charAt(s - 1))) s--;
         final String w = text.substring(s, dot);
         return w.equals("Co") || w.equals("St") || w.equals("Dr") || w.equals("Prof");
+    }
+
+    // ------------------------------------------------------------------ name candidate from titles
+
+    private static final String[] TITLE_METHOD = {"imprint_title", "contact_title", "about_title", "homepage_title", null};
+    static final int MAX_TITLE = 90, MAX_TITLE_PART = 60, MAX_PUBLISHER_CANDIDATE = 80;
+    private static final Pattern TITLE_SEPARATOR = Pattern.compile("\\s*\\|\\s*|\\s+[-–—·•»«/]\\s+|\\s*::\\s*|:\\s+");
+    private static final Pattern WELCOME = Pattern.compile("(?iu)^(?:herzlich )?(?:willkommen|welcome)(?: (?:bei der|bei|beim|im|in der|in|auf der|auf|zu|zum|zur|an der|am|to))?(?: |$)");
+    /** Page and section names that are not a provider name. */
+    private static final Set<String> GENERIC_TITLES = Set.of("startseite", "start", "home", "homepage", "home page", "index", "willkommen",
+            "herzlich willkommen", "welcome", "impressum", "imprint", "legal notice", "anbieterkennzeichnung", "kontakt", "contact", "contact us",
+            "kontaktformular", "anfahrt", "anreise", "über uns", "ueber uns", "wir über uns", "about", "about us", "team", "unser team", "das team",
+            "unternehmen", "firma", "profil", "philosophie", "geschichte", "historie", "datenschutz", "datenschutzerklärung", "privacy",
+            "privacy policy", "aktuelles", "news", "neuigkeiten", "blog", "leistungen", "unsere leistungen", "dienstleistungen", "angebote",
+            "angebot", "service", "services", "produkte", "galerie", "bilder", "fotos", "jobs", "karriere", "stellenangebote", "termine",
+            "veranstaltungen", "events", "preise", "faq", "hilfe", "sitemap", "login", "shop", "seite", "page", "untitled", "kein titel",
+            "referenzen", "partner", "links", "downloads", "presse", "standort", "standorte", "öffnungszeiten", "sprechzeiten", "agb");
+    /** Words of slogans and advertising, not of names. */
+    private static final Set<String> SLOGAN_WORDS = Set.of("ihr", "ihre", "ihren", "ihrem", "ihrer", "wir", "unser", "unsere", "unseren",
+            "unserem", "sie", "du", "dein", "deine", "jetzt", "hier", "günstig", "günstige", "beste", "bester", "besten", "top", "online", "kaufen",
+            "buchen", "bestellen", "kostenlos", "gratis", "mehr", "alles", "neu", "sale", "rabatt", "schnell", "einfach", "professionell",
+            "zuverlässig", "kompetent", "willkommen", "welcome", "your", "our", "best", "cheap");
+    /** Lower-case words that may stand inside a name ("Haus am See", "Praxis für Physiotherapie"). */
+    private static final Set<String> NAME_CONNECTORS = Set.of("am", "an", "auf", "aus", "bei", "beim", "der", "die", "das", "des", "dem", "den",
+            "und", "von", "vom", "zu", "zum", "zur", "im", "für", "&", "+", "of", "and", "the", "e.v.", "e.", "v.", "mbh", "gmbh");
+    private static final Pattern FOREIGN_NAME = Pattern.compile("(?iu)amtsgericht|registergericht|handelsregister|finanzamt|agentur|webdesign"
+            + "|web-design|hosting|wordpress|joomla|typo3|jimdo|wix|webflow|shopify|powered|theme|template");
+    private static final Pattern DOMAIN_IN_TEXT = Pattern.compile("(?i)(?:www\\.|[a-z0-9-]+\\.(?:de|com|net|org|eu|info|biz|at|ch|io|online|shop)(?![a-z]))");
+
+    static Page page(final List<Page> pages, final Kind kind) {
+        for (final Page p : pages) if (p.kind == kind) return p;
+        return null;
+    }
+
+    /**
+     * A provider name from a page title, or null: the title is split at its separators, page and
+     * section names and domain names are dropped, and exactly one plausible part must remain (when
+     * several remain, the one that alone shares the most words with the domain name).
+     */
+    static String titleCandidate(final String title, final String domain) {
+        if (title == null) return null;
+        final String t = title.replaceAll("\\s+", " ").trim();
+        if (t.isEmpty() || t.length() > MAX_TITLE || ADVERTISING.matcher(t).find()) return null;
+        final String[] parts = TITLE_SEPARATOR.split(t);
+        if (parts.length > 4) return null;
+        final List<String> plausible = new ArrayList<>();
+        for (final String raw : parts) {
+            String part = WELCOME.matcher(raw.trim()).replaceFirst("").trim();
+            part = part.replaceAll("^[\\s,.;:|·–—-]+|[\\s,;:|·–—-]+$", "");
+            if (part.isEmpty() || generic(part) || DOMAIN_IN_TEXT.matcher(part).find()) continue;
+            if (plausibleName(part, MAX_TITLE_PART, 6) && (part.contains(" ") || domainOverlap(part, domain) > 0)) plausible.add(part);
+        }
+        if (plausible.size() == 1) return plausible.get(0);
+        String best = null;
+        int bestOverlap = 0;
+        boolean tie = false;
+        for (final String c : plausible) {
+            final int o = domainOverlap(c, domain);
+            if (o > bestOverlap) { best = c; bestOverlap = o; tie = false; } else if (o == bestOverlap && o > 0) tie = true;
+        }
+        return tie ? null : best;
+    }
+
+    /** A page or section name, also combined ("Impressum & Datenschutz", "Kontakt und Anfahrt"). */
+    static boolean generic(final String part) {
+        final String lower = part.toLowerCase(Locale.ROOT).trim();
+        if (lower.isEmpty() || GENERIC_TITLES.contains(normalizeTitle(lower))) return true;
+        for (final String piece : lower.split("\\s*(?:&|\\+|/)\\s*|\\s+(?:und|and)\\s+")) if (!GENERIC_TITLES.contains(normalizeTitle(piece))) return false;
+        return true;
+    }
+
+    private static String normalizeTitle(final String s) {
+        return s.replaceAll("[\\p{Punct}–—„“\"]+", " ").replaceAll("\\s+", " ").trim();
+    }
+
+    /** Advertising in a title (call to action, superlatives, decoration): the whole title is SEO text. */
+    private static final Pattern ADVERTISING = Pattern.compile("(?iu)[!✓✔★☆→%]|(?<!\\p{L})(?:jetzt|günstige?|beste[nr]?|top|kostenlos|gratis|kaufen"
+            + "|buchen|bestellen|anfragen|sichern|sale|rabatt|angebote?|now|cheap|best)(?!\\p{L})");
+
+    /**
+     * True for a short name: capitalized words (digits allowed), only name connectors in lower
+     * case, no slogan words, no sentence or decoration characters, no court, register, agency or
+     * CMS designation.
+     */
+    static boolean plausibleName(final String value, final int maxLength, final int maxWords) {
+        if (value.length() < 3 || value.length() > maxLength) return false;
+        if (FOREIGN_NAME.matcher(value).find() || HOSTLIKE.matcher(value).matches() || DOMAIN_IN_TEXT.matcher(value).find()) return false;
+        if (value.codePoints().anyMatch(c -> "?!:;#@%€$*=<>[]{}\"„“".indexOf(c) >= 0 || Character.getType(c) == Character.OTHER_SYMBOL
+                || Character.getType(c) == Character.MATH_SYMBOL && c != '+')) return false;
+        if (value.matches(".*\\.\\s+\\p{Lu}.*") || generic(value)) return false;
+        final String[] words = value.split(" ");
+        if (words.length > maxWords || !Character.isUpperCase(value.codePointAt(0)) && !Character.isDigit(value.codePointAt(0))) return false;
+        boolean named = false;
+        for (final String w : words) {
+            final String lw = w.toLowerCase(Locale.ROOT).replaceAll("^[(\"]+|[),.\"]+$", "");
+            if (SLOGAN_WORDS.contains(lw)) return false;
+            if (lw.isEmpty()) continue;
+            if (Character.isUpperCase(w.codePointAt(0)) || Character.isDigit(w.codePointAt(0))) { if (w.codePoints().filter(Character::isLetter).count() >= 2) named = true; }
+            else if (!NAME_CONNECTORS.contains(lw)) return false;
+        }
+        return named;
+    }
+
+    /** Words of the candidate that also occur in the domain name ("sonnenhof" in sonnenhof-pflege.de). */
+    static int domainOverlap(final String candidate, final String domain) {
+        final String label = fold(domain.indexOf('.') < 0 ? domain : domain.substring(0, domain.indexOf('.')));
+        final Set<String> tokens = new java.util.HashSet<>(List.of(label.split("-")));
+        final String joined = label.replace("-", "");
+        int overlap = 0;
+        for (final String w : fold(candidate).split("[^a-z0-9]+")) {
+            if (w.length() < 3) continue;
+            if (tokens.contains(w) || (w.length() >= 4 && joined.contains(w))) overlap++;
+        }
+        return overlap;
+    }
+
+    private static String fold(final String s) {
+        return s.toLowerCase(Locale.ROOT).replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss");
     }
 
     // ------------------------------------------------------------------ address

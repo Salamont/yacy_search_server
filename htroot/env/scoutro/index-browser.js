@@ -79,10 +79,20 @@
   // Operator and contact as found on the indexed pages (Impressum, contact page ...), compact.
   function entityBlock(e, evidence) {
     var place = [e.postal_code, e.city].filter(Boolean).join(' ');
-    if (!e.name && !place && !e.phone && !e.email) return null;
+    var candidate = !e.name && e.name_candidate ? e.name_candidate : null;
+    if (!e.name && !candidate && !place && !e.phone && !e.email) return null;
     var box = node('div', null, 'scoutro-domain-entity');
     box.setAttribute('aria-label', t('entity'));
     if (e.name) box.appendChild(node('p', e.name, 'scoutro-domain-entity-name'));
+    else if (candidate) {
+      // not certain: shown with a marker, the name field itself stays empty
+      var uncertain = node('p', null, 'scoutro-domain-entity-name is-candidate');
+      uncertain.appendChild(node('span', candidate));
+      var mark = node('span', t('name_candidate'), 'scoutro-domain-entity-mark');
+      mark.title = t('name_candidate_title');
+      uncertain.appendChild(mark);
+      box.appendChild(uncertain);
+    }
     var line = node('p', null, 'scoutro-domain-entity-contact');
     if (place) line.appendChild(node('span', place));
     if (e.phone) { var tel = node('a', e.phone); tel.href = 'tel:' + e.phone; tel.title = t('phone'); line.appendChild(tel); }

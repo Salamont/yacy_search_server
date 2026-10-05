@@ -59,7 +59,10 @@ public class DomainEntityTest {
         assertEquals("info@musterbau.de", r.entity.email);
         assertEquals("https://www.musterbau.de/impressum", r.evidence.entityUrl);
         assertEquals("https://www.musterbau.de/impressum", r.evidence.contactUrl);
-        assertEquals("page_text", r.evidence.nameMethod);
+        assertEquals("page_text_legal_form", r.evidence.nameMethod);
+        assertEquals("a name with legal form is certain", "high", r.entity.nameConfidence);
+        assertEquals("Musterbau GmbH", r.entity.nameCandidate);
+        assertEquals("https://www.musterbau.de/impressum", r.evidence.nameUrl);
     }
 
     @Test public void theContactPageServesWhenThereIsNoImpressumAndTheImpressumWinsWhenThereIsOne() throws Exception {
@@ -88,7 +91,8 @@ public class DomainEntityTest {
                 "<meta name=\"copyright\" content=\"© 2016–2024 Musterbau GmbH &amp; Co. KG\">", "<p>Willkommen</p>"));
         final DomainEntity.Result r = extract("musterbau.de", start, page("https://musterbau.de/impressum", 1, IMPRESSUM));
         assertEquals("Musterbau GmbH & Co. KG", r.entity.name);
-        assertEquals("publisher_meta", r.evidence.nameMethod);
+        assertEquals("publisher_metadata", r.evidence.nameMethod);
+        assertEquals("high", r.entity.nameConfidence);
         assertEquals("https://musterbau.de/", r.evidence.nameUrl);
         assertEquals("address still from the Impressum text", "https://musterbau.de/impressum", r.evidence.addressUrl);
         assertEquals("https://musterbau.de/impressum", r.evidence.entityUrl);
@@ -119,6 +123,7 @@ public class DomainEntityTest {
         final DomainEntity.Result r = extract("ldfirma.de", p);
         assertNull(r.entity.name); assertNull(r.entity.street); assertNull(r.entity.postalCode); assertNull(r.entity.city);
         assertNull(r.entity.phone); assertNull(r.entity.email); assertNull(r.entity.country);
+        assertNull("the title \"Impressum\" names no provider", r.entity.nameCandidate); assertNull(r.entity.nameConfidence);
         assertNull(r.evidence.entityUrl); assertNull(r.evidence.contactUrl);
     }
 
@@ -173,7 +178,7 @@ public class DomainEntityTest {
     @Test public void withoutDataEverythingIsNull() throws Exception {
         final DomainEntity.Result r = extract("leer.de", page("https://leer.de/", 0, html("Willkommen", "", "<h1>Willkommen auf unserer Seite</h1><p>Schön, dass Sie da sind.</p>")));
         final DomainCandidate.Entity e = r.entity;
-        for (final Object v : new Object[] {e.name, e.street, e.postalCode, e.city, e.region, e.country, e.phone, e.email}) assertNull(v);
+        for (final Object v : new Object[] {e.name, e.nameCandidate, e.nameConfidence, e.street, e.postalCode, e.city, e.region, e.country, e.phone, e.email}) assertNull(v);
         for (final Object v : new Object[] {r.evidence.entityUrl, r.evidence.contactUrl, r.evidence.nameUrl, r.evidence.nameMethod,
                 r.evidence.addressUrl, r.evidence.phoneUrl, r.evidence.emailUrl}) assertNull(v);
         assertNull(extract("leer.de").entity.name);
@@ -205,6 +210,94 @@ public class DomainEntityTest {
         assertNull(com.entity.country);
         final DomainEntity.Result named = extract("muster.com", page("https://muster.com/imprint", 1, html("Imprint", "", "<p>Muster Ltd.<br>Hafenweg 4<br>D-20457 Hamburg</p>")));
         assertEquals("DE", named.entity.country);
+    }
+
+    // ------------------------------------------------------------------ name candidates
+
+    @Test public void aCareHomeWithoutLegalFormGetsACandidateFromTheImpressumTitle() throws Exception {
+        final DomainEntity.Page impressum = page("https://sonnenhof-pflege.de/impressum", 1, html("Seniorenzentrum Sonnenhof | Impressum", "",
+                "<h1>Impressum</h1><p>Seniorenzentrum Sonnenhof<br>Am Markt 3<br>53225 Bonn</p><p>Telefon: 0228 4711</p>"));
+        final DomainEntity.Result r = extract("sonnenhof-pflege.de", impressum);
+        assertNull("no legal form: no certain name", r.entity.name);
+        assertEquals("Seniorenzentrum Sonnenhof", r.entity.nameCandidate);
+        assertEquals("medium", r.entity.nameConfidence);
+        assertEquals("imprint_title", r.evidence.nameMethod);
+        assertEquals("https://sonnenhof-pflege.de/impressum", r.evidence.nameUrl);
+        assertEquals("Am Markt 3", r.entity.street);
+        assertEquals("https://sonnenhof-pflege.de/impressum", r.evidence.entityUrl);
+    }
+
+    @Test public void aCoachGetsACandidateFromTheHomepageTitle() throws Exception {
+        DomainEntity.Result r = extract("anna-schmidt-coaching.de",
+                page("https://anna-schmidt-coaching.de/", 0, html("Anna Schmidt – Business Coaching in Köln", "", "<p>Coaching für Führungskräfte.</p>")));
+        assertNull(r.entity.name);
+        assertEquals("the SEO part \"… in Köln\" is dropped", "Anna Schmidt", r.entity.nameCandidate);
+        assertEquals("medium", r.entity.nameConfidence);
+        assertEquals("homepage_title", r.evidence.nameMethod);
+        assertEquals("https://anna-schmidt-coaching.de/", r.evidence.nameUrl);
+        // two plausible parts: the one that shares more words with the domain name
+        r = extract("anna-schmidt-coaching.de", page("https://anna-schmidt-coaching.de/", 0, html("Anna Schmidt | Business Coaching", "", "<p>x</p>")));
+        assertEquals("Anna Schmidt", r.entity.nameCandidate);
+        assertNull("two parts, no domain evidence: no candidate", DomainEntity.titleCandidate("Anna Schmidt | Business Coaching", "example.de"));
+        // the Impressum title comes before the start page title
+        r = extract("anna-schmidt-coaching.de",
+                page("https://anna-schmidt-coaching.de/", 0, html("Anna Schmidt – Business Coaching in Köln", "", "<p>x</p>")),
+                page("https://anna-schmidt-coaching.de/impressum", 1, html("Impressum | Coaching Anna Schmidt", "", "<p>x</p>")));
+        assertEquals("Coaching Anna Schmidt", r.entity.nameCandidate);
+        assertEquals("imprint_title", r.evidence.nameMethod);
+    }
+
+    @Test public void contactAndAboutTitlesAreCleanedOfTheirPageName() throws Exception {
+        for (final String title : new String[] {"Kontakt | Pflegeheim Musterstadt", "Kontakt - Pflegeheim Musterstadt", "Pflegeheim Musterstadt – Kontakt",
+                "Kontakt & Anfahrt :: Pflegeheim Musterstadt", "Kontakt: Pflegeheim Musterstadt"}) {
+            final DomainEntity.Result r = extract("pflegeheim-musterstadt.de", page("https://pflegeheim-musterstadt.de/kontakt", 1, html(title, "", "<p>x</p>")));
+            assertEquals(title, "Pflegeheim Musterstadt", r.entity.nameCandidate);
+            assertEquals(title, "contact_title", r.evidence.nameMethod);
+        }
+        final DomainEntity.Result about = extract("physio-mueller.de", page("https://physio-mueller.de/ueber-uns", 1,
+                html("Über uns – Praxis für Physiotherapie Müller", "", "<p>x</p>")));
+        assertEquals("Praxis für Physiotherapie Müller", about.entity.nameCandidate);
+        assertEquals("about_title", about.evidence.nameMethod);
+        assertEquals("Seniorenzentrum Sonnenhof", DomainEntity.titleCandidate("Herzlich Willkommen im Seniorenzentrum Sonnenhof", "sonnenhof.de"));
+    }
+
+    @Test public void genericTitlesGiveNoCandidate() {
+        for (final String title : new String[] {"Kontakt", "Startseite", "Home", "Impressum", "Impressum | Kontakt", "Kontakt & Anfahrt",
+                "Herzlich Willkommen", "Über uns", "Leistungen", "Datenschutz - Impressum", "", "musterbau.de", "www.musterbau.de | Startseite"})
+            assertNull(title, DomainEntity.titleCandidate(title, "musterbau.de"));
+        // a single word only when it is the domain name, not a category
+        assertEquals("Musterbau", DomainEntity.titleCandidate("Musterbau | Startseite", "musterbau.de"));
+        assertNull(DomainEntity.titleCandidate("Pflegeheim | Startseite", "sonnenhof-pflege.de"));
+        assertNull("registers and agencies are sources, not providers", DomainEntity.titleCandidate("Registergericht Köln", "muster.de"));
+        assertNull(DomainEntity.titleCandidate("Webagentur Pixel | Impressum", "muster.de"));
+    }
+
+    @Test public void seoTitlesAndSentencesGiveNoCandidate() {
+        for (final String title : new String[] {"Pflegeheim in Köln ✓ Jetzt Platz sichern", "Wir pflegen mit Herz und Verstand",
+                "Die beste Pflege in Köln – günstig und zuverlässig", "Ihr Partner für Pflege und Betreuung", "Pflegeheim Köln: Jetzt anfragen!",
+                "Seniorenzentrum Sonnenhof | Pflege | Betreuung | Wohnen | Köln | Bonn",
+                "Seniorenzentrum Sonnenhof Köln Bonn Pflegeheim Altenheim Seniorenheim Kurzzeitpflege Tagespflege Betreutes Wohnen Angebote"})
+            assertNull(title, DomainEntity.titleCandidate(title, "sonnenhof.de"));
+        assertEquals("a slogan next to a name is dropped", "Seniorenzentrum Sonnenhof",
+                DomainEntity.titleCandidate("Seniorenzentrum Sonnenhof – Ihr Zuhause im Alter", "sonnenhof.de"));
+    }
+
+    @Test public void publisherMetadataWithoutLegalFormIsACandidateFirst() throws Exception {
+        final DomainEntity.Page start = page("https://muster-pflege.de/", 0, html("Muster Pflege | Startseite",
+                "<meta name=\"copyright\" content=\"© 2024 Pflegedienst Muster\">", "<p>Willkommen</p>"));
+        final DomainEntity.Result r = extract("muster-pflege.de", start,
+                page("https://muster-pflege.de/impressum", 1, html("Pflegedienst Muster Köln | Impressum", "", "<p>x</p>")));
+        assertNull(r.entity.name);
+        assertEquals("Pflegedienst Muster", r.entity.nameCandidate);
+        assertEquals("medium", r.entity.nameConfidence);
+        assertEquals("publisher_metadata", r.evidence.nameMethod);
+        assertEquals("https://muster-pflege.de/", r.evidence.nameUrl);
+        // an agency or CMS in the metadata is no candidate; the Impressum title is used instead
+        final DomainEntity.Result agency = extract("muster-pflege.de",
+                page("https://muster-pflege.de/", 0, html("Start", "<meta name=\"copyright\" content=\"Webdesign by Pixel Agentur\">", "<p>x</p>")),
+                page("https://muster-pflege.de/impressum", 1, html("Pflegedienst Muster | Impressum", "", "<p>x</p>")));
+        assertEquals("Pflegedienst Muster", agency.entity.nameCandidate);
+        assertEquals("imprint_title", agency.evidence.nameMethod);
     }
 
     @Test public void pageKindsComeFromPathTitleAndDepthOnly() {

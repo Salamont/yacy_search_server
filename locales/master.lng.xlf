@@ -4463,6 +4463,12 @@
     <trans-unit id="93f5543b" xml:space="preserve" approved="no" translate="yes">
        <source>Source</source>
     </trans-unit>
+    <trans-unit id="dd968e4e" xml:space="preserve" approved="no" translate="yes">
+       <source>Name candidate</source>
+    </trans-unit>
+    <trans-unit id="e1b80bf2" xml:space="preserve" approved="no" translate="yes">
+       <source>Not certain: taken from the page metadata or a page title, not from a name with legal form</source>
+    </trans-unit>
     <trans-unit id="4b02d58c" xml:space="preserve" approved="no" translate="yes">
        <source>Index administration</source>
     </trans-unit>
