@@ -142,7 +142,10 @@ public class KgStoreTest {
         assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());
         this.store.read(c -> {
             assertEquals(Integer.toString(KgSchema.CURRENT_VERSION), KgStore.getMeta(c, KgSchema.META_SCHEMA_VERSION));
-            assertEquals(1L, KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'"));
+            assertEquals("one event per step (v1 -> v2 -> v3)", KgSchema.CURRENT_VERSION - 1L,
+                    KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'"));
+            assertEquals("v3: the LLM queue", 0L, KgStore.queryLong(c, "SELECT count(*) FROM kg_llm_work"));
+            assertEquals("v3: no LLM state yet", 0L, KgStore.queryLong(c, "SELECT count(llm_status) + count(llm_hash) FROM kg_doc"));
             assertEquals("v1 rows keep their values and get the defaults", 7L,
                     KgStore.queryLong(c, "SELECT event_version FROM kg_work WHERE enqueued_at = 0"));
             assertEquals(1L, KgStore.queryLong(c, "SELECT phase FROM kg_scan"));
@@ -154,7 +157,8 @@ public class KgStoreTest {
         // a second open finds the current version and migrates nothing
         this.store.close();
         this.store = KgStore.open(v1, this.cfg, this.guard, KgStore.SQLITE, System::currentTimeMillis);
-        assertEquals(1L, (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'")));
+        assertEquals(KgSchema.CURRENT_VERSION - 1L,
+                (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'")));
     }
 
     @Test

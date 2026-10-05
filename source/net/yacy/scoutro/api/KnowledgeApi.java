@@ -29,7 +29,8 @@ import net.yacy.scoutro.knowledge.KgRuntime;
 /**
  * Administrator routes of the knowledge graph:
  * {@code GET /v1/kg/status} and {@code POST /v1/kg/control} with the actions
- * {@code pause}, {@code resume}, {@code reconcile} and {@code confirm_reconcile}.
+ * {@code pause}, {@code resume}, {@code reconcile}, {@code confirm_reconcile} and
+ * {@code llm_retry}.
  * The servlet checks the administrator role before calling this class; the
  * control body goes through the servlet's cross-site checks.
  */
@@ -41,7 +42,8 @@ final class KnowledgeApi {
     }
 
     /** Allowed values of {@code action}. */
-    static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile");
+    static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
+            "llm_retry");
 
     private final Supplier<KgRuntime> runtime;
 
@@ -107,6 +109,8 @@ final class KnowledgeApi {
                     return r.resume();
                 case "reconcile":
                     return r.reconcile();
+                case "llm_retry":
+                    return r.llmRetry();
                 default:
                     return r.confirmReconcile();
             }
@@ -129,6 +133,9 @@ final class KnowledgeApi {
             case KgException.SYNC_UNAVAILABLE:
                 return new ApiException(503, KgException.SYNC_UNAVAILABLE,
                         "The knowledge graph does not follow the embedded Solr index here.");
+            case KgException.LLM_UNAVAILABLE:
+                return new ApiException(409, KgException.LLM_UNAVAILABLE,
+                        "The LLM tier is off: set " + KgConfig.LLM_COLLECTIONS + " and select a model for the usage knowledge.");
             case KgException.WRITE_REFUSED:
                 return new ApiException(503, "kg_write_refused",
                         "The knowledge graph cannot write right now; see GET /scoutro/api/v1/kg/status.",

@@ -347,11 +347,15 @@ public final class Aggregates {
         }
     }
 
-    /** Quality without the conflict rule (4.4). */
+    /**
+     * Quality without the conflict rule (4.4). Only stated evidence of tiers 1
+     * and 2 makes a statement supported: what only the LLM tier read stays
+     * uncertain, even when its quote was found verbatim (6.3).
+     */
     private int baseQuality(final Connection tx, final long stmt) throws SQLException {
         boolean anyCurrent = false;
         boolean supported = false;
-        try (PreparedStatement ps = tx.prepareStatement("SELECT e.certainty, d.state, d.state_since, d.loaded_at"
+        try (PreparedStatement ps = tx.prepareStatement("SELECT e.certainty, d.state, d.state_since, d.loaded_at, e.tier"
                 + " FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid WHERE e.stmt_rowid = ?")) {
             ps.setLong(1, stmt);
             try (ResultSet rs = ps.executeQuery()) {
@@ -361,7 +365,7 @@ public final class Aggregates {
                         continue;
                     }
                     anyCurrent = true;
-                    if (rs.getInt(1) == 1 && state == STATE_ACTIVE) {
+                    if (rs.getInt(1) == 1 && state == STATE_ACTIVE && rs.getInt(5) != 3) {
                         supported = true;
                     }
                 }

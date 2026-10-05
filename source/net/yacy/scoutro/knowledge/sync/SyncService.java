@@ -36,9 +36,6 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.extract.Extraction;
-import net.yacy.scoutro.knowledge.extract.JsonLdExtractor;
-import net.yacy.scoutro.knowledge.extract.MetadataExtractor;
-import net.yacy.scoutro.knowledge.extract.RuleExtractor;
 import net.yacy.scoutro.knowledge.publish.Aggregates;
 import net.yacy.scoutro.knowledge.publish.Publisher;
 import net.yacy.scoutro.knowledge.publish.Terms;
@@ -132,9 +129,7 @@ public final class SyncService {
     private final Publisher publisher;
     private final Reconciler reconciler;
     private final Retention retention;
-    private final JsonLdExtractor jsonld;
-    private final MetadataExtractor metadata;
-    private final RuleExtractor rules;
+    private final BaseTiers tiers;
     final Counters counters = new Counters();
 
     private volatile boolean initialized;
@@ -157,6 +152,8 @@ public final class SyncService {
     private volatile String gateClosed;
     private long queueMax;
     private volatile boolean stopping;
+    /** Called after a document of an LLM collection was published with new input (wakes the LLM tier). */
+    private volatile Runnable llmWake;
 
     public SyncService(final KgConfig cfg, final KgStore store, final DirtySet dirty, final SolrSource solr, final Gates gates,
             final LongSupplier clock, final boolean uncleanStart) {
@@ -170,9 +167,7 @@ public final class SyncService {
         this.publisher = new Publisher(cfg, this.terms);
         this.reconciler = new Reconciler(cfg, store, solr, dirty, this.publisher, gates, clock);
         this.retention = new Retention(cfg, store, this.publisher, clock, clock.getAsLong() + FIRST_RETENTION_DELAY_MILLIS);
-        this.jsonld = new JsonLdExtractor(cfg.extractMaxExcerptChars);
-        this.metadata = new MetadataExtractor(cfg.extractMaxExcerptChars);
-        this.rules = new RuleExtractor(cfg.extractMaxExcerptChars, cfg.extractMaxRuleInputChars);
+        this.tiers = new BaseTiers(cfg);
         this.queueMax = cfg.queueMaxItems;
         // signals that arrived before this service existed are covered by the start reconcile
         this.handledResets = dirty.fullResets();
@@ -322,6 +317,10 @@ public final class SyncService {
     }
 
     /** Ends the current batch early (stop); the step returns soon after. */
+    public void onLlmInput(final Runnable wake) {
+        this.llmWake = wake;
+    }
+
     public void requestStop() {
         this.stopping = true;
     }
@@ -496,15 +495,7 @@ public final class SyncService {
 
     /** Tiers 1 and 2; the text is read only for tier-2 candidates. */
     private Extraction extract(final SolrDoc d) throws IOException {
-        final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
-        final String host = d.host != null ? d.host : host(d.url);
-        this.jsonld.extract(d.ldJson, d.url, host, d.language, ex);
-        this.metadata.extract(d.publisher, d.coordinates(), ex);
-        if (RuleExtractor.candidate(d.url, d.titles, ex)) {
-            final String text = this.solr.text(d.id);
-            this.rules.extract(text, d.url, host, d.language, ex);
-        }
-        return ex;
+        return this.tiers.extract(d, new BaseTiers.Text(this.solr, d.id));
     }
 
     /**
@@ -545,6 +536,10 @@ public final class SyncService {
             case PUBLISHED:
                 this.counters.published.incrementAndGet();
                 JsonLdCapture.synced(item.docId);
+                final Runnable wake = this.llmWake;
+                if (wake != null && doc.state == Aggregates.STATE_ACTIVE && llmCollection(doc.collections)) {
+                    wake.run();
+                }
                 break;
             case UNCHANGED:
                 this.counters.unchanged.incrementAndGet();
@@ -562,6 +557,15 @@ public final class SyncService {
                 break;
         }
         return true;
+    }
+
+    private boolean llmCollection(final List<String> collections) {
+        for (final String c : collections) {
+            if (this.cfg.llmFollows(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean remove(final WorkQueue.Item item, final Publisher.Row cur) throws KgException {

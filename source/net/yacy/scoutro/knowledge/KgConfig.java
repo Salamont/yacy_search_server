@@ -17,10 +17,13 @@
 package net.yacy.scoutro.knowledge;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -28,6 +31,7 @@ import java.util.regex.Pattern;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import net.yacy.scoutro.knowledge.extract.KindHints;
 import net.yacy.search.SwitchboardConstants;
 
 /**
@@ -73,6 +77,15 @@ public final class KgConfig {
     public static final String GATE_MAX_INDEXING_QUEUE = "scoutro.kg.gate.maxIndexingQueue";
     public static final String GATE_MAX_LOAD = "scoutro.kg.gate.maxLoad";
     public static final String GATE_MIN_FREE_HEAP_MB = "scoutro.kg.gate.minFreeHeapMB";
+    public static final String LLM_COLLECTIONS = "scoutro.kg.llm.collections";
+    public static final String LLM_PARALLEL = "scoutro.kg.llm.parallel";
+    public static final String LLM_TIMEOUT_SECONDS = "scoutro.kg.llm.timeoutSeconds";
+    public static final String LLM_MAX_ATTEMPTS = "scoutro.kg.llm.maxAttempts";
+    public static final String LLM_BREAKER_FAILURES = "scoutro.kg.llm.breakerFailures";
+    public static final String LLM_BREAKER_MAX_BACKOFF_MINUTES = "scoutro.kg.llm.breakerMaxBackoffMinutes";
+    public static final String LLM_MAX_DOCS_PER_HOST = "scoutro.kg.llm.maxDocsPerHost";
+    public static final String EXTRACT_MAX_INPUT_CHARS = "scoutro.kg.extract.maxInputChars";
+    public static final String CACHE_MAX_PERCENT = "scoutro.kg.cache.maxPercent";
 
     /** Collection names the graph follows; {@code *} follows every collection. */
     public static final String ALL_COLLECTIONS = "*";
@@ -139,6 +152,21 @@ public final class KgConfig {
     public final int gateMaxIndexingQueue;
     public final double gateMaxLoad;
     public final long gateMinFreeHeapBytes;
+    /** Collections whose documents the LLM tier reads (empty: the tier is off); {@code *} for all followed ones. */
+    public final Set<String> llmCollections;
+    public final boolean llmAllCollections;
+    public final int llmParallel;
+    public final long llmTimeoutMillis;
+    public final int llmMaxAttempts;
+    public final int llmBreakerFailures;
+    public final long llmBreakerMaxBackoffMillis;
+    public final int llmMaxDocsPerHost;
+    public final int extractMaxInputChars;
+    public final int cacheMaxPercent;
+    /** Facility kinds the LLM tier may assign, per LLM collection ({@link KindHints}). */
+    public final Map<String, Set<String>> llmKinds;
+    /** LLM collections that are not followed (ignored, shown in the status). */
+    public final Set<String> llmIgnored;
     /** YaCy's own free-space thresholds for the DATA filesystem, in bytes. */
     public final long yacySteadyStateBytes;
     public final long yacyUndershotBytes;
@@ -183,6 +211,35 @@ public final class KgConfig {
         this.gateMaxIndexingQueue = (int) p.longValue(GATE_MAX_INDEXING_QUEUE, 20, 0, 100_000);
         this.gateMaxLoad = p.doubleValue(GATE_MAX_LOAD, 2.5, 0.0, 1024.0);
         this.gateMinFreeHeapBytes = MIB * p.longValue(GATE_MIN_FREE_HEAP_MB, 256, 0, 1_048_576);
+        final Set<String> llm = p.collections(LLM_COLLECTIONS);
+        this.llmAllCollections = llm.contains(ALL_COLLECTIONS);
+        llm.remove(ALL_COLLECTIONS);
+        this.llmCollections = Collections.unmodifiableSet(llm);
+        this.llmParallel = (int) p.longValue(LLM_PARALLEL, 1, 1, 2);
+        this.llmTimeoutMillis = 1000L * p.longValue(LLM_TIMEOUT_SECONDS, 120, 5, 600);
+        this.llmMaxAttempts = (int) p.longValue(LLM_MAX_ATTEMPTS, 2, 1, 10);
+        this.llmBreakerFailures = (int) p.longValue(LLM_BREAKER_FAILURES, 3, 1, 100);
+        this.llmBreakerMaxBackoffMillis = 60_000L * p.longValue(LLM_BREAKER_MAX_BACKOFF_MINUTES, 60, 5, 1440);
+        this.llmMaxDocsPerHost = (int) p.longValue(LLM_MAX_DOCS_PER_HOST, 25, 1, 10_000);
+        this.extractMaxInputChars = (int) p.longValue(EXTRACT_MAX_INPUT_CHARS, 12_000, 1_000, 100_000);
+        this.cacheMaxPercent = (int) p.longValue(CACHE_MAX_PERCENT, 20, 0, 50);
+        final Set<String> ignored = new TreeSet<>();
+        for (final String c : this.llmCollections) {
+            if (!follows(c)) {
+                ignored.add(c);
+            }
+        }
+        this.llmIgnored = Collections.unmodifiableSet(ignored);
+        final Map<String, Set<String>> kinds = new TreeMap<>();
+        final Set<String> named = new TreeSet<>(this.llmCollections);
+        if (this.llmAllCollections) {
+            named.addAll(this.collections);
+        }
+        for (final String c : named) {
+            final Set<String> k = p.kinds(KindHints.KEY_PREFIX + c);
+            kinds.put(c, k != null ? k : KindHints.start(c));
+        }
+        this.llmKinds = Collections.unmodifiableMap(kinds);
         // YaCy's keys are megabytes; read with YaCy's own code defaults (SwitchboardConstants)
         this.yacySteadyStateBytes = MIB * p.yacyLong(SwitchboardConstants.RESOURCE_DISK_FREE_MIN_STEADYSTATE,
                 SwitchboardConstants.RESOURCE_DISK_FREE_MIN_STEADYSTATE_DEFAULT);
@@ -221,6 +278,38 @@ public final class KgConfig {
     /** True if at least one collection is followed. */
     public boolean followsAny() {
         return this.allCollections || !this.collections.isEmpty();
+    }
+
+    /** True if the LLM tier reads documents of {@code collection} (it must also be followed). */
+    public boolean llmFollows(final String collection) {
+        return follows(collection) && (this.llmAllCollections || this.llmCollections.contains(collection));
+    }
+
+    /** True if the LLM tier reads any collection. */
+    public boolean llmEnabled() {
+        return followsAny() && (this.llmAllCollections || !this.llmCollections.isEmpty());
+    }
+
+    /** The facility kinds the LLM tier may assign for a document of these collections (sorted union). */
+    public Set<String> llmKinds(final Collection<String> docCollections) {
+        final Set<String> out = new TreeSet<>();
+        for (final String c : docCollections) {
+            if (llmFollows(c)) {
+                final Set<String> k = this.llmKinds.get(c);
+                out.addAll(k != null ? k : KindHints.start(c));
+            }
+        }
+        return out;
+    }
+
+    /** Stable description of what the LLM tier selects (collections, kinds, per-host cap). */
+    public String llmSelectionKey() {
+        return (this.llmAllCollections ? ALL_COLLECTIONS : String.join(",", this.llmCollections)) + "|" + this.llmMaxDocsPerHost;
+    }
+
+    /** Bytes the extraction cache may use: {@code cache.maxPercent} of the data share of the budget. */
+    public long cacheMaxBytes() {
+        return dataBytes() / 100L * this.cacheMaxPercent;
     }
 
     /** Stable description of the followed collections ({@code *} or the sorted names). */
@@ -281,7 +370,19 @@ public final class KgConfig {
         for (final String c : this.collections) {
             colls.put(c);
         }
-        return KgJson.obj("valid", valid(), "errors", errors, "collections", colls);
+        final JSONArray llm = new JSONArray();
+        if (this.llmAllCollections) {
+            llm.put(ALL_COLLECTIONS);
+        }
+        for (final String c : this.llmCollections) {
+            llm.put(c);
+        }
+        final JSONObject kinds = new JSONObject();
+        for (final Map.Entry<String, Set<String>> e : this.llmKinds.entrySet()) {
+            KgJson.put(kinds, e.getKey(), new JSONArray(e.getValue()));
+        }
+        return KgJson.obj("valid", valid(), "errors", errors, "collections", colls, "llmCollections", llm,
+                "llmIgnoredCollections", new JSONArray(this.llmIgnored), "llmKinds", kinds);
     }
 
     private static final class Parser {
@@ -367,6 +468,29 @@ public final class KgConfig {
                 }
             }
             return out;
+        }
+
+        /** Comma- or space-separated facility kinds; null if the key is not set (an empty value means none). */
+        Set<String> kinds(final String key) {
+            final String v = raw(key);
+            if (v == null) {
+                return null;
+            }
+            final Set<String> out = new TreeSet<>();
+            for (final String part : v.split("[,\\s]+")) {
+                if (part.isEmpty()) {
+                    continue;
+                }
+                if (!KindHints.KIND.matcher(part).matches()) {
+                    problem(key, "invalid facility kind '" + clip(part) + "' (2 to 64 lower-case letters)");
+                } else if (out.size() >= KindHints.MAX_KINDS) {
+                    problem(key, "at most " + KindHints.MAX_KINDS + " kinds");
+                    break;
+                } else {
+                    out.add(part);
+                }
+            }
+            return Collections.unmodifiableSet(out);
         }
 
         /** YaCy's own keys: reported if unusable, but never part of the graph's validity. */

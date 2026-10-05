@@ -38,7 +38,7 @@ package net.yacy.scoutro.knowledge.store;
  */
 public final class KgSchema {
 
-    public static final int CURRENT_VERSION = 2;
+    public static final int CURRENT_VERSION = 3;
 
     private KgSchema() {}
 
@@ -311,6 +311,28 @@ public final class KgSchema {
             "CREATE INDEX kg_work_claimed ON kg_work (claimed_at) WHERE claimed_at IS NOT NULL",
             "CREATE INDEX kg_entity_seq ON kg_entity (created_seq)",
         },
+        // 2 -> 3 (package 2b): the LLM tier's own queue and its per-document state
+        {
+            "CREATE TABLE kg_llm_work ("
+                + " doc_id TEXT PRIMARY KEY COLLATE BINARY CHECK (" + docId("doc_id") + "),"
+                + " host_id TEXT NOT NULL CHECK (length(host_id) = 6),"
+                + " priority INTEGER NOT NULL CHECK (priority BETWEEN 0 AND 9),"
+                + " not_before INTEGER NOT NULL,"
+                + " enqueued_at INTEGER NOT NULL,"
+                + " attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),"
+                + " claimed_at INTEGER"
+                + ") WITHOUT ROWID",
+            "CREATE INDEX kg_llm_work_next ON kg_llm_work (priority, not_before)",
+            "CREATE INDEX kg_llm_work_host ON kg_llm_work (host_id)",
+            // the input hash the LLM tier last finished, gave up on or skipped; status 1 done, 2 failed, 3 skipped
+            "ALTER TABLE kg_doc ADD COLUMN llm_hash BLOB CHECK (llm_hash IS NULL OR length(llm_hash) = 16)",
+            "ALTER TABLE kg_doc ADD COLUMN llm_status INTEGER CHECK (llm_status IS NULL OR llm_status IN (1, 2, 3))",
+            "ALTER TABLE kg_doc ADD COLUMN llm_reason TEXT CHECK (llm_reason IS NULL OR length(llm_reason) <= 64)",
+            // documents still to look at (index-only scan), and the per-host count of finished ones
+            "CREATE INDEX kg_doc_llm_todo ON kg_doc (doc_rowid) WHERE llm_status IS NULL AND state = 1",
+            "CREATE INDEX kg_doc_llm_host ON kg_doc (host_id) WHERE llm_status = 1",
+            "CREATE INDEX kg_doc_llm_status ON kg_doc (llm_status) WHERE llm_status IS NOT NULL",
+        },
     };
 
     /** Keys of kg_meta written by the store. */
@@ -334,4 +356,6 @@ public final class KgSchema {
     public static final String META_COLLECTIONS = "collections";
     /** "1" while a full reset (Solr *:*) is being applied. */
     public static final String META_RESET_IN_PROGRESS = "reset_in_progress";
+    /** The LLM collections and the per-host cap of the last start; a change re-examines skipped documents. */
+    public static final String META_LLM_SELECTION = "llm_selection";
 }

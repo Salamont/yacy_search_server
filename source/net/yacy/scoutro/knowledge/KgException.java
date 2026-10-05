@@ -51,6 +51,8 @@ public class KgException extends Exception {
     public static final String NOTHING_TO_CONFIRM = "nothing_to_confirm";
     /** The graph runs, but its Solr synchronisation does not (e.g. remote Solr only). */
     public static final String SYNC_UNAVAILABLE = "sync_unavailable";
+    /** The LLM tier is off: no {@code llm.collections}, or no Solr synchronisation. */
+    public static final String LLM_UNAVAILABLE = "llm_unavailable";
 
     private final String code;
     private final String reason;
