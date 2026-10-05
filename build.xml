@@ -389,6 +389,7 @@
       <arg value="net.yacy.ai.rag.RagContextTest" />
       <arg value="net.yacy.ai.rag.RagCitationsTest" />
       <arg value="net.yacy.ai.rag.RagConversationTest" />
+      <arg value="net.yacy.ai.rag.GraphFactsTest" />
       <classpath>
         <pathelement location="build/scoutro-rag-tests" />
         <pathelement location="${build}" />

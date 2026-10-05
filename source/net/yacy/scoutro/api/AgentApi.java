@@ -276,6 +276,11 @@ final class AgentApi {
                         || (n == 3 && ("jobs".equals(p.get(1)) || "collections".equals(p.get(1)) || "hosts".equals(p.get(1))))
                         || (n == 4 && "collections".equals(p.get(1)) && "hosts".equals(p.get(3))))) return notFound();
                 return "GET".equals(method) ? ok("report.read") : method(method, "GET");
+            case "kg":
+                // the read routes and export/changes; status and control stay administrator routes
+                if (n < 2 || !KnowledgeRead.known(p.subList(1, n))) return notFound();
+                final String kg = "export".equals(p.get(1)) || "changes".equals(p.get(1)) ? "kg.export" : "kg.read";
+                return "GET".equals(method) ? ok(kg) : method(method, "GET");
             case "search":
                 if (n != 1) return notFound();
                 return "GET".equals(method) ? ok("search") : method(method, "GET");

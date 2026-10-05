@@ -84,7 +84,7 @@ class Client:
             handlers.append(urllib.request.HTTPDigestAuthHandler(manager))
         self.opener = urllib.request.build_opener(*handlers)
 
-    def call(self, method, path, query=None, body=None, extra_headers=None):
+    def call(self, method, path, query=None, body=None, extra_headers=None, raw=False):
         url = self.base + path
         if query:
             url += "?" + urllib.parse.urlencode({k: v for k, v in query.items() if v is not None})
@@ -100,6 +100,11 @@ class Client:
         request = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
             with self.opener.open(request, timeout=self.timeout) as response:
+                if raw:
+                    for chunk in iter(lambda: response.read(65536), b""):
+                        sys.stdout.buffer.write(chunk)
+                    sys.stdout.flush()
+                    return None
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             raw = e.read().decode("utf-8", "replace")
@@ -194,6 +199,44 @@ def build_parser():
     cs.add_argument("key")
     cs.add_argument("value", help="integers are sent as numbers")
 
+    kg = sub.add_parser("kg", help="knowledge graph: reads (kg.read), export and changes (kg.export), status/control/download (administrator)") \
+        .add_subparsers(dest="kg_command", required=True)
+    ents = kg.add_parser("entities")
+    ents.add_argument("--q")
+    ents.add_argument("--type", choices=["organization", "facility", "site", "place", "service"])
+    ents.add_argument("--host")
+    ents.add_argument("--quality", choices=["supported", "uncertain", "stale"])
+    for name in ("entity", "statements", "statement", "evidence", "host", "source"):
+        k = kg.add_parser(name)
+        k.add_argument("id", help={"host": "host name", "source": "Solr document id"}.get(name, "entity or statement ID"))
+        if name == "statements":
+            k.add_argument("--direction", choices=["out", "in"])
+            k.add_argument("--predicate")
+            k.add_argument("--include-stale", dest="include_stale", action="store_true")
+    for k in [ents] + [kg.choices[n] for n in ("entity", "statements", "statement", "evidence", "host", "source")]:
+        k.add_argument("--collection", help="only evidence of this collection (agent token: one of the agent's collections)")
+        if k is not kg.choices["entity"] and k is not kg.choices["statement"]:
+            k.add_argument("--limit", type=int)
+            k.add_argument("--offset", type=int)
+    exp = kg.add_parser("export", help="one export page, or with --all every record as one JSON line")
+    exp.add_argument("--cursor")
+    exp.add_argument("--limit", type=int)
+    exp.add_argument("--evidence", action="store_true")
+    exp.add_argument("--collection")
+    exp.add_argument("--all", action="store_true")
+    ch = kg.add_parser("changes")
+    ch.add_argument("--cursor")
+    ch.add_argument("--limit", type=int)
+    ch.add_argument("--expand", action="store_true")
+    ch.add_argument("--collection")
+    dl = kg.add_parser("download", help="administrator: the whole export as NDJSON or JSON to stdout")
+    dl.add_argument("--format", choices=["ndjson", "json"])
+    dl.add_argument("--evidence", action="store_true")
+    dl.add_argument("--collection")
+    kg.add_parser("status", help="administrator")
+    ctl = kg.add_parser("control", help="administrator")
+    ctl.add_argument("action", choices=["pause", "resume", "reconcile", "confirm_reconcile", "llm_retry"])
+
     ui = sub.add_parser("ui", help="web interface routes (public)").add_subparsers(dest="ui_command", required=True)
     ui.add_parser("routes")
     r = ui.add_parser("route")
@@ -267,6 +310,48 @@ def main(argv=None):
             result = client.call("GET", v1 + "/crawls/" + urllib.parse.quote(args.id, safe=""))
         else:
             result = client.call("POST", v1 + "/crawls/" + urllib.parse.quote(args.id, safe="") + "/stop", body={})
+    elif c == "kg":
+        k = args.kg_command
+        q = lambda path: urllib.parse.quote(path, safe="")
+        if k in ("status", "control", "download") and token:
+            fail("admin_only", "kg %s is an administrator route; it is not available with an agent token" % k, 2)
+        if k == "status":
+            result = client.call("GET", "/v1/kg/status")
+        elif k == "control":
+            result = client.call("POST", "/v1/kg/control", body={"action": args.action})
+        elif k == "download":
+            client.call("GET", "/v1/kg/export/download", {"format": args.format, "include": "evidence" if args.evidence else None,
+                                                         "collection": args.collection}, raw=True)
+            return 0
+        elif k == "export":
+            query = {"cursor": args.cursor, "limit": args.limit, "include": "evidence" if args.evidence else None,
+                     "collection": args.collection}
+            if not args.all:
+                result = client.call("GET", v1 + "/kg/export", query)
+            else:
+                while True:
+                    page = client.call("GET", v1 + "/kg/export", query)
+                    for record in page.get("items", []):
+                        print(json.dumps(record, ensure_ascii=False, separators=(",", ":")))
+                    if page.get("complete"):
+                        print(json.dumps({"record": "end", "next_changes": page.get("next_changes")}, separators=(",", ":")))
+                        return 0
+                    query["cursor"] = page.get("next")
+        elif k == "changes":
+            result = client.call("GET", v1 + "/kg/changes", {"cursor": args.cursor, "limit": args.limit,
+                                                          "expand": "true" if args.expand else None, "collection": args.collection})
+        else:
+            paths = {"entities": "/kg/entities", "entity": "/kg/entities/%s", "statements": "/kg/entities/%s/statements",
+                     "statement": "/kg/statements/%s", "evidence": "/kg/statements/%s/evidence",
+                     "host": "/kg/hosts/%s/entities", "source": "/kg/sources/%s"}
+            path = paths[k] % q(args.id) if "%s" in paths[k] else paths[k]
+            query = {"collection": args.collection}
+            for name in ("q", "type", "host", "quality", "direction", "predicate", "limit", "offset"):
+                if name != "host" or k == "entities":
+                    query[name] = getattr(args, name, None)
+            if getattr(args, "include_stale", False):
+                query["include"] = "stale"
+            result = client.call("GET", v1 + path, query)
     elif c == "config":
         if args.config_command == "get":
             result = client.call("GET", v1 + "/config")

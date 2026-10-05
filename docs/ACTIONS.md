@@ -100,10 +100,26 @@ returns those of the calling agent. The list mirrors
 | `index.status.global` | `GET /agent/v1/index?global=true` | admin | **no** | – | `index status --global` |
 | `system.status` | `GET /agent/v1/system` | admin | **no** | – | `system` |
 | `config.get` / `config.set` | `GET`/`PATCH /agent/v1/config` | admin | **no** | – | `config get`, `config set KEY VALUE` |
+| `kg.read` | `GET /agent/v1/kg/{entities,statements,hosts,sources}/…` | read | yes (evidence of the granted collections only) | – | `kg entities`, `kg entity ID`, `kg statements ID`, `kg statement ID`, `kg evidence ID`, `kg host HOST`, `kg source DOC_ID` |
+| `kg.export` | `GET /agent/v1/kg/export`, `GET /agent/v1/kg/changes` | read | yes (evidence of the granted collections only) | – | `kg export [--all] [--evidence]`, `kg changes [--cursor C] [--expand]` |
 
 Always available with a valid token: `agent.capabilities`
 (`scoutroctl capabilities`) and `agent.heartbeat`. Research workers can only
 be granted the scoped grants.
+
+**Knowledge graph** (`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, 8.2, 8.3 and 21):
+`kg.read` and `kg.export` are separate grants, never part of a preset, and
+must be granted one by one. `kg.export` is for external integrations only, not
+for research workers. The server sets the viewer: the requested `collection`
+(403 `collection_not_in_scope` outside the scope) or the agent's whole scope.
+Names, values, counts, quality and the evidence of every answer come only from
+documents of those collections; an object without evidence there is 404 like
+an unknown one. Evidence names the extractor (`llm/1`) but not the configured
+model, and the agent answers carry no graph-wide backlog (`lag`). The
+administrator routes `kg/status`, `kg/control` and the download
+`kg/export/download` do not exist on the agent path (404). The MCP adapter
+offers the read tools with `kg.read` and `scoutro_kg_export` /
+`scoutro_kg_changes` with `kg.export`.
 
 ## Not offered in v1 (on purpose)
 

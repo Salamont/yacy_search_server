@@ -750,6 +750,16 @@
         margin-left: 6px;
       }
 
+      .chat-source-kind {
+        border: 1px solid #8a6d3b;
+        border-radius: 3px;
+        color: #6d5530;
+        font-size: 0.85em;
+        margin-left: 6px;
+        padding: 0 4px;
+        white-space: nowrap;
+      }
+
       a.chat-citation {
         text-decoration: none;
         font-weight: 600;
@@ -985,6 +995,7 @@
         title: 'Sources of this answer',
         unknown: 'Not among the sources found for this answer:',
         invalidTitle: 'No source of this answer has this number',
+        graph: 'Scoutro knowledge graph',
         unverifiedTitle: 'Not among the sources of this answer: not linked'
     };
     // Texts of the chat surface: who speaks, what the chat is doing, what went wrong.
@@ -1466,6 +1477,13 @@
                     host.className = 'chat-source-host';
                     host.textContent = source.host;
                     item.appendChild(host);
+                }
+                if (source.kind === 'graph') {
+                    // facts Scoutro's knowledge graph recorded from this page, not a search hit and not model knowledge
+                    const kind = document.createElement('span');
+                    kind.className = 'chat-source-kind';
+                    kind.textContent = CHAT_SOURCE_TEXT.graph;
+                    item.appendChild(kind);
                 }
                 list.appendChild(item);
             }

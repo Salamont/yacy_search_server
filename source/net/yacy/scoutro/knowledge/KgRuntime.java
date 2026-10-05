@@ -866,6 +866,26 @@ public final class KgRuntime {
         return new KgReader(this.store, this.config, this.env.clock);
     }
 
+    /** The settings of the running graph; null before it was configured. */
+    public KgConfig config() {
+        return this.config;
+    }
+
+    /**
+     * Facts for the RAG chat (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 8.4): over the
+     * evidence of {@code collection}, or of every followed collection when it
+     * is null. A collection the graph does not follow sees nothing.
+     */
+    public java.util.List<net.yacy.scoutro.knowledge.read.ChatFacts.Entry> chatFacts(final String collection,
+            final java.util.List<String> docIds, final java.util.List<String> terms, final int maxFacts, final long deadlineMillis)
+            throws KgException {
+        final KgReader reader = reader();
+        final KgConfig cfg = this.config;
+        final net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer viewer = collection != null ? reader.viewer(java.util.List.of(collection))
+                : cfg.allCollections ? net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer.ALL : reader.viewer(cfg.collections);
+        return new net.yacy.scoutro.knowledge.read.ChatFacts(reader).select(docIds, terms, viewer, maxFacts, deadlineMillis);
+    }
+
     /** How far the graph lags behind Solr ({@code sync.lag}), or null without the sync. */
     public JSONObject lag() {
         final SyncService s = this.sync;

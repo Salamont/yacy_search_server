@@ -75,6 +75,23 @@ text; links to crawled pages open in a new tab without a referrer.
 | `/scoutro/api/v1/kg/hosts/{host}/entities` | GET | Objects of a host |
 | `/scoutro/api/v1/kg/sources/{docId}` | GET | What the graph holds from one page |
 | `/scoutro/api/v1/kg/control` | POST | `pause`, `resume`, `reconcile`, `confirm_reconcile`, `llm_retry` |
+| `/scoutro/api/v1/kg/export` | GET | Export pages (`cursor`, `limit` ≤ 200, `include=evidence`, `collection`) |
+| `/scoutro/api/v1/kg/changes` | GET | Changes after a cursor, with delete notices (`expand=true` adds the records) |
+| `/scoutro/api/v1/kg/export/download` | GET | The whole export as a file (`format=ndjson|json`, `include=evidence`, `collection`) |
+
+The export is not a snapshot: after it, read the changes from its
+`next_changes` cursor. A cursor that is too old or from before a reset answers
+410 with `details.full_sync`; start the export again.
+
+**Agents** get the same reads with the grant `kg.read` and export and changes
+with the separate grant `kg.export` (Agents & Access), on
+`/scoutro/api/agent/v1/kg/…`, always limited to their collections. Status,
+controls and the download are never available to agents.
+
+**Chat:** for local and administrator use, the chat adds facts of the graph as
+numbered sources marked "Scoutro knowledge graph", each linking the page it
+was read from, within the chat's collection. Settings: `scoutro.kg.chat.*`
+(shown under Settings).
 
 Settings are `scoutro.kg.*` configuration keys; they take effect at the next
 start. Invalid values are listed under Settings and keep the graph off.

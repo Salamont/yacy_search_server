@@ -4669,6 +4669,7 @@ Please drop a PNG/JPG image or a text file (.txt, .md, .tex, or other plain text
 Not among the sources of this answer: not linked==Nicht unter den Quellen dieser Antwort: nicht verlinkt
 Not among the sources found for this answer:==Nicht unter den für diese Antwort gefundenen Quellen:
 No source of this answer has this number==Keine Quelle dieser Antwort hat diese Nummer
+Scoutro knowledge graph==Scoutro-Wissensgraph
 Sources of this answer==Quellen dieser Antwort
 Searching the index and writing the answer …==Index wird durchsucht, Antwort wird geschrieben …
 Writing the answer …==Antwort wird geschrieben …
@@ -5498,6 +5499,8 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >What the graph holds from this page<==>Was der Graph aus dieser Seite enthält<
 >The knowledge graph is not running<==>Der Wissensgraph läuft nicht<
 >Facility kinds for the LLM tier<==>Einrichtungsarten für die LLM-Stufe<
+>Graph facts in the chat<==>Graph-Fakten im Chat<
+>yes: at most %1 facts and %2 characters within %3 ms; AI Shield guests: %4<==>ja: höchstens %1 Fakten und %2 Zeichen in %3 ms; AI-Shield-Gäste: %4<
 >Retry failed LLM documents<==>Fehlgeschlagene LLM-Dokumente erneut versuchen<
 >Waiting for confirmation<==>Wartet auf Bestätigung<
 >only from the LLM tier<==>nur aus der LLM-Stufe<

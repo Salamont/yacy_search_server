@@ -79,7 +79,10 @@ public class AgentCatalogTest {
             {"GET", "seo/hosts"}, {"GET", "seo/hosts/{host}"}, {"GET", "seo/hosts/{host}/pages"}, {"GET", "seo/pages/{id}"},
             {"GET", "reports/jobs"}, {"GET", "reports/jobs/{id}"}, {"GET", "reports/collections/{collection}"},
             {"GET", "reports/collections/{collection}/hosts"}, {"GET", "reports/hosts/{host}"},
-            {"GET", "crawls/{id}"}, {"POST", "crawls/{id}/stop"}, {"GET", "system"}, {"GET", "config"}, {"PATCH", "config"}};
+            {"GET", "crawls/{id}"}, {"POST", "crawls/{id}/stop"}, {"GET", "system"}, {"GET", "config"}, {"PATCH", "config"},
+            {"GET", "kg/entities"}, {"GET", "kg/entities/{id}"}, {"GET", "kg/entities/{id}/statements"}, {"GET", "kg/statements/{id}"},
+            {"GET", "kg/statements/{id}/evidence"}, {"GET", "kg/hosts/{host}/entities"}, {"GET", "kg/sources/{docId}"},
+            {"GET", "kg/export"}, {"GET", "kg/changes"}};
         for (final String[] r : routes) {
             final List<String> segs = new ArrayList<>();
             for (final String s : r[1].split("/")) {
@@ -91,5 +94,39 @@ public class AgentCatalogTest {
             Assert.assertNotNull(r[0] + " " + r[1], p.optJSONObject(r[0].toLowerCase()));
         }
         Assert.assertNotNull(openapi.getJSONObject("components").getJSONObject("securitySchemes").optJSONObject("agentBearer"));
+        // the administrator routes of the knowledge graph are neither routed nor described on the agent path
+        for (final String admin : new String[] {"kg/status", "kg/control", "kg/export/download"}) {
+            Assert.assertNull(admin, AgentApi.route("GET", java.util.Arrays.asList(admin.split("/"))).action);
+            Assert.assertNull(admin, paths.optJSONObject("/agent/v1/" + admin));
+        }
+    }
+
+    @Test
+    public void knowledgeGraphActionsNameTheirGrant() throws Exception {
+        final JSONArray actions = catalog().getJSONArray("actions");
+        int read = 0;
+        int export = 0;
+        for (int i = 0; i < actions.length(); i++) {
+            final JSONObject a = actions.getJSONObject(i);
+            final String name = a.getString("name");
+            if (!name.startsWith("kg.")) {
+                continue;
+            }
+            final JSONObject agent = a.getJSONObject("agent");
+            if (name.equals("kg.status") || name.equals("kg.control") || name.equals("kg.download")) {
+                Assert.assertFalse(name, agent.getBoolean("grantable"));
+                continue;
+            }
+            final String grant = name.equals("kg.export") || name.equals("kg.changes") ? "kg.export" : "kg.read";
+            Assert.assertEquals(name, grant, agent.getString("grant"));
+            Assert.assertEquals(name, "GET", agent.getJSONObject("http").getString("method"));
+            Assert.assertTrue(name, agent.getJSONObject("http").getString("path").startsWith("/scoutro/api/agent/v1/kg/"));
+            final java.util.List<String> segs = java.util.Arrays.asList(agent.getJSONObject("http").getString("path")
+                    .substring("/scoutro/api/agent/v1/".length()).split("/"));
+            Assert.assertEquals(name, grant, AgentApi.route("GET", segs).action);
+            if (grant.equals("kg.read")) read++; else export++;
+        }
+        Assert.assertEquals(7, read);
+        Assert.assertEquals(2, export);
     }
 }

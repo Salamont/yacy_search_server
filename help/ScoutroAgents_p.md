@@ -73,6 +73,16 @@ Page backend: `source/net/yacy/htroot/ScoutroAgents_p.java` (logic in `source/ne
 
 Agents themselves never use this page. They authenticate on `/scoutro/api/agent/v1/*` with `Authorization: Bearer sca_...` and discover their rights with `GET /scoutro/api/agent/v1/capabilities`. The UI route of this page is `config.agents` (`/scoutro/api/v1/ui/routes/config.agents`).
 
+## Knowledge graph grants
+
+`kg.read` (entities, facts, relations, evidence, sources) and `kg.export`
+(export pages and change feed) are separate grants, absent from every preset;
+`kg.export` is offered for external agents only. Both answer only from the
+documents of the agent's collections: an agent of one collection never sees
+names, values, counts or evidence of another, and asking for a collection
+outside its scope is refused (403). Status, controls and the file download of
+the knowledge graph stay administrator functions.
+
 ## New optional read grants
 
 `host.resolve` and `collections.list` are collection-scoped. `discovery.status` is a global admin-risk read grant for external agents. All are absent from presets; existing agents receive no new rights automatically. Crawl start always requires a granted explicit Collection.

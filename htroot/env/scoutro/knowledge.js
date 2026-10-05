@@ -253,7 +253,9 @@
     const kinds = Object.entries(c.llmKinds || {}).map(([k, v]) => k + ': ' + (v.length ? v.join(', ') : t('none'))).join('\n');
     stats('config', [['enabled', t(s.enabled ? 'yes' : 'no')], ['valid', c.valid == null ? null : t(c.valid ? 'yes' : 'no')],
       ['followed', (c.collections || []).join(', ') || t('none')], ['llm_collections', (c.llmCollections || []).join(', ') || t('none')],
-      ['llm_kinds', kinds || t('none')], ['budget', bytes(s.storage?.budgetBytes)], ['model', s.llm?.model]]);
+      ['llm_kinds', kinds || t('none')], ['budget', bytes(s.storage?.budgetBytes)], ['model', s.llm?.model],
+      ['chat', c.chat == null ? null : !c.chat.enabled ? t('no') : t('chat_detail').replace('%1', fmt(c.chat.maxFacts))
+        .replace('%2', fmt(c.chat.maxChars)).replace('%3', fmt(c.chat.timeoutMs)).replace('%4', t(c.chat.allowGuests ? 'yes' : 'no'))]]);
     const errors = $('config-errors'); errors.replaceChildren();
     if (c.errors?.length) {
       const table = node('table', null, 'table table-striped scoutro-cards'); const head = table.createTHead().insertRow();

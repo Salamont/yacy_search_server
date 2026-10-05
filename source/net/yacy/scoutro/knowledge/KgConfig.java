@@ -86,6 +86,11 @@ public final class KgConfig {
     public static final String LLM_MAX_DOCS_PER_HOST = "scoutro.kg.llm.maxDocsPerHost";
     public static final String EXTRACT_MAX_INPUT_CHARS = "scoutro.kg.extract.maxInputChars";
     public static final String CACHE_MAX_PERCENT = "scoutro.kg.cache.maxPercent";
+    public static final String CHAT_ENABLED = "scoutro.kg.chat.enabled";
+    public static final String CHAT_ALLOW_GUESTS = "scoutro.kg.chat.allowGuests";
+    public static final String CHAT_MAX_FACTS = "scoutro.kg.chat.maxFacts";
+    public static final String CHAT_MAX_CHARS = "scoutro.kg.chat.maxChars";
+    public static final String CHAT_TIMEOUT_MS = "scoutro.kg.chat.timeoutMs";
 
     /** Collection names the graph follows; {@code *} follows every collection. */
     public static final String ALL_COLLECTIONS = "*";
@@ -163,6 +168,13 @@ public final class KgConfig {
     public final int llmMaxDocsPerHost;
     public final int extractMaxInputChars;
     public final int cacheMaxPercent;
+    /** Graph facts as extra sources in the RAG chat (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 8.4). */
+    public final boolean chatEnabled;
+    /** AI Shield guests get graph facts only with this switch (default off). */
+    public final boolean chatAllowGuests;
+    public final int chatMaxFacts;
+    public final int chatMaxChars;
+    public final long chatTimeoutMillis;
     /** Facility kinds the LLM tier may assign, per LLM collection ({@link KindHints}). */
     public final Map<String, Set<String>> llmKinds;
     /** LLM collections that are not followed (ignored, shown in the status). */
@@ -223,6 +235,11 @@ public final class KgConfig {
         this.llmMaxDocsPerHost = (int) p.longValue(LLM_MAX_DOCS_PER_HOST, 25, 1, 10_000);
         this.extractMaxInputChars = (int) p.longValue(EXTRACT_MAX_INPUT_CHARS, 12_000, 1_000, 100_000);
         this.cacheMaxPercent = (int) p.longValue(CACHE_MAX_PERCENT, 20, 0, 50);
+        this.chatEnabled = p.bool(CHAT_ENABLED, true);
+        this.chatAllowGuests = p.bool(CHAT_ALLOW_GUESTS, false);
+        this.chatMaxFacts = (int) p.longValue(CHAT_MAX_FACTS, 8, 1, 30);
+        this.chatMaxChars = (int) p.longValue(CHAT_MAX_CHARS, 1500, 300, 8000);
+        this.chatTimeoutMillis = p.longValue(CHAT_TIMEOUT_MS, 300, 50, 5000);
         final Set<String> ignored = new TreeSet<>();
         for (final String c : this.llmCollections) {
             if (!follows(c)) {
@@ -382,7 +399,9 @@ public final class KgConfig {
             KgJson.put(kinds, e.getKey(), new JSONArray(e.getValue()));
         }
         return KgJson.obj("valid", valid(), "errors", errors, "collections", colls, "llmCollections", llm,
-                "llmIgnoredCollections", new JSONArray(this.llmIgnored), "llmKinds", kinds);
+                "llmIgnoredCollections", new JSONArray(this.llmIgnored), "llmKinds", kinds,
+                "chat", KgJson.obj("enabled", this.chatEnabled, "allowGuests", this.chatAllowGuests, "maxFacts", this.chatMaxFacts,
+                        "maxChars", this.chatMaxChars, "timeoutMs", this.chatTimeoutMillis));
     }
 
     private static final class Parser {
