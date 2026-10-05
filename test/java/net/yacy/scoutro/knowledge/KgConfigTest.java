@@ -16,13 +16,52 @@ public class KgConfigTest {
         final KgConfig c = KgConfig.read(key -> null);
         assertFalse(c.enabled);
         assertTrue(c.problems().toString(), c.valid());
-        assertEquals(1024L * 1024L * 1024L, c.budgetMaxBytes);
+        // package 5 (O1): protection limits, not targets
+        assertEquals(10L * KgTestSupport.GIB, c.budgetMaxBytes);
+        assertEquals(2L * KgTestSupport.GIB, c.jsonldMaxTotalBytes);
+        assertEquals(70, c.noticePercent);
+        assertEquals(80, c.warnPercent);
         assertEquals(90, c.pausePercent);
         assertEquals(80, c.resumePercent);
         assertFalse(c.jsonldEnabled);
         // the maintenance share must hold the WAL limit plus the temp limit
         assertTrue(c.maintenanceBytes() >= c.walMaxBytes + c.tmpMaxBytes);
         assertEquals(c.budgetMaxBytes, c.dataBytes() + c.maintenanceBytes());
+        // the database file is capped at the brake: growth is never refused by SQLite before the guard pauses it
+        assertEquals(10, c.maintenancePercent);
+        assertTrue(Math.abs(c.pauseAtBytes() - c.dataBytes()) < 100);
+    }
+
+    @Test
+    public void levelsFollowTheBudgetPercentages() {
+        final KgConfig c = KgConfig.read(key -> null);
+        final long b = 1000L * KgTestSupport.MIB;
+        final long p = b / 100L;
+        assertEquals(KgConfig.LEVEL_OK, c.level(0L, b));
+        assertEquals(KgConfig.LEVEL_OK, c.level(70 * p - 1, b));
+        assertEquals(KgConfig.LEVEL_NOTICE, c.level(70 * p, b));
+        assertEquals(KgConfig.LEVEL_WARNING, c.level(80 * p, b));
+        assertEquals(KgConfig.LEVEL_BRAKE, c.level(90 * p, b));
+        assertEquals(KgConfig.LEVEL_BRAKE, c.level(b - 1, b));
+        assertEquals(KgConfig.LEVEL_FULL, c.level(b, b));
+        assertEquals(KgConfig.LEVEL_OK, c.level(5L, 0L));
+        // the order must be notice < warning < pause
+        final KgConfig bad = KgTestSupport.config(KgTestSupport.enabled(KgConfig.BUDGET_NOTICE_PERCENT, "85"));
+        assertFalse(bad.valid());
+        assertTrue(bad.problems().toString().contains(KgConfig.BUDGET_NOTICE_PERCENT));
+        final KgConfig bad2 = KgTestSupport.config(KgTestSupport.enabled(KgConfig.BUDGET_WARN_PERCENT, "90"));
+        assertFalse(bad2.valid());
+        assertTrue(bad2.problems().toString().contains(KgConfig.BUDGET_WARN_PERCENT));
+        // a small budget gets the smallest maintenance share that holds the WAL and temp limits
+        final KgConfig small = KgTestSupport.config(KgTestSupport.enabled(KgConfig.BUDGET_MAX_BYTES, Long.toString(512 * KgTestSupport.MIB)));
+        assertTrue(small.problems().toString(), small.valid());
+        assertEquals(26, small.maintenancePercent);
+        assertTrue(small.maintenanceBytes() >= small.walMaxBytes + small.tmpMaxBytes);
+        // an explicit share that is too small is a problem naming the key
+        final KgConfig tooSmall = KgTestSupport.config(KgTestSupport.enabled(KgConfig.BUDGET_MAX_BYTES, Long.toString(512 * KgTestSupport.MIB),
+                KgConfig.BUDGET_MAINTENANCE_PERCENT, "10"));
+        assertFalse(tooSmall.valid());
+        assertTrue(tooSmall.problems().toString().contains(KgConfig.BUDGET_MAINTENANCE_PERCENT));
     }
 
     @Test
@@ -88,6 +127,8 @@ public class KgConfigTest {
         assertTrue(c.valid());
         assertEquals(1000 * KgTestSupport.MIB / 100 * 90, c.pauseAtBytes());
         assertEquals(1000 * KgTestSupport.MIB / 100 * 80, c.resumeAtBytes());
-        assertEquals(1000 * KgTestSupport.MIB / 100 * 20, c.maintenanceBytes());
+        // the default share is raised from 10 % to the smallest one holding WAL + temp (2 x 64 MiB): 13 %
+        assertEquals(13, c.maintenancePercent);
+        assertEquals(1000 * KgTestSupport.MIB / 100 * 13, c.maintenanceBytes());
     }
 }

@@ -17,6 +17,9 @@
 package net.yacy.scoutro.knowledge;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -44,6 +47,7 @@ import net.yacy.scoutro.knowledge.budget.StorageProbe;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.YacyLlmClient;
 import net.yacy.scoutro.knowledge.read.KgReader;
+import net.yacy.scoutro.knowledge.store.KgBackup;
 import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
 import net.yacy.scoutro.knowledge.sync.Capture;
@@ -228,6 +232,12 @@ public final class KgRuntime {
     private volatile SyncService sync;
     private volatile LlmService llm;
     private ScheduledExecutorService llmThreads;
+    private volatile KgBackups backups;
+    private EmbeddedSolrSource source;
+    private Gates gates;
+    private volatile KgRebuild rebuild;
+    /** The outcome of the last rebuild of this process, or "interrupted" when a start found its shadow. */
+    private volatile JSONObject lastRebuild;
     private volatile Long jsonldEstimate;
     private volatile boolean closing;
     private boolean uncleanStartDetected;
@@ -238,6 +248,9 @@ public final class KgRuntime {
     private final Object pauseLock = new Object();
     private long startedAt;
     private long lastMeasure;
+    /** The last recorded levels of the graph and JSON-LD budgets (events on every change). */
+    private String storageLevel = KgConfig.LEVEL_OK;
+    private String jsonldLevel = KgConfig.LEVEL_OK;
 
     private final Object integrityLock = new Object();
     private Integrity integrity = Integrity.NOT_REQUIRED;
@@ -335,6 +348,7 @@ public final class KgRuntime {
     /** Opens the graph if enabled; ends in RUNNING, DISABLED or UNAVAILABLE. Never throws. */
     public synchronized void open() {
         this.startedAt = this.env.clock.getAsLong();
+        this.closing = false;
         try {
             this.config = KgConfig.read(this.env.config);
             this.jsonld = new JsonLdCapturePolicy(this.config);
@@ -354,6 +368,16 @@ public final class KgRuntime {
             markStarted();
             this.guard.refresh();
             this.lastMeasure = this.env.clock.getAsLong();
+            final String[] backupMeta = this.store.read(c -> new String[] {KgStore.getMeta(c, KgSchema.META_LAST_BACKUP_AT),
+                    KgStore.getMeta(c, KgSchema.META_CREATED_AT)});
+            this.backups = new KgBackups(() -> this.store, this.paths, this.config, this.guard, this.env.clock,
+                    (level, code, detail) -> recordEvent(level, code, detail, false), parseLong(backupMeta[0]), parseLong(backupMeta[1]));
+            if (this.rebuild == null && KgRebuild.discardLeftover(this.paths)) {
+                // a stop or crash in the middle of a rebuild: its shadow is gone, the graph is unchanged
+                this.lastRebuild = KgJson.obj("phase", "interrupted", "finishedAt", this.startedAt);
+                recordEvent(2, "rebuild_interrupted", "a shadow graph of an unfinished rebuild was deleted; the graph is unchanged", false);
+                this.guard.refresh();
+            }
             set(State.RUNNING, null, null);
             if (this.env.solr != null) {
                 startSync();
@@ -401,6 +425,8 @@ public final class KgRuntime {
         Capture.activate(this.dirty);
         final EmbeddedSolrSource source = new EmbeddedSolrSource(this.env.solr);
         final Gates gates = new Gates(this.config, this.env.system);
+        this.source = source;
+        this.gates = gates;
         this.sync = new SyncService(this.config, this.store, this.dirty, source, gates, this.env.clock, this.uncleanStartDetected);
         if (this.config.llmEnabled()) {
             this.llm = new LlmService(this.config, this.store, source, gates, this.env.llm, this.env.clock);
@@ -494,6 +520,12 @@ public final class KgRuntime {
     public synchronized void close() {
         this.closing = true;
         final KgStore s = this.store;
+        final KgRebuild rb = this.rebuild;
+        if (rb != null && rb.active() && !rb.isRebuildThread()) {
+            // a stop in the middle of a rebuild: the shadow is deleted, the graph stays as it is
+            rb.cancel();
+            rb.join(15_000L);
+        }
         // the sync first: it finishes its step, the capture stops, and what it recorded reaches the persistent queue.
         // No Thread.interrupt here: the sync thread may be inside Solr, whose update log uses interruptible channels.
         // the LLM tier first: a call in flight is abandoned (no interrupt, see above); its result is never written
@@ -533,6 +565,14 @@ public final class KgRuntime {
             }
             awaitQuietly(this.maintenance);
             this.maintenance = null;
+        }
+        final KgBackups b = this.backups;
+        if (b != null) {
+            if (s != null) {
+                s.interruptBackup();
+            }
+            b.stop();
+            this.backups = null;
         }
         if (this.watchdog != null) {
             this.watchdog.shutdownNow();
@@ -668,12 +708,37 @@ public final class KgRuntime {
                     s.checkpoint();
                 }
                 updateJsonLdCapture();
+                this.storageLevel = noteLevel("storage_level", this.storageLevel, this.guard.level(), this.config.budgetMaxBytes);
+                // the backup schedule, after the measurement (a backup needs a growth admission)
+                final KgBackups b = this.backups;
+                if (b != null) {
+                    b.tick(now);
+                }
+                this.jsonldLevel = noteLevel("jsonld_level", this.jsonldLevel, this.jsonld.level(), this.config.jsonldMaxTotalBytes);
             }
         } catch (final KgException e) {
             // recorded by the guard and visible in the status
         } catch (final RuntimeException e) {
             LOG.warn("knowledge graph maintenance step failed: " + e);
         }
+    }
+
+    /**
+     * Records a change of a budget level as an event (info when it falls or
+     * reaches notice, warning from warning on) and logs warnings.
+     */
+    private String noteLevel(final String code, final String before, final String now, final long budget) {
+        if (now.equals(before)) {
+            return before;
+        }
+        final boolean rising = KgConfig.LEVELS.indexOf(now) > KgConfig.LEVELS.indexOf(before);
+        final boolean serious = rising && KgConfig.LEVELS.indexOf(now) >= KgConfig.LEVELS.indexOf(KgConfig.LEVEL_WARNING);
+        final String detail = before + " -> " + now + " (budget " + budget + " bytes)";
+        if (serious) {
+            LOG.warn("knowledge graph " + code.replace('_', ' ') + ": " + detail);
+        }
+        recordEvent(serious ? 2 : 1, code, detail, false);
+        return now;
     }
 
     // -------------------------------------------------------------- integrity
@@ -733,10 +798,7 @@ public final class KgRuntime {
             if (failure != null) {
                 this.integrity = Integrity.ABORTED;
                 this.integrityError = failure.code();
-            } else if ("ok".equals(result)) {
-                this.integrity = Integrity.OK;
-                this.integrityResult = "ok";
-            } else {
+            } else if (!"ok".equals(result)) {
                 this.integrity = Integrity.FAILED;
                 this.integrityResult = clip(String.valueOf(result));
             }
@@ -752,6 +814,11 @@ public final class KgRuntime {
             this.guard.setIntegrityBlock(null, null);
             LOG.info("knowledge graph integrity check passed in " + took + " ms");
             recordEvent(1, "integrity_ok", took + " ms", true);
+            // published last: once the check reads OK, writes are admitted and the passed check is recorded
+            synchronized (this.integrityLock) {
+                this.integrity = Integrity.OK;
+                this.integrityResult = "ok";
+            }
         } else {
             // a damaged database: every write stops, the stored flag keeps the check required
             this.guard.storageError("integrity_check");
@@ -1015,9 +1082,285 @@ public final class KgRuntime {
             KgJson.put(o, "llm", ll != null ? ll.status()
                     : KgJson.obj("state", "off", "reason", !this.config.llmEnabled() ? "no_llm_collections"
                             : sy == null ? "no_sync" : "stopped", "enabled", this.config.llmEnabled()));
+            final KgBackups b = this.backups;
+            if (b != null) {
+                KgJson.put(o, "backup", b.status());
+            }
+            final KgRebuild rb = this.rebuild;
+            KgJson.put(o, "rebuild", rb != null ? rb.status() : this.lastRebuild != null ? this.lastRebuild : KgJson.obj("phase", "none"));
             KgJson.put(o, "events", recentEvents(s));
         }
         return o;
+    }
+
+    private static long parseLong(final String v) {
+        try {
+            return v == null ? 0L : Long.parseLong(v);
+        } catch (final NumberFormatException e) {
+            return 0L;
+        }
+    }
+
+    // ---------------------------------------------------------------- rebuild
+
+    /**
+     * Starts the identity rebuild ({@link KgRebuild}): needs the Solr sync,
+     * no other running backup, restore or rebuild, no reconcile waiting for
+     * its confirmation and no full reset, and room in the budget for the
+     * shadow graph.
+     */
+    public synchronized JSONObject rebuild() throws KgException {
+        requireRunning();
+        final SyncService sy = requireSync();
+        final KgRebuild running = this.rebuild;
+        if (running != null && running.active()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a rebuild is running");
+        }
+        final KgBackups b = this.backups;
+        if (b == null || b.busy()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup or restore is running");
+        }
+        final JSONObject syncStatus = sy.status();
+        final JSONObject rec = syncStatus.optJSONObject("reconcile");
+        if (syncStatus.optBoolean("resetInProgress") || rec != null && rec.optBoolean("awaitingConfirmation")) {
+            throw new KgException(KgException.OPERATION_RUNNING, "reconcile_busy",
+                    "a reconcile waits for its confirmation or a full reset runs; finish it first", null);
+        }
+        final long used = this.guard.status().optLong("usedBytes");
+        final long logical = this.store.pageStats().optLong("logicalBytes");
+        this.rebuild = KgRebuild.start(new KgRebuild.Host() {
+            @Override
+            public void swapIn(final File shadowDb, final File keepAs, final java.util.Map<String, String> carry) throws KgException {
+                KgRuntime.this.swapIn(shadowDb, keepAs, carry);
+            }
+
+            @Override
+            public void event(final int level, final String code, final String detail) {
+                recordEvent(level, code, detail, false);
+            }
+        }, this.config, this.env.config, this.paths, this.store, this.source, this.gates, this.env.probe, this.env.clock, used, logical);
+        this.lastRebuild = null;
+        return status();
+    }
+
+    /** Cancels a running rebuild; the shadow is deleted and the graph stays as it is. */
+    public synchronized JSONObject rebuildCancel() throws KgException {
+        requireRunning();
+        final KgRebuild rb = this.rebuild;
+        if (rb == null || !rb.active() || rb.phase() == KgRebuild.Phase.SWAPPING) {
+            throw new KgException(KgException.NO_REBUILD, "no rebuild to cancel");
+        }
+        rb.cancel();
+        rb.join(15_000L);
+        return status();
+    }
+
+    /** Lets a rebuild that the brake stopped swap in. */
+    public synchronized JSONObject rebuildConfirm() throws KgException {
+        requireRunning();
+        final KgRebuild rb = this.rebuild;
+        if (rb == null || !rb.confirm()) {
+            throw new KgException(KgException.NO_REBUILD, "no rebuild waits for a confirmation");
+        }
+        return status();
+    }
+
+    /**
+     * The swap of a rebuild, on the rebuild thread: stops the graph, keeps the
+     * current database as {@code keepAs}, puts the shadow in its place with the
+     * carried settings and starts the graph again; if it does not start, the
+     * previous database is put back.
+     */
+    private synchronized void swapIn(final File shadowDb, final File keepAs, final java.util.Map<String, String> carry) throws KgException {
+        if (this.closing || this.state != State.RUNNING) {
+            throw new KgException(KgException.UNAVAILABLE, "stopped", "the graph was stopped before the swap", null);
+        }
+        final KgBackups b = this.backups;
+        final long until = this.env.clock.getAsLong() + this.config.backupMaxMillis;
+        while (b != null && !b.claim()) {
+            if (this.env.clock.getAsLong() > until) {
+                throw new KgException(KgException.OPERATION_RUNNING, "a backup does not end");
+            }
+            try {
+                wait(200L);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new KgException(KgException.UNAVAILABLE, "interrupted", "the swap was interrupted", null);
+            }
+        }
+        final long now = this.env.clock.getAsLong();
+        try {
+            close();
+            moveDatabase(this.paths.db, keepAs);
+            try {
+                moveDatabase(shadowDb, this.paths.db);
+                KgBackup.prepareRebuilt(this.paths.db, carry, "rebuilt from Solr; previous graph kept as " + keepAs.getName(), now);
+            } catch (final KgException e) {
+                rollBack(keepAs);
+                open();
+                throw e;
+            }
+            open();
+            if (this.state != State.RUNNING) {
+                final String why = this.reason;
+                close();
+                rollBack(keepAs);
+                open();
+                throw new KgException(KgException.RESTORE_FAILED, why, "the rebuilt graph did not start (" + why + "); the previous graph is back", null);
+            }
+        } finally {
+            if (b != null) {
+                b.release();
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- backups
+
+    /** Starts a backup on the backup thread; the status shows its progress and result. */
+    public JSONObject backup() throws KgException {
+        final KgBackups b;
+        synchronized (this) {
+            requireRunning();
+            b = this.backups;
+        }
+        if (b == null || !b.start("manual")) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup, restore or rebuild is running");
+        }
+        return status();
+    }
+
+    /** The backup files with their metadata. */
+    public synchronized JSONObject backups() throws KgException {
+        requireRunning();
+        return this.backups.list();
+    }
+
+    /** The backup file {@code name} for a download; null if it does not exist or is not a backup name. */
+    public synchronized File backupFile(final String name) throws KgException {
+        requireRunning();
+        return KgBackup.find(this.paths.backup, name);
+    }
+
+    /**
+     * Restores a backup (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 13): checks it
+     * (name, SHA-256 of its metadata file, quick_check, schema version, epoch)
+     * without touching the current graph; then stops the graph, moves the
+     * current database aside as {@code backup/graph-<UTC>-before-restore.db},
+     * copies the backup into place with a new dataset epoch (change-feed
+     * consumers get {@code epoch_changed} and sync again) and starts the graph
+     * again, which reconciles it with Solr. If the restored graph does not
+     * start, the previous database is put back and the call fails with
+     * {@link KgException#RESTORE_FAILED}.
+     */
+    public synchronized JSONObject restore(final String name) throws KgException {
+        requireRunning();
+        final File src = KgBackup.find(this.paths.backup, name);
+        if (src == null) {
+            throw new KgException(KgException.BACKUP_NOT_FOUND, "no backup " + name + " in " + KgPaths.RELATIVE_DIR + "/backup");
+        }
+        final JSONObject meta = KgBackup.readMeta(src);
+        if (meta != null && meta.optString("sha256", null) != null) {
+            final String sum;
+            try {
+                sum = KgBackup.sha256(src);
+            } catch (final IOException e) {
+                throw new KgException(KgException.BACKUP_INVALID, "unreadable", "the backup cannot be read", e);
+            }
+            if (!sum.equals(meta.optString("sha256"))) {
+                throw new KgException(KgException.BACKUP_INVALID, "checksum", "the SHA-256 does not match the metadata file", null);
+            }
+        }
+        final JSONObject facts = KgBackup.verify(src, KgSchema.CURRENT_VERSION);
+        final JSONObject storage = this.guard.status();
+        final long need = src.length();
+        if (diskUsable(storage) - need < this.config.criticalFloorBytes() || storage.optLong("usedBytes") + need > this.config.budgetMaxBytes) {
+            throw KgException.refused("restore_space", "not enough room in the budget or on the disk for a copy of the backup");
+        }
+        final KgBackups b = this.backups;
+        if (b == null || !b.claim()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup, restore or rebuild is running");
+        }
+        final long now = this.env.clock.getAsLong();
+        final File safety = new File(this.paths.backup, KgBackup.name(now, KgBackup.BEFORE_RESTORE));
+        final String epoch = KgIds.newEpoch();
+        try {
+            close();
+            moveDatabase(this.paths.db, safety);
+            try {
+                copyInto(src, this.paths.db);
+                KgBackup.prepareRestored(this.paths.db, epoch, "restored from " + src.getName(), now);
+            } catch (final IOException | KgException e) {
+                rollBack(safety);
+                throw new KgException(KgException.RESTORE_FAILED, "copy", "the backup could not be put in place: "
+                        + e.getClass().getSimpleName(), e);
+            }
+            open();
+            if (this.state != State.RUNNING) {
+                final String why = this.reason;
+                close();
+                rollBack(safety);
+                open();
+                throw new KgException(KgException.RESTORE_FAILED, why, "the restored graph did not start (" + why + "); the previous graph is back", null);
+            }
+        } finally {
+            if (b != null) {
+                b.release();
+            }
+        }
+        LOG.info("knowledge graph restored from " + src.getName() + "; previous graph kept as " + safety.getName());
+        final JSONObject o = status();
+        KgJson.put(o, "restored", KgJson.obj("file", src.getName(), "previous", safety.getName(), "epoch", epoch, "counts", facts.opt("counts")));
+        return o;
+    }
+
+    /** Moves the database (and a WAL or shared-memory file left behind) to {@code target}. */
+    private static void moveDatabase(final File db, final File target) throws KgException {
+        try {
+            if (!target.getParentFile().isDirectory() && !target.getParentFile().mkdirs()) {
+                throw new IOException("cannot create " + target.getParentFile());
+            }
+            Files.move(db.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            for (final String ext : new String[] {"-wal", "-shm"}) {
+                final File side = new File(db.getPath() + ext);
+                if (side.exists()) {
+                    Files.move(side.toPath(), new File(target.getPath() + ext).toPath(), StandardCopyOption.ATOMIC_MOVE);
+                }
+            }
+        } catch (final IOException e) {
+            throw new KgException(KgException.RESTORE_FAILED, "move", "the current graph could not be moved aside: " + e.getMessage(), e);
+        }
+    }
+
+    /** Copies {@code src} to {@code db} through a partial file that is synced before the rename. */
+    private static void copyInto(final File src, final File db) throws IOException {
+        final File partial = new File(db.getPath() + ".partial");
+        Files.copy(src.toPath(), partial.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        try (java.nio.channels.FileChannel ch = java.nio.channels.FileChannel.open(partial.toPath(), java.nio.file.StandardOpenOption.WRITE)) {
+            ch.force(true);
+        }
+        Files.move(partial.toPath(), db.toPath(), StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    /** Puts the database moved aside back in place. */
+    private void rollBack(final File safety) {
+        try {
+            for (final String ext : new String[] {"", "-wal", "-shm"}) {
+                final File f = new File(this.paths.db.getPath() + ext);
+                if (f.exists()) {
+                    Files.delete(f.toPath());
+                }
+            }
+            Files.move(safety.toPath(), this.paths.db.toPath(), StandardCopyOption.ATOMIC_MOVE);
+            for (final String ext : new String[] {"-wal", "-shm"}) {
+                final File side = new File(safety.getPath() + ext);
+                if (side.exists()) {
+                    Files.move(side.toPath(), new File(this.paths.db.getPath() + ext).toPath(), StandardCopyOption.ATOMIC_MOVE);
+                }
+            }
+        } catch (final IOException e) {
+            LOG.warn("knowledge graph: the previous graph could not be put back from " + safety + ": " + e.getMessage());
+        }
     }
 
     private JSONObject integrityStatus() {

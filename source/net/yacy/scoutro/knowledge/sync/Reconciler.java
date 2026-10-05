@@ -91,6 +91,14 @@ public final class Reconciler {
     public static final String REASON_ADMIN = "admin";
     public static final String REASON_RESUME = "resume";
     public static final String REASON_FULL_RESET = "full_reset";
+    /** Changes were lost (full queue, overflowing change set) and a scan could not see them yet. */
+    public static final String REASON_LOST_CHANGES = "lost_changes";
+    /**
+     * When a lost change is surely visible to a scan: a real-time get sees a
+     * document at once, a search only once a new searcher opens, at the latest
+     * with Solr's {@code autoCommit} (180 s, {@code defaults/solr/solrconfig.xml}).
+     */
+    static final long VISIBLE_AFTER_MILLIS = 200_000L;
 
     static final int PAGE = 1000;
     static final int DELETE_BATCH = 200;
@@ -141,6 +149,8 @@ public final class Reconciler {
     // the pending request (in memory: every start requests a run anyway); guarded by lock
     private final Object lock = new Object();
     private boolean pending;
+    /** A run that starts before this time cannot see changes that were lost (guarded by {@code lock}). */
+    private long rescanAfter;
     private String pendingReason;
     private long requestedAt;
     private long dueAt;
@@ -195,6 +205,36 @@ public final class Reconciler {
             }
             this.debounced = false;
             this.requestedAt = now;
+        }
+    }
+
+    /**
+     * Changes were lost at {@code now} ({@code reason}: the work queue was
+     * full or the change set overflowed): a run is requested now, and a run
+     * that started before the lost documents are visible to a scan does not
+     * count; another one follows ({@link #VISIBLE_AFTER_MILLIS}).
+     */
+    void lost(final String reason, final long now) {
+        synchronized (this.lock) {
+            this.rescanAfter = Math.max(this.rescanAfter, now + VISIBLE_AFTER_MILLIS);
+        }
+        request(reason, now);
+    }
+
+    /** True while a run waits because the work queue was full; {@link #queueHasRoom} brings it forward. */
+    boolean waitsForQueueRoom() {
+        synchronized (this.lock) {
+            return this.pending && REASON_QUEUE_FULL.equals(this.pendingReason) && this.run == null
+                    && this.dueAt > this.clock.getAsLong();
+        }
+    }
+
+    /** The work queue has room again: a run that the full queue postponed is due now, not in an hour. */
+    void queueHasRoom(final long now) {
+        synchronized (this.lock) {
+            if (this.pending && REASON_QUEUE_FULL.equals(this.pendingReason) && this.dueAt > now) {
+                this.dueAt = now;
+            }
         }
     }
 
@@ -692,8 +732,17 @@ public final class Reconciler {
             }
         }
         if (r.dropped > 0L) {
-            // the queue was full: the documents that did not fit come with the next run
+            // the queue was full: the documents that did not fit come with the next run, as soon as the
+            // queue has room again (SyncService.step), at the latest after QUEUE_FULL_RETRY
             request(REASON_QUEUE_FULL, now + QUEUE_FULL_RETRY);
+        }
+        final long after;
+        synchronized (this.lock) {
+            after = this.rescanAfter;
+        }
+        if (r.startedAt < after) {
+            // lost changes may not have been visible to this scan yet
+            request(REASON_LOST_CHANGES, after);
         }
         JsonLdCapture.reconciled();
     }

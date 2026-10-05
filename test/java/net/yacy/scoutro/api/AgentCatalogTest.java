@@ -113,7 +113,10 @@ public class AgentCatalogTest {
                 continue;
             }
             final JSONObject agent = a.getJSONObject("agent");
-            if (name.equals("kg.status") || name.equals("kg.control") || name.equals("kg.download")) {
+            final java.util.Set<String> reads = java.util.Set.of("kg.entities", "kg.entity", "kg.entity.statements", "kg.statement",
+                    "kg.statement.evidence", "kg.host.entities", "kg.source");
+            if (!reads.contains(name) && !name.equals("kg.export") && !name.equals("kg.changes")) {
+                // status, control, the download, backups and every later administrator route: never an agent grant
                 Assert.assertFalse(name, agent.getBoolean("grantable"));
                 continue;
             }

@@ -2,6 +2,7 @@
 .skg-scope { margin-top: 8px; }
 .skg-meter { width: 100%; height: 12px; background: #eef3f8; border-radius: 6px; overflow: hidden; }
 .skg-meter-fill { height: 100%; background: #197bb5; }
+.skg-meter-fill.skg-notice { background: #8a8d00; }
 .skg-meter-fill.skg-warn { background: #c98a00; }
 .skg-meter-fill.skg-critical { background: #b3261e; }
 .skg-badge { display: inline-block; padding: 2px 8px; margin: 2px 6px 2px 0; border-radius: 10px; border: 1px solid #dce6ef; font-size: 12px; line-height: 1.5; background: #f6f9fc; color: #22324a; }
@@ -27,3 +28,6 @@
 @media (max-width: 767px) {
  .skg-main .sseo-scroll table.scoutro-cards { min-width: 0; }
 }
+#skg-budget-banner { margin: 0 0 1em; }
+.skg-banner { margin: 0 0 0.5em; padding: 0.5em 0.75em; border-left: 4px solid #c98a00; background: #fff6e0; color: #4a3500; }
+.skg-banner-brake, .skg-banner-full { border-left-color: #b3261e; background: #fdecea; color: #5c130f; }

@@ -116,8 +116,9 @@ Names, values, counts, quality and the evidence of every answer come only from
 documents of those collections; an object without evidence there is 404 like
 an unknown one. Evidence names the extractor (`llm/1`) but not the configured
 model, and the agent answers carry no graph-wide backlog (`lag`). The
-administrator routes `kg/status`, `kg/control` and the download
-`kg/export/download` do not exist on the agent path (404). The MCP adapter
+administrator routes `kg/status`, `kg/control` (including backup, restore and
+the identity rebuild), `kg/backups` and the download `kg/export/download` do
+not exist on the agent path (404). The MCP adapter
 offers the read tools with `kg.read` and `scoutro_kg_export` /
 `scoutro_kg_changes` with `kg.export`.
 

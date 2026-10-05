@@ -62,6 +62,69 @@
     load();
   }
 
+  // A budget meter: blue below notice, then amber (notice), orange (warning), red (brake and full).
+  function meterInto(box, used, budget, level) {
+    if (used == null || !budget) return;
+    const pct = Math.min(100, Math.round(used * 100 / budget));
+    const meter = node('div', null, 'skg-meter'); meter.setAttribute('role', 'img'); meter.setAttribute('aria-label', t('used') + ' ' + pct + ' %');
+    const cls = { notice: ' skg-notice', warning: ' skg-warn', brake: ' skg-critical', full: ' skg-critical' }[level] || '';
+    const fill = node('div', null, 'skg-meter-fill' + cls); fill.style.width = pct + '%';
+    meter.append(fill); box.append(meter, node('p', bytes(used) + ' / ' + bytes(budget) + ' (' + pct + ' %)', 'sseo-note'));
+  }
+
+  // Backups: the state, the last result, the schedule and the files with download and restore.
+  async function backupsInto(b, run) {
+    const box = $('backups'); box.replaceChildren();
+    if (!b) { stats('backup', []); return; }
+    const last = b.last ? t('backup_' + b.last.result) + ' · ' + date(b.last.at) + (b.last.file ? ' · ' + b.last.file : '')
+      + (b.last.reason ? ' · ' + b.last.reason : '') : t('none');
+    stats('backup', [['backup_state', t('backup_' + b.state)], ['backup_last', last],
+      ['backup_next', b.nextScheduledAt ? date(b.nextScheduledAt) : t('none')], ['backup_files', fmt(b.files) + ' · ' + bytes(b.bytes)]]);
+    let list = null;
+    try { list = await fetch(ROOT + 'backups', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null); } catch (_) { list = null; }
+    if (run !== generation || !list) return;
+    if (!list.items.length) { box.append(node('p', t('no_backups'), 'sseo-note')); return; }
+    const table = node('table', null, 'table table-striped scoutro-cards'); const head = table.createTHead().insertRow();
+    const cols = ['file', 'kind', 'size', 'created', 'actions'];
+    for (const c of cols) head.append(node('th', c === 'actions' ? '' : t(c)));
+    const body = table.createTBody();
+    for (const f of list.items) {
+      const row = body.insertRow();
+      const actions = node('span');
+      const a = node('a', t('download')); a.href = ROOT + 'backups/' + encodeURIComponent(f.file); a.setAttribute('download', f.file);
+      const r = node('button', t('restore'), 'btn btn-default btn-xs'); r.type = 'button'; r.dataset.skgRestore = f.file;
+      r.addEventListener('click', () => guarded(() => control('restore', { backup: f.file })));
+      actions.append(a, ' ', r);
+      const cells = [f.file, t('kind_' + f.kind), bytes(f.bytes), f.created_at ? date(Date.parse(f.created_at)) : t('missing'), actions];
+      cells.forEach((v, i) => { const td = row.insertCell(); td.dataset.label = i === 4 ? '' : t(cols[i]); if (v instanceof Node) td.append(v); else td.textContent = v; });
+    }
+    box.append(table);
+  }
+
+  // The identity rebuild: phase, progress, the check before the swap and the buttons for its phase.
+  const REBUILD_ACTIVE = ['building', 'verifying', 'awaiting_confirmation', 'swapping'];
+  let rebuildTimer = 0;
+  function rebuildInto(rb) {
+    rb = rb || { phase: 'none' };
+    const p = rb.progress || {}, v = rb.verify;
+    const rows = [['rebuild_phase', t('phase_' + rb.phase) + (rb.startedAt ? ' · ' + date(rb.startedAt) : '')]];
+    if (rb.phase === 'building' || rb.phase === 'verifying')
+      rows.push(['rebuild_progress', t('rebuild_progress_value').replace('%1', fmt(p.scanned)).replace('%2', fmt(p.published)).replace('%3', fmt(p.queue))]);
+    if (rb.budgetBytes) rows.push(['rebuild_space', bytes(p.storage?.usedBytes) + ' / ' + bytes(rb.budgetBytes)]);
+    if (v) rows.push(['rebuild_check', t('rebuild_check_value').replace('%1', fmt(v.documentsBefore)).replace('%2', fmt(v.documentsAfter))
+      .replace('%3', fmt(v.entitiesBefore)).replace('%4', fmt(v.entitiesAfter)).replace('%5', fmt(v.quickCheck))]);
+    if (rb.awaitingConfirmation) rows.push(['rebuild_check', t('rebuild_brake')]);
+    if (rb.keptAs) rows.push(['rebuild_kept', rb.keptAs]);
+    if (rb.idsRedirected != null) rows.push(['rebuild_ids', rb.idsRedirected]);
+    if (rb.error) rows.push(['rebuild_error', rb.error]);
+    stats('rebuild', rows);
+    const active = REBUILD_ACTIVE.includes(rb.phase);
+    document.querySelector('[data-skg-action="rebuild"]').hidden = active;
+    document.querySelector('[data-skg-action="rebuild_cancel"]').hidden = !active || rb.phase === 'swapping';
+    document.querySelector('[data-skg-action="rebuild_confirm"]').hidden = !rb.awaitingConfirmation;
+    return active;
+  }
+
   // ------------------------------------------------------------------ overview
   async function overview() {
     const run = ++generation; message(t('loading'));
@@ -75,17 +138,25 @@
     card('state', s.state + (s.reason ? ' · ' + s.reason : ''));
     card('objects_count', objects);
     card('lag', s.sync?.lag?.pending);
-    const st = s.storage || {};
+    const st = s.storage || {}, jl = s.jsonld || {};
     const used = st.usedBytes, budget = st.budgetBytes;
     const bar = $('budget'); bar.replaceChildren();
-    if (used != null && budget) {
-      const pct = Math.min(100, Math.round(used * 100 / budget));
-      const meter = node('div', null, 'skg-meter'); meter.setAttribute('role', 'img'); meter.setAttribute('aria-label', t('used') + ' ' + pct + ' %');
-      const fill = node('div', null, 'skg-meter-fill' + (pct >= 90 ? ' skg-critical' : pct >= 80 ? ' skg-warn' : '')); fill.style.width = pct + '%';
-      meter.append(fill); bar.append(meter, node('p', bytes(used) + ' / ' + bytes(budget) + ' (' + pct + ' %)', 'sseo-note'));
+    meterInto(bar, used, budget, st.level);
+    const jbar = $('jsonld-budget'); jbar.replaceChildren();
+    meterInto(jbar, jl.estimatedBytes, jl.maxTotalBytes, jl.level);
+    // warning, brake and full are shown as a banner; notice only in the level row
+    const banner = $('budget-banner'); banner.replaceChildren();
+    for (const [what, level, pct] of [['graph', st.level, st.usedPercent], ['jsonld', jl.level, jl.usedPercent]]) {
+      if (level === 'warning' || level === 'brake' || level === 'full')
+        banner.append(node('p', t('level_' + level + '_' + what).replace('%1', fmt(pct)), 'skg-banner skg-banner-' + level));
     }
-    stats('storage', [['used', bytes(used)], ['budget', bytes(budget)], ['growth', st.growthAllowed == null ? null : t(st.growthAllowed ? 'yes' : 'no')],
-      ['reasons', (st.reasons || []).map(r => r.code).join(', ') || t('none')]]);
+    banner.hidden = !banner.children.length;
+    stats('storage', [['used', bytes(used)], ['budget', bytes(budget)], ['level', st.level ? t('level_' + st.level) : null],
+      ['growth', st.growthAllowed == null ? null : t(st.growthAllowed ? 'yes' : 'no')],
+      ['reasons', (st.reasons || []).map(r => r.code).join(', ') || t('none')],
+      ['jsonld', jl.state ? t('jsonld_' + jl.state) + (jl.reason && jl.state !== 'active' ? ' · ' + jl.reason : '') : null],
+      ['jsonld_used', jl.estimatedBytes == null ? null : bytes(jl.estimatedBytes) + ' / ' + bytes(jl.maxTotalBytes)
+        + (jl.level ? ' · ' + t('level_' + jl.level) : '')]]);
     const sy = s.sync || {};
     stats('sync', [['state', sy.state], ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
@@ -95,6 +166,11 @@
       ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', l.processed?.calls],
       ['dropped', l.processed?.droppedUngrounded], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
     document.querySelector('[data-skg-action="confirm_reconcile"]').hidden = !sy.reconcile?.awaitingConfirmation;
+    await backupsInto(s.backup, run);
+    if (run !== generation) return;
+    // while a rebuild runs, the overview refreshes itself
+    clearTimeout(rebuildTimer);
+    if (rebuildInto(s.rebuild)) rebuildTimer = setTimeout(() => { if (run === generation && view === 'overview') guarded(overview); }, 3000);
     const events = $('events'); events.replaceChildren();
     if (s.events?.length) {
       const table = node('table', null, 'table table-striped scoutro-cards'); const head = table.createTHead().insertRow();
@@ -106,11 +182,14 @@
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
   }
 
-  async function control(action) {
+  async function control(action, extra) {
     if (action === 'confirm_reconcile' && !window.confirm(labels.confirm_question || action)) return;
+    if (action === 'restore' && !window.confirm(t('restore_question').replace('%1', extra.backup))) return;
+    if (action === 'rebuild' && !window.confirm(t('rebuild_question'))) return;
+    if (action === 'rebuild_confirm' && !window.confirm(t('rebuild_confirm_question'))) return;
     message(t('loading'));
     const response = await fetch(ROOT + 'control', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({ action }, extra || {})) });
     let body = null; try { body = await response.json(); } catch (_) { /* below */ }
     if (!response.ok) throw new Error(t('error') + ' (HTTP ' + response.status + ', ' + (body?.error?.code || 'error') + ')');
     await overview(); message(t('done_action'));

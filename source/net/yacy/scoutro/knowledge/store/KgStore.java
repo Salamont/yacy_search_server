@@ -116,6 +116,9 @@ public final class KgStore implements AutoCloseable {
     private final LongSupplier clock;
     private final Connection writer;
     private final ReentrantLock writeLock = new ReentrantLock();
+    /** The connection of a running backup, for {@link #interruptBackup()}. */
+    private volatile Connection backupConnection;
+    private final java.util.concurrent.atomic.AtomicBoolean backupTimedOut = new java.util.concurrent.atomic.AtomicBoolean();
     private final List<ReaderSlot> readers = new CopyOnWriteArrayList<>();
     private final BlockingQueue<ReaderSlot> idleReaders = new LinkedBlockingQueue<>();
     private final AtomicInteger readerCount = new AtomicInteger();
@@ -764,6 +767,85 @@ public final class KgStore implements AutoCloseable {
         });
     }
 
+    /**
+     * A consistent, compact copy of the database into {@code target}
+     * (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 7.7): {@code VACUUM INTO} on a
+     * dedicated read-only connection outside the reader pool, so writers keep
+     * going. Admitted as growth with the logical size as estimate under the
+     * write lock, so it starts only if the budget, the pause state and the
+     * disk reserve allow it; interrupted at {@code deadlineMillis}. A failed
+     * or interrupted copy is deleted.
+     *
+     * @return the size of the copy in bytes
+     * @throws KgException {@link KgException#WRITE_REFUSED} with the guard's reason,
+     *         {@link KgException#READ_TIMEOUT} at the deadline, {@link KgException#BACKUP_FAILED}
+     */
+    public long backupTo(final File target, final long deadlineMillis) throws KgException {
+        ensureOpen();
+        if (target.exists()) {
+            throw new KgException(KgException.BACKUP_FAILED, "target_exists", "the backup file exists already", null);
+        }
+        this.writeLock.lock();
+        try {
+            final long logical = (queryLong(this.writer, "PRAGMA page_count") - queryLong(this.writer, "PRAGMA freelist_count"))
+                    * this.pageSize;
+            admitLocked(WriteClass.GROWTH, logical);
+        } catch (final SQLException e) {
+            throw mapWrite(e);
+        } finally {
+            this.writeLock.unlock();
+        }
+        Connection ro = null;
+        final java.util.concurrent.atomic.AtomicBoolean timedOut = this.backupTimedOut;
+        timedOut.set(false);
+        final java.util.Timer timer = new java.util.Timer("ScoutroKG.backup-deadline", true);
+        try {
+            ro = SqliteProcess.open(KgBackup::readOnly, this.paths.db, this.paths.tmp);
+            final Connection c = ro;
+            this.backupConnection = ro;
+            if (this.closed) {
+                interruptNative(ro);
+            }
+            timer.schedule(new java.util.TimerTask() {
+                @Override
+                public void run() {
+                    timedOut.set(true);
+                    interruptNative(c);
+                }
+            }, Math.max(1L, deadlineMillis));
+            exec(ro, "VACUUM INTO '" + target.getAbsolutePath().replace("'", "''") + "'");
+            return target.length();
+        } catch (final SQLException e) {
+            deleteQuietly(target);
+            if (timedOut.get()) {
+                throw new KgException(KgException.READ_TIMEOUT, null, "the backup did not finish within " + deadlineMillis + " ms", e);
+            }
+            throw new KgException(KgException.BACKUP_FAILED, "vacuum_into", "VACUUM INTO failed: " + e.getMessage(), e);
+        } catch (final RuntimeException e) {
+            deleteQuietly(target);
+            throw new KgException(KgException.BACKUP_FAILED, "vacuum_into", "VACUUM INTO failed: " + e.getClass().getSimpleName(), e);
+        } finally {
+            timer.cancel();
+            this.backupConnection = null;
+            SqliteProcess.close(ro);
+        }
+    }
+
+    /** Interrupts a running backup (stop of the graph, or a cancel); it ends with {@link KgException#READ_TIMEOUT}. */
+    public void interruptBackup() {
+        final Connection c = this.backupConnection;
+        if (c != null) {
+            this.backupTimedOut.set(true);
+            interruptNative(c);
+        }
+    }
+
+    private static void deleteQuietly(final File f) {
+        if (f.exists() && !f.delete()) {
+            f.deleteOnExit();
+        }
+    }
+
     /** {@code PRAGMA quick_check}; "ok" if the database is consistent. */
     public String quickCheck(final long deadlineMillis) throws KgException {
         return read(c -> queryString(c, "PRAGMA quick_check(1)"), deadlineMillis);
@@ -835,6 +917,7 @@ public final class KgStore implements AutoCloseable {
             }
             this.closed = true;
             interruptAllReaders();
+            interruptBackup();
             try {
                 exec(this.writer, "PRAGMA busy_timeout=" + CHECKPOINT_BUSY_TIMEOUT_MILLIS);
                 try (Statement st = this.writer.createStatement(); ResultSet rs = st.executeQuery("PRAGMA wal_checkpoint(TRUNCATE)")) {

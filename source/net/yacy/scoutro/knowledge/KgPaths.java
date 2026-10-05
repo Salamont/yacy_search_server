@@ -36,13 +36,25 @@ public final class KgPaths {
     public final File tmp;
     /** Local backups (package 5); counted in the budget when present. */
     public final File backup;
+    /** The shadow graph of an identity rebuild (package 5); counted in the budget while it exists. */
+    public final File rebuild;
 
     public KgPaths(final File dataRoot) {
-        this.dir = new File(dataRoot, RELATIVE_DIR);
+        this(new File(dataRoot, RELATIVE_DIR), true);
+    }
+
+    private KgPaths(final File dir, final boolean main) {
+        this.dir = dir;
         this.db = new File(this.dir, "graph.db");
         this.wal = new File(this.dir, "graph.db-wal");
         this.shm = new File(this.dir, "graph.db-shm");
         this.tmp = new File(this.dir, "tmp");
         this.backup = new File(this.dir, "backup");
+        this.rebuild = new File(this.dir, "rebuild");
+    }
+
+    /** The files of a graph in {@code dir} itself (the shadow of a rebuild). */
+    public static KgPaths at(final File dir) {
+        return new KgPaths(dir, false);
     }
 }

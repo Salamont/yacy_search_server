@@ -55,7 +55,7 @@ final class KnowledgeApi {
 
     /** Allowed values of {@code action}. */
     static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
-            "llm_retry");
+            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm");
 
     private final Supplier<KgRuntime> runtime;
 
@@ -82,6 +82,12 @@ final class KnowledgeApi {
             case "status":
                 allow(method, "GET");
                 return status();
+            case "backups":
+                allow(method, "GET");
+                if (!query.isEmpty()) {
+                    throw ApiException.invalid(query.keySet().iterator().next(), "This route takes no parameters.");
+                }
+                return backups();
             case "control":
                 allow(method, "POST");
                 return control(body.get());
@@ -159,6 +165,36 @@ final class KnowledgeApi {
         }
     }
 
+    /** The backups in the graph's DATA directory with their metadata. */
+    private JSONObject backups() throws ApiException {
+        final KgRuntime r = this.runtime.get();
+        if (r == null) {
+            throw toApi(new KgException(KgException.DISABLED, "not started"));
+        }
+        try {
+            return r.backups();
+        } catch (final KgException e) {
+            throw toApi(e);
+        }
+    }
+
+    /** The backup file {@code name} for a download (validated against the backup names); 404 otherwise. */
+    java.io.File backupFile(final String name) throws ApiException {
+        final KgRuntime r = this.runtime.get();
+        if (r == null) {
+            throw toApi(new KgException(KgException.DISABLED, "not started"));
+        }
+        try {
+            final java.io.File f = r.backupFile(name);
+            if (f == null) {
+                throw toApi(new KgException(KgException.BACKUP_NOT_FOUND, name));
+            }
+            return f;
+        } catch (final KgException e) {
+            throw toApi(e);
+        }
+    }
+
     /** Status of the running instance; before start (or when Scoutro runs without it) the disabled status. */
     private JSONObject status() {
         final KgRuntime r = this.runtime.get();
@@ -170,16 +206,20 @@ final class KnowledgeApi {
     }
 
     private JSONObject control(final JSONObject body) throws ApiException {
+        final String action = body.optString("action", "");
         final Iterator<?> keys = body.keys();
         while (keys.hasNext()) {
             final String k = String.valueOf(keys.next());
-            if (!"action".equals(k)) {
-                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action.");
+            if (!"action".equals(k) && !("backup".equals(k) && "restore".equals(action))) {
+                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action" + ("restore".equals(action) ? ", backup." : "."));
             }
         }
-        final String action = body.optString("action", "");
         if (!ACTIONS.contains(action)) {
             throw ApiException.invalid("action", "Field 'action' must be one of: " + String.join(", ", ACTIONS) + ".");
+        }
+        final String backup = body.optString("backup", "");
+        if ("restore".equals(action) && !net.yacy.scoutro.knowledge.store.KgBackup.NAME.matcher(backup).matches()) {
+            throw ApiException.invalid("backup", "Field 'backup' must name a backup file of GET /scoutro/api/v1/kg/backups.");
         }
         final KgRuntime r = this.runtime.get();
         if (r == null) {
@@ -196,6 +236,16 @@ final class KnowledgeApi {
                     return r.reconcile();
                 case "llm_retry":
                     return r.llmRetry();
+                case "backup":
+                    return r.backup();
+                case "restore":
+                    return r.restore(backup);
+                case "rebuild":
+                    return r.rebuild();
+                case "rebuild_cancel":
+                    return r.rebuildCancel();
+                case "rebuild_confirm":
+                    return r.rebuildConfirm();
                 default:
                     return r.confirmReconcile();
             }
@@ -211,6 +261,19 @@ final class KnowledgeApi {
     /** @param fullSync the export route a consumer restarts with after 410 */
     static ApiException toApi(final KgException e, final String fullSync) {
         switch (e.code()) {
+            case KgException.OPERATION_RUNNING:
+                return new ApiException(409, KgException.OPERATION_RUNNING, "A backup, restore or rebuild is running; see GET /scoutro/api/v1/kg/status.",
+                        Json.obj("reason", e.reason() == null ? "running" : e.reason()));
+            case KgException.BACKUP_NOT_FOUND:
+                return new ApiException(404, KgException.BACKUP_NOT_FOUND, "No such backup; see GET /scoutro/api/v1/kg/backups.");
+            case KgException.BACKUP_INVALID:
+                return new ApiException(422, KgException.BACKUP_INVALID, "The backup is not usable: " + e.getMessage() + ". Nothing was changed.",
+                        Json.obj("reason", e.reason()));
+            case KgException.RESTORE_FAILED:
+                return new ApiException(503, KgException.RESTORE_FAILED, "The restore failed: " + e.getMessage() + ".",
+                        Json.obj("reason", e.reason()));
+            case KgException.NO_REBUILD:
+                return new ApiException(409, KgException.NO_REBUILD, "No identity rebuild is running or waiting for confirmation.");
             case KgException.INVALID_CURSOR:
                 return new ApiException(400, KgException.INVALID_CURSOR, "The cursor is not valid: " + e.getMessage() + ".",
                         Json.obj("field", "cursor"));

@@ -23,7 +23,10 @@
 <h2 id="skg-overview-title">Status</h2>
 <p class="sseo-note">State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</p>
 <div class="sseo-cards" id="skg-cards"></div>
-<section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl></section>
+<div id="skg-budget-banner" role="alert" hidden></div>
+<section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl>
+<h4>JSON-LD in the Solr index</h4><div id="skg-jsonld-budget" class="skg-budget"></div>
+<p class="sseo-note">Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-sync-title"><h3 id="skg-sync-title">Synchronisation</h3><dl id="skg-sync" class="sseo-stats"></dl></section>
 <section class="sseo-panel" aria-labelledby="skg-llm-title"><h3 id="skg-llm-title">LLM tier</h3><dl id="skg-llm" class="sseo-stats"></dl><p class="sseo-note">Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in <a href="LLMSelection_p.html">LLM Selection</a> (usage knowledge).</p></section>
 <section class="sseo-panel" aria-labelledby="skg-controls-title"><h3 id="skg-controls-title">Controls</h3>
@@ -33,8 +36,21 @@
 <button class="btn btn-default" type="button" data-skg-action="reconcile">Reconcile now</button>
 <button class="btn btn-default" type="button" data-skg-action="confirm_reconcile" hidden>Confirm deletions</button>
 <button class="btn btn-default" type="button" data-skg-action="llm_retry">Retry failed LLM documents</button>
+<button class="btn btn-default" type="button" data-skg-action="backup">Create backup</button>
 </div>
 <p class="sseo-note">Pausing stops new growth only; deletions and state changes continue. Nothing here changes the Solr index.</p></section>
+<section class="sseo-panel" aria-labelledby="skg-backup-title"><h3 id="skg-backup-title">Backups</h3>
+<dl id="skg-backup" class="sseo-stats"></dl>
+<div class="sseo-scroll" id="skg-backups"></div>
+<p class="sseo-note">Backups are single SQLite files in DATA/SCOUTRO/knowledge/backup, inside the app's data; download one to keep a copy elsewhere. A restore replaces the graph with the backup, keeps the current graph aside as a backup, starts a new dataset epoch (export consumers sync again) and reconciles with the index.</p></section>
+<section class="sseo-panel" aria-labelledby="skg-rebuild-title"><h3 id="skg-rebuild-title">Re-resolve identities</h3>
+<dl id="skg-rebuild" class="sseo-stats"></dl>
+<div class="sseo-controls">
+<button class="btn btn-default" type="button" data-skg-action="rebuild">Rebuild identities</button>
+<button class="btn btn-default" type="button" data-skg-action="rebuild_cancel" hidden>Cancel the rebuild</button>
+<button class="btn btn-default" type="button" data-skg-action="rebuild_confirm" hidden>Swap in the rebuilt graph</button>
+</div>
+<p class="sseo-note">Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-events-title"><h3 id="skg-events-title">Recent events</h3><div class="sseo-scroll" id="skg-events"></div></section>
 </section>
 
@@ -141,6 +157,63 @@
 <span data-skg-label="llm_collections">LLM collections</span>
 <span data-skg-label="llm_kinds">Facility kinds for the LLM tier</span>
 <span data-skg-label="chat">Graph facts in the chat</span>
+<span data-skg-label="level">Level</span>
+<span data-skg-label="backup_state">Backup</span>
+<span data-skg-label="backup_last">Last backup</span>
+<span data-skg-label="backup_next">Next scheduled backup</span>
+<span data-skg-label="backup_files">Backup files</span>
+<span data-skg-label="backup_running">running</span>
+<span data-skg-label="backup_idle">idle</span>
+<span data-skg-label="backup_created">created</span>
+<span data-skg-label="backup_skipped">skipped</span>
+<span data-skg-label="backup_failed">failed</span>
+<span data-skg-label="file">File</span>
+<span data-skg-label="size">Size</span>
+<span data-skg-label="created">Created</span>
+<span data-skg-label="kind_backup">backup</span>
+<span data-skg-label="kind_before_restore">before a restore</span>
+<span data-skg-label="kind_before_rebuild">before a rebuild</span>
+<span data-skg-label="download">Download</span>
+<span data-skg-label="restore">Restore</span>
+<span data-skg-label="restore_question">Replace the knowledge graph with the backup %1? The current graph is kept as a backup.</span>
+<span data-skg-label="no_backups">No backups yet.</span>
+<span data-skg-label="rebuild_phase">Rebuild</span>
+<span data-skg-label="rebuild_progress">Progress of the rebuilt graph</span>
+<span data-skg-label="rebuild_progress_value">%1 pages read from the index, %2 published, %3 queued</span>
+<span data-skg-label="rebuild_check">Check before the swap</span>
+<span data-skg-label="rebuild_check_value">pages %1 → %2, objects %3 → %4, integrity %5</span>
+<span data-skg-label="rebuild_brake">The rebuilt graph has far fewer pages than the current one; it is swapped in only after your confirmation.</span>
+<span data-skg-label="rebuild_kept">Previous graph kept as</span>
+<span data-skg-label="rebuild_ids">Stored IDs redirected</span>
+<span data-skg-label="rebuild_space">Storage for the rebuild</span>
+<span data-skg-label="rebuild_error">Reason</span>
+<span data-skg-label="phase_none">not run yet</span>
+<span data-skg-label="phase_building">building the new graph</span>
+<span data-skg-label="phase_verifying">checking the new graph</span>
+<span data-skg-label="phase_awaiting_confirmation">waiting for your confirmation</span>
+<span data-skg-label="phase_swapping">swapping</span>
+<span data-skg-label="phase_done">finished</span>
+<span data-skg-label="phase_cancelled">cancelled, graph unchanged</span>
+<span data-skg-label="phase_failed">failed, graph unchanged</span>
+<span data-skg-label="phase_interrupted">interrupted by a stop, graph unchanged</span>
+<span data-skg-label="rebuild_question">Rebuild every identity from the Solr index? The current graph keeps serving until the new one is ready and is kept as a backup.</span>
+<span data-skg-label="rebuild_confirm_question">Swap in the rebuilt graph although it has far fewer pages than the current one?</span>
+<span data-skg-label="level_ok">ok</span>
+<span data-skg-label="level_notice">notice (from 70 %)</span>
+<span data-skg-label="level_warning">warning (from 80 %)</span>
+<span data-skg-label="level_brake">brake: growth paused (from 90 %)</span>
+<span data-skg-label="level_full">full: budget reached</span>
+<span data-skg-label="jsonld">JSON-LD capture</span>
+<span data-skg-label="jsonld_used">JSON-LD stored</span>
+<span data-skg-label="jsonld_active">active</span>
+<span data-skg-label="jsonld_paused">paused</span>
+<span data-skg-label="jsonld_off">off</span>
+<span data-skg-label="level_warning_graph">The knowledge graph uses %1 % of its storage budget.</span>
+<span data-skg-label="level_brake_graph">New growth of the knowledge graph is paused at %1 % of its storage budget; reads, deletions and the crawl continue.</span>
+<span data-skg-label="level_full_graph">The knowledge graph has reached its storage budget (%1 %); only reads and deletions continue, the crawl is not affected.</span>
+<span data-skg-label="level_warning_jsonld">JSON-LD uses %1 % of its budget in the Solr index.</span>
+<span data-skg-label="level_brake_jsonld">The JSON-LD capture is paused at %1 % of its budget; pages are still crawled and indexed without it.</span>
+<span data-skg-label="level_full_jsonld">The JSON-LD budget is reached (%1 %); pages are still crawled and indexed without JSON-LD.</span>
 <span data-skg-label="chat_detail">yes: at most %1 facts and %2 characters within %3 ms; AI Shield guests: %4</span>
 <span data-skg-label="valid">Settings valid</span>
 <span data-skg-label="at">Time</span>

@@ -4997,6 +4997,10 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 >Knowledge graph<==>Wissensgraph<
 >Pending changes<==>Ausstehende Änderungen<
 >Growth paused<==>Wachstum pausiert<
+>notice<==>Hinweis<
+>warning<==>Warnung<
+>growth paused<==>Wachstum pausiert<
+>budget reached<==>Budget erreicht<
 >Storage used<==>Speicher belegt<
 >Unavailable<==>Nicht verfügbar<
 >Running<==>Läuft<
@@ -5500,6 +5504,71 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >The knowledge graph is not running<==>Der Wissensgraph läuft nicht<
 >Facility kinds for the LLM tier<==>Einrichtungsarten für die LLM-Stufe<
 >Graph facts in the chat<==>Graph-Fakten im Chat<
+>Create backup<==>Backup erstellen<
+>Backups<==>Backups<
+>Backups are single SQLite files in DATA/SCOUTRO/knowledge/backup, inside the app's data; download one to keep a copy elsewhere. A restore replaces the graph with the backup, keeps the current graph aside as a backup, starts a new dataset epoch (export consumers sync again) and reconciles with the index.<==>Backups sind einzelne SQLite-Dateien in DATA/SCOUTRO/knowledge/backup, innerhalb der App-Daten; laden Sie eines herunter, um eine Kopie an anderer Stelle aufzubewahren. Eine Wiederherstellung ersetzt den Graphen durch das Backup, legt den aktuellen Graphen als Backup beiseite, beginnt eine neue Datensatz-Epoche (Export-Abnehmer synchronisieren neu) und gleicht mit dem Index ab.<
+>Backup<==>Backup<
+>Last backup<==>Letztes Backup<
+>Next scheduled backup<==>Nächstes geplantes Backup<
+>Backup files<==>Backup-Dateien<
+>running<==>läuft<
+>idle<==>bereit<
+>created<==>erstellt<
+>skipped<==>übersprungen<
+>failed<==>fehlgeschlagen<
+>File<==>Datei<
+>Size<==>Größe<
+>Created<==>Erstellt<
+>backup<==>Backup<
+>before a restore<==>vor einer Wiederherstellung<
+>before a rebuild<==>vor einem Neuaufbau<
+>Download<==>Herunterladen<
+>Restore<==>Wiederherstellen<
+>Replace the knowledge graph with the backup %1? The current graph is kept as a backup.<==>Den Wissensgraphen durch das Backup %1 ersetzen? Der aktuelle Graph bleibt als Backup erhalten.<
+>No backups yet.<==>Noch keine Backups.<
+>Re-resolve identities<==>Identitäten neu auflösen<
+>Rebuild identities<==>Identitäten neu aufbauen<
+>Cancel the rebuild<==>Neuaufbau abbrechen<
+>Swap in the rebuilt graph<==>Neu aufgebauten Graphen übernehmen<
+>Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.<==>Baut den ganzen Graphen mit den aktuellen Identitätsregeln neu aus dem Solr-Index auf, in DATA/SCOUTRO/knowledge/rebuild und innerhalb des verbleibenden Speicherbudgets, während der aktuelle Graph weiter antwortet: falsche Zusammenführungen werden getrennt, jeder Fakt behält seine Belege. Vor dem Tausch wird der neue Graph geprüft; würde er viele Dokumente verlieren, wartet er wie ein Abgleich auf Ihre Bestätigung. Der aktuelle Graph bleibt als Backup erhalten (vor einem Neuaufbau), gespeicherte Objekt-IDs führen weiter zu ihren Objekten, und Export-Abnehmer synchronisieren neu. Abbrechen oder ein Stopp von Scoutro vor dem Tausch löscht den neuen Graphen und ändert nichts.<
+>Rebuild<==>Neuaufbau<
+>Progress of the rebuilt graph<==>Fortschritt des neuen Graphen<
+>%1 pages read from the index, %2 published, %3 queued<==>%1 Seiten aus dem Index gelesen, %2 veröffentlicht, %3 in der Warteschlange<
+>Check before the swap<==>Prüfung vor dem Tausch<
+>pages %1 → %2, objects %3 → %4, integrity %5<==>Seiten %1 → %2, Objekte %3 → %4, Integrität %5<
+>The rebuilt graph has far fewer pages than the current one; it is swapped in only after your confirmation.<==>Der neue Graph hat weit weniger Seiten als der aktuelle; er wird erst nach Ihrer Bestätigung übernommen.<
+>Previous graph kept as<==>Vorheriger Graph gesichert als<
+>Stored IDs redirected<==>Umgeleitete gespeicherte IDs<
+>Storage for the rebuild<==>Speicher für den Neuaufbau<
+>not run yet<==>noch nicht gelaufen<
+>building the new graph<==>baut den neuen Graphen auf<
+>checking the new graph<==>prüft den neuen Graphen<
+>waiting for your confirmation<==>wartet auf Ihre Bestätigung<
+>swapping<==>tauscht<
+>finished<==>abgeschlossen<
+>cancelled, graph unchanged<==>abgebrochen, Graph unverändert<
+>failed, graph unchanged<==>fehlgeschlagen, Graph unverändert<
+>interrupted by a stop, graph unchanged<==>durch einen Stopp unterbrochen, Graph unverändert<
+>Rebuild every identity from the Solr index? The current graph keeps serving until the new one is ready and is kept as a backup.<==>Alle Identitäten aus dem Solr-Index neu aufbauen? Der aktuelle Graph antwortet weiter, bis der neue fertig ist, und bleibt als Backup erhalten.<
+>Swap in the rebuilt graph although it has far fewer pages than the current one?<==>Den neuen Graphen übernehmen, obwohl er weit weniger Seiten hat als der aktuelle?<
+>Level<==>Stufe<
+>notice (from 70 %)<==>Hinweis (ab 70 %)<
+>warning (from 80 %)<==>Warnung (ab 80 %)<
+>brake: growth paused (from 90 %)<==>Bremse: Wachstum pausiert (ab 90 %)<
+>full: budget reached<==>voll: Budget erreicht<
+>JSON-LD capture<==>JSON-LD-Erfassung<
+>JSON-LD stored<==>JSON-LD gespeichert<
+>active<==>aktiv<
+>paused<==>pausiert<
+>off<==>aus<
+>JSON-LD in the Solr index<==>JSON-LD im Solr-Index<
+>Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.<==>Stufen: ab 70 % ein Hinweis, ab 80 % eine Warnung, ab 90 % pausiert neues Wachstum (JSON-LD: die Erfassung pausiert, Seiten werden ohne sie indexiert), das Budget ist die harte Grenze. Crawlen und Indexieren halten wegen dieser Budgets nie an.<
+>The knowledge graph uses %1 % of its storage budget.<==>Der Wissensgraph belegt %1 % seines Speicherbudgets.<
+>New growth of the knowledge graph is paused at %1 % of its storage budget; reads, deletions and the crawl continue.<==>Neues Wachstum des Wissensgraphen pausiert bei %1 % seines Speicherbudgets; Lesen, Löschen und der Crawl laufen weiter.<
+>The knowledge graph has reached its storage budget (%1 %); only reads and deletions continue, the crawl is not affected.<==>Der Wissensgraph hat sein Speicherbudget erreicht (%1 %); nur Lesen und Löschen laufen weiter, der Crawl ist nicht betroffen.<
+>JSON-LD uses %1 % of its budget in the Solr index.<==>JSON-LD belegt %1 % seines Budgets im Solr-Index.<
+>The JSON-LD capture is paused at %1 % of its budget; pages are still crawled and indexed without it.<==>Die JSON-LD-Erfassung pausiert bei %1 % ihres Budgets; Seiten werden weiter gecrawlt und ohne sie indexiert.<
+>The JSON-LD budget is reached (%1 %); pages are still crawled and indexed without JSON-LD.<==>Das JSON-LD-Budget ist erreicht (%1 %); Seiten werden weiter gecrawlt und ohne JSON-LD indexiert.<
 >yes: at most %1 facts and %2 characters within %3 ms; AI Shield guests: %4<==>ja: höchstens %1 Fakten und %2 Zeichen in %3 ms; AI-Shield-Gäste: %4<
 >Retry failed LLM documents<==>Fehlgeschlagene LLM-Dokumente erneut versuchen<
 >Waiting for confirmation<==>Wartet auf Bestätigung<

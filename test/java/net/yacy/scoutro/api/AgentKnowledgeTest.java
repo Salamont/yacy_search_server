@@ -160,7 +160,8 @@ public class AgentKnowledgeTest {
         assertEquals(200, get(export, "kg/export").status);
         assertEquals(200, get(export, "kg/changes").status);
         assertEquals("action_not_granted", code(get(export, "kg/entities")));
-        for (final String admin : new String[] {"kg/status", "kg/control", "kg/export/download", "kg", "kg/entities/x/y/z"}) {
+        for (final String admin : new String[] {"kg/status", "kg/control", "kg/export/download", "kg", "kg/entities/x/y/z", "kg/backups",
+                "kg/backups/graph-20300101T000000Z.db"}) {
             assertEquals(admin, 404, get(read, admin).status);
             assertEquals(admin, 404, get(export, admin).status);
         }

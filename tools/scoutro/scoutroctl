@@ -235,7 +235,17 @@ def build_parser():
     dl.add_argument("--collection")
     kg.add_parser("status", help="administrator")
     ctl = kg.add_parser("control", help="administrator")
-    ctl.add_argument("action", choices=["pause", "resume", "reconcile", "confirm_reconcile", "llm_retry"])
+    ctl.add_argument("action", choices=["pause", "resume", "reconcile", "confirm_reconcile", "llm_retry", "backup",
+                                        "rebuild", "rebuild_cancel", "rebuild_confirm"])
+    kg.add_parser("backup", help="administrator: start a backup into DATA/SCOUTRO/knowledge/backup")
+    kg.add_parser("backups", help="administrator: list the backups")
+    bd = kg.add_parser("backup-download", help="administrator: write a backup file to stdout")
+    bd.add_argument("file")
+    rs = kg.add_parser("restore", help="administrator: replace the graph with a backup (the current graph is kept as a backup)")
+    rs.add_argument("file")
+    kg.add_parser("rebuild", help="administrator: re-resolve every identity in a shadow graph built from Solr (progress in kg status)")
+    kg.add_parser("rebuild-cancel", help="administrator: cancel a rebuild before its swap; the graph stays as it is")
+    kg.add_parser("rebuild-confirm", help="administrator: swap in a rebuild that the mass-deletion brake stopped")
 
     ui = sub.add_parser("ui", help="web interface routes (public)").add_subparsers(dest="ui_command", required=True)
     ui.add_parser("routes")
@@ -313,12 +323,24 @@ def main(argv=None):
     elif c == "kg":
         k = args.kg_command
         q = lambda path: urllib.parse.quote(path, safe="")
-        if k in ("status", "control", "download") and token:
+        if k in ("status", "control", "download", "backup", "backups", "backup-download", "restore",
+                 "rebuild", "rebuild-cancel", "rebuild-confirm") and token:
             fail("admin_only", "kg %s is an administrator route; it is not available with an agent token" % k, 2)
         if k == "status":
             result = client.call("GET", "/v1/kg/status")
         elif k == "control":
             result = client.call("POST", "/v1/kg/control", body={"action": args.action})
+        elif k == "backup":
+            result = client.call("POST", "/v1/kg/control", body={"action": "backup"})
+        elif k == "backups":
+            result = client.call("GET", "/v1/kg/backups")
+        elif k == "backup-download":
+            client.call("GET", "/v1/kg/backups/" + q(args.file), raw=True)
+            return 0
+        elif k == "restore":
+            result = client.call("POST", "/v1/kg/control", body={"action": "restore", "backup": args.file})
+        elif k in ("rebuild", "rebuild-cancel", "rebuild-confirm"):
+            result = client.call("POST", "/v1/kg/control", body={"action": k.replace("-", "_")})
         elif k == "download":
             client.call("GET", "/v1/kg/export/download", {"format": args.format, "include": "evidence" if args.evidence else None,
                                                          "collection": args.collection}, raw=True)

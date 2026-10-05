@@ -47,6 +47,8 @@ public final class KgConfig {
     public static final String BUDGET_PAUSE_PERCENT = "scoutro.kg.budget.pausePercent";
     public static final String BUDGET_RESUME_PERCENT = "scoutro.kg.budget.resumePercent";
     public static final String BUDGET_MAINTENANCE_PERCENT = "scoutro.kg.budget.maintenancePercent";
+    public static final String BUDGET_NOTICE_PERCENT = "scoutro.kg.budget.noticePercent";
+    public static final String BUDGET_WARN_PERCENT = "scoutro.kg.budget.warnPercent";
     public static final String DISK_RESERVE_BYTES = "scoutro.kg.disk.reserveBytes";
     public static final String DISK_HYSTERESIS_BYTES = "scoutro.kg.disk.hysteresisBytes";
     public static final String WAL_MAX_BYTES = "scoutro.kg.wal.maxBytes";
@@ -86,6 +88,9 @@ public final class KgConfig {
     public static final String LLM_MAX_DOCS_PER_HOST = "scoutro.kg.llm.maxDocsPerHost";
     public static final String EXTRACT_MAX_INPUT_CHARS = "scoutro.kg.extract.maxInputChars";
     public static final String CACHE_MAX_PERCENT = "scoutro.kg.cache.maxPercent";
+    public static final String BACKUP_KEEP = "scoutro.kg.backup.keep";
+    public static final String BACKUP_INTERVAL_DAYS = "scoutro.kg.backup.intervalDays";
+    public static final String BACKUP_MAX_MILLIS = "scoutro.kg.backup.maxMillis";
     public static final String CHAT_ENABLED = "scoutro.kg.chat.enabled";
     public static final String CHAT_ALLOW_GUESTS = "scoutro.kg.chat.allowGuests";
     public static final String CHAT_MAX_FACTS = "scoutro.kg.chat.maxFacts";
@@ -101,6 +106,8 @@ public final class KgConfig {
     static final long MIB = 1024L * KIB;
     static final long GIB = 1024L * MIB;
     static final long TIB = 1024L * GIB;
+    /** The smallest budget a graph (and a rebuild's shadow graph) can have. */
+    static final long MIN_BUDGET_BYTES = 64L * MIB;
 
     /** One problem with one setting. */
     public static final class Problem {
@@ -123,6 +130,9 @@ public final class KgConfig {
     public final int pausePercent;
     public final int resumePercent;
     public final int maintenancePercent;
+    /** Status levels below the pause threshold: notice (status only) and warning (visible in UI and dashboard). */
+    public final int noticePercent;
+    public final int warnPercent;
     public final long diskReserveBytes;
     public final long diskHysteresisBytes;
     public final long walMaxBytes;
@@ -168,6 +178,11 @@ public final class KgConfig {
     public final int llmMaxDocsPerHost;
     public final int extractMaxInputChars;
     public final int cacheMaxPercent;
+    /** Backups kept in {@code backup/} (at least one); scheduled backups every {@link #backupIntervalMillis}, 0 = only on request. */
+    public final int backupKeep;
+    public final long backupIntervalMillis;
+    /** Deadline of one backup ({@code VACUUM INTO}); the copy is interrupted and deleted after it. */
+    public final long backupMaxMillis;
     /** Graph facts as extra sources in the RAG chat (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 8.4). */
     public final boolean chatEnabled;
     /** AI Shield guests get graph facts only with this switch (default off). */
@@ -186,10 +201,18 @@ public final class KgConfig {
 
     private KgConfig(final Parser p) {
         this.enabled = p.bool(ENABLED, false);
-        this.budgetMaxBytes = p.longValue(BUDGET_MAX_BYTES, GIB, 64 * MIB, 16 * TIB);
+        // a protection limit, not a target or a reservation (package 5, O1)
+        this.budgetMaxBytes = p.longValue(BUDGET_MAX_BYTES, 10 * GIB, MIN_BUDGET_BYTES, 16 * TIB);
         this.pausePercent = (int) p.longValue(BUDGET_PAUSE_PERCENT, 90, 50, 99);
         this.resumePercent = (int) p.longValue(BUDGET_RESUME_PERCENT, 80, 10, 94);
-        this.maintenancePercent = (int) p.longValue(BUDGET_MAINTENANCE_PERCENT, 20, 5, 50);
+        // default: 10 % (the database file is capped at the brake, 90 %; WAL, temp files, backups and deletions use the
+        // rest), raised for a small budget to the smallest share that holds the WAL and temp limits
+        this.maintenancePercent = (int) p.longValue(BUDGET_MAINTENANCE_PERCENT,
+                defaultMaintenancePercent(p.longValue(BUDGET_MAX_BYTES, 10 * GIB, MIN_BUDGET_BYTES, 16 * TIB),
+                        p.longValue(WAL_MAX_BYTES, 64 * MIB, 4 * MIB, 4 * GIB), p.longValue(TMP_MAX_BYTES, 64 * MIB, 4 * MIB, 4 * GIB)),
+                5, 50);
+        this.noticePercent = (int) p.longValue(BUDGET_NOTICE_PERCENT, 70, 10, 98);
+        this.warnPercent = (int) p.longValue(BUDGET_WARN_PERCENT, 80, 10, 98);
         this.diskReserveBytes = p.longValue(DISK_RESERVE_BYTES, GIB, 0, 16 * TIB);
         this.diskHysteresisBytes = p.longValue(DISK_HYSTERESIS_BYTES, 512 * MIB, 0, 16 * TIB);
         this.walMaxBytes = p.longValue(WAL_MAX_BYTES, 64 * MIB, 4 * MIB, 4 * GIB);
@@ -200,7 +223,7 @@ public final class KgConfig {
         this.jsonldEnabled = p.bool(JSONLD_ENABLED, false);
         this.jsonldMaxBytesPerDoc = p.longValue(JSONLD_MAX_BYTES_PER_DOC, 16 * KIB, KIB, 64 * KIB);
         this.jsonldMaxBlocksPerDoc = (int) p.longValue(JSONLD_MAX_BLOCKS_PER_DOC, 8, 1, 32);
-        this.jsonldMaxTotalBytes = p.longValue(JSONLD_MAX_TOTAL_BYTES, 256 * MIB, MIB, 16 * TIB);
+        this.jsonldMaxTotalBytes = p.longValue(JSONLD_MAX_TOTAL_BYTES, 2 * GIB, MIB, 16 * TIB);
         final Set<String> colls = p.collections(COLLECTIONS);
         this.allCollections = colls.contains(ALL_COLLECTIONS);
         colls.remove(ALL_COLLECTIONS);
@@ -235,6 +258,9 @@ public final class KgConfig {
         this.llmMaxDocsPerHost = (int) p.longValue(LLM_MAX_DOCS_PER_HOST, 25, 1, 10_000);
         this.extractMaxInputChars = (int) p.longValue(EXTRACT_MAX_INPUT_CHARS, 12_000, 1_000, 100_000);
         this.cacheMaxPercent = (int) p.longValue(CACHE_MAX_PERCENT, 20, 0, 50);
+        this.backupKeep = (int) p.longValue(BACKUP_KEEP, 1, 1, 20);
+        this.backupIntervalMillis = DAY * p.longValue(BACKUP_INTERVAL_DAYS, 7, 0, 365);
+        this.backupMaxMillis = p.longValue(BACKUP_MAX_MILLIS, 600_000, 10_000, 7_200_000);
         this.chatEnabled = p.bool(CHAT_ENABLED, true);
         this.chatAllowGuests = p.bool(CHAT_ALLOW_GUESTS, false);
         this.chatMaxFacts = (int) p.longValue(CHAT_MAX_FACTS, 8, 1, 30);
@@ -263,6 +289,12 @@ public final class KgConfig {
         this.yacyUndershotBytes = MIB * p.yacyLong(SwitchboardConstants.RESOURCE_DISK_FREE_MIN_UNDERSHOT,
                 SwitchboardConstants.RESOURCE_DISK_FREE_MIN_UNDERSHOT_DEFAULT);
 
+        if (this.noticePercent >= this.warnPercent) {
+            p.problem(BUDGET_NOTICE_PERCENT, "must be lower than " + BUDGET_WARN_PERCENT + " (" + this.warnPercent + ")");
+        }
+        if (this.warnPercent >= this.pausePercent) {
+            p.problem(BUDGET_WARN_PERCENT, "must be lower than " + BUDGET_PAUSE_PERCENT + " (" + this.pausePercent + ")");
+        }
         if (this.resumePercent >= this.pausePercent) {
             p.problem(BUDGET_RESUME_PERCENT, "must be lower than " + BUDGET_PAUSE_PERCENT + " (" + this.pausePercent + ")");
         }
@@ -352,6 +384,47 @@ public final class KgConfig {
         return this.budgetMaxBytes / 100L * this.pausePercent;
     }
 
+    public long noticeAtBytes() {
+        return this.budgetMaxBytes / 100L * this.noticePercent;
+    }
+
+    public long warnAtBytes() {
+        return this.budgetMaxBytes / 100L * this.warnPercent;
+    }
+
+    /** Levels of the storage status, mildest first. */
+    public static final String LEVEL_OK = "ok";
+    public static final String LEVEL_NOTICE = "notice";
+    public static final String LEVEL_WARNING = "warning";
+    public static final String LEVEL_BRAKE = "brake";
+    public static final String LEVEL_FULL = "full";
+    public static final java.util.List<String> LEVELS = java.util.List.of(LEVEL_OK, LEVEL_NOTICE, LEVEL_WARNING, LEVEL_BRAKE, LEVEL_FULL);
+
+    /**
+     * The level of {@code used} bytes of a {@code budget}: {@code notice} from
+     * {@link #noticePercent} (status only), {@code warning} from
+     * {@link #warnPercent} (shown in the UI and the dashboard), {@code brake}
+     * from {@link #pausePercent} (new growth pauses), {@code full} at the
+     * budget (the hard limit). The same percentages apply to the graph and to
+     * the JSON-LD budget.
+     */
+    public String level(final long used, final long budget) {
+        if (budget <= 0L || used < 0L) {
+            return LEVEL_OK;
+        }
+        if (used >= budget) {
+            return LEVEL_FULL;
+        }
+        final long b = budget / 100L;
+        if (used >= b * this.pausePercent) {
+            return LEVEL_BRAKE;
+        }
+        if (used >= b * this.warnPercent) {
+            return LEVEL_WARNING;
+        }
+        return used >= b * this.noticePercent ? LEVEL_NOTICE : LEVEL_OK;
+    }
+
     public long resumeAtBytes() {
         return this.budgetMaxBytes / 100L * this.resumePercent;
     }
@@ -369,6 +442,15 @@ public final class KgConfig {
     /** Below this free space every write is refused, deletions included. */
     public long criticalFloorBytes() {
         return Math.min(this.yacyUndershotBytes, growthFloorBytes());
+    }
+
+    /** 10 %, or the smallest share (at most 50 %) that holds {@code wal + tmp} of a small budget. */
+    static long defaultMaintenancePercent(final long budget, final long wal, final long tmp) {
+        long percent = 10L;
+        while (percent < 50L && maintenanceBytes(budget, (int) percent) < wal + tmp) {
+            percent++;
+        }
+        return percent;
     }
 
     private static long maintenanceBytes(final long budget, final int percent) {

@@ -43,6 +43,27 @@ public class JsonLdCapturePolicyTest {
     }
 
     @Test
+    public void levelsOfTheJsonLdBudget() throws Exception {
+        final JsonLdCapturePolicy p = policy(KgConfig.JSONLD_ENABLED, "true", KgConfig.JSONLD_MAX_TOTAL_BYTES, Long.toString(100 * MIB));
+        assertEquals(KgConfig.LEVEL_OK, p.level()); // unknown estimate
+        p.evaluate(true, 71 * MIB, 100 * GIB);
+        assertEquals(KgConfig.LEVEL_NOTICE, p.level());
+        assertEquals(State.ACTIVE, p.state());
+        p.evaluate(true, 81 * MIB, 100 * GIB);
+        assertEquals(KgConfig.LEVEL_WARNING, p.level());
+        assertEquals("a warning never pauses the capture", State.ACTIVE, p.state());
+        p.evaluate(true, 90 * MIB, 100 * GIB);
+        assertEquals(KgConfig.LEVEL_BRAKE, p.level());
+        assertEquals(State.PAUSED, p.state());
+        final JSONObject s = p.status();
+        assertEquals("brake", s.getString("level"));
+        assertEquals(90.0, s.getDouble("usedPercent"), 0.05);
+        assertEquals(100 * MIB / 100 * 80, s.getLong("warnAtBytes"));
+        p.evaluate(true, 100 * MIB, 100 * GIB);
+        assertEquals(KgConfig.LEVEL_FULL, p.level());
+    }
+
+    @Test
     public void diskReservePausesCaptureButNeverTheCrawl() {
         final JsonLdCapturePolicy p = policy(KgConfig.JSONLD_ENABLED, "true", "resource.disk.free.min.steadystate", "4096",
                 KgConfig.DISK_RESERVE_BYTES, Long.toString(GIB), KgConfig.DISK_HYSTERESIS_BYTES, Long.toString(512 * MIB));

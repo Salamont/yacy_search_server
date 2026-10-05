@@ -13777,6 +13777,18 @@
     <trans-unit id="74b01187" xml:space="preserve" approved="no" translate="yes">
        <source>Growth paused</source>
     </trans-unit>
+    <trans-unit id="c20796d8" xml:space="preserve" approved="no" translate="yes">
+       <source>notice</source>
+    </trans-unit>
+    <trans-unit id="4305af9c" xml:space="preserve" approved="no" translate="yes">
+       <source>warning</source>
+    </trans-unit>
+    <trans-unit id="4510e1a7" xml:space="preserve" approved="no" translate="yes">
+       <source>growth paused</source>
+    </trans-unit>
+    <trans-unit id="2eb88b77" xml:space="preserve" approved="no" translate="yes">
+       <source>budget reached</source>
+    </trans-unit>
   </body>
 </file>
 
@@ -15387,6 +15399,204 @@
     </trans-unit>
     <trans-unit id="ad7ccab3" xml:space="preserve" approved="no" translate="yes">
        <source>yes: at most %1 facts and %2 characters within %3 ms; AI Shield guests: %4</source>
+    </trans-unit>
+    <trans-unit id="37b662bb" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD in the Solr index</source>
+    </trans-unit>
+    <trans-unit id="e2d320b3" xml:space="preserve" approved="no" translate="yes">
+       <source>Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.</source>
+    </trans-unit>
+    <trans-unit id="45eab64" xml:space="preserve" approved="no" translate="yes">
+       <source>Level</source>
+    </trans-unit>
+    <trans-unit id="ddc" xml:space="preserve" approved="no" translate="yes">
+       <source>ok</source>
+    </trans-unit>
+    <trans-unit id="53f34c35" xml:space="preserve" approved="no" translate="yes">
+       <source>notice (from 70 %)</source>
+    </trans-unit>
+    <trans-unit id="2cec767a" xml:space="preserve" approved="no" translate="yes">
+       <source>warning (from 80 %)</source>
+    </trans-unit>
+    <trans-unit id="7f5f4915" xml:space="preserve" approved="no" translate="yes">
+       <source>brake: growth paused (from 90 %)</source>
+    </trans-unit>
+    <trans-unit id="c3c13cac" xml:space="preserve" approved="no" translate="yes">
+       <source>full: budget reached</source>
+    </trans-unit>
+    <trans-unit id="58285aa3" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD capture</source>
+    </trans-unit>
+    <trans-unit id="50bd30a6" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD stored</source>
+    </trans-unit>
+    <trans-unit id="ab2f7f06" xml:space="preserve" approved="no" translate="yes">
+       <source>active</source>
+    </trans-unit>
+    <trans-unit id="c4ac992e" xml:space="preserve" approved="no" translate="yes">
+       <source>paused</source>
+    </trans-unit>
+    <trans-unit id="1ad6f" xml:space="preserve" approved="no" translate="yes">
+       <source>off</source>
+    </trans-unit>
+    <trans-unit id="3a986101" xml:space="preserve" approved="no" translate="yes">
+       <source>The knowledge graph uses %1 % of its storage budget.</source>
+    </trans-unit>
+    <trans-unit id="10125289" xml:space="preserve" approved="no" translate="yes">
+       <source>New growth of the knowledge graph is paused at %1 % of its storage budget; reads, deletions and the crawl continue.</source>
+    </trans-unit>
+    <trans-unit id="a1e89bd9" xml:space="preserve" approved="no" translate="yes">
+       <source>The knowledge graph has reached its storage budget (%1 %); only reads and deletions continue, the crawl is not affected.</source>
+    </trans-unit>
+    <trans-unit id="8e64a9c8" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON-LD uses %1 % of its budget in the Solr index.</source>
+    </trans-unit>
+    <trans-unit id="9d749f78" xml:space="preserve" approved="no" translate="yes">
+       <source>The JSON-LD capture is paused at %1 % of its budget; pages are still crawled and indexed without it.</source>
+    </trans-unit>
+    <trans-unit id="ed0e4eeb" xml:space="preserve" approved="no" translate="yes">
+       <source>The JSON-LD budget is reached (%1 %); pages are still crawled and indexed without JSON-LD.</source>
+    </trans-unit>
+    <trans-unit id="9bd59946" xml:space="preserve" approved="no" translate="yes">
+       <source>Create backup</source>
+    </trans-unit>
+    <trans-unit id="4e86dad1" xml:space="preserve" approved="no" translate="yes">
+       <source>Backups</source>
+    </trans-unit>
+    <trans-unit id="23f77612" xml:space="preserve" approved="no" translate="yes">
+       <source>Backups are single SQLite files in DATA/SCOUTRO/knowledge/backup, inside the app's data; download one to keep a copy elsewhere. A restore replaces the graph with the backup, keeps the current graph aside as a backup, starts a new dataset epoch (export consumers sync again) and reconciles with the index.</source>
+    </trans-unit>
+    <trans-unit id="762561e2" xml:space="preserve" approved="no" translate="yes">
+       <source>Backup</source>
+    </trans-unit>
+    <trans-unit id="ba06fe6c" xml:space="preserve" approved="no" translate="yes">
+       <source>Last backup</source>
+    </trans-unit>
+    <trans-unit id="3237da02" xml:space="preserve" approved="no" translate="yes">
+       <source>Next scheduled backup</source>
+    </trans-unit>
+    <trans-unit id="b282beb9" xml:space="preserve" approved="no" translate="yes">
+       <source>Backup files</source>
+    </trans-unit>
+    <trans-unit id="5c6f15bf" xml:space="preserve" approved="no" translate="yes">
+       <source>running</source>
+    </trans-unit>
+    <trans-unit id="313fd4" xml:space="preserve" approved="no" translate="yes">
+       <source>idle</source>
+    </trans-unit>
+    <trans-unit id="3d4e7ee8" xml:space="preserve" approved="no" translate="yes">
+       <source>created</source>
+    </trans-unit>
+    <trans-unit id="7fff6730" xml:space="preserve" approved="no" translate="yes">
+       <source>skipped</source>
+    </trans-unit>
+    <trans-unit id="b396943d" xml:space="preserve" approved="no" translate="yes">
+       <source>failed</source>
+    </trans-unit>
+    <trans-unit id="21699c" xml:space="preserve" approved="no" translate="yes">
+       <source>File</source>
+    </trans-unit>
+    <trans-unit id="275421" xml:space="preserve" approved="no" translate="yes">
+       <source>Size</source>
+    </trans-unit>
+    <trans-unit id="a08716c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Created</source>
+    </trans-unit>
+    <trans-unit id="acc075c2" xml:space="preserve" approved="no" translate="yes">
+       <source>backup</source>
+    </trans-unit>
+    <trans-unit id="5698ce6e" xml:space="preserve" approved="no" translate="yes">
+       <source>before a restore</source>
+    </trans-unit>
+    <trans-unit id="55a99bfb" xml:space="preserve" approved="no" translate="yes">
+       <source>before a rebuild</source>
+    </trans-unit>
+    <trans-unit id="58f52ca8" xml:space="preserve" approved="no" translate="yes">
+       <source>Download</source>
+    </trans-unit>
+    <trans-unit id="a4a36a6e" xml:space="preserve" approved="no" translate="yes">
+       <source>Restore</source>
+    </trans-unit>
+    <trans-unit id="ff401d64" xml:space="preserve" approved="no" translate="yes">
+       <source>Replace the knowledge graph with the backup %1? The current graph is kept as a backup.</source>
+    </trans-unit>
+    <trans-unit id="52ec01f4" xml:space="preserve" approved="no" translate="yes">
+       <source>No backups yet.</source>
+    </trans-unit>
+    <trans-unit id="b8a21a4a" xml:space="preserve" approved="no" translate="yes">
+       <source>Re-resolve identities</source>
+    </trans-unit>
+    <trans-unit id="b5a5ef21" xml:space="preserve" approved="no" translate="yes">
+       <source>Rebuild identities</source>
+    </trans-unit>
+    <trans-unit id="d226aae6" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel the rebuild</source>
+    </trans-unit>
+    <trans-unit id="19913dbc" xml:space="preserve" approved="no" translate="yes">
+       <source>Swap in the rebuilt graph</source>
+    </trans-unit>
+    <trans-unit id="77277410" xml:space="preserve" approved="no" translate="yes">
+       <source>Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</source>
+    </trans-unit>
+    <trans-unit id="a3b437fb" xml:space="preserve" approved="no" translate="yes">
+       <source>Rebuild</source>
+    </trans-unit>
+    <trans-unit id="ed77d994" xml:space="preserve" approved="no" translate="yes">
+       <source>Progress of the rebuilt graph</source>
+    </trans-unit>
+    <trans-unit id="23e05c9b" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages read from the index, %2 published, %3 queued</source>
+    </trans-unit>
+    <trans-unit id="cda2602b" xml:space="preserve" approved="no" translate="yes">
+       <source>Check before the swap</source>
+    </trans-unit>
+    <trans-unit id="7f349fd3" xml:space="preserve" approved="no" translate="yes">
+       <source>pages %1 → %2, objects %3 → %4, integrity %5</source>
+    </trans-unit>
+    <trans-unit id="3d335f60" xml:space="preserve" approved="no" translate="yes">
+       <source>The rebuilt graph has far fewer pages than the current one; it is swapped in only after your confirmation.</source>
+    </trans-unit>
+    <trans-unit id="d53e9099" xml:space="preserve" approved="no" translate="yes">
+       <source>Previous graph kept as</source>
+    </trans-unit>
+    <trans-unit id="16feb1e0" xml:space="preserve" approved="no" translate="yes">
+       <source>Stored IDs redirected</source>
+    </trans-unit>
+    <trans-unit id="2ceced0" xml:space="preserve" approved="no" translate="yes">
+       <source>Storage for the rebuild</source>
+    </trans-unit>
+    <trans-unit id="6d909f86" xml:space="preserve" approved="no" translate="yes">
+       <source>not run yet</source>
+    </trans-unit>
+    <trans-unit id="34650d73" xml:space="preserve" approved="no" translate="yes">
+       <source>building the new graph</source>
+    </trans-unit>
+    <trans-unit id="9d9eb619" xml:space="preserve" approved="no" translate="yes">
+       <source>checking the new graph</source>
+    </trans-unit>
+    <trans-unit id="7584e9d8" xml:space="preserve" approved="no" translate="yes">
+       <source>waiting for your confirmation</source>
+    </trans-unit>
+    <trans-unit id="ed119185" xml:space="preserve" approved="no" translate="yes">
+       <source>swapping</source>
+    </trans-unit>
+    <trans-unit id="d7d8c072" xml:space="preserve" approved="no" translate="yes">
+       <source>finished</source>
+    </trans-unit>
+    <trans-unit id="f0f8e884" xml:space="preserve" approved="no" translate="yes">
+       <source>cancelled, graph unchanged</source>
+    </trans-unit>
+    <trans-unit id="79a83318" xml:space="preserve" approved="no" translate="yes">
+       <source>failed, graph unchanged</source>
+    </trans-unit>
+    <trans-unit id="a34aab49" xml:space="preserve" approved="no" translate="yes">
+       <source>interrupted by a stop, graph unchanged</source>
+    </trans-unit>
+    <trans-unit id="f028d8ec" xml:space="preserve" approved="no" translate="yes">
+       <source>Rebuild every identity from the Solr index? The current graph keeps serving until the new one is ready and is kept as a backup.</source>
+    </trans-unit>
+    <trans-unit id="f1855669" xml:space="preserve" approved="no" translate="yes">
+       <source>Swap in the rebuilt graph although it has far fewer pages than the current one?</source>
     </trans-unit>
   </body>
 </file>

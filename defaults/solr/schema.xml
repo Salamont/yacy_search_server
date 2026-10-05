@@ -27,6 +27,19 @@
             </analyzer>
         </fieldType>
     
+        <!-- Stored text that costs no index space: the analyzer emits no token. The type is
+             indexed like text_general (positions and norms), because Lucene refuses a field whose
+             index options change: a version without the knowledge graph maps ld_json_txt to the
+             dynamic *_txt field, and its partial updates rewrite the stored field with those options
+             (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 13). -->
+        <fieldType name="text_stored" class="solr.TextField" positionIncrementGap="100">
+            <analyzer>
+                <tokenizer class="solr.KeywordTokenizerFactory"/>
+                <filter class="solr.PatternReplaceFilterFactory" pattern="(?s)^.*$" replacement="" replace="first"/>
+                <filter class="solr.LengthFilterFactory" min="1" max="2147483647"/>
+            </analyzer>
+        </fieldType>
+
         <fieldType name="text_general" class="solr.TextField" positionIncrementGap="100">
             <analyzer type="index">
                 <tokenizer class="solr.StandardTokenizerFactory"/>
@@ -82,11 +95,11 @@
         <!-- all visible text -->
 	<field name="text_t" type="text_general" indexed="true" stored="true"/>
 
-        <!-- JSON-LD blocks of the page for the Scoutro knowledge graph; stored only,
-             bounded per document, written only while the graph's capture is active
-             (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.2). An older schema maps the name
-             to the dynamic *_txt field, which keeps a rollback readable. -->
-        <field name="ld_json_txt" type="text_general" indexed="false" stored="true" multiValued="true"/>
+        <!-- JSON-LD blocks of the page for the Scoutro knowledge graph; stored, not searchable
+             (type text_stored), bounded per document, written only while the graph's capture is
+             active (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.2). An older schema maps the name to the
+             dynamic *_txt field with the same index options, which keeps a rollback writable. -->
+        <field name="ld_json_txt" type="text_stored" indexed="true" stored="true" multiValued="true"/>
 
 	<dynamicField name="*_i"  type="int"    indexed="true"  stored="true"/>
 	<dynamicField name="*_l"  type="long"   indexed="true"  stored="true"/>

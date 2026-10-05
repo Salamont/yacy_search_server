@@ -12,7 +12,10 @@ volume or peer is touched):
 3. docker stop / start (SIGTERM to the exec'd java process): clean shutdown, the
    start reconcile keeps the document;
 4. docker kill / start: unclean start detected, integrity check ok, then the
-   reconcile of the unclean start.
+   reconcile of the unclean start;
+5. a backup lands in the DATA volume (DATA/SCOUTRO/knowledge/backup), stays
+   across a restart and restores with a safety copy; an identity rebuild
+   swaps and leaves no shadow behind.
 
 Usage:  python3 test/scoutro-api/kg-image-smoke.py IMAGE
 GPL-2.0-or-later.
@@ -48,6 +51,19 @@ def client():
 
 def status(c):
     with c.open(BASE + "/scoutro/api/v1/kg/status", timeout=15) as r:
+        return json.loads(r.read())
+
+
+def get(c, path):
+    with c.open(BASE + path, timeout=30) as r:
+        return json.loads(r.read())
+
+
+def control(c, body):
+    request = urllib.request.Request(BASE + "/scoutro/api/v1/kg/control", data=json.dumps(body).encode(), method="POST",
+                                     headers={"Content-Type": "application/json"})
+    with c.open(request, timeout=120) as r:
+        assert r.status == 200, r.status
         return json.loads(r.read())
 
 
@@ -181,6 +197,27 @@ try:
     assert last["tracked"] == 1 and last["deleted"] == 0, last
     print("4 docker kill/start: unclean start, integrity check ok, reconcile keeps the document", flush=True)
     checks += 3
+
+    # package 5: a backup lands in the app's DATA volume (no other path), survives a restart, restores; a rebuild swaps
+    control(c, {"action": "backup"})
+    s = wait_status(c, "the backup", lambda x: (x["backup"].get("last") or {}).get("result") == "created")
+    name = s["backup"]["last"]["file"]
+    assert (data / "SCOUTRO/knowledge/backup" / name).is_file(), "backup in the DATA volume"
+    assert s["storage"]["level"] == "ok" and s["jsonld"]["level"] == "ok", s["storage"]
+    sh("docker", "stop", "-t", "60", NAME)
+    sh("docker", "start", NAME)
+    s = wait_up(c)
+    assert any(f["file"] == name for f in get(c, "/scoutro/api/v1/kg/backups")["items"]), "backup kept across the restart"
+    control(c, {"action": "restore", "backup": name})
+    s = wait_status(c, "the restored graph", lambda x: x["state"] == "running" and x["sync"]["reconcile"].get("last") is not None
+                    and not x["sync"]["reconcile"].get("pending", True))
+    assert any(f["kind"] == "before_restore" for f in get(c, "/scoutro/api/v1/kg/backups")["items"]), "safety copy"
+    control(c, {"action": "rebuild"})
+    s = wait_status(c, "the rebuild", lambda x: (x.get("rebuild") or {}).get("phase") in ("done", "failed"), 300)
+    assert s["rebuild"]["phase"] == "done", s["rebuild"]
+    assert not (data / "SCOUTRO/knowledge/rebuild").exists(), "no shadow left"
+    print("5 backup in DATA/SCOUTRO/knowledge/backup, kept across a restart, restored with a safety copy; rebuild swapped", flush=True)
+    checks += 6
     sh("docker", "stop", "-t", "60", NAME)
     java = sh("docker", "run", "--rm", "--entrypoint", "java", IMAGE, "-version", check=False)
     java += subprocess.run(["docker", "run", "--rm", "--entrypoint", "java", IMAGE, "-version"],

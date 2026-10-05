@@ -134,10 +134,68 @@ public class ExtractorsTest {
         assertTrue("a publisher without legal form is no operator", none.mentions().isEmpty());
     }
 
-    static final String IMPRINT = "Startseite Leistungen Kontakt\nImpressum\nAngaben gemäß § 5 DDG\nMuster Pflege gGmbH\n"
+    public static final String IMPRINT = "Startseite Leistungen Kontakt\nImpressum\nAngaben gemäß § 5 DDG\nMuster Pflege gGmbH\n"
             + "Musterstraße 12\n12345 Berlin\nTelefon: 030 / 123 45 67\nTelefax: 030 / 123 45 68\nE-Mail: info@muster-pflege.de\n"
             + "Vertreten durch die Geschäftsführerin Erika Musterfrau\nRegistergericht: Amtsgericht Charlottenburg\n"
             + "Registernummer: HRB 12345 B\nUmsatzsteuer-Identifikationsnummer gemäß § 27 a Umsatzsteuergesetz: DE 123 456 789\n";
+
+    @Test
+    public void onlyRoleMailboxesAreKeptNoAddressOfAPerson() {
+        for (final String keep : new String[] {"info@muster-pflege.de", "kontakt@muster.de", "verwaltung-berlin@muster.de",
+            "info.hamburg@muster.de", "bewerbung@muster.de", "sonnenschein@pflegedienst-sonnenschein.de", "mueller@mueller-bau.de"}) {
+            assertTrue(keep, Normalizers.roleEmail(keep));
+        }
+        for (final String drop : new String[] {"erika.musterfrau@muster-pflege.de", "e.musterfrau@muster.de", "erika@muster.de",
+            "emusterfrau@muster.de", "max_mustermann@muster.de", "mm@muster.de", "noreply@muster.de", null, "kaputt"}) {
+            assertFalse(drop, Normalizers.roleEmail(drop));
+        }
+        // structured data: the person's address of an organisation is dropped, the role mailbox kept
+        final Extraction ex = new Extraction(50);
+        new JsonLdExtractor(200).extract(List.of("{\"@type\":\"Organization\",\"name\":\"Muster Pflege gGmbH\","
+                + "\"email\":[\"erika.musterfrau@muster-pflege.de\",\"info@muster-pflege.de\"]}"), "https://www.muster-pflege.de/",
+                "www.muster-pflege.de", "de", ex);
+        final List<String> mails = new ArrayList<>();
+        for (final Claim c : ex.claims()) {
+            if (Vocabulary.EMAIL.equals(c.predicate)) {
+                mails.add(c.value);
+                assertFalse(c.excerpt, c.excerpt.contains("musterfrau"));
+            }
+        }
+        assertEquals(List.of("info@muster-pflege.de"), mails);
+        // an imprint that names the managing director's address first: the role mailbox after it is the contact
+        final Extraction imp = new Extraction(50);
+        new RuleExtractor(200, 65536).extract(IMPRINT.replace("E-Mail: info@muster-pflege.de",
+                "E-Mail: erika.musterfrau@muster-pflege.de, info@muster-pflege.de"), "https://www.muster-pflege.de/impressum",
+                "www.muster-pflege.de", "de", imp);
+        assertEquals(List.of("info@muster-pflege.de"), values(imp, RuleExtractor.OPERATOR_REF, Vocabulary.EMAIL));
+    }
+
+    @Test
+    public void excerptsLoseTheNamesOfPersons() {
+        assertEquals("Vertreten durch die Geschäftsführerin […]\nRegistergericht: Amtsgericht Charlottenburg",
+                Normalizers.redactPersons("Vertreten durch die Geschäftsführerin Erika Musterfrau\nRegistergericht: Amtsgericht Charlottenburg"));
+        assertEquals("Geschäftsführer: […] HRB 12345", Normalizers.redactPersons("Geschäftsführer: Dr. Max Mustermann und Erika Musterfrau HRB 12345"));
+        assertEquals("Ansprechpartnerin […], Telefon 030 1234567", Normalizers.redactPersons("Ansprechpartnerin Frau Erika Musterfrau, Telefon 030 1234567"));
+        assertEquals("Pflegedienstleitung: […]", Normalizers.redactPersons("Pflegedienstleitung: Max Muster"));
+        assertEquals("Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: […]",
+                Normalizers.redactPersons("Verantwortlich für den Inhalt nach § 18 Abs. 2 MStV: Max Mustermann"));
+        assertEquals("Bitte wenden Sie sich an […].", Normalizers.redactPersons("Bitte wenden Sie sich an Herrn Max Mustermann.".replace("Herrn", "Herr")));
+        // organisations and ordinary text stay
+        assertEquals("Inhaber: Muster Pflege GmbH", Normalizers.redactPersons("Inhaber: Muster Pflege GmbH"));
+        assertEquals("Inhaber: Muster AG", Normalizers.redactPersons("Inhaber: Muster AG"));
+        assertEquals("Geschäftsführer […]", Normalizers.redactPersons("Geschäftsführer Max von Mustermann"));
+        // e-mail addresses of persons in the text around a fact, also cut by the window; role mailboxes stay
+        assertEquals("Telefon: 030 1234567 E-Mail: […], info@muster.de", Normalizers.redactPersons(
+                "Telefon: 030 1234567 E-Mail: erika.musterfrau@muster.de, info@muster.de"));
+        assertEquals("Telefon: 030 1234567 E-Mail: […]", Normalizers.redactPersons("Telefon: 030 1234567 E-Mail: erika.musterfrau@mu"));
+        assertEquals("[…] Telefon", Normalizers.redactPersons("usterfrau@muster.de Telefon"));
+        // a window that cuts the name: the marker is looked for before it
+        final String text = "Vertreten durch die Geschäftsführerin Erika Musterfrau\nRegistergericht: Amtsgericht Charlottenburg";
+        final int at = text.indexOf("Musterfrau") + 4;
+        assertEquals("[…]\nRegistergericht", Normalizers.excerpt(text, at, text.indexOf(": Amts")));
+        assertEquals("Die Einleitung Der Pflege", Normalizers.redactPersons("Die Einleitung Der Pflege"));
+        assertEquals("Die Muster Pflege gGmbH betreibt das Haus Lindenhof", Normalizers.redactPersons("Die Muster Pflege gGmbH betreibt das Haus Lindenhof"));
+    }
 
     @Test
     public void imprintYieldsTheOperatorWithRegisterVatAddressAndContact() {

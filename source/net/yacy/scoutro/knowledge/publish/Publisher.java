@@ -409,7 +409,7 @@ public final class Publisher {
                 insEv.setInt(5, c.kind);
                 insEv.setInt(6, c.hedged ? 2 : 1);
                 insEv.setString(7, c.locator);
-                insEv.setString(8, Normalizers.clip(c.excerpt, Math.min(1000, this.cfg.extractMaxExcerptChars)));
+                insEv.setString(8, Normalizers.redactPersons(Normalizers.clip(c.excerpt, Math.min(1000, this.cfg.extractMaxExcerptChars))));
                 insEv.setLong(9, now);
                 if (insEv.executeUpdate() > 0) {
                     result.statements++;

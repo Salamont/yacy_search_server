@@ -53,6 +53,18 @@ public class KgException extends Exception {
     public static final String SYNC_UNAVAILABLE = "sync_unavailable";
     /** The LLM tier is off: no {@code llm.collections}, or no Solr synchronisation. */
     public static final String LLM_UNAVAILABLE = "llm_unavailable";
+    /** A backup, restore or rebuild is already running (package 5). */
+    public static final String OPERATION_RUNNING = "operation_running";
+    /** A backup could not be written or verified; the detail names the step. */
+    public static final String BACKUP_FAILED = "backup_failed";
+    /** No such backup in the backup directory. */
+    public static final String BACKUP_NOT_FOUND = "backup_not_found";
+    /** The backup is not a usable graph database (quick_check, schema, checksum); nothing was changed. */
+    public static final String BACKUP_INVALID = "backup_invalid";
+    /** The restore failed; the previous graph was put back. */
+    public static final String RESTORE_FAILED = "restore_failed";
+    /** No rebuild is waiting for confirmation, or none is running to cancel. */
+    public static final String NO_REBUILD = "no_rebuild";
 
     private final String code;
     private final String reason;

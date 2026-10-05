@@ -15,14 +15,15 @@ backend_java: source/net/yacy/htroot/ScoutroKnowledge_p.java
 The knowledge graph collects organisations, facilities, sites and services from
 the crawled pages of the followed collections, with every fact tied to the page
 it comes from. This page shows its status, its objects with their facts and
-relations, and the evidence behind each fact. Plan:
-`docs/SCOUTRO_KNOWLEDGE_GRAPH.md`; API: `docs/API.md`, section "Knowledge graph".
+relations, and the evidence behind each fact. Operator guide:
+`docs/SCOUTRO_KNOWLEDGE.md`; plan: `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`; API:
+`docs/API.md`, section "Knowledge graph".
 
 ## Views
 
 | View | URL | Content |
 | --- | --- | --- |
-| Overview | `ScoutroKnowledge_p.html` | State, storage budget, synchronisation, LLM tier, controls, recent events |
+| Overview | `ScoutroKnowledge_p.html` | State, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, controls, backups, identity rebuild, recent events |
 | Objects | `?view=objects&q=&type=&quality=&host=` | Search by name, filter by type, quality and host; 25 per page |
 | Object | `?view=object&id=kge_…` | Names, identifiers, hosts, possible duplicates, facts and relations, relations pointing to it; evidence per fact |
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
@@ -49,13 +50,46 @@ describe the whole graph.
 - **Possible duplicates** are objects of the same type with the same name.
   They are never merged automatically.
 
+## Storage levels
+
+The meters show the graph's storage (budget `scoutro.kg.budget.maxBytes`,
+default 10 GiB, for everything in `DATA/SCOUTRO/knowledge`) and the JSON-LD
+stored in the Solr index (`scoutro.kg.jsonld.maxTotalBytes`, default 2 GiB).
+From 70 % the level is a notice, from 80 % a warning (banner, also in the
+dashboard), from 90 % new growth pauses (for JSON-LD: the capture pauses, pages
+are still indexed), and the budget is the hard limit. Crawling and indexing
+never stop because of these budgets.
+
 ## Controls
 
 **Pause growth** stops new growth only (deletions and state changes continue);
 **Resume** ends it and schedules a reconcile; **Reconcile now**; **Confirm
 deletions** appears only when the mass-deletion brake stopped a reconcile;
-**Retry failed LLM documents**. All are `POST /scoutro/api/v1/kg/control` with
-a JSON body from the same origin; nothing here changes the Solr index.
+**Retry failed LLM documents**; **Create backup**. All are
+`POST /scoutro/api/v1/kg/control` with a JSON body from the same origin;
+nothing here changes the Solr index.
+
+## Backups
+
+Backups are single SQLite files in `DATA/SCOUTRO/knowledge/backup`, inside the
+app's data, made while the graph runs and checked (`quick_check`, SHA-256).
+**Download** keeps a copy outside the app. **Restore** asks for a
+confirmation, checks the backup first, keeps the current graph as a backup
+("before a restore"), starts a new dataset epoch (export consumers sync again)
+and reconciles with the index. Scheduled every `scoutro.kg.backup.intervalDays`
+(7); the newest `scoutro.kg.backup.keep` (1) stay.
+
+## Re-resolve identities
+
+**Rebuild identities** builds the whole graph anew from the Solr index with the
+current identity rules, in `DATA/SCOUTRO/knowledge/rebuild` and within the
+remaining budget, while the current graph keeps serving. The panel shows the
+phase and the progress and refreshes itself. Before the swap the new graph is
+checked; if it has far fewer pages than the current one it waits for **Swap
+in the rebuilt graph**. The current graph is kept as a backup ("before a
+rebuild"), stored entity IDs keep leading to their objects. **Cancel the
+rebuild**, or a stop of Scoutro, before the swap deletes the new graph and
+changes nothing.
 
 ## Access And Safety
 
@@ -74,7 +108,9 @@ text; links to crawled pages open in a new tab without a referrer.
 | `/scoutro/api/v1/kg/statements/{id}` / `…/evidence` | GET | One fact and its evidence (≤ 50 per page) |
 | `/scoutro/api/v1/kg/hosts/{host}/entities` | GET | Objects of a host |
 | `/scoutro/api/v1/kg/sources/{docId}` | GET | What the graph holds from one page |
-| `/scoutro/api/v1/kg/control` | POST | `pause`, `resume`, `reconcile`, `confirm_reconcile`, `llm_retry` |
+| `/scoutro/api/v1/kg/control` | POST | `pause`, `resume`, `reconcile`, `confirm_reconcile`, `llm_retry`, `backup`, `restore` (with `backup`), `rebuild`, `rebuild_cancel`, `rebuild_confirm` |
+| `/scoutro/api/v1/kg/backups` | GET | The backup files with their metadata |
+| `/scoutro/api/v1/kg/backups/{file}` | GET | Download one backup (SQLite file) |
 | `/scoutro/api/v1/kg/export` | GET | Export pages (`cursor`, `limit` ≤ 200, `include=evidence`, `collection`) |
 | `/scoutro/api/v1/kg/changes` | GET | Changes after a cursor, with delete notices (`expand=true` adds the records) |
 | `/scoutro/api/v1/kg/export/download` | GET | The whole export as a file (`format=ndjson|json`, `include=evidence`, `collection`) |
@@ -82,6 +118,9 @@ text; links to crawled pages open in a new tab without a referrer.
 The export is not a snapshot: after it, read the changes from its
 `next_changes` cursor. A cursor that is too old or from before a reset answers
 410 with `details.full_sync`; start the export again.
+
+The page and every route need the administrator; backups, restore, rebuild
+and the download are never available to agents.
 
 **Agents** get the same reads with the grant `kg.read` and export and changes
 with the separate grant `kg.export` (Agents & Access), on

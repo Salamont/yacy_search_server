@@ -97,6 +97,7 @@ public final class StorageGuard {
     private long tmpElsewhereBytes = -1L;
     private String tmpDirectory = TMP_DIR_UNSET;
     private long backupBytes;
+    private long rebuildBytes;
     private long usableBytes;
     private long measuredAt;
     private long fullMeasuredAt;
@@ -133,6 +134,7 @@ public final class StorageGuard {
         this.tmpOpenBytes = open.inDirBytes;
         this.tmpElsewhereBytes = open.elsewhereBytes;
         this.backupBytes = this.probe.dirBytes(this.paths.backup);
+        this.rebuildBytes = this.probe.dirBytes(this.paths.rebuild);
         this.fullMeasuredAt = this.clock.getAsLong();
         measureFast();
     }
@@ -167,7 +169,7 @@ public final class StorageGuard {
     }
 
     private long usedBytes() {
-        return this.dbBytes + this.walBytes + this.shmBytes + tmpBytes() + this.backupBytes;
+        return this.dbBytes + this.walBytes + this.shmBytes + tmpBytes() + this.backupBytes + this.rebuildBytes;
     }
 
     /** Visible temp files plus the unlinked ones SQLite holds open, in the graph directory or elsewhere. */
@@ -229,6 +231,12 @@ public final class StorageGuard {
             return TMP_LIMIT;
         }
         return null;
+    }
+
+    /** The level of the measured usage ({@link KgConfig#level}). */
+    public synchronized String level() {
+        measureFast();
+        return this.cfg.level(usedBytes(), this.cfg.budgetMaxBytes);
     }
 
     /** True if new growth would currently be admitted (without an estimate). */
@@ -385,7 +393,7 @@ public final class StorageGuard {
         final JSONObject files = KgJson.obj("db", this.dbBytes, "wal", this.walBytes, "shm", this.shmBytes,
                 "tmpVisible", this.tmpVisibleBytes, "tmpOpen", this.tmpOpenBytes >= 0 ? this.tmpOpenBytes : null,
                 "tmpOpenElsewhere", this.tmpElsewhereBytes >= 0 ? this.tmpElsewhereBytes : null,
-                "tmpDirectory", this.tmpDirectory, "backup", this.backupBytes);
+                "tmpDirectory", this.tmpDirectory, "backup", this.backupBytes, "rebuild", this.rebuildBytes);
         final JSONObject wal = KgJson.obj("bytes", this.walBytes, "maxBytes", this.cfg.walMaxBytes,
                 "checkpointAtBytes", this.cfg.walCheckpointBytes,
                 "lastCheckpoint", this.lastCheckpoint == null ? null : this.lastCheckpoint.toJson(),
@@ -402,7 +410,11 @@ public final class StorageGuard {
         for (final JSONObject r : reasons()) {
             reasons.put(r);
         }
-        return KgJson.obj("budgetBytes", this.cfg.budgetMaxBytes, "usedBytes", usedBytes(),
+        final long used = usedBytes();
+        return KgJson.obj("budgetBytes", this.cfg.budgetMaxBytes, "usedBytes", used,
+                "usedPercent", this.cfg.budgetMaxBytes > 0 ? Math.round(used * 1000.0 / this.cfg.budgetMaxBytes) / 10.0 : null,
+                "level", this.cfg.level(used, this.cfg.budgetMaxBytes),
+                "noticeAtBytes", this.cfg.noticeAtBytes(), "warnAtBytes", this.cfg.warnAtBytes(),
                 "pauseAtBytes", this.cfg.pauseAtBytes(), "resumeAtBytes", this.cfg.resumeAtBytes(),
                 "maintenanceReserveBytes", this.cfg.maintenanceBytes(), "dataShareBytes", this.cfg.dataBytes(),
                 "tmpMaxBytes", this.cfg.tmpMaxBytes, "files", files, "wal", wal, "disk", disk,

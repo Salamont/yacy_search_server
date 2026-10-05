@@ -41,6 +41,7 @@ public class StorageGuardTest {
         final AtomicLong wal = new AtomicLong();
         final AtomicLong usable = new AtomicLong(100L * GIB);
         final AtomicLong tmpOpen = new AtomicLong();
+        final java.util.Map<String, Long> dirs = new java.util.concurrent.ConcurrentHashMap<>();
 
         @Override
         public long fileBytes(final File file) {
@@ -55,7 +56,7 @@ public class StorageGuardTest {
 
         @Override
         public long dirBytes(final File dir) {
-            return 0L;
+            return this.dirs.getOrDefault(dir.getName(), 0L);
         }
 
         @Override
@@ -107,6 +108,52 @@ public class StorageGuardTest {
         // maintenance may use the whole budget, not more
         p.db.set(995 * MIB);
         assertEquals(StorageGuard.BUDGET_EXHAUSTED, refusal(g, WriteClass.MAINTENANCE, 10 * MIB));
+    }
+
+    @Test
+    public void levelsNoticeWarnBrakeAndFull() throws Exception {
+        final FakeProbe p = new FakeProbe();
+        final StorageGuard g = guard(p, KgConfig.BUDGET_MAX_BYTES, Long.toString(1000 * MIB));
+        final long[] used = {100, 700, 800, 900, 1000};
+        final String[] levels = {KgConfig.LEVEL_OK, KgConfig.LEVEL_NOTICE, KgConfig.LEVEL_WARNING, KgConfig.LEVEL_BRAKE, KgConfig.LEVEL_FULL};
+        for (int i = 0; i < used.length; i++) {
+            p.db.set(used[i] * MIB);
+            assertEquals(used[i] + " MiB", levels[i], g.level());
+            final org.json.JSONObject st = g.status();
+            assertEquals(levels[i], st.getString("level"));
+            assertEquals(used[i] / 10.0, st.getDouble("usedPercent"), 0.05);
+        }
+        final org.json.JSONObject st = g.status();
+        assertEquals(1000 * MIB / 100 * 70, st.getLong("noticeAtBytes"));
+        assertEquals(1000 * MIB / 100 * 80, st.getLong("warnAtBytes"));
+        // after the brake the pause holds down to the resume threshold (hysteresis)
+        p.db.set(850 * MIB);
+        assertEquals(StorageGuard.BUDGET, refusal(g, WriteClass.GROWTH, 0));
+        // notice and warning only inform: on the way up, growth is admitted below the brake
+        final FakeProbe q = new FakeProbe();
+        final StorageGuard fresh = guard(q, KgConfig.BUDGET_MAX_BYTES, Long.toString(1000 * MIB));
+        q.db.set(850 * MIB);
+        assertEquals(KgConfig.LEVEL_WARNING, fresh.level());
+        assertNull(refusal(fresh, WriteClass.GROWTH, MIB));
+    }
+
+    @Test
+    public void backupsAndARebuildCountAgainstTheBudget() throws Exception {
+        final FakeProbe p = new FakeProbe();
+        final StorageGuard g = guard(p, KgConfig.BUDGET_MAX_BYTES, Long.toString(1000 * MIB));
+        p.db.set(400 * MIB);
+        p.dirs.put("backup", 300 * MIB);
+        p.dirs.put("rebuild", 250 * MIB);
+        g.refresh();
+        final org.json.JSONObject st = g.status();
+        assertEquals(950 * MIB, st.getLong("usedBytes"));
+        assertEquals(300 * MIB, st.getJSONObject("files").getLong("backup"));
+        assertEquals(250 * MIB, st.getJSONObject("files").getLong("rebuild"));
+        assertEquals(StorageGuard.BUDGET, refusal(g, WriteClass.GROWTH, 0));
+        // the shadow deleted (a cancel): growth again below the pause threshold minus the hysteresis
+        p.dirs.remove("rebuild");
+        g.refresh();
+        assertNull(refusal(g, WriteClass.GROWTH, MIB));
     }
 
     @Test
