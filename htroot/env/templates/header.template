@@ -152,7 +152,6 @@
           <li><a href="#">Please help! We need financial help to move on with the development!</a></li>
           </ul>
         </li>
-        #(navigation-showChatLink)#::
         <li>&nbsp;</li>
         <li id="header_chat">
           <form action="yacychat.html" method="get">
@@ -162,7 +161,6 @@
             </button>
           </form>
         </li>
-        #(/navigation-showChatLink)#
         <li>&nbsp;</li>
         <li id="header_search">
           <form action="index.html" method="get">
@@ -190,6 +188,13 @@
       <li><a href="ScoutroDiscovery_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Discovery Automation</a></li>
       <li><a href="ScoutroCrawls_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Crawls</a></li>
       <li><a href="ScoutroSEO_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">SEO / Host Analysis</a></li>
+    </ul>
+    <!-- Scoutro: the AI Lab with the chat, always visible; access is still decided by the AI Shield -->
+    <ul class="nav nav-sidebar menugroup" id="scoutro-ai">
+      <li><h3>AI Lab</h3></li>
+      <li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>
+      <li><a href="AILab.html" class="MenuItemLink">AI Lab overview</a></li>
+      <li><a href="ToolsConfig_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Chat tools</a></li>
     </ul>
     
     <ul class="nav nav-sidebar menugroup" id="first-steps"
@@ -222,7 +227,6 @@
     <ul class="nav nav-sidebar menugroup">
       <li><h3>Production</h3></li>
       <li><a href="CrawlStartExpert.html" class="MenuItemLink">Crawler</a></li>
-      <li><a href="AILab.html" class="MenuItemLink">AI Lab</a></li>
       <li><a href="Automation_p.html?sort=-date_recording" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Automation</a></li>
       <li><a href="IndexPackGenerator_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">YaCy Packs &amp; Import/Export</a></li>
       <li><a href="Vocabulary_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Content Semantic</a></li>
@@ -258,7 +262,7 @@
     <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-system">
       <li><h3>System</h3></li>
       <li><a href="index.html#(authorized)#::?auth#(/authorized)#" class="MenuItemLink">Search</a></li>
-      #(navigation-showChatLink)#::<li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>#(/navigation-showChatLink)#
+      <li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>
       <li><a href="Steering.html" class="MenuItemLink" onclick="confirmRestart(); return false;">Re-Start</a></li>
       <li><a href="Steering.html" class="MenuItemLink" onclick="confirmShutdown(); return false;">Shutdown</a></li>
     </ul>

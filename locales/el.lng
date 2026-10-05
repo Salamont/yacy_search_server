@@ -1511,36 +1511,9 @@ More Tutorials==Περισσότερα σεμινάρια
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="Διαγραφή υποδιαδρομής"
-"Re-load load-failure docs (404s etc)"=="Επαναφόρτωση εγγράφων φόρτωσης αποτυχίας (404s κ.λπ.)"
-"Directory"=="Τηλεφωνικός κατάλογος"
-"Delete Load Errors"=="Διαγραφή σφαλμάτων φόρτωσης"
 Index Browser==Πρόγραμμα περιήγησης ευρετηρίου
-Host/URL==οικοδεσπότης/URL
-Browse Host==Περιήγηση στον κεντρικό υπολογιστή
-Host List==Λίστα κεντρικού υπολογιστή
-URLs==URL
-Count Colors:==Καταμέτρηση χρωμάτων:
-Documents without Errors==Έγγραφα χωρίς λάθη
-Pending in Crawler==Εκκρεμεί στο Crawler
-Crawler Excludes==Εξαιρείται το Crawler
-Load Errors==Σφάλματα φόρτωσης
-Host Analysis==Ανάλυση κεντρικού υπολογιστή
-Add to blacklist==Προσθήκη στη μαύρη λίστα
-Path==Μονοπάτι
-stored==αποθηκευμένο
-linked==συνδεδεμένο
-pending==εκκρεμής
-excluded==εξαιρούνται
-failed==αποτυχημένος
-Metadata==Μεταδεδομένα
-link, detected from context==σύνδεσμος, που εντοπίστηκε από το περιβάλλον
-load &amp; index==φόρτωση ευρετηρίου &amp;
 indexed==ευρετηριασμένα
 loading==φόρτωση
-Administration Options==Επιλογές Διαχείρισης
-Delete all==Διαγραφή όλων
-from index==από ευρετήριο
 #-----------------------------
 
 #File: IndexControlRWIs_p.html
@@ -3497,15 +3470,7 @@ Threaddump==Threaddump
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==Εργαλεία
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Προσθέστε υπερδυνάμεις στη συνομιλία YaCy. Τα εργαλεία μπορούν να απενεργοποιηθούν ορίζοντας maxCallsPerTurn σε 0.
 Tool settings were saved.==Οι ρυθμίσεις του εργαλείου αποθηκεύτηκαν.
-Basic Tools==Βασικά Εργαλεία
-maxCallsPerTurn==maxCallsPerTurn
-disable==καθιστώ ανίκανο
-Visualization Tools==Εργαλεία Οπτικοποίησης
-Data Retrieval Tools==Εργαλεία ανάκτησης δεδομένων
-Save Tools Configuration==Αποθήκευση διαμόρφωσης εργαλείων
 #-----------------------------
 
 #File: Trails.html
@@ -3896,6 +3861,8 @@ gracious: 50 &euro;==ευγενικό: 50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==Επισκόπηση AI Lab
+Chat tools==Εργαλεία συνομιλίας
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>Αυτοματοποίηση ανακάλυψης<
 >Dashboard<==>Πίνακας ελέγχου<
@@ -4015,10 +3982,10 @@ Administration &raquo;==Διαχείριση &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Εργαλεία συνομιλίας
 AI Lab==AI Lab
 LLM Selection==LLM Επιλογή
 RAG Config==RAG Διαμόρφωση
-Tools Config==Εργαλεία Διαμόρφωση
 Log Reports==Αναφορές καταγραφής
 AI Shield==AI Shield
 Chat==Κουβέντα
@@ -4418,27 +4385,13 @@ Network Monitor==Παρακολούθηση δικτύου
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="Επισυνάψτε τα αποτελέσματα αναζήτησης από προεπιλογή"
-"Search"=="Ερευνα"
 "Attach a file"=="Επισυνάψτε ένα αρχείο"
 "Send"=="Στέλνω"
 "Clear chat"=="Εκκαθάριση συνομιλίας"
 "Download chat"=="Λήψη συνομιλίας"
 "Upload chat"=="Μεταφόρτωση συνομιλίας"
 "Show system prompt"=="Εμφάνιση προτροπής συστήματος"
-YaCy Chat==YaCy Συζήτηση
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Αυτή η συνομιλία είναι ιδιωτική. Το YaCy δεν διατηρεί ιστορικό — μόνο το πρόγραμμα περιήγησής σας θυμάται την τρέχουσα συνομιλία.
-Default Dialog Augmentation:==Προεπιλεγμένη επαύξηση διαλόγου:
-no search, allow attachments==χωρίς αναζήτηση, επιτρέπονται τα συνημμένα
-use local search==χρησιμοποιήστε τοπική αναζήτηση
-use global search==χρησιμοποιήστε την παγκόσμια αναζήτηση
-User==Μεταχειριζόμενος
-Attach Search Results==Επισυνάψτε τα αποτελέσματα αναζήτησης
 Attach PNG/JPG or text (.txt/.md/.tex)==Επισυνάψτε PNG/JPG ή κείμενο (.txt/.md/.tex)
-Clear Chat==Εκκαθάριση συνομιλίας
-Download Chat==Κατεβάστε το Chat
-Upload Chat==Μεταφόρτωση συνομιλίας
-Show System==Εμφάνιση συστήματος
 #-----------------------------
 
 #File: yacyinteractive.html
@@ -4552,7 +4505,6 @@ Extended==Εκτεταμένη
 Strict==Αυστηρός
 Location==Τοποθεσία
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro Αυτοματοποίηση ανακάλυψης<
@@ -4854,7 +4806,6 @@ Location==Τοποθεσία
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Περιήγηση στις καταχωρισμένες διευθύνσεις URL χωρίς λήψη ή ανίχνευση.
 Apply filters==Εφαρμογή φίλτρων
 Reset filters==Επαναφορά φίλτρων
 Active collection:==Ενεργή συλλογή:
@@ -4864,7 +4815,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==Τ
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Μη έγκυρη συλλογή. Χρησιμοποιήστε έως 64 λατινικά γράμματα, ψηφία, κάτω παύλες ή παύλες.
 indexed URLs==καταχωρισμένες URL
 Index pages==Σελίδες ευρετηρίου
-Host/URL==οικοδεσπότης/URL
 Collection==Συλλογή
 URL==URL
 Host==Πλήθος

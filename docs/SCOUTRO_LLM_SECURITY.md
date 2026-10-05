@@ -62,8 +62,12 @@ Tool activation (`ToolProvider`):
 
 - A tool is offered to the model and executable only when it is released:
   `ai.tools.<name>.enabled=true` **and** `ai.tools.<name>.maxCallsPerTurn > 0`.
-  Default: no tool is released. The release is set in Tools Config
-  (`/ToolsConfig_p.html`, checkbox "released for the chat").
+  Default: no tool is released. The release is set in Chat tools
+  (`/ToolsConfig_p.html`, checkbox "Release for the chat"; the field "Maximum
+  calls per answer" is `maxCallsPerTurn`). Each tool card shows the resulting
+  status with the same rule: "Released for the chat", "Not released" or
+  "Deactivated" (0). Names, explanations and examples are display text only;
+  the form fields and stored keys are unchanged.
 - `tooling=supported` of a model only allows released tools to be sent to that
   model; it releases nothing.
 - Client-supplied `tools`, `tool_choice`, `functions` and `function_call` are
@@ -195,10 +199,10 @@ are read, not changed, unless a step says so.
 2. Open `https://<scoutro entrance>/LLMSelection_p.html` and log in as YaCy
    administrator. The api_key column shows "set" or nothing, never a key.
    "Load Model Name List" lists the models of the configured endpoint.
-3. Open `/ToolsConfig_p.html`: no tool is "released for the chat". Leave it so
+3. Open `/ToolsConfig_p.html`: every tool shows "Not released". Leave it so
    for the first test.
 4. Open `/yacychat.html` through the Olares entrance, ask a question with
-   "local search". Expected: the browser asks for (or reuses) the YaCy login,
+   "Scoutro index". Expected: the browser asks for (or reuses) the YaCy login,
    then the answer streams.
 5. Check the Scoutro log for the request:
    `RAGProxy … event=rag-request phase=start method=POST localhost=false source=x_real_ip peerTrusted=true shield=ADMIN`

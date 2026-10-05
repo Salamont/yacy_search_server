@@ -1511,36 +1511,9 @@ More Tutorials==更多教学
 
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="删除子路径"
-"Re-load load-failure docs (404s etc)"=="重新加载具有错误的文档(404s 等)"
-"Directory"=="目录"
-"Delete Load Errors"=="删除加载错误项"
 Index Browser==索引浏览器
-Host/URL==服务器/地址
-Browse Host==浏览服务器
-Host List==主机列表
-URLs==地址
-Count Colors:==计算颜色：
-Documents without Errors==没有错误的文档
-Pending in Crawler==在爬虫中待处理
-Crawler Excludes==爬虫排除
-Load Errors==加载错误
-Host Analysis==宿主分析
-Add to blacklist==添加到黑名单
-Path==路径
-stored==已存储
-linked==链接的
-pending==待办的
-excluded==排除
-failed==失败的
-Metadata==元数据
-link, detected from context==从内容中探测到的连接
-load &amp; index==加载 &amp; 索引
 indexed==索引的
 loading==加载中
-Administration Options==管理选项
-Delete all==全部删除
-from index==来自索引
 #-----------------------------
 
 #File: IndexControlRWIs_p.html
@@ -3497,15 +3470,7 @@ Threaddump==线程转储
 
 #File: ToolsConfig_p.html
 #---------------------------
-Tools==工具
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==将超能力添加到 YaCy 聊天中。可以通过将 maxCallsPerTurn 设置为 0 来禁用工具。
 Tool settings were saved.==工具设置已保存。
-Basic Tools==基本工具
-maxCallsPerTurn==maxCallsPerTurn
-disable==禁用
-Visualization Tools==可视化工具
-Data Retrieval Tools==数据检索工具
-Save Tools Configuration==保存工具配置
 #-----------------------------
 
 #File: Trails.html
@@ -3896,6 +3861,8 @@ gracious: 50 &euro;==亲切：50 &euro;
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==人工智能实验室概览
+Chat tools==聊天工具
 >SEO / Host Analysis<==>SEO / Host Analysis<
 >Discovery Automation<==>发现自动化<
 >Dashboard<==>仪表板<
@@ -4015,10 +3982,10 @@ Administration &raquo;==管理 &raquo;
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==聊天工具
 AI Lab==人工智能实验室
 LLM Selection==LLM 选择
 RAG Config==RAG 配置
-Tools Config==工具配置
 Log Reports==日志报告
 AI Shield==AI 保护
 Chat==聊天
@@ -4418,27 +4385,13 @@ Network Monitor==网络监控器
 
 #File: yacychat.html
 #---------------------------
-"Attach search results by default"=="默认附加搜索结果"
-"Search"=="搜索"
 "Attach a file"=="附上文件"
 "Send"=="发送"
 "Clear chat"=="清除聊天记录"
 "Download chat"=="下载聊天"
 "Upload chat"=="上传聊天记录"
 "Show system prompt"=="显示系统提示"
-YaCy Chat==YaCy 聊天
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==此聊天是私人的。 YaCy 不保留任何历史记录 - 只有您的浏览器会记住当前对话。
-Default Dialog Augmentation:==默认对话框增强：
-no search, allow attachments==不允许搜索，允许附件
-use local search==使用本地搜索
-use global search==使用全局搜索
-User==用户
-Attach Search Results==附上搜索结果
 Attach PNG/JPG or text (.txt/.md/.tex)==附上 PNG/JPG 或文本 (.txt/.md/.tex)
-Clear Chat==清除聊天
-Download Chat==下载聊天
-Upload Chat==上传聊天记录
-Show System==展示系统
 #-----------------------------
 
 #File: yacyinteractive.html
@@ -4552,7 +4505,6 @@ Extended==扩展
 Strict==严格的
 Location==位置
 #-----------------------------
-
 
 #File: ScoutroDiscovery_p.html
 >Scoutro Discovery Automation<==>Scoutro 发现自动化<
@@ -4854,7 +4806,6 @@ Location==位置
 
 #File: IndexBrowser_p.html
 # Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==浏览已索引的网址，不下载或抓取网页。
 Apply filters==应用筛选
 Reset filters==重置筛选
 Active collection:==当前集合：
@@ -4864,7 +4815,6 @@ Index data unavailable or access denied. Sign in as administrator and retry.==�
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==集合名称无效。请使用最多64个字母、数字、下划线或连字符。
 indexed URLs==已索引网址
 Index pages==索引页面
-Host/URL==服务器/地址
 Collection==收藏
 URL==URL
 Host==主持人

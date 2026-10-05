@@ -196,6 +196,9 @@
     <trans-unit id="c0a0a6b4" xml:space="preserve" approved="no" translate="yes">
        <source>Expose a shortcut to the chat UI on the search front page if you want users to discover it.</source>
     </trans-unit>
+    <trans-unit id="fc3eae" xml:space="preserve" approved="no" translate="yes">
+       <source>The administration navigation always shows the chat; this switch only affects the public search pages. Who may use the chat is still decided by the AI Shield.</source>
+    </trans-unit>
     <trans-unit id="295b73cc" xml:space="preserve" approved="no" translate="yes">
        <source>Show a link to yacychat.html on the search front page</source>
     </trans-unit>
@@ -4244,6 +4247,12 @@
 
 <file original="IndexBrowser_p.html"  source-language="en"  datatype="html">
   <body>
+    <trans-unit id="94b5cfdc" xml:space="preserve" approved="no" translate="yes">
+       <source>"Index Browser views"</source>
+    </trans-unit>
+    <trans-unit id="79bd6eb8" xml:space="preserve" approved="no" translate="yes">
+       <source>"Domain pages"</source>
+    </trans-unit>
     <trans-unit id="d7fe492e" xml:space="preserve" approved="no" translate="yes">
        <source>"Index pages"</source>
     </trans-unit>
@@ -4253,20 +4262,59 @@
     <trans-unit id="c472c59a" xml:space="preserve" approved="no" translate="yes">
        <source>Index Browser</source>
     </trans-unit>
-    <trans-unit id="42202257" xml:space="preserve" approved="no" translate="yes">
-       <source>Browse indexed URLs without loading or crawling them.</source>
+    <trans-unit id="2c8cde0e" xml:space="preserve" approved="no" translate="yes">
+       <source>Websites in the index, one entry per domain and collection. Viewing starts no crawl and loads no page.</source>
     </trans-unit>
-    <trans-unit id="f1deec88" xml:space="preserve" approved="no" translate="yes">
-       <source>Host/URL</source>
+    <trans-unit id="d0bf5c0f" xml:space="preserve" approved="no" translate="yes">
+       <source>Domains</source>
+    </trans-unit>
+    <trans-unit id="f8ab61bc" xml:space="preserve" approved="no" translate="yes">
+       <source>Single URLs</source>
+    </trans-unit>
+    <trans-unit id="b3014689" xml:space="preserve" approved="no" translate="yes">
+       <source>Domain or host</source>
     </trans-unit>
     <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
        <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="ea8ad9f9" xml:space="preserve" approved="no" translate="yes">
+       <source>Sort by</source>
+    </trans-unit>
+    <trans-unit id="a364977b" xml:space="preserve" approved="no" translate="yes">
+       <source>Domain (A&amp;ndash;Z)</source>
+    </trans-unit>
+    <trans-unit id="70635e18" xml:space="preserve" approved="no" translate="yes">
+       <source>Most indexed pages</source>
     </trans-unit>
     <trans-unit id="fd95a529" xml:space="preserve" approved="no" translate="yes">
        <source>Apply filters</source>
     </trans-unit>
     <trans-unit id="aafcce0a" xml:space="preserve" approved="no" translate="yes">
        <source>Reset filters</source>
+    </trans-unit>
+    <trans-unit id="7c8dffd4" xml:space="preserve" approved="no" translate="yes">
+       <source>Export</source>
+    </trans-unit>
+    <trans-unit id="fc774be3" xml:space="preserve" approved="no" translate="yes">
+       <source>Export domains</source>
+    </trans-unit>
+    <trans-unit id="ba3a2ea6" xml:space="preserve" approved="no" translate="yes">
+       <source>The export contains the current filter: &lt;strong id="scoutro-export-scope"&gt;&lt;/strong&gt;</source>
+    </trans-unit>
+    <trans-unit id="7dc4e417" xml:space="preserve" approved="no" translate="yes">
+       <source>Format</source>
+    </trans-unit>
+    <trans-unit id="f964e6bc" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON (for other systems)</source>
+    </trans-unit>
+    <trans-unit id="2655d51d" xml:space="preserve" approved="no" translate="yes">
+       <source>CSV (for spreadsheets)</source>
+    </trans-unit>
+    <trans-unit id="c8d7422c" xml:space="preserve" approved="no" translate="yes">
+       <source>Download export</source>
+    </trans-unit>
+    <trans-unit id="56f7b71a" xml:space="preserve" approved="no" translate="yes">
+       <source>One entry per domain and collection, not per URL, sorted by domain. Values Scoutro does not know stay empty. The export only reads the index: it starts no crawl and calls no AI model.</source>
     </trans-unit>
     <trans-unit id="c673b362" xml:space="preserve" approved="no" translate="yes">
        <source>Active collection:</source>
@@ -4277,11 +4325,26 @@
     <trans-unit id="73ba94f9" xml:space="preserve" approved="no" translate="yes">
        <source>No indexed URLs match these filters.</source>
     </trans-unit>
+    <trans-unit id="72642b4a" xml:space="preserve" approved="no" translate="yes">
+       <source>No indexed domains match these filters.</source>
+    </trans-unit>
     <trans-unit id="d95ab1d4" xml:space="preserve" approved="no" translate="yes">
        <source>Index data unavailable or access denied. Sign in as administrator and retry.</source>
     </trans-unit>
     <trans-unit id="da662550" xml:space="preserve" approved="no" translate="yes">
        <source>Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.</source>
+    </trans-unit>
+    <trans-unit id="d163efd3" xml:space="preserve" approved="no" translate="yes">
+       <source>Enter a host name, part of a host name or a URL.</source>
+    </trans-unit>
+    <trans-unit id="db8cf134" xml:space="preserve" approved="no" translate="yes">
+       <source>domain entries</source>
+    </trans-unit>
+    <trans-unit id="b7ee1f17" xml:space="preserve" approved="no" translate="yes">
+       <source>Previous</source>
+    </trans-unit>
+    <trans-unit id="24ff13" xml:space="preserve" approved="no" translate="yes">
+       <source>Next</source>
     </trans-unit>
     <trans-unit id="4ac376d3" xml:space="preserve" approved="no" translate="yes">
        <source>indexed URLs</source>
@@ -4295,11 +4358,116 @@
     <trans-unit id="8cd30e8a" xml:space="preserve" approved="no" translate="yes">
        <source>HTTP status</source>
     </trans-unit>
-    <trans-unit id="b7ee1f17" xml:space="preserve" approved="no" translate="yes">
-       <source>Previous</source>
+    <trans-unit id="4acff85e" xml:space="preserve" approved="no" translate="yes">
+       <source>indexed page</source>
     </trans-unit>
-    <trans-unit id="24ff13" xml:space="preserve" approved="no" translate="yes">
-       <source>Next</source>
+    <trans-unit id="f2f13d5" xml:space="preserve" approved="no" translate="yes">
+       <source>indexed pages</source>
+    </trans-unit>
+    <trans-unit id="cf0f38f6" xml:space="preserve" approved="no" translate="yes">
+       <source>without collection</source>
+    </trans-unit>
+    <trans-unit id="ac32787b" xml:space="preserve" approved="no" translate="yes">
+       <source>Website</source>
+    </trans-unit>
+    <trans-unit id="1593d7ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Start page</source>
+    </trans-unit>
+    <trans-unit id="cbdbb8af" xml:space="preserve" approved="no" translate="yes">
+       <source>Last loaded</source>
+    </trans-unit>
+    <trans-unit id="92791e3d" xml:space="preserve" approved="no" translate="yes">
+       <source>Last crawl</source>
+    </trans-unit>
+    <trans-unit id="78d7e2b" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl status</source>
+    </trans-unit>
+    <trans-unit id="db110006" xml:space="preserve" approved="no" translate="yes">
+       <source>Classification</source>
+    </trans-unit>
+    <trans-unit id="316d5e8a" xml:space="preserve" approved="no" translate="yes">
+       <source>confidence</source>
+    </trans-unit>
+    <trans-unit id="7038a590" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery</source>
+    </trans-unit>
+    <trans-unit id="55f30fe2" xml:space="preserve" approved="no" translate="yes">
+       <source>No page title in the index</source>
+    </trans-unit>
+    <trans-unit id="4e64c75f" xml:space="preserve" approved="no" translate="yes">
+       <source>SEO analysis</source>
+    </trans-unit>
+    <trans-unit id="635d6222" xml:space="preserve" approved="no" translate="yes">
+       <source>Open the SEO / host analysis of this domain</source>
+    </trans-unit>
+    <trans-unit id="73d448f1" xml:space="preserve" approved="no" translate="yes">
+       <source>indexed</source>
+    </trans-unit>
+    <trans-unit id="a8b86591" xml:space="preserve" approved="no" translate="yes">
+       <source>partly indexed</source>
+    </trans-unit>
+    <trans-unit id="f7043ea5" xml:space="preserve" approved="no" translate="yes">
+       <source>not reloaded</source>
+    </trans-unit>
+    <trans-unit id="85190ca4" xml:space="preserve" approved="no" translate="yes">
+       <source>not indexed</source>
+    </trans-unit>
+    <trans-unit id="ef05ac4a" xml:space="preserve" approved="no" translate="yes">
+       <source>unknown</source>
+    </trans-unit>
+    <trans-unit id="352739ae" xml:space="preserve" approved="no" translate="yes">
+       <source>PASS (fits)</source>
+    </trans-unit>
+    <trans-unit id="82e99746" xml:space="preserve" approved="no" translate="yes">
+       <source>FAIL (does not fit)</source>
+    </trans-unit>
+    <trans-unit id="957e1a2e" xml:space="preserve" approved="no" translate="yes">
+       <source>UNSURE</source>
+    </trans-unit>
+    <trans-unit id="42acfab" xml:space="preserve" approved="no" translate="yes">
+       <source>Hosts</source>
+    </trans-unit>
+    <trans-unit id="dd7" xml:space="preserve" approved="no" translate="yes">
+       <source>of</source>
+    </trans-unit>
+    <trans-unit id="59afe196" xml:space="preserve" approved="no" translate="yes">
+       <source>all collections</source>
+    </trans-unit>
+    <trans-unit id="665710f0" xml:space="preserve" approved="no" translate="yes">
+       <source>host filter</source>
+    </trans-unit>
+    <trans-unit id="d4a83111" xml:space="preserve" approved="no" translate="yes">
+       <source>no host filter</source>
+    </trans-unit>
+    <trans-unit id="8bf5bda2" xml:space="preserve" approved="no" translate="yes">
+       <source>domain entry will be exported.</source>
+    </trans-unit>
+    <trans-unit id="a84f1540" xml:space="preserve" approved="no" translate="yes">
+       <source>domain entries will be exported.</source>
+    </trans-unit>
+    <trans-unit id="44bd6efc" xml:space="preserve" approved="no" translate="yes">
+       <source>The number of entries is shown in the file.</source>
+    </trans-unit>
+    <trans-unit id="c19e8271" xml:space="preserve" approved="no" translate="yes">
+       <source>Loading domains …</source>
+    </trans-unit>
+    <trans-unit id="196ff10c" xml:space="preserve" approved="no" translate="yes">
+       <source>Operator and contact as found on the indexed pages</source>
+    </trans-unit>
+    <trans-unit id="4984d4e" xml:space="preserve" approved="no" translate="yes">
+       <source>Phone</source>
+    </trans-unit>
+    <trans-unit id="786b8a3f" xml:space="preserve" approved="no" translate="yes">
+       <source>E-mail</source>
+    </trans-unit>
+    <trans-unit id="93f5543b" xml:space="preserve" approved="no" translate="yes">
+       <source>Source</source>
+    </trans-unit>
+    <trans-unit id="dd968e4e" xml:space="preserve" approved="no" translate="yes">
+       <source>Name candidate</source>
+    </trans-unit>
+    <trans-unit id="e1b80bf2" xml:space="preserve" approved="no" translate="yes">
+       <source>Not certain: taken from the page metadata or a page title, not from a name with legal form</source>
     </trans-unit>
     <trans-unit id="4b02d58c" xml:space="preserve" approved="no" translate="yes">
        <source>Index administration</source>
@@ -9711,35 +9879,251 @@
 
 <file original="ToolsConfig_p.html"  source-language="en"  datatype="html">
   <body>
-    <trans-unit id="4d3d9bb" xml:space="preserve" approved="no" translate="yes">
-       <source>Tools</source>
+    <trans-unit id="3423f8ae" xml:space="preserve" approved="no" translate="yes">
+       <source>"Status of a tool"</source>
     </trans-unit>
-    <trans-unit id="16fc2888" xml:space="preserve" approved="no" translate="yes">
-       <source>Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.</source>
+    <trans-unit id="92abc7f4" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro: Chat tools</source>
+    </trans-unit>
+    <trans-unit id="bcdc6b33" xml:space="preserve" approved="no" translate="yes">
+       <source>Chat tools</source>
+    </trans-unit>
+    <trans-unit id="c8a0e411" xml:space="preserve" approved="no" translate="yes">
+       <source>Tools are small helper functions the AI may call while it writes an answer, for example to calculate exactly or to read a web page. Whether the chat model can use tools at all is set in LLM Selection.</source>
+    </trans-unit>
+    <trans-unit id="cc739f69" xml:space="preserve" approved="no" translate="yes">
+       <source>A tool is used only when it is &lt;b&gt;released for the chat&lt;/b&gt; and its &lt;b&gt;maximum calls per answer&lt;/b&gt; is above 0. A model with tool support alone releases no tool. The web tools “Query JSON API” and “Fetch web page” reach only public http(s) addresses.</source>
+    </trans-unit>
+    <trans-unit id="4fcef901" xml:space="preserve" approved="no" translate="yes">
+       <source>Released for the chat</source>
+    </trans-unit>
+    <trans-unit id="c4446804" xml:space="preserve" approved="no" translate="yes">
+       <source>the AI may use the tool</source>
+    </trans-unit>
+    <trans-unit id="42e00a" xml:space="preserve" approved="no" translate="yes">
+       <source>Not released</source>
+    </trans-unit>
+    <trans-unit id="dc1089ea" xml:space="preserve" approved="no" translate="yes">
+       <source>the release for the chat is missing</source>
+    </trans-unit>
+    <trans-unit id="f9e7e650" xml:space="preserve" approved="no" translate="yes">
+       <source>Deactivated</source>
+    </trans-unit>
+    <trans-unit id="99e6d50e" xml:space="preserve" approved="no" translate="yes">
+       <source>maximum calls per answer is 0</source>
+    </trans-unit>
+    <trans-unit id="31185db5" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum calls per answer: how often the AI may use this tool while writing one answer. 0 = deactivated.</source>
     </trans-unit>
     <trans-unit id="112406f1" xml:space="preserve" approved="no" translate="yes">
        <source>Tool settings were saved.</source>
     </trans-unit>
-    <trans-unit id="d95b0f29" xml:space="preserve" approved="no" translate="yes">
-       <source>Basic Tools</source>
+    <trans-unit id="39047f29" xml:space="preserve" approved="no" translate="yes">
+       <source>Calculation and helper tools</source>
     </trans-unit>
-    <trans-unit id="93c2cf29" xml:space="preserve" approved="no" translate="yes">
-       <source>maxCallsPerTurn</source>
+    <trans-unit id="6db4cadb" xml:space="preserve" approved="no" translate="yes">
+       <source>These tools work on the Scoutro server with the data the AI already has; most of them need no network access.</source>
     </trans-unit>
-    <trans-unit id="639e22e8" xml:space="preserve" approved="no" translate="yes">
-       <source>disable</source>
+    <trans-unit id="77578030" xml:space="preserve" approved="no" translate="yes">
+       <source>Example:</source>
     </trans-unit>
-    <trans-unit id="e2eda921" xml:space="preserve" approved="no" translate="yes">
-       <source>released for the chat</source>
+    <trans-unit id="512e90da" xml:space="preserve" approved="no" translate="yes">
+       <source>Security:</source>
     </trans-unit>
-    <trans-unit id="cc25df9f" xml:space="preserve" approved="no" translate="yes">
-       <source>Visualization Tools</source>
+    <trans-unit id="86566b7" xml:space="preserve" approved="no" translate="yes">
+       <source>Release for the chat</source>
     </trans-unit>
-    <trans-unit id="61b68159" xml:space="preserve" approved="no" translate="yes">
-       <source>Data Retrieval Tools</source>
+    <trans-unit id="b48f9d6c" xml:space="preserve" approved="no" translate="yes">
+       <source>Maximum calls per answer</source>
     </trans-unit>
-    <trans-unit id="d5faa02e" xml:space="preserve" approved="no" translate="yes">
-       <source>Save Tools Configuration</source>
+    <trans-unit id="ffcdac94" xml:space="preserve" approved="no" translate="yes">
+       <source>Deactivate</source>
+    </trans-unit>
+    <trans-unit id="a8590ca4" xml:space="preserve" approved="no" translate="yes">
+       <source>Description for the AI model (advanced)</source>
+    </trans-unit>
+    <trans-unit id="30b18de9" xml:space="preserve" approved="no" translate="yes">
+       <source>The model reads this English text to decide when to use the tool. Change it only if the model uses the tool too often or too rarely.</source>
+    </trans-unit>
+    <trans-unit id="49cdc1bb" xml:space="preserve" approved="no" translate="yes">
+       <source>Description for the AI model</source>
+    </trans-unit>
+    <trans-unit id="f5a50e20" xml:space="preserve" approved="no" translate="yes">
+       <source>Diagrams</source>
+    </trans-unit>
+    <trans-unit id="35e4cf4c" xml:space="preserve" approved="no" translate="yes">
+       <source>These tools draw diagrams in the answer.</source>
+    </trans-unit>
+    <trans-unit id="c7edfaf1" xml:space="preserve" approved="no" translate="yes">
+       <source>Search and web access</source>
+    </trans-unit>
+    <trans-unit id="166f6cc2" xml:space="preserve" approved="no" translate="yes">
+       <source>These tools bring further information into the answer: from your index or, for “Fetch web page”, live from the internet.</source>
+    </trans-unit>
+    <trans-unit id="d9cb5068" xml:space="preserve" approved="no" translate="yes">
+       <source>Save tool settings</source>
+    </trans-unit>
+    <trans-unit id="63733882" xml:space="preserve" approved="no" translate="yes">
+       <source>Date &amp;amp; time</source>
+    </trans-unit>
+    <trans-unit id="354ae87d" xml:space="preserve" approved="no" translate="yes">
+       <source>Tells the AI the current date and time, optionally for a time zone.</source>
+    </trans-unit>
+    <trans-unit id="531b8bb9" xml:space="preserve" approved="no" translate="yes">
+       <source>What time is it in New York right now?</source>
+    </trans-unit>
+    <trans-unit id="2ee34ea3" xml:space="preserve" approved="no" translate="yes">
+       <source>Computed on the Scoutro server; no network access.</source>
+    </trans-unit>
+    <trans-unit id="2791a977" xml:space="preserve" approved="no" translate="yes">
+       <source>Date calculation</source>
+    </trans-unit>
+    <trans-unit id="b5817aa4" xml:space="preserve" approved="no" translate="yes">
+       <source>Calculates with dates: adds or subtracts days, weeks or months, measures the time between two dates, finds the start or end of a period.</source>
+    </trans-unit>
+    <trans-unit id="b5e88e46" xml:space="preserve" approved="no" translate="yes">
+       <source>Which date is 90 days after 1 March 2026?</source>
+    </trans-unit>
+    <trans-unit id="32f54722" xml:space="preserve" approved="no" translate="yes">
+       <source>Calculator</source>
+    </trans-unit>
+    <trans-unit id="83725152" xml:space="preserve" approved="no" translate="yes">
+       <source>Evaluates formulas exactly instead of letting the AI estimate the result.</source>
+    </trans-unit>
+    <trans-unit id="41063d5f" xml:space="preserve" approved="no" translate="yes">
+       <source>What is 17.5 % of 2,340?</source>
+    </trans-unit>
+    <trans-unit id="f1d70332" xml:space="preserve" approved="no" translate="yes">
+       <source>Number words</source>
+    </trans-unit>
+    <trans-unit id="a54f3f50" xml:space="preserve" approved="no" translate="yes">
+       <source>Turns written numbers into digits (German, English, French, Spanish, Italian).</source>
+    </trans-unit>
+    <trans-unit id="f6a67ec7" xml:space="preserve" approved="no" translate="yes">
+       <source>“einundzwanzig” becomes 21.</source>
+    </trans-unit>
+    <trans-unit id="8ec43e24" xml:space="preserve" approved="no" translate="yes">
+       <source>Unit converter</source>
+    </trans-unit>
+    <trans-unit id="4b8ae634" xml:space="preserve" approved="no" translate="yes">
+       <source>Converts length, weight, temperature, volume and speed.</source>
+    </trans-unit>
+    <trans-unit id="b13dc983" xml:space="preserve" approved="no" translate="yes">
+       <source>How many kilometres are 26.2 miles?</source>
+    </trans-unit>
+    <trans-unit id="8826af3a" xml:space="preserve" approved="no" translate="yes">
+       <source>Query JSON API</source>
+    </trans-unit>
+    <trans-unit id="53b2409e" xml:space="preserve" approved="no" translate="yes">
+       <source>Reads data from a public web interface (API) that answers in JSON.</source>
+    </trans-unit>
+    <trans-unit id="eb472d8e" xml:space="preserve" approved="no" translate="yes">
+       <source>Ask the public API of a weather service for the forecast for Berlin.</source>
+    </trans-unit>
+    <trans-unit id="cb973d7c" xml:space="preserve" approved="no" translate="yes">
+       <source>Only GET requests to public http(s) addresses; private and internal addresses are blocked, responses are limited to 2 MB. The AI chooses the address itself: release this tool only if the chat may reach the internet.</source>
+    </trans-unit>
+    <trans-unit id="cc1a6b9e" xml:space="preserve" approved="no" translate="yes">
+       <source>Table operations</source>
+    </trans-unit>
+    <trans-unit id="9299654" xml:space="preserve" approved="no" translate="yes">
+       <source>Filters, sorts, groups and counts table rows the AI already has, for example search hits.</source>
+    </trans-unit>
+    <trans-unit id="1314abd1" xml:space="preserve" approved="no" translate="yes">
+       <source>Sort the hits by city and count them per city.</source>
+    </trans-unit>
+    <trans-unit id="286164c" xml:space="preserve" approved="no" translate="yes">
+       <source>Show plan</source>
+    </trans-unit>
+    <trans-unit id="46701527" xml:space="preserve" approved="no" translate="yes">
+       <source>Shows a step list in the chat while the AI works on a task with several steps.</source>
+    </trans-unit>
+    <trans-unit id="c438566f" xml:space="preserve" approved="no" translate="yes">
+       <source>Plan the steps to compare three providers.</source>
+    </trans-unit>
+    <trans-unit id="5f0d0c02" xml:space="preserve" approved="no" translate="yes">
+       <source>Only changes the display in the chat; no network access.</source>
+    </trans-unit>
+    <trans-unit id="d485a2e9" xml:space="preserve" approved="no" translate="yes">
+       <source>Chat help</source>
+    </trans-unit>
+    <trans-unit id="b6c741ae" xml:space="preserve" approved="no" translate="yes">
+       <source>Explains what the chat can do and why it works the way it does.</source>
+    </trans-unit>
+    <trans-unit id="62e19e07" xml:space="preserve" approved="no" translate="yes">
+       <source>What can you do?</source>
+    </trans-unit>
+    <trans-unit id="4172f0c9" xml:space="preserve" approved="no" translate="yes">
+       <source>Answers with fixed texts; no network access.</source>
+    </trans-unit>
+    <trans-unit id="bcaa7845" xml:space="preserve" approved="no" translate="yes">
+       <source>Small talk</source>
+    </trans-unit>
+    <trans-unit id="e5c868e9" xml:space="preserve" approved="no" translate="yes">
+       <source>Answers greetings and test messages in a friendly way and names what the chat can do.</source>
+    </trans-unit>
+    <trans-unit id="ad6fa9ee" xml:space="preserve" approved="no" translate="yes">
+       <source>Hello, are you there?</source>
+    </trans-unit>
+    <trans-unit id="5632bdcf" xml:space="preserve" approved="no" translate="yes">
+       <source>Create diagram</source>
+    </trans-unit>
+    <trans-unit id="325597cb" xml:space="preserve" approved="no" translate="yes">
+       <source>Turns a description into a Mermaid diagram, for example a flowchart or a sequence.</source>
+    </trans-unit>
+    <trans-unit id="e46b8fb" xml:space="preserve" approved="no" translate="yes">
+       <source>Draw the way from a crawl to the index as a flowchart.</source>
+    </trans-unit>
+    <trans-unit id="c6c639ee" xml:space="preserve" approved="no" translate="yes">
+       <source>Diagram as text</source>
+    </trans-unit>
+    <trans-unit id="bc1ea637" xml:space="preserve" approved="no" translate="yes">
+       <source>Draws a Mermaid diagram as text graphics that every chat window can show.</source>
+    </trans-unit>
+    <trans-unit id="490dcaa2" xml:space="preserve" approved="no" translate="yes">
+       <source>Show this flowchart as text.</source>
+    </trans-unit>
+    <trans-unit id="2febc8d6" xml:space="preserve" approved="no" translate="yes">
+       <source>Index search</source>
+    </trans-unit>
+    <trans-unit id="a780d0aa" xml:space="preserve" approved="no" translate="yes">
+       <source>Lets the AI run additional searches of its own while answering, besides the automatic search for the question.</source>
+    </trans-unit>
+    <trans-unit id="aec55541" xml:space="preserve" approved="no" translate="yes">
+       <source>Also look up the opening hours of these places.</source>
+    </trans-unit>
+    <trans-unit id="e308ee53" xml:space="preserve" approved="no" translate="yes">
+       <source>Reads search results from your index, or from the YaCy network when global search is switched on; it starts no crawl. It does not use the collection chosen in the chat.</source>
+    </trans-unit>
+    <trans-unit id="2c2b71e3" xml:space="preserve" approved="no" translate="yes">
+       <source>Wikipedia link</source>
+    </trans-unit>
+    <trans-unit id="4f66c78c" xml:space="preserve" approved="no" translate="yes">
+       <source>Builds the address of a Wikipedia article from a topic. Together with “Fetch web page” the AI can then read the article.</source>
+    </trans-unit>
+    <trans-unit id="5b1fe7e3" xml:space="preserve" approved="no" translate="yes">
+       <source>Topic “Kurzzeitpflege” becomes https://de.wikipedia.org/wiki/Kurzzeitpflege.</source>
+    </trans-unit>
+    <trans-unit id="f0531c30" xml:space="preserve" approved="no" translate="yes">
+       <source>Only builds an address and loads nothing itself.</source>
+    </trans-unit>
+    <trans-unit id="855e12a1" xml:space="preserve" approved="no" translate="yes">
+       <source>Fetch web page</source>
+    </trans-unit>
+    <trans-unit id="2bf4fb96" xml:space="preserve" approved="no" translate="yes">
+       <source>Loads a public web page live from the internet and gives the AI its text (up to about 12,000 characters).</source>
+    </trans-unit>
+    <trans-unit id="1adbd760" xml:space="preserve" approved="no" translate="yes">
+       <source>Read https://example.org/about and summarize it.</source>
+    </trans-unit>
+    <trans-unit id="5768e70f" xml:space="preserve" approved="no" translate="yes">
+       <source>Only public http(s) addresses; private and internal addresses are blocked. The page is loaded from the internet, not from the index: release this tool only if the chat may reach the internet.</source>
+    </trans-unit>
+    <trans-unit id="de3cd4c2" xml:space="preserve" approved="no" translate="yes">
+       <source>not saved yet</source>
+    </trans-unit>
+    <trans-unit id="a1263913" xml:space="preserve" approved="no" translate="yes">
+       <source>Activate</source>
     </trans-unit>
   </body>
 </file>
@@ -10900,6 +11284,15 @@
     <trans-unit id="c9752640" xml:space="preserve" approved="no" translate="yes">
        <source>SEO / Host Analysis</source>
     </trans-unit>
+    <trans-unit id="72ff6975" xml:space="preserve" approved="no" translate="yes">
+       <source>AI Lab</source>
+    </trans-unit>
+    <trans-unit id="e8fe37c4" xml:space="preserve" approved="no" translate="yes">
+       <source>AI Lab overview</source>
+    </trans-unit>
+    <trans-unit id="bcdc6b33" xml:space="preserve" approved="no" translate="yes">
+       <source>Chat tools</source>
+    </trans-unit>
     <trans-unit id="ccfead77" xml:space="preserve" approved="no" translate="yes">
        <source>First Steps</source>
     </trans-unit>
@@ -10932,9 +11325,6 @@
     </trans-unit>
     <trans-unit id="a0589af4" xml:space="preserve" approved="no" translate="yes">
        <source>Crawler</source>
-    </trans-unit>
-    <trans-unit id="72ff6975" xml:space="preserve" approved="no" translate="yes">
-       <source>AI Lab</source>
     </trans-unit>
     <trans-unit id="8b55f137" xml:space="preserve" approved="no" translate="yes">
        <source>Automation</source>
@@ -11176,23 +11566,23 @@
     <trans-unit id="72ff6975" xml:space="preserve" approved="no" translate="yes">
        <source>AI Lab</source>
     </trans-unit>
+    <trans-unit id="200778" xml:space="preserve" approved="no" translate="yes">
+       <source>Chat</source>
+    </trans-unit>
     <trans-unit id="7ac57fd9" xml:space="preserve" approved="no" translate="yes">
        <source>LLM Selection</source>
     </trans-unit>
     <trans-unit id="c9c5b48a" xml:space="preserve" approved="no" translate="yes">
        <source>RAG Config</source>
     </trans-unit>
-    <trans-unit id="4dbda567" xml:space="preserve" approved="no" translate="yes">
-       <source>Tools Config</source>
+    <trans-unit id="bcdc6b33" xml:space="preserve" approved="no" translate="yes">
+       <source>Chat tools</source>
     </trans-unit>
     <trans-unit id="67e24ca3" xml:space="preserve" approved="no" translate="yes">
        <source>Log Reports</source>
     </trans-unit>
     <trans-unit id="74ea6e81" xml:space="preserve" approved="no" translate="yes">
        <source>AI Shield</source>
-    </trans-unit>
-    <trans-unit id="200778" xml:space="preserve" approved="no" translate="yes">
-       <source>Chat</source>
     </trans-unit>
   </body>
 </file>
@@ -12174,14 +12564,23 @@
 
 <file original="yacychat.html"  source-language="en"  datatype="html">
   <body>
-    <trans-unit id="ee71ec1" xml:space="preserve" approved="no" translate="yes">
-       <source>"Attach search results by default"</source>
+    <trans-unit id="375e1a59" xml:space="preserve" approved="no" translate="yes">
+       <source>"Chat settings"</source>
+    </trans-unit>
+    <trans-unit id="2d7eeab7" xml:space="preserve" approved="no" translate="yes">
+       <source>"Answers only from the conversation and your attachments"</source>
+    </trans-unit>
+    <trans-unit id="51ea063b" xml:space="preserve" approved="no" translate="yes">
+       <source>"Answers from the pages in your Scoutro index"</source>
+    </trans-unit>
+    <trans-unit id="50465f10" xml:space="preserve" approved="no" translate="yes">
+       <source>"Also searches other peers of the YaCy network"</source>
     </trans-unit>
     <trans-unit id="92dbcd6e" xml:space="preserve" approved="no" translate="yes">
        <source>"all collections"</source>
     </trans-unit>
-    <trans-unit id="a472dcf8" xml:space="preserve" approved="no" translate="yes">
-       <source>"Search"</source>
+    <trans-unit id="d625e104" xml:space="preserve" approved="no" translate="yes">
+       <source>"Search the index for this question"</source>
     </trans-unit>
     <trans-unit id="3af99f8e" xml:space="preserve" approved="no" translate="yes">
        <source>"Attach a file"</source>
@@ -12201,50 +12600,59 @@
     <trans-unit id="e7b4f64e" xml:space="preserve" approved="no" translate="yes">
        <source>"Show system prompt"</source>
     </trans-unit>
-    <trans-unit id="90bb749a" xml:space="preserve" approved="no" translate="yes">
-       <source>YaCy Chat</source>
+    <trans-unit id="220422dd" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro Chat</source>
     </trans-unit>
-    <trans-unit id="ec49cada" xml:space="preserve" approved="no" translate="yes">
-       <source>This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.</source>
+    <trans-unit id="799297a9" xml:space="preserve" approved="no" translate="yes">
+       <source>AI search in your Scoutro index. Answers name their sources as [1], [2] … – check important facts on the linked pages.</source>
     </trans-unit>
-    <trans-unit id="c3bbf97d" xml:space="preserve" approved="no" translate="yes">
-       <source>Default Dialog Augmentation:</source>
+    <trans-unit id="8241b60e" xml:space="preserve" approved="no" translate="yes">
+       <source>This chat is private. Scoutro keeps no history – only your browser remembers the current conversation.</source>
     </trans-unit>
-    <trans-unit id="80e7821e" xml:space="preserve" approved="no" translate="yes">
-       <source>no search, allow attachments</source>
+    <trans-unit id="4a0bca43" xml:space="preserve" approved="no" translate="yes">
+       <source>Answers based on:</source>
     </trans-unit>
-    <trans-unit id="104d4df6" xml:space="preserve" approved="no" translate="yes">
-       <source>use local search</source>
+    <trans-unit id="26cbf4e7" xml:space="preserve" approved="no" translate="yes">
+       <source>no search</source>
     </trans-unit>
-    <trans-unit id="92123dec" xml:space="preserve" approved="no" translate="yes">
-       <source>use global search</source>
+    <trans-unit id="209a7a0d" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro index</source>
     </trans-unit>
-    <trans-unit id="dbaf53e3" xml:space="preserve" approved="no" translate="yes">
-       <source>Collection (portal):</source>
+    <trans-unit id="3a0910af" xml:space="preserve" approved="no" translate="yes">
+       <source>index + YaCy network</source>
     </trans-unit>
-    <trans-unit id="a04af7d5" xml:space="preserve" approved="no" translate="yes">
-       <source>Search only this collection, e.g. edelsenior-web</source>
+    <trans-unit id="d1e9cd3c" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection:</source>
     </trans-unit>
-    <trans-unit id="285feb" xml:space="preserve" approved="no" translate="yes">
-       <source>User</source>
+    <trans-unit id="28d3a1fc" xml:space="preserve" approved="no" translate="yes">
+       <source>Empty: whole index. Enter or choose a collection to search only its pages.</source>
     </trans-unit>
-    <trans-unit id="c6c53099" xml:space="preserve" approved="no" translate="yes">
-       <source>Attach Search Results</source>
+    <trans-unit id="4c981b57" xml:space="preserve" approved="no" translate="yes">
+       <source>Current search scope:</source>
+    </trans-unit>
+    <trans-unit id="e47758fd" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;strong id="collectionCurrentValue"&gt;all collections&lt;/strong&gt;</source>
+    </trans-unit>
+    <trans-unit id="59de2513" xml:space="preserve" approved="no" translate="yes">
+       <source>Your question</source>
+    </trans-unit>
+    <trans-unit id="e240033c" xml:space="preserve" approved="no" translate="yes">
+       <source>Search the index for this question</source>
     </trans-unit>
     <trans-unit id="e2d76eab" xml:space="preserve" approved="no" translate="yes">
        <source>Attach PNG/JPG or text (.txt/.md/.tex)</source>
     </trans-unit>
-    <trans-unit id="4796058b" xml:space="preserve" approved="no" translate="yes">
-       <source>Clear Chat</source>
+    <trans-unit id="47a4916b" xml:space="preserve" approved="no" translate="yes">
+       <source>Clear chat</source>
     </trans-unit>
-    <trans-unit id="2df773f0" xml:space="preserve" approved="no" translate="yes">
-       <source>Download Chat</source>
+    <trans-unit id="2e05ffd0" xml:space="preserve" approved="no" translate="yes">
+       <source>Download chat</source>
     </trans-unit>
-    <trans-unit id="9f562a17" xml:space="preserve" approved="no" translate="yes">
-       <source>Upload Chat</source>
+    <trans-unit id="9f64b5f7" xml:space="preserve" approved="no" translate="yes">
+       <source>Upload chat</source>
     </trans-unit>
-    <trans-unit id="489cacb2" xml:space="preserve" approved="no" translate="yes">
-       <source>Show System</source>
+    <trans-unit id="c75c98b2" xml:space="preserve" approved="no" translate="yes">
+       <source>Show system prompt</source>
     </trans-unit>
   </body>
 </file>

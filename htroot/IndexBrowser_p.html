@@ -3,27 +3,59 @@
 <head>
   <title>Scoutro: Index Browser</title>
   #%env/templates/metas.template%#
+  <link rel="stylesheet" href="env/scoutro/index-browser.css" />
   <script defer src="env/scoutro/index-browser.js"></script>
 </head>
 <body id="IndexControl" class="scoutro-visualization">
   #%env/templates/header.template%#
   #%env/templates/submenuWebStructure.template%#
   <h1>Index Browser</h1>
-  <p>Browse indexed URLs without loading or crawling them.</p>
+  <p class="scoutro-index-intro">Websites in the index, one entry per domain and collection. Viewing starts no crawl and loads no page.</p>
+  <nav class="scoutro-index-views" aria-label="Index Browser views">
+    <a id="scoutro-index-view-domains" href="IndexBrowser_p.html">Domains</a>
+    <a id="scoutro-index-view-urls" href="IndexBrowser_p.html?view=urls">Single URLs</a>
+  </nav>
   <form id="scoutro-index-form" action="IndexBrowser_p.html" method="get" class="scoutro-dash-card scoutro-index-filters" role="search">
-    <label>Host/URL <input name="q" id="scoutro-index-query" type="search" maxlength="250" value="#[browserQuery]#" class="form-control"/></label>
-    <label>Collection <input name="collection" id="scoutro-index-collection" list="scoutro-index-choices" maxlength="64" value="#[browserCollection]#" class="form-control" autocomplete="off"/></label>
+    <label for="scoutro-index-query"><span id="scoutro-index-query-label">Domain or host</span><input name="q" id="scoutro-index-query" type="search" maxlength="250" value="#[browserQuery]#" class="form-control" autocomplete="off"/></label>
+    <label for="scoutro-index-collection">Collection<input name="collection" id="scoutro-index-collection" list="scoutro-index-choices" maxlength="64" value="#[browserCollection]#" class="form-control" autocomplete="off"/></label>
+    <label for="scoutro-index-sort" id="scoutro-index-sort-field">Sort by<select id="scoutro-index-sort" name="sort" class="form-control"><option value="host">Domain (A&ndash;Z)</option><option value="pages">Most indexed pages</option></select></label>
     <datalist id="scoutro-index-choices"></datalist>
-    <button class="btn btn-primary" type="submit">Apply filters</button>
-    <button class="btn btn-default" id="scoutro-index-reset" type="button">Reset filters</button>
+    <div class="scoutro-index-actions">
+      <button class="btn btn-primary" type="submit">Apply filters</button>
+      <button class="btn btn-default" id="scoutro-index-reset" type="button">Reset filters</button>
+      <button class="btn btn-default" id="scoutro-export-toggle" type="button" aria-expanded="false" aria-controls="scoutro-export">Export</button>
+    </div>
   </form>
+  <section id="scoutro-export" class="scoutro-dash-card scoutro-export" hidden aria-labelledby="scoutro-export-title">
+    <h2 id="scoutro-export-title">Export domains</h2>
+    <p>The export contains the current filter: <strong id="scoutro-export-scope"></strong></p>
+    <fieldset class="scoutro-export-formats">
+      <legend>Format</legend>
+      <label><input type="radio" name="scoutro-export-format" value="json" checked="checked"/> JSON (for other systems)</label>
+      <label><input type="radio" name="scoutro-export-format" value="csv"/> CSV (for spreadsheets)</label>
+    </fieldset>
+    <p id="scoutro-export-count" role="status"></p>
+    <a id="scoutro-export-download" class="btn btn-primary" href="/scoutro/api/v1/index/domains/export" download="">Download export</a>
+    <p class="scoutro-index-note">One entry per domain and collection, not per URL, sorted by domain. Values Scoutro does not know stay empty. The export only reads the index: it starts no crawl and calls no AI model.</p>
+  </section>
   <p id="scoutro-index-active" hidden><strong>Active collection:</strong> <span></span> <button type="button" id="scoutro-index-clear" class="btn btn-default btn-xs">Remove collection filter</button></p>
   <p id="scoutro-index-status" role="status" aria-live="polite"></p>
   <p id="scoutro-index-error" class="alert alert-danger" role="alert" hidden></p>
   <p id="scoutro-index-empty" hidden>No indexed URLs match these filters.</p>
+  <p id="scoutro-domain-empty" hidden>No indexed domains match these filters.</p>
   <p id="scoutro-index-unavailable" hidden>Index data unavailable or access denied. Sign in as administrator and retry.</p>
   <p id="scoutro-index-invalid" hidden>Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.</p>
-  <div class="scoutro-dash-card">
+  <p id="scoutro-index-invalid-host" hidden>Enter a host name, part of a host name or a URL.</p>
+  <section id="scoutro-domain-view" class="scoutro-domain-view" aria-labelledby="scoutro-domain-caption">
+    <p id="scoutro-domain-caption" class="scoutro-domain-caption"><span id="scoutro-domain-total">0</span> <span>domain entries</span></p>
+    <ul id="scoutro-domain-list" class="scoutro-domain-list"></ul>
+    <nav class="scoutro-index-pages" aria-label="Domain pages">
+      <button id="scoutro-domain-prev" type="button" class="btn btn-default" disabled>Previous</button>
+      <span id="scoutro-domain-range"></span>
+      <button id="scoutro-domain-next" type="button" class="btn btn-default" disabled>Next</button>
+    </nav>
+  </section>
+  <div id="scoutro-url-view" class="scoutro-dash-card" hidden>
     <table id="scoutro-index-table" class="table table-striped scoutro-cards">
       <caption><span id="scoutro-index-total">0</span> <span>indexed URLs</span></caption>
       <thead><tr><th>URL</th><th>Host</th><th>Collection</th><th>HTTP status</th></tr></thead>
@@ -33,6 +65,46 @@
       <button id="scoutro-index-prev" type="button" class="btn btn-default" disabled>Previous</button>
       <button id="scoutro-index-next" type="button" class="btn btn-default" disabled>Next</button>
     </nav>
+  </div>
+  <div hidden id="scoutro-domain-labels">
+    <span data-label="pages_one">indexed page</span>
+    <span data-label="pages_many">indexed pages</span>
+    <span data-label="collection">Collection</span>
+    <span data-label="no_collection">without collection</span>
+    <span data-label="website">Website</span>
+    <span data-label="start_url">Start page</span>
+    <span data-label="last_loaded">Last loaded</span>
+    <span data-label="last_crawled">Last crawl</span>
+    <span data-label="crawl_status">Crawl status</span>
+    <span data-label="classification">Classification</span>
+    <span data-label="confidence">confidence</span>
+    <span data-label="discovery">Discovery</span>
+    <span data-label="no_title">No page title in the index</span>
+    <span data-label="seo">SEO analysis</span>
+    <span data-label="seo_title">Open the SEO / host analysis of this domain</span>
+    <span data-label="status_indexed">indexed</span>
+    <span data-label="status_partial">partly indexed</span>
+    <span data-label="status_not_reloaded">not reloaded</span>
+    <span data-label="status_not_indexed">not indexed</span>
+    <span data-label="status_unknown">unknown</span>
+    <span data-label="verdict_PASS">PASS (fits)</span>
+    <span data-label="verdict_FAIL">FAIL (does not fit)</span>
+    <span data-label="verdict_UNSURE">UNSURE</span>
+    <span data-label="range">Hosts</span>
+    <span data-label="of">of</span>
+    <span data-label="scope_all">all collections</span>
+    <span data-label="scope_host">host filter</span>
+    <span data-label="scope_none">no host filter</span>
+    <span data-label="export_count_one">domain entry will be exported.</span>
+    <span data-label="export_count_many">domain entries will be exported.</span>
+    <span data-label="export_count_unknown">The number of entries is shown in the file.</span>
+    <span data-label="loading">Loading domains …</span>
+    <span data-label="entity">Operator and contact as found on the indexed pages</span>
+    <span data-label="phone">Phone</span>
+    <span data-label="email">E-mail</span>
+    <span data-label="source">Source</span>
+    <span data-label="name_candidate">Name candidate</span>
+    <span data-label="name_candidate_title">Not certain: taken from the page metadata or a page title, not from a name with legal form</span>
   </div>
   <p>#[result]#</p>
   <p><a href="IndexControlURLs_p.html">Index administration</a></p>

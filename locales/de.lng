@@ -286,7 +286,6 @@ Private Queue==Privater Puffer
 Public Queue==Öffentlicher Puffer
 #-----------------------------
 
-
 #File: compare_yacy.html
 #---------------------------
 Websearch Comparison==Vergleichs-Suche
@@ -741,7 +740,6 @@ show search results on map==Suchergebnisse auf Karte anzeigen
 "Set Default Values"=="Setze Standardwerte"
 #-----------------------------
 
-
 "Add navigator"=="Navigator hinzufügen"
 "Browse index"=="Index durchsuchen"
 "Date"=="Datum"
@@ -869,7 +867,6 @@ Source IP[:Port]==Quell-IP[:Port]
 Dest. IP[:Port]==Ziel-IP[:Port]
 Outgoing Connections==Ausgehende Verbindungen
 #-----------------------------
-
 
 Command==Befehl
 ID==ID
@@ -1091,7 +1088,6 @@ Define the start-url(s) here. You can submit more than one URL, each line one UR
 Each of these URLs are the root for a crawl start, existing start URLs are always re-loaded.==Jede dieser URLs ist die Wurzel für einen Crawl Start. Existierende Start URLs werden immer neu geladen.
 Other already visited URLs are sorted out as "double", if they are not allowed using the re-crawl option.==Andere bereits besuchte Seiten werden als 'doppelt' aussortiert, wenn diese nicht ausdrücklich per Re-crawl Option zugelassen wurden.
 
-
 From Link-List of URL==Von Linkliste der URL
 From Sitemap==Von Sitemap
 From File (enter a path<br/>within your local file system)==Von Datei (Verwende Pfad einer Datei<br/>auf dem lokalen Dateisystem)
@@ -1107,8 +1103,6 @@ Page-Count==Seitenanzahl
 You can limit the maximum number of pages that are fetched and indexed from a single domain with this option.==Sie können die maximale Anzahl an Seiten, die von einer einzelnen Domain gefunden und indexiert werden, mit dieser Option begrenzen.
 You can combine this limitation with the 'Auto-Dom-Filter', so that the limit is applied to all the domains within==Sie können diese Option auch mit dem 'Auto-Dom-Filter' kombinieren, so dass das Limit für alle Domains mit der
 the given depth. Domains outside the given depth are then sorted-out anyway.==angegebenen Tiefe gilt. Domains ausserhalb der angegebenen Tiefe werden einfach aussortiert.
-
-
 
 Store to Web Cache==Speichern im Web-Cache
 This option is used by default for proxy prefetch, but is not needed for explicit crawling.==Diese Option ist standardmäßig beim Proxy aktiviert, wird aber zum reinen Crawlen nicht gebraucht.
@@ -1334,38 +1328,76 @@ You are using the administration interface of your own search engine. You can cr
 Tutorial==Tutorial
 #File: IndexBrowser_p.html
 #---------------------------
-"Delete Subpath"=="Teilpfad Löschen"
-Count Colors:==Legende der farbigen Zahlen:
-Documents without Errors==Dokumente ohne Fehler
-Pending in Crawler==Warten im Crawler
-link, detected from context==Link, erkannt aus Kontext
-load &amp; index==Laden &amp; Indexieren
-Administration Options==Administrationsoptionen
-Delete all==Lösche alle
-from index==vom Index
-"Delete Load Errors"=="Lösche alle Ladefehler"
-Metadata==Metadaten
-Path==Verzeichnis
-URLs==URLs
-indexed==indexiert
-Host List==Host-Liste
-"Directory"=="Verzeichnis"
-Add to blacklist==Zur Blacklist hinzufügen
-Crawler Excludes==Crawler-Ausschlüsse
-Host Analysis==Host-Analyse
-Load Errors==Ladefehler
-excluded==ausgeschlossen
-failed==fehlgeschlagen
-linked==verlinkt
-loading==wird geladen
-pending==ausstehend
-stored==gespeichert
+# Scoutro Index Browser: whole sentences only. Single-word keys would also hit inside the sentences
+# below (e.g. "indexed==indexiert" made "indexiert pages") and are therefore kept as >key< entries.
+<html lang="en">==<html lang="de">
+One entry per domain and collection, not per URL, sorted by domain. Values Scoutro does not know stay empty. The export only reads the index: it starts no crawl and calls no AI model.==Ein Eintrag pro Domain und Collection, nicht pro URL, sortiert nach Domain. Werte, die Scoutro nicht kennt, bleiben leer. Der Export liest nur den Index: Er startet keinen Crawl und ruft kein KI-Modell auf.
+Websites in the index, one entry per domain and collection. Viewing starts no crawl and loads no page.==Websites im Index, ein Eintrag pro Domain und Collection. Das Ansehen startet keinen Crawl und lädt keine Seite.
+Not certain: taken from the page metadata or a page title, not from a name with legal form==Nicht sicher: aus den Seitenmetadaten oder einem Seitentitel übernommen, nicht aus einem Namen mit Rechtsform
+Operator and contact as found on the indexed pages==Betreiber und Kontakt laut den indexierten Seiten
+Index data unavailable or access denied. Sign in as administrator and retry.==Indexdaten nicht verfügbar oder Zugriff verweigert. Als Administrator anmelden und erneut versuchen.
+Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Ungültige Collection. Bis zu 64 Buchstaben, Ziffern, Unterstriche oder Bindestriche verwenden.
+Enter a host name, part of a host name or a URL.==Geben Sie einen Hostnamen, einen Teil davon oder eine URL ein.
+The number of entries is shown in the file.==Die Anzahl der Einträge steht in der Datei.
+No indexed domains match these filters.==Keine indexierten Domains entsprechen diesen Filtern.
+No indexed URLs match these filters.==Keine indexierten URLs entsprechen diesen Filtern.
+Open the SEO / host analysis of this domain==SEO-/Host-Analyse dieser Domain öffnen
+The export contains the current filter:==Der Export enthält den aktuellen Filter:
+domain entries will be exported.==Domain-Einträge werden exportiert.
+domain entry will be exported.==Domain-Eintrag wird exportiert.
+No page title in the index==Kein Seitentitel im Index
+CSV (for spreadsheets)==CSV (für Tabellenkalkulationen)
+JSON (for other systems)==JSON (für andere Systeme)
+Remove collection filter==Collection-Filter entfernen
+Loading domains …==Domains werden geladen …
+Index Browser views==Ansichten des Index-Browsers
+Index administration==Indexverwaltung
+Most indexed pages==Meiste indexierte Seiten
+"Domain pages"=="Seiten der Domain-Liste"
+"Index pages"=="Seiten der URL-Liste"
+Active collection:==Aktive Collection:
+Download export==Export herunterladen
+Export domains==Domains exportieren
+FAIL (does not fit)==FAIL (passt nicht)
+Domain or host==Domain oder Host
+Apply filters==Filter anwenden
+Reset filters==Filter zurücksetzen
+Index Browser==Index-Browser
+Single URLs==Einzelne URLs
+PASS (fits)==PASS (passt)
+>UNSURE<==>UNSURE (unsicher)<
+>indexed URLs<==>indexierte URLs<
+>indexed pages<==>indexierte Seiten<
+>indexed page<==>indexierte Seite<
+>without collection<==>ohne Collection<
+>Start page<==>Startseite<
+>Last loaded<==>Zuletzt geladen<
+>Last crawl<==>Letzter Crawl<
+>Crawl status<==>Crawl-Status<
+>Classification<==>Klassifikation<
+>confidence<==>Konfidenz<
+>SEO analysis<==>SEO-Analyse<
+>partly indexed<==>teilweise indexiert<
+>not reloaded<==>nicht neu geladen<
+>not indexed<==>nicht indexiert<
+>indexed<==>indexiert<
+>unknown<==>unbekannt<
+>all collections<==>alle Collections<
+>no host filter<==>kein Host-Filter<
+>host filter<==>Host-Filter<
+>HTTP status<==>HTTP-Status<
+>Sort by<==>Sortieren nach<
+>Export<==>Exportieren<
+>domain entries<==>Domain-Einträge<
+>Previous<==>Zurück<
+>Next<==>Weiter<
+>of<==>von<
+>Phone<==>Telefon<
+>E-mail<==>E-Mail<
+>Source<==>Quelle<
+>Name candidate<==>Namenskandidat<
 #-----------------------------
 
-Browse Host==Host durchsuchen
-Host/URL==Host/URL
-Index Browser==Index-Browser
-"Re-load load-failure docs (404s etc)"=="Dokumente mit Ladefehlern neu laden (404 usw.)"
 #File: index.html
 #---------------------------
 Images==Bilder
@@ -2271,7 +2303,6 @@ Table RAM Index==Tabelle RAM Speicher Index
 Object Index Caches==Objekt Index Caches
 Needed Memory==Benötigter Speicher
 
-
 Other Caching Structures==Andere Zwischenspeicher Strukturen
 "PerformanceGraph"=="Leistungsdiagramm"
 (ARC)==(ARC)
@@ -3136,7 +3167,6 @@ all==alle
 reverse:==umkehren:
 #-----------------------------
 
-
 #File: terminal_p.html
 #---------------------------
 Event Terminal==Ereignis Terminal
@@ -3559,6 +3589,8 @@ YaCy Identifier==YaCy-Identifizierer
 #-----------------------------
 
 #File: env/templates/header.template
+AI Lab overview==KI-Labor-Übersicht
+Chat tools==Chat-Werkzeuge
 >SEO / Host Analysis<==>SEO / Host-Analyse<
 >Discovery Automation<==>Discovery-Automatisierung<
 >Dashboard<==>Dashboard<
@@ -3843,8 +3875,8 @@ Did you mean:==Meinten Sie vielleicht:
 
 #File: env/templates/submenuAI.template
 #---------------------------
+Chat tools==Chat-Werkzeuge
 LLM Selection==LLM-Auswahl
-Tools Config==Werkzeug-Konfiguration
 Log Reports==Log-Berichte
 RAG Config==RAG-Konfiguration
 AI Shield==KI-Schutzschild
@@ -4044,6 +4076,7 @@ required to unlock (need at least 1000 documents).==zum Freischalten erforderlic
 
 #File: AIShield_p.html
 #---------------------------
+The administration navigation always shows the chat; this switch only affects the public search pages. Who may use the chat is still decided by the AI Shield.==Die Administrationsnavigation zeigt den Chat immer; dieser Schalter betrifft nur die öffentlichen Suchseiten. Wer den Chat nutzen darf, entscheidet weiterhin das AI Shield.
 Control who can access the chat interface and rate-limit non-localhost clients to protect your peer and LLM backends from overload.==Steuern Sie, wer auf die Chat-Oberfläche zugreifen darf, und begrenzen Sie die Rate von Nicht-localhost-Clients, um Ihren Peer und die LLM-Backends vor Überlastung zu schützen.
 Recent access volume across all clients (localhost included). You can enforce global limits here to protect the host.==Aktuelles Zugriffsvolumen über alle Clients (localhost eingeschlossen). Hier können Sie globale Grenzen durchsetzen, um den Host zu schützen.
 By default only localhost may reach the chat UI. Enable non-localhost access and throttle requests to reduce abuse.==Standardmäßig darf nur localhost die Chat-Oberfläche erreichen. Aktivieren Sie den Nicht-localhost-Zugriff und drosseln Sie Anfragen, um Missbrauch zu verringern.
@@ -4067,17 +4100,88 @@ Per day:==Pro Tag:
 
 #File: ToolsConfig_p.html
 #---------------------------
-A tool is offered to the chat model only when it is <b>released for the chat</b> here and its maxCallsPerTurn is above 0. A model with tool support alone does not release any tool. The web tools <code>http_json</code> (GET only) and <code>webfetch</code> reach only public http(s) addresses.==Ein Werkzeug wird dem Chat-Modell nur angeboten, wenn es hier <b>für den Chat freigegeben</b> ist und maxCallsPerTurn größer als 0 ist. Ein Modell mit Werkzeug-Unterstützung allein gibt kein Werkzeug frei. Die Web-Werkzeuge <code>http_json</code> (nur GET) und <code>webfetch</code> erreichen nur öffentliche http(s)-Adressen.
->released for the chat<==>für den Chat freigegeben<
-Add superpowers to the YaCy Chat. Tools may be disabled by setting maxCallsPerTurn to 0.==Verleihen Sie dem YaCy-Chat Superkräfte. Werkzeuge können deaktiviert werden, indem maxCallsPerTurn auf 0 gesetzt wird.
-Save Tools Configuration==Werkzeug-Konfiguration speichern
-Data Retrieval Tools==Datenabruf-Werkzeuge
-Visualization Tools==Visualisierungs-Werkzeuge
-Basic Tools==Basis-Werkzeuge
-disable==deaktivieren
-Tools==Werkzeuge
-Tool settings were saved.==Tool-Einstellungen wurden gespeichert.
-maxCallsPerTurn==maxCallsPerTurn
+Tools are small helper functions the AI may call while it writes an answer, for example to calculate exactly or to read a web page. Whether the chat model can use tools at all is set in LLM Selection.==Werkzeuge sind kleine Hilfsfunktionen, die die KI beim Schreiben einer Antwort aufrufen darf, etwa um exakt zu rechnen oder eine Webseite zu lesen. Ob das Chat-Modell überhaupt Werkzeuge nutzen kann, wird in der LLM-Auswahl festgelegt.
+A tool is used only when it is <b>released for the chat</b> and its <b>maximum calls per answer</b> is above 0. A model with tool support alone releases no tool. The web tools “Query JSON API” and “Fetch web page” reach only public http(s) addresses.==Ein Werkzeug wird nur genutzt, wenn es <b>für den Chat freigegeben</b> ist und seine <b>maximalen Aufrufe pro Antwort</b> größer als 0 sind. Ein Modell mit Werkzeug-Unterstützung allein gibt kein Werkzeug frei. Die Web-Werkzeuge „JSON-API abfragen“ und „Webseite abrufen“ erreichen nur öffentliche http(s)-Adressen.
+Maximum calls per answer: how often the AI may use this tool while writing one answer. 0 = deactivated.==Maximale Aufrufe pro Antwort: wie oft die KI dieses Werkzeug für eine Antwort nutzen darf. 0 = deaktiviert.
+invalid value(s) for “Maximum calls per answer” were reset to the previous values.==ungültige Werte für „Maximale Aufrufe pro Antwort“ wurden auf die vorherigen Werte zurückgesetzt.
+The model reads this English text to decide when to use the tool. Change it only if the model uses the tool too often or too rarely.==Das Modell liest diesen englischen Text, um zu entscheiden, wann es das Werkzeug nutzt. Ändern Sie ihn nur, wenn das Modell das Werkzeug zu oft oder zu selten nutzt.
+These tools work on the Scoutro server with the data the AI already has; most of them need no network access.==Diese Werkzeuge arbeiten auf dem Scoutro-Server mit den Daten, die die KI schon hat; die meisten brauchen keinen Netzwerkzugriff.
+These tools bring further information into the answer: from your index or, for “Fetch web page”, live from the internet.==Diese Werkzeuge holen weitere Informationen in die Antwort: aus Ihrem Index oder, bei „Webseite abrufen“, live aus dem Internet.
+Only GET requests to public http(s) addresses; private and internal addresses are blocked, responses are limited to 2 MB. The AI chooses the address itself: release this tool only if the chat may reach the internet.==Nur GET-Anfragen an öffentliche http(s)-Adressen; private und interne Adressen werden blockiert, Antworten sind auf 2 MB begrenzt. Die KI wählt die Adresse selbst: Geben Sie dieses Werkzeug nur frei, wenn der Chat ins Internet darf.
+Only public http(s) addresses; private and internal addresses are blocked. The page is loaded from the internet, not from the index: release this tool only if the chat may reach the internet.==Nur öffentliche http(s)-Adressen; private und interne Adressen werden blockiert. Die Seite wird aus dem Internet geladen, nicht aus dem Index: Geben Sie dieses Werkzeug nur frei, wenn der Chat ins Internet darf.
+Reads search results from your index, or from the YaCy network when global search is switched on; it starts no crawl. It does not use the collection chosen in the chat.==Liest Suchergebnisse aus Ihrem Index oder, wenn die globale Suche eingeschaltet ist, aus dem YaCy-Netzwerk; es startet keinen Crawl. Die im Chat gewählte Collection berücksichtigt es nicht.
+Lets the AI run additional searches of its own while answering, besides the automatic search for the question.==Lässt die KI beim Antworten zusätzlich eigene Suchen ausführen, neben der automatischen Suche zur Frage.
+Builds the address of a Wikipedia article from a topic. Together with “Fetch web page” the AI can then read the article.==Bildet aus einem Thema die Adresse eines Wikipedia-Artikels. Zusammen mit „Webseite abrufen“ kann die KI den Artikel dann lesen.
+Loads a public web page live from the internet and gives the AI its text (up to about 12,000 characters).==Lädt eine öffentliche Webseite live aus dem Internet und gibt der KI ihren Text (bis etwa 12.000 Zeichen).
+Calculates with dates: adds or subtracts days, weeks or months, measures the time between two dates, finds the start or end of a period.==Rechnet mit Datumsangaben: addiert oder subtrahiert Tage, Wochen oder Monate, misst die Zeit zwischen zwei Daten, findet Anfang oder Ende eines Zeitraums.
+Filters, sorts, groups and counts table rows the AI already has, for example search hits.==Filtert, sortiert, gruppiert und zählt Tabellenzeilen, die die KI schon hat, zum Beispiel Suchtreffer.
+Shows a step list in the chat while the AI works on a task with several steps.==Zeigt im Chat eine Schrittliste, während die KI an einer Aufgabe mit mehreren Schritten arbeitet.
+Answers greetings and test messages in a friendly way and names what the chat can do.==Beantwortet Begrüßungen und Testnachrichten freundlich und nennt, was der Chat kann.
+Turns a description into a Mermaid diagram, for example a flowchart or a sequence.==Macht aus einer Beschreibung ein Mermaid-Diagramm, zum Beispiel ein Flussdiagramm oder einen Ablauf.
+Draws a Mermaid diagram as text graphics that every chat window can show.==Zeichnet ein Mermaid-Diagramm als Textgrafik, die jedes Chatfenster anzeigen kann.
+Turns written numbers into digits (German, English, French, Spanish, Italian).==Wandelt ausgeschriebene Zahlen in Ziffern um (Deutsch, Englisch, Französisch, Spanisch, Italienisch).
+Reads data from a public web interface (API) that answers in JSON.==Liest Daten von einer öffentlichen Webschnittstelle (API), die in JSON antwortet.
+Tells the AI the current date and time, optionally for a time zone.==Nennt der KI das aktuelle Datum und die Uhrzeit, auf Wunsch für eine Zeitzone.
+Evaluates formulas exactly instead of letting the AI estimate the result.==Rechnet Formeln exakt aus, statt die KI das Ergebnis schätzen zu lassen.
+Converts length, weight, temperature, volume and speed.==Rechnet Länge, Gewicht, Temperatur, Volumen und Geschwindigkeit um.
+Explains what the chat can do and why it works the way it does.==Erklärt, was der Chat kann und warum er so arbeitet.
+Only changes the display in the chat; no network access.==Ändert nur die Anzeige im Chat; kein Netzwerkzugriff.
+Computed on the Scoutro server; no network access.==Wird auf dem Scoutro-Server berechnet; kein Netzwerkzugriff.
+Answers with fixed texts; no network access.==Antwortet mit festen Texten; kein Netzwerkzugriff.
+Only builds an address and loads nothing itself.==Bildet nur eine Adresse und lädt selbst nichts.
+Ask the public API of a weather service for the forecast for Berlin.==Frage die öffentliche API eines Wetterdienstes nach der Vorhersage für Berlin.
+Topic “Kurzzeitpflege” becomes https://de.wikipedia.org/wiki/Kurzzeitpflege.==Thema „Kurzzeitpflege“ wird zu https://de.wikipedia.org/wiki/Kurzzeitpflege.
+Read https://example.org/about and summarize it.==Lies https://example.org/about und fasse die Seite zusammen.
+Draw the way from a crawl to the index as a flowchart.==Zeichne den Weg vom Crawl in den Index als Flussdiagramm.
+Also look up the opening hours of these places.==Suche auch die Öffnungszeiten dieser Orte.
+Sort the hits by city and count them per city.==Sortiere die Treffer nach Stadt und zähle sie pro Stadt.
+What time is it in New York right now?==Wie spät ist es gerade in New York?
+Which date is 90 days after 1 March 2026?==Welches Datum ist 90 Tage nach dem 1. März 2026?
+Plan the steps to compare three providers.==Plane die Schritte, um drei Anbieter zu vergleichen.
+How many kilometres are 26.2 miles?==Wie viele Kilometer sind 26,2 Meilen?
+“einundzwanzig” becomes 21.==„einundzwanzig“ wird zu 21.
+What is 17.5 % of 2,340?==Wie viel sind 17,5 % von 2.340?
+Show this flowchart as text.==Zeige dieses Flussdiagramm als Text.
+Hello, are you there?==Hallo, bist du da?
+What can you do?==Was kannst du?
+the release for the chat is missing==die Freigabe für den Chat fehlt
+maximum calls per answer is 0==„Maximale Aufrufe pro Antwort“ ist 0
+the AI may use the tool==die KI darf das Werkzeug nutzen
+Description for the AI model (advanced)==Beschreibung für das KI-Modell (erweitert)
+Description for the AI model==Beschreibung für das KI-Modell
+"Status of a tool"=="Status eines Werkzeugs"
+Calculation and helper tools==Rechen- und Hilfswerkzeuge
+Search and web access==Suche und Webzugriff
+These tools draw diagrams in the answer.==Diese Werkzeuge zeichnen Diagramme in die Antwort.
+Tool settings were saved.==Werkzeug-Einstellungen wurden gespeichert.
+Save tool settings==Werkzeug-Einstellungen speichern
+Maximum calls per answer==Maximale Aufrufe pro Antwort
+Released for the chat==Für Chat freigegeben
+Release for the chat==Für den Chat freigeben
+Not released==Nicht freigegeben
+not saved yet==noch nicht gespeichert
+>Deactivated<==>Deaktiviert<
+>Deactivate<==>Deaktivieren<
+>Activate<==>Aktivieren<
+Date &amp; time==Datum &amp; Uhrzeit
+Date calculation==Datumsrechnung
+>Calculator<==>Taschenrechner<
+Number words==Zahlwörter
+Unit converter==Einheitenumrechner
+Query JSON API==JSON-API abfragen
+Table operations==Tabellenoperationen
+>Show plan<==>Plan anzeigen<
+>Chat help<==>Chat-Hilfe<
+>Small talk<==>Smalltalk<
+Create diagram==Diagramm erstellen
+Diagram as text==Diagramm als Text
+>Index search<==>Indexsuche<
+>Wikipedia link<==>Wikipedia-Link<
+Fetch web page==Webseite abrufen
+>Diagrams<==>Diagramme<
+Example:==Beispiel:
+Security:==Sicherheit:
+Chat tools==Chat-Werkzeuge
 #-----------------------------
 
 #File: RAGConfig_p.html
@@ -4539,30 +4643,82 @@ Example Calls to the Search API:==Beispielaufrufe der Such-API:
 Log in==Anmelden
 #File: yacychat.html
 #---------------------------
-This Chat is private. YaCy does not keep any history — only your browser remembers the current conversation.==Dieser Chat ist privat. YaCy speichert keinen Verlauf — nur Ihr Browser merkt sich die aktuelle Unterhaltung.
-no search, allow attachments==keine Suche, Anhänge erlauben
-use global search==globale Suche verwenden
-use local search==lokale Suche verwenden
-Download Chat==Chat herunterladen
-Upload Chat==Chat hochladen
-Clear Chat==Chat leeren
-YaCy Chat==YaCy-Chat
-User==Benutzer
-"Attach a file"=="Datei anhängen"
-"Attach search results by default"=="Suchergebnisse standardmäßig anhängen"
-"Clear chat"=="Chat leeren"
-"Download chat"=="Chat herunterladen"
-"Search"=="Suchen"
-"Send"=="Senden"
-"Show system prompt"=="System-Prompt anzeigen"
-"Upload chat"=="Chat hochladen"
+AI search in your Scoutro index. Answers name their sources as [1], [2] … – check important facts on the linked pages.==KI-Suche in Ihrem Scoutro-Index. Antworten nennen ihre Quellen als [1], [2] … – prüfen Sie wichtige Angaben auf den verlinkten Seiten.
+This chat is private. Scoutro keeps no history – only your browser remembers the current conversation.==Dieser Chat ist privat. Scoutro speichert keinen Verlauf – nur Ihr Browser merkt sich das aktuelle Gespräch.
+Empty: whole index. Enter or choose a collection to search only its pages.==Leer: ganzer Index. Geben Sie eine Collection ein oder wählen Sie eine aus, um nur deren Seiten zu durchsuchen.
+System data requires an authorized administrator or agent token. No web answer is substituted.==Systemdaten benötigen einen berechtigten Administrator oder Agent-Token. Es wird keine Webantwort als Ersatz verwendet.
+No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.==Keine YaCy-Administratorberechtigung: Das AI Shield lässt diese Adresse erst nach der YaCy-Administratoranmeldung zu.
+Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.==Vom AI Shield blockiert: Der Gastzugang ist aus, oder die Anfrage kam von einer anderen Website oder mit einem Agent-Token.
+Rate limit reached: please wait and try again. The server is protecting itself from overload.==Ratenlimit erreicht: Bitte warten Sie und versuchen Sie es erneut. Der Server schützt sich vor Überlastung.
+No chat model is configured: assign a model to the chat role in LLM Selection.==Kein Chat-Modell konfiguriert: Weisen Sie in der LLM-Auswahl der Chat-Rolle ein Modell zu.
+The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.==Der LLM-Endpunkt ist vom Scoutro-Server aus nicht erreichbar: Prüfen Sie den hoststub in der LLM-Auswahl.
+The LLM endpoint rejected the credentials: check the API key in LLM Selection.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den API-Key in der LLM-Auswahl.
+The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.==Der LLM-Endpunkt hat mit einem Fehler geantwortet: Den HTTP-Status zeigt das Scoutro-Log.
+The Scoutro server cannot be reached. Check the network connection and try again.==Der Scoutro-Server ist nicht erreichbar. Prüfen Sie die Netzwerkverbindung und versuchen Sie es erneut.
+The connection broke off before the answer was complete. Please ask again.==Die Verbindung ist abgebrochen, bevor die Antwort vollständig war. Bitte stellen Sie die Frage erneut.
+The server could not create an answer. Please try again later; the Scoutro log has the details.==Der Server konnte keine Antwort erstellen. Bitte versuchen Sie es später erneut; Details stehen im Scoutro-Log.
+Something went wrong in the chat page. Please reload the page and ask again.==In der Chat-Seite ist ein Fehler aufgetreten. Bitte laden Sie die Seite neu und stellen Sie die Frage erneut.
+This browser cannot receive streamed answers. Please use a current browser.==Dieser Browser kann gestreamte Antworten nicht empfangen. Bitte verwenden Sie einen aktuellen Browser.
+Please upload a PNG/JPG image or a text file (.txt, .md, .tex, or other plain text).==Bitte laden Sie ein PNG-/JPG-Bild oder eine Textdatei hoch (.txt, .md, .tex oder anderer reiner Text).
+Please drop a PNG/JPG image or a text file (.txt, .md, .tex, or other plain text).==Bitte legen Sie ein PNG-/JPG-Bild oder eine Textdatei hier ab (.txt, .md, .tex oder anderer reiner Text).
+Not among the sources of this answer: not linked==Nicht unter den Quellen dieser Antwort: nicht verlinkt
+Not among the sources found for this answer:==Nicht unter den für diese Antwort gefundenen Quellen:
+No source of this answer has this number==Keine Quelle dieser Antwort hat diese Nummer
+Sources of this answer==Quellen dieser Antwort
+Searching the index and writing the answer …==Index wird durchsucht, Antwort wird geschrieben …
+Writing the answer …==Antwort wird geschrieben …
+The answer could not be created:==Die Antwort konnte nicht erstellt werden:
+Ask a question about the pages in your index …==Stellen Sie eine Frage zu den Seiten in Ihrem Index …
+Preview not available. Download to view.==Keine Vorschau verfügbar. Zum Ansehen herunterladen.
+Image preview. Click to open larger view.==Bildvorschau. Klicken Sie für eine größere Ansicht.
+Preview truncated for brevity.==Vorschau gekürzt.
+Full text available.==Volltext verfügbar.
+Preview unavailable.==Vorschau nicht verfügbar.
+Invalid chat file.==Ungültige Chat-Datei.
+Model thoughts==Gedanken des Modells
 Attach PNG/JPG or text (.txt/.md/.tex)==PNG/JPG oder Text anhängen (.txt/.md/.tex)
-Search only this collection, e.g. edelsenior-web==Nur in dieser Collection suchen, z. B. edelsenior-web
-"all collections"=="alle Collections"
-Collection (portal):==Collection (Portal):
-Attach Search Results==Suchergebnisse anhängen
-Default Dialog Augmentation:==Standard-Dialogerweiterung:
-Show System==System anzeigen
+Search the index for this question==Index für diese Frage durchsuchen
+Answers only from the conversation and your attachments==Antworten nur aus dem Gespräch und Ihren Anhängen
+Answers from the pages in your Scoutro index==Antworten aus den Seiten in Ihrem Scoutro-Index
+Also searches other peers of the YaCy network==Durchsucht auch andere Peers des YaCy-Netzwerks
+>index + YaCy network<==>Index + YaCy-Netzwerk<
+>Scoutro index<==>Scoutro-Index<
+>no search<==>ohne Suche<
+Answers based on:==Antworten auf Basis von:
+Current search scope:==Aktueller Suchbereich:
+"Chat settings"=="Chat-Einstellungen"
+"Attach a file"=="Datei anhängen"
+Show system prompt==System-Prompt anzeigen
+Hide system prompt==System-Prompt ausblenden
+Clear chat==Chat leeren
+Download chat==Chat herunterladen
+Upload chat==Chat hochladen
+Your question==Ihre Frage
+"Send"=="Senden"
+Copy answer==Antwort kopieren
+Reuse from here==Ab hier wiederverwenden
+Delete this turn==Frage und Antwort löschen
+Loading attachment...==Anhang wird geladen …
+`Attach File: ==`Anhang: 
+`Preparing tool: ==`Werkzeug wird vorbereitet: 
+`Tool call: ==`Werkzeugaufruf: 
+`Tool: ==`Werkzeug: 
+`Tool ${index + 1}/==`Werkzeug ${index + 1}/
+`Failed to load chat file: ==`Chat-Datei konnte nicht geladen werden: 
+`Failed to read file: ==`Datei konnte nicht gelesen werden: 
+'Response'=='Ergebnis'
+'Attachment image'=='Bild im Anhang'
+'Attachment'=='Anhang'
+'Image'=='Bild'
+'Full preview'=='Große Vorschau'
+'Download'=='Herunterladen'
+'Open tab'=='In neuem Tab öffnen'
+'Copy snippet'=='Ausschnitt kopieren'
+'Copy all'=='Alles kopieren'
+user: 'You',==user: 'Sie',
+tool: 'Tool',==tool: 'Werkzeug',
+system: 'Notice',==system: 'Hinweis',
+all collections==alle Collections
 #-----------------------------
 
 #File: jslicense.html
@@ -4876,7 +5032,6 @@ Running==Läuft
 >Hosts<==>Hosts<
 >Build<==>Build<
 Idle==Inaktiv
-
 
 >Discovery Automation<==>Discovery-Automatisierung<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, Zeitpläne und persistenter Discovery-Kandidatenbestand<
@@ -5255,27 +5410,6 @@ aria-label="Views"==aria-label="Ansichten"
 >Not yet indexed<==>Noch nicht indexiert<
 >Last error<==>Letzter Fehler<
 
-#File: IndexBrowser_p.html
-# Scoutro collection browser
-Browse indexed URLs without loading or crawling them.==Indexierte URLs ohne Laden oder Crawlen durchsuchen.
-Apply filters==Filter anwenden
-Reset filters==Filter zurücksetzen
-Active collection:==Aktive Collection:
-Remove collection filter==Collection-Filter entfernen
-No indexed URLs match these filters.==Keine indexierten URLs entsprechen diesen Filtern.
-Index data unavailable or access denied. Sign in as administrator and retry.==Indexdaten nicht verfügbar oder Zugriff verweigert. Als Administrator anmelden und erneut versuchen.
-Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Ungültige Collection. Bis zu 64 Buchstaben, Ziffern, Unterstriche oder Bindestriche verwenden.
-indexed URLs==indexierte URLs
-Index pages==Indexseiten
-Host/URL==Host/URL
-Collection==Collection
-URL==URL
-Host==Host
-HTTP status==HTTP-Status
-Previous==Zurück
-Next==Weiter
-Index administration==Indexverwaltung
-
 #File: WatchWebStructure_p.html
 # Scoutro responsive layout; existing translations and identifiers retained.
 
@@ -5317,17 +5451,3 @@ Administration and technical details:==Administration und technische Details:
 #---------------------------
 Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 #-----------------------------
-
-#File: yacychat.html
-System data requires an authorized administrator or agent token. No web answer is substituted.==Systemdaten benötigen einen berechtigten Administrator oder Agent-Token. Es wird keine Webantwort als Ersatz verwendet.
-Not among the sources of this answer: not linked==Nicht unter den Quellen dieser Antwort: nicht verlinkt
-Not among the sources found for this answer:==Nicht unter den für diese Antwort gefundenen Quellen:
-No source of this answer has this number==Keine Quelle dieser Antwort hat diese Nummer
-Sources of this answer==Quellen dieser Antwort
-No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.==Keine YaCy-Administratorberechtigung: Das AI Shield lässt diese Adresse erst nach der YaCy-Administratoranmeldung zu.
-Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.==Vom AI Shield blockiert: Der Gastzugang ist aus, oder die Anfrage kam von einer anderen Website oder mit einem Agent-Token.
-Rate limit reached: please wait and try again. The server is protecting itself from overload.==Ratenlimit erreicht: Bitte warten Sie und versuchen Sie es erneut. Der Server schützt sich vor Überlastung.
-No chat model is configured: assign a model to the chat role in LLM Selection.==Kein Chat-Modell konfiguriert: Weisen Sie in der LLM-Auswahl der Chat-Rolle ein Modell zu.
-The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.==Der LLM-Endpunkt ist vom Scoutro-Server aus nicht erreichbar: Prüfen Sie den hoststub in der LLM-Auswahl.
-The LLM endpoint rejected the credentials: check the API key in LLM Selection.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den API-Key in der LLM-Auswahl.
-The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.==Der LLM-Endpunkt hat mit einem Fehler geantwortet: Den HTTP-Status zeigt das Scoutro-Log.
