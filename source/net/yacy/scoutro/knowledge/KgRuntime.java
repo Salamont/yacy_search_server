@@ -726,10 +726,12 @@ public final class KgRuntime {
                 }
                 this.jsonldLevel = noteLevel("jsonld_level", this.jsonldLevel, this.jsonld.level(), this.config.jsonldMaxTotalBytes);
             }
-            // the derived layer, after the sync has caught up once (enrichment: paused with every growth refusal)
+            // the derived layer, after the sync has caught up once (enrichment: paused with every growth refusal) and not
+            // while a rebuild runs; a finished rebuild stays referenced for its status and must not keep it waiting
             final net.yacy.scoutro.knowledge.derive.DerivedService dv = this.derived;
             final SyncService sy = this.sync;
-            if (dv != null && sy != null && sy.initialized() && this.rebuild == null) {
+            final KgRebuild rb = this.rebuild;
+            if (dv != null && sy != null && sy.initialized() && (rb == null || !rb.active())) {
                 final net.yacy.scoutro.knowledge.derive.DerivedService.Result r = dv.tick(now);
                 if (r != null && r.refused == null && r.inserted + r.deleted > 0) {
                     recordEvent(1, "derived_updated", r.inserted + " new, " + r.updated + " changed, " + r.deleted + " removed", false);

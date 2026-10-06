@@ -225,6 +225,31 @@ public class KgRebuildTest {
         assertEquals(4L, count(r, "SELECT count(*) FROM kg_entity WHERE status = 1"));
     }
 
+    /**
+     * The derived layer is rebuilt as well: the shadow starts without it, and the finished rebuild (kept for its status)
+     * must not keep it from running (found by the package 6 measurement: no derived rows after a rebuild).
+     */
+    @Test
+    public void theDerivedLayerRunsAgainAfterARebuild() throws Exception {
+        final KgRuntime r = start();
+        // the operator's home page names it (processed after the homes): both homes' parent organisation is the site's operator
+        client().add(doc("HOME00host01", "www.traeger.de", "{\"@type\":\"Organization\",\"name\":\"Träger gGmbH\","
+                + "\"url\":\"https://www.traeger.de/\"}"));
+        for (final String house : new String[] {"Birke", "Eiche"}) {
+            client().add(doc("H" + house.toUpperCase(java.util.Locale.ROOT).substring(0, 4) + "0host01", "www.traeger.de", "{\"@type\":"
+                    + "\"NursingHome\",\"name\":\"Haus " + house + "\",\"address\":{\"streetAddress\":\"" + house + "nweg 1\",\"postalCode\":"
+                    + "\"10115\",\"addressLocality\":\"Berlin\"},\"parentOrganization\":{\"@type\":\"Organization\",\"name\":\"Träger gGmbH\"}}"));
+        }
+        client().commit();
+        settle(r);
+        drive(r, () -> count(r, "SELECT count(*) FROM kg_derived") > 0);
+        assertEquals("the two homes of one operator", 1L, count(r, "SELECT count(*) FROM kg_derived WHERE kind = 2"));
+        r.rebuild();
+        drive(r, () -> "done".equals(phase(r)));
+        settle(r);
+        drive(r, () -> count(r, "SELECT count(*) FROM kg_derived WHERE kind = 2") == 1L);
+    }
+
     @Test
     public void aRebuildReadsEveryScanPageBeforeTheSwap() throws Exception {
         final KgRuntime r = start();
