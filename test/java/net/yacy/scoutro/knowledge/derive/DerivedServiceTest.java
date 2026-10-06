@@ -430,6 +430,24 @@ public class DerivedServiceTest {
         return n;
     }
 
+    /** The operator names care homes as its target in another collection: its own homes, which it operates, are never suggested. */
+    @Test
+    public void aSuggestionNeverRepeatsARelationItsViewerSees() throws Exception {
+        corpus();
+        final Publisher.Doc it = doc("CAITSWhost02", "https://www.lindenhof.de/digital", "stackfinder-web");
+        publish(it, page(it, "{\"@type\":\"Organization\",\"name\":\"Lindenhof Pflege gGmbH\",\"url\":\"https://www.lindenhof.de/\"}",
+                "Für wen? Wir unterstützen Pflegeeinrichtungen bundesweit bei der Dienstplanung.", ctx("software", "stackfinder-web")));
+        assertEquals("the operator states its target in stackfinder-web", 1L, (long) this.store.read(c -> KgStore.queryLong(c,
+                "SELECT count(DISTINCT s.subj) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'target_industry'"
+                        + " AND s.subj IN (SELECT subj FROM kg_statement WHERE obj_val = 'Lindenhof Pflege gGmbH')")));
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        final List<String> customers = derived("d.kind = 3");
+        assertTrue(customers.toString(), customers.stream().anyMatch(r -> r.startsWith("3|PflegeSoft GmbH|Haus ")));
+        for (final String row : customers) {
+            assertFalse("it operates both homes, a fact of edelsenior-web: " + row, row.startsWith("3|Lindenhof Pflege gGmbH|Haus "));
+        }
+    }
+
     private int derivedItems(final Viewer v) throws Exception {
         int n = 0;
         for (final KgChangeLog.Item it : this.store.read(c -> KgChangeLog.read(c, null, v, 1000)).items) {

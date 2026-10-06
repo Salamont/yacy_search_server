@@ -176,6 +176,19 @@ public class BusinessExtractionTest {
         assertTrue("a personal address is no application route", valuesOf(ex, job, Vocabulary.APPLICATION_ROUTE).isEmpty());
     }
 
+    /** The employer of a posting is an organisation or a facility: a person, a place or a service named there is none. */
+    @Test
+    public void theHiringOrganisationIsNeverAPersonOrAnotherThing() {
+        for (final String hiring : new String[] {"{\"@type\":\"Person\",\"name\":\"Erika Musterfrau\"}",
+            "{\"@type\":\"Place\",\"name\":\"Haus am See\",\"address\":{\"@type\":\"PostalAddress\",\"addressLocality\":\"Berlin\"}}",
+            "{\"@type\":\"Service\",\"name\":\"Personalvermittlung Muster\"}"}) {
+            final Extraction ex = jsonld("{\"@type\":\"JobPosting\",\"title\":\"Pflegefachkraft (m/w/d)\",\"hiringOrganization\":" + hiring + "}",
+                    "https://www.lindenhof.de/karriere/pflegefachkraft", care(true));
+            assertNotNull(ex.mentions().toString(), named(ex, Vocabulary.JOB, "Pflegefachkraft (m/w/d)"));
+            assertEquals(hiring, List.of(), relations(ex, Vocabulary.HIRING_ORGANIZATION));
+        }
+    }
+
     @Test
     public void jsonLdAudienceAndAreaServed() {
         final Extraction ex = jsonld("{\"@type\":\"Organization\",\"name\":\"Muster Software GmbH\",\"audience\":{\"@type\":"

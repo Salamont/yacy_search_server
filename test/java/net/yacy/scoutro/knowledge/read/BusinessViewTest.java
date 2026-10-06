@@ -310,6 +310,23 @@ public class BusinessViewTest {
         }
     }
 
+    /** Observed audiences are customers and references only: a supplier the firm names is an incoming relation, not a customer. */
+    @Test
+    public void anIncomingSupplierIsNoObservedCustomer() throws Exception {
+        publish(doc("SWLIEFhost01", "https://www.pflegesoft.de/partner", "stackfinder-web"), "{\"@type\":\"Organization\",\"name\":"
+                + "\"PflegeSoft GmbH\",\"url\":\"https://www.pflegesoft.de/\"}", "Partner. Unsere Lieferanten: Muster Hosting GmbH.",
+                ctx("software", "stackfinder-web", false), this.now - DAY);
+        final JSONObject view = new BusinessView(this.reader).entity(entity("PflegeSoft GmbH"), viewer("stackfinder-web", "edelsenior-web"), false);
+        final String relations = view.getJSONObject("relations").toString();
+        assertTrue("the supplier is an incoming relation: " + relations, relations.contains("supplier_of") && relations.contains("Muster Hosting GmbH"));
+        final JSONArray observed = view.getJSONObject("audiences").getJSONArray("observed");
+        final List<String> names = new ArrayList<>();
+        for (int i = 0; i < observed.length(); i++) {
+            names.add(observed.getJSONObject(i).getJSONObject("other").getString("name"));
+        }
+        assertEquals(List.of("Muster Klinikum GmbH"), names);
+    }
+
     @Test
     public void theThreeAudienceLayersNeverMix() throws Exception {
         final String soft = entity("PflegeSoft GmbH");

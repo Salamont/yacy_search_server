@@ -214,6 +214,7 @@ public class KgSyncRuntimeTest {
         assertTrue(r.status().getJSONObject("upgrade").getBoolean("waiting"));
         assertEquals("disk_critical", r.status().getJSONObject("sync").getString("upgradeHold"));
         assertFalse("no re-extraction while held", r.status().getJSONObject("sync").getJSONObject("reconcile").optBoolean("reextract"));
+        assertEquals("no re-extraction scan ran while held", 0L, count(r, "SELECT count(*) FROM kg_scan WHERE reason = 'extractor_changed'"));
         r.backup();
         final long until = System.currentTimeMillis() + 30_000L;
         while (r.status().getJSONObject("upgrade").getBoolean("waiting") && System.currentTimeMillis() < until) {
