@@ -137,6 +137,8 @@ public final class SyncService {
     final Counters counters = new Counters();
 
     private volatile boolean initialized;
+    /** Why the re-extraction of an upgrade waits for a verified backup (package 6); null if it does not. */
+    private volatile String upgradeHold;
     private volatile String state = "starting";
     private volatile String reason;
     private volatile String lastError;
@@ -200,16 +202,20 @@ public final class SyncService {
             WorkQueue.resetClaims(tx);
             final String collections = KgStore.getMeta(tx, KgSchema.META_COLLECTIONS);
             final String extractors = KgStore.getMeta(tx, KgSchema.META_EXTRACTORS);
-            KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
+            final String hold = KgStore.getMeta(tx, KgSchema.META_UPGRADE_HOLD);
+            if (hold == null) {
+                KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
+            } // an upgrade without its copy: the old identity stays, so the re-extraction runs once the hold is released
             this.reconciler.onStart(tx, now);
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
-                    KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT)};
+                    KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold};
         });
         final boolean collectionsChanged = meta[0] != null && !meta[0].equals(this.cfg.collectionsKey());
         final boolean extractorsChanged = meta[1] != null && !meta[1].equals(SolrDoc.extractors());
+        this.upgradeHold = meta[4];
         this.reconciler.request(collectionsChanged ? Reconciler.REASON_COLLECTIONS
                 : this.uncleanStart ? Reconciler.REASON_UNCLEAN_START : Reconciler.REASON_START, now);
-        if (extractorsChanged) {
+        if (extractorsChanged && this.upgradeHold == null) {
             this.reconciler.reextractAll();
         }
         if ("1".equals(meta[2])) {
@@ -781,7 +787,7 @@ public final class SyncService {
             }
         }
         return KgJson.obj("state", this.state, "reason", this.reason, "initialized", this.initialized,
-                "resetInProgress", this.resetting, "lastError", this.lastError, "gate", this.gateClosed,
+                "resetInProgress", this.resetting, "upgradeHold", this.upgradeHold, "lastError", this.lastError, "gate", this.gateClosed,
                 "growthBlocked", this.clock.getAsLong() < this.growthBlockedUntil || this.growthRefusal != null,
                 "growthRefusal", this.growthRefusal,
                 "changes", this.dirty.status(), "queue", KgJson.obj("items", queued, "maxItems", this.queueMax,
@@ -790,6 +796,37 @@ public final class SyncService {
                 "reconcile", this.reconciler.status(), "retention", this.retention.status(),
                 "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending(),
                         "byType", this.pendingByType));
+    }
+
+    /**
+     * Ends the wait of an upgrade without its copy once a verified backup
+     * exists: records the new extractor identity and re-extracts every page
+     * with the current vocabulary (low priority, behind new pages, paused like
+     * every enrichment). Returns false if nothing was held.
+     */
+    public boolean releaseUpgradeHold() throws KgException {
+        if (this.upgradeHold == null || !this.initialized) {
+            return false;
+        }
+        final long now = this.clock.getAsLong();
+        final String extractors = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+            final String last = KgStore.getMeta(tx, KgSchema.META_EXTRACTORS);
+            KgStore.deleteMeta(tx, KgSchema.META_UPGRADE_HOLD);
+            KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
+            KgStore.event(tx, 1, "upgrade_released", "a verified backup exists; every page is extracted again", now);
+            return last;
+        });
+        this.upgradeHold = null;
+        if (extractors == null || !extractors.equals(SolrDoc.extractors())) {
+            this.reconciler.reextractAll();
+            this.reconciler.request(Reconciler.REASON_EXTRACTORS, now);
+        }
+        return true;
+    }
+
+    /** Why the upgrade's re-extraction waits; null if it does not. */
+    public String upgradeHold() {
+        return this.upgradeHold;
     }
 
     // ----------------------------------------------------------------- tests

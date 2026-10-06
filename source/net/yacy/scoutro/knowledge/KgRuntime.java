@@ -380,6 +380,7 @@ public final class KgRuntime {
                     KgStore.getMeta(c, KgSchema.META_CREATED_AT)});
             this.backups = new KgBackups(() -> this.store, this.paths, this.config, this.guard, this.env.clock,
                     (level, code, detail) -> recordEvent(level, code, detail, false), parseLong(backupMeta[0]), parseLong(backupMeta[1]));
+            this.backups.afterVerified(this::releaseUpgradeHold);
             if (this.rebuild == null && KgRebuild.discardLeftover(this.paths)) {
                 // a stop or crash in the middle of a rebuild: its shadow is gone, the graph is unchanged
                 this.lastRebuild = KgJson.obj("phase", "interrupted", "finishedAt", this.startedAt);
@@ -1114,9 +1115,47 @@ public final class KgRuntime {
                     this.config.derivedIntervalMillis / 60_000L, "lastRun", dv == null || dv.lastRun() == 0L ? null : dv.lastRun(),
                     "last", dr == null ? null : dr.json()));
             KgJson.put(o, "vocabulary", vocabularyStatus());
+            KgJson.put(o, "upgrade", upgradeStatus());
             KgJson.put(o, "events", recentEvents(s));
         }
         return o;
+    }
+
+    /**
+     * Ends the wait of an upgrade that could not take its copy first, after a
+     * verified backup (package 6): the sync re-extracts every page with the
+     * new vocabulary, the LLM tier examines its documents again. Never throws.
+     */
+    void releaseUpgradeHold() {
+        try {
+            final SyncService sy = this.sync;
+            if (sy != null && sy.releaseUpgradeHold()) {
+                final LlmService ll = this.llm;
+                if (ll != null) {
+                    ll.releaseUpgradeHold();
+                }
+                LOG.info("knowledge graph upgrade: a verified backup exists, the re-extraction starts");
+            }
+        } catch (final KgException | RuntimeException e) {
+            LOG.warn("knowledge graph upgrade hold not released: " + e);
+        }
+    }
+
+    /** The upgrade of the last migration (package 6), with the current hold; null if this graph was never upgraded. */
+    private JSONObject upgradeStatus() {
+        try {
+            final String[] m = this.store.read(c -> new String[] {KgStore.getMeta(c, KgSchema.META_UPGRADE),
+                KgStore.getMeta(c, KgSchema.META_UPGRADE_HOLD)});
+            if (m[0] == null) {
+                return null;
+            }
+            final JSONObject o = new JSONObject(m[0]);
+            KgJson.put(o, "hold", m[1] == null ? JSONObject.NULL : m[1]);
+            KgJson.put(o, "waiting", m[1] != null);
+            return o;
+        } catch (final KgException | org.json.JSONException e) {
+            return null;
+        }
     }
 
     /** The business vocabularies in force (package 6): version, files, counts, problems, the vocabulary of each collection. */

@@ -131,6 +131,10 @@ public final class KgStore implements AutoCloseable {
     private int schemaVersion;
     private String epoch;
     private boolean created;
+    /** The upgrade of this start (package 6), written with the migration; null without a migration. */
+    private JSONObject upgrade;
+    /** Why the re-extraction of an upgrade waits (no verified copy before it); null if it need not wait. */
+    private String upgradeHold;
 
     /** One reader connection. {@code lease} and {@code closed} change only under the slot's monitor. */
     private static final class ReaderSlot {
@@ -227,6 +231,9 @@ public final class KgStore implements AutoCloseable {
         final KgStore store = new KgStore(paths, cfg, guard, factory, clock, writer);
         try {
             store.configureWriter(fresh);
+            if (!fresh) {
+                store.prepareUpgrade();
+            }
             store.initSchema();
         } catch (final KgException e) {
             SqliteProcess.close(writer);
@@ -338,6 +345,16 @@ public final class KgStore implements AutoCloseable {
                                 this.clock.getAsLong());
                     }
                 }
+                if (this.upgrade != null && migrated > version) {
+                    putMeta(this.writer, KgSchema.META_UPGRADE, this.upgrade.toString());
+                    if (this.upgradeHold != null) {
+                        putMeta(this.writer, KgSchema.META_UPGRADE_HOLD, this.upgradeHold);
+                        event(this.writer, 2, "upgrade_held", "no copy before the upgrade (" + this.upgradeHold
+                                + "); the re-extraction waits for a verified backup", this.clock.getAsLong());
+                    } else {
+                        event(this.writer, 1, "upgrade_backup", this.upgrade.optString("backup"), this.clock.getAsLong());
+                    }
+                }
                 this.schemaVersion = migrated;
                 this.epoch = getMeta(this.writer, KgSchema.META_EPOCH);
                 if (!KgIds.isEpoch(this.epoch)) {
@@ -351,6 +368,108 @@ public final class KgStore implements AutoCloseable {
         } finally {
             this.writeLock.unlock();
         }
+    }
+
+    // ----------------------------------------------------------------- upgrade
+
+    /**
+     * Before a schema migration (package 6: schema 3 of Scoutro 0.7 to 4,
+     * vocabulary 2): {@code PRAGMA quick_check} on the unchanged file, then a
+     * verified copy {@code backup/graph-<UTC>-before-upgrade.db} that a
+     * rollback to the previous version can be restored from. A failed or
+     * unfinished check leaves the file untouched and the graph off
+     * ({@link KgException#UPGRADE_BLOCKED}). A copy the budget or the disk has
+     * no room for is skipped: the additive migration still runs, but the
+     * re-extraction of every page with the new vocabulary waits
+     * ({@link KgSchema#META_UPGRADE_HOLD}) until a verified backup exists.
+     */
+    private void prepareUpgrade() throws SQLException, KgException {
+        if (queryLong(this.writer, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='kg_meta'") == 0L) {
+            return;
+        }
+        final int version;
+        try {
+            version = Integer.parseInt(String.valueOf(getMeta(this.writer, KgSchema.META_SCHEMA_VERSION)).trim());
+        } catch (final NumberFormatException e) {
+            return; // initSchema reports it
+        }
+        if (version < 1 || version >= KgSchema.CURRENT_VERSION) {
+            return;
+        }
+        final long start = this.clock.getAsLong();
+        final String check = checkBeforeUpgrade(this.cfg.integrityMaxMillis);
+        if (check == null) {
+            throw new KgException(KgException.UPGRADE_BLOCKED, "check_timeout", "the integrity check before the upgrade from schema "
+                    + version + " did not finish within " + this.cfg.integrityMaxMillis + " ms (" + KgConfig.INTEGRITY_MAX_MILLIS
+                    + "); the graph file is unchanged", null);
+        }
+        if (!"ok".equals(check)) {
+            throw new KgException(KgException.UPGRADE_BLOCKED, "integrity_failed", "quick_check before the upgrade from schema "
+                    + version + ": " + (check.length() > 200 ? check.substring(0, 200) : check) + "; the graph file is unchanged", null);
+        }
+        final JSONObject up = new JSONObject();
+        KgJson.put(up, "from", version);
+        KgJson.put(up, "to", KgSchema.CURRENT_VERSION);
+        KgJson.put(up, "at", start);
+        KgJson.put(up, "quickCheck", "ok");
+        final File dir = this.paths.backup;
+        final String name = KgBackup.name(start, KgBackup.BEFORE_UPGRADE);
+        final File partial = new File(dir, name + ".partial");
+        final File target = new File(dir, name);
+        try {
+            mkdirs(dir);
+            if (target.exists()) {
+                throw new KgException(KgException.BACKUP_FAILED, "exists", "the copy of this second exists already", null);
+            }
+            copyTo(partial, this.cfg.backupMaxMillis, WriteClass.MAINTENANCE);
+            final JSONObject facts = KgBackup.verify(partial, version);
+            java.nio.file.Files.move(partial.toPath(), target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            KgBackup.writeMeta(target, facts, "upgrade", start, this.clock.getAsLong() - start);
+            KgJson.put(up, "backup", name);
+            KgJson.put(up, "bytes", target.length());
+        } catch (final KgException | java.io.IOException e) {
+            deleteQuietly(partial);
+            deleteQuietly(target);
+            deleteQuietly(KgBackup.meta(target));
+            final String why = e instanceof KgException ? (((KgException) e).reason() != null ? ((KgException) e).reason()
+                    : ((KgException) e).code()) : "io";
+            KgJson.put(up, "backup", JSONObject.NULL);
+            KgJson.put(up, "hold", why);
+            this.upgradeHold = why;
+        }
+        this.upgrade = up;
+    }
+
+    /** {@code PRAGMA quick_check} on a dedicated read-only connection; null if it did not finish in time. */
+    private String checkBeforeUpgrade(final long deadlineMillis) throws KgException {
+        Connection ro = null;
+        final java.util.concurrent.atomic.AtomicBoolean timedOut = new java.util.concurrent.atomic.AtomicBoolean();
+        final java.util.Timer timer = new java.util.Timer("ScoutroKG.upgrade-check", true);
+        try {
+            ro = SqliteProcess.open(KgBackup::readOnly, this.paths.db, this.paths.tmp);
+            final Connection c = ro;
+            timer.schedule(new java.util.TimerTask() {
+                @Override
+                public void run() {
+                    timedOut.set(true);
+                    interruptNative(c);
+                }
+            }, Math.max(1L, deadlineMillis));
+            return queryString(ro, "PRAGMA quick_check(1)");
+        } catch (final SQLException e) {
+            if (timedOut.get()) {
+                return null;
+            }
+            return "unreadable: " + e.getMessage();
+        } finally {
+            timer.cancel();
+            SqliteProcess.close(ro);
+        }
+    }
+
+    /** The upgrade of this start (from, to, at, quickCheck, backup or hold); null without a migration. */
+    public JSONObject upgrade() {
+        return this.upgrade;
     }
 
     // ------------------------------------------------------------------ writes
@@ -792,6 +911,11 @@ public final class KgStore implements AutoCloseable {
      */
     public long backupTo(final File target, final long deadlineMillis) throws KgException {
         ensureOpen();
+        return copyTo(target, deadlineMillis, WriteClass.GROWTH);
+    }
+
+    /** {@link #backupTo} with the admission class: growth for backups, maintenance for the copy before an upgrade. */
+    private long copyTo(final File target, final long deadlineMillis, final WriteClass writeClass) throws KgException {
         if (target.exists()) {
             throw new KgException(KgException.BACKUP_FAILED, "target_exists", "the backup file exists already", null);
         }
@@ -799,7 +923,7 @@ public final class KgStore implements AutoCloseable {
         try {
             final long logical = (queryLong(this.writer, "PRAGMA page_count") - queryLong(this.writer, "PRAGMA freelist_count"))
                     * this.pageSize;
-            admitLocked(WriteClass.GROWTH, logical);
+            admitLocked(writeClass, logical);
         } catch (final SQLException e) {
             throw mapWrite(e);
         } finally {
@@ -962,6 +1086,13 @@ public final class KgStore implements AutoCloseable {
                 + " ON CONFLICT (key) DO UPDATE SET value = excluded.value")) {
             ps.setString(1, key);
             ps.setString(2, value);
+            ps.executeUpdate();
+        }
+    }
+
+    public static void deleteMeta(final Connection c, final String key) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("DELETE FROM kg_meta WHERE key = ?")) {
+            ps.setString(1, key);
             ps.executeUpdate();
         }
     }

@@ -189,6 +189,46 @@ public class KgSyncRuntimeTest {
         assertEquals("start", stringOf(r, "SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1"));
     }
 
+    /**
+     * Package 6: an upgrade that could not take its copy first keeps the old
+     * extractor identity; the re-extraction of every page starts only after a
+     * verified backup.
+     */
+    @Test
+    public void anUpgradeWithoutItsCopyReextractsOnlyAfterAVerifiedBackup() throws Exception {
+        KgRuntime r = start(settings());
+        client().add(doc("AAAAAAhost01", "", org("A GmbH")));
+        client().commit();
+        settle(r);
+        KgRuntime.stop();
+        // as KgStore leaves it after a migration without room for the copy
+        try (Connection c = KgStore.SQLITE.open(new KgPaths(this.data).db)) {
+            KgStore.putMeta(c, KgSchema.META_EXTRACTORS, "1:jsonld:2,1:metadata:1,2:rule:2");
+            KgStore.putMeta(c, KgSchema.META_UPGRADE_HOLD, "disk_critical");
+            KgStore.putMeta(c, KgSchema.META_UPGRADE, "{\"from\":3,\"to\":4,\"backup\":null,\"hold\":\"disk_critical\"}");
+        }
+        r = start(settings());
+        settle(r);
+        assertEquals("the old identity stays", "1:jsonld:2,1:metadata:1,2:rule:2", stringOf(r, "SELECT value FROM kg_meta WHERE key = '"
+                + KgSchema.META_EXTRACTORS + "'"));
+        assertTrue(r.status().getJSONObject("upgrade").getBoolean("waiting"));
+        assertEquals("disk_critical", r.status().getJSONObject("sync").getString("upgradeHold"));
+        assertFalse("no re-extraction while held", r.status().getJSONObject("sync").getJSONObject("reconcile").optBoolean("reextract"));
+        r.backup();
+        final long until = System.currentTimeMillis() + 30_000L;
+        while (r.status().getJSONObject("upgrade").getBoolean("waiting") && System.currentTimeMillis() < until) {
+            Thread.sleep(20);
+        }
+        assertFalse("a verified backup ends the wait", r.status().getJSONObject("upgrade").getBoolean("waiting"));
+        assertEquals(net.yacy.scoutro.knowledge.sync.SolrDoc.extractors(), stringOf(r, "SELECT value FROM kg_meta WHERE key = '"
+                + KgSchema.META_EXTRACTORS + "'"));
+        assertTrue(r.status().getJSONObject("sync").isNull("upgradeHold"));
+        assertTrue("every page is extracted again", r.status().getJSONObject("sync").getJSONObject("reconcile").optBoolean("reextract"));
+        settle(r);
+        assertEquals(1L, count(r, "SELECT count(*) FROM kg_event WHERE code = 'upgrade_released'"));
+        assertEquals("extractor_changed", stringOf(r, "SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1"));
+    }
+
     private String stringClosed(final String key) throws Exception {
         try (Connection c = KgStore.SQLITE.open(new KgPaths(this.data).db)) {
             return KgStore.getMeta(c, key);
