@@ -150,6 +150,11 @@ public final class DerivedService {
         return this.lastRun;
     }
 
+    /** Makes a pass due now (the administrator's {@code derive} action). */
+    public void requestRun() {
+        this.lastRun = 0L;
+    }
+
     /** True if a pass is due (enabled, interval passed). */
     public boolean due(final long now) {
         return this.cfg.derivedEnabled && now - this.lastRun >= this.cfg.derivedIntervalMillis;

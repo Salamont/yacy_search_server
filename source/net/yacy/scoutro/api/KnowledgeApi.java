@@ -55,7 +55,7 @@ final class KnowledgeApi {
 
     /** Allowed values of {@code action}. */
     static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
-            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm");
+            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm", "derive");
 
     private final Supplier<KgRuntime> runtime;
 
@@ -246,6 +246,8 @@ final class KnowledgeApi {
                     return r.rebuildCancel();
                 case "rebuild_confirm":
                     return r.rebuildConfirm();
+                case "derive":
+                    return r.derive();
                 default:
                     return r.confirmReconcile();
             }
@@ -298,6 +300,9 @@ final class KnowledgeApi {
             case KgException.LLM_UNAVAILABLE:
                 return new ApiException(409, KgException.LLM_UNAVAILABLE,
                         "The LLM tier is off: set " + KgConfig.LLM_COLLECTIONS + " and select a model for the usage knowledge.");
+            case KgException.DERIVED_UNAVAILABLE:
+                return new ApiException(409, KgException.DERIVED_UNAVAILABLE,
+                        "The derived layer is off: set " + KgConfig.DERIVED_ENABLED + "=true; it needs the embedded Solr synchronisation.");
             case KgException.WRITE_REFUSED:
                 return new ApiException(503, "kg_write_refused",
                         "The knowledge graph cannot write right now; see GET /scoutro/api/v1/kg/status.",

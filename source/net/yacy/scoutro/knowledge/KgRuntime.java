@@ -922,6 +922,22 @@ public final class KgRuntime {
     }
 
     /**
+     * Makes the derived layer (weak links, same operator, suggested matches)
+     * due at the next maintenance step instead of after its interval
+     * ({@code POST /kg/control {"action":"derive"}}). It still waits for the
+     * sync's first pass, a running rebuild and every growth refusal.
+     */
+    public synchronized JSONObject derive() throws KgException {
+        requireRunning();
+        final net.yacy.scoutro.knowledge.derive.DerivedService dv = this.derived;
+        if (dv == null || !this.config.derivedEnabled) {
+            throw new KgException(KgException.DERIVED_UNAVAILABLE, "the derived layer is off (scoutro.kg.derived.enabled=false or no Solr synchronisation)");
+        }
+        dv.requestRun();
+        return status();
+    }
+
+    /**
      * Lets a reconcile that the mass-deletion brake stopped delete the
      * documents it confirmed as absent ({@code confirm_reconcile}).
      */

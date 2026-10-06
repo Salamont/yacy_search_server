@@ -263,7 +263,7 @@ def build_parser():
     kg.add_parser("status", help="administrator")
     ctl = kg.add_parser("control", help="administrator")
     ctl.add_argument("action", choices=["pause", "resume", "reconcile", "confirm_reconcile", "llm_retry", "backup",
-                                        "rebuild", "rebuild_cancel", "rebuild_confirm"])
+                                        "rebuild", "rebuild_cancel", "rebuild_confirm", "derive"])
     kg.add_parser("backup", help="administrator: start a backup into DATA/SCOUTRO/knowledge/backup")
     kg.add_parser("backups", help="administrator: list the backups")
     bd = kg.add_parser("backup-download", help="administrator: write a backup file to stdout")

@@ -1555,7 +1555,7 @@
       "post": {
         "operationId": "kg.control",
         "summary": "Control the knowledge graph",
-        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"} (restore with \"backup\"); unknown fields are refused. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
+        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"} (restore with \"backup\"); unknown fields are refused. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
         "tags": [
           "knowledge"
         ],
@@ -1779,7 +1779,7 @@
             "description": "A backup file name.",
             "schema": {
               "type": "string",
-              "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$"
+              "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$"
             }
           }
         ],
@@ -7921,7 +7921,7 @@
             "description": "A backup file name.",
             "schema": {
               "type": "string",
-              "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$"
+              "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$"
             }
           }
         ],
@@ -14619,6 +14619,13 @@
               "initialized": {
                 "type": "boolean"
               },
+              "upgradeHold": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Why the re-extraction of an upgrade waits for a verified backup (the guard's refusal of the copy before it); null if nothing waits."
+              },
               "resetInProgress": {
                 "type": "boolean",
                 "description": "A full clear of the index (*:*) is being applied: new dataset epoch, graph data deleted in bounded batches."
@@ -15438,6 +15445,162 @@
               }
             }
           },
+          "derived": {
+            "type": "object",
+            "description": "The derived layer (package 6): weak link signals, same operator, suggested customers and partners; no facts.",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "intervalMinutes": {
+                "type": "integer"
+              },
+              "lastRun": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "last": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "computed": {
+                    "type": "integer"
+                  },
+                  "inserted": {
+                    "type": "integer"
+                  },
+                  "updated": {
+                    "type": "integer"
+                  },
+                  "deleted": {
+                    "type": "integer"
+                  },
+                  "byKind": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "refused": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "durationMs": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "vocabulary": {
+            "type": "object",
+            "description": "The business vocabularies in force (package 6).",
+            "properties": {
+              "graphVocabulary": {
+                "type": "string",
+                "enum": [
+                  "2"
+                ]
+              },
+              "version": {
+                "type": "string",
+                "description": "Hash of the category files and the number of NACE codes; part of the extractor identity."
+              },
+              "vocabularies": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "categories": {
+                "type": "integer"
+              },
+              "naceCodes": {
+                "type": "integer"
+              },
+              "files": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "defaults/scoutro/knowledge and overrides in DATA/SCOUTRO/knowledge/vocabulary."
+              },
+              "problems": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "collections": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "vocabulary": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "jobs": {
+                      "type": "boolean"
+                    },
+                    "priceStaleDays": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "upgrade": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "The last schema migration of this graph (package 6: 3 -> 4); null if it was never upgraded. Before it: PRAGMA quick_check (a failed or unfinished check keeps the graph off, state unavailable, reason upgrade_blocked, file unchanged) and a verified copy graph-<UTC>-before-upgrade.db. Without room for the copy the additive migration still runs, but the re-extraction with vocabulary 2 waits (waiting) until a verified backup exists.",
+            "properties": {
+              "from": {
+                "type": "integer"
+              },
+              "to": {
+                "type": "integer"
+              },
+              "at": {
+                "type": "integer"
+              },
+              "quickCheck": {
+                "type": "string",
+                "enum": [
+                  "ok"
+                ]
+              },
+              "backup": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "bytes": {
+                "type": "integer"
+              },
+              "hold": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "waiting": {
+                "type": "boolean"
+              }
+            }
+          },
           "events": {
             "type": "array",
             "items": {
@@ -15477,7 +15640,7 @@
         "properties": {
           "backup": {
             "type": "string",
-            "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$",
+            "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$",
             "description": "With action restore only: the backup file."
           },
           "action": {
@@ -15492,9 +15655,10 @@
               "restore",
               "rebuild",
               "rebuild_cancel",
-              "rebuild_confirm"
+              "rebuild_confirm",
+              "derive"
             ],
-            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity: it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise."
+            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false."
           }
         }
       },
@@ -15624,8 +15788,10 @@
                   "enum": [
                     "backup",
                     "before_restore",
-                    "before_rebuild"
-                  ]
+                    "before_rebuild",
+                    "before_upgrade"
+                  ],
+                  "description": "before_upgrade: the copy of the old graph before a schema migration (package 6); the newest one survives the retention as the way back to the previous version."
                 },
                 "bytes": {
                   "type": "integer"

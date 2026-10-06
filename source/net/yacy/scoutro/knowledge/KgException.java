@@ -58,6 +58,8 @@ public class KgException extends Exception {
      * (package 6); the graph file is unchanged and the graph stays off.
      */
     public static final String UPGRADE_BLOCKED = "upgrade_blocked";
+    /** {@code derive} while the derived layer is off (package 6). */
+    public static final String DERIVED_UNAVAILABLE = "derived_unavailable";
     /** A backup, restore or rebuild is already running (package 5). */
     public static final String OPERATION_RUNNING = "operation_running";
     /** A backup could not be written or verified; the detail names the step. */

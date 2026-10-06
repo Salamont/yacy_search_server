@@ -5576,7 +5576,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Dropped as not quoted<==>Verworfen, weil nicht zitiert<
 >Objects in this view<==>Objekte in dieser Ansicht<
 >Followed collections<==>Verfolgte Collections<
->Facts and relations<==>Fakten und Beziehungen<
 >Published documents<==>Veröffentlichte Dokumente<
 >Advanced Properties<==>Erweiterte Einstellungen<
 >Possible duplicates<==>Mögliche Dubletten<
@@ -5693,3 +5692,189 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >all<==>alle<
 >no<==>nein<
 #-----------------------------
+> Facilities, sites and places<==> Einrichtungen, Standorte und Orte<
+> Industries and audiences<==> Branchen und Zielgruppen<
+> List only<==> Nur als Liste<
+> Relations between organisations<==> Beziehungen zwischen Organisationen<
+> Same operator (derived)<==> Gleicher Träger (abgeleitet)<
+> Services and jobs<==> Leistungen und Jobs<
+> Stale<==> Veraltet<
+> Suggestions<==> Vorschläge<
+> Weak link signals<==> Schwache Link-Signale<
+>%1 ended jobs older than the visibility window are hidden.<==>%1 beendete Jobs, älter als das Sichtbarkeitsfenster, sind ausgeblendet.<
+>%1 objects, %2 lines<==>%1 Objekte, %2 Linien<
+>%1 to %2<==>%1 bis %2<
+>1: direct neighbours<==>1: direkte Nachbarn<
+>2: also their neighbours<==>2: auch deren Nachbarn<
+>All facts and relations<==>Alle Fakten und Beziehungen<
+>Any audience<==>Jede Zielgruppe<
+>Any category<==>Jede Kategorie<
+>Any industry<==>Jede Branche<
+>Apply<==>Anwenden<
+>As a list<==>Als Liste<
+>As of<==>Stand<
+>Audience<==>Zielgruppe<
+>Audiences<==>Zielgruppen<
+>Categories<==>Kategorien<
+>Choose a category<==>Kategorie wählen<
+>Choose a service category.<==>Wählen Sie eine Leistungskategorie.<
+>Classification<==>Klassifikation<
+>Compare services and prices<==>Leistungen und Preise vergleichen<
+>Compare<==>Vergleich<
+>Computed<==>Berechnet<
+>Conditions<==>Bedingungen<
+>Confidence<==>Konfidenz<
+>Contacts<==>Kontakte<
+>Could be a customer of<==>Könnte Kunde sein von<
+>Declared audience<==>Angegebene Zielgruppe<
+>Depth<==>Tiefe<
+>Derived, no facts<==>Abgeleitet, keine Fakten<
+>Description<==>Beschreibung<
+>Ended<==>Beendet<
+>Evidence and sources<==>Belege und Quellen<
+>From<==>Von<
+>Further industries<==>Weitere Branchen<
+>General price range<==>Allgemeine Preisspanne<
+>Industry<==>Branche<
+>Job<==>Job<
+>Jobs<==>Jobs<
+>Linked pages (weak signal)<==>Verlinkte Seiten (schwaches Signal)<
+>Location<==>Arbeitsort<
+>Main industry<==>Hauptbranche<
+>Network of %1<==>Netz von %1<
+>Network view<==>Netzansicht<
+>Network<==>Netz<
+>No visible neighbours with these filters.<==>Keine sichtbaren Nachbarn mit diesen Filtern.<
+>No visible services of this category.<==>Keine sichtbaren Leistungen dieser Kategorie.<
+>One service category across providers. Prices are shown exactly as published, with their unit, conditions, VAT and date; they are never estimated, converted, normalised or averaged. Conflicting prices stay visible, outdated ones are marked.<==>Eine Leistungskategorie über mehrere Anbieter. Preise erscheinen genau wie veröffentlicht, mit Einheit, Bedingungen, Mehrwertsteuer und Datum; sie werden nie geschätzt, umgerechnet, normalisiert oder gemittelt. Widersprüchliche Preise bleiben sichtbar, veraltete werden markiert.<
+>Open object<==>Objekt öffnen<
+>Organisation<==>Organisation<
+>Other published amount for the same service<==>Anderer veröffentlichter Betrag für dieselbe Leistung<
+>Possible customers (Scoutro suggestions)<==>Mögliche Kunden (Scoutro-Vorschläge)<
+>Possible customers<==>Mögliche Kunden<
+>Possible partners<==>Mögliche Partner<
+>Price<==>Preis<
+>Prices<==>Preise<
+>Provider<==>Anbieter<
+>Published customers and references<==>Veröffentlichte Kunden und Referenzen<
+>Relation<==>Beziehung<
+>Relations<==>Beziehungen<
+>Salary<==>Gehalt<
+>Same operator (derived)<==>Gleicher Träger (abgeleitet)<
+>Scoutro categories<==>Scoutro-Kategorien<
+>Service category<==>Leistungskategorie<
+>Services<==>Leistungen<
+>Show comparison<==>Vergleich anzeigen<
+>Show more<==>Mehr anzeigen<
+>Show<==>Anzeigen<
+>Status<==>Status<
+>Suggested matches<==>Vorgeschlagene Matches<
+>Suggestions are no facts: they combine what A offers with what B seeks. A suggested customer is a possible customer, never a customer relation.<==>Vorschläge sind keine Fakten: Sie verbinden, was A anbietet, mit dem, was B sucht. Ein vorgeschlagener Kunde ist ein möglicher Kunde, nie eine Kundenbeziehung.<
+>The neighbourhood of one object, never the whole graph. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Select a node or a line to see its evidence; open a node to go to its object.<==>Die Nachbarschaft eines Objekts, nie der ganze Graph. Durchgezogene Linien sind Fakten mit Beleg, gestrichelte unsichere Fakten, gepunktete abgeleitete Einträge, die keine Fakten sind: ein gemeinsamer Träger, ein schwaches Link-Signal oder ein Vorschlag. Wählen Sie einen Knoten oder eine Linie, um die Belege zu sehen; öffnen Sie einen Knoten, um zu seinem Objekt zu gelangen.<
+>To<==>Nach<
+>VAT-exempt<==>umsatzsteuerfrei<
+>apply until<==>bewerben bis<
+>audience<==>Zielgruppe<
+>care level<==>Pflegegrad<
+>category<==>Kategorie<
+>centre<==>Mitte<
+>certification<==>Zertifizierung<
+>company profile<==>Unternehmensprofil<
+>company size<==>Unternehmensgröße<
+>confirmed<==>bestätigt<
+>contact form<==>Kontaktformular<
+>contact point<==>Ansprechstelle<
+>cooperates with<==>kooperiert mit<
+>current<==>aktuell<
+>customer type<==>Kundentyp<
+>derived (no fact)<==>abgeleitet (kein Fakt)<
+>derived, no fact; evidence is the facts it rests on<==>abgeleitet, kein Fakt; Beleg sind die Fakten, auf denen es beruht<
+>derived<==>abgeleitet<
+>description<==>Beschreibung<
+>directions<==>Anfahrt<
+>employment type<==>Beschäftigungsart<
+>ended<==>beendet<
+>excl. VAT<==>zzgl. MwSt.<
+>expired<==>abgelaufen<
+>fact with evidence<==>Fakt mit Beleg<
+>fax<==>Fax<
+>from %1<==>ab %1<
+>gross<==>brutto<
+>how to apply<==>Bewerbungsweg<
+>incl. VAT<==>inkl. MwSt.<
+>incoming<==>eingehend<
+>industry category<==>Branchenkategorie<
+>industry or audience<==>Branche oder Zielgruppe<
+>industry<==>Branche<
+>international<==>international<
+>is a brand of<==>ist eine Marke von<
+>is a customer of<==>ist Kunde von<
+>is a member of the association<==>ist Mitglied im Verband<
+>is a member of<==>ist Mitglied von<
+>is a partner of<==>ist Partner von<
+>is a reference for<==>ist Referenz für<
+>is a service provider for<==>ist Dienstleister für<
+>is a subsidiary of<==>ist Tochter von<
+>is advertised by<==>wird ausgeschrieben von<
+>is certified by<==>ist zertifiziert durch<
+>is funded by<==>wird gefördert von<
+>is parent company of<==>ist Muttergesellschaft von<
+>is sponsored by<==>wird gesponsert von<
+>is the carrier of<==>ist Träger von<
+>last seen<==>zuletzt gesehen<
+>links to (weak signal)<==>verlinkt auf (schwaches Signal)<
+>more neighbours available<==>weitere Nachbarn vorhanden<
+>nationwide<==>bundesweit<
+>need<==>Bedarf<
+>net<==>netto<
+>no published price<==>kein veröffentlichter Preis<
+>occupational field<==>Berufsfeld<
+>office hours<==>Bürozeiten<
+>once<==>einmalig<
+>outdated since %1 (after %2 days)<==>veraltet seit %1 (nach %2 Tagen)<
+>outdated<==>veraltet<
+>own share<==>Eigenanteil<
+>per day<==>pro Tag<
+>per hour<==>pro Stunde<
+>per month<==>pro Monat<
+>per week<==>pro Woche<
+>per year<==>pro Jahr<
+>place of work<==>Arbeitsort<
+>possible customer (suggestion)<==>möglicher Kunde (Vorschlag)<
+>possible partner (suggestion)<==>möglicher Partner (Vorschlag)<
+>posted<==>veröffentlicht<
+>price<==>Preis<
+>prices<==>Preise<
+>salary<==>Gehalt<
+>same operator (derived)<==>gleicher Träger (abgeleitet)<
+>serves<==>versorgt<
+>service area<==>Einzugsgebiet<
+>sought service<==>gesuchte Leistung<
+>start<==>Beginn<
+>stated by the source<==>von der Quelle angegeben<
+>suggestion (no fact)<==>Vorschlag (kein Fakt)<
+>suggestion<==>Vorschlag<
+>supplies<==>beliefert<
+>target industry<==>Zielbranche<
+>two equally strong codes: the safe common level is shown<==>zwei gleich starke Codes: die sichere gemeinsame Ebene wird gezeigt<
+>uncertain fact<==>unsicherer Fakt<
+>up to %1<==>bis %1<
+>valid through<==>gültig bis<
+>weak signal<==>schwaches Signal<
+>within %1 km<==>im Umkreis von %1 km<
+>Vocabulary and derived relations<==>Vokabular und abgeleitete Beziehungen<
+>Recompute suggestions now<==>Vorschläge jetzt neu berechnen<
+>Industries follow NACE Rev. 2.1 / WZ 2025; service categories and audiences come from the Scoutro vocabularies of each collection. Derived relations (same operator, weak link signals, suggested customers and partners) are no facts; they are recomputed every interval and only shown to a viewer of both collections.<==>Branchen folgen NACE Rev. 2.1 / WZ 2025; Leistungskategorien und Zielgruppen kommen aus den Scoutro-Vokabularen jeder Collection. Abgeleitete Beziehungen (gleicher Träger, schwache Link-Signale, vorgeschlagene Kunden und Partner) sind keine Fakten; sie werden in jedem Intervall neu berechnet und nur gezeigt, wer beide Collections sehen darf.<
+>The graph was upgraded to vocabulary 2 without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.<==>Der Graph wurde ohne Kopie des alten Graphen auf Vokabular 2 aktualisiert (kein Platz). Die neue Extraktion aller Seiten wartet, bis ein Backup gelingt: Speicher freigeben, dann ein Backup erstellen.<
+>before an upgrade<==>vor einem Upgrade<
+>Graph vocabulary<==>Graph-Vokabular<
+>Vocabulary version<==>Vokabular-Version<
+>%1 categories, %2 NACE codes<==>%1 Kategorien, %2 NACE-Codes<
+>Vocabulary problems<==>Vokabular-Probleme<
+>Derived relations<==>Abgeleitete Beziehungen<
+>%1 rows · last run %2 · every %3 min<==>%1 Einträge · letzter Lauf %2 · alle %3 min<
+>Upgrade<==>Upgrade<
+>schema %1 → %2 · %3<==>Schema %1 → %2 · %3<
+>copy before the upgrade: %1<==>Kopie vor dem Upgrade: %1<
+>waiting for a verified backup (%1)<==>wartet auf ein geprüftes Backup (%1)<
+>jobs<==>Jobs<
