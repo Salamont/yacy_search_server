@@ -647,9 +647,9 @@ public final class JsonLdExtractor {
             if (currency == null) {
                 continue; // a number without a currency is no price
             }
-            final String price = Values.amount(string(spec.opt("price")));
-            final String min = Values.amount(string(spec.opt(spec.has("minPrice") ? "minPrice" : "lowPrice")));
-            final String max = Values.amount(string(spec.opt(spec.has("maxPrice") ? "maxPrice" : "highPrice")));
+            final String price = Values.ldAmount(ldValue(spec.opt("price")));
+            final String min = Values.ldAmount(ldValue(spec.opt(spec.has("minPrice") ? "minPrice" : "lowPrice")));
+            final String max = Values.ldAmount(ldValue(spec.opt(spec.has("maxPrice") ? "maxPrice" : "highPrice")));
             final Map<String, Object> f = new java.util.TreeMap<>();
             f.put("currency", currency);
             if (min != null && max != null && new java.math.BigDecimal(min).compareTo(new java.math.BigDecimal(max)) < 0) {
@@ -1020,9 +1020,9 @@ public final class JsonLdExtractor {
         }
         final Object value = s.opt("value");
         final JSONObject q = value instanceof JSONObject ? (JSONObject) value : s;
-        final String amount = Values.amount(string(q.opt("value") != null ? q.opt("value") : value instanceof JSONObject ? null : value));
-        final String min = Values.amount(string(q.opt("minValue")));
-        final String max = Values.amount(string(q.opt("maxValue")));
+        final String amount = Values.ldAmount(ldValue(q.opt("value") != null ? q.opt("value") : value instanceof JSONObject ? null : value));
+        final String min = Values.ldAmount(ldValue(q.opt("minValue")));
+        final String max = Values.ldAmount(ldValue(q.opt("maxValue")));
         final Map<String, Object> f = new java.util.TreeMap<>();
         f.put("currency", currency);
         if (min != null && max != null && new java.math.BigDecimal(min).compareTo(new java.math.BigDecimal(max)) < 0) {
@@ -1125,6 +1125,11 @@ public final class JsonLdExtractor {
             return val instanceof String ? Normalizers.text((String) val) : null;
         }
         return null;
+    }
+
+    /** A number as it is, a string or an {@code @value} string as text: the input of {@link Values#ldAmount}. */
+    private static Object ldValue(final Object v) {
+        return v instanceof Number ? v : string(v);
     }
 
     private static String country(final Object v) {

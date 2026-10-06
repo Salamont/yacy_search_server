@@ -224,6 +224,51 @@ public class BusinessExtractionTest {
                 .map(c -> c.predicate).distinct().collect(java.util.stream.Collectors.toList()));
     }
 
+    /** A plain space groups thousands only where nothing else can be meant; a table row's cells never fuse into one amount. */
+    @Test
+    public void aSpaceBetweenNumbersIsAThousandsSeparatorOnlyWhenNothingElseIsMeant() {
+        final java.util.function.Function<String, List<String>> amounts = t -> {
+            final List<String> out = new ArrayList<>();
+            for (final Values.Price p : Values.prices(t, 0, t.length())) {
+                out.add(String.valueOf(p.fields.get("amount")));
+            }
+            return out;
+        };
+        // table cells "Pflegegrad 2" and "980 €" in one line
+        assertEquals(List.of(), amounts.apply("Eigenanteil Pflegegrad 2 980 € Pflegegrad 3 1 120 €"));
+        assertEquals(List.of(), amounts.apply("Zimmer 3 450 € im Monat"));
+        // grouping where nothing else can be meant
+        assertEquals(List.of("1250.00"), amounts.apply("Kosten: 1 250 € im Monat"));
+        assertEquals(List.of("1250.00"), amounts.apply("Eigenanteil ab 1 250 €"));
+        assertEquals(List.of("1250.00"), amounts.apply("Eigenanteil € 1 250"));
+        assertEquals(List.of("1250.00"), amounts.apply("Eigenanteil 1\u00A0250 €"));
+        assertEquals(List.of("1250.00"), amounts.apply("Eigenanteil 1\u202F250 €"));
+        assertEquals(List.of("1250.00"), amounts.apply("Eigenanteil 1.250 €"));
+        // a line break is no thousands separator
+        assertEquals(List.of("250.00"), amounts.apply("Haus 1\n250 € pro Tag"));
+    }
+
+    /** schema.org writes "." as the decimal point; "12.500" may be meant either way and gives no amount. */
+    @Test
+    public void aJsonLdAmountReadsThePointAsTheDecimalPoint() {
+        assertEquals("12.50", Values.ldAmount("12.50"));
+        assertEquals("12.50", Values.ldAmount(12.5));
+        assertEquals("12.50", Values.ldAmount(new java.math.BigDecimal("12.500")));
+        assertEquals("3400.00", Values.ldAmount(3400));
+        assertEquals("3400.00", Values.ldAmount("3400"));
+        assertEquals("1250.00", Values.ldAmount("1,250.00"));
+        assertEquals("1250.00", Values.ldAmount("1.250,00"));
+        assertNull("12.5 by the rule, 12 500 by habit", Values.ldAmount("12.500"));
+        assertNull(Values.ldAmount("3.400"));
+        assertNull(Values.ldAmount(12.345));
+        assertNull(Values.ldAmount(-5));
+        final Extraction ex = jsonld("{\"@type\":\"Organization\",\"name\":\"Sonnenschein Pflege GmbH\",\"makesOffer\":[{\"@type\":\"Offer\","
+                + "\"itemOffered\":{\"@type\":\"Service\",\"name\":\"Tagespflege\"},\"price\":\"12.500\",\"priceCurrency\":\"EUR\"},"
+                + "{\"@type\":\"Offer\",\"itemOffered\":{\"@type\":\"Service\",\"name\":\"Kurzzeitpflege\"},\"price\":89.9,\"priceCurrency\":\"EUR\"}]}",
+                "https://www.sonnenschein-pflege.de/", care(false));
+        assertEquals(List.of("{\"amount\":\"89.90\",\"currency\":\"EUR\",\"kind\":\"fixed\"}"), values(ex, Vocabulary.PRICE));
+    }
+
     /**
      * A price table as YaCy's HTML parser gives it to the index: the cells of all rows in one line, separated by spaces, no
      * colons ({@code <tr><td>Kurzzeitpflege</td><td>89,90 € pro Tag</td></tr>} …, checked with {@code TextParser}).

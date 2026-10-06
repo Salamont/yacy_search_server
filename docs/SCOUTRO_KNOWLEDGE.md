@@ -526,6 +526,13 @@ This is the default. The page shows the LLM tier as `off`.
   row, each price after the service of its row); a price with no service
   before it is not kept. Units, ranges and conditions are kept as the page
   states them, and are never normalised for a comparison.
+- **Ambiguous amounts are left out.** A plain space groups thousands only
+  where nothing else can be meant ("Kosten: 1 250 €", "ab 1 250 €"); after
+  a word or a number it may part two cells of a table row ("Pflegegrad 2
+  980 €"), so that line gives no price. In JSON-LD the point is the decimal
+  point (schema.org); a string such as `"12.500"`, which German pages also
+  use for 12 500, gives no price. The page text still gives it where it
+  names it.
 - **Suggestions are heuristics.** A suggested customer or partner only says
   that declared targets and offers meet; it is never checked against
   reality.

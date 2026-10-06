@@ -128,7 +128,7 @@ public final class Values {
         if (s == null) {
             return null;
         }
-        String t = s.trim().replace("\u00A0", "").replace(" ", "").replace("'", "");
+        String t = s.trim().replace("\u00A0", "").replace("\u202F", "").replace("\u2009", "").replace(" ", "").replace("'", "");
         t = t.replaceAll("[,.]-+$", "");
         if (t.isEmpty() || !t.matches("[0-9][0-9.,]*") || t.endsWith(".") || t.endsWith(",")) {
             return null;
@@ -166,6 +166,32 @@ public final class Values {
         } catch (final NumberFormatException | ArithmeticException e) {
             return null;
         }
+    }
+
+    /**
+     * An amount as schema.org writes it (JSON-LD): "." is the decimal point.
+     * A number is read as it is; a string with one "." and three digits after
+     * it ("12.500") is 12.5 by the rule and 12 500 by German habit, so it gives
+     * no amount rather than a guess (the page text, if it names the price,
+     * still gives it). Every other string is read like {@link #amount}.
+     */
+    public static String ldAmount(final Object v) {
+        if (v instanceof Number) {
+            try {
+                final BigDecimal d = new BigDecimal(v.toString()).stripTrailingZeros();
+                if (d.signum() <= 0 || d.compareTo(MAX_AMOUNT) >= 0 || d.scale() > 2) {
+                    return null;
+                }
+                return d.setScale(2, RoundingMode.UNNECESSARY).toPlainString();
+            } catch (final NumberFormatException | ArithmeticException e) {
+                return null;
+            }
+        }
+        if (v == null) {
+            return null;
+        }
+        final String s = v.toString().trim();
+        return s.matches("[0-9]+\\.[0-9]{3}") ? null : amount(s);
     }
 
     /** ISO 4217 code of a currency word or sign; null if it is none. */
@@ -314,7 +340,8 @@ public final class Values {
         }
     }
 
-    private static final String NUM = "[0-9]{1,3}(?:[.\\s\\u00A0'][0-9]{3})*(?:[,.][0-9]{1,2})?(?:[,.]-{1,2})?|[0-9]+(?:[,.][0-9]{1,2})?(?:[,.]-{1,2})?";
+    /** Thousands grouped by ".", "'", a no-break, narrow no-break or thin space, or a plain space (see {@link #prices}); never a line break. */
+    private static final String NUM = "[0-9]{1,3}(?:[. \\u00A0\\u202F\\u2009'][0-9]{3})*(?:[,.][0-9]{1,2})?(?:[,.]-{1,2})?|[0-9]+(?:[,.][0-9]{1,2})?(?:[,.]-{1,2})?";
     private static final String CUR = "€|EUR\\b|Euro\\b|CHF\\b|Fr\\.|USD\\b|\\$|£|GBP\\b";
     private static final String DASH = "\\s?(?:-|–|—|bis(?:\\s+zu)?|to)\\s?";
     /** {@code [ab|bis|von|zwischen] [cur] num [cur] [(-|bis|und) [cur] num [cur]]}. */
@@ -362,6 +389,11 @@ public final class Values {
                 continue;
             }
             if (m.group("n2") != null && m.group("c1") == null && m.group("c2") == null && m.group("c3") == null && m.group("c4") == null) {
+                continue;
+            }
+            // a plain space groups thousands only where nothing else can be meant: after a word or a number it may as well part two
+            // numbers ("Pflegegrad 2 980 €", two cells of a table row in one line), so no price rather than a wrong one
+            if (m.group("prefix") == null && m.group("c1") == null && m.group("n1").indexOf(' ') >= 0 && wordBefore(text, m.start("n1"))) {
                 continue;
             }
             final String a1 = amount(m.group("n1"));
@@ -413,6 +445,15 @@ public final class Values {
             out.add(new Price(f, m.start(), stop));
         }
         return out;
+    }
+
+    /** A letter or a digit before {@code at}, past spaces. */
+    private static boolean wordBefore(final String text, final int at) {
+        int i = at - 1;
+        while (i >= 0 && (text.charAt(i) == ' ' || text.charAt(i) == '\u00A0')) {
+            i--;
+        }
+        return i >= 0 && Character.isLetterOrDigit(text.charAt(i));
     }
 
     private static boolean percentAfter(final String text, final int at) {
