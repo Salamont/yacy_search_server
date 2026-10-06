@@ -188,6 +188,10 @@ public class AgentKnowledgeTest {
         assertEquals("collection_not_in_scope", code(get(a, "kg/entities", "collection", "kgb")));
         assertEquals("collection_not_in_scope", code(get(a, "kg/export", "collection", "kgb")));
         assertEquals("collection_not_in_scope", code(get(a, "kg/changes", "collection", "kgb")));
+        // the routes of vocabulary 2 refuse the other collection as well
+        assertEquals("collection_not_in_scope", code(get(a, "kg/compare", "category", "care/tagespflege", "collection", "kgb")));
+        assertEquals("collection_not_in_scope", code(get(a, "kg/derived", "collection", "kgb")));
+        assertEquals("collection_not_in_scope", code(get(a, "kg/facets", "collection", "kgb")));
         final AgentApi.Response list = get(a, "kg/entities");
         assertEquals(1, list.body.getLong("total"));
         assertFalse("no graph-wide backlog for agents", list.body.has("lag"));
@@ -221,6 +225,8 @@ public class AgentKnowledgeTest {
         assertEquals(404, get(a, "kg/entities/" + bee).status);
         assertEquals(404, get(a, "kg/entities/" + bee + "/business").status);
         assertEquals(404, get(a, "kg/entities/" + bee + "/neighborhood").status);
+        assertEquals("collection_not_in_scope", code(get(a, "kg/entities/" + muster + "/business", "collection", "kgb")));
+        assertEquals("collection_not_in_scope", code(get(a, "kg/entities/" + muster + "/neighborhood", "collection", "kgb")));
         assertEquals(404, get(a, "kg/derived", "entity", bee).status);
         assertEquals(404, get(a, "kg/sources/BBBBBBhost01").status);
         assertEquals(404, get(a, "kg/sources/CCCCCChost02").status);
