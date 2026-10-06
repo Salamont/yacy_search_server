@@ -1617,7 +1617,7 @@
         409,
         503
       ],
-      "cli": "scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--collection NAME]",
+      "cli": "scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--industry CODE] [--category C] [--audience A] [--collection NAME]",
       "mcpTool": "scoutro_kg_entities",
       "agent": {
         "grantable": true,

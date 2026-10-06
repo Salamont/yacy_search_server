@@ -100,7 +100,7 @@ returns those of the calling agent. The list mirrors
 | `index.status.global` | `GET /agent/v1/index?global=true` | admin | **no** | – | `index status --global` |
 | `system.status` | `GET /agent/v1/system` | admin | **no** | – | `system` |
 | `config.get` / `config.set` | `GET`/`PATCH /agent/v1/config` | admin | **no** | – | `config get`, `config set KEY VALUE` |
-| `kg.read` | `GET /agent/v1/kg/{entities,statements,hosts,sources}/…` | read | yes (evidence of the granted collections only) | – | `kg entities`, `kg entity ID`, `kg statements ID`, `kg statement ID`, `kg evidence ID`, `kg host HOST`, `kg source DOC_ID` |
+| `kg.read` | `GET /agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `GET /agent/v1/kg/{compare,derived,facets}` | read | yes (evidence of the granted collections only) | – | `kg entities [--industry C] [--category C] [--audience A]`, `kg entity ID`, `kg statements ID`, `kg statement ID`, `kg evidence ID`, `kg host HOST`, `kg source DOC_ID`, `kg business ID`, `kg neighborhood ID`, `kg compare CATEGORY`, `kg derived`, `kg facets` |
 | `kg.export` | `GET /agent/v1/kg/export`, `GET /agent/v1/kg/changes` | read | yes (evidence of the granted collections only) | – | `kg export [--all] [--evidence]`, `kg changes [--cursor C] [--expand]` |
 
 Always available with a valid token: `agent.capabilities`

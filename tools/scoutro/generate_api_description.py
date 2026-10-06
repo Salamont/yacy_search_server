@@ -1092,7 +1092,7 @@ cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-j
 mcp.update({'kg.export': 'scoutro_kg_export', 'kg.changes': 'scoutro_kg_changes', 'kg.download': 'scoutro_kg_download',
             'kg.backups': 'scoutro_kg_backups', 'kg.backup.download': 'scoutro_kg_backup_download'})
 cli.update({'kg.backups': 'scoutroctl kg backups (administrator)', 'kg.backup.download': 'scoutroctl kg backup-download FILE > graph.db (administrator)'})
-cli.update({'kg.entities': 'scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--collection NAME]', 'kg.entity': 'scoutroctl kg entity ID',
+cli.update({'kg.entities': 'scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--industry CODE] [--category C] [--audience A] [--collection NAME]', 'kg.entity': 'scoutroctl kg entity ID',
             'kg.entity.statements': 'scoutroctl kg statements ID [--direction out|in] [--predicate P] [--include-stale]', 'kg.statement': 'scoutroctl kg statement ID',
             'kg.statement.evidence': 'scoutroctl kg evidence ID', 'kg.host.entities': 'scoutroctl kg host HOST', 'kg.source': 'scoutroctl kg source DOC_ID',
             'kg.export': 'scoutroctl kg export [--evidence] [--collection NAME] [--all]', 'kg.changes': 'scoutroctl kg changes [--cursor C] [--expand]',
