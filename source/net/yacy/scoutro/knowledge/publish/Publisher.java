@@ -77,6 +77,12 @@ public final class Publisher {
         public List<String> collections;
         public long jsonldBytes;
         public boolean jsonldSkipped;
+        /** What tiers 1 and 2 read, without the extractor versions (schema 4); null keeps the stored one. */
+        public byte[] contentHash;
+        /** The input hash under the extractor versions of schema 3: recognises a page the LLM tier read before the upgrade. */
+        public byte[] legacyInputHash;
+        /** Registrable domains the page links to, with counts; null keeps the stored ones. */
+        public java.util.SortedMap<String, Integer> linkDomains;
     }
 
     public enum Outcome { PUBLISHED, UNCHANGED, LIFECYCLE, ABORT_GENERATION, ABORT_OLDER }
@@ -165,6 +171,7 @@ public final class Publisher {
             rowid = insert(tx, doc, extraction == null ? 0 : extraction.tiers(), now);
             collectionsChanged = true;
             stateChanged = true;
+            contentHash(tx, rowid, doc.contentHash);
         } else {
             rowid = cur.rowid;
             collectionsChanged = !colls.equals(collections(tx, rowid));
@@ -192,6 +199,7 @@ public final class Publisher {
         if (extraction != null) {
             result = new Result(Outcome.PUBLISHED);
             replaceEvidence(tx, doc, rowid, extraction, agg, result, now);
+            replaceLinks(tx, rowid, doc.linkDomains);
         } else {
             result = new Result(collectionsChanged || stateChanged ? Outcome.LIFECYCLE : Outcome.UNCHANGED);
         }
@@ -223,8 +231,22 @@ public final class Publisher {
 
     private static void update(final Connection tx, final Doc doc, final Row cur, final Extraction extraction,
             final boolean stateChanged, final long now) throws SQLException {
-        // a new input invalidates the LLM tier's result (6.3): its quotes were checked against the old text
-        final boolean llmStale = extraction != null && doc.inputHash != null && !java.util.Arrays.equals(doc.inputHash, llmHash(tx, cur.rowid));
+        // a new content invalidates the LLM tier's result (6.3): its quotes were checked against the old text; a new
+        // extractor version or vocabulary alone does not (schema 4: the LLM mark holds the content hash)
+        final byte[] llm = llmHash(tx, cur.rowid);
+        boolean llmStale = extraction != null && doc.inputHash != null && llm != null;
+        if (llmStale && doc.contentHash != null && java.util.Arrays.equals(llm, doc.contentHash)) {
+            llmStale = false;
+        } else if (llmStale && doc.contentHash != null && doc.legacyInputHash != null && java.util.Arrays.equals(llm, doc.legacyInputHash)
+                && java.util.Arrays.equals(cur.inputHash, llm)) {
+            // read before the upgrade (the mark is the schema-3 input hash of exactly this content): the result stays
+            llmStale = false;
+            try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_hash = ? WHERE doc_rowid = ?")) {
+                ps.setBytes(1, doc.contentHash);
+                ps.setLong(2, cur.rowid);
+                ps.executeUpdate();
+            }
+        }
         if (llmStale) {
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_evidence WHERE doc_rowid = ? AND tier = 3")) {
                 ps.setLong(1, cur.rowid);
@@ -257,6 +279,40 @@ public final class Publisher {
             ps.setLong(13, now);
             ps.setLong(14, cur.rowid);
             ps.executeUpdate();
+        }
+        if (extraction != null) {
+            contentHash(tx, cur.rowid, doc.contentHash);
+        }
+    }
+
+    private static void contentHash(final Connection tx, final long rowid, final byte[] hash) throws SQLException {
+        if (hash == null) {
+            return;
+        }
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET content_hash = ? WHERE doc_rowid = ?")) {
+            ps.setBytes(1, hash);
+            ps.setLong(2, rowid);
+            ps.executeUpdate();
+        }
+    }
+
+    /** Replaces the document's outbound link domains (the input of the derived relation linked_to). */
+    private static void replaceLinks(final Connection tx, final long rowid, final java.util.SortedMap<String, Integer> domains)
+            throws SQLException {
+        if (domains == null) {
+            return;
+        }
+        try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_doc_link WHERE doc_rowid = ?")) {
+            ps.setLong(1, rowid);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = tx.prepareStatement("INSERT INTO kg_doc_link (doc_rowid, domain, n) VALUES (?, ?, ?)")) {
+            for (final Map.Entry<String, Integer> e : domains.entrySet()) {
+                ps.setLong(1, rowid);
+                ps.setString(2, e.getKey());
+                ps.setInt(3, Math.max(1, e.getValue()));
+                ps.executeUpdate();
+            }
         }
     }
 
@@ -297,8 +353,9 @@ public final class Publisher {
         agg.touchDocument(tx, rowid, 3);
         final Result result = new Result(Outcome.PUBLISHED);
         replaceEvidence(tx, doc, rowid, extraction, agg, result, now, LLM_TIER, extId);
-        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = 1, llm_hash = input_hash, llm_reason = NULL,"
-                + " tiers = tiers | 4 WHERE doc_rowid = ?")) {
+        // the mark is the content hash (schema 4), so a new vocabulary keeps the result; input_hash for a document of schema 3
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = 1, llm_hash = coalesce(content_hash, input_hash),"
+                + " llm_reason = NULL, tiers = tiers | 4 WHERE doc_rowid = ?")) {
             ps.setLong(1, rowid);
             ps.executeUpdate();
         }
@@ -350,7 +407,7 @@ public final class Publisher {
                 PreparedStatement insStmt = tx.prepareStatement("INSERT INTO kg_statement (public_id, subj, pred, obj_ent, obj_val, obj_key,"
                         + " quality, current_sources, first_seen, last_confirmed) VALUES (?, ?, ?, ?, ?, ?, 4, 0, ?, NULL)");
                 PreparedStatement insEv = tx.prepareStatement("INSERT OR IGNORE INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id,"
-                        + " kind, certainty, confidence, locator, excerpt, observed_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)")) {
+                        + " kind, certainty, confidence, locator, excerpt, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
             for (final Claim c : ex.claims()) {
                 final Vocabulary.Predicate p = Vocabulary.predicate(c.predicate);
                 if (p == null || p.relation != c.relation() || !replaced(replacedTiers, c.tier)) {
@@ -408,9 +465,10 @@ public final class Publisher {
                 insEv.setInt(4, c.kind == Claim.KIND_LLM ? llmExtId : extractor(c));
                 insEv.setInt(5, c.kind);
                 insEv.setInt(6, c.hedged ? 2 : 1);
-                insEv.setString(7, c.locator);
-                insEv.setString(8, Normalizers.redactPersons(Normalizers.clip(c.excerpt, Math.min(1000, this.cfg.extractMaxExcerptChars))));
-                insEv.setLong(9, now);
+                insEv.setDouble(7, Math.round(c.effectiveConfidence() * 1000.0) / 1000.0);
+                insEv.setString(8, c.locator);
+                insEv.setString(9, Normalizers.redactPersons(Normalizers.clip(c.excerpt, Math.min(1000, this.cfg.extractMaxExcerptChars))));
+                insEv.setLong(10, now);
                 if (insEv.executeUpdate() > 0) {
                     result.statements++;
                 }
@@ -448,6 +506,7 @@ public final class Publisher {
             final String k = Normalizers.key(value);
             return k == null ? value : k;
         }
+        // codes, dates and canonical JSON are compared exactly: 49 € and 59 € are two prices, never one
         return value;
     }
 

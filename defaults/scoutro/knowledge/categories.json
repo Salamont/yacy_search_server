@@ -1,0 +1,3506 @@
+{
+ "schema": "scoutro.kg.categories",
+ "version": "1",
+ "note": "Seed vocabularies (package 6), not closed enumerations. New categories are added here or in DATA/SCOUTRO/knowledge/vocabulary/*.json; no schema change. 'nace' is the safe NACE Rev. 2.1 level (section, division, group or class) or null if no level is reliable.",
+ "collections": {
+  "edelsenior-web": "care",
+  "checkthecoach-web": "coaching",
+  "stackfinder-web": "software",
+  "bauteamcheck-web": "construction"
+ },
+ "customer_types": [
+  {
+   "code": "b2b",
+   "de": "Geschäftskunden (B2B)",
+   "en": "Businesses (B2B)",
+   "terms": [
+    "b2b",
+    "geschäftskunden",
+    "firmenkunden",
+    "gewerbekunden",
+    "unternehmen",
+    "business customers",
+    "businesses"
+   ]
+  },
+  {
+   "code": "b2c",
+   "de": "Privatkunden (B2C)",
+   "en": "Consumers (B2C)",
+   "terms": [
+    "b2c",
+    "privatkunden",
+    "privatpersonen",
+    "verbraucher",
+    "consumers",
+    "private customers"
+   ]
+  },
+  {
+   "code": "public_sector",
+   "de": "Öffentliche Hand",
+   "en": "Public sector",
+   "terms": [
+    "öffentliche hand",
+    "öffentliche auftraggeber",
+    "kommunen",
+    "behörden",
+    "verwaltungen",
+    "public sector",
+    "public authorities"
+   ]
+  },
+  {
+   "code": "non_profit",
+   "de": "Vereine und Non-Profit",
+   "en": "Associations and non-profits",
+   "terms": [
+    "vereine",
+    "non-profit",
+    "nonprofit",
+    "gemeinnützige",
+    "ngos",
+    "stiftungen",
+    "non-profits",
+    "charities"
+   ]
+  }
+ ],
+ "company_sizes": [
+  {
+   "code": "solo",
+   "de": "Solo-Selbstständige",
+   "en": "Solo self-employed",
+   "terms": [
+    "solo-selbstständige",
+    "solopreneure",
+    "einzelunternehmer",
+    "freelancer",
+    "selbstständige"
+   ]
+  },
+  {
+   "code": "micro",
+   "de": "Kleinstunternehmen",
+   "en": "Micro enterprises",
+   "terms": [
+    "kleinstunternehmen",
+    "kleinbetriebe",
+    "micro enterprises"
+   ]
+  },
+  {
+   "code": "sme",
+   "de": "KMU",
+   "en": "SMEs",
+   "terms": [
+    "kmu",
+    "kleine und mittlere unternehmen",
+    "kleine und mittelständische unternehmen",
+    "smes",
+    "sme"
+   ]
+  },
+  {
+   "code": "midsize",
+   "de": "Mittelstand",
+   "en": "Mid-sized companies",
+   "terms": [
+    "mittelstand",
+    "mittelständische unternehmen",
+    "mittelständler",
+    "mid-sized companies"
+   ]
+  },
+  {
+   "code": "large",
+   "de": "Großunternehmen",
+   "en": "Large enterprises",
+   "terms": [
+    "großunternehmen",
+    "konzerne",
+    "konzern",
+    "enterprise-kunden",
+    "large enterprises",
+    "corporations"
+   ]
+  }
+ ],
+ "employment_types": [
+  {
+   "code": "full_time",
+   "de": "Vollzeit",
+   "en": "Full-time",
+   "terms": [
+    "vollzeit",
+    "full-time",
+    "full time",
+    "fulltime"
+   ]
+  },
+  {
+   "code": "part_time",
+   "de": "Teilzeit",
+   "en": "Part-time",
+   "terms": [
+    "teilzeit",
+    "part-time",
+    "part time",
+    "parttime"
+   ]
+  },
+  {
+   "code": "mini_job",
+   "de": "Minijob",
+   "en": "Mini job",
+   "terms": [
+    "minijob",
+    "mini-job",
+    "geringfügige beschäftigung",
+    "450-euro",
+    "538-euro",
+    "556-euro"
+   ]
+  },
+  {
+   "code": "apprenticeship",
+   "de": "Ausbildung",
+   "en": "Apprenticeship",
+   "terms": [
+    "ausbildung",
+    "auszubildende",
+    "azubi",
+    "apprenticeship"
+   ]
+  },
+  {
+   "code": "internship",
+   "de": "Praktikum",
+   "en": "Internship",
+   "terms": [
+    "praktikum",
+    "praktikant",
+    "praktikantin",
+    "internship",
+    "intern"
+   ]
+  },
+  {
+   "code": "working_student",
+   "de": "Werkstudent",
+   "en": "Working student",
+   "terms": [
+    "werkstudent",
+    "werkstudentin",
+    "werkstudierende",
+    "working student"
+   ]
+  },
+  {
+   "code": "freelance",
+   "de": "Freiberuflich",
+   "en": "Freelance",
+   "terms": [
+    "freiberuflich",
+    "freie mitarbeit",
+    "freelance",
+    "freelancer",
+    "auf honorarbasis"
+   ]
+  }
+ ],
+ "vocabularies": {
+  "care": {
+   "de": "Pflege und Betreuung",
+   "en": "Care and support",
+   "groups": [
+    {
+     "code": "stationaer",
+     "de": "Stationäre und teilstationäre Pflege",
+     "en": "Residential and semi-residential care",
+     "nace": "87"
+    },
+    {
+     "code": "ambulant",
+     "de": "Ambulante Pflege und Betreuung",
+     "en": "Home and community care",
+     "nace": "88.10"
+    },
+    {
+     "code": "wohnen",
+     "de": "Wohnen mit Service",
+     "en": "Assisted living",
+     "nace": null
+    },
+    {
+     "code": "fachpflege",
+     "de": "Fachpflege",
+     "en": "Specialised care",
+     "nace": "R"
+    },
+    {
+     "code": "beratung",
+     "de": "Beratung und Entlastung",
+     "en": "Counselling and relief",
+     "nace": "88"
+    },
+    {
+     "code": "alltag",
+     "de": "Alltag und Haushalt",
+     "en": "Everyday support",
+     "nace": null
+    }
+   ],
+   "categories": [
+    {
+     "code": "stationaere_langzeitpflege",
+     "de": "Stationäre Langzeitpflege",
+     "en": "Long-term residential care",
+     "group": "stationaer",
+     "nace": "87.10",
+     "terms": [
+      "stationäre pflege",
+      "vollstationäre pflege",
+      "vollstationär",
+      "langzeitpflege",
+      "pflegeheim",
+      "altenpflegeheim",
+      "altenheim",
+      "seniorenheim",
+      "seniorenpflegeheim",
+      "pflegeeinrichtung",
+      "nursing home",
+      "long-term care",
+      "residential care"
+     ]
+    },
+    {
+     "code": "kurzzeitpflege",
+     "de": "Kurzzeitpflege",
+     "en": "Short-term care",
+     "group": "stationaer",
+     "nace": "87.10",
+     "terms": [
+      "kurzzeitpflege",
+      "short-term care",
+      "short term care"
+     ]
+    },
+    {
+     "code": "verhinderungspflege",
+     "de": "Verhinderungspflege",
+     "en": "Respite care",
+     "group": "beratung",
+     "nace": "R",
+     "terms": [
+      "verhinderungspflege",
+      "ersatzpflege",
+      "respite care"
+     ]
+    },
+    {
+     "code": "tagespflege",
+     "de": "Tagespflege",
+     "en": "Day care",
+     "group": "stationaer",
+     "nace": "88.10",
+     "terms": [
+      "tagespflege",
+      "teilstationäre pflege",
+      "tagesbetreuung",
+      "adult day care",
+      "day care for seniors"
+     ]
+    },
+    {
+     "code": "nachtpflege",
+     "de": "Nachtpflege",
+     "en": "Night care",
+     "group": "stationaer",
+     "nace": "R",
+     "terms": [
+      "nachtpflege",
+      "night care"
+     ]
+    },
+    {
+     "code": "ambulante_pflege",
+     "de": "Ambulante Pflege",
+     "en": "Home care",
+     "group": "ambulant",
+     "nace": "88.10",
+     "terms": [
+      "ambulante pflege",
+      "ambulanter pflegedienst",
+      "pflegedienst",
+      "häusliche pflege",
+      "häuslichen pflege",
+      "home care",
+      "home nursing"
+     ]
+    },
+    {
+     "code": "ausserklinische_intensivpflege",
+     "de": "Außerklinische Intensivpflege",
+     "en": "Out-of-hospital intensive care",
+     "group": "fachpflege",
+     "nace": "R",
+     "terms": [
+      "außerklinische intensivpflege",
+      "ausserklinische intensivpflege",
+      "intensivpflege",
+      "beatmungspflege",
+      "intensive care at home"
+     ]
+    },
+    {
+     "code": "betreutes_wohnen",
+     "de": "Betreutes Wohnen",
+     "en": "Assisted living",
+     "group": "wohnen",
+     "nace": null,
+     "terms": [
+      "betreutes wohnen",
+      "betreuten wohnen",
+      "assisted living"
+     ]
+    },
+    {
+     "code": "service_wohnen",
+     "de": "Service-Wohnen",
+     "en": "Serviced living",
+     "group": "wohnen",
+     "nace": null,
+     "terms": [
+      "service-wohnen",
+      "servicewohnen",
+      "wohnen mit service",
+      "serviced living"
+     ]
+    },
+    {
+     "code": "pflege_wg",
+     "de": "Pflege-WG",
+     "en": "Shared care home",
+     "group": "wohnen",
+     "nace": null,
+     "terms": [
+      "pflege-wg",
+      "pflege wg",
+      "senioren-wg",
+      "wohngemeinschaft für pflegebedürftige",
+      "ambulant betreute wohngemeinschaft",
+      "shared care flat"
+     ]
+    },
+    {
+     "code": "demenzpflege",
+     "de": "Demenzpflege",
+     "en": "Dementia care",
+     "group": "fachpflege",
+     "nace": "R",
+     "terms": [
+      "demenzpflege",
+      "demenzbetreuung",
+      "demenz-wg",
+      "dementia care",
+      "memory care"
+     ]
+    },
+    {
+     "code": "palliativpflege",
+     "de": "Palliativpflege",
+     "en": "Palliative care",
+     "group": "fachpflege",
+     "nace": "R",
+     "terms": [
+      "palliativpflege",
+      "palliativversorgung",
+      "sapv",
+      "palliative care"
+     ]
+    },
+    {
+     "code": "hospiz_palliativangebote",
+     "de": "Hospiz- und Palliativangebote",
+     "en": "Hospice and palliative services",
+     "group": "fachpflege",
+     "nace": "R",
+     "terms": [
+      "hospiz",
+      "hospizdienst",
+      "hospice"
+     ]
+    },
+    {
+     "code": "pflegeberatung",
+     "de": "Pflegeberatung",
+     "en": "Care counselling",
+     "group": "beratung",
+     "nace": "88",
+     "terms": [
+      "pflegeberatung",
+      "beratungseinsatz",
+      "beratungsbesuch",
+      "care counselling",
+      "care advice"
+     ]
+    },
+    {
+     "code": "alltagsbegleitung_betreuung",
+     "de": "Alltagsbegleitung und Betreuung",
+     "en": "Companionship and support",
+     "group": "alltag",
+     "nace": "88.10",
+     "terms": [
+      "alltagsbegleitung",
+      "alltagsbetreuung",
+      "betreuungsleistungen",
+      "seniorenbetreuung",
+      "companionship"
+     ]
+    },
+    {
+     "code": "haushaltshilfe",
+     "de": "Haushaltshilfe",
+     "en": "Household help",
+     "group": "alltag",
+     "nace": "88.10",
+     "terms": [
+      "haushaltshilfe",
+      "hauswirtschaftliche versorgung",
+      "hauswirtschaft",
+      "household help",
+      "domestic help"
+     ]
+    },
+    {
+     "code": "hausnotruf",
+     "de": "Hausnotruf",
+     "en": "Personal emergency call",
+     "group": "alltag",
+     "nace": null,
+     "terms": [
+      "hausnotruf",
+      "notrufsystem",
+      "emergency call system"
+     ]
+    },
+    {
+     "code": "essen_auf_raedern",
+     "de": "Essen auf Rädern",
+     "en": "Meals on wheels",
+     "group": "alltag",
+     "nace": null,
+     "terms": [
+      "essen auf rädern",
+      "menüservice",
+      "menü-service",
+      "mahlzeitendienst",
+      "meals on wheels"
+     ]
+    },
+    {
+     "code": "entlastungsleistungen",
+     "de": "Entlastungsleistungen",
+     "en": "Relief services",
+     "group": "beratung",
+     "nace": "88.10",
+     "terms": [
+      "entlastungsleistung",
+      "entlastungsbetrag",
+      "entlastungsangebot",
+      "relief services"
+     ]
+    },
+    {
+     "code": "angehoerigenberatung",
+     "de": "Angehörigenberatung",
+     "en": "Counselling for relatives",
+     "group": "beratung",
+     "nace": "88.99",
+     "terms": [
+      "angehörigenberatung",
+      "beratung für angehörige",
+      "pflegekurs",
+      "angehörigenschulung",
+      "support for relatives"
+     ]
+    },
+    {
+     "code": "therapie_aktivierung",
+     "de": "Therapie- und Aktivierungsangebote",
+     "en": "Therapy and activation",
+     "group": "fachpflege",
+     "nace": "86.9",
+     "terms": [
+      "ergotherapie",
+      "physiotherapie",
+      "logopädie",
+      "aktivierung",
+      "gedächtnistraining",
+      "therapy"
+     ]
+    },
+    {
+     "code": "sonstige_pflege_betreuung",
+     "de": "Sonstige Pflege- und Betreuungsservices",
+     "en": "Other care and support services",
+     "group": "alltag",
+     "nace": "R",
+     "terms": [
+      "pflegeleistungen",
+      "betreuungsangebot",
+      "care services"
+     ]
+    }
+   ],
+   "segments": [
+    {
+     "code": "senioren",
+     "de": "Senioren",
+     "en": "Older people",
+     "terms": [
+      "senioren",
+      "seniorinnen",
+      "ältere menschen",
+      "älteren menschen",
+      "older people",
+      "elderly"
+     ]
+    },
+    {
+     "code": "angehoerige",
+     "de": "Angehörige",
+     "en": "Relatives",
+     "terms": [
+      "angehörige",
+      "angehörigen",
+      "pflegende angehörige",
+      "relatives",
+      "family carers"
+     ]
+    },
+    {
+     "code": "pflegebeduerftige",
+     "de": "Pflegebedürftige",
+     "en": "People in need of care",
+     "terms": [
+      "pflegebedürftige",
+      "pflegebedürftigen",
+      "menschen mit pflegebedarf",
+      "people in need of care"
+     ]
+    },
+    {
+     "code": "menschen_mit_demenz",
+     "de": "Menschen mit Demenz",
+     "en": "People with dementia",
+     "terms": [
+      "menschen mit demenz",
+      "demenzerkrankte",
+      "demenziell erkrankte",
+      "people with dementia"
+     ]
+    },
+    {
+     "code": "intensivpflegebedarf",
+     "de": "Menschen mit Intensivpflegebedarf",
+     "en": "People needing intensive care",
+     "terms": [
+      "intensivpflegebedarf",
+      "beatmungspflichtige",
+      "intensivpflegebedürftige"
+     ]
+    },
+    {
+     "code": "menschen_mit_behinderung",
+     "de": "Menschen mit Behinderung",
+     "en": "People with disabilities",
+     "terms": [
+      "menschen mit behinderung",
+      "people with disabilities"
+     ]
+    },
+    {
+     "code": "pflegegrad_1",
+     "de": "Pflegegrad 1",
+     "en": "Care level 1",
+     "terms": [
+      "pflegegrad 1"
+     ]
+    },
+    {
+     "code": "pflegegrad_2",
+     "de": "Pflegegrad 2",
+     "en": "Care level 2",
+     "terms": [
+      "pflegegrad 2"
+     ]
+    },
+    {
+     "code": "pflegegrad_3",
+     "de": "Pflegegrad 3",
+     "en": "Care level 3",
+     "terms": [
+      "pflegegrad 3"
+     ]
+    },
+    {
+     "code": "pflegegrad_4",
+     "de": "Pflegegrad 4",
+     "en": "Care level 4",
+     "terms": [
+      "pflegegrad 4"
+     ]
+    },
+    {
+     "code": "pflegegrad_5",
+     "de": "Pflegegrad 5",
+     "en": "Care level 5",
+     "terms": [
+      "pflegegrad 5"
+     ]
+    }
+   ]
+  },
+  "coaching": {
+   "de": "Coaching",
+   "en": "Coaching",
+   "groups": [
+    {
+     "code": "business",
+     "de": "Business und Führung",
+     "en": "Business and leadership",
+     "nace": "70.20"
+    },
+    {
+     "code": "karriere",
+     "de": "Karriere und Beruf",
+     "en": "Career",
+     "nace": "85.59"
+    },
+    {
+     "code": "organisation",
+     "de": "Teams und Organisation",
+     "en": "Teams and organisations",
+     "nace": "70.20"
+    },
+    {
+     "code": "kommunikation",
+     "de": "Kommunikation",
+     "en": "Communication",
+     "nace": "85.59"
+    },
+    {
+     "code": "persoenlich",
+     "de": "Persönliche Entwicklung",
+     "en": "Personal development",
+     "nace": "96.99"
+    },
+    {
+     "code": "gesundheit",
+     "de": "Gesundheit und Wohlbefinden",
+     "en": "Health and wellbeing",
+     "nace": null
+    },
+    {
+     "code": "beziehung",
+     "de": "Beziehung und Familie",
+     "en": "Relationships and family",
+     "nace": "96.99"
+    }
+   ],
+   "categories": [
+    {
+     "code": "business_coaching",
+     "de": "Business Coaching",
+     "en": "Business coaching",
+     "group": "business",
+     "nace": "70.20",
+     "terms": [
+      "business coaching",
+      "business-coaching",
+      "businesscoaching",
+      "unternehmenscoaching"
+     ]
+    },
+    {
+     "code": "executive_coaching",
+     "de": "Executive Coaching",
+     "en": "Executive coaching",
+     "group": "business",
+     "nace": "70.20",
+     "terms": [
+      "executive coaching",
+      "executive-coaching",
+      "vorstandscoaching",
+      "topmanagement-coaching"
+     ]
+    },
+    {
+     "code": "fuehrungskraeftecoaching",
+     "de": "Führungskräftecoaching",
+     "en": "Leadership coaching",
+     "group": "business",
+     "nace": "70.20",
+     "terms": [
+      "führungskräftecoaching",
+      "führungskräfte-coaching",
+      "führungscoaching",
+      "leadership coaching",
+      "leadership-coaching"
+     ]
+    },
+    {
+     "code": "karriere_jobcoaching",
+     "de": "Karriere- und Jobcoaching",
+     "en": "Career and job coaching",
+     "group": "karriere",
+     "nace": "85.59",
+     "terms": [
+      "karrierecoaching",
+      "karriere-coaching",
+      "jobcoaching",
+      "job-coaching",
+      "berufliche neuorientierung",
+      "career coaching"
+     ]
+    },
+    {
+     "code": "bewerbungscoaching",
+     "de": "Bewerbungscoaching",
+     "en": "Job application coaching",
+     "group": "karriere",
+     "nace": "85.59",
+     "terms": [
+      "bewerbungscoaching",
+      "bewerbungs-coaching",
+      "bewerbungstraining",
+      "interview coaching"
+     ]
+    },
+    {
+     "code": "gruender_coaching",
+     "de": "Gründer- und Entrepreneur-Coaching",
+     "en": "Founder and entrepreneur coaching",
+     "group": "business",
+     "nace": "70.20",
+     "terms": [
+      "gründercoaching",
+      "gründer-coaching",
+      "gründungscoaching",
+      "existenzgründungsberatung",
+      "entrepreneur coaching",
+      "startup coaching"
+     ]
+    },
+    {
+     "code": "teamcoaching",
+     "de": "Teamcoaching",
+     "en": "Team coaching",
+     "group": "organisation",
+     "nace": "70.20",
+     "terms": [
+      "teamcoaching",
+      "team-coaching",
+      "teamentwicklung",
+      "team coaching",
+      "team development"
+     ]
+    },
+    {
+     "code": "organisationsentwicklung",
+     "de": "Organisationsentwicklung",
+     "en": "Organisational development",
+     "group": "organisation",
+     "nace": "70.20",
+     "terms": [
+      "organisationsentwicklung",
+      "organizational development",
+      "organisational development"
+     ]
+    },
+    {
+     "code": "change_coaching",
+     "de": "Change- und Transformationscoaching",
+     "en": "Change and transformation coaching",
+     "group": "organisation",
+     "nace": "70.20",
+     "terms": [
+      "change-coaching",
+      "changecoaching",
+      "change management",
+      "veränderungsprozesse",
+      "transformationscoaching",
+      "transformation coaching"
+     ]
+    },
+    {
+     "code": "agile_coaching",
+     "de": "Agile Coaching",
+     "en": "Agile coaching",
+     "group": "organisation",
+     "nace": "70.20",
+     "terms": [
+      "agile coaching",
+      "agile-coaching",
+      "agiler coach",
+      "scrum coaching",
+      "agile transformation"
+     ]
+    },
+    {
+     "code": "konfliktcoaching",
+     "de": "Konfliktcoaching",
+     "en": "Conflict coaching",
+     "group": "kommunikation",
+     "nace": null,
+     "terms": [
+      "konfliktcoaching",
+      "konflikt-coaching",
+      "konfliktmanagement",
+      "conflict coaching"
+     ]
+    },
+    {
+     "code": "mediation",
+     "de": "Mediation",
+     "en": "Mediation",
+     "group": "kommunikation",
+     "nace": null,
+     "terms": [
+      "mediation",
+      "mediator",
+      "mediatorin",
+      "wirtschaftsmediation"
+     ]
+    },
+    {
+     "code": "kommunikationscoaching",
+     "de": "Kommunikationscoaching",
+     "en": "Communication coaching",
+     "group": "kommunikation",
+     "nace": "85.59",
+     "terms": [
+      "kommunikationscoaching",
+      "kommunikationstraining",
+      "communication coaching"
+     ]
+    },
+    {
+     "code": "rhetorik_praesentationscoaching",
+     "de": "Rhetorik- und Präsentationscoaching",
+     "en": "Rhetoric and presentation coaching",
+     "group": "kommunikation",
+     "nace": "85.59",
+     "terms": [
+      "rhetorikcoaching",
+      "rhetoriktraining",
+      "rhetorik",
+      "präsentationstraining",
+      "präsentationscoaching",
+      "public speaking"
+     ]
+    },
+    {
+     "code": "sales_coaching",
+     "de": "Vertriebs- und Sales-Coaching",
+     "en": "Sales coaching",
+     "group": "business",
+     "nace": "70.20",
+     "terms": [
+      "vertriebscoaching",
+      "vertriebs-coaching",
+      "verkaufstraining",
+      "sales coaching",
+      "sales-coaching"
+     ]
+    },
+    {
+     "code": "performance_coaching",
+     "de": "Performance- und Produktivitätscoaching",
+     "en": "Performance and productivity coaching",
+     "group": "business",
+     "nace": "70.20",
+     "terms": [
+      "performance coaching",
+      "performance-coaching",
+      "produktivitätscoaching",
+      "zeitmanagement",
+      "productivity coaching"
+     ]
+    },
+    {
+     "code": "life_coaching",
+     "de": "Life Coaching",
+     "en": "Life coaching",
+     "group": "persoenlich",
+     "nace": "96.99",
+     "terms": [
+      "life coaching",
+      "life-coaching",
+      "lifecoaching",
+      "lebensberatung"
+     ]
+    },
+    {
+     "code": "persoenlichkeitsentwicklung",
+     "de": "Persönlichkeitsentwicklung",
+     "en": "Personal development",
+     "group": "persoenlich",
+     "nace": "96.99",
+     "terms": [
+      "persönlichkeitsentwicklung",
+      "personal development",
+      "persönliche entwicklung"
+     ]
+    },
+    {
+     "code": "mindset_coaching",
+     "de": "Mental- und Mindset-Coaching",
+     "en": "Mental and mindset coaching",
+     "group": "persoenlich",
+     "nace": "96.99",
+     "terms": [
+      "mentalcoaching",
+      "mental-coaching",
+      "mindset coaching",
+      "mindset-coaching",
+      "mentaltraining"
+     ]
+    },
+    {
+     "code": "stresscoaching",
+     "de": "Stresscoaching",
+     "en": "Stress coaching",
+     "group": "gesundheit",
+     "nace": "96.99",
+     "terms": [
+      "stresscoaching",
+      "stress-coaching",
+      "stressmanagement",
+      "stress management"
+     ]
+    },
+    {
+     "code": "resilienzcoaching",
+     "de": "Resilienzcoaching",
+     "en": "Resilience coaching",
+     "group": "gesundheit",
+     "nace": "96.99",
+     "terms": [
+      "resilienzcoaching",
+      "resilienz-coaching",
+      "resilienztraining",
+      "resilience coaching"
+     ]
+    },
+    {
+     "code": "burnout_praevention",
+     "de": "Burnout-Prävention",
+     "en": "Burnout prevention",
+     "group": "gesundheit",
+     "nace": "96.99",
+     "terms": [
+      "burnout-prävention",
+      "burnoutprävention",
+      "burnout prävention",
+      "burnout prevention",
+      "burnout-prophylaxe"
+     ]
+    },
+    {
+     "code": "wellbeing_coaching",
+     "de": "Gesundheits- und Wellbeing-Coaching",
+     "en": "Health and wellbeing coaching",
+     "group": "gesundheit",
+     "nace": "96.99",
+     "terms": [
+      "gesundheitscoaching",
+      "gesundheits-coaching",
+      "wellbeing coaching",
+      "well-being coaching",
+      "health coaching"
+     ]
+    },
+    {
+     "code": "ernaehrungscoaching",
+     "de": "Ernährungscoaching",
+     "en": "Nutrition coaching",
+     "group": "gesundheit",
+     "nace": "96.99",
+     "terms": [
+      "ernährungscoaching",
+      "ernährungsberatung",
+      "nutrition coaching"
+     ]
+    },
+    {
+     "code": "fitness_coaching",
+     "de": "Fitness- und Bewegungscoaching",
+     "en": "Fitness and movement coaching",
+     "group": "gesundheit",
+     "nace": "85.51",
+     "terms": [
+      "fitnesscoaching",
+      "fitness-coaching",
+      "personal training",
+      "personal trainer",
+      "bewegungscoaching"
+     ]
+    },
+    {
+     "code": "beziehungscoaching",
+     "de": "Beziehungscoaching",
+     "en": "Relationship coaching",
+     "group": "beziehung",
+     "nace": "96.99",
+     "terms": [
+      "beziehungscoaching",
+      "beziehungs-coaching",
+      "relationship coaching"
+     ]
+    },
+    {
+     "code": "paarcoaching",
+     "de": "Paarcoaching",
+     "en": "Couples coaching",
+     "group": "beziehung",
+     "nace": "96.99",
+     "terms": [
+      "paarcoaching",
+      "paar-coaching",
+      "paarberatung",
+      "couples coaching"
+     ]
+    },
+    {
+     "code": "dating_coaching",
+     "de": "Dating-Coaching",
+     "en": "Dating coaching",
+     "group": "beziehung",
+     "nace": "96.99",
+     "terms": [
+      "dating-coaching",
+      "datingcoaching",
+      "dating coach",
+      "dating coaching"
+     ]
+    },
+    {
+     "code": "flirt_coaching",
+     "de": "Flirt-Coaching",
+     "en": "Flirt coaching",
+     "group": "beziehung",
+     "nace": "96.99",
+     "terms": [
+      "flirt-coaching",
+      "flirtcoaching",
+      "flirttraining",
+      "flirt coaching"
+     ]
+    },
+    {
+     "code": "familien_elterncoaching",
+     "de": "Familien- und Elterncoaching",
+     "en": "Family and parent coaching",
+     "group": "beziehung",
+     "nace": "96.99",
+     "terms": [
+      "familiencoaching",
+      "elterncoaching",
+      "eltern-coaching",
+      "familienberatung",
+      "parent coaching"
+     ]
+    },
+    {
+     "code": "interkulturelles_coaching",
+     "de": "Interkulturelles Coaching",
+     "en": "Intercultural coaching",
+     "group": "kommunikation",
+     "nace": "85.59",
+     "terms": [
+      "interkulturelles coaching",
+      "interkulturelles training",
+      "intercultural coaching"
+     ]
+    },
+    {
+     "code": "finanz_money_coaching",
+     "de": "Finanz- und Money-Coaching",
+     "en": "Financial and money coaching",
+     "group": "persoenlich",
+     "nace": null,
+     "terms": [
+      "finanzcoaching",
+      "finanz-coaching",
+      "money coaching",
+      "money-coaching",
+      "geldcoaching"
+     ]
+    },
+    {
+     "code": "sinn_orientierungscoaching",
+     "de": "Sinn- und Orientierungscoaching",
+     "en": "Purpose and orientation coaching",
+     "group": "persoenlich",
+     "nace": "96.99",
+     "terms": [
+      "sinncoaching",
+      "orientierungscoaching",
+      "lebensorientierung",
+      "purpose coaching"
+     ]
+    },
+    {
+     "code": "spirituelles_coaching",
+     "de": "Spirituelles Coaching",
+     "en": "Spiritual coaching",
+     "group": "persoenlich",
+     "nace": "96.99",
+     "terms": [
+      "spirituelles coaching",
+      "spiritual coaching",
+      "spirituelle begleitung"
+     ]
+    }
+   ],
+   "segments": [
+    {
+     "code": "fuehrungskraefte",
+     "de": "Führungskräfte",
+     "en": "Managers and leaders",
+     "terms": [
+      "führungskräfte",
+      "führungskräften",
+      "manager",
+      "leaders",
+      "executives"
+     ]
+    },
+    {
+     "code": "unternehmer",
+     "de": "Unternehmerinnen und Unternehmer",
+     "en": "Business owners",
+     "terms": [
+      "unternehmer",
+      "unternehmerinnen",
+      "business owners"
+     ]
+    },
+    {
+     "code": "gruender",
+     "de": "Gründerinnen und Gründer",
+     "en": "Founders",
+     "terms": [
+      "gründer",
+      "gründerinnen",
+      "existenzgründer",
+      "founders",
+      "start-ups",
+      "startups"
+     ]
+    },
+    {
+     "code": "selbststaendige",
+     "de": "Selbstständige",
+     "en": "Self-employed",
+     "terms": [
+      "selbstständige",
+      "selbständige",
+      "freiberufler",
+      "solopreneure",
+      "self-employed",
+      "freelancers"
+     ]
+    },
+    {
+     "code": "angestellte",
+     "de": "Angestellte",
+     "en": "Employees",
+     "terms": [
+      "angestellte",
+      "arbeitnehmer",
+      "employees"
+     ]
+    },
+    {
+     "code": "berufseinsteiger",
+     "de": "Berufseinsteiger",
+     "en": "Career starters",
+     "terms": [
+      "berufseinsteiger",
+      "absolventen",
+      "graduates"
+     ]
+    },
+    {
+     "code": "jobsuchende",
+     "de": "Jobsuchende",
+     "en": "Job seekers",
+     "terms": [
+      "jobsuchende",
+      "arbeitssuchende",
+      "bewerber",
+      "job seekers"
+     ]
+    },
+    {
+     "code": "teams",
+     "de": "Teams",
+     "en": "Teams",
+     "terms": [
+      "teams",
+      "abteilungen"
+     ]
+    },
+    {
+     "code": "studierende",
+     "de": "Studierende",
+     "en": "Students",
+     "terms": [
+      "studierende",
+      "studenten",
+      "schüler",
+      "students"
+     ]
+    },
+    {
+     "code": "paare",
+     "de": "Paare",
+     "en": "Couples",
+     "terms": [
+      "paare",
+      "couples"
+     ]
+    },
+    {
+     "code": "singles",
+     "de": "Singles",
+     "en": "Singles",
+     "terms": [
+      "singles"
+     ]
+    },
+    {
+     "code": "eltern",
+     "de": "Eltern und Familien",
+     "en": "Parents and families",
+     "terms": [
+      "eltern",
+      "familien",
+      "parents",
+      "families"
+     ]
+    },
+    {
+     "code": "privatpersonen",
+     "de": "Privatpersonen",
+     "en": "Private individuals",
+     "terms": [
+      "privatpersonen",
+      "privatkunden",
+      "individuals"
+     ]
+    }
+   ]
+  },
+  "software": {
+   "de": "Software und IT",
+   "en": "Software and IT",
+   "groups": [
+    {
+     "code": "entwicklung",
+     "de": "Softwareentwicklung",
+     "en": "Software development",
+     "nace": "62.10"
+    },
+    {
+     "code": "produkt",
+     "de": "Softwareprodukte",
+     "en": "Software products",
+     "nace": "58.29"
+    },
+    {
+     "code": "betrieb",
+     "de": "Cloud, Hosting und Betrieb",
+     "en": "Cloud, hosting and operations",
+     "nace": "K"
+    },
+    {
+     "code": "daten",
+     "de": "Daten und KI",
+     "en": "Data and AI",
+     "nace": "62"
+    },
+    {
+     "code": "unternehmenssoftware",
+     "de": "Unternehmenssoftware",
+     "en": "Enterprise software",
+     "nace": "62"
+    },
+    {
+     "code": "qualitaet",
+     "de": "Qualität und Sicherheit",
+     "en": "Quality and security",
+     "nace": "62"
+    },
+    {
+     "code": "beratung",
+     "de": "IT-Beratung und Services",
+     "en": "IT consulting and services",
+     "nace": "62"
+    },
+    {
+     "code": "design",
+     "de": "Design",
+     "en": "Design",
+     "nace": "74.1"
+    }
+   ],
+   "categories": [
+    {
+     "code": "individualsoftware",
+     "de": "Individualsoftware",
+     "en": "Custom software",
+     "group": "entwicklung",
+     "nace": "62.10",
+     "terms": [
+      "individualsoftware",
+      "individuelle software",
+      "maßgeschneiderte software",
+      "custom software",
+      "bespoke software"
+     ]
+    },
+    {
+     "code": "softwareentwicklung",
+     "de": "Softwareentwicklung",
+     "en": "Software development",
+     "group": "entwicklung",
+     "nace": "62.10",
+     "terms": [
+      "softwareentwicklung",
+      "software-entwicklung",
+      "software development",
+      "programmierung"
+     ]
+    },
+    {
+     "code": "webentwicklung",
+     "de": "Webentwicklung",
+     "en": "Web development",
+     "group": "entwicklung",
+     "nace": "62.10",
+     "terms": [
+      "webentwicklung",
+      "web-entwicklung",
+      "webanwendungen",
+      "web development",
+      "web applications"
+     ]
+    },
+    {
+     "code": "app_entwicklung",
+     "de": "App- und Mobile-Entwicklung",
+     "en": "App and mobile development",
+     "group": "entwicklung",
+     "nace": "62.10",
+     "terms": [
+      "app-entwicklung",
+      "appentwicklung",
+      "mobile entwicklung",
+      "ios",
+      "android",
+      "mobile app",
+      "app development"
+     ]
+    },
+    {
+     "code": "saas_produktentwicklung",
+     "de": "SaaS- und Produktentwicklung",
+     "en": "SaaS and product development",
+     "group": "produkt",
+     "nace": "58.29",
+     "terms": [
+      "saas",
+      "software as a service",
+      "produktentwicklung",
+      "product development"
+     ]
+    },
+    {
+     "code": "cloud",
+     "de": "Cloud",
+     "en": "Cloud",
+     "group": "betrieb",
+     "nace": "63.10",
+     "terms": [
+      "cloud",
+      "aws",
+      "azure",
+      "google cloud",
+      "cloud-migration"
+     ]
+    },
+    {
+     "code": "hosting",
+     "de": "Hosting",
+     "en": "Hosting",
+     "group": "betrieb",
+     "nace": "63.10",
+     "terms": [
+      "hosting",
+      "webhosting",
+      "rechenzentrum",
+      "colocation",
+      "hosting services"
+     ]
+    },
+    {
+     "code": "infrastruktur",
+     "de": "Infrastruktur",
+     "en": "Infrastructure",
+     "group": "betrieb",
+     "nace": "62",
+     "terms": [
+      "it-infrastruktur",
+      "infrastruktur",
+      "netzwerk",
+      "infrastructure"
+     ]
+    },
+    {
+     "code": "devops",
+     "de": "DevOps",
+     "en": "DevOps",
+     "group": "betrieb",
+     "nace": "62",
+     "terms": [
+      "devops"
+     ]
+    },
+    {
+     "code": "ci_cd",
+     "de": "CI/CD",
+     "en": "CI/CD",
+     "group": "betrieb",
+     "nace": "62",
+     "terms": [
+      "ci/cd",
+      "continuous integration",
+      "continuous delivery",
+      "continuous deployment"
+     ]
+    },
+    {
+     "code": "platform_engineering",
+     "de": "Platform Engineering",
+     "en": "Platform engineering",
+     "group": "betrieb",
+     "nace": "62",
+     "terms": [
+      "platform engineering",
+      "kubernetes",
+      "plattform-engineering"
+     ]
+    },
+    {
+     "code": "data_engineering",
+     "de": "Data Engineering",
+     "en": "Data engineering",
+     "group": "daten",
+     "nace": "62",
+     "terms": [
+      "data engineering",
+      "datenintegration",
+      "etl",
+      "data pipeline",
+      "data pipelines"
+     ]
+    },
+    {
+     "code": "data_analytics",
+     "de": "Data Analytics",
+     "en": "Data analytics",
+     "group": "daten",
+     "nace": "62",
+     "terms": [
+      "data analytics",
+      "datenanalyse",
+      "analytics"
+     ]
+    },
+    {
+     "code": "bi",
+     "de": "Business Intelligence",
+     "en": "Business intelligence",
+     "group": "daten",
+     "nace": "62",
+     "terms": [
+      "business intelligence",
+      "power bi",
+      "reporting",
+      "dashboards"
+     ]
+    },
+    {
+     "code": "ai_ml",
+     "de": "AI/ML",
+     "en": "AI/ML",
+     "group": "daten",
+     "nace": "62",
+     "terms": [
+      "künstliche intelligenz",
+      "machine learning",
+      "maschinelles lernen",
+      "ki-lösungen",
+      "artificial intelligence"
+     ]
+    },
+    {
+     "code": "generative_ai",
+     "de": "Generative AI",
+     "en": "Generative AI",
+     "group": "daten",
+     "nace": "62",
+     "terms": [
+      "generative ai",
+      "generative ki",
+      "llm",
+      "chatbot",
+      "chatbots"
+     ]
+    },
+    {
+     "code": "cybersecurity",
+     "de": "Cybersecurity",
+     "en": "Cybersecurity",
+     "group": "qualitaet",
+     "nace": "62",
+     "terms": [
+      "cybersecurity",
+      "it-sicherheit",
+      "informationssicherheit",
+      "penetrationstest",
+      "pentest",
+      "security"
+     ]
+    },
+    {
+     "code": "erp",
+     "de": "ERP",
+     "en": "ERP",
+     "group": "unternehmenssoftware",
+     "nace": "62",
+     "terms": [
+      "erp",
+      "warenwirtschaft",
+      "enterprise resource planning"
+     ]
+    },
+    {
+     "code": "sap",
+     "de": "SAP",
+     "en": "SAP",
+     "group": "unternehmenssoftware",
+     "nace": "62.20",
+     "terms": [
+      "sap",
+      "s/4hana",
+      "sap-beratung"
+     ]
+    },
+    {
+     "code": "crm",
+     "de": "CRM",
+     "en": "CRM",
+     "group": "unternehmenssoftware",
+     "nace": "62",
+     "terms": [
+      "crm",
+      "salesforce",
+      "customer relationship management"
+     ]
+    },
+    {
+     "code": "e_commerce",
+     "de": "E-Commerce",
+     "en": "E-commerce",
+     "group": "unternehmenssoftware",
+     "nace": "62",
+     "terms": [
+      "e-commerce",
+      "ecommerce",
+      "onlineshop",
+      "online-shop",
+      "shopware",
+      "shopify"
+     ]
+    },
+    {
+     "code": "cms",
+     "de": "CMS",
+     "en": "CMS",
+     "group": "entwicklung",
+     "nace": "62.10",
+     "terms": [
+      "cms",
+      "content management",
+      "wordpress",
+      "typo3",
+      "drupal"
+     ]
+    },
+    {
+     "code": "api_systemintegration",
+     "de": "API- und Systemintegration",
+     "en": "API and system integration",
+     "group": "entwicklung",
+     "nace": "62.10",
+     "terms": [
+      "systemintegration",
+      "schnittstellen",
+      "api-entwicklung",
+      "api integration",
+      "system integration"
+     ]
+    },
+    {
+     "code": "datenbanken",
+     "de": "Datenbanken",
+     "en": "Databases",
+     "group": "daten",
+     "nace": "62",
+     "terms": [
+      "datenbanken",
+      "datenbank",
+      "database",
+      "databases",
+      "postgresql",
+      "sql"
+     ]
+    },
+    {
+     "code": "qa_testing",
+     "de": "QA/Testing",
+     "en": "QA/testing",
+     "group": "qualitaet",
+     "nace": "62",
+     "terms": [
+      "qualitätssicherung",
+      "softwaretest",
+      "softwaretests",
+      "quality assurance",
+      "software testing"
+     ]
+    },
+    {
+     "code": "testautomatisierung",
+     "de": "Testautomatisierung",
+     "en": "Test automation",
+     "group": "qualitaet",
+     "nace": "62",
+     "terms": [
+      "testautomatisierung",
+      "test automation",
+      "automatisierte tests"
+     ]
+    },
+    {
+     "code": "ux_ui",
+     "de": "UX/UI",
+     "en": "UX/UI",
+     "group": "design",
+     "nace": "74.1",
+     "terms": [
+      "ux",
+      "ui design",
+      "user experience",
+      "usability",
+      "ux/ui",
+      "interface design"
+     ]
+    },
+    {
+     "code": "it_architektur",
+     "de": "IT-Architektur",
+     "en": "IT architecture",
+     "group": "beratung",
+     "nace": "62.20",
+     "terms": [
+      "it-architektur",
+      "softwarearchitektur",
+      "enterprise architecture",
+      "software architecture"
+     ]
+    },
+    {
+     "code": "it_beratung",
+     "de": "IT-Beratung",
+     "en": "IT consulting",
+     "group": "beratung",
+     "nace": "62.20",
+     "terms": [
+      "it-beratung",
+      "it-consulting",
+      "it consulting",
+      "digitalisierungsberatung"
+     ]
+    },
+    {
+     "code": "managed_services",
+     "de": "Managed Services",
+     "en": "Managed services",
+     "group": "beratung",
+     "nace": "62.20",
+     "terms": [
+      "managed services",
+      "managed service",
+      "it-betrieb",
+      "betriebsführung"
+     ]
+    },
+    {
+     "code": "it_support",
+     "de": "IT-Support",
+     "en": "IT support",
+     "group": "beratung",
+     "nace": "62.90",
+     "terms": [
+      "it-support",
+      "it support",
+      "helpdesk",
+      "service desk"
+     ]
+    },
+    {
+     "code": "iot",
+     "de": "IoT",
+     "en": "IoT",
+     "group": "entwicklung",
+     "nace": "62",
+     "terms": [
+      "iot",
+      "internet of things",
+      "internet der dinge"
+     ]
+    },
+    {
+     "code": "embedded",
+     "de": "Embedded",
+     "en": "Embedded",
+     "group": "entwicklung",
+     "nace": "62.10",
+     "terms": [
+      "embedded",
+      "embedded systems",
+      "firmware"
+     ]
+    },
+    {
+     "code": "low_code",
+     "de": "Low-Code/No-Code",
+     "en": "Low-code/no-code",
+     "group": "entwicklung",
+     "nace": "62",
+     "terms": [
+      "low-code",
+      "low code",
+      "no-code",
+      "no code"
+     ]
+    },
+    {
+     "code": "automatisierung",
+     "de": "Automatisierung",
+     "en": "Automation",
+     "group": "beratung",
+     "nace": "62",
+     "terms": [
+      "prozessautomatisierung",
+      "automatisierung",
+      "rpa",
+      "workflow-automatisierung",
+      "automation"
+     ]
+    }
+   ],
+   "segments": [
+    {
+     "code": "startups",
+     "de": "Start-ups",
+     "en": "Start-ups",
+     "terms": [
+      "start-ups",
+      "startups",
+      "scale-ups"
+     ]
+    },
+    {
+     "code": "it_abteilungen",
+     "de": "IT-Abteilungen",
+     "en": "IT departments",
+     "terms": [
+      "it-abteilungen",
+      "it-abteilung",
+      "it departments",
+      "cio"
+     ]
+    },
+    {
+     "code": "fachabteilungen",
+     "de": "Fachabteilungen",
+     "en": "Business departments",
+     "terms": [
+      "fachabteilungen",
+      "fachbereiche"
+     ]
+    },
+    {
+     "code": "entwicklerteams",
+     "de": "Entwicklerteams",
+     "en": "Developer teams",
+     "terms": [
+      "entwicklerteams",
+      "entwickler",
+      "developer teams",
+      "developers"
+     ]
+    },
+    {
+     "code": "agenturen",
+     "de": "Agenturen",
+     "en": "Agencies",
+     "terms": [
+      "agenturen",
+      "agencies"
+     ]
+    }
+   ]
+  },
+  "construction": {
+   "de": "Bauen und Planen",
+   "en": "Construction and planning",
+   "groups": [
+    {
+     "code": "planung",
+     "de": "Planung und Architektur",
+     "en": "Planning and architecture",
+     "nace": "71.1"
+    },
+    {
+     "code": "fachplanung",
+     "de": "Fachplanung, Gutachten und Prüfung",
+     "en": "Specialist planning, surveys and testing",
+     "nace": "71"
+    },
+    {
+     "code": "projekt",
+     "de": "Projektentwicklung und Steuerung",
+     "en": "Development and project control",
+     "nace": null
+    },
+    {
+     "code": "rohbau",
+     "de": "Hochbau und Rohbau",
+     "en": "Building construction",
+     "nace": "41"
+    },
+    {
+     "code": "tiefbau",
+     "de": "Tiefbau und Erdarbeiten",
+     "en": "Civil engineering and earthworks",
+     "nace": "42"
+    },
+    {
+     "code": "abbruch",
+     "de": "Abbruch, Entsorgung und Recycling",
+     "en": "Demolition, disposal and recycling",
+     "nace": null
+    },
+    {
+     "code": "dach_fassade",
+     "de": "Dach und Fassade",
+     "en": "Roof and facade",
+     "nace": "43"
+    },
+    {
+     "code": "ausbau",
+     "de": "Ausbau",
+     "en": "Interior finishing",
+     "nace": "43.3"
+    },
+    {
+     "code": "tga",
+     "de": "Technische Gebäudeausrüstung",
+     "en": "Building services",
+     "nace": "43.2"
+    },
+    {
+     "code": "sanierung",
+     "de": "Sanierung und Bautenschutz",
+     "en": "Renovation and protection",
+     "nace": "F"
+    },
+    {
+     "code": "aussen",
+     "de": "Außenanlagen und Landschaftsbau",
+     "en": "Outdoor works and landscaping",
+     "nace": null
+    },
+    {
+     "code": "service",
+     "de": "Baustellen- und Gebäudeservice",
+     "en": "Site and building services",
+     "nace": null
+    },
+    {
+     "code": "handel",
+     "de": "Baustoffe und Hersteller",
+     "en": "Materials and manufacturers",
+     "nace": null
+    },
+    {
+     "code": "beratung",
+     "de": "Finanzierung, Recht und Beratung",
+     "en": "Finance, law and advice",
+     "nace": null
+    }
+   ],
+   "categories": [
+    {
+     "code": "architektur",
+     "de": "Architektur",
+     "en": "Architecture",
+     "group": "planung",
+     "nace": "71.11",
+     "terms": [
+      "architektur",
+      "architekturbüro",
+      "architekt",
+      "architektin",
+      "architects",
+      "architecture"
+     ]
+    },
+    {
+     "code": "entwurf",
+     "de": "Entwurf",
+     "en": "Design",
+     "group": "planung",
+     "nace": "71.11",
+     "terms": [
+      "entwurfsplanung",
+      "entwurf",
+      "vorentwurf",
+      "design planning"
+     ]
+    },
+    {
+     "code": "genehmigungsplanung",
+     "de": "Genehmigungsplanung",
+     "en": "Permit planning",
+     "group": "planung",
+     "nace": "71.1",
+     "terms": [
+      "genehmigungsplanung",
+      "bauantrag",
+      "baugenehmigung",
+      "permit planning"
+     ]
+    },
+    {
+     "code": "ausfuehrungsplanung",
+     "de": "Ausführungsplanung",
+     "en": "Construction planning",
+     "group": "planung",
+     "nace": "71.1",
+     "terms": [
+      "ausführungsplanung",
+      "werkplanung",
+      "execution planning"
+     ]
+    },
+    {
+     "code": "generalplanung",
+     "de": "Generalplanung",
+     "en": "General planning",
+     "group": "planung",
+     "nace": "71.1",
+     "terms": [
+      "generalplanung",
+      "generalplaner",
+      "general planning"
+     ]
+    },
+    {
+     "code": "projektentwicklung",
+     "de": "Projektentwicklung",
+     "en": "Property development",
+     "group": "projekt",
+     "nace": "68.12",
+     "terms": [
+      "projektentwicklung",
+      "projektentwickler",
+      "property development",
+      "real estate development"
+     ]
+    },
+    {
+     "code": "projektsteuerung",
+     "de": "Projektsteuerung",
+     "en": "Project control",
+     "group": "projekt",
+     "nace": "71.12",
+     "terms": [
+      "projektsteuerung",
+      "projektcontrolling",
+      "project control"
+     ]
+    },
+    {
+     "code": "projektmanagement",
+     "de": "Projektmanagement",
+     "en": "Project management",
+     "group": "projekt",
+     "nace": "71",
+     "terms": [
+      "projektmanagement",
+      "bauprojektmanagement",
+      "project management"
+     ]
+    },
+    {
+     "code": "bauleitung",
+     "de": "Bauleitung",
+     "en": "Site management",
+     "group": "planung",
+     "nace": "71.1",
+     "terms": [
+      "bauleitung",
+      "bauüberwachung",
+      "site management"
+     ]
+    },
+    {
+     "code": "objektueberwachung",
+     "de": "Objektüberwachung",
+     "en": "Construction supervision",
+     "group": "planung",
+     "nace": "71.1",
+     "terms": [
+      "objektüberwachung",
+      "construction supervision"
+     ]
+    },
+    {
+     "code": "tragwerksplanung",
+     "de": "Tragwerksplanung",
+     "en": "Structural design",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "tragwerksplanung",
+      "tragwerksplaner",
+      "structural engineering",
+      "structural design"
+     ]
+    },
+    {
+     "code": "statik",
+     "de": "Statik",
+     "en": "Structural analysis",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "statik",
+      "statiker",
+      "statische berechnung",
+      "structural analysis"
+     ]
+    },
+    {
+     "code": "bauphysik",
+     "de": "Bauphysik",
+     "en": "Building physics",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "bauphysik",
+      "building physics"
+     ]
+    },
+    {
+     "code": "waerme_feuchte_schallschutz",
+     "de": "Wärme-, Feuchte- und Schallschutz",
+     "en": "Thermal, moisture and sound protection",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "wärmeschutz",
+      "feuchteschutz",
+      "schallschutz",
+      "wärmeschutznachweis",
+      "sound insulation"
+     ]
+    },
+    {
+     "code": "energieberatung",
+     "de": "Energieberatung",
+     "en": "Energy consulting",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "energieberatung",
+      "energieberater",
+      "energieausweis",
+      "sanierungsfahrplan",
+      "energy consulting"
+     ]
+    },
+    {
+     "code": "brandschutzplanung",
+     "de": "Brandschutzplanung",
+     "en": "Fire protection planning",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "brandschutzplanung",
+      "brandschutzkonzept",
+      "brandschutzgutachten",
+      "fire protection planning"
+     ]
+    },
+    {
+     "code": "tga_planung",
+     "de": "TGA- und Haustechnikplanung",
+     "en": "Building services design",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "tga-planung",
+      "tga planung",
+      "haustechnikplanung",
+      "technische gebäudeausrüstung",
+      "mep design",
+      "building services engineering"
+     ]
+    },
+    {
+     "code": "vermessung",
+     "de": "Vermessung",
+     "en": "Surveying",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "vermessung",
+      "vermessungsbüro",
+      "vermessungsingenieur",
+      "surveying",
+      "land surveying"
+     ]
+    },
+    {
+     "code": "geotechnik",
+     "de": "Geotechnik",
+     "en": "Geotechnics",
+     "group": "fachplanung",
+     "nace": "71.12",
+     "terms": [
+      "geotechnik",
+      "geotechnical engineering",
+      "baugrund"
+     ]
+    },
+    {
+     "code": "bodengutachten",
+     "de": "Bodengutachten",
+     "en": "Soil survey",
+     "group": "fachplanung",
+     "nace": "71",
+     "terms": [
+      "bodengutachten",
+      "baugrundgutachten",
+      "baugrunduntersuchung",
+      "soil survey",
+      "soil report"
+     ]
+    },
+    {
+     "code": "gutachten",
+     "de": "Gutachten",
+     "en": "Expert reports",
+     "group": "fachplanung",
+     "nace": "71",
+     "terms": [
+      "gutachten",
+      "bauschadensgutachten",
+      "wertgutachten",
+      "expert report"
+     ]
+    },
+    {
+     "code": "bausachverstaendige",
+     "de": "Bausachverständige",
+     "en": "Construction experts",
+     "group": "fachplanung",
+     "nace": "71",
+     "terms": [
+      "bausachverständiger",
+      "bausachverständige",
+      "sachverständiger",
+      "sachverständigenbüro",
+      "construction expert"
+     ]
+    },
+    {
+     "code": "generalunternehmer",
+     "de": "Generalunternehmer",
+     "en": "General contractor",
+     "group": "rohbau",
+     "nace": "41.00",
+     "terms": [
+      "generalunternehmer",
+      "general contractor"
+     ]
+    },
+    {
+     "code": "generaluebernehmer",
+     "de": "Generalübernehmer",
+     "en": "Turnkey contractor",
+     "group": "rohbau",
+     "nace": "41",
+     "terms": [
+      "generalübernehmer",
+      "schlüsselfertig",
+      "schlüsselfertiges bauen",
+      "turnkey"
+     ]
+    },
+    {
+     "code": "bautraeger",
+     "de": "Bauträger",
+     "en": "Property developer",
+     "group": "projekt",
+     "nace": "68.12",
+     "terms": [
+      "bauträger",
+      "bauträgerin",
+      "developer"
+     ]
+    },
+    {
+     "code": "hochbau",
+     "de": "Hochbau",
+     "en": "Building construction",
+     "group": "rohbau",
+     "nace": "41.00",
+     "terms": [
+      "hochbau",
+      "wohnungsbau",
+      "gewerbebau",
+      "building construction"
+     ]
+    },
+    {
+     "code": "rohbau",
+     "de": "Rohbau",
+     "en": "Shell construction",
+     "group": "rohbau",
+     "nace": "41.00",
+     "terms": [
+      "rohbau",
+      "rohbauarbeiten",
+      "shell construction"
+     ]
+    },
+    {
+     "code": "mauerwerk",
+     "de": "Mauerwerk",
+     "en": "Masonry",
+     "group": "rohbau",
+     "nace": "43.91",
+     "terms": [
+      "mauerwerk",
+      "maurerarbeiten",
+      "maurer",
+      "masonry",
+      "bricklaying"
+     ]
+    },
+    {
+     "code": "betonbau",
+     "de": "Betonbau",
+     "en": "Concrete construction",
+     "group": "rohbau",
+     "nace": "F",
+     "terms": [
+      "betonbau",
+      "betonarbeiten",
+      "stahlbeton",
+      "concrete works"
+     ]
+    },
+    {
+     "code": "fertigteilbau",
+     "de": "Fertigteilbau",
+     "en": "Precast construction",
+     "group": "rohbau",
+     "nace": "41.00",
+     "terms": [
+      "fertigteilbau",
+      "fertigteile",
+      "fertighaus",
+      "precast",
+      "prefabricated"
+     ]
+    },
+    {
+     "code": "holzbau",
+     "de": "Holzbau",
+     "en": "Timber construction",
+     "group": "rohbau",
+     "nace": "43",
+     "terms": [
+      "holzbau",
+      "holzrahmenbau",
+      "holzhaus",
+      "timber construction"
+     ]
+    },
+    {
+     "code": "zimmerei",
+     "de": "Zimmerei",
+     "en": "Carpentry",
+     "group": "dach_fassade",
+     "nace": "43",
+     "terms": [
+      "zimmerei",
+      "zimmerer",
+      "zimmermann",
+      "dachstuhl",
+      "carpentry"
+     ]
+    },
+    {
+     "code": "stahlbau",
+     "de": "Stahlbau",
+     "en": "Steel construction",
+     "group": "rohbau",
+     "nace": null,
+     "terms": [
+      "stahlbau",
+      "stahlkonstruktion",
+      "stahlkonstruktionen",
+      "steel construction"
+     ]
+    },
+    {
+     "code": "metallbau",
+     "de": "Metallbau",
+     "en": "Metalwork",
+     "group": "ausbau",
+     "nace": null,
+     "terms": [
+      "metallbau",
+      "schlosserei",
+      "metalwork"
+     ]
+    },
+    {
+     "code": "tiefbau",
+     "de": "Tiefbau",
+     "en": "Civil engineering",
+     "group": "tiefbau",
+     "nace": "42",
+     "terms": [
+      "tiefbau",
+      "civil engineering"
+     ]
+    },
+    {
+     "code": "erdarbeiten",
+     "de": "Erdarbeiten",
+     "en": "Earthworks",
+     "group": "tiefbau",
+     "nace": "43.12",
+     "terms": [
+      "erdarbeiten",
+      "erdbau",
+      "aushub",
+      "baugrube",
+      "earthworks",
+      "excavation"
+     ]
+    },
+    {
+     "code": "kanalbau",
+     "de": "Kanalbau",
+     "en": "Sewer construction",
+     "group": "tiefbau",
+     "nace": "42.21",
+     "terms": [
+      "kanalbau",
+      "kanalsanierung",
+      "abwasserkanal",
+      "sewer"
+     ]
+    },
+    {
+     "code": "rohrleitungsbau",
+     "de": "Rohrleitungsbau",
+     "en": "Pipeline construction",
+     "group": "tiefbau",
+     "nace": "42.21",
+     "terms": [
+      "rohrleitungsbau",
+      "leitungsbau",
+      "pipeline construction"
+     ]
+    },
+    {
+     "code": "strassenbau",
+     "de": "Straßenbau",
+     "en": "Road construction",
+     "group": "tiefbau",
+     "nace": "42.11",
+     "terms": [
+      "straßenbau",
+      "strassenbau",
+      "asphaltarbeiten",
+      "road construction"
+     ]
+    },
+    {
+     "code": "wegebau",
+     "de": "Wegebau",
+     "en": "Path construction",
+     "group": "tiefbau",
+     "nace": "42.11",
+     "terms": [
+      "wegebau",
+      "path construction"
+     ]
+    },
+    {
+     "code": "abbruch",
+     "de": "Abbruch",
+     "en": "Demolition",
+     "group": "abbruch",
+     "nace": "43.11",
+     "terms": [
+      "abbruch",
+      "abriss",
+      "abbrucharbeiten",
+      "demolition"
+     ]
+    },
+    {
+     "code": "rueckbau",
+     "de": "Rückbau",
+     "en": "Deconstruction",
+     "group": "abbruch",
+     "nace": "43.11",
+     "terms": [
+      "rückbau",
+      "entkernung",
+      "deconstruction"
+     ]
+    },
+    {
+     "code": "entsorgung",
+     "de": "Entsorgung",
+     "en": "Waste disposal",
+     "group": "abbruch",
+     "nace": "38",
+     "terms": [
+      "entsorgung",
+      "bauschuttentsorgung",
+      "containerdienst",
+      "waste disposal"
+     ]
+    },
+    {
+     "code": "recycling",
+     "de": "Recycling",
+     "en": "Recycling",
+     "group": "abbruch",
+     "nace": "38.2",
+     "terms": [
+      "recycling",
+      "baustoffrecycling",
+      "wertstoffe"
+     ]
+    },
+    {
+     "code": "geruestbau",
+     "de": "Gerüstbau",
+     "en": "Scaffolding",
+     "group": "service",
+     "nace": "43.99",
+     "terms": [
+      "gerüstbau",
+      "gerüste",
+      "gerüstverleih",
+      "scaffolding"
+     ]
+    },
+    {
+     "code": "dachdeckerei",
+     "de": "Dachdeckerei",
+     "en": "Roofing",
+     "group": "dach_fassade",
+     "nace": "43.41",
+     "terms": [
+      "dachdecker",
+      "dachdeckerei",
+      "dacharbeiten",
+      "dachsanierung",
+      "roofing"
+     ]
+    },
+    {
+     "code": "dachabdichtung",
+     "de": "Dachabdichtung",
+     "en": "Roof sealing",
+     "group": "dach_fassade",
+     "nace": "43.41",
+     "terms": [
+      "dachabdichtung",
+      "flachdach",
+      "flachdachabdichtung",
+      "roof sealing"
+     ]
+    },
+    {
+     "code": "fassade",
+     "de": "Fassade",
+     "en": "Facade",
+     "group": "dach_fassade",
+     "nace": "43",
+     "terms": [
+      "fassade",
+      "fassadenbau",
+      "fassadensanierung",
+      "fassadenarbeiten",
+      "facade"
+     ]
+    },
+    {
+     "code": "waermedaemmung_wdvs",
+     "de": "Wärmedämmung/WDVS",
+     "en": "Thermal insulation",
+     "group": "dach_fassade",
+     "nace": "43.23",
+     "terms": [
+      "wärmedämmung",
+      "wdvs",
+      "wärmedämmverbundsystem",
+      "dämmung",
+      "thermal insulation"
+     ]
+    },
+    {
+     "code": "fenster",
+     "de": "Fenster",
+     "en": "Windows",
+     "group": "ausbau",
+     "nace": "43.32",
+     "terms": [
+      "fenster",
+      "fensterbau",
+      "fenstermontage",
+      "windows"
+     ]
+    },
+    {
+     "code": "tueren",
+     "de": "Türen",
+     "en": "Doors",
+     "group": "ausbau",
+     "nace": "43.32",
+     "terms": [
+      "türen",
+      "haustüren",
+      "innentüren",
+      "doors"
+     ]
+    },
+    {
+     "code": "tore",
+     "de": "Tore",
+     "en": "Gates",
+     "group": "ausbau",
+     "nace": "43.32",
+     "terms": [
+      "garagentore",
+      "industrietore",
+      "tore",
+      "gates"
+     ]
+    },
+    {
+     "code": "sonnenschutz",
+     "de": "Sonnenschutz",
+     "en": "Sun protection",
+     "group": "ausbau",
+     "nace": "43.24",
+     "terms": [
+      "sonnenschutz",
+      "markisen",
+      "jalousien",
+      "sun protection"
+     ]
+    },
+    {
+     "code": "rollladen",
+     "de": "Rollladen",
+     "en": "Roller shutters",
+     "group": "ausbau",
+     "nace": "43.24",
+     "terms": [
+      "rollladen",
+      "rolläden",
+      "rollläden",
+      "roller shutters"
+     ]
+    },
+    {
+     "code": "trockenbau",
+     "de": "Trockenbau",
+     "en": "Drywall construction",
+     "group": "ausbau",
+     "nace": "43.31",
+     "terms": [
+      "trockenbau",
+      "trockenbauarbeiten",
+      "drywall"
+     ]
+    },
+    {
+     "code": "innenausbau",
+     "de": "Innenausbau",
+     "en": "Interior construction",
+     "group": "ausbau",
+     "nace": "43.3",
+     "terms": [
+      "innenausbau",
+      "interior construction"
+     ]
+    },
+    {
+     "code": "putz",
+     "de": "Putz",
+     "en": "Plastering",
+     "group": "ausbau",
+     "nace": "43.31",
+     "terms": [
+      "putzarbeiten",
+      "verputz",
+      "innenputz",
+      "außenputz",
+      "plastering"
+     ]
+    },
+    {
+     "code": "stuck",
+     "de": "Stuck",
+     "en": "Stucco",
+     "group": "ausbau",
+     "nace": "43.31",
+     "terms": [
+      "stuck",
+      "stuckateur",
+      "stuckateurarbeiten",
+      "stucco"
+     ]
+    },
+    {
+     "code": "malerarbeiten",
+     "de": "Malerarbeiten",
+     "en": "Painting",
+     "group": "ausbau",
+     "nace": "43.34",
+     "terms": [
+      "malerarbeiten",
+      "maler",
+      "malerbetrieb",
+      "anstrich",
+      "painting"
+     ]
+    },
+    {
+     "code": "lackierarbeiten",
+     "de": "Lackierarbeiten",
+     "en": "Varnishing",
+     "group": "ausbau",
+     "nace": "43.34",
+     "terms": [
+      "lackierarbeiten",
+      "lackierung",
+      "varnishing"
+     ]
+    },
+    {
+     "code": "estrich",
+     "de": "Estrich",
+     "en": "Screed",
+     "group": "ausbau",
+     "nace": "43.33",
+     "terms": [
+      "estrich",
+      "estricharbeiten",
+      "estrichleger",
+      "screed"
+     ]
+    },
+    {
+     "code": "bodenbelaege",
+     "de": "Bodenbeläge",
+     "en": "Floor coverings",
+     "group": "ausbau",
+     "nace": "43.33",
+     "terms": [
+      "bodenbeläge",
+      "bodenleger",
+      "parkett",
+      "laminat",
+      "vinyl",
+      "floor coverings",
+      "flooring"
+     ]
+    },
+    {
+     "code": "fliesen",
+     "de": "Fliesen",
+     "en": "Tiling",
+     "group": "ausbau",
+     "nace": "43.33",
+     "terms": [
+      "fliesen",
+      "fliesenleger",
+      "fliesenarbeiten",
+      "tiling"
+     ]
+    },
+    {
+     "code": "naturstein",
+     "de": "Naturstein",
+     "en": "Natural stone",
+     "group": "ausbau",
+     "nace": "43.33",
+     "terms": [
+      "naturstein",
+      "steinmetz",
+      "natural stone"
+     ]
+    },
+    {
+     "code": "tischlerei",
+     "de": "Tischlerei",
+     "en": "Joinery",
+     "group": "ausbau",
+     "nace": null,
+     "terms": [
+      "tischlerei",
+      "tischler",
+      "joinery"
+     ]
+    },
+    {
+     "code": "schreinerei",
+     "de": "Schreinerei",
+     "en": "Cabinet making",
+     "group": "ausbau",
+     "nace": null,
+     "terms": [
+      "schreinerei",
+      "schreiner",
+      "cabinet making"
+     ]
+    },
+    {
+     "code": "kuechen_moebelmontage",
+     "de": "Küchen- und Möbelmontage",
+     "en": "Kitchen and furniture assembly",
+     "group": "ausbau",
+     "nace": "43.32",
+     "terms": [
+      "küchenmontage",
+      "möbelmontage",
+      "einbauküchen",
+      "kitchen installation"
+     ]
+    },
+    {
+     "code": "elektroinstallation",
+     "de": "Elektroinstallation",
+     "en": "Electrical installation",
+     "group": "tga",
+     "nace": "43.21",
+     "terms": [
+      "elektroinstallation",
+      "elektriker",
+      "elektrotechnik",
+      "elektroarbeiten",
+      "electrical installation"
+     ]
+    },
+    {
+     "code": "smart_home",
+     "de": "Smart Home",
+     "en": "Smart home",
+     "group": "tga",
+     "nace": "43.21",
+     "terms": [
+      "smart home",
+      "smarthome",
+      "hausautomation"
+     ]
+    },
+    {
+     "code": "gebaeudeautomation",
+     "de": "Gebäudeautomation",
+     "en": "Building automation",
+     "group": "tga",
+     "nace": "43.21",
+     "terms": [
+      "gebäudeautomation",
+      "gebäudeleittechnik",
+      "knx",
+      "building automation"
+     ]
+    },
+    {
+     "code": "photovoltaik",
+     "de": "Photovoltaik",
+     "en": "Photovoltaics",
+     "group": "tga",
+     "nace": "43.2",
+     "terms": [
+      "photovoltaik",
+      "pv-anlage",
+      "pv-anlagen",
+      "solaranlage",
+      "solaranlagen",
+      "photovoltaics",
+      "solar panels"
+     ]
+    },
+    {
+     "code": "stromspeicher",
+     "de": "Stromspeicher",
+     "en": "Battery storage",
+     "group": "tga",
+     "nace": "43.2",
+     "terms": [
+      "stromspeicher",
+      "batteriespeicher",
+      "battery storage"
+     ]
+    },
+    {
+     "code": "ladeinfrastruktur",
+     "de": "Ladeinfrastruktur",
+     "en": "Charging infrastructure",
+     "group": "tga",
+     "nace": "43.21",
+     "terms": [
+      "ladeinfrastruktur",
+      "wallbox",
+      "ladestation",
+      "ladesäulen",
+      "ev charging"
+     ]
+    },
+    {
+     "code": "sanitaer",
+     "de": "Sanitär",
+     "en": "Plumbing",
+     "group": "tga",
+     "nace": "43.22",
+     "terms": [
+      "sanitär",
+      "sanitärinstallation",
+      "badsanierung",
+      "badezimmer",
+      "installateur",
+      "plumbing"
+     ]
+    },
+    {
+     "code": "heizung",
+     "de": "Heizung",
+     "en": "Heating",
+     "group": "tga",
+     "nace": "43.22",
+     "terms": [
+      "heizung",
+      "heizungsbau",
+      "heizungsinstallation",
+      "heizungsanlage",
+      "heating"
+     ]
+    },
+    {
+     "code": "klima",
+     "de": "Klima",
+     "en": "Air conditioning",
+     "group": "tga",
+     "nace": "43.22",
+     "terms": [
+      "klimaanlage",
+      "klimaanlagen",
+      "klimatechnik",
+      "air conditioning"
+     ]
+    },
+    {
+     "code": "lueftung",
+     "de": "Lüftung",
+     "en": "Ventilation",
+     "group": "tga",
+     "nace": "43.22",
+     "terms": [
+      "lüftung",
+      "lüftungsanlage",
+      "lüftungstechnik",
+      "ventilation"
+     ]
+    },
+    {
+     "code": "waermepumpen",
+     "de": "Wärmepumpen",
+     "en": "Heat pumps",
+     "group": "tga",
+     "nace": "43.22",
+     "terms": [
+      "wärmepumpe",
+      "wärmepumpen",
+      "heat pump",
+      "heat pumps"
+     ]
+    },
+    {
+     "code": "kaelteanlagen",
+     "de": "Kälteanlagen",
+     "en": "Refrigeration",
+     "group": "tga",
+     "nace": "43.22",
+     "terms": [
+      "kälteanlagen",
+      "kältetechnik",
+      "refrigeration"
+     ]
+    },
+    {
+     "code": "aufzuege",
+     "de": "Aufzüge",
+     "en": "Lifts",
+     "group": "tga",
+     "nace": "43.24",
+     "terms": [
+      "aufzug",
+      "aufzüge",
+      "aufzugsanlagen",
+      "fahrstuhl",
+      "treppenlift",
+      "lifts",
+      "elevators"
+     ]
+    },
+    {
+     "code": "foerdertechnik",
+     "de": "Fördertechnik",
+     "en": "Conveyor systems",
+     "group": "tga",
+     "nace": null,
+     "terms": [
+      "fördertechnik",
+      "fördersysteme",
+      "conveyor"
+     ]
+    },
+    {
+     "code": "sicherheits_schliesstechnik",
+     "de": "Sicherheits- und Schließtechnik",
+     "en": "Security and locking systems",
+     "group": "tga",
+     "nace": "43.2",
+     "terms": [
+      "sicherheitstechnik",
+      "schließtechnik",
+      "schließanlagen",
+      "alarmanlagen",
+      "einbruchschutz",
+      "access control"
+     ]
+    },
+    {
+     "code": "brandschutztechnik",
+     "de": "Brandschutztechnik",
+     "en": "Fire protection systems",
+     "group": "tga",
+     "nace": "43.2",
+     "terms": [
+      "brandschutztechnik",
+      "brandmeldeanlage",
+      "sprinkleranlage",
+      "rauchwarnmelder",
+      "fire protection systems"
+     ]
+    },
+    {
+     "code": "abdichtung",
+     "de": "Abdichtung",
+     "en": "Waterproofing",
+     "group": "sanierung",
+     "nace": "43",
+     "terms": [
+      "abdichtung",
+      "kellerabdichtung",
+      "bauwerksabdichtung",
+      "waterproofing"
+     ]
+    },
+    {
+     "code": "bautenschutz",
+     "de": "Bautenschutz",
+     "en": "Building protection",
+     "group": "sanierung",
+     "nace": "43",
+     "terms": [
+      "bautenschutz",
+      "betonsanierung",
+      "building protection"
+     ]
+    },
+    {
+     "code": "sanierung",
+     "de": "Sanierung",
+     "en": "Renovation",
+     "group": "sanierung",
+     "nace": "F",
+     "terms": [
+      "sanierung",
+      "altbausanierung",
+      "komplettsanierung",
+      "renovation"
+     ]
+    },
+    {
+     "code": "modernisierung",
+     "de": "Modernisierung",
+     "en": "Modernisation",
+     "group": "sanierung",
+     "nace": "F",
+     "terms": [
+      "modernisierung",
+      "umbau",
+      "modernisation",
+      "modernization"
+     ]
+    },
+    {
+     "code": "schadstoffsanierung",
+     "de": "Schadstoffsanierung",
+     "en": "Hazardous material removal",
+     "group": "sanierung",
+     "nace": null,
+     "terms": [
+      "schadstoffsanierung",
+      "asbestsanierung",
+      "asbest",
+      "schimmelsanierung",
+      "asbestos removal"
+     ]
+    },
+    {
+     "code": "betonbohren",
+     "de": "Betonbohren",
+     "en": "Concrete drilling",
+     "group": "service",
+     "nace": "43.99",
+     "terms": [
+      "betonbohren",
+      "kernbohrung",
+      "kernbohrungen",
+      "concrete drilling",
+      "core drilling"
+     ]
+    },
+    {
+     "code": "betonsaegen",
+     "de": "Betonsägen",
+     "en": "Concrete sawing",
+     "group": "service",
+     "nace": "43.99",
+     "terms": [
+      "betonsägen",
+      "betonschneiden",
+      "wandsägen",
+      "concrete sawing"
+     ]
+    },
+    {
+     "code": "garten_landschaftsbau",
+     "de": "Garten- und Landschaftsbau",
+     "en": "Landscaping",
+     "group": "aussen",
+     "nace": "81.30",
+     "terms": [
+      "garten- und landschaftsbau",
+      "gartenbau",
+      "landschaftsbau",
+      "galabau",
+      "landscaping"
+     ]
+    },
+    {
+     "code": "aussenanlagen",
+     "de": "Außenanlagen",
+     "en": "Outdoor facilities",
+     "group": "aussen",
+     "nace": "81.30",
+     "terms": [
+      "außenanlagen",
+      "aussenanlagen",
+      "outdoor facilities"
+     ]
+    },
+    {
+     "code": "zaunbau",
+     "de": "Zaunbau",
+     "en": "Fencing",
+     "group": "aussen",
+     "nace": "43",
+     "terms": [
+      "zaunbau",
+      "zäune",
+      "zaunanlagen",
+      "fencing"
+     ]
+    },
+    {
+     "code": "torbau",
+     "de": "Torbau",
+     "en": "Gate construction",
+     "group": "aussen",
+     "nace": "43",
+     "terms": [
+      "torbau",
+      "toranlagen",
+      "gate construction"
+     ]
+    },
+    {
+     "code": "pflasterarbeiten",
+     "de": "Pflasterarbeiten",
+     "en": "Paving",
+     "group": "aussen",
+     "nace": "F",
+     "terms": [
+      "pflasterarbeiten",
+      "pflasterung",
+      "pflaster",
+      "paving"
+     ]
+    },
+    {
+     "code": "steinarbeiten",
+     "de": "Steinarbeiten",
+     "en": "Stonework",
+     "group": "aussen",
+     "nace": "F",
+     "terms": [
+      "steinarbeiten",
+      "natursteinarbeiten",
+      "stonework"
+     ]
+    },
+    {
+     "code": "brunnenbau",
+     "de": "Brunnenbau",
+     "en": "Well construction",
+     "group": "tiefbau",
+     "nace": "42.21",
+     "terms": [
+      "brunnenbau",
+      "brunnenbohrung",
+      "well drilling"
+     ]
+    },
+    {
+     "code": "entwaesserung",
+     "de": "Entwässerung",
+     "en": "Drainage",
+     "group": "tiefbau",
+     "nace": "42.21",
+     "terms": [
+      "entwässerung",
+      "drainage",
+      "regenwasser"
+     ]
+    },
+    {
+     "code": "baustellenlogistik",
+     "de": "Baustellenlogistik",
+     "en": "Site logistics",
+     "group": "service",
+     "nace": null,
+     "terms": [
+      "baustellenlogistik",
+      "baulogistik",
+      "construction logistics"
+     ]
+    },
+    {
+     "code": "kran_hebetechnik",
+     "de": "Kran- und Hebetechnik",
+     "en": "Cranes and lifting",
+     "group": "service",
+     "nace": null,
+     "terms": [
+      "kranverleih",
+      "kranarbeiten",
+      "hebetechnik",
+      "autokran",
+      "crane hire"
+     ]
+    },
+    {
+     "code": "baureinigung",
+     "de": "Baureinigung",
+     "en": "Construction cleaning",
+     "group": "service",
+     "nace": "81.22",
+     "terms": [
+      "baureinigung",
+      "bauendreinigung",
+      "bauschlussreinigung",
+      "construction cleaning"
+     ]
+    },
+    {
+     "code": "facility_management",
+     "de": "Facility Management",
+     "en": "Facility management",
+     "group": "service",
+     "nace": "81.10",
+     "terms": [
+      "facility management",
+      "facility-management",
+      "objektbetreuung"
+     ]
+    },
+    {
+     "code": "gebaeudeservice",
+     "de": "Gebäudeservice",
+     "en": "Building services",
+     "group": "service",
+     "nace": "81",
+     "terms": [
+      "gebäudeservice",
+      "gebäudereinigung",
+      "hausmeisterservice",
+      "hausmeisterdienst",
+      "building maintenance"
+     ]
+    },
+    {
+     "code": "baustoffe",
+     "de": "Baustoffe",
+     "en": "Building materials",
+     "group": "handel",
+     "nace": "46.83",
+     "terms": [
+      "baustoffe",
+      "baustoffhandel",
+      "baumaterial",
+      "building materials"
+     ]
+    },
+    {
+     "code": "bauelemente",
+     "de": "Bauelemente",
+     "en": "Building components",
+     "group": "handel",
+     "nace": null,
+     "terms": [
+      "bauelemente",
+      "building components"
+     ]
+    },
+    {
+     "code": "hersteller",
+     "de": "Hersteller",
+     "en": "Manufacturers",
+     "group": "handel",
+     "nace": null,
+     "terms": [
+      "hersteller",
+      "herstellung",
+      "manufacturer"
+     ]
+    },
+    {
+     "code": "baufinanzierung",
+     "de": "Baufinanzierung",
+     "en": "Construction finance",
+     "group": "beratung",
+     "nace": null,
+     "terms": [
+      "baufinanzierung",
+      "immobilienfinanzierung",
+      "baukredit",
+      "mortgage"
+     ]
+    },
+    {
+     "code": "foerdermittelberatung",
+     "de": "Fördermittelberatung",
+     "en": "Funding advice",
+     "group": "beratung",
+     "nace": "70.20",
+     "terms": [
+      "fördermittelberatung",
+      "fördermittel",
+      "förderberatung",
+      "kfw-förderung",
+      "funding advice"
+     ]
+    },
+    {
+     "code": "bau_vergaberecht",
+     "de": "Bau- und Vergaberecht",
+     "en": "Construction and procurement law",
+     "group": "beratung",
+     "nace": "69.10",
+     "terms": [
+      "baurecht",
+      "vergaberecht",
+      "architektenrecht",
+      "construction law"
+     ]
+    },
+    {
+     "code": "baunahe_beratung",
+     "de": "Baunahe Beratung",
+     "en": "Construction-related consulting",
+     "group": "beratung",
+     "nace": null,
+     "terms": [
+      "bauberatung",
+      "baubegleitung",
+      "bauherrenberatung",
+      "construction consulting"
+     ]
+    }
+   ],
+   "segments": [
+    {
+     "code": "private_bauherren",
+     "de": "Private Bauherren",
+     "en": "Private builders",
+     "terms": [
+      "private bauherren",
+      "bauherren",
+      "bauherrinnen",
+      "häuslebauer",
+      "homeowners"
+     ]
+    },
+    {
+     "code": "eigentuemer",
+     "de": "Eigentümer",
+     "en": "Property owners",
+     "terms": [
+      "eigentümer",
+      "hausbesitzer",
+      "immobilienbesitzer",
+      "property owners"
+     ]
+    },
+    {
+     "code": "hausverwaltungen",
+     "de": "Hausverwaltungen",
+     "en": "Property managers",
+     "terms": [
+      "hausverwaltungen",
+      "hausverwaltung",
+      "wohnungseigentümergemeinschaften",
+      "weg",
+      "property managers"
+     ]
+    },
+    {
+     "code": "gewerbliche_bauherren",
+     "de": "Gewerbliche Bauherren",
+     "en": "Commercial clients",
+     "terms": [
+      "gewerbliche bauherren",
+      "gewerbekunden",
+      "industriekunden",
+      "commercial clients"
+     ]
+    },
+    {
+     "code": "investoren",
+     "de": "Investoren",
+     "en": "Investors",
+     "terms": [
+      "investoren",
+      "investors"
+     ]
+    },
+    {
+     "code": "kommunen",
+     "de": "Kommunen",
+     "en": "Municipalities",
+     "terms": [
+      "kommunen",
+      "gemeinden",
+      "städte",
+      "municipalities"
+     ]
+    },
+    {
+     "code": "architekten",
+     "de": "Architekten und Planer",
+     "en": "Architects and planners",
+     "terms": [
+      "architekten",
+      "planer",
+      "planungsbüros",
+      "architects"
+     ]
+    },
+    {
+     "code": "bauunternehmen",
+     "de": "Bauunternehmen",
+     "en": "Construction companies",
+     "terms": [
+      "bauunternehmen",
+      "baufirmen",
+      "generalunternehmer",
+      "construction companies"
+     ]
+    },
+    {
+     "code": "wohnungsbaugesellschaften",
+     "de": "Wohnungsbaugesellschaften",
+     "en": "Housing companies",
+     "terms": [
+      "wohnungsbaugesellschaften",
+      "wohnungsgesellschaften",
+      "wohnungsbaugenossenschaften",
+      "housing associations"
+     ]
+    }
+   ]
+  }
+ }
+}

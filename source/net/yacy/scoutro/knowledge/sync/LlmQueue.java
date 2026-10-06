@@ -234,13 +234,25 @@ final class LlmQueue {
      */
     static boolean mark(final Connection tx, final String docId, final byte[] inputHash, final int status, final String reason)
             throws SQLException {
-        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = ?, llm_hash = input_hash, llm_reason = ?"
-                + " WHERE doc_id = ? AND input_hash = ? AND state = 1")) {
+        // the mark is the content hash (schema 4): a new vocabulary alone does not make the document to do again
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = ?, llm_hash = coalesce(content_hash, input_hash),"
+                + " llm_reason = ? WHERE doc_id = ? AND input_hash = ? AND state = 1")) {
             ps.setInt(1, status);
             ps.setString(2, reason);
             ps.setString(3, docId);
             ps.setBytes(4, inputHash);
             return ps.executeUpdate() > 0;
+        }
+    }
+
+    /**
+     * Makes documents with the given status to do again for a new extractor (prompt or version), keeping their
+     * evidence until the new result replaces it.
+     */
+    static int reexamine(final Connection tx, final int status) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = NULL, llm_reason = NULL WHERE llm_status = ?")) {
+            ps.setInt(1, status);
+            return ps.executeUpdate();
         }
     }
 

@@ -57,17 +57,37 @@ public final class SolrDoc {
     public static final String PUBLISHER = "publisher_t";
     public static final String COORDINATE = "coordinate_p";
     public static final String TEXT = "text_t";
+    /** Outbound links without the protocol ({@code host/path}); the registrable domains feed the weak relation linked_to. */
+    public static final String OUTBOUND = "outboundlinks_urlstub_sxt";
+    /** Outbound links a document keeps at most (distinct registrable domains). */
+    public static final int MAX_LINK_DOMAINS = 50;
 
     /** Fields of a scan page: enough for the token, the version and the state. */
     public static final List<String> SCAN_FIELDS = List.of(ID, VERSION, SKU, HTTPSTATUS, FAILTYPE, SIGNATURE, COLLECTIONS, LANGUAGE);
 
     /** Fields of a real-time get for processing (the text is read separately, for tier 2 candidates only). */
     public static final List<String> PROCESS_FIELDS = List.of(ID, VERSION, SKU, HOST, HOST_ID, HTTPSTATUS, FAILTYPE, SIGNATURE,
-            COLLECTIONS, LANGUAGE, LOAD_DATE, LD_JSON, TITLE, DESCRIPTION, PUBLISHER, COORDINATE);
+            COLLECTIONS, LANGUAGE, LOAD_DATE, LD_JSON, TITLE, DESCRIPTION, PUBLISHER, COORDINATE, OUTBOUND);
 
-    /** Extractor versions in the input hash: a new version re-extracts at the next processing. */
-    static final String EXTRACTORS = JsonLdExtractor.NAME + "/" + JsonLdExtractor.VERSION + "," + MetadataExtractor.NAME + "/"
-            + MetadataExtractor.VERSION + "," + RuleExtractor.NAME + "/" + RuleExtractor.VERSION;
+    /** The extractor versions of schema 3 (package 5): a document the LLM tier read under them has the same content. */
+    static final String EXTRACTORS_V1 = "jsonld/2,metadata/1,rule/2";
+
+    /**
+     * Extractor versions and the business vocabulary in the input hash: a new version or a changed vocabulary
+     * re-extracts at the next processing.
+     */
+    public static String extractors() {
+        return JsonLdExtractor.NAME + "/" + JsonLdExtractor.VERSION + "," + MetadataExtractor.NAME + "/" + MetadataExtractor.VERSION + ","
+                + RuleExtractor.NAME + "/" + RuleExtractor.VERSION + ",vocabulary/" + net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION
+                + "-" + net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version() + "," + extractionKey;
+    }
+
+    private static volatile String extractionKey = "";
+
+    /** The configuration's part of the extractor identity (vocabulary per collection, jobs), set by the sync at start. */
+    public static void configure(final KgConfig cfg) {
+        extractionKey = cfg == null ? "" : Integer.toHexString(cfg.extractionKey().hashCode());
+    }
 
     public String id;
     public long version;
@@ -85,6 +105,7 @@ public final class SolrDoc {
     public List<String> descriptions = Collections.emptyList();
     public String publisher;
     public String coordinate;
+    public List<String> outbound = Collections.emptyList();
 
     /** Reads a Solr document given as a field map (SolrDocument implements {@code Map<String, Object>}). */
     public static SolrDoc of(final Map<String, Object> d) {
@@ -113,6 +134,7 @@ public final class SolrDoc {
         s.descriptions = strings(d.get(DESCRIPTION));
         s.publisher = string(d.get(PUBLISHER));
         s.coordinate = string(d.get(COORDINATE));
+        s.outbound = strings(d.get(OUTBOUND));
         return s;
     }
 
@@ -198,8 +220,29 @@ public final class SolrDoc {
      * Equal hashes mean an equal extraction, so only the lifecycle changes.
      */
     public byte[] inputHash() {
+        return inputHash(extractors());
+    }
+
+    /** {@link #inputHash()} for the given extractor versions; those of schema 3 hash exactly what schema 3 read. */
+    byte[] inputHash(final String extractors) {
         final MessageDigest md = sha256();
-        update(md, EXTRACTORS);
+        update(md, extractors);
+        content(md, !EXTRACTORS_V1.equals(extractors));
+        return Arrays.copyOf(md.digest(), 16);
+    }
+
+    /**
+     * 16 bytes of SHA-256 over what tiers 1 and 2 read, without the extractor
+     * versions: equal content hashes mean the LLM tier would read the same page
+     * (a new vocabulary keeps its result).
+     */
+    public byte[] contentHash() {
+        final MessageDigest md = sha256();
+        content(md, true);
+        return Arrays.copyOf(md.digest(), 16);
+    }
+
+    private void content(final MessageDigest md, final boolean links) {
         update(md, this.url);
         update(md, this.host);
         update(md, this.language);
@@ -214,7 +257,54 @@ public final class SolrDoc {
         update(md, "\u0002");
         update(md, this.publisher);
         update(md, this.coordinate);
-        return Arrays.copyOf(md.digest(), 16);
+        // the outbound domains joined the input with schema 4; an empty list hashes like schema 3
+        final java.util.Set<String> domains = links ? linkDomains().keySet() : java.util.Collections.emptySet();
+        if (!domains.isEmpty()) {
+            update(md, "\u0003" + String.join(",", domains));
+        }
+    }
+
+    /**
+     * The registrable domains this page links to, other than its own, with
+     * their link count; sorted, at most {@link #MAX_LINK_DOMAINS}.
+     */
+    public java.util.SortedMap<String, Integer> linkDomains() {
+        final java.util.SortedMap<String, Integer> out = new java.util.TreeMap<>();
+        if (this.outbound.isEmpty()) {
+            return out;
+        }
+        String own = null;
+        try {
+            own = net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(this.host != null ? this.host
+                    : this.url == null ? null : new java.net.URI(this.url).getHost());
+        } catch (final Exception e) {
+            own = null;
+        }
+        for (final String stub : this.outbound) {
+            String h = stub;
+            final int slash = h.indexOf('/');
+            if (slash >= 0) {
+                h = h.substring(0, slash);
+            }
+            final int at = h.lastIndexOf('@');
+            if (at >= 0) {
+                h = h.substring(at + 1);
+            }
+            final int colon = h.indexOf(':');
+            if (colon >= 0) {
+                h = h.substring(0, colon);
+            }
+            final String d = net.yacy.scoutro.knowledge.resolve.Normalizers.registrableDomain(h.toLowerCase(java.util.Locale.ROOT));
+            if (d == null || d.equals(own) || d.length() < 3 || d.length() > 253 || !d.matches("[a-z0-9.-]+") || d.indexOf('.') < 0) {
+                continue;
+            }
+            if (out.containsKey(d)) {
+                out.put(d, out.get(d) + 1);
+            } else if (out.size() < MAX_LINK_DOMAINS) {
+                out.put(d, 1);
+            }
+        }
+        return out;
     }
 
     /** UTF-8 bytes of the captured JSON-LD (the estimate of the field in Solr). */

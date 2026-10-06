@@ -176,6 +176,7 @@ public final class SyncService {
         this.publisher = new Publisher(cfg, this.terms);
         this.reconciler = new Reconciler(cfg, store, solr, dirty, this.publisher, gates, clock);
         this.retention = new Retention(cfg, store, this.publisher, clock, clock.getAsLong() + FIRST_RETENTION_DELAY_MILLIS);
+        SolrDoc.configure(cfg);
         this.tiers = new BaseTiers(cfg);
         this.queueMax = cfg.queueMaxItems;
         // signals that arrived before this service existed are covered by the start reconcile
@@ -199,13 +200,13 @@ public final class SyncService {
             WorkQueue.resetClaims(tx);
             final String collections = KgStore.getMeta(tx, KgSchema.META_COLLECTIONS);
             final String extractors = KgStore.getMeta(tx, KgSchema.META_EXTRACTORS);
-            KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.EXTRACTORS);
+            KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
             this.reconciler.onStart(tx, now);
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
                     KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT)};
         });
         final boolean collectionsChanged = meta[0] != null && !meta[0].equals(this.cfg.collectionsKey());
-        final boolean extractorsChanged = meta[1] != null && !meta[1].equals(SolrDoc.EXTRACTORS);
+        final boolean extractorsChanged = meta[1] != null && !meta[1].equals(SolrDoc.extractors());
         this.reconciler.request(collectionsChanged ? Reconciler.REASON_COLLECTIONS
                 : this.uncleanStart ? Reconciler.REASON_UNCLEAN_START : Reconciler.REASON_START, now);
         if (extractorsChanged) {
@@ -504,6 +505,9 @@ public final class SyncService {
         doc.collections = followed;
         doc.jsonldBytes = d.jsonLdBytes();
         doc.jsonldSkipped = d.ldJson.isEmpty() && JsonLdCapture.wasSkipped(d.id);
+        doc.contentHash = d.contentHash();
+        doc.legacyInputHash = d.inputHash(SolrDoc.EXTRACTORS_V1);
+        doc.linkDomains = d.linkDomains();
         return doc;
     }
 

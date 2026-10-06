@@ -222,6 +222,17 @@ public final class LlmService {
                 }
             }
             KgStore.putMeta(tx, KgSchema.META_LLM_SELECTION, key);
+            // a new prompt or version (vocabulary 2) reads every document again; the old evidence stays until replaced
+            final String extractor = LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/" + LlmExtractor.PROMPT_HASH;
+            final String lastExtractor = KgStore.getMeta(tx, KgSchema.META_LLM_EXTRACTOR);
+            if (lastExtractor != null && !lastExtractor.equals(extractor)) {
+                final int n = LlmQueue.reexamine(tx, LlmQueue.STATUS_DONE) + LlmQueue.reexamine(tx, LlmQueue.STATUS_FAILED);
+                if (n > 0) {
+                    KgStore.event(tx, 1, "llm_extractor_changed", n + " documents are examined again by " + extractor,
+                            this.clock.getAsLong());
+                }
+            }
+            KgStore.putMeta(tx, KgSchema.META_LLM_EXTRACTOR, extractor);
             return null;
         });
         this.initialized = true;

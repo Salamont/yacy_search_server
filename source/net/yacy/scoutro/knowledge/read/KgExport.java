@@ -293,7 +293,7 @@ public final class KgExport {
             final KgChangeLog.Page page = KgChangeLog.read(c, cursor, v, limit);
             final JSONArray items = new JSONArray();
             for (final KgChangeLog.Item it : page.items) {
-                final JSONObject o = KgJson.obj("seq", it.seq, "kind", it.kind == KgChangeLog.Kind.ENTITY ? "entity" : "statement",
+                final JSONObject o = KgJson.obj("seq", it.seq, "kind", it.kind.label(),
                         "id", it.id, "op", it.op.name().toLowerCase(java.util.Locale.ROOT), "redirect_to", it.redirectTo,
                         "at", KgReader.iso(it.at));
                 if (expand && it.op == KgChangeLog.Op.UPSERT) {

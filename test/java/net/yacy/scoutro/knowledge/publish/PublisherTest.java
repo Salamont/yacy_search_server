@@ -166,15 +166,20 @@ public class PublisherTest {
                 + "\"postalCode\":\"12345\",\"addressLocality\":\"Berlin\"}}"));
         publish(b, jsonld(b, "{\"@type\":\"ChildCare\",\"name\":\"Kita Sonnenschein\",\"address\":{\"streetAddress\":\"Birkenweg 9\","
                 + "\"postalCode\":\"12345\",\"addressLocality\":\"Berlin\"}}"));
-        assertEquals(2L, count("SELECT count(*) FROM kg_entity"));
+        assertEquals(2L, count(FACILITIES));
+        // vocabulary 2: both addresses are in one place entity (global place_name key)
+        assertEquals(1L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type WHERE v.name = 'place'"));
         // the same full address on another page of the domain is the same facility
         final Publisher.Doc c = doc("CCCCCChost01", "https://www.muster.de/standorte", "c1");
         publish(c, jsonld(c, "{\"@type\":\"ChildCare\",\"name\":\"Kita Sonnenschein\",\"address\":{\"streetAddress\":\"Lindenallee 3\","
                 + "\"postalCode\":\"12345\",\"addressLocality\":\"Berlin\"},\"telephone\":\"030 555555\"}"));
-        assertEquals(2L, count("SELECT count(*) FROM kg_entity"));
+        assertEquals(2L, count(FACILITIES));
+        assertEquals(3L, count("SELECT count(*) FROM kg_entity"));
         assertEquals(2L, count("SELECT current_sources FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
                 + " WHERE v.name = 'address' AND s.obj_val LIKE 'Lindenallee%'"));
     }
+
+    private static final String FACILITIES = "SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type WHERE v.name = 'facility'";
 
     private static final String OPERATOR = "{\"@type\":\"Organization\",\"name\":\"Lindenhof Pflege gGmbH\",\"url\":\"https://www.lindenhof.de/\"}";
     private static final String HOUSE = "{\"@type\":\"NursingHome\",\"name\":\"Haus %s\","
