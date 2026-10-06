@@ -133,7 +133,7 @@ public class AgentCatalogTest {
             Assert.assertEquals(name, grant, AgentApi.route("GET", segs).action);
             if (grant.equals("kg.read")) read++; else export++;
         }
-        Assert.assertEquals(12, read);
+        Assert.assertEquals(14, read);
         Assert.assertEquals(2, export);
     }
 }
