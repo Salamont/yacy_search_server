@@ -285,7 +285,31 @@ public final class GraphFacts {
             Map.entry("locality", "locality"), Map.entry("opening_hours", "opening hours"), Map.entry("phone", "phone"),
             Map.entry("email", "e-mail"), Map.entry("website", "website"), Map.entry("alias", "also called"),
             Map.entry("identifier:register", "register entry"), Map.entry("identifier:vat", "VAT ID"), Map.entry("identifier:lei", "LEI"),
-            Map.entry("identifier:ik", "IK number"), Map.entry("identifier:wikidata", "Wikidata"));
+            Map.entry("identifier:ik", "IK number"), Map.entry("identifier:wikidata", "Wikidata"),
+            // vocabulary 2
+            Map.entry("industry", "industry"), Map.entry("industry_category", "field"), Map.entry("category", "service category"),
+            Map.entry("price", "published price"), Map.entry("fax", "fax"), Map.entry("contact_point", "contact"),
+            Map.entry("contact_form", "contact form"), Map.entry("office_hours", "office hours"), Map.entry("social_profile", "company profile"),
+            Map.entry("directions", "directions"), Map.entry("parent_of", "is parent company of"), Map.entry("subsidiary_of", "is a subsidiary of"),
+            Map.entry("carrier_of", "is the carrier of"), Map.entry("member_of", "is a member of"),
+            Map.entry("association_member", "is a member of the association"), Map.entry("partner_of", "names as partner"),
+            Map.entry("cooperation_with", "cooperates with"), Map.entry("customer_of", "is a customer of"),
+            Map.entry("reference_for", "is a reference of"), Map.entry("supplier_of", "is a supplier of"),
+            Map.entry("service_provider_for", "is a service provider for"), Map.entry("brand_of", "is a brand of"),
+            Map.entry("certified_by", "is certified by"), Map.entry("funded_by", "is funded by"), Map.entry("sponsored_by", "is sponsored by"),
+            Map.entry("certification", "certification"), Map.entry("customer_type", "declared customers"),
+            Map.entry("audience_segment", "declared audience"), Map.entry("target_industry", "declared target industry"),
+            Map.entry("target_category", "declared target group"), Map.entry("company_size", "declared customer size"),
+            Map.entry("service_area", "declared service area"), Map.entry("need", "declared need"), Map.entry("job", "job"),
+            Map.entry("inverse:customer_of", "has as customer"), Map.entry("inverse:reference_for", "has as reference"),
+            Map.entry("inverse:carrier_of", "has as carrier"), Map.entry("inverse:parent_of", "has as parent company"),
+            Map.entry("inverse:subsidiary_of", "has as subsidiary"), Map.entry("inverse:member_of", "has as member"),
+            Map.entry("inverse:association_member", "has as member"), Map.entry("inverse:partner_of", "is named as partner by"),
+            Map.entry("inverse:cooperation_with", "cooperates with"), Map.entry("inverse:supplier_of", "has as supplier"),
+            Map.entry("inverse:service_provider_for", "has as service provider"), Map.entry("inverse:brand_of", "has the brand"),
+            Map.entry("inverse:certified_by", "certifies"), Map.entry("inverse:funded_by", "funds"), Map.entry("inverse:sponsored_by", "sponsors"),
+            Map.entry("suggested_customer", "possible customer (a Scoutro suggestion, not a fact)"),
+            Map.entry("suggested_partner", "possible partner (a Scoutro suggestion, not a fact)"));
 
     static String label(final String predicate) {
         final String l = LABELS.get(predicate);
@@ -294,6 +318,15 @@ public final class GraphFacts {
 
     /** How sure the graph is: nothing for a supported fact. */
     static String marks(final ChatFacts.Fact f) {
+        if ("suggestion".equals(f.note)) {
+            return " (suggestion computed by Scoutro from the facts of both; no page states it; never call it a customer or partner)";
+        }
+        if ("conflicting".equals(f.note)) {
+            return " (sources state different prices: give each with its source, never an average)";
+        }
+        if ("ended".equals(f.note)) {
+            return " (this job has ended)";
+        }
         if (!"uncertain".equals(f.quality)) {
             return "";
         }

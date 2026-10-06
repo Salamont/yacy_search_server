@@ -50,6 +50,20 @@ public final class Mention {
     public String jobKey;
     /** A key of the {@code place_name} scheme ({@code de|state|bayern}); global. */
     public String placeKey;
+    /** A key of the {@code service_name} scheme (provider and category or name), within the registrable domain. */
+    public String serviceKey;
+
+    /** The provider part of a service key: the site's operator, or the named organisation or facility; null if unnamed. */
+    public static String providerKey(final Mention provider) {
+        if (provider == null) {
+            return null;
+        }
+        if (provider.siteOperator || provider.domainOperator) {
+            return "operator";
+        }
+        final String k = net.yacy.scoutro.knowledge.resolve.Normalizers.key(provider.name);
+        return k == null ? null : provider.type + ":" + (provider.subkind == null ? "" : provider.subkind + ":") + k;
+    }
     public Address address;
 
     public Mention(final String ref, final String type, final int tier) {

@@ -194,12 +194,21 @@ public class AgentKnowledgeTest {
         final String muster = id(a, "kga", "Muster");
         final StringBuilder seen = new StringBuilder(list.body.toString());
         for (final String path : new String[] {"kg/entities/" + muster, "kg/entities/" + muster + "/statements",
-                "kg/entities/" + muster + "/statements?include=stale", "kg/hosts/www.muster.de/entities", "kg/sources/AAAAAAhost01"}) {
+                "kg/entities/" + muster + "/statements?include=stale", "kg/hosts/www.muster.de/entities", "kg/sources/AAAAAAhost01",
+                // vocabulary 2 (package 6): the business view, the network, the comparison, the derived rows, the facets
+                "kg/entities/" + muster + "/business", "kg/entities/" + muster + "/neighborhood", "kg/derived", "kg/facets"}) {
             final String[] pq = path.split("\\?");
             final AgentApi.Response r = pq.length == 1 ? get(a, pq[0]) : get(a, pq[0], "include", "stale");
-            assertEquals(path, 200, r.status);
+            assertEquals(path + " " + r.body, 200, r.status);
             seen.append(r.body);
         }
+        final AgentApi.Response net = get(a, "kg/entities/" + muster + "/neighborhood", "depth", "2", "weak", "true", "suggested", "true");
+        assertEquals(200, net.status);
+        seen.append(net.body);
+        final AgentApi.Response compare = get(a, "kg/compare", "category", "care/tagespflege");
+        assertEquals(200, compare.status);
+        seen.append(compare.body);
+        assertEquals("a read route is no export", 403, get(token(Agent.Kind.EXTERNAL, false, "kg.export"), "kg/facets").status);
         final JSONArray statements = get(a, "kg/entities/" + muster + "/statements").body.getJSONArray("items");
         for (int i = 0; i < statements.length(); i++) {
             final AgentApi.Response ev = get(a, "kg/statements/" + statements.getJSONObject(i).getString("id") + "/evidence");
@@ -210,6 +219,9 @@ public class AgentKnowledgeTest {
         final String all = token(Agent.Kind.EXTERNAL, true, "kg.read", "kg.export");
         final String bee = id(all, null, "Nur");
         assertEquals(404, get(a, "kg/entities/" + bee).status);
+        assertEquals(404, get(a, "kg/entities/" + bee + "/business").status);
+        assertEquals(404, get(a, "kg/entities/" + bee + "/neighborhood").status);
+        assertEquals(404, get(a, "kg/derived", "entity", bee).status);
         assertEquals(404, get(a, "kg/sources/BBBBBBhost01").status);
         assertEquals(404, get(a, "kg/sources/CCCCCChost02").status);
         assertEquals(0, get(a, "kg/hosts/www.nur-bee.de/entities").body.getLong("total"));

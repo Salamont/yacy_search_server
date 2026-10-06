@@ -536,6 +536,14 @@ public final class JsonLdExtractor {
         final Mention sm = ref == null ? null : run.out.mention(ref);
         if (sm != null && Vocabulary.SERVICE.equals(sm.type) && sm.name != null) {
             relation(run, m.ref, Vocabulary.OFFERS, ref, p);
+            final String provider = Mention.providerKey(m);
+            if (sm.serviceKey == null && provider != null) {
+                // the same service of the same provider on another page of the site is the same service
+                final java.util.List<net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry>> cat
+                        = BusinessFacts.categories(run.ctx, sm.name, 0, sm.name.length());
+                sm.serviceKey = provider + "|" + (cat.size() == 1 && Normalizers.key(sm.name).equals(Normalizers.key(cat.get(0).entry.de))
+                        ? cat.get(0).entry.id : "label:" + Normalizers.key(sm.name));
+            }
             if (item instanceof JSONObject) {
                 prices(run, sm, offer, p); // the offer's price is the service's price
             }

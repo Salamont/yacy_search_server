@@ -45,8 +45,9 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * <p>
  * <b>Export</b>: keyset pages, first the visible entities, then the visible
  * statements (optionally with up to {@link #MAX_EVIDENCE} evidence entries
- * each), every page in its own read lease. The cursor
- * {@code <epoch>:<as_of_seq>:<e|s><rowid>} carries the change sequence at the
+ * each), then (schema 4) the derived rows the viewer may see (both
+ * collections), every page in its own read lease. The cursor
+ * {@code <epoch>:<as_of_seq>:<e|s|d><rowid>} carries the change sequence at the
  * start of the export; the export is not a snapshot, so a consumer applies the
  * change feed from {@code next_changes} afterwards (upserts by ID are
  * idempotent, the delete of an unknown ID is a no-op).
@@ -63,7 +64,7 @@ public final class KgExport {
     /** Evidence entries per statement in an export with evidence. */
     public static final int MAX_EVIDENCE = 20;
 
-    private static final Pattern CURSOR = Pattern.compile("^([0-9a-f]{16}):([0-9]{1,18}):([es])([0-9]{1,18})$");
+    private static final Pattern CURSOR = Pattern.compile("^([0-9a-f]{16}):([0-9]{1,18}):([esd])([0-9]{1,18})$");
 
     private final KgReader reader;
 
@@ -87,18 +88,19 @@ public final class KgExport {
     static final class Position {
         final String epoch;
         final long asOf;
-        final boolean statements;
+        /** 'e' entities, 's' statements, 'd' derived rows. */
+        final char phase;
         final long after;
 
-        Position(final String epoch, final long asOf, final boolean statements, final long after) {
+        Position(final String epoch, final long asOf, final char phase, final long after) {
             this.epoch = epoch;
             this.asOf = asOf;
-            this.statements = statements;
+            this.phase = phase;
             this.after = after;
         }
 
         String cursor() {
-            return this.epoch + ":" + this.asOf + ":" + (this.statements ? "s" : "e") + this.after;
+            return this.epoch + ":" + this.asOf + ":" + this.phase + this.after;
         }
     }
 
@@ -133,6 +135,7 @@ public final class KgExport {
         long entities = 0;
         long statements = 0;
         long evidenceCount = 0;
+        long derivedCount = 0;
         boolean begun = false;
         try {
             while (true) {
@@ -148,6 +151,8 @@ public final class KgExport {
                     final JSONObject r = items.optJSONObject(i);
                     if ("entity".equals(r.optString("record"))) {
                         entities++;
+                    } else if ("derived".equals(r.optString("record"))) {
+                        derivedCount++;
                     } else {
                         statements++;
                         final JSONArray ev = r.optJSONArray("evidence");
@@ -164,16 +169,16 @@ public final class KgExport {
             if (!begun) {
                 throw e;
             }
-            sink.end(trailer(entities, statements, evidenceCount, false, e.code()));
+            sink.end(trailer(entities, statements, evidenceCount, derivedCount, false, e.code()));
             return;
         }
-        sink.end(trailer(entities, statements, evidenceCount, true, null));
+        sink.end(trailer(entities, statements, evidenceCount, derivedCount, true, null));
     }
 
-    private static JSONObject trailer(final long entities, final long statements, final long evidence, final boolean complete,
-            final String error) {
-        return KgJson.obj("record", "trailer", "counts", KgJson.obj("entities", entities, "statements", statements, "evidence", evidence),
-                "complete", complete, "error", error);
+    private static JSONObject trailer(final long entities, final long statements, final long evidence, final long derived,
+            final boolean complete, final String error) {
+        return KgJson.obj("record", "trailer", "counts", KgJson.obj("entities", entities, "statements", statements, "evidence", evidence,
+                "derived", derived), "complete", complete, "error", error);
     }
 
     /** The position of a cursor, or of a new export; refuses a cursor of another epoch or older than the retained changes. */
@@ -181,11 +186,11 @@ public final class KgExport {
         final String epoch = KgStore.getMeta(c, KgSchema.META_EPOCH);
         final long maxSeq = maxSeq(c);
         if (cursor == null) {
-            return new Position(epoch, maxSeq, false, 0L);
+            return new Position(epoch, maxSeq, 'e', 0L);
         }
         final Matcher m = CURSOR.matcher(cursor);
         if (!m.matches()) {
-            throw new KgException(KgException.INVALID_CURSOR, "export cursor must look like <epoch>:<seq>:<e|s><rowid>");
+            throw new KgException(KgException.INVALID_CURSOR, "export cursor must look like <epoch>:<seq>:<e|s|d><rowid>");
         }
         if (!m.group(1).equals(epoch)) {
             throw new KgException(KgException.EPOCH_CHANGED, "the dataset was reset; start the export again");
@@ -199,14 +204,14 @@ public final class KgExport {
             // the changes since the start of this export were partly removed: its result could not be completed
             throw new KgException(KgException.CURSOR_EXPIRED, "changes since the start of this export were removed by retention; start again");
         }
-        return new Position(epoch, asOf, "s".equals(m.group(3)), Long.parseLong(m.group(4)));
+        return new Position(epoch, asOf, m.group(3).charAt(0), Long.parseLong(m.group(4)));
     }
 
     /** Fills up to {@code limit} records from {@code pos}; returns the next position or null at the end. */
     private Position fill(final Connection c, final Position pos, final int limit, final boolean evidence, final Viewer v, final long now,
             final List<JSONObject> out) throws SQLException {
         Position p = pos;
-        if (!p.statements) {
+        if (p.phase == 'e') {
             final List<Long> rows = new ArrayList<>();
             try (PreparedStatement ps = c.prepareStatement("SELECT e.ent_rowid FROM kg_entity e WHERE e.ent_rowid > ? AND "
                     + KgReader.visibleEntity(v, "e") + " ORDER BY e.ent_rowid LIMIT ?")) {
@@ -227,12 +232,15 @@ public final class KgExport {
                 out.add(r);
             }
             if (rows.size() > limit) {
-                return new Position(p.epoch, p.asOf, false, rows.get(limit - 1));
+                return new Position(p.epoch, p.asOf, 'e', rows.get(limit - 1));
             }
-            p = new Position(p.epoch, p.asOf, true, 0L);
+            p = new Position(p.epoch, p.asOf, 's', 0L);
             if (out.size() >= limit) {
                 return p;
             }
+        }
+        if (p.phase == 'd') {
+            return derived(c, p, limit - out.size(), v, out);
         }
         final int room = limit - out.size();
         final List<KgReader.Stat> stats = new ArrayList<>();
@@ -260,7 +268,39 @@ public final class KgExport {
             }
             out.add(r);
         }
-        return more ? new Position(p.epoch, p.asOf, true, page.get(page.size() - 1).rowid) : null;
+        if (more) {
+            return new Position(p.epoch, p.asOf, 's', page.get(page.size() - 1).rowid);
+        }
+        final Position d = new Position(p.epoch, p.asOf, 'd', 0L);
+        return out.size() >= limit ? d : derived(c, d, limit - out.size(), v, out);
+    }
+
+    /** The visible derived rows from {@code p} (record {@code derived}); null at the end. */
+    private static Position derived(final Connection c, final Position p, final int room, final Viewer v, final List<JSONObject> out)
+            throws SQLException {
+        final List<long[]> rows = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement("SELECT d.der_rowid FROM kg_derived d WHERE d.der_rowid > ? AND "
+                + BusinessView.visibleDerived(v, "d") + " ORDER BY d.der_rowid LIMIT ?")) {
+            ps.setLong(1, p.after);
+            ps.setInt(2, room + 1);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(new long[] {rs.getLong(1)});
+                }
+            }
+        }
+        for (int i = 0; i < Math.min(room, rows.size()); i++) {
+            final String id = KgStore.queryString(c, "SELECT public_id FROM kg_derived WHERE der_rowid = " + rows.get(i)[0]);
+            final JSONObject d = BusinessGraph.derivedRecord(c, id, v);
+            if (d != null) {
+                final JSONObject r = KgJson.obj("record", "derived");
+                for (final String k : d.keySet()) {
+                    KgJson.put(r, k, d.opt(k));
+                }
+                out.add(r);
+            }
+        }
+        return rows.size() > room ? new Position(p.epoch, p.asOf, 'd', rows.get(room - 1)[0]) : null;
     }
 
     /** The newest {@link #MAX_EVIDENCE} visible evidence entries of a statement. */
@@ -308,6 +348,9 @@ public final class KgExport {
 
     /** The current record of a changed object for the viewer; null if it is not visible (any more). */
     private JSONObject record(final Connection c, final KgChangeLog.Item it, final Viewer v, final long now) throws SQLException {
+        if (it.kind == KgChangeLog.Kind.DERIVED) {
+            return BusinessGraph.derivedRecord(c, it.id, v);
+        }
         if (it.kind == KgChangeLog.Kind.ENTITY) {
             final long[] ent = KgReader.entityRow(c, it.id, v);
             if (ent == null || ent[1] != 0L) {

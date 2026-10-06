@@ -27,6 +27,8 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
+import net.yacy.scoutro.knowledge.read.BusinessGraph;
+import net.yacy.scoutro.knowledge.read.BusinessView;
 import net.yacy.scoutro.knowledge.read.KgExport;
 import net.yacy.scoutro.knowledge.read.KgReader;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
@@ -42,6 +44,10 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * <li>{@code GET hosts/{host}/entities?offset&limit}</li>
  * <li>{@code GET sources/{docId}?offset&limit}</li>
  * <li>{@code GET export?cursor&limit&include=evidence} and {@code GET changes?cursor&limit&expand} (8.3)</li>
+ * <li>vocabulary 2 (package 6): {@code GET entities/{id}/business?include=hidden_jobs} (the business view),
+ * {@code GET entities/{id}/neighborhood?depth&limit&offset&types&weak&derived&suggested&values&include=stale},
+ * {@code GET compare?category&limit}, {@code GET derived?kind&entity&offset&limit}, {@code GET facets}; and the
+ * filters {@code industry}, {@code category}, {@code audience} of {@code GET entities}</li>
  * </ul>
  * The caller decides the collections ({@code null} = all, for the
  * administrator without filter); everything is computed over the evidence of
@@ -72,7 +78,14 @@ final class KnowledgeRead {
     /** True for the read resources ({@code parts[0]} after {@code kg}). */
     static boolean handles(final String resource) {
         return "entities".equals(resource) || "statements".equals(resource) || "hosts".equals(resource) || "sources".equals(resource)
-                || "export".equals(resource) || "changes".equals(resource);
+                || "export".equals(resource) || "changes".equals(resource) || "compare".equals(resource) || "derived".equals(resource)
+                || "facets".equals(resource);
+    }
+
+    /** Resources without a sub path (for the administrator router). */
+    static boolean single(final String resource) {
+        return "entities".equals(resource) || "export".equals(resource) || "changes".equals(resource) || "compare".equals(resource)
+                || "derived".equals(resource) || "facets".equals(resource);
     }
 
     /**
@@ -101,9 +114,12 @@ final class KnowledgeRead {
             switch (resource) {
                 case "entities":
                     if (parts.size() == 1) {
-                        allow(q, "q", "type", "host", "quality", "offset", "limit", "collection");
+                        allow(q, "q", "type", "host", "quality", "offset", "limit", "collection", "industry", "category", "audience");
                         final KgReader.EntityQuery eq = new KgReader.EntityQuery();
                         eq.q = text(q, "q", 200);
+                        eq.industry = code(q, "industry", net.yacy.scoutro.knowledge.vocab.Nace.CODE);
+                        eq.category = code(q, "category", CODE);
+                        eq.audience = code(q, "audience", CODE);
                         eq.type = oneOf(q, "type", Vocabulary.TYPES);
                         eq.host = q.get("host") == null || q.get("host").isEmpty() ? null : SeoAnalysis.host(q.get("host"));
                         eq.quality = oneOf(q, "quality", QUALITIES);
@@ -113,6 +129,23 @@ final class KnowledgeRead {
                     } else if (parts.size() == 2) {
                         allow(q, "collection");
                         out = reader.entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer);
+                    } else if (parts.size() == 3 && "business".equals(parts.get(2))) {
+                        allow(q, "include", "collection");
+                        out = new BusinessView(reader).entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer,
+                                oneOf(q, "include", Set.of("hidden_jobs")) != null);
+                    } else if (parts.size() == 3 && "neighborhood".equals(parts.get(2))) {
+                        allow(q, "depth", "limit", "offset", "types", "weak", "derived", "suggested", "values", "include", "collection");
+                        final BusinessGraph.Query nq = new BusinessGraph.Query();
+                        nq.depth = intParam(q, "depth", 1, 1, BusinessGraph.MAX_DEPTH);
+                        nq.limit = intParam(q, "limit", 50, 1, BusinessGraph.MAX_NODES);
+                        nq.offset = intParam(q, "offset", 0, 0, KgReader.MAX_OFFSET);
+                        nq.types = types(q);
+                        nq.weak = bool(q, "weak", false);
+                        nq.derived = bool(q, "derived", true);
+                        nq.suggested = bool(q, "suggested", false);
+                        nq.values = bool(q, "values", true);
+                        nq.stale = oneOf(q, "include", Set.of("stale")) != null;
+                        out = new BusinessGraph(reader).neighborhood(id(parts.get(1), KgReader.ENTITY_ID, "entity"), nq, viewer);
                     } else if (parts.size() == 3 && "statements".equals(parts.get(2))) {
                         allow(q, "predicate", "direction", "include", "offset", "limit", "collection");
                         final String direction = oneOf(q, "direction", Set.of("in", "out"));
@@ -161,6 +194,26 @@ final class KnowledgeRead {
                     out = new KgExport(reader).page(cursor(q), intParam(q, "limit", 100, 1, KgExport.MAX_LIMIT),
                             oneOf(q, "include", Set.of("evidence")) != null, viewer);
                     break;
+                case "compare": {
+                    allow(q, "category", "limit", "collection");
+                    final String category = code(q, "category", CODE);
+                    if (category == null) {
+                        throw ApiException.invalid("category", "A service category code is required (e.g. care/kurzzeitpflege).");
+                    }
+                    out = new BusinessGraph(reader).compare(category, intParam(q, "limit", 50, 1, KgReader.MAX_LIMIT), viewer);
+                    break;
+                }
+                case "derived":
+                    allow(q, "kind", "entity", "offset", "limit", "collection");
+                    out = new BusinessGraph(reader).derived(oneOf(q, "kind", Set.of(Vocabulary.LINKED_TO, Vocabulary.SAME_OPERATOR,
+                            Vocabulary.SUGGESTED_CUSTOMER, Vocabulary.SUGGESTED_PARTNER)),
+                            q.get("entity") == null || q.get("entity").isEmpty() ? null : id(q.get("entity"), KgReader.ENTITY_ID, "entity"),
+                            intParam(q, "offset", 0, 0, KgReader.MAX_OFFSET), intParam(q, "limit", 25, 1, KgReader.MAX_LIMIT), viewer);
+                    break;
+                case "facets":
+                    allow(q, "collection");
+                    out = new BusinessGraph(reader).facets(viewer);
+                    break;
                 case "changes": {
                     if (parts.size() != 1) {
                         throw notFound();
@@ -202,7 +255,8 @@ final class KnowledgeRead {
         final int n = p.size();
         switch (p.get(0)) {
             case "entities":
-                return n == 1 || n == 2 || n == 3 && "statements".equals(p.get(2));
+                return n == 1 || n == 2 || n == 3 && ("statements".equals(p.get(2)) || "business".equals(p.get(2))
+                        || "neighborhood".equals(p.get(2)));
             case "statements":
                 return n == 2 || n == 3 && "evidence".equals(p.get(2));
             case "hosts":
@@ -211,6 +265,9 @@ final class KnowledgeRead {
                 return n == 2;
             case "export":
             case "changes":
+            case "compare":
+            case "derived":
+            case "facets":
                 return n == 1;
             default:
                 return false;
@@ -235,6 +292,49 @@ final class KnowledgeRead {
             throw ApiException.invalid("id", "Invalid " + what + " ID.");
         }
         return value;
+    }
+
+    /** A vocabulary code ({@code care/tagespflege}, {@code b2b}, {@code construction.tga}). */
+    static final java.util.regex.Pattern CODE = java.util.regex.Pattern.compile("^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$");
+
+    private static String code(final Map<String, String> q, final String name, final java.util.regex.Pattern pattern) throws ApiException {
+        final String v = q.get(name);
+        if (v == null || v.isEmpty()) {
+            return null;
+        }
+        if (v.length() > 80 || !pattern.matcher(v).matches()) {
+            throw ApiException.invalid(name, "Field '" + name + "' is not a valid code.");
+        }
+        return v;
+    }
+
+    private static boolean bool(final Map<String, String> q, final String name, final boolean dflt) throws ApiException {
+        final String v = oneOf(q, name, Set.of("true", "false"));
+        return v == null ? dflt : "true".equals(v);
+    }
+
+    /** Edge types of a neighbourhood: predicates of relations and values, derived kinds; comma-separated. */
+    private static Set<String> types(final Map<String, String> q) throws ApiException {
+        final String v = q.get("types");
+        if (v == null || v.isEmpty()) {
+            return null;
+        }
+        final Set<String> allowed = new java.util.TreeSet<>();
+        for (final Vocabulary.Predicate p : Vocabulary.PREDICATES.values()) {
+            if (p.relation) {
+                allowed.add(p.name);
+            }
+        }
+        allowed.addAll(BusinessGraph.VALUE_EDGES);
+        allowed.addAll(Vocabulary.DERIVED_KINDS.subList(1, Vocabulary.DERIVED_KINDS.size()));
+        final Set<String> out = new java.util.TreeSet<>();
+        for (final String t : v.split(",")) {
+            if (!allowed.contains(t.trim())) {
+                throw ApiException.invalid("types", "Unknown edge type '" + t.trim() + "'. Allowed: " + String.join(", ", allowed) + ".");
+            }
+            out.add(t.trim());
+        }
+        return out;
     }
 
     private static String text(final Map<String, String> q, final String name, final int max) throws ApiException {

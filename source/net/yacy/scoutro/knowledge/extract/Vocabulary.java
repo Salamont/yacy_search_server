@@ -170,6 +170,11 @@ public final class Vocabulary {
     public static final String JOB_POSTING = "job_posting";
     /** A place by country, level and name ({@code de|state|bayern}); global, so service areas and addresses meet. */
     public static final String PLACE_NAME = "place_name";
+    /**
+     * A service by its provider and its category or name, within the registrable domain: the day care of the
+     * operator on the prices page and on the services page is one service (so two prices of it can conflict).
+     */
+    public static final String SERVICE_NAME = "service_name";
 
     // literal datatypes
     public static final String T_STRING = "string";
@@ -191,7 +196,7 @@ public final class Vocabulary {
     public static final Set<String> STRONG_SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK);
 
     public static final Set<String> SCHEMES = set(REGISTER, VAT, LEI, WIKIDATA, IK, LD_ID, SITE_OPERATOR, OPERATOR_NAME, FACILITY_ADDRESS,
-            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME);
+            DOC_LOCAL, DOMAIN_OPERATOR, JOB_POSTING, PLACE_NAME, SERVICE_NAME);
 
     /** Relations between organisations (version 2, part D). */
     public static final Set<String> BUSINESS_RELATIONS = set(PARENT_OF, SUBSIDIARY_OF, CARRIER_OF, MEMBER_OF, ASSOCIATION_MEMBER,

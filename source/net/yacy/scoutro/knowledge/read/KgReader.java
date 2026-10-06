@@ -132,6 +132,12 @@ public final class KgReader {
         public String type;
         public String host;
         public String quality;
+        /** Vocabulary 2: a NACE code; entities with an industry at this code or finer. */
+        public String industry;
+        /** A service category: entities offering a service of it (or services of it). */
+        public String category;
+        /** An audience code (customer type, segment, target category or industry). */
+        public String audience;
         public int offset;
         public int limit = 25;
     }
@@ -413,6 +419,29 @@ public final class KgReader {
             if (q.quality != null) {
                 where.append(" AND ").append(entityQuality(q.quality, v, now));
             }
+            if (q.industry != null) {
+                final List<String> codes = within(q.industry);
+                where.append(" AND e.ent_rowid IN (SELECT s.subj FROM kg_statement s JOIN kg_vocab iv ON iv.term_id = s.pred WHERE iv.kind = 2"
+                        + " AND iv.name = 'industry' AND s.obj_val IN (").append(placeholders(codes.size())).append(") AND ")
+                        .append(visibleStatement(v, "s")).append(")");
+                args.addAll(codes);
+            }
+            if (q.category != null) {
+                where.append(" AND (e.ent_rowid IN (SELECT o.subj FROM kg_statement o JOIN kg_vocab ov ON ov.term_id = o.pred JOIN kg_statement k"
+                        + " ON k.subj = o.obj_ent JOIN kg_vocab kv ON kv.term_id = k.pred WHERE ov.kind = 2 AND ov.name = 'offers' AND kv.kind = 2"
+                        + " AND kv.name = 'category' AND k.obj_val = ? AND ").append(visibleStatement(v, "o")).append(" AND ")
+                        .append(visibleStatement(v, "k")).append(") OR e.ent_rowid IN (SELECT k.subj FROM kg_statement k JOIN kg_vocab kv"
+                        + " ON kv.term_id = k.pred WHERE kv.kind = 2 AND kv.name = 'category' AND k.obj_val = ? AND ")
+                        .append(visibleStatement(v, "k")).append("))");
+                args.add(q.category);
+                args.add(q.category);
+            }
+            if (q.audience != null) {
+                where.append(" AND e.ent_rowid IN (SELECT s.subj FROM kg_statement s JOIN kg_vocab av ON av.term_id = s.pred WHERE av.kind = 2"
+                        + " AND av.name IN ('customer_type', 'audience_segment', 'target_category', 'target_industry', 'company_size')"
+                        + " AND s.obj_val = ? AND ").append(visibleStatement(v, "s")).append(")");
+                args.add(q.audience);
+            }
             final long total;
             try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_entity e WHERE " + where)) {
                 bind(ps, args);
@@ -439,6 +468,23 @@ public final class KgReader {
             }
             return page(q.offset, q.limit, total, items, c, v);
         });
+    }
+
+    /** The NACE codes at {@code code} or finer (an industry filter matches finer classifications too). */
+    static List<String> within(final String code) {
+        final net.yacy.scoutro.knowledge.vocab.Nace nace = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().nace;
+        final List<String> out = new ArrayList<>();
+        if (nace.size() > 0) {
+            for (final String c : nace.codes()) {
+                if (nace.within(c, code)) {
+                    out.add(c);
+                }
+            }
+        }
+        if (out.isEmpty()) {
+            out.add(code);
+        }
+        return out;
     }
 
     /** Entity filter by viewer quality: supported (or conflicting), uncertain, or stale. */

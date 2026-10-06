@@ -203,9 +203,12 @@ def build_parser():
         .add_subparsers(dest="kg_command", required=True)
     ents = kg.add_parser("entities")
     ents.add_argument("--q")
-    ents.add_argument("--type", choices=["organization", "facility", "site", "place", "service"])
+    ents.add_argument("--type", choices=["organization", "facility", "site", "place", "service", "job"])
     ents.add_argument("--host")
     ents.add_argument("--quality", choices=["supported", "uncertain", "stale"])
+    ents.add_argument("--industry", help="NACE Rev. 2.1 / WZ 2025 code (43, 43.2, 43.22)")
+    ents.add_argument("--category", help="service category or group (care/tagespflege, care.stationaer)")
+    ents.add_argument("--audience", help="customer type, segment or company size (b2b, sme)")
     for name in ("entity", "statements", "statement", "evidence", "host", "source"):
         k = kg.add_parser(name)
         k.add_argument("id", help={"host": "host name", "source": "Solr document id"}.get(name, "entity or statement ID"))
@@ -217,6 +220,30 @@ def build_parser():
         k.add_argument("--collection", help="only evidence of this collection (agent token: one of the agent's collections)")
         if k is not kg.choices["entity"] and k is not kg.choices["statement"]:
             k.add_argument("--limit", type=int)
+            k.add_argument("--offset", type=int)
+    bv = kg.add_parser("business", help="the object view of an entity: industry, services, prices, contacts, relations, jobs, audiences, suggestions")
+    bv.add_argument("id", help="entity ID")
+    bv.add_argument("--include-hidden-jobs", dest="hidden_jobs", action="store_true")
+    nb = kg.add_parser("neighborhood", help="the network around an entity (nodes and typed edges)")
+    nb.add_argument("id", help="entity ID")
+    nb.add_argument("--depth", type=int, choices=[1, 2])
+    nb.add_argument("--types", help="comma-separated edge types")
+    nb.add_argument("--weak", action="store_true", help="include linked_to (weak signals)")
+    nb.add_argument("--no-derived", dest="no_derived", action="store_true", help="without same_operator")
+    nb.add_argument("--suggested", action="store_true", help="include suggested matches")
+    nb.add_argument("--no-values", dest="no_values", action="store_true", help="without industry and audience value nodes")
+    nb.add_argument("--include-stale", dest="include_stale", action="store_true")
+    cmp_ = kg.add_parser("compare", help="one service category across providers, prices as published")
+    cmp_.add_argument("category")
+    der = kg.add_parser("derived", help="derived rows: linked_to, same_operator, suggested_customer, suggested_partner (never facts)")
+    der.add_argument("--kind", choices=["linked_to", "same_operator", "suggested_customer", "suggested_partner"])
+    der.add_argument("--entity")
+    fc = kg.add_parser("facets", help="industries, categories and audiences the visible graph holds")
+    for k in (bv, nb, cmp_, der, fc):
+        k.add_argument("--collection", help="only evidence of this collection (agent token: one of the agent's collections)")
+        if k in (nb, cmp_, der):
+            k.add_argument("--limit", type=int)
+        if k in (nb, der):
             k.add_argument("--offset", type=int)
     exp = kg.add_parser("export", help="one export page, or with --all every record as one JSON line")
     exp.add_argument("--cursor")
@@ -362,13 +389,29 @@ def main(argv=None):
         elif k == "changes":
             result = client.call("GET", v1 + "/kg/changes", {"cursor": args.cursor, "limit": args.limit,
                                                           "expand": "true" if args.expand else None, "collection": args.collection})
+        elif k == "business":
+            result = client.call("GET", v1 + "/kg/entities/%s/business" % q(args.id),
+                                 {"include": "hidden_jobs" if args.hidden_jobs else None, "collection": args.collection})
+        elif k == "neighborhood":
+            result = client.call("GET", v1 + "/kg/entities/%s/neighborhood" % q(args.id), {
+                "depth": args.depth, "types": args.types, "weak": "true" if args.weak else None,
+                "derived": "false" if args.no_derived else None, "suggested": "true" if args.suggested else None,
+                "values": "false" if args.no_values else None, "include": "stale" if args.include_stale else None,
+                "limit": args.limit, "offset": args.offset, "collection": args.collection})
+        elif k == "compare":
+            result = client.call("GET", v1 + "/kg/compare", {"category": args.category, "limit": args.limit, "collection": args.collection})
+        elif k == "derived":
+            result = client.call("GET", v1 + "/kg/derived", {"kind": args.kind, "entity": args.entity, "limit": args.limit,
+                                                          "offset": args.offset, "collection": args.collection})
+        elif k == "facets":
+            result = client.call("GET", v1 + "/kg/facets", {"collection": args.collection})
         else:
             paths = {"entities": "/kg/entities", "entity": "/kg/entities/%s", "statements": "/kg/entities/%s/statements",
                      "statement": "/kg/statements/%s", "evidence": "/kg/statements/%s/evidence",
                      "host": "/kg/hosts/%s/entities", "source": "/kg/sources/%s"}
             path = paths[k] % q(args.id) if "%s" in paths[k] else paths[k]
             query = {"collection": args.collection}
-            for name in ("q", "type", "host", "quality", "direction", "predicate", "limit", "offset"):
+            for name in ("q", "type", "host", "quality", "industry", "category", "audience", "direction", "predicate", "limit", "offset"):
                 if name != "host" or k == "entities":
                     query[name] = getattr(args, name, None)
             if getattr(args, "include_stale", False):

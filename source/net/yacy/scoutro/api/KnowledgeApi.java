@@ -71,7 +71,7 @@ final class KnowledgeApi {
     JSONObject route(final String method, final String[] parts, final java.util.Map<String, String> query, final Body body)
             throws ApiException, IOException {
         if (parts.length >= 5 && KnowledgeRead.handles(parts[3])
-                || parts.length == 4 && ("entities".equals(parts[3]) || "export".equals(parts[3]) || "changes".equals(parts[3]))) {
+                || parts.length == 4 && KnowledgeRead.single(parts[3])) {
             return new KnowledgeRead(this.runtime).route(method, java.util.Arrays.asList(parts).subList(3, parts.length), query,
                     SeoAnalysis.adminCollections(query));
         }

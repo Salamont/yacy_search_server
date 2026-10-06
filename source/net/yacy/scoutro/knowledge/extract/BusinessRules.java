@@ -253,6 +253,8 @@ public final class BusinessRules {
                 }
                 final Mention m = run.out.add(new Mention(BusinessFacts.SERVICE_REF + h.entry.id, Vocabulary.SERVICE, 2));
                 m.name = h.entry.de;
+                final String provider = Mention.providerKey(run.subject);
+                m.serviceKey = provider == null ? null : provider + "|" + h.entry.id;
                 s = new Service(m, h.entry);
                 services.put(h.entry.id, s);
                 list.add(s);
@@ -304,6 +306,8 @@ public final class BusinessRules {
                             && !label.matches("(?iu)^(?:preis|preise|kosten|tel|telefon|fax)$")) {
                         final Mention m = run.out.add(new Mention(BusinessFacts.SERVICE_REF + "label:" + Normalizers.key(label), Vocabulary.SERVICE, 2));
                         m.name = label;
+                        final String provider = Mention.providerKey(run.subject);
+                        m.serviceKey = provider == null ? null : provider + "|label:" + Normalizers.key(label);
                         claim(run, m, Vocabulary.NAME, label, from + lm.start(1), from + lm.end(1), 0.65);
                         relation(run, run.subject, Vocabulary.OFFERS, m, from + lm.start(1), p.end, 0.65);
                         BusinessFacts.categorize(run.out, run.ctx, m, label, 2, Claim.KIND_RULE, loc(from + lm.start(1), from + lm.end(1)),

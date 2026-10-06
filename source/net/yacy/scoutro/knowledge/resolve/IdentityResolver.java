@@ -50,6 +50,7 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * <li>{@code facility_address}: name and <em>full</em> address, within the registrable domain;</li>
  * <li>{@code job_posting} (version 2): employer, title and location of a job, within the registrable domain;</li>
  * <li>{@code place_name} (version 2): a place by country, level and name, global (a state, a country, a locality);</li>
+ * <li>{@code service_name} (version 2): a service by its provider and its category or name, within the registrable domain;</li>
  * <li>{@code domain_operator} (version 2): the unnamed operator of a page's site (a services, prices or careers
  * page); it resolves to the declared site operator of the registrable domain if there is exactly one, otherwise it
  * stays a placeholder that the declared operator takes in when it appears (never one that is itself a declared
@@ -130,6 +131,9 @@ public final class IdentityResolver {
         }
         if (Vocabulary.PLACE.equals(m.type) && m.placeKey != null) {
             out.add(new Key(Vocabulary.PLACE_NAME, m.type, Normalizers.clip(m.placeKey, 300)));
+        }
+        if (Vocabulary.SERVICE.equals(m.type) && m.serviceKey != null && domain != null) {
+            out.add(new Key(Vocabulary.SERVICE_NAME, m.type + "@" + domain, Normalizers.clip(m.serviceKey, 500)));
         }
         if (Vocabulary.JOB.equals(m.type) && m.jobKey != null && domain != null) {
             out.add(new Key(Vocabulary.JOB_POSTING, m.type + "@" + domain, Normalizers.clip(m.jobKey, 500)));
@@ -409,7 +413,7 @@ public final class IdentityResolver {
                 }
                 if (Vocabulary.STRONG_SCHEMES.contains(k.scheme) || Vocabulary.LD_ID.equals(k.scheme)
                         || Vocabulary.FACILITY_ADDRESS.equals(k.scheme) || Vocabulary.JOB_POSTING.equals(k.scheme)
-                        || Vocabulary.PLACE_NAME.equals(k.scheme)) {
+                        || Vocabulary.PLACE_NAME.equals(k.scheme) || Vocabulary.SERVICE_NAME.equals(k.scheme)) {
                     final List<String> existing = have.get(k.scheme + "\u0000" + k.scope);
                     if (existing != null && !existing.contains(k.value)) {
                         continue; // a second value of a discriminating scheme is never attached

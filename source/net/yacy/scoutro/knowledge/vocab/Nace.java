@@ -152,6 +152,11 @@ public final class Nace {
         return this.codes.size();
     }
 
+    /** All codes, in the order of the classification. */
+    public java.util.Set<String> codes() {
+        return this.codes.keySet();
+    }
+
     public Code get(final String code) {
         return code == null ? null : this.codes.get(code);
     }
