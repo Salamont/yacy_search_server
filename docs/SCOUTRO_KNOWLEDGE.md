@@ -434,6 +434,17 @@ upgrade happens at the first start of the new version:
 `GET /kg/status` reports `upgrade` (from, to, the copy or the hold, what
 waits). Make and download a backup before the upgrade in any case.
 
+**A 0.7 graph larger than 64 MiB.** Scoutro 0.7 checks a backup against
+the WAL limit (`scoutro.kg.wal.maxBytes`, 64 MiB), although a backup writes
+no WAL, and skips it with `wal_limit`. 0.8 no longer does, and its copy
+before the upgrade works at any size. For the backup in 0.7, stop Scoutro
+and copy `graph.db` (with `graph.db-wal` and `graph.db-shm`, if present).
+Alternatively raise `scoutro.kg.wal.maxBytes` above the size of `graph.db`
+for that backup and set it back afterwards. With the default budget this
+works up to about 900 MiB: the maintenance share (10 % of the budget) must
+hold the WAL and temp limits, and the settings page names a value it
+cannot hold.
+
 ### 9.5 Going back to Scoutro 0.7
 
 - **0.7 does not open a schema-4 graph.** It reports `schema_unsupported`
