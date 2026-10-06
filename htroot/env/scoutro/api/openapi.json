@@ -13086,7 +13086,15 @@
                 ]
               },
               "growthBlocked": {
-                "type": "boolean"
+                "type": "boolean",
+                "description": "True while new extraction waits: growth is refused or was refused within the last 30 s."
+              },
+              "growthRefusal": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Why growth is refused at the last batch (manual, budget, disk_reserve, integrity_pending, ...); null if admitted. Enrichment asks before it starts, so a pause stops extraction, the LLM tier and a rebuild, not only their writes."
               },
               "changes": {
                 "type": "object",
@@ -13322,6 +13330,30 @@
                   },
                   "reconcile_pending": {
                     "type": "boolean"
+                  },
+                  "byType": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                    "properties": {
+                      "new": {
+                        "type": "integer"
+                      },
+                      "update": {
+                        "type": "integer"
+                      },
+                      "delete": {
+                        "type": "integer"
+                      },
+                      "reconcile": {
+                        "type": "integer"
+                      },
+                      "captured": {
+                        "type": "integer"
+                      }
+                    }
                   }
                 }
               }
@@ -13842,6 +13874,10 @@
                 "enum": [
                   "DATA/SCOUTRO/knowledge/rebuild"
                 ]
+              },
+              "paused": {
+                "type": "boolean",
+                "description": "The graph is paused: the shadow enriches nothing and the swap waits for the resume."
               }
             }
           },
@@ -14238,6 +14274,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           },
@@ -14389,6 +14449,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           },
@@ -14549,6 +14633,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           },
@@ -14616,6 +14724,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           },
@@ -14693,6 +14825,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           },
@@ -14760,6 +14916,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           },
@@ -14934,6 +15114,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           }
@@ -15047,6 +15251,30 @@
               },
               "reconcile_pending": {
                 "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
               }
             }
           }

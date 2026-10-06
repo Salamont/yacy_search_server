@@ -241,6 +241,30 @@ public class KgRebuildTest {
     }
 
     @Test
+    public void aPausedGraphPausesTheRebuildAndTheResumeFinishesIt() throws Exception {
+        final KgRuntime r = start();
+        index(r, 3);
+        r.pause();
+        r.rebuild();
+        for (int i = 0; i < 40; i++) {
+            r.tick();
+            r.syncTick();
+            this.clock.addAndGet(3000L);
+            Thread.sleep(10);
+        }
+        final JSONObject rb = r.status().getJSONObject("rebuild");
+        assertEquals(rb.toString(), "building", rb.optString("phase"));
+        assertTrue(rb.toString(), rb.optBoolean("paused"));
+        final JSONObject progress = rb.optJSONObject("progress");
+        assertTrue("the shadow publishes nothing while the graph is paused: " + rb,
+                progress == null || progress.optLong("published", 0L) == 0L);
+        r.resume();
+        drive(r, () -> "done".equals(phase(r)));
+        assertEquals(3L, count(r, "SELECT count(*) FROM kg_entity WHERE status = 1"));
+        assertEquals("0", string(r, "SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_MANUAL_PAUSE + "'"));
+    }
+
+    @Test
     public void cancelDeletesTheShadowAndTheGraphStaysAsItIs() throws Exception {
         final KgRuntime r = start();
         index(r, 2);

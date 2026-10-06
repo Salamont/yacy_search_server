@@ -15040,9 +15040,6 @@
     <trans-unit id="f7273d1a" xml:space="preserve" approved="no" translate="yes">
        <source>Retry failed LLM documents</source>
     </trans-unit>
-    <trans-unit id="67429f88" xml:space="preserve" approved="no" translate="yes">
-       <source>Pausing stops new growth only; deletions and state changes continue. Nothing here changes the Solr index.</source>
-    </trans-unit>
     <trans-unit id="7bb8665e" xml:space="preserve" approved="no" translate="yes">
        <source>Recent events</source>
     </trans-unit>
@@ -15597,6 +15594,30 @@
     </trans-unit>
     <trans-unit id="f1855669" xml:space="preserve" approved="no" translate="yes">
        <source>Swap in the rebuilt graph although it has far fewer pages than the current one?</source>
+    </trans-unit>
+    <trans-unit id="52995669" xml:space="preserve" approved="no" translate="yes">
+       <source>Enrichment is paused: new pages, updates and the LLM tier wait; deletions, reconcile and state checks continue.</source>
+    </trans-unit>
+    <trans-unit id="ae7f7691" xml:space="preserve" approved="no" translate="yes">
+       <source>Pausing stops new enrichment (extraction, the LLM tier and a rebuild); deletions, reconcile and state checks continue. Nothing here changes the Solr index.</source>
+    </trans-unit>
+    <trans-unit id="6c63e7ba" xml:space="preserve" approved="no" translate="yes">
+       <source>Pending by type</source>
+    </trans-unit>
+    <trans-unit id="8536f544" xml:space="preserve" approved="no" translate="yes">
+       <source>new pages</source>
+    </trans-unit>
+    <trans-unit id="f206e0ca" xml:space="preserve" approved="no" translate="yes">
+       <source>updates</source>
+    </trans-unit>
+    <trans-unit id="eaa09665" xml:space="preserve" approved="no" translate="yes">
+       <source>deletions</source>
+    </trans-unit>
+    <trans-unit id="9355c57d" xml:space="preserve" approved="no" translate="yes">
+       <source>reconcile checks</source>
+    </trans-unit>
+    <trans-unit id="a1a0d56a" xml:space="preserve" approved="no" translate="yes">
+       <source>captured, not yet queued</source>
     </trans-unit>
   </body>
 </file>

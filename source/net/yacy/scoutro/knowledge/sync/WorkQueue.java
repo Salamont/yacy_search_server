@@ -242,6 +242,24 @@ public final class WorkQueue {
         }
     }
 
+    /**
+     * Queued documents by kind of work: {new documents, updates of tracked
+     * documents, deletions, reconcile checks}. A new document or an update is
+     * enrichment (held back by a pause); deletions and checks are not.
+     */
+    public static long[] pendingByType(final Connection c) throws SQLException {
+        final long[] k = new long[4];
+        try (PreparedStatement ps = c.prepareStatement("SELECT CASE WHEN w.reason = " + REASON_DELETE + " THEN 2"
+                + " WHEN w.reason = " + REASON_RECONCILE + " THEN 3 WHEN d.doc_rowid IS NULL THEN 0 ELSE 1 END, count(*)"
+                + " FROM kg_work w LEFT JOIN kg_doc d ON d.doc_id = w.doc_id GROUP BY 1");
+                ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                k[rs.getInt(1)] = rs.getLong(2);
+            }
+        }
+        return k;
+    }
+
     public static long size(final Connection c) throws SQLException {
         return KgStore.queryLong(c, "SELECT count(*) FROM kg_work");
     }

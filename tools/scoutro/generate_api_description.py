@@ -316,7 +316,7 @@ KG_REBUILD_STATUS = {"type": "object", "description": "The identity rebuild (pac
     "awaitingConfirmation": {"type": "boolean"}, "keptAs": {"type": ["string", "null"], "description": "The previous graph in DATA/SCOUTRO/knowledge/backup (graph-<UTC>-before-rebuild.db), restorable like any backup."},
     "idsRedirected": {"type": ["integer", "null"], "description": "Entity IDs of the previous graph that the rebuilt one did not know, now redirects to the entity holding most of their identity keys."},
     "cacheCopied": {"type": ["integer", "null"], "description": "Validated LLM answers copied into the rebuilt graph's cache."},
-    "budgetBytes": {"type": "integer", "description": "The shadow's own budget: what the graph's budget had left at the start."}, "dir": {"type": "string", "enum": ["DATA/SCOUTRO/knowledge/rebuild"]}}}
+    "budgetBytes": {"type": "integer", "description": "The shadow's own budget: what the graph's budget had left at the start."}, "dir": {"type": "string", "enum": ["DATA/SCOUTRO/knowledge/rebuild"]}, "paused": {"type": "boolean", "description": "The graph is paused: the shadow enriches nothing and the swap waits for the resume."}}}
 schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "state"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.kg.status.v1"]},
     "enabled": {"type": "boolean", "description": "scoutro.kg.enabled. While false nothing is created on disk and no thread runs."},
@@ -369,7 +369,8 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "reason": {"type": ["string", "null"], "description": "e.g. remote_solr_unsupported, or the refusal that delays the start (graph writes wait for the integrity check)."},
         "initialized": {"type": "boolean"}, "resetInProgress": {"type": "boolean", "description": "A full clear of the index (*:*) is being applied: new dataset epoch, graph data deleted in bounded batches."},
         "lastError": {"type": ["string", "null"]}, "gate": {"type": ["string", "null"], "enum": ["indexing_queue", "load", "heap", "online_caution", None]},
-        "growthBlocked": {"type": "boolean"},
+        "growthBlocked": {"type": "boolean", "description": "True while new extraction waits: growth is refused or was refused within the last 30 s."},
+        "growthRefusal": {"type": ["string", "null"], "description": "Why growth is refused at the last batch (manual, budget, disk_reserve, integrity_pending, ...); null if admitted. Enrichment asks before it starts, so a pause stops extraction, the LLM tier and a rebuild, not only their writes."},
         "changes": {"type": "object", "description": "The in-memory change set of the Solr update processor (capped at scoutro.kg.capture.maxPending; overflow schedules a reconcile).", "additionalProperties": True},
         "queue": {"type": "object", "properties": {"items": {"type": ["integer", "null"]}, "maxItems": {"type": "integer"}, "oldestAgeSeconds": {"type": ["integer", "null"]}}},
         "processed": {"type": "object", "additionalProperties": {"type": "integer"}, "description": "Counters: published, unchanged, lifecycle, removed, untracked, abortedSuperseded, abortedGeneration, abortedOlder, notYetVisible, deferred, growthRefused, maintenanceRefused, drainRefused, queueDropped, solrErrors, failedDocs, drained, fullResets."},
@@ -389,7 +390,7 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
             "gate": {"type": ["string", "null"]}}},
         "retention": {"type": "object", "properties": {"running": {"type": "boolean"}, "lastRunAt": {"type": ["integer", "null"]}, "nextRunAt": {"type": ["integer", "null"]},
             "last": {"type": ["object", "null"], "additionalProperties": {"type": "integer"}}}},
-        "lag": {"type": "object", "description": "How far the graph lags behind Solr.", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}}}}},
+        "lag": {"type": "object", "description": "How far the graph lags behind Solr.", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}, "byType": {"type": ["object", "null"], "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.", "properties": {"new": {"type": "integer"}, "update": {"type": "integer"}, "delete": {"type": "integer"}, "reconcile": {"type": "integer"}, "captured": {"type": "integer"}}}}}}},
     "llm": {"type": "object", "description": "The optional LLM tier (tier 3): only for scoutro.kg.llm.collections and with a model selected for the usage knowledge in the LLM selection. Every entity and relation needs a quote found verbatim in the page text; statements only this tier supports stay uncertain. Its own threads (ScoutroKG.extract) and queue; a slow model blocks neither crawling nor the sync.", "properties": {
         "state": {"type": "string", "enum": ["off", "not_configured", "starting", "idle", "running", "paused", "waiting"]},
         "reason": {"type": ["string", "null"], "description": "no_llm_collections, no_sync, circuit_breaker, a gate (indexing_queue, load, heap), full_reset, write_refused, or the missing model."},
@@ -436,7 +437,7 @@ schemas["KgBackupFile"] = {"type": "string", "format": "binary", "description": 
 KG_DT = {"type": ["string", "null"], "format": "date-time"}
 KG_QUALITY = {"type": "string", "enum": ["supported", "uncertain", "conflicting", "stale"]}
 KG_AS_OF = {"type": "object", "description": "Dataset epoch and the latest change sequence when the answer was read.", "properties": {"epoch": {"type": "string"}, "seq": {"type": "integer"}}}
-KG_LAG = {"type": "object", "description": "How far the graph lags behind Solr (absent without the sync).", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}}}
+KG_LAG = {"type": "object", "description": "How far the graph lags behind Solr (absent without the sync).", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}, "byType": {"type": ["object", "null"], "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.", "properties": {"new": {"type": "integer"}, "update": {"type": "integer"}, "delete": {"type": "integer"}, "reconcile": {"type": "integer"}, "captured": {"type": "integer"}}}}}
 schemas["KgEntity"] = {"type": "object", "description": "An entity as one viewer sees it: name, aliases, identifiers, quality, dates, counts and hosts are computed only over evidence from the viewer's collections.", "required": ["id", "type", "quality"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"},
     "type": {"type": "string", "enum": ["organization", "facility", "site", "place", "service"]},

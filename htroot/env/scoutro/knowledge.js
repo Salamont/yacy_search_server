@@ -138,6 +138,7 @@
     card('state', s.state + (s.reason ? ' · ' + s.reason : ''));
     card('objects_count', objects);
     card('lag', s.sync?.lag?.pending);
+    const pausedNote = $('paused-note'); if (pausedNote) pausedNote.hidden = !(s.storage?.reasons || []).some(r => r.code === 'manual');
     const st = s.storage || {}, jl = s.jsonld || {};
     const used = st.usedBytes, budget = st.budgetBytes;
     const bar = $('budget'); bar.replaceChildren();
@@ -158,7 +159,12 @@
       ['jsonld_used', jl.estimatedBytes == null ? null : bytes(jl.estimatedBytes) + ' / ' + bytes(jl.maxTotalBytes)
         + (jl.level ? ' · ' + t('level_' + jl.level) : '')]]);
     const sy = s.sync || {};
-    stats('sync', [['state', sy.state], ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['published', sy.processed?.published],
+    const bt = sy.lag?.byType;
+    const byType = bt ? [['pending_new', bt.new], ['pending_update', bt.update], ['pending_delete', bt.delete],
+      ['pending_reconcile', bt.reconcile], ['pending_captured', bt.captured], ['pending_llm', s.llm?.queue?.items]]
+      .filter(([, n]) => n != null).map(([k, n]) => t(k) + ' ' + fmt(n)).join(' · ') : null;
+    stats('sync', [['state', sy.state], ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['pending_types', byType],
+      ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
       ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
     const l = s.llm || {};

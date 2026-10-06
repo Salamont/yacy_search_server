@@ -701,6 +701,16 @@ public final class KgStore implements AutoCloseable {
      *
      * @return number of reads newly marked as interrupted
      */
+    /** Why new growth is refused now ({@link StorageGuard#growthRefusal}), null if admitted. */
+    public String growthRefusal() {
+        return this.guard.growthRefusal();
+    }
+
+    /** True while the administrator paused the graph ({@link StorageGuard#manualPause}). */
+    public boolean manualPause() {
+        return this.guard.manualPause();
+    }
+
     public int interruptExpiredReaders(final long now) {
         return interruptReaders(now, false);
     }

@@ -858,9 +858,11 @@ public final class KgRuntime {
     }
 
     /**
-     * Stops new growth (extraction and backfill in later packages); deletions
-     * continue. Takes effect at once and is stored; if the guard refuses the
-     * write, the maintenance thread stores it later.
+     * Stops new enrichment: tier 1 and 2 extraction of new and changed pages,
+     * a page that comes back, the LLM tier (no queue fill, no model call) and
+     * the shadow of a rebuild with its swap. Deletions, reconcile, retention,
+     * integrity and state checks continue. Takes effect at once and is stored;
+     * if the guard refuses the write, the maintenance thread stores it later.
      */
     public synchronized JSONObject pause() throws KgException {
         requireRunning();

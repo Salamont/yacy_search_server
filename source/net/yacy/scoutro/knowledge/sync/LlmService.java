@@ -265,6 +265,11 @@ public final class LlmService {
             if (resetInProgress()) {
                 return idle("waiting", "full_reset", GATE_MILLIS);
             }
+            final String growth = this.store.growthRefusal();
+            if (growth != null) {
+                // the manual pause (or the budget, disk or integrity): no queue fill, no claim, no model call
+                return idle("paused", growth, GATE_MILLIS);
+            }
             scan(now);
             final LlmQueue.Item item = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> LlmQueue.claim(tx, now));
             if (item == null) {

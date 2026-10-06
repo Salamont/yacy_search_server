@@ -24,6 +24,7 @@
 <p class="sseo-note">State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</p>
 <div class="sseo-cards" id="skg-cards"></div>
 <div id="skg-budget-banner" role="alert" hidden></div>
+<p id="skg-paused-note" class="skg-banner skg-banner-warning" role="status" hidden>Enrichment is paused: new pages, updates and the LLM tier wait; deletions, reconcile and state checks continue.</p>
 <section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl>
 <h4>JSON-LD in the Solr index</h4><div id="skg-jsonld-budget" class="skg-budget"></div>
 <p class="sseo-note">Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.</p></section>
@@ -38,7 +39,7 @@
 <button class="btn btn-default" type="button" data-skg-action="llm_retry">Retry failed LLM documents</button>
 <button class="btn btn-default" type="button" data-skg-action="backup">Create backup</button>
 </div>
-<p class="sseo-note">Pausing stops new growth only; deletions and state changes continue. Nothing here changes the Solr index.</p></section>
+<p class="sseo-note">Pausing stops new enrichment (extraction, the LLM tier and a rebuild); deletions, reconcile and state checks continue. Nothing here changes the Solr index.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-backup-title"><h3 id="skg-backup-title">Backups</h3>
 <dl id="skg-backup" class="sseo-stats"></dl>
 <div class="sseo-scroll" id="skg-backups"></div>
@@ -105,6 +106,13 @@
 <span data-skg-label="reasons">Pause reasons</span>
 <span data-skg-label="queue">Queue</span>
 <span data-skg-label="lag">Pending changes</span>
+<span data-skg-label="pending_types">Pending by type</span>
+<span data-skg-label="pending_new">new pages</span>
+<span data-skg-label="pending_update">updates</span>
+<span data-skg-label="pending_delete">deletions</span>
+<span data-skg-label="pending_reconcile">reconcile checks</span>
+<span data-skg-label="pending_captured">captured, not yet queued</span>
+<span data-skg-label="pending_llm">LLM tier</span>
 <span data-skg-label="published">Published documents</span>
 <span data-skg-label="reconcile">Reconcile</span>
 <span data-skg-label="awaiting">Waiting for confirmation</span>

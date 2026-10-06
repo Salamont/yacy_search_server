@@ -316,6 +316,34 @@ public class LlmServiceTest {
     }
 
     @Test
+    public void theManualPauseStopsTheLlmTierBeforeAnyModelCall() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);
+        settleSync();
+        this.guard.setManualPause(true);
+        for (int i = 0; i < 50; i++) {
+            this.llm.step();
+            this.clock.addAndGet(LlmService.SCAN_PAUSE_MILLIS + 1000L);
+        }
+        assertEquals("no model call during the pause", 0, this.model.calls.get());
+        assertEquals("nothing queued or claimed", 0L, count("SELECT count(*) FROM kg_llm_work"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_evidence WHERE tier = 3"));
+        assertEquals("paused", this.llm.status().optString("state"));
+        assertEquals(StorageGuard.MANUAL, this.llm.status().optString("reason"));
+        // the pause survives a restart (persisted by the runtime; here set again as the runtime does at start)
+        restart();
+        this.guard.setManualPause(true);
+        for (int i = 0; i < 10; i++) {
+            this.llm.step();
+            this.clock.addAndGet(LlmService.SCAN_PAUSE_MILLIS + 1000L);
+        }
+        assertEquals(0, this.model.calls.get());
+        this.guard.setManualPause(false);
+        settleLlm();
+        assertEquals("the resume continues where the pause stopped", 1, this.model.calls.get());
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+    }
+
+    @Test
     public void withoutModelOrOutsideTheLlmCollectionsTheGraphUsesTiersOneAndTwo() throws Exception {
         this.model.name = null;
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);

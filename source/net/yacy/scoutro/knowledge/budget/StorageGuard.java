@@ -245,6 +245,17 @@ public final class StorageGuard {
         return refusal(WriteClass.GROWTH, 0L) == null;
     }
 
+    /**
+     * Why new growth is refused right now (without an estimate), null if it is
+     * admitted: {@link #MANUAL} for the manual pause, otherwise the budget,
+     * disk or integrity reason. Enrichment asks before it starts work, so a
+     * pause also stops extraction and model calls, not only their writes.
+     */
+    public synchronized String growthRefusal() {
+        measureFast();
+        return refusal(WriteClass.GROWTH, 0L);
+    }
+
     /** True if maintenance writes would currently be admitted (without an estimate). */
     public synchronized boolean maintenanceAllowed() {
         measureFast();

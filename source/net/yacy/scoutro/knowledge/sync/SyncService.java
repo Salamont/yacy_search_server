@@ -34,6 +34,7 @@ import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.scoutro.knowledge.KgConfig;
 import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
+import net.yacy.scoutro.knowledge.budget.StorageGuard;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.extract.Extraction;
 import net.yacy.scoutro.knowledge.publish.Aggregates;
@@ -71,6 +72,7 @@ public final class SyncService {
     static final long BATCH_BUDGET_MILLIS = 3000L;
     static final long IDLE_CLAIM_MILLIS = 2000L;
     static final long GROWTH_RETRY_MILLIS = 30_000L;
+    static final long PENDING_EVERY_MILLIS = 5_000L;
     static final long GATE_RETRY_MILLIS = 15_000L;
     static final long BLOCKED_BATCH_MILLIS = 30_000L;
     static final long REFUSED_RETRY_MILLIS = 5000L;
@@ -105,6 +107,8 @@ public final class SyncService {
         final AtomicLong failedDocs = new AtomicLong();
         final AtomicLong drained = new AtomicLong();
         final AtomicLong fullResets = new AtomicLong();
+        /** Tier 1 and 2 extractions started (none while growth is refused). */
+        final AtomicLong extractions = new AtomicLong();
 
         JSONObject json() {
             return KgJson.obj("published", this.published.get(), "unchanged", this.unchanged.get(), "lifecycle", this.lifecycle.get(),
@@ -114,7 +118,7 @@ public final class SyncService {
                     "growthRefused", this.growthRefused.get(), "maintenanceRefused", this.maintenanceRefused.get(),
                     "drainRefused", this.drainRefused.get(), "queueDropped", this.queueDropped.get(),
                     "solrErrors", this.solrErrors.get(), "failedDocs", this.failedDocs.get(), "drained", this.drained.get(),
-                    "fullResets", this.fullResets.get());
+                    "fullResets", this.fullResets.get(), "extractions", this.extractions.get());
         }
     }
 
@@ -150,6 +154,11 @@ public final class SyncService {
     private long lastCheckpoint;
     private volatile long versionCheckpoint;
     private volatile String gateClosed;
+    /** Why growth was refused at the last batch ({@link StorageGuard#growthRefusal}), null if admitted. */
+    private volatile String growthRefusal;
+    /** Pending work by type, recounted at most every {@link #PENDING_EVERY_MILLIS}. */
+    private volatile JSONObject pendingByType;
+    private volatile long pendingAt;
     private long queueMax;
     private volatile boolean stopping;
     /** Called after a document of an LLM collection was published with new input (wakes the LLM tier). */
@@ -354,7 +363,9 @@ public final class SyncService {
             return false;
         }
         this.gateClosed = this.gates.closed(false);
-        final boolean extractOk = now >= this.growthBlockedUntil && this.gateClosed == null;
+        // asked before any work starts: a pause (or the budget, disk or integrity) stops extraction, not only its writes
+        this.growthRefusal = this.store.growthRefusal();
+        final boolean extractOk = now >= this.growthBlockedUntil && this.gateClosed == null && this.growthRefusal == null;
         // while growth is blocked, delete events run at once and the rest once per interval (lifecycle is only rate-limited)
         final boolean deletesOnly = !extractOk && now - this.lastBlockedBatch < BLOCKED_BATCH_MILLIS;
         if (!extractOk && !deletesOnly) {
@@ -452,6 +463,12 @@ public final class SyncService {
             doc.inputHash = input;
             action = Action.EXTRACT;
         }
+        if (action == Action.LIFECYCLE && cur != null && cur.state != Aggregates.STATE_ACTIVE && state == Aggregates.STATE_ACTIVE
+                && StorageGuard.MANUAL.equals(this.growthRefusal)) {
+            // a page that is back makes its facts current again: enrichment, held back until the resume
+            this.counters.deferred.incrementAndGet();
+            return release(item, now + GROWTH_RETRY_MILLIS, false);
+        }
         Extraction ex = null;
         if (action == Action.EXTRACT) {
             if (!extractOk) {
@@ -500,6 +517,7 @@ public final class SyncService {
 
     /** Tiers 1 and 2; the text is read only for tier-2 candidates. */
     private Extraction extract(final SolrDoc d) throws IOException {
+        this.counters.extractions.incrementAndGet();
         return this.tiers.extract(d, new BaseTiers.Text(this.solr, d.id));
     }
 
@@ -747,14 +765,27 @@ public final class SyncService {
             // unknown
         }
         final long pending = (queued == null ? 0L : queued) + this.dirty.size();
+        final long t = this.clock.getAsLong();
+        if (this.pendingByType == null || t - this.pendingAt >= PENDING_EVERY_MILLIS) {
+            try {
+                final long[] k = this.store.read(WorkQueue::pendingByType);
+                this.pendingByType = KgJson.obj("new", k[0], "update", k[1], "delete", k[2], "reconcile", k[3],
+                        "captured", (long) this.dirty.size());
+                this.pendingAt = t;
+            } catch (final KgException e) {
+                // unknown: the last count stays
+            }
+        }
         return KgJson.obj("state", this.state, "reason", this.reason, "initialized", this.initialized,
                 "resetInProgress", this.resetting, "lastError", this.lastError, "gate", this.gateClosed,
-                "growthBlocked", this.clock.getAsLong() < this.growthBlockedUntil,
+                "growthBlocked", this.clock.getAsLong() < this.growthBlockedUntil || this.growthRefusal != null,
+                "growthRefusal", this.growthRefusal,
                 "changes", this.dirty.status(), "queue", KgJson.obj("items", queued, "maxItems", this.queueMax,
                         "oldestAgeSeconds", oldest),
                 "processed", this.counters.json(), "versionCheckpoint", this.versionCheckpoint > 0L ? this.versionCheckpoint : null,
                 "reconcile", this.reconciler.status(), "retention", this.retention.status(),
-                "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending()));
+                "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending(),
+                        "byType", this.pendingByType));
     }
 
     // ----------------------------------------------------------------- tests

@@ -260,6 +260,16 @@ final class KgRebuild {
                     return;
                 }
             }
+            // the swap brings the rebuilt facts in: it waits while the graph is paused
+            while (!this.cancel && this.main.manualPause()) {
+                this.guard.setManualPause(true);
+                sleep(IDLE_PAUSE_MILLIS);
+            }
+            this.guard.setManualPause(false);
+            if (this.cancel) {
+                end(Phase.CANCELLED, null);
+                return;
+            }
             this.phase = Phase.SWAPPING;
             final int carried = carryIds();
             this.idsRedirected = carried;
@@ -298,6 +308,8 @@ final class KgRebuild {
         long lastCheck = 0L;
         long lastMeasure = 0L;
         while (!this.cancel) {
+            // the shadow follows the manual pause of the graph: no enrichment there either while it is paused
+            this.guard.setManualPause(this.main.manualPause());
             final boolean more = this.sync.step();
             final long now = this.clock.getAsLong();
             this.shadow.interruptExpiredReaders(now);
@@ -641,6 +653,6 @@ final class KgRebuild {
                 "progress", this.progress, "verify", this.verify, "awaitingConfirmation", this.phase == Phase.AWAITING_CONFIRMATION,
                 "keptAs", this.keptAs, "idsRedirected", this.idsRedirected < 0 ? null : this.idsRedirected,
                 "cacheCopied", this.cacheCopied < 0 ? null : this.cacheCopied, "budgetBytes", this.cfg.budgetMaxBytes,
-                "dir", KgPaths.RELATIVE_DIR + "/" + DIR);
+                "dir", KgPaths.RELATIVE_DIR + "/" + DIR, "paused", this.guard != null && this.guard.manualPause());
     }
 }
