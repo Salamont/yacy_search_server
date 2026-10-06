@@ -640,7 +640,7 @@ public final class ChatFacts {
         final org.json.JSONArray items = jobs == null ? null : jobs.optJSONArray("items");
         for (int i = 0; items != null && i < items.length() && i < 3; i++) {
             final org.json.JSONObject j = items.optJSONObject(i);
-            final Long row = nameRow(c, j.optString("id"));
+            final Long row = nameRow(c, j.optString("id"), v);
             if (row == null) {
                 continue;
             }
@@ -698,10 +698,11 @@ public final class ChatFacts {
         }
     }
 
-    /** A statement of the job (its name) whose page stands for the job. */
-    private static Long nameRow(final Connection c, final String job) throws SQLException {
+    /** A statement of the job (its name) the viewer sees, whose page stands for the job. */
+    private static Long nameRow(final Connection c, final String job, final Viewer viewer) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("SELECT s.stmt_rowid FROM kg_statement s JOIN kg_entity e ON e.ent_rowid = s.subj"
-                + " JOIN kg_vocab v ON v.term_id = s.pred WHERE e.public_id = ? AND v.name = 'name' ORDER BY s.quality LIMIT 1")) {
+                + " JOIN kg_vocab v ON v.term_id = s.pred WHERE e.public_id = ? AND v.name = 'name' AND " + KgReader.visibleStatement(viewer, "s")
+                + " ORDER BY s.quality LIMIT 1")) {
             ps.setString(1, job);
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? rs.getLong(1) : null;

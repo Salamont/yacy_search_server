@@ -283,6 +283,33 @@ public class BusinessViewTest {
         assertFalse(none.has("jobs"));
     }
 
+    /** One job on pages of two collections: the chat of each collection names it with its own page. */
+    @Test
+    public void aJobReachesTheChatOfEveryCollectionThatShowsIt() throws Exception {
+        final KgConfig both = KgTestSupport.config(KgTestSupport.enabled(KgConfig.JOBS_COLLECTIONS, "edelsenior-web,pflegejobs-web"));
+        final String[][] pages = {{"JOBSC1host02", "https://www.lindenhof.de/karriere/wbl", "edelsenior-web"},
+            {"JOBSD1host02", "https://www.lindenhof.de/jobs/wbl", "pflegejobs-web"}};
+        for (final String[] p : pages) {
+            publish(doc(p[0], p[1], p[2]), OP, "Karriere. Wohnbereichsleitung (m/w/d) in Vollzeit. Bewerbungsfrist: 31.03.2027.",
+                    ctx("care", p[2], true), this.now - DAY);
+        }
+        assertEquals("one job, one name in both collections", 1L, (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_statement s"
+                + " JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'name' AND s.obj_val LIKE 'Wohnbereichsleitung%'")));
+        final KgReader reader = new KgReader(this.store, both, () -> this.now);
+        for (final String[] p : pages) {
+            final List<String> jobs = new ArrayList<>();
+            for (final ChatFacts.Entry e : new ChatFacts(reader).select(List.of(p[0]), List.of("lindenhof", "stelle", "wohnbereichsleitung"),
+                    reader.viewer(List.of(p[2])), 20, System.currentTimeMillis() + 5000)) {
+                for (final ChatFacts.Fact f : e.facts) {
+                    if ("job".equals(f.predicate) && f.value.startsWith("Wohnbereichsleitung")) {
+                        jobs.add(e.docId);
+                    }
+                }
+            }
+            assertEquals(p[2] + ": " + jobs, List.of(p[0]), jobs);
+        }
+    }
+
     @Test
     public void theThreeAudienceLayersNeverMix() throws Exception {
         final String soft = entity("PflegeSoft GmbH");
