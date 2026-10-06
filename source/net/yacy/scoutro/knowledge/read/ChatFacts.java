@@ -623,8 +623,14 @@ public final class ChatFacts {
                 continue;
             }
             final String service = p.optString("service_name", "");
-            final String value = (service.isEmpty() ? "" : service + ": ") + money(p.optJSONObject("value")) + "; as of " + p.optString("as_of")
-                    + ("stated".equals(p.optString("as_of_basis")) ? " (stated on the page)" : " (last seen on the page)");
+            // a stated date as precise as the page wrote it ("Stand: 09/2026" stays 2026-09): the view's day is the end of
+            // that period for the staleness check, and a model given it repeats it as an exact day the page never named
+            final boolean stated = "stated".equals(p.optString("as_of_basis"));
+            final org.json.JSONObject published = p.optJSONObject("value");
+            final String asOf = stated && published != null && !published.optString("as_of", "").isEmpty() ? published.optString("as_of")
+                    : p.optString("as_of");
+            final String value = (service.isEmpty() ? "" : service + ": ") + money(published) + "; as of " + asOf
+                    + (stated ? " (stated on the page)" : " (last seen on the page)");
             out.add(new Object[] {new Fact(p.optString("statement"), Vocabulary.PRICE, value, "conflicting".equals(status) || "stale".equals(status)
                     ? "supported" : "current".equals(status) ? "supported" : "uncertain", false, false, "conflicting".equals(status) ? "conflicting"
                             : "stale".equals(status) ? "stale" : null), row});

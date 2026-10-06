@@ -382,6 +382,10 @@ public class BusinessViewTest {
         for (final ChatFacts.Fact f : prices) {
             notes.add(f.value.replaceFirst(":.*", "") + " " + f.note);
             assertFalse("the expired price stays out: " + f.value, f.value.contains("89.90"));
+            if (f.value.startsWith("Verhinderungspflege")) {
+                // benchmark finding: "Stand: 01/2025" reached the model as 2025-01-31 and came back as an exact day
+                assertTrue("the date as precise as the page wrote it: " + f.value, f.value.contains("as of 2025-01 (stated on the page)"));
+            }
         }
         assertTrue(notes.toString(), notes.contains("Verhinderungspflege stale"));
         assertTrue(notes.toString(), notes.contains("Tagespflege conflicting"));
