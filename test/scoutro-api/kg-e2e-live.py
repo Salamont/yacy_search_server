@@ -510,10 +510,24 @@ def peer_one(root, llm):
     crawl = p.crawl(f"http://{HOST_A}:{SITE_PORT}/", "e2e-a")
     p.crawl(f"http://{HOST_B}:{SITE_PORT}/", "e2e-b")
     timing("crawl_s", time.monotonic() - t0)
+    p.doc_id(f"http://{HOST_A}:{SITE_PORT}/")  # the start page in Solr: YaCy may still hold a page in its own index queue
     indexed = p.solr_count("e2e-a")
     check(indexed >= 10, f"pages of {HOST_A} in the index: {indexed} ({crawl})")
     REPORT["indexed_a"] = indexed
-    _, took = p.wait("the graph to follow the crawl", lambda s: p.settled(s) and s["sync"]["processed"]["published"] >= indexed)
+
+    def followed(s):
+        # settled, and every page of e2e-a that Solr holds is processed by the graph (not only as many publications)
+        if not (p.settled(s) and s["sync"]["processed"]["published"] >= indexed):
+            return False
+        _, _, raw = p.call("GET", "/solr/select?" + urllib.parse.urlencode({"q": "*:*", "fq": "collection_sxt:e2e-a", "rows": "200", "fl": "id",
+                                                                         "wt": "json"}))
+        for d in json.loads(raw)["response"]["docs"]:
+            status, _, body = p.call("GET", f"/scoutro/api/v1/kg/sources/{d['id']}")
+            if status != 200 or not json.loads(body).get("source", {}).get("processed_at"):
+                return False
+        return True
+
+    _, took = p.wait("the graph to follow the crawl", followed)
     timing("graph_after_crawl_s", took)
 
     step(2, "JSON-LD captured in the index")
