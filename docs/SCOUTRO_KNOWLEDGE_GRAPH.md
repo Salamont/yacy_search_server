@@ -2095,3 +2095,47 @@ New per run: the derive pass, and read latencies of the object view, the depth-2
 3. Choose `jobs.collections`; check the vocabularies of the collections (`scoutro.kg.vocab.<collection>`).
 4. After the start, watch `status.upgrade`, the re-extraction (pending work by type) and the first derive pass.
 5. Run the A/B benchmark on the real collections, with Claude as tester and judge of the instance's own model ([test/scoutro-kg-benchmark/README.md](../test/scoutro-kg-benchmark/README.md#limits)).
+
+## 24. Package 6.1: service context, network view and new collections
+
+Package 6.1 makes the business graph easier to read without changing its model. It starts from `main` after the 0.8.0 release (`cf4adfc`), adds no schema change and no new on-disk data, and touches no installation.
+
+### 24.1 Services of the same name
+
+Services stay what vocabulary 2 makes them: one entity per provider, keyed `service_name` within the provider's registrable domain ([23.3](#233-services-and-prices-c)). "SAP" of CTcon GmbH and "SAP" of another company are two entities with their own provider, prices and evidence; nothing in this package merges them, changes an ID or moves a price.
+
+- **Context of a hit** (`read/EntityContexts`): every item of `GET entities` (and `hosts/{host}/entities`) carries `context`, computed for the whole page in a few batched queries over the viewer's evidence: `hosts` (the most-used first), `collections`, `places` (stated locality, else the places it is in), `quality`, `sources`, `last_confirmed`; for a service its `providers` (the visible subjects of a visible `offers` fact, each with hosts, collections, places and quality) and `provider_count`, for a job its employer (`hiring_organization`). A service without a visible provider has `provider_count: 0`, which the page says ("No provider assigned").
+- **Groups** (`read/ServiceGroups`, `GET services`, `GET services/providers`): the visible name statements of visible services, grouped by the name in lower case without surrounding spaces, for reading only. A group counts separate services: providers, services without a provider, the viewer's collections, the providers' places, services with a current price and with a current source. `services/providers?name=` lists the services of one name, each with its own provider and price counts. Other collections never enter a group; an invisible name is `404`.
+- **Comparison:** each provider now also names the hosts and collections of the viewer's pages.
+
+### 24.2 The network around a service
+
+`BusinessGraph.neighborhood` already read the incoming facts; 6.1 makes the service centre useful:
+
+- every entity node carries the same context as a hit (hosts, collections, places, quality, sources, last confirmation), so the drawing can show `CTcon GmbH` / `ctcon.de` and the detail panel needs no further request;
+- edges of the centre carry `direction` (`in`: `CTcon GmbH → offers → SAP` with SAP in the centre);
+- with a service or job in the centre, depth 2 shows the providers' relations and structure but not their other services and jobs (those would turn a provider with fifty services into a hub; its own network shows them);
+- `prices=true` adds the published prices of the services in the centre and at depth 1 as value nodes, each attached to its own service only.
+
+### 24.3 Network view
+
+Still an SVG drawn by `knowledge.js`, no library, no CDN.
+
+- **Nodes** are cards by type (organisation, facility or site, service, job, place, industry or audience, price) with a second line: the domain of an organisation, "Service" for a service, the place of a facility. The centre is framed.
+- **Layout:** on a narrow screen, for many neighbours and at depth 2 the drawing is *layered*: what points to the centre above it (providers, customers, members), what it points to below, depth 2 beyond its neighbour, every layer wrapped into rows that fit the width (two columns on a phone). Lines run orthogonally through the gaps between rows and the gutters between columns, so they never cross a card. A few neighbours on a wide screen are drawn *radially*. The drawing is as high as its content; the page never scrolls sideways.
+- **Labels:** in the layered drawing the relation to the anchor (centre or neighbour) is the card's caption next to the line that enters it; other lines get a label where it covers neither a card nor another label, else on highlight. Arrows show the direction the source states.
+- **Detail panel:** a tap, click or Enter on a node shows name, type, domain, collections, quality, sources, last confirmation and the relation to the centre, with *Open object*, *Network of this object* and *Open sources* (the object view at its evidence section). Value nodes link to the objects of that industry or audience; a price node to its service and its evidence.
+- **Filters**, grouped: facts (relations between companies, structure and operators, services and providers, places, industry, audiences, jobs and employers, prices), derived (same operator, weak link signals, suggestions), status (current, outdated). The defaults follow the centre's type: around a service its providers, structure and business relations at depth 2; around a job its employer; around an organisation the defaults of package 6. Links of package 6 (`f=…,values,…`) keep working.
+- The list below holds the same edges, each end with its type or domain; GraphML also carries hosts and collections. Zoom and pan were left out: the layout fits the width instead.
+
+### 24.4 New collections
+
+- **Following:** unchanged. `scoutro.kg.collections=*` follows a new collection at once; a fixed list only the named ones.
+- **Fix:** under `*`, `scoutro.kg.vocab.<collection>` and `scoutro.kg.prices.staleDays.<collection>` were read only for the four Scoutro collections and the named ones, so an existing vocabulary could not be assigned to a new collection. The runtime now passes the set `scoutro.kg.*` keys to `KgConfig` (the rebuild the same per-collection keys); the keys found are part of the extraction identity as before, so assigning a vocabulary re-extracts that collection's pages. Such a key with an invalid value now counts like one of a named collection: it is listed under Settings and keeps the graph off. A fixed list behaves as before.
+- **Vocabulary:** a collection without a mapping has none; it gets generic facts and no service categories. No vocabulary is ever guessed from a collection's name. Override files in `DATA/SCOUTRO/knowledge/vocabulary/` can add a vocabulary and a mapping without a schema change.
+- **Status:** `status.collections` lists every collection the graph follows, maps or holds: `followed`, `vocabulary` (null for none), `vocabularySource` (`setting`, `vocabulary_files`, `none`), `vocabularyKnown`, `jobs`, `llm`, `documents` (counted from `kg_doc_collection` at most every 10 seconds) and `state` (`following`, `waiting`, `not_followed`, `unknown_vocabulary`); `config.jobsCollections` shows `scoutro.kg.jobs.collections`. The overview shows them as the *Collections* table with "No vocabulary assigned".
+- **Jobs:** only for collections named in `scoutro.kg.jobs.collections` (or `*`); a new collection never gets them by itself.
+
+### 24.5 API, agents and tools
+
+`GET services`, `GET services/providers`, the `prices` parameter of the neighbourhood, `context` in the entity list, the node and edge fields of the neighbourhood, `hosts`/`collections` of the compared providers and `status.collections` are in `openapi.json` and `actions.json` (64 actions), for agents behind `kg.read` (the viewer is the agent's collections; foreign collections are `403 collection_not_in_scope`), as MCP tools `scoutro_kg_services` and `scoutro_kg_services_providers` and as `scoutroctl kg services`, `kg service-providers NAME` and `kg neighborhood --prices`.

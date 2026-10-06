@@ -234,6 +234,19 @@ A changed vocabulary re-extracts the pages at low priority.
   - It is usable with the keyboard and at 360 px.
 
   *Compare* lists the prices of one service category across providers.
+- **Services of the same name (package 6.1).** A service belongs to its
+  provider: "SAP" of one company and "SAP" of another are two objects, each
+  with its own provider, prices and sources, and they are never merged.
+  - The object list shows each hit with its provider and domain
+    (`SAP` · `CTcon GmbH · ctcon.de · stackfinder-web`), its collection,
+    place, quality, sources and last confirmation. A service whose provider
+    the selected collection does not show says *No provider assigned*.
+  - *Services* counts the services of one name for reading only ("SAP · 133
+    providers"): providers, collections, places, how many with a current
+    price and with a current source, and lists every provider's service in
+    its own row. Nothing is merged, averaged or mixed; the IDs stay.
+  - In the network a service shows who offers it (the incoming `offers`) and,
+    at depth 2, its providers' relations, but not their other services.
 
 ### 5.4 Collections (O5)
 
@@ -245,6 +258,28 @@ A changed vocabulary re-extracts the pages at low priority.
 - **The administrator** can also look across all followed collections, with
   no `collection` parameter.
 - **Agents never can.** They are always limited to their own collections.
+- **New collections (package 6.1).** With `scoutro.kg.collections=*` a new
+  collection such as `newportal-web` is followed at once; with a fixed list
+  only the named collections are. The overview's *Collections* table lists
+  every collection with its vocabulary, jobs, LLM tier, documents in the
+  graph and state.
+  - A collection without a vocabulary is shown as *No vocabulary assigned*.
+    It gets generic facts (names, addresses, contacts, relations, the
+    industry of a declared business type), but no service categories; a
+    vocabulary is never guessed from a collection's name. The defaults are
+    `edelsenior-web` care, `checkthecoach-web` coaching, `stackfinder-web`
+    software and `bauteamcheck-web` construction.
+  - Assign an existing vocabulary with
+    `scoutro.kg.vocab.<collection>=<vocabulary>` (for example
+    `scoutro.kg.vocab.newportal-web=software`); this works under `*` as well
+    since package 6.1. An empty value switches a default off. A new
+    vocabulary or mapping is a file in `DATA/SCOUTRO/knowledge/vocabulary/`
+    in the format of `defaults/scoutro/knowledge/categories.json`; no schema
+    change is needed. Both take effect at the next start and re-extract the
+    pages concerned.
+  - Jobs are read only for collections named in
+    `scoutro.kg.jobs.collections` (or `*`). A new collection never gets them
+    by itself.
 
 ## 6. Permissions and agent access
 
@@ -555,6 +590,13 @@ This is the default. The page shows the LLM tier as `off`.
   an address. Two towns of one name in one country (several *Neustadt*) are
   one place in the graph, and a suggestion may take one for the other. The
   suggestion names the place, so its reader can check it.
+
+- **Same names are grouped by spelling.** The service groups compare names
+  in lower case (ASCII letters only) without surrounding spaces;
+  "SAP-Beratung" and "SAP Beratung" are two groups. The groups count the
+  first 5000 services of a name.
+- **The network drawing has no zoom or pan.** It is laid out to the width of
+  the page instead, and the list below holds the same data.
 
 ## 13. Checklist for operators
 
