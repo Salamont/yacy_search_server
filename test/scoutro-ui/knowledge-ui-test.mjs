@@ -76,6 +76,37 @@ try {
         const a = await page.locator('#skg-entities tbody').textContent();
         check(a.includes('Muster Pflege gGmbH') && !a.includes('Nur Bee GmbH'), 'collection filter hides the other collection' + where);
         check(await page.locator('#skg-collection').inputValue() === 'kga', 'collection kept in the form' + where);
+        // package 6.1: the collection is a real select of the collections of the index, sorted, all collections first
+        const scope = page.locator('#skg-collection');
+        check(await scope.evaluate(e => e.tagName) === 'SELECT' && await page.locator('#skg-scope input, datalist').count() === 0, 'collection as a real select, no text field' + where);
+        const scopeOptions = await scope.locator('option').evaluateAll(list => list.map(o => [o.value, o.textContent.trim()]));
+        const indexNames = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.map(c => c.id)
+          .sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+        check(scopeOptions[0][0] === '' && scopeOptions[0][1] === (language === 'de' ? 'Alle Collections' : 'All collections')
+          && JSON.stringify(scopeOptions.slice(1).map(o => o[0])) === JSON.stringify(indexNames) && ['kga', 'kgb', 'kgc'].every(c => indexNames.includes(c)),
+          'all collections first, then every collection of the index sorted, the new kgc included: ' + JSON.stringify(scopeOptions) + where);
+        await scope.selectOption('kgb');
+        await page.waitForFunction(() => new URLSearchParams(location.search).get('collection') === 'kgb');
+        await page.waitForSelector('#skg-entities tbody tr');
+        check((await page.locator('#skg-entities tbody').textContent()).includes('Nur Bee GmbH'), 'choosing a collection applies it at once' + where);
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&collection=unknown-web', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
+        check(await scope.inputValue() === '' && await page.locator('#skg-scope-unknown').isVisible() && !new URL(page.url()).searchParams.has('collection')
+          && (await page.locator('#skg-entities tbody').textContent()).includes('Nur Bee GmbH'), 'an unknown collection of the link: all collections, said so' + where);
+        if (width === 360) {
+          // while the list loads, the select waits (disabled, busy) and the page asks nothing with a collection of the link
+          await page.route('**/scoutro/api/v1/collections', async route => { await new Promise(r => setTimeout(r, 800)); await route.continue(); });
+          const asked = [];
+          page.on('request', r => { if (r.url().includes('/scoutro/api/v1/kg/entities')) asked.push(r.url()); });
+          await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&collection=kga');
+          check(await scope.isDisabled() && await scope.getAttribute('aria-busy') === 'true' && asked.length === 0, 'loading: the select waits' + where);
+          await page.waitForFunction(() => !document.getElementById('skg-collection').disabled);
+          await page.waitForSelector('#skg-entities tbody tr');
+          check(await scope.inputValue() === 'kga' && asked.every(u => u.includes('collection=kga')), 'loaded: the listed collection of the link applied' + where);
+          await page.unroute('**/scoutro/api/v1/collections');
+        }
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&collection=kga', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
         if (width < 768) check(await page.locator('#skg-entities tbody tr').first().evaluate(r => getComputedStyle(r).display !== 'table-row'), 'rows as cards on narrow screens' + where);
         await page.locator('#skg-q').fill('Nur');
         await page.locator('#skg-search button[type=submit]').click();

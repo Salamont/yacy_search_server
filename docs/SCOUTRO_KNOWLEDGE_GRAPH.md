@@ -2150,7 +2150,17 @@ Still an SVG drawn by `knowledge.js`, no library, no CDN.
 
 Only `fact` is a name the sources state. The others are presentation: never stored, never an entity key, never used to merge, never given to the chat as a fact (the chat says "an unnamed organisation"). `name` stays the stated name or null. A stated name that turns up later replaces the fallback at the next read, without a migration. The ID stays the link target and appears only in the object view's *Technical ID* field.
 
-### 24.6 API, agents and tools
+### 24.6 Collection choice, never free text
+
+Every visible collection filter is a `select`: the chat, the knowledge graph page (objects, object, network, services, compare, sources, settings), the SEO host analysis with its crawl status tab, the crawl report and the Index Browser.
+
+- **Options:** "All collections" (the empty scope) first; where a view needs exactly one collection (crawl status, crawl report) "Choose a collection". Then the collections alphabetically regardless of case. Nothing is hard-coded: the admin pages read `GET /scoutro/api/v1/collections` (administrator only, the collections of the index; the report adds the Discovery jobs' collections), so a new collection appears as soon as the index has pages of it. While the list loads the select is disabled and `aria-busy`, and the views wait for it.
+- **Link and stored values** (`?collection=`, the chat's `localStorage`) count only if the name is in the list; otherwise "All collections" applies, the admin pages say so without repeating the name, and the chat forgets a stored name that is no longer listed.
+- **Chat:** `yacychat.java` renders the list with the rule of the endpoint (`ai/rag/ChatCollections`): local and administrator access every collection of the index, an AI Shield guest only those released on the AI Shield page (`ai.shield.guest-collections`, none by default; the index is read at most every 10 s). `/v1/chat/completions` refuses any other name with `403 collection_not_allowed` for existing and unknown names alike and never echoes it; a guest's `collection:` modifier outside the list is ignored. The backend stays authoritative; the select only shows what it accepts.
+- **Agents** keep their granted collections (`GET /scoutro/api/agent/v1/collections`, `403 collection_not_in_scope` elsewhere); they never use the chat endpoint.
+- **Not a filter:** the crawl start (`ScoutroCrawls_p.html`) names the collection a new crawl writes to, which may be a new one, so it keeps its text field with suggestions; so do the agent grants, which may name collections that do not exist yet.
+
+### 24.7 API, agents and tools
 
 
 `GET services`, `GET services/providers`, the `prices` parameter of the neighbourhood, `context` in the entity list, the display-name fields, the node and edge fields of the neighbourhood, `hosts`/`collections` of the compared providers and `status.collections` are in `openapi.json` and `actions.json` (64 actions), for agents behind `kg.read` (the viewer is the agent's collections; foreign collections are `403 collection_not_in_scope`), as MCP tools `scoutro_kg_services` and `scoutro_kg_services_providers` and as `scoutroctl kg services`, `kg service-providers NAME` and `kg neighborhood --prices`.

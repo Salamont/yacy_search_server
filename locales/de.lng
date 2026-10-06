@@ -1339,6 +1339,8 @@ Not certain: taken from the page metadata or a page title, not from a name with 
 Operator and contact as found on the indexed pages==Betreiber und Kontakt laut den indexierten Seiten
 Index data unavailable or access denied. Sign in as administrator and retry.==Indexdaten nicht verfügbar oder Zugriff verweigert. Als Administrator anmelden und erneut versuchen.
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Ungültige Collection. Bis zu 64 Buchstaben, Ziffern, Unterstriche oder Bindestriche verwenden.
+>The collection of the link is not available; all collections are shown.<==>Die Collection des Links steht nicht zur Verfügung; alle Collections werden gezeigt.<
+>All collections<==>Alle Collections<
 Enter a host name, part of a host name or a URL.==Geben Sie einen Hostnamen, einen Teil davon oder eine URL ein.
 The number of entries is shown in the file.==Die Anzahl der Einträge steht in der Datei.
 No indexed domains match these filters.==Keine indexierten Domains entsprechen diesen Filtern.
@@ -4089,6 +4091,9 @@ Allow non-localhost clients to access the chat interface==Nicht-localhost-Client
 Show a link to yacychat.html on the search front page==Einen Link zu yacychat.html auf der Suchstartseite anzeigen
 Limit for all requests, including localhost==Grenze für alle Anfragen, einschließlich localhost
 Guest Access Control & Rate Limits==Gastzugriffssteuerung & Ratenbegrenzung
+Collections guests may choose in the chat==Collections, die Gäste im Chat wählen dürfen
+Guests search the whole index. Only the collections ticked here appear in their collection list and may be chosen as the search scope; no other collection name is shown to them. Local and administrator access may choose every collection.==Gäste durchsuchen den ganzen Index. Nur die hier angehakten Collections erscheinen in ihrer Collection-Liste und können als Suchbereich gewählt werden; andere Collection-Namen sehen sie nicht. Lokaler Zugriff und Administratoren können jede Collection wählen.
+The index has no collections yet.==Der Index enthält noch keine Collections.
 Wire RAG Retrieval Shield==RAG-Retrieval-Schutzschild verdrahten
 Overall Load Protection==Gesamter Überlastschutz
 Save Shield Settings==Schutzschild-Einstellungen speichern
@@ -4650,7 +4655,8 @@ Log in==Anmelden
 #---------------------------
 AI search in your Scoutro index. Answers name their sources as [1], [2] … – check important facts on the linked pages.==KI-Suche in Ihrem Scoutro-Index. Antworten nennen ihre Quellen als [1], [2] … – prüfen Sie wichtige Angaben auf den verlinkten Seiten.
 This chat is private. Scoutro keeps no history – only your browser remembers the current conversation.==Dieser Chat ist privat. Scoutro speichert keinen Verlauf – nur Ihr Browser merkt sich das aktuelle Gespräch.
-Empty: whole index. Enter or choose a collection to search only its pages.==Leer: ganzer Index. Geben Sie eine Collection ein oder wählen Sie eine aus, um nur deren Seiten zu durchsuchen.
+All collections: the whole index. Choose a collection to search only its pages.==Alle Collections: der ganze Index. Wählen Sie eine Collection, um nur deren Seiten zu durchsuchen.
+>All collections<==>Alle Collections<
 System data requires an authorized administrator or agent token. No web answer is substituted.==Systemdaten benötigen einen berechtigten Administrator oder Agent-Token. Es wird keine Webantwort als Ersatz verwendet.
 No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.==Keine YaCy-Administratorberechtigung: Das AI Shield lässt diese Adresse erst nach der YaCy-Administratoranmeldung zu.
 Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.==Vom AI Shield blockiert: Der Gastzugang ist aus, oder die Anfrage kam von einer anderen Website oder mit einem Agent-Token.
@@ -4659,6 +4665,7 @@ No chat model is configured: assign a model to the chat role in LLM Selection.==
 The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.==Der LLM-Endpunkt ist vom Scoutro-Server aus nicht erreichbar: Prüfen Sie den hoststub in der LLM-Auswahl.
 The LLM endpoint rejected the credentials: check the API key in LLM Selection.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den API-Key in der LLM-Auswahl.
 The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.==Der LLM-Endpunkt hat mit einem Fehler geantwortet: Den HTTP-Status zeigt das Scoutro-Log.
+This collection is not available here: choose one of the listed collections or all collections.==Diese Collection steht hier nicht zur Verfügung: Wählen Sie eine der aufgeführten Collections oder alle Collections.
 The Scoutro server cannot be reached. Check the network connection and try again.==Der Scoutro-Server ist nicht erreichbar. Prüfen Sie die Netzwerkverbindung und versuchen Sie es erneut.
 The connection broke off before the answer was complete. Please ask again.==Die Verbindung ist abgebrochen, bevor die Antwort vollständig war. Bitte stellen Sie die Frage erneut.
 The server could not create an answer. Please try again later; the Scoutro log has the details.==Der Server konnte keine Antwort erstellen. Bitte versuchen Sie es später erneut; Details stehen im Scoutro-Log.
@@ -5229,7 +5236,8 @@ Organisations, facilities, sites and services the knowledge graph found on this 
 >SEO / Host Analysis<==>SEO / Host-Analyse<
 >Read indexed content, crawl metadata and locally observed references.<==>Indexierte Inhalte, Crawl-Metadaten und lokal beobachtete Referenzen analysieren.<
 >Domain or host<==>Domain oder Host<
->Collection (optional)<==>Collection (optional)<
+>All collections<==>Alle Collections<
+>Choose a collection<==>Collection wählen<
 >Analyze<==>Analysieren<
 >Find hosts<==>Hosts suchen<
 >More hosts<==>Weitere Hosts<
@@ -5500,7 +5508,8 @@ Pausing stops new enrichment (extraction, the LLM tier and a rebuild); deletions
 ) and take effect at the next start. Invalid values are listed here and keep the graph off.==) und wirken ab dem nächsten Start. Ungültige Werte werden hier aufgeführt und halten den Graphen aus.
 >Delete the documents this reconcile confirmed as absent from Solr?<==>Die Dokumente löschen, die dieser Abgleich als in Solr fehlend bestätigt hat?<
 >The knowledge graph is disabled (scoutro.kg.enabled=false).<==>Der Wissensgraph ist deaktiviert (scoutro.kg.enabled=false).<
->Invalid collection name (letters, digits, - and _).<==>Ungültiger Collection-Name (Buchstaben, Ziffern, - und _).<
+>All collections<==>Alle Collections<
+>The collection of the link is not available; all collections are shown.<==>Die Collection des Links steht nicht zur Verfügung; alle Collections werden gezeigt.<
 Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen in der Scoutro-Konfiguration (Schlüssel
 >The knowledge graph could not be read<==>Der Wissensgraph konnte nicht gelesen werden<
 >Not found in the visible collections.<==>In den sichtbaren Collections nicht gefunden.<
@@ -5585,7 +5594,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Possible duplicates<==>Mögliche Dubletten<
 >Confirm deletions<==>Löschungen bestätigen<
 >No objects match.<==>Keine passenden Objekte.<
->Apply collection<==>Collection anwenden<
 (usage knowledge).==(Verwendung knowledge).
 >Pending changes<==>Ausstehende Änderungen<
 >Pending by type<==>Ausstehend nach Typ<

@@ -21,6 +21,9 @@
         margin: 0 0 8px 0;
         color: #3b4a5e;
       }
+      .shield-collections { margin-top: 12px; }
+      .shield-collections legend { font-size: 1em; font-weight: 600; margin-bottom: 4px; border: 0; }
+      .shield-collection { display: inline-flex; align-items: center; gap: 6px; margin: 0 16px 6px 0; font-weight: normal; }
       .shield-inline {
         display: flex;
         gap: 16px;
@@ -148,6 +151,13 @@
           <label>Per hour: <input type="number" class="form-control shield-rate" min="0" name="ai.shield.rate.per-hour" id="rateHour" value="#[ai.shield.rate.per-hour]#" /></label>
           <label>Per day: <input type="number" class="form-control shield-rate" min="0" name="ai.shield.rate.per-day" id="rateDay" value="#[ai.shield.rate.per-day]#" /></label>
         </div>
+        <fieldset class="shield-collections" id="guestCollections">
+          <legend>Collections guests may choose in the chat</legend>
+          <p>Guests search the whole index. Only the collections ticked here appear in their collection list and may be chosen as the search scope; no other collection name is shown to them. Local and administrator access may choose every collection.</p>
+          #(guestCollectionsEmpty)#::<p>The index has no collections yet.</p>#(/guestCollectionsEmpty)#
+          #{guestCollections}#<label class="shield-collection"><input type="checkbox" name="guest-collection.#[name]#" #(checked)#::checked="checked"#(/checked)# /> #[name]#</label>
+          #{/guestCollections}#
+        </fieldset>
       </div>
 
       <div class="shield-card">

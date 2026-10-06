@@ -251,10 +251,11 @@
   const initial = new URLSearchParams(location.search), reportView = initial.get('view') === 'report';
   $('host-view').hidden = reportView; $('report-view').hidden = !reportView;
   for (const [id, active] of [['view-host', !reportView], ['view-report', reportView]]) { if (active) $(id).setAttribute('aria-current', 'page'); else $(id).removeAttribute('aria-current'); }
-  fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
-    for (const item of data?.collections || []) { const option = document.createElement('option'); option.value = item.id; $('collection-list').append(option); }
-  }).catch(() => {});
-  if (reportView) return;
-  if (initial.has('collection')) $('collection').value = initial.get('collection');
-  if (initial.has('host')) { $('host').value = initial.get('host'); guarded(() => analyze(initial.get('host'))); }
+  // the collection lists: a collection of the link counts only if it is listed, else all collections
+  ScoutroCollections.load().then(ids => {
+    ScoutroCollections.fill($('cs-collection'), ids, '');
+    ScoutroCollections.fill($('collection'), ids, reportView ? '' : initial.get('collection') || '');
+    if (reportView) return;
+    if (initial.has('host')) { $('host').value = initial.get('host'); guarded(() => analyze(initial.get('host'))); }
+  });
 })();

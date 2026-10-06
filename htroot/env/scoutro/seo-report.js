@@ -227,12 +227,16 @@
     $('r-result').hidden = false; message();
   }
 
-  async function jobs() {
-    if (jobsLoaded) return jobsLoaded;
+  function jobs() {
+    // one request per page view, also when the collection list and the job scope ask at once
+    if (!jobsLoaded) jobsLoaded = loadJobs().catch(e => { jobsLoaded = null; throw e; });
+    return jobsLoaded;
+  }
+  async function loadJobs() {
     const data = await get('jobs'), select = $('r-job'); select.replaceChildren();
     if (!data.jobs.length) { const option = node('option', t('r_no_jobs')); option.value = ''; select.append(option); }
     for (const job of data.jobs) { const option = node('option', (job.name || job.id) + (job.known ? '' : ' · ' + t('r_job_unknown'))); option.value = job.id; select.append(option); }
-    jobsLoaded = data; return data;
+    return data;
   }
   function kind(selected) {
     $('r-kind').value = selected; const job = selected === 'job';
@@ -261,8 +265,11 @@
       if ($('r-job').value !== job) { const option = node('option', job); option.value = job; $('r-job').append(option); $('r-job').value = job; }
       guarded(() => jobReport(job));
     });
-  } else {
-    kind('collection');
-    if (initial.has('collection')) { $('r-collection').value = initial.get('collection'); guarded(() => collectionReport(initial.get('collection'))); }
-  }
+  } else kind('collection');
+  // the collections of the index and of the Discovery jobs; a collection of the link is reported only if it is one of them
+  Promise.all([ScoutroCollections.load(), jobs().then(data => data.jobs.flatMap(job => job.collections || [])).catch(() => [])]).then(([ids, jobCollections]) => {
+    const wanted = initial.has('job') ? '' : initial.get('collection') || '';
+    if (ScoutroCollections.fill($('r-collection'), ScoutroCollections.sorted(ids.concat(jobCollections)), wanted) && wanted) guarded(() => collectionReport(wanted));
+    else if (wanted) message(t('r_choose_collection'));
+  });
 })();

@@ -190,6 +190,15 @@
     <trans-unit id="4025bf44" xml:space="preserve" approved="no" translate="yes">
        <source>Requests from non-localhost will be throttled using these caps:</source>
     </trans-unit>
+    <trans-unit id="35c6f0e" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections guests may choose in the chat</source>
+    </trans-unit>
+    <trans-unit id="1d98394a" xml:space="preserve" approved="no" translate="yes">
+       <source>Guests search the whole index. Only the collections ticked here appear in their collection list and may be chosen as the search scope; no other collection name is shown to them. Local and administrator access may choose every collection.</source>
+    </trans-unit>
+    <trans-unit id="2326ab0d" xml:space="preserve" approved="no" translate="yes">
+       <source>The index has no collections yet.</source>
+    </trans-unit>
     <trans-unit id="894ded94" xml:space="preserve" approved="no" translate="yes">
        <source>Front Page Link</source>
     </trans-unit>
@@ -4277,6 +4286,9 @@
     <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
        <source>Collection</source>
     </trans-unit>
+    <trans-unit id="1e429976" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections</source>
+    </trans-unit>
     <trans-unit id="ea8ad9f9" xml:space="preserve" approved="no" translate="yes">
        <source>Sort by</source>
     </trans-unit>
@@ -4333,6 +4345,9 @@
     </trans-unit>
     <trans-unit id="da662550" xml:space="preserve" approved="no" translate="yes">
        <source>Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.</source>
+    </trans-unit>
+    <trans-unit id="9bf8867f" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection of the link is not available; all collections are shown.</source>
     </trans-unit>
     <trans-unit id="d163efd3" xml:space="preserve" approved="no" translate="yes">
        <source>Enter a host name, part of a host name or a URL.</source>
@@ -4399,6 +4414,12 @@
     </trans-unit>
     <trans-unit id="635d6222" xml:space="preserve" approved="no" translate="yes">
        <source>Open the SEO / host analysis of this domain</source>
+    </trans-unit>
+    <trans-unit id="d3d3885e" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge</source>
+    </trans-unit>
+    <trans-unit id="8f5e7467" xml:space="preserve" approved="no" translate="yes">
+       <source>What the knowledge graph holds from this domain or page</source>
     </trans-unit>
     <trans-unit id="73d448f1" xml:space="preserve" approved="no" translate="yes">
        <source>indexed</source>
@@ -4471,12 +4492,6 @@
     </trans-unit>
     <trans-unit id="4b02d58c" xml:space="preserve" approved="no" translate="yes">
        <source>Index administration</source>
-    </trans-unit>
-    <trans-unit id="d3d3885e" xml:space="preserve" approved="no" translate="yes">
-       <source>Knowledge</source>
-    </trans-unit>
-    <trans-unit id="8f5e7467" xml:space="preserve" approved="no" translate="yes">
-       <source>What the knowledge graph holds from this domain or page</source>
     </trans-unit>
   </body>
 </file>
@@ -12591,9 +12606,6 @@
     <trans-unit id="50465f10" xml:space="preserve" approved="no" translate="yes">
        <source>"Also searches other peers of the YaCy network"</source>
     </trans-unit>
-    <trans-unit id="92dbcd6e" xml:space="preserve" approved="no" translate="yes">
-       <source>"all collections"</source>
-    </trans-unit>
     <trans-unit id="d625e104" xml:space="preserve" approved="no" translate="yes">
        <source>"Search the index for this question"</source>
     </trans-unit>
@@ -12639,8 +12651,11 @@
     <trans-unit id="d1e9cd3c" xml:space="preserve" approved="no" translate="yes">
        <source>Collection:</source>
     </trans-unit>
-    <trans-unit id="28d3a1fc" xml:space="preserve" approved="no" translate="yes">
-       <source>Empty: whole index. Enter or choose a collection to search only its pages.</source>
+    <trans-unit id="1e429976" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections</source>
+    </trans-unit>
+    <trans-unit id="6c425ef9" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections: the whole index. Choose a collection to search only its pages.</source>
     </trans-unit>
     <trans-unit id="4c981b57" xml:space="preserve" approved="no" translate="yes">
        <source>Current search scope:</source>
@@ -14192,8 +14207,11 @@
     <trans-unit id="278b6738" xml:space="preserve" approved="no" translate="yes">
        <source>Host or HTTP/HTTPS URL</source>
     </trans-unit>
-    <trans-unit id="c5a61843" xml:space="preserve" approved="no" translate="yes">
-       <source>Collection (optional)</source>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="1e429976" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections</source>
     </trans-unit>
     <trans-unit id="2fb3f52c" xml:space="preserve" approved="no" translate="yes">
        <source>Analyze</source>
@@ -14330,8 +14348,8 @@
     <trans-unit id="b90f86fe" xml:space="preserve" approved="no" translate="yes">
        <source>Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.</source>
     </trans-unit>
-    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
-       <source>Collection</source>
+    <trans-unit id="e04faf06" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose a collection</source>
     </trans-unit>
     <trans-unit id="8cb3e22e" xml:space="preserve" approved="no" translate="yes">
        <source>Show crawl status</source>
@@ -15013,11 +15031,14 @@
     <trans-unit id="62131f0c" xml:space="preserve" approved="no" translate="yes">
        <source>Knowledge graph</source>
     </trans-unit>
-    <trans-unit id="c5a61843" xml:space="preserve" approved="no" translate="yes">
-       <source>Collection (optional)</source>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
     </trans-unit>
-    <trans-unit id="de19f6b0" xml:space="preserve" approved="no" translate="yes">
-       <source>Apply collection</source>
+    <trans-unit id="1e429976" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections</source>
+    </trans-unit>
+    <trans-unit id="9bf8867f" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection of the link is not available; all collections are shown.</source>
     </trans-unit>
     <trans-unit id="c86780a2" xml:space="preserve" approved="no" translate="yes">
        <source>Every number, name and source on this page is computed only from the documents of the selected collection. Without a collection, all followed collections are shown.</source>
@@ -15060,9 +15081,6 @@
     </trans-unit>
     <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
        <source>Collections</source>
-    </trans-unit>
-    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
-       <source>Collection</source>
     </trans-unit>
     <trans-unit id="15d78430" xml:space="preserve" approved="no" translate="yes">
        <source>Followed</source>
@@ -15390,9 +15408,6 @@
     </trans-unit>
     <trans-unit id="16333c9f" xml:space="preserve" approved="no" translate="yes">
        <source>The knowledge graph is not running</source>
-    </trans-unit>
-    <trans-unit id="c8a44d9" xml:space="preserve" approved="no" translate="yes">
-       <source>Invalid collection name (letters, digits, - and _).</source>
     </trans-unit>
     <trans-unit id="766f03b4" xml:space="preserve" approved="no" translate="yes">
        <source>No objects match.</source>

@@ -42,6 +42,12 @@ other collections know are "not found". Without a collection the administrator
 sees all followed collections. Status, storage and events on the overview
 describe the whole graph.
 
+The collection is chosen from a list at the top (a `select`, no free text):
+"All collections" first, then the collections of the index alphabetically; a
+new collection appears as soon as the index has pages of it. Choosing applies
+it at once. A `collection=` of a link that is not in the list falls back to
+all collections and the page says so.
+
 ## Reading the facts
 
 - **Quality:** `supported` (stated in a current page by structured data or the

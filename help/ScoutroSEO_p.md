@@ -5,7 +5,9 @@ administration navigation. Administrator authentication is required.
 
 Enter an indexed hostname (without scheme/path/port) and choose **Analyze**.
 **Find hosts** searches an ASCII hostname prefix, with at most 20 visible hosts
-per UI page. An optional collection restricts target URLs. This page never
+per UI page. An optional collection, chosen from the list of the index's
+collections ("All collections" first, no free text; a collection of the link
+that is not listed falls back to all), restricts target URLs. This page never
 fetches a website, starts a crawl, changes settings, or modifies the index.
 
 - **Overview:** indexed URLs, finalized reference-field coverage, stored load
@@ -24,7 +26,7 @@ fetches a website, starts a crawl, changes settings, or modifies the index.
   (current and previous crawl, latest precheck, data age), its live page
   state, canonical links, titles and descriptions (with pages sharing a title
   or a description), first-level directories and the referring hosts observed
-  by this peer. Enter the collection in the tab if none was chosen above.
+  by this peer. Choose the collection in the tab if none was chosen above.
 
 Indexed URLs may include error metadata; this count is not the dashboard's
 successful-document count. Stored dates are not proof of the last complete
@@ -81,7 +83,8 @@ is recorded by these endpoints.
 
 ## Crawl report
 
-**Crawl report** (`ScoutroSEO_p.html?view=report`) shows one collection or one
+**Crawl report** (`ScoutroSEO_p.html?view=report`) shows one collection (chosen
+from the collections of the index and of the Discovery jobs) or one
 Discovery job:
 
 - **Collection:** host counts, crawl outcomes, prechecks, page counters of the

@@ -76,6 +76,16 @@ no YaCy administrator permission, blocked by the AI Shield, rate limit, no chat
 model configured, LLM endpoint not reachable, LLM endpoint rejected the
 credentials. Details: `docs/SCOUTRO_LLM_SECURITY.md`.
 
+## Scoutro: collection
+
+The *Collection* list limits the search to one collection: "All collections"
+(the whole index) first, then the collections you may use, alphabetically.
+Local and administrator access sees every collection of the index, a guest
+only those the administrator released on the AI Shield page. There is no free
+text: `yacychat.html?collection=NAME` and the remembered choice apply only to a
+listed collection, otherwise "All collections" is used. A new collection
+appears in the list as soon as the index has pages of it.
+
 ## Scoutro: knowledge graph sources
 
 When the knowledge graph runs, an answer can also cite facts Scoutro recorded

@@ -12,10 +12,9 @@
 <a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-services" href="ScoutroKnowledge_p.html?view=services" data-skg-view="services">Services</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
 </nav>
 <form id="skg-scope" class="sseo-search skg-scope">
-<label for="skg-collection">Collection (optional)<input class="form-control" id="skg-collection" type="text" maxlength="64" list="skg-collection-list" autocomplete="off" /></label>
-<button class="btn btn-default" type="submit">Apply collection</button>
+<label for="skg-collection">Collection<select class="form-control" id="skg-collection" disabled="disabled" aria-busy="true"><option value="">All collections</option></select></label>
+<p class="sseo-note" id="skg-scope-unknown" hidden>The collection of the link is not available; all collections are shown.</p>
 </form>
-<datalist id="skg-collection-list"></datalist>
 <p class="sseo-note" id="skg-scope-note">Every number, name and source on this page is computed only from the documents of the selected collection. Without a collection, all followed collections are shown.</p>
 <p id="skg-message" role="status" aria-live="polite"></p>
 
@@ -176,7 +175,6 @@
 <span data-skg-label="not_found">Not found in the visible collections.</span>
 <span data-skg-label="disabled">The knowledge graph is disabled (scoutro.kg.enabled=false).</span>
 <span data-skg-label="unavailable">The knowledge graph is not running</span>
-<span data-skg-label="invalid_collection">Invalid collection name (letters, digits, - and _).</span>
 <span data-skg-label="empty">No objects match.</span>
 <span data-skg-label="none">none</span>
 <span data-skg-label="missing">—</span>
@@ -597,5 +595,6 @@
 </div>
 </main>
 #%env/templates/footer.template%#
+<script src="env/scoutro/collections.js"></script>
 <script src="env/scoutro/knowledge.js"></script>
 </body></html>

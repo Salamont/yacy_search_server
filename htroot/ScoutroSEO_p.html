@@ -8,12 +8,11 @@
 <main class="sseo-main">
 <h1>SEO / Host Analysis</h1>
 <nav class="sseo-views" aria-label="Views"><a id="sseo-view-host" href="ScoutroSEO_p.html" aria-current="page">Host analysis</a><a id="sseo-view-report" href="ScoutroSEO_p.html?view=report">Crawl report</a></nav>
-<datalist id="sseo-collection-list"></datalist>
 <div id="sseo-host-view">
 <p class="sseo-note">Read indexed content, crawl metadata and locally observed references.</p>
 <form id="sseo-search" class="sseo-search">
 <label for="sseo-host">Host or HTTP/HTTPS URL<input class="form-control" id="sseo-host" type="text" required maxlength="2048" autocomplete="off" /></label>
-<label for="sseo-collection">Collection (optional)<input class="form-control" id="sseo-collection" type="text" maxlength="64" list="sseo-collection-list" autocomplete="off" /></label>
+<label for="sseo-collection">Collection<select class="form-control" id="sseo-collection" disabled="disabled" aria-busy="true"><option value="">All collections</option></select></label>
 <button class="btn btn-primary" type="submit">Analyze</button>
 <button class="btn btn-default" id="sseo-find" type="button">Find hosts</button>
 </form>
@@ -48,7 +47,7 @@
 <p><a class="btn btn-default" id="sseo-kg-open" href="ScoutroKnowledge_p.html?view=objects">Open in the knowledge graph</a></p>
 <p class="sseo-note">Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.</p></section>
 <section class="sseo-panel" id="sseo-panel-crawl-status" role="tabpanel" aria-labelledby="sseo-tab-crawl-status" tabindex="0" hidden>
-<div class="sseo-controls"><label for="sseo-cs-collection">Collection<input class="form-control" id="sseo-cs-collection" type="text" maxlength="64" list="sseo-collection-list" autocomplete="off" /></label><button class="btn btn-default" id="sseo-cs-show" type="button">Show crawl status</button><a class="btn btn-default" id="sseo-cs-again" href="ScoutroCrawls_p.html#new-crawl">Crawl again</a></div>
+<div class="sseo-controls"><label for="sseo-cs-collection">Collection<select class="form-control" id="sseo-cs-collection" disabled="disabled" aria-busy="true"><option value="">Choose a collection</option></select></label><button class="btn btn-default" id="sseo-cs-show" type="button">Show crawl status</button><a class="btn btn-default" id="sseo-cs-again" href="ScoutroCrawls_p.html#new-crawl">Crawl again</a></div>
 <div id="sseo-cs-body"></div>
 <p class="sseo-note">The crawl status is kept per host and collection. "Crawl again" opens the crawl form with host and collection filled in; nothing starts until you submit it there.</p></section>
 <p class="sseo-note">These references describe the crawlgraph observed by Scoutro, not a complete worldwide backlink index.</p>
@@ -61,7 +60,7 @@
 <p class="sseo-note">Current crawl status per host and collection, live page state from the index and the daily history of Discovery jobs. Viewing this report starts no crawl.</p>
 <form id="sseo-r-form" class="sseo-search">
 <label for="sseo-r-kind">Scope<select class="form-control" id="sseo-r-kind"><option value="collection">Collection</option><option value="job">Discovery job</option></select></label>
-<label for="sseo-r-collection" id="sseo-r-collection-field">Collection<input class="form-control" id="sseo-r-collection" type="text" maxlength="64" list="sseo-collection-list" autocomplete="off" /></label>
+<label for="sseo-r-collection" id="sseo-r-collection-field">Collection<select class="form-control" id="sseo-r-collection" disabled="disabled" aria-busy="true"><option value="">Choose a collection</option></select></label>
 <label for="sseo-r-job" id="sseo-r-job-field" hidden>Discovery job<select class="form-control" id="sseo-r-job"></select></label>
 <label for="sseo-r-from" id="sseo-r-from-field" hidden>From<input class="form-control" id="sseo-r-from" type="date" /></label>
 <label for="sseo-r-to" id="sseo-r-to-field" hidden>To<input class="form-control" id="sseo-r-to" type="date" /></label>
@@ -307,6 +306,7 @@
 </div>
 </main>
 #%env/templates/footer.template%#
+<script src="env/scoutro/collections.js"></script>
 <script src="env/scoutro/seo.js"></script>
 <script src="env/scoutro/seo-report.js"></script>
 </body></html>

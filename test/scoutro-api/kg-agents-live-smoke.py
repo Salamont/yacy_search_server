@@ -212,7 +212,7 @@ def chat(question, collection=None, headers=None, opener=ANON):
     for line in raw.decode().splitlines():
         if line.startswith("data: {"):
             chunk = json.loads(line[6:])
-            for key in ("scoutro-graph", "scoutro-sources", "scoutro-citations"):
+            for key in ("scoutro-graph", "scoutro-sources", "scoutro-citations", "scoutro-retrieval"):
                 if key in chunk:
                     meta[key] = chunk[key]
     return meta, CHAT_PROMPTS[-1] if CHAT_PROMPTS else ""
@@ -236,7 +236,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-agents-") as temporary:
         "autocrawl=false", "server.https=false", "locale.language=browser", "upnp.enabled=false", "donation.iframesource=",
         "resource.disk.free.min.steadystate=1", "resource.disk.free.min.undershot=1",
         "resource.disk.used.max.steadystate=1000000000000", "resource.disk.used.max.overshot=1000000000000",
-        "ai.shield.allow-nonlocalhost=true",
+        "ai.shield.allow-nonlocalhost=true", "ai.shield.guest-collections=kga",
         "scoutro.kg.enabled=true", "scoutro.kg.collections=kga,kgb", "scoutro.kg.jsonld.enabled=true",
         "scoutro.kg.llm.collections=kga", "scoutro.kg.llm.kinds.kga=nursinghome", "scoutro.kg.chat.timeoutMs=2000",
         "ai.production_models=" + json.dumps(models, separators=(",", ":")),
@@ -402,7 +402,25 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-agents-") as temporary:
             assert "Geheime Holding" in prompt and "Haus Lindenhof" not in prompt.split("Scoutro knowledge graph", 1)[-1], prompt[-2000:]
             meta, prompt = chat("Was betreibt die Muster Pflege gGmbH?", "kga", {"X-Forwarded-For": "198.51.100.23"})
             assert meta.get("scoutro-graph", {}).get("reason") == "access" and "Scoutro knowledge graph" not in prompt, (meta, prompt[-1000:])
-            checks += 5
+            # package 6.1: a guest may choose only the released kga; kgb and an unknown name get the same refusal, no name echoed
+            for name in ("kgb", "nirgends-web"):
+                body = {"model": "chat", "stream": True, "collection": name, "messages": [{"role": "user", "content": "Hallo", "search": "local"}]}
+                status, _, raw = call(ANON, "POST", "/v1/chat/completions", body, {"X-Forwarded-For": "198.51.100.23"})
+                error = json.loads(raw.decode())["error"]
+                assert status == 403 and error["code"] == "collection_not_allowed" and name not in raw.decode(), (name, status, raw[:300])
+            meta, prompt = chat("Hallo collection:kgb Muster Pflege", None, {"X-Forwarded-For": "198.51.100.25"})
+            assert meta.get("scoutro-retrieval", {}).get("collection") is None, ("a guest's collection: modifier never scopes to kgb", meta)
+            meta, prompt = chat("Hallo collection:kga Muster Pflege", None, {"X-Forwarded-For": "198.51.100.25"})
+            assert meta.get("scoutro-retrieval", {}).get("collection") == "kga", ("the released kga by modifier", meta)
+            def choices(page):
+                select = re.search(r'<select id="collectionSelect"[^>]*>(.*?)</select>', page, re.S)
+                assert select, page[:500]
+                return re.findall(r'<option value="([^"]*)"', select.group(1))
+            guest_names = choices(call(ANON, "GET", "/yacychat.html", None, {"X-Forwarded-For": "198.51.100.25"})[2].decode())
+            assert guest_names == ["", "kga"], guest_names
+            local_names = choices(call(ANON, "GET", "/yacychat.html")[2].decode())
+            assert local_names[0] == "" and {"kga", "kgb"} <= set(local_names) and local_names[1:] == sorted(local_names[1:], key=lambda c: (c.lower(), c)), local_names
+            checks += 10
             print(f"PASS: {checks} live checks of agents, export, change feed, download, scoutroctl, MCP and chat", flush=True)
 
             ui_env = {**os.environ, "SCOUTRO_URL": BASE}

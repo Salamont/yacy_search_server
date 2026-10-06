@@ -23,7 +23,7 @@
 
   function message(text = '') { $('message').textContent = text; }
   function guarded(task) { const promise = task(), run = generation; promise.catch(e => { if (run === generation) message(e.message); }); }
-  function validCollection(name) { return name === '' || /^[A-Za-z0-9_-]{1,64}$/.test(name); }
+  let allowed = []; // the collections of the select: nothing else is ever used as the scope
 
   async function api(path, query = {}) {
     const p = new URLSearchParams();
@@ -1265,6 +1265,13 @@
     const p = new URLSearchParams(location.search);
     view = VIEWS.includes(p.get('view')) ? p.get('view') : 'overview';
     collection = p.get('collection') || '';
+    // a collection of the link (or of history) counts only if it is one of the listed ones; else all collections
+    const unknown = collection !== '' && !allowed.includes(collection);
+    if (unknown) {
+      collection = ''; p.delete('collection');
+      history.replaceState(null, '', 'ScoutroKnowledge_p.html' + (p.toString() ? '?' + p : '') + location.hash);
+    }
+    $('scope-unknown').hidden = !unknown;
     offset = Math.max(0, parseInt(p.get('offset') || '0', 10) || 0);
     $('collection').value = collection;
     for (const v of VIEWS) $(v).hidden = v !== view;
@@ -1274,7 +1281,6 @@
       const q = new URLSearchParams(a.dataset.skgView === 'overview' ? {} : { view: a.dataset.skgView }); if (collection) q.set('collection', collection);
       a.href = 'ScoutroKnowledge_p.html' + (q.toString() ? '?' + q : '');
     }
-    if (!validCollection(collection)) { message(t('invalid_collection')); return; }
     if (view === 'overview') guarded(overview);
     else if (view === 'objects') {
       for (const k of OBJECT_FILTERS) { const el = $(k); el.value = p.get(k) || ''; if (p.get(k) && el.value !== p.get(k)) { const o = node('option', p.get(k)); o.value = p.get(k); el.append(o); el.value = p.get(k); } }
@@ -1287,11 +1293,9 @@
     else guarded(settings);
   }
 
-  $('scope').addEventListener('submit', e => {
-    e.preventDefault();
-    const name = $('collection').value.trim();
-    if (!validCollection(name)) { message(t('invalid_collection')); return; }
-    collection = name;
+  $('scope').addEventListener('submit', e => e.preventDefault());
+  $('collection').addEventListener('change', () => {
+    collection = $('collection').value;
     const p = Object.fromEntries(new URLSearchParams(location.search)); delete p.collection; delete p.offset;
     navigate(p);
   });
@@ -1330,8 +1334,6 @@
     navigate(a.dataset.skgView === 'overview' ? {} : { view: a.dataset.skgView });
   });
   window.addEventListener('popstate', load);
-  fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
-    for (const item of data?.collections || []) { const o = document.createElement('option'); o.value = item.id; $('collection-list').append(o); }
-  }).catch(() => {});
-  load();
+  // the views start once the list of collections is there, so a collection of the link can be checked against it
+  ScoutroCollections.load().then(ids => { allowed = ids; ScoutroCollections.fill($('collection'), ids, ''); load(); });
 })();

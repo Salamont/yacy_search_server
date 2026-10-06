@@ -28,7 +28,12 @@ try {
   check((await page.locator('#sseo-report-title').textContent()) === l.title, 'Report heading localized' + where);
   check(await page.locator('#sseo-view-report').getAttribute('aria-current') === 'page' && !await page.locator('#sseo-view-host').getAttribute('aria-current'), 'View switch marks current view' + where);
   check((await page.locator('#sseo-view-host').textContent()) === l.host, 'View switch localized' + where);
-  await page.locator('#sseo-r-collection').fill('visible'); await page.locator('#sseo-r-form button[type="submit"]').click();
+  // package 6.1: the collection of the report is chosen from a list (index and Discovery jobs), never typed
+  check(await page.locator('#sseo-r-collection').evaluate(e => e.tagName) === 'SELECT' && await page.locator('#sseo-r-form input[list], datalist').count() === 0, 'Report collection as a real select' + where);
+  await page.waitForFunction(() => !document.getElementById('sseo-r-collection').disabled);
+  const reportNames = await page.locator('#sseo-r-collection option').evaluateAll(list => list.map(o => o.value));
+  check(JSON.stringify(reportNames) === JSON.stringify(['', 'secret', 'visible']), 'Choose first, then the collections sorted: ' + JSON.stringify(reportNames) + where);
+  await page.locator('#sseo-r-collection').selectOption('visible'); await page.locator('#sseo-r-form button[type="submit"]').click();
   await page.waitForSelector('#sseo-r-hosts tbody tr');
   check(new URL(page.url()).search === '?view=report&collection=visible', 'Scope kept in the URL' + where);
   check((await page.locator('#sseo-r-kpis').textContent()).includes('34'), 'Host count from the table' + where);
@@ -95,10 +100,10 @@ try {
   if (shots) await page.screenshot({ path: `${shots}/report-host-${language}-${width}.png`, fullPage: true });
   await page.keyboard.press('ArrowRight');
   check(await page.locator('#sseo-tab-overview').getAttribute('aria-selected') === 'true', 'Arrow keys wrap over six tabs' + where);
-  await page.locator('#sseo-tab-crawl-status').click(); await page.locator('#sseo-cs-collection').fill('secret'); await page.locator('#sseo-cs-show').click();
+  await page.locator('#sseo-tab-crawl-status').click(); await page.locator('#sseo-cs-collection').selectOption('secret'); await page.locator('#sseo-cs-show').click();
   await page.waitForFunction(absent => document.querySelector('#sseo-cs-body').textContent.includes(absent), l.absent);
   check(await page.locator('#sseo-cs-again').getAttribute('href') === 'ScoutroCrawls_p.html?url=https%3A%2F%2Fa.example%2F&collection=secret#new-crawl', 'Absent row is an empty state with a crawl link' + where);
-  await page.locator('#sseo-cs-collection').fill(''); await page.locator('#sseo-cs-show').click();
+  await page.locator('#sseo-cs-collection').selectOption(''); await page.locator('#sseo-cs-show').click();
   check((await page.locator('#sseo-cs-body').textContent()) === l.need, 'Collection required for the crawl status' + where);
   check(errors.length === 0, 'No JS errors: ' + errors.join(';') + where); check(writes.length === 0, 'No mutation requests: ' + writes.join(';') + where);
   await context.close();

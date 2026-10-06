@@ -41,6 +41,12 @@ The request may name one collection:
 ```
 
 - `collection` must match `[A-Za-z0-9_-]{1,64}`, otherwise `400 invalid_request`.
+- It must be one of the client's collections (package 6.1): local and
+  administrator access may name every collection, an AI Shield guest only one
+  released in `ai.shield.guest-collections` (default: none). Any other name is
+  `403 collection_not_allowed`, the same for an existing and an unknown name;
+  the name is not echoed. A `collection:` in a guest's question counts only for
+  a released collection, otherwise the whole index is searched.
 - The YaCy search filters on `collection_sxt`, and every candidate outside the
   collection is dropped again (`foreignDropped` in the log), so sources of other
   collections never reach the context.
@@ -48,8 +54,12 @@ The request may name one collection:
 - Without `collection`: as before, the whole index (or `collection:` in the
   question). Results of several collections can then be mixed; this is the
   documented fallback for clients that send no collection.
-- The chat page has a "Collection (portal):" field; `yacychat.html?collection=edelsenior-web`
-  presets it, the value is remembered in the browser (`localStorage`).
+- The chat page has a *Collection* list (a `select`, no free text): "All
+  collections" first, then the client's collections alphabetically, rendered
+  by the server with the same rule as the endpoint. `yacychat.html?collection=edelsenior-web`
+  presets it and the choice is remembered in the browser (`localStorage`),
+  both only if the name is in the list; otherwise "All collections" applies
+  and a remembered name that is no longer listed is forgotten.
 
 ## 3. Context budget
 
