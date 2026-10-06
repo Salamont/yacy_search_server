@@ -265,7 +265,10 @@ def main():
             check(any(j["title"].startswith("Pflegefachkraft") for j in jobs), f"the job posting: {jobs}")
             rel_text = json.dumps(view.get("relations"), ensure_ascii=False)
             check("Haus Birke" in rel_text and "Haus Eiche" in rel_text, "the operator of both homes")
-            check((view.get("industry") or {}).get("main", {}).get("code", "").startswith("87"), f"the industry: {view.get('industry')}")
+            # residential care (87.10) and day care (88.10), equally supported: their common level is the main industry
+            industry = view.get("industry") or {}
+            codes = [industry.get("main", {}).get("code")] + [i.get("code") for i in industry.get("secondary", [])]
+            check(industry.get("main", {}).get("code") in ("R", "87", "87.10") and "87.10" in codes, f"the industry: {industry}")
             before_run = (status().get("derived") or {}).get("lastRun") or 0
             control("derive")
             deadline = time.monotonic() + 180
