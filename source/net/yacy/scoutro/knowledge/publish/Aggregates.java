@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import net.yacy.scoutro.knowledge.KgConfig;
+import net.yacy.scoutro.knowledge.derive.DerivedService;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.store.KgChangeLog;
 
@@ -470,6 +471,20 @@ public final class Aggregates {
     }
 
     private void deleteEntity(final Connection tx, final long ent) throws SQLException {
+        // the derived rows naming it or its merge records cascade with them: the change feed learns of their end first
+        final List<Long> gone = new ArrayList<>();
+        gone.add(ent);
+        try (PreparedStatement ps = tx.prepareStatement("SELECT ent_rowid FROM kg_entity WHERE merged_into = ?")) {
+            ps.setLong(1, ent);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    gone.add(rs.getLong(1));
+                }
+            }
+        }
+        for (final long g : gone) {
+            DerivedService.forgetEntity(tx, g, this.now);
+        }
         // merge records pointing here go with it; their redirect rows cascade
         try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_entity WHERE merged_into = ?")) {
             ps.setLong(1, ent);

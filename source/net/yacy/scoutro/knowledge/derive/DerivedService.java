@@ -68,9 +68,14 @@ import net.yacy.scoutro.knowledge.vocab.Nace;
  * </ul>
  * Every row names the facts of both sides ({@code basis}: statement IDs) and
  * the two collections they come from; a viewer sees it only with both
- * ({@code kg_change} kind 3 likewise). A pass recomputes everything and
+ * ({@code kg_change} kind 3 likewise). A row of collections (ca, cb) is
+ * built from A's facts in ca and B's facts in cb only: places, services,
+ * customer types and existing relations of a third collection never decide
+ * it and never appear in its reason. A pass recomputes everything and
  * applies the difference; it is enrichment, so the manual pause and every
- * growth refusal stop it (the cascades of deleted entities still apply).
+ * growth refusal stop it (the cascades of deleted entities still apply, with
+ * their feed notices: {@link #forgetEntity}). With the layer switched off,
+ * one pass removes its rows.
  */
 public final class DerivedService {
 
@@ -129,6 +134,8 @@ public final class DerivedService {
     private final LongSupplier clock;
     private volatile long lastRun;
     private volatile Result last;
+    /** True once the rows of a switched-off layer are removed. */
+    private volatile boolean cleared;
 
     public DerivedService(final KgConfig cfg, final KgStore store, final LongSupplier clock) {
         this.cfg = cfg;
@@ -162,6 +169,9 @@ public final class DerivedService {
 
     /** Runs a pass if one is due and growth is allowed; never throws. */
     public Result tick(final long now) {
+        if (!this.cfg.derivedEnabled) {
+            return clear(now);
+        }
         if (!due(now)) {
             return null;
         }
@@ -188,11 +198,57 @@ public final class DerivedService {
         final long start = this.clock.getAsLong();
         final Nace nace = KgVocabularies.get().nace;
         final Map<String, Row> want = this.store.read(c -> compute(c, nace));
-        final Result r = apply(want, start);
+        final Result r = apply(want, start, true);
         r.millis = this.clock.getAsLong() - start;
         this.lastRun = start;
         this.last = r;
         return r;
+    }
+
+    /**
+     * With the layer switched off, removes its rows once (deletions, with
+     * their feed notices): nothing it no longer maintains stays visible.
+     * Keeps the time of the last real pass, so switching it on again starts
+     * after the interval as before.
+     */
+    private Result clear(final long now) {
+        if (this.cleared) {
+            return null;
+        }
+        try {
+            if (this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_derived")) == 0L) {
+                this.cleared = true;
+                return null;
+            }
+            final Result r = apply(new LinkedHashMap<>(), now, false);
+            this.cleared = true;
+            this.last = r;
+            return r;
+        } catch (final KgException e) {
+            return null; // retried at the next step
+        }
+    }
+
+    /**
+     * Records the deletion of every derived row naming {@code ent}, inside
+     * the caller's transaction and before the entity's deletion cascades
+     * them: a feed reader learns of their end like of any other row's.
+     */
+    public static void forgetEntity(final Connection tx, final long ent, final long now) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("SELECT public_id, coll_a, coll_b FROM kg_derived WHERE a_ent = ? OR b_ent = ?")) {
+            ps.setLong(1, ent);
+            ps.setLong(2, ent);
+            final List<Object[]> rows = new ArrayList<>();
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    rows.add(new Object[] {rs.getString(1), rs.getInt(2), rs.getInt(3)});
+                }
+            }
+            for (final Object[] r : rows) {
+                KgChangeLog.record(tx, KgChangeLog.Kind.DERIVED, (String) r[0], KgChangeLog.Op.DELETE, null,
+                        new TreeSet<>(List.of((Integer) r[1], (Integer) r[2])), Set.of(), now);
+            }
+        }
     }
 
     // ------------------------------------------------------------- compute
@@ -211,46 +267,64 @@ public final class DerivedService {
 
     private static final int MAX_LINKED_TO = 20_000;
 
-    /** {@code linked_to}: outbound links of the pages of A's site to B's site, both declared operators. */
+    /**
+     * {@code linked_to}: outbound links of the pages of A's site to B's site,
+     * both declared operators. Collection ca holds the linking page, cb a
+     * page of the target site: the viewer sees both ends of the link.
+     */
     private void linkedTo(final Connection c, final Map<String, Row> out) throws SQLException {
         final Map<String, Long> operators = new HashMap<>();
         final Map<Long, Set<Integer>> scopes = new HashMap<>();
         final Map<String, int[]> counts = new HashMap<>();
         final Map<String, List<String>> samples = new HashMap<>();
+        // target domain, n, doc id, source domain, doc row
+        final List<Object[]> links = new ArrayList<>();
         try (PreparedStatement ps = c.prepareStatement("SELECT l.domain, l.n, d.doc_id, d.url, d.doc_rowid FROM kg_doc_link l"
                 + " JOIN kg_doc d ON d.doc_rowid = l.doc_rowid WHERE d.state = 1 LIMIT " + MAX_ROWS);
                 ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                final String target = rs.getString(1);
                 final String source = Normalizers.registrableDomain(host(rs.getString(4)));
-                if (source == null || source.equals(target)) {
+                if (source != null && !source.equals(rs.getString(1))) {
+                    links.add(new Object[] {rs.getString(1), rs.getInt(2), rs.getString(3), source, rs.getLong(5)});
+                }
+            }
+        }
+        final Set<String> targets = new HashSet<>();
+        for (final Object[] l : links) {
+            targets.add((String) l[0]);
+        }
+        final Map<String, Set<Integer>> targetColls = domainCollections(c, targets);
+        for (final Object[] l : links) {
+            final String target = (String) l[0];
+            final String source = (String) l[3];
+            final Long a = operator(c, operators, source);
+            final Long b = operator(c, operators, target);
+            if (a == null || b == null || a.equals(b)) {
+                continue;
+            }
+            final Set<Integer> docColls = docCollections(c, (Long) l[4]);
+            final Set<Integer> sa = scope(c, scopes, a);
+            final Set<Integer> sb = scope(c, scopes, b);
+            final Set<Integer> tc = targetColls.getOrDefault(target, Collections.emptySet());
+            for (final int ca : docColls) {
+                if (!sa.contains(ca)) {
                     continue;
                 }
-                final Long a = operator(c, operators, source);
-                final Long b = operator(c, operators, target);
-                if (a == null || b == null || a.equals(b)) {
-                    continue;
-                }
-                final Set<Integer> docColls = docCollections(c, rs.getLong(5));
-                final Set<Integer> sa = scope(c, scopes, a);
-                final Set<Integer> sb = scope(c, scopes, b);
-                for (final int ca : docColls) {
-                    if (!sa.contains(ca)) {
-                        continue;
+                for (final int cb : sb) {
+                    if (!tc.contains(cb)) {
+                        continue; // no page of the target site in cb: its viewer cannot see who B is to that site
                     }
-                    for (final int cb : sb) {
-                        final String k = KIND_LINKED_TO + ":" + a + ":" + b + ":" + ca + ":" + cb;
-                        counts.computeIfAbsent(k, x -> new int[1])[0] += Math.max(1, rs.getInt(2));
-                        final List<String> s = samples.computeIfAbsent(k, x -> new ArrayList<>());
-                        if (s.size() < MAX_LINK_SAMPLES && !s.contains(rs.getString(3))) {
-                            s.add(rs.getString(3));
-                        }
-                        if (!out.containsKey(k) && out.size() < MAX_LINKED_TO) {
-                            final Row row = new Row(KIND_LINKED_TO, a, b, ca, cb);
-                            row.confidence = LINKED_TO_CONFIDENCE;
-                            out.put(k, row);
-                            row.basis = KgJson.obj("source_domain", source, "target_domain", target);
-                        }
+                    final String k = KIND_LINKED_TO + ":" + a + ":" + b + ":" + ca + ":" + cb;
+                    counts.computeIfAbsent(k, x -> new int[1])[0] += Math.max(1, (Integer) l[1]);
+                    final List<String> s = samples.computeIfAbsent(k, x -> new ArrayList<>());
+                    if (s.size() < MAX_LINK_SAMPLES && !s.contains((String) l[2])) {
+                        s.add((String) l[2]);
+                    }
+                    if (!out.containsKey(k) && out.size() < MAX_LINKED_TO) {
+                        final Row row = new Row(KIND_LINKED_TO, a, b, ca, cb);
+                        row.confidence = LINKED_TO_CONFIDENCE;
+                        out.put(k, row);
+                        row.basis = KgJson.obj("source_domain", source, "target_domain", target);
                     }
                 }
             }
@@ -287,6 +361,32 @@ public final class DerivedService {
         }
         cache.put(domain, found);
         return found;
+    }
+
+    /** The collections holding an active page of each of {@code domains} (registrable domains). */
+    private static Map<String, Set<Integer>> domainCollections(final Connection c, final Set<String> domains) throws SQLException {
+        final Map<String, Set<Integer>> out = new HashMap<>();
+        if (domains.isEmpty()) {
+            return out;
+        }
+        final Map<String, String> domainOf = new HashMap<>();
+        try (PreparedStatement ps = c.prepareStatement("SELECT d.url, dc.coll_id FROM kg_doc d JOIN kg_doc_collection dc ON dc.doc_rowid = d.doc_rowid"
+                + " WHERE d.state = 1 AND d.url IS NOT NULL LIMIT " + (4L * MAX_ROWS)); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                final String host = host(rs.getString(1));
+                if (host == null) {
+                    continue;
+                }
+                final String domain = domainOf.computeIfAbsent(host, h -> {
+                    final String d = Normalizers.registrableDomain(h);
+                    return d == null ? "" : d;
+                });
+                if (domains.contains(domain)) {
+                    out.computeIfAbsent(domain, x -> new TreeSet<>()).add(rs.getInt(2));
+                }
+            }
+        }
+        return out;
     }
 
     private static Set<Integer> docCollections(final Connection c, final long doc) throws SQLException {
@@ -387,16 +487,17 @@ public final class DerivedService {
                         : g.offeringCategory(target.value);
                 for (final Graph.Fact bf : candidates) {
                     final Graph.Ent b = bf.ent;
-                    if (b.rowid == a.rowid || !b.business() || g.related(a.rowid, b.rowid)) {
+                    if (b.rowid == a.rowid || !b.business() || g.related(a.rowid, b.rowid, target.coll, bf.coll)) {
                         continue;
                     }
-                    final Graph.AreaMatch area = g.area(a, b);
+                    final Graph.AreaMatch area = g.area(a, target.coll, b, bf.coll);
                     if (area.declared && !area.confirmed && !area.unknown) {
                         continue; // A names its area and B is shown to be outside it
                     }
                     double conf = target.predicate.equals(Vocabulary.TARGET_INDUSTRY) ? 0.35 + 0.05 * levelOf(nace, target.value) : 0.55;
                     conf += area.confirmed ? 0.15 : area.declared ? -0.1 : 0.0;
-                    conf += a.b2b ? 0.05 : 0.0;
+                    final boolean b2b = a.b2b.contains(target.coll);
+                    conf += b2b ? 0.05 : 0.0;
                     conf = Math.max(0.2, Math.min(0.75, Math.round(conf * 100.0) / 100.0));
                     final Row row = new Row(KIND_SUGGESTED_CUSTOMER, a.rowid, b.rowid, target.coll, bf.coll);
                     row.confidence = conf;
@@ -409,7 +510,7 @@ public final class DerivedService {
                         bIds.put(area.bFact);
                     }
                     row.basis = KgJson.obj("a", aIds, "b", bIds, "match", KgJson.obj("rule", target.predicate, "target", target.value,
-                            "found", bf.value, "area", area.what, "area_confirmed", area.confirmed, "b2b", a.b2b));
+                            "found", bf.value, "area", area.what, "area_confirmed", area.confirmed, "b2b", b2b));
                     row.reason = target.predicate + " " + target.value + " meets " + bf.predicate + " " + bf.value
                             + (area.confirmed ? "; area " + area.what : area.declared ? "; area not confirmed" : "; no area declared");
                     mine.add(row);
@@ -441,13 +542,15 @@ public final class DerivedService {
                     final Graph.Fact fb = facts.get(j);
                     Graph.Ent a = fa.ent;
                     Graph.Ent b = fb.ent;
-                    if (a.rowid == b.rowid || !a.business() || !b.business() || g.related(a.rowid, b.rowid)) {
+                    if (a.rowid == b.rowid || !a.business() || !b.business() || g.related(a.rowid, b.rowid, fa.coll, fb.coll)) {
                         continue;
                     }
-                    if (a.categories.isEmpty() || b.categories.isEmpty() || !Collections.disjoint(a.categories, b.categories)) {
+                    final Set<String> ka = a.categories(fa.coll);
+                    final Set<String> kb = b.categories(fb.coll);
+                    if (ka.isEmpty() || kb.isEmpty() || !Collections.disjoint(ka, kb)) {
                         continue; // complementary services only; the same services make competitors, not partners
                     }
-                    final Graph.AreaMatch area = g.sharedArea(a, b);
+                    final Graph.AreaMatch area = g.sharedArea(a, fa.coll, b, fb.coll);
                     if (!area.confirmed) {
                         continue;
                     }
@@ -476,19 +579,26 @@ public final class DerivedService {
         }
     }
 
-    /** Keeps the best {@code matches.maxPerEntity} rows of one entity (by confidence); returns how many were added. */
+    /**
+     * Keeps the best {@code matches.maxPerEntity} rows of one entity per
+     * collection of its side (by confidence), so the viewer of each
+     * collection gets the same; returns how many were added.
+     */
     private int keepBest(final List<Row> rows, final Map<String, Row> out) {
         rows.sort((x, y) -> Double.compare(y.confidence, x.confidence));
         int n = 0;
-        final Set<Long> seen = new HashSet<>();
+        final Map<Integer, int[]> perCollection = new HashMap<>();
+        final Set<String> seen = new HashSet<>();
         for (final Row r : rows) {
-            if (n >= this.cfg.matchesMaxPerEntity) {
-                break;
+            final int[] kept = perCollection.computeIfAbsent(r.collA, x -> new int[1]);
+            if (kept[0] >= this.cfg.matchesMaxPerEntity) {
+                continue;
             }
-            if (!seen.add(r.b * 4 + r.kind) && r.kind == KIND_SUGGESTED_CUSTOMER) {
-                continue; // one suggestion per pair: the best reason
+            if (!seen.add(r.b + ":" + r.kind + ":" + r.collA + ":" + r.collB) && r.kind == KIND_SUGGESTED_CUSTOMER) {
+                continue; // one suggestion per pair and pair of collections: the best reason
             }
             if (out.putIfAbsent(r.key(), r) == null) {
+                kept[0]++;
                 n++;
             }
         }
@@ -507,7 +617,7 @@ public final class DerivedService {
 
     // ---------------------------------------------------------------- apply
 
-    private Result apply(final Map<String, Row> want, final long now) throws KgException {
+    private Result apply(final Map<String, Row> want, final long now, final boolean stamp) throws KgException {
         final Result r = new Result();
         r.computed = want.size();
         for (final Row row : want.values()) {
@@ -596,10 +706,12 @@ public final class DerivedService {
                 return null;
             });
         }
-        this.store.write(WriteClass.SYSTEM, 0L, tx -> {
-            KgStore.putMeta(tx, KgSchema.META_DERIVED_AT, Long.toString(now));
-            return null;
-        });
+        if (stamp) {
+            this.store.write(WriteClass.SYSTEM, 0L, tx -> {
+                KgStore.putMeta(tx, KgSchema.META_DERIVED_AT, Long.toString(now));
+                return null;
+            });
+        }
         return r;
     }
 
@@ -658,12 +770,14 @@ public final class DerivedService {
             final List<Fact> industries = new ArrayList<>();
             final List<Fact> areas = new ArrayList<>();
             final List<Fact> audiences = new ArrayList<>();
-            /** place_name keys of the entity's own places (in_place) -> statement id. */
-            final Map<String, String> places = new LinkedHashMap<>();
-            /** place_name keys the entity serves (serves_place) -> statement id. */
-            final Map<String, String> serves = new LinkedHashMap<>();
-            final Set<String> categories = new TreeSet<>();
-            boolean b2b;
+            /** Per collection: place_name keys of the entity's own places (in_place) -> statement id. */
+            final Map<Integer, Map<String, String>> places = new HashMap<>();
+            /** Per collection: place_name keys the entity serves (serves_place) -> statement id. */
+            final Map<Integer, Map<String, String>> serves = new HashMap<>();
+            /** Per collection: the categories of the services it offers there. */
+            final Map<Integer, Set<String>> categories = new HashMap<>();
+            /** The collections in which it names businesses as its customers. */
+            final Set<Integer> b2b = new HashSet<>();
 
             Ent(final long rowid, final String type) {
                 this.rowid = rowid;
@@ -672,6 +786,28 @@ public final class DerivedService {
 
             boolean business() {
                 return Vocabulary.ORGANIZATION.equals(this.type) || Vocabulary.FACILITY.equals(this.type);
+            }
+
+            Map<String, String> places(final int coll) {
+                return this.places.getOrDefault(coll, Collections.emptyMap());
+            }
+
+            Map<String, String> serves(final int coll) {
+                return this.serves.getOrDefault(coll, Collections.emptyMap());
+            }
+
+            Set<String> categories(final int coll) {
+                return this.categories.getOrDefault(coll, Collections.emptySet());
+            }
+
+            List<Fact> areas(final int coll) {
+                final List<Fact> out = new ArrayList<>();
+                for (final Fact f : this.areas) {
+                    if (f.coll == coll) {
+                        out.add(f);
+                    }
+                }
+                return out;
             }
         }
 
@@ -731,14 +867,15 @@ public final class DerivedService {
                             break;
                         default:
                             if ("b2b".equals(f.value)) {
-                                e.b2b = true;
+                                e.b2b.add(f.coll);
                             }
                     }
                 }
             }
-            // places: in_place (own) and serves_place, with the place's key
-            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, v.name, k.value, s.public_id FROM kg_statement s JOIN kg_vocab v"
-                    + " ON v.term_id = s.pred JOIN kg_entity_key k ON k.ent_rowid = s.obj_ent JOIN kg_vocab ks ON ks.term_id = k.scheme"
+            // places: in_place (own) and serves_place, with the place's key, per collection of the statement
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, v.name, k.value, s.public_id, ss.coll_id FROM kg_statement s"
+                    + " JOIN kg_vocab v ON v.term_id = s.pred JOIN kg_statement_scope ss ON ss.stmt_rowid = s.stmt_rowid"
+                    + " JOIN kg_entity_key k ON k.ent_rowid = s.obj_ent JOIN kg_vocab ks ON ks.term_id = k.scheme"
                     + " WHERE v.kind = 2 AND v.name IN ('in_place', 'serves_place') AND ks.name = 'place_name' AND s.quality <> 4 LIMIT " + MAX_ROWS);
                     ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
@@ -747,32 +884,36 @@ public final class DerivedService {
                         continue;
                     }
                     final Ent e = g.ents.computeIfAbsent(rs.getLong(1), k -> new Ent(k, type));
-                    (Vocabulary.IN_PLACE.equals(rs.getString(2)) ? e.places : e.serves).put(rs.getString(3), rs.getString(4));
+                    (Vocabulary.IN_PLACE.equals(rs.getString(2)) ? e.places : e.serves).computeIfAbsent(rs.getInt(5), k -> new LinkedHashMap<>())
+                            .put(rs.getString(3), rs.getString(4));
                 }
             }
-            // the categories of the services each organisation or facility offers
+            // the categories of the services each organisation or facility offers, where offer and category share a collection
             try (PreparedStatement ps = c.prepareStatement("SELECT o.subj, c.obj_val, c.public_id, ss.coll_id FROM kg_statement o"
                     + " JOIN kg_vocab ov ON ov.term_id = o.pred JOIN kg_statement c ON c.subj = o.obj_ent JOIN kg_vocab cv ON cv.term_id = c.pred"
-                    + " JOIN kg_statement_scope ss ON ss.stmt_rowid = c.stmt_rowid WHERE ov.kind = 2 AND ov.name = 'offers' AND cv.kind = 2"
-                    + " AND cv.name = 'category' AND o.quality <> 4 AND c.quality <> 4 LIMIT " + MAX_ROWS); ResultSet rs = ps.executeQuery()) {
+                    + " JOIN kg_statement_scope ss ON ss.stmt_rowid = c.stmt_rowid"
+                    + " JOIN kg_statement_scope os ON os.stmt_rowid = o.stmt_rowid AND os.coll_id = ss.coll_id WHERE ov.kind = 2 AND ov.name = 'offers'"
+                    + " AND cv.kind = 2 AND cv.name = 'category' AND o.quality <> 4 AND c.quality <> 4 LIMIT " + MAX_ROWS);
+                    ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     final String type = types.get(rs.getLong(1));
                     if (type == null || rs.getString(2) == null) {
                         continue;
                     }
                     final Ent e = g.ents.computeIfAbsent(rs.getLong(1), k -> new Ent(k, type));
-                    e.categories.add(rs.getString(2));
+                    e.categories.computeIfAbsent(rs.getInt(4), k -> new TreeSet<>()).add(rs.getString(2));
                     g.offering.computeIfAbsent(rs.getString(2), k -> new ArrayList<>())
                             .add(new Fact(e, Vocabulary.CATEGORY, rs.getString(2), rs.getString(3), rs.getInt(4)));
                 }
             }
-            // existing relations between two entities: a suggestion never repeats or contradicts a fact
-            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, s.obj_ent FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
-                    + " WHERE v.kind = 2 AND s.obj_ent IS NOT NULL AND v.name IN ('operates', 'part_of', 'carrier_of', 'parent_of', 'subsidiary_of',"
+            // existing relations between two entities, per collection: a suggestion never repeats or contradicts a fact its viewer sees
+            try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, s.obj_ent, ss.coll_id FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                    + " JOIN kg_statement_scope ss ON ss.stmt_rowid = s.stmt_rowid WHERE v.kind = 2 AND s.obj_ent IS NOT NULL AND s.quality <> 4"
+                    + " AND v.name IN ('operates', 'part_of', 'carrier_of', 'parent_of', 'subsidiary_of',"
                     + " 'member_of', 'association_member', 'partner_of', 'cooperation_with', 'customer_of', 'reference_for', 'supplier_of',"
                     + " 'service_provider_for', 'brand_of') LIMIT " + MAX_ROWS); ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
-                    g.related.add(Math.min(rs.getLong(1), rs.getLong(2)) + ":" + Math.max(rs.getLong(1), rs.getLong(2)));
+                    g.related.add(Math.min(rs.getLong(1), rs.getLong(2)) + ":" + Math.max(rs.getLong(1), rs.getLong(2)) + ":" + rs.getInt(3));
                 }
             }
             return g;
@@ -807,19 +948,27 @@ public final class DerivedService {
             return l == null ? Collections.emptyList() : l;
         }
 
-        boolean related(final long a, final long b) {
-            return this.related.contains(Math.min(a, b) + ":" + Math.max(a, b));
+        /** A stated relation between A and B in the collection of either side. */
+        boolean related(final long a, final long b, final int ca, final int cb) {
+            final String pair = Math.min(a, b) + ":" + Math.max(a, b) + ":";
+            return this.related.contains(pair + ca) || this.related.contains(pair + cb);
         }
 
-        /** Does B lie in A's declared area? national: B's places in that country; a place: B in that place; international: anywhere. */
-        AreaMatch area(final Ent a, final Ent b) {
+        /**
+         * Does B lie in A's declared area (A's facts in ca, B's in cb)? national: B's places in that country;
+         * a place: B in that place; international: anywhere.
+         */
+        AreaMatch area(final Ent a, final int ca, final Ent b, final int cb) {
             final AreaMatch m = new AreaMatch();
-            m.declared = !a.areas.isEmpty() || !a.serves.isEmpty();
+            final List<Fact> areas = a.areas(ca);
+            final Map<String, String> serves = a.serves(ca);
+            final Map<String, String> places = b.places(cb);
+            m.declared = !areas.isEmpty() || !serves.isEmpty();
             if (!m.declared) {
                 m.unknown = true;
                 return m;
             }
-            for (final Fact f : a.areas) {
+            for (final Fact f : areas) {
                 final JSONObject area = Values.json(f.value);
                 final String kind = area == null ? "" : area.optString("kind");
                 if ("international".equals(kind)) {
@@ -829,10 +978,10 @@ public final class DerivedService {
                     return m;
                 }
             }
-            for (final Map.Entry<String, String> s : a.serves.entrySet()) {
+            for (final Map.Entry<String, String> s : serves.entrySet()) {
                 final String key = s.getKey();
                 final String[] p = key.split("\\|", 3);
-                for (final Map.Entry<String, String> own : b.places.entrySet()) {
+                for (final Map.Entry<String, String> own : places.entrySet()) {
                     final boolean inCountry = p.length == 3 && "country".equals(p[1]) && own.getKey().startsWith(p[0] + "|");
                     if (own.getKey().equals(key) || inCountry) {
                         m.confirmed = true;
@@ -844,26 +993,26 @@ public final class DerivedService {
                 }
             }
             // a state or a radius cannot be checked against B's address: unknown, not refuted
-            for (final Fact f : a.areas) {
+            for (final Fact f : areas) {
                 final JSONObject area = Values.json(f.value);
                 final String kind = area == null ? "" : area.optString("kind");
                 if ("state".equals(kind) || "radius".equals(kind)) {
                     m.unknown = true;
                 }
             }
-            if (b.places.isEmpty()) {
+            if (places.isEmpty()) {
                 m.unknown = true; // B's place is not known
             }
             return m;
         }
 
-        /** A place both serve or are in. */
-        AreaMatch sharedArea(final Ent a, final Ent b) {
+        /** A place both serve or are in (A's facts in ca, B's in cb). */
+        AreaMatch sharedArea(final Ent a, final int ca, final Ent b, final int cb) {
             final AreaMatch m = new AreaMatch();
-            final Set<String> pa = new LinkedHashSet<>(a.places.keySet());
-            pa.addAll(a.serves.keySet());
-            final Set<String> pb = new LinkedHashSet<>(b.places.keySet());
-            pb.addAll(b.serves.keySet());
+            final Set<String> pa = new LinkedHashSet<>(a.places(ca).keySet());
+            pa.addAll(a.serves(ca).keySet());
+            final Set<String> pb = new LinkedHashSet<>(b.places(cb).keySet());
+            pb.addAll(b.serves(cb).keySet());
             for (final String k : pa) {
                 if (!k.contains("|country|") && pb.contains(k)) {
                     m.declared = true;
@@ -881,14 +1030,15 @@ public final class DerivedService {
             final List<Ent> sorted = new ArrayList<>(this.ents.values());
             sorted.sort((x, y) -> Long.compare(x.rowid, y.rowid));
             for (final Ent e : sorted) {
+                // once per entity, audience and collection: each collection's viewer gets the pairs its facts make
                 final Set<String> once = new HashSet<>();
                 for (final Fact f : e.audiences) {
-                    if (once.add("s|" + f.value)) {
+                    if (once.add(f.coll + "|s|" + f.value)) {
                         out.computeIfAbsent("s|" + f.value, k -> new ArrayList<>()).add(f);
                     }
                 }
                 for (final Fact f : e.targets) {
-                    if (Vocabulary.TARGET_INDUSTRY.equals(f.predicate) && once.add("i|" + f.value)) {
+                    if (Vocabulary.TARGET_INDUSTRY.equals(f.predicate) && once.add(f.coll + "|i|" + f.value)) {
                         out.computeIfAbsent("i|" + f.value, k -> new ArrayList<>()).add(f);
                     }
                 }

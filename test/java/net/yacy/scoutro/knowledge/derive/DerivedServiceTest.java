@@ -262,6 +262,174 @@ public class DerivedServiceTest {
         }
     }
 
+    @Test
+    public void aSuggestionUsesOnlyTheFactsOfItsTwoCollections() throws Exception {
+        corpus();
+        // Haus Ahorn's address is known only from a third collection
+        final String id = "\"@id\":\"https://www.lindenhof.de/#ahorn\",\"name\":\"Haus Ahorn\",\"parentOrganization\":{\"@type\":\"Organization\","
+                + "\"name\":\"Lindenhof Pflege gGmbH\",\"url\":\"https://www.lindenhof.de/\"}";
+        final Publisher.Doc ahorn = doc("HAHORNhost02", "https://www.lindenhof.de/haus-Ahorn", "edelsenior-web");
+        publish(ahorn, page(ahorn, "{\"@type\":\"NursingHome\"," + id + "}", null, ctx("care", "edelsenior-web")));
+        final Publisher.Doc atlas = doc("ATLASShost02", "https://www.lindenhof.de/standorte", "pflegeatlas-web");
+        publish(atlas, page(atlas, "{\"@type\":\"NursingHome\"," + id + ",\"address\":{\"streetAddress\":\"Ahornweg 1\",\"postalCode\":\"20095\","
+                + "\"addressLocality\":\"Hamburg\"}}", null, ctx("care", "pflegeatlas-web")));
+        final java.util.Set<String> third = new java.util.HashSet<>(this.store.read(c -> {
+            final List<String> ids = new ArrayList<>();
+            try (java.sql.Statement st = c.createStatement(); java.sql.ResultSet rs = st.executeQuery("SELECT s.public_id FROM kg_statement s"
+                    + " JOIN kg_statement_scope ss ON ss.stmt_rowid = s.stmt_rowid JOIN kg_collection k ON k.coll_id = ss.coll_id"
+                    + " WHERE k.name = 'pflegeatlas-web' AND NOT EXISTS (SELECT 1 FROM kg_statement_scope o JOIN kg_collection ko ON ko.coll_id = o.coll_id"
+                    + " WHERE o.stmt_rowid = s.stmt_rowid AND ko.name <> 'pflegeatlas-web')")) {
+                while (rs.next()) {
+                    ids.add(rs.getString(1));
+                }
+            }
+            return ids;
+        }));
+        assertEquals("one Haus Ahorn in both collections", 1L, (long) this.store.read(c -> KgStore.queryLong(c,
+                "SELECT count(DISTINCT subj) FROM kg_statement WHERE obj_val = 'Haus Ahorn'")));
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        int ahornHere = 0;
+        for (final String row : derived("d.kind IN (3, 4)")) {
+            final String[] f = row.split("\\|", 7);
+            if (f[4].equals("pflegeatlas-web")) {
+                continue; // the third collection's own row: its facts are its basis
+            }
+            final JSONObject basis = new JSONObject(f[6]);
+            for (final String side : new String[] {"a", "b"}) {
+                for (int i = 0; i < basis.getJSONArray(side).length(); i++) {
+                    assertFalse("a fact of another collection: " + row, third.contains(basis.getJSONArray(side).getString(i)));
+                }
+            }
+            assertFalse(row, row.contains("hamburg"));
+            if (f[2].equals("Haus Ahorn")) {
+                ahornHere++;
+                assertFalse("no place of Haus Ahorn is in its collection: " + row, basis.getJSONObject("match").getBoolean("area_confirmed"));
+                assertEquals(row, 1, basis.getJSONArray("b").length());
+            }
+        }
+        assertEquals(1, ahornHere);
+    }
+
+    @Test
+    public void aSeekerInTwoCollectionsGetsItsSuggestionsInEach() throws Exception {
+        corpus();
+        final ExtractContext sw = ctx("software", "pflegeit-web");
+        final Publisher.Doc again = doc("SWAGAIhost01", "https://www.pflegesoft.de/branchen", "pflegeit-web");
+        publish(again, page(again, "{\"@type\":\"Organization\",\"name\":\"PflegeSoft GmbH\",\"url\":\"https://www.pflegesoft.de/\"}",
+                "Für wen? Wir unterstützen Pflegeeinrichtungen bundesweit bei der Dienstplanung.", sw));
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        final List<String> customers = derived("d.kind = 3");
+        int stackfinder = 0;
+        int pflegeit = 0;
+        for (final String row : customers) {
+            final String[] f = row.split("\\|", 7);
+            stackfinder += f[3].equals("stackfinder-web") ? 1 : 0;
+            pflegeit += f[3].equals("pflegeit-web") ? 1 : 0;
+        }
+        assertEquals(customers.toString(), 2, stackfinder);
+        assertEquals("a viewer of the second collection sees the same suggestions: " + customers, 2, pflegeit);
+    }
+
+    /** Two care providers with complementary services for the same audience; Linde's area on {@code areaPage} only. */
+    private void partners(final String lindeArea) throws Exception {
+        final ExtractContext care = ctx("care", "edelsenior-web");
+        final Publisher.Doc sonne = doc("SONNEEhost03", "https://www.sonne-pflege.de/", "edelsenior-web");
+        publish(sonne, page(sonne, "{\"@type\":\"Organization\",\"name\":\"Sonne Pflegedienst GmbH\",\"url\":\"https://www.sonne-pflege.de/\"}",
+                "Unsere Leistungen: Ambulante Pflege, Verhinderungspflege. Unser Angebot richtet sich an Senioren und pflegebedürftige"
+                        + " Menschen in Potsdam und Umgebung.", care));
+        final String linde = "{\"@type\":\"Organization\",\"name\":\"Tagespflege Linde GmbH\",\"url\":\"https://www.linde-tagespflege.de/\"}";
+        final Publisher.Doc home = doc("LINDEEhost04", "https://www.linde-tagespflege.de/", "edelsenior-web");
+        publish(home, page(home, linde, "Unsere Leistungen: Tagespflege. Unser Angebot richtet sich an Senioren und pflegebedürftige Menschen"
+                + (lindeArea == null ? " in Potsdam und Umgebung." : "."), care));
+        if (lindeArea != null) {
+            final Publisher.Doc area = doc("LINDEAhost04", "https://www.linde-tagespflege.de/einzugsgebiet", lindeArea);
+            publish(area, page(area, linde, "Unser Angebot richtet sich an Senioren und pflegebedürftige Menschen in Potsdam und Umgebung.",
+                    ctx("care", lindeArea)));
+        }
+    }
+
+    @Test
+    public void complementaryProvidersInOnePlaceAreSuggestedPartners() throws Exception {
+        partners(null);
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        final List<String> rows = derived("d.kind = 4");
+        assertEquals(rows.toString(), 1, rows.size());
+        assertTrue(rows.get(0), rows.get(0).startsWith("4|Sonne Pflegedienst GmbH|Tagespflege Linde GmbH|edelsenior-web|edelsenior-web|"));
+        assertTrue(rows.get(0), rows.get(0).contains("potsdam"));
+    }
+
+    @Test
+    public void aPartnerAreaFromAnotherCollectionDoesNotCount() throws Exception {
+        partners("pflegeatlas-web");
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        // in edelsenior-web Linde names no place, in pflegeatlas-web no service: no collection holds both
+        assertEquals(derived(null).toString(), 0, derived("d.kind = 4").size());
+    }
+
+    @Test
+    public void aWeakLinkNeedsAPageOfTheTargetSiteInTheTargetCollection() throws Exception {
+        corpus();
+        // the operator, known by its VAT ID, also appears on a directory site in a third collection
+        final String vat = ",\"vatID\":\"DE123456789\"";
+        final Publisher.Doc imprint = doc("CAIMPRhost02", "https://www.lindenhof.de/impressum", "edelsenior-web");
+        publish(imprint, page(imprint, "{\"@type\":\"Organization\",\"name\":\"Lindenhof Pflege gGmbH\",\"url\":\"https://www.lindenhof.de/\"" + vat
+                + "}", null, ctx("care", "edelsenior-web")));
+        final Publisher.Doc listing = doc("ATLASLhost05", "https://www.pflegeatlas.de/lindenhof", "pflegeatlas-web");
+        publish(listing, page(listing, "{\"@type\":\"Organization\",\"name\":\"Lindenhof Pflege gGmbH\"" + vat + "}", null,
+                ctx("care", "pflegeatlas-web")));
+        assertEquals("one operator, by its VAT ID", 1L, (long) this.store.read(c -> KgStore.queryLong(c,
+                "SELECT count(DISTINCT subj) FROM kg_statement WHERE obj_val = 'DE123456789'")));
+        assertEquals("its scope reaches the third collection", 1L, (long) this.store.read(c -> KgStore.queryLong(c,
+                "SELECT count(*) FROM kg_entity_scope s JOIN kg_collection k ON k.coll_id = s.coll_id WHERE k.name = 'pflegeatlas-web'"
+                        + " AND s.ent_rowid = (SELECT subj FROM kg_statement WHERE obj_val = 'DE123456789' LIMIT 1)")));
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        final List<String> linked = derived("d.kind = 1");
+        assertEquals(linked.toString(), 1, linked.size());
+        assertTrue(linked.get(0), linked.get(0).contains("|stackfinder-web|edelsenior-web|"));
+    }
+
+    @Test
+    public void switchingTheLayerOffRemovesItsRowsWithFeedNotices() throws Exception {
+        corpus();
+        final DerivedService on = new DerivedService(this.cfg, this.store, () -> this.now);
+        final int rows = on.run().inserted;
+        assertTrue(rows > 0);
+        final String stamp = this.store.read(c -> KgStore.getMeta(c, net.yacy.scoutro.knowledge.store.KgSchema.META_DERIVED_AT));
+        final KgConfig offCfg = KgTestSupport.config(KgTestSupport.enabled(KgConfig.DERIVED_ENABLED, "false"));
+        final DerivedService off = new DerivedService(offCfg, this.store, () -> this.now + 1);
+        final DerivedService.Result r = off.tick(this.now + 1);
+        assertEquals(rows, r.deleted);
+        assertEquals(0L, (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_derived")));
+        assertEquals("only one pass", null, off.tick(this.now + 2));
+        assertEquals("the last real pass keeps its time", stamp,
+                this.store.read(c -> KgStore.getMeta(c, net.yacy.scoutro.knowledge.store.KgSchema.META_DERIVED_AT)));
+        assertEquals(rows, derivedDeletes(viewer("stackfinder-web", "edelsenior-web")));
+    }
+
+    @Test
+    public void anEntityThatGoesTakesItsDerivedRowsWithFeedNotices() throws Exception {
+        corpus();
+        new DerivedService(this.cfg, this.store, () -> this.now).run();
+        final long birke = this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_derived d JOIN kg_statement s ON s.subj IN (d.a_ent, d.b_ent)"
+                + " JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'name' AND s.obj_val = 'Haus Birke'"));
+        assertEquals("same_operator and a suggestion", 2L, birke);
+        // the page goes, and with it the entity and its derived rows (cascade), before any further pass
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> this.publisher.remove(tx, List.of("HBIRKEhost02"), null, this.now + 1));
+        assertEquals(0L, (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_statement WHERE obj_val = 'Haus Birke'")));
+        assertEquals(2, derivedDeletes(viewer("stackfinder-web", "edelsenior-web")));
+        assertEquals("same_operator lies in one collection", 1, derivedDeletes(viewer("edelsenior-web")));
+    }
+
+    private int derivedDeletes(final Viewer v) throws Exception {
+        int n = 0;
+        for (final KgChangeLog.Item it : this.store.read(c -> KgChangeLog.read(c, null, v, 1000)).items) {
+            if (it.kind == KgChangeLog.Kind.DERIVED && it.op == KgChangeLog.Op.DELETE) {
+                n++;
+            }
+        }
+        return n;
+    }
+
     private int derivedItems(final Viewer v) throws Exception {
         int n = 0;
         for (final KgChangeLog.Item it : this.store.read(c -> KgChangeLog.read(c, null, v, 1000)).items) {
