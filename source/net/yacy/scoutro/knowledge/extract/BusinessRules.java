@@ -301,16 +301,19 @@ public final class BusinessRules {
                 final int from = Math.max(0, p.start - 64);
                 final Matcher lm = LABEL_BEFORE.matcher(run.text.substring(from, p.start));
                 if (lm.find()) {
-                    final String label = lm.group(1).trim();
+                    // the label begins after the last sentence end: "Preise. Wartung Gasheizung: 149 €"
+                    final String found = lm.group(1).trim();
+                    final String label = Values.afterLastSentence(found);
+                    final int shift = found.length() - label.length();
                     if (label.length() >= 3 && !BusinessFacts.personLike(label) && !label.matches("(?iu).*\\b(?:preis|preise|kosten|ab|bis|von)$")
                             && !label.matches("(?iu)^(?:preis|preise|kosten|tel|telefon|fax)$")) {
                         final Mention m = run.out.add(new Mention(BusinessFacts.SERVICE_REF + "label:" + Normalizers.key(label), Vocabulary.SERVICE, 2));
                         m.name = label;
                         final String provider = Mention.providerKey(run.subject);
                         m.serviceKey = provider == null ? null : provider + "|label:" + Normalizers.key(label);
-                        claim(run, m, Vocabulary.NAME, label, from + lm.start(1), from + lm.end(1), 0.65);
+                        claim(run, m, Vocabulary.NAME, label, from + lm.start(1) + shift, from + lm.end(1), 0.65);
                         relation(run, run.subject, Vocabulary.OFFERS, m, from + lm.start(1), p.end, 0.65);
-                        BusinessFacts.categorize(run.out, run.ctx, m, label, 2, Claim.KIND_RULE, loc(from + lm.start(1), from + lm.end(1)),
+                        BusinessFacts.categorize(run.out, run.ctx, m, label, 2, Claim.KIND_RULE, loc(from + lm.start(1) + shift, from + lm.end(1)),
                                 "", this.maxExcerpt);
                         service = m;
                         confidence = 0.65;
@@ -377,6 +380,10 @@ public final class BusinessRules {
                     + "|\\bin\\s+zusammenarbeit\\s+mit\\s+", Vocabulary.COOPERATION_WITH, true, true),
             new Marker("\\b(?:unsere|our)\\s+(?:partner(?:unternehmen|firmen)?|partners)\\s*:?\\s*|\\bpartner\\s*:\\s*"
                     + "|\\bin\\s+partnerschaft\\s+mit\\s+", Vocabulary.PARTNER_OF, true, true),
+            // in a sentence, not a list: "Wir sind Partner der PflegeSoft GmbH", "offizieller Partner von", "we are a partner of";
+            // only a name with a legal form or an institution word ("Partner der Region" names nobody)
+            new Marker("\\b(?:sind|ist|als)\\s+(?:offizielle[rn]?\\s+|zertifizierte[rn]?\\s+|autorisierte[rn]?\\s+)?partner\\s+(?:der|des|von|vom)\\s+"
+                    + "|\\b(?:are|is)\\s+(?:an?\\s+)?(?:official\\s+|certified\\s+)?partner\\s+of\\s+(?:the\\s+)?", Vocabulary.PARTNER_OF, true, false),
             new Marker("\\b(?:unsere|our)\\s+(?:kunden|clients|customers)(?:\\s+(?:sind|wie|u\\.\\s?a\\.|unter\\s+anderem|include|including))?\\s*:?\\s*"
                     + "|\\bkunden\\s+wie\\s+|\\bauswahl\\s+unserer\\s+kunden\\s*:?\\s*|\\btrusted\\s+by\\s+|\\bkundenliste\\s*:?\\s*",
                     Vocabulary.CUSTOMER_OF, false, true),

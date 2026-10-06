@@ -224,6 +224,37 @@ public class BusinessExtractionTest {
                 .map(c -> c.predicate).distinct().collect(java.util.stream.Collectors.toList()));
     }
 
+    /** Benchmark finding: "Wir sind Partner der …" named no partner. */
+    @Test
+    public void aPartnerNamedInASentenceIsAPartner() {
+        final Extraction ex = rules("CloudWerk entwickelt ERP-Software. Wir sind Partner der PflegeSoft GmbH. Zertifiziert nach ISO 27001.",
+                "https://www.cloudwerk.de/", vocabulary("software", "stackfinder-web"), List.of());
+        final Mention partner = named(ex, Vocabulary.ORGANIZATION, "PflegeSoft GmbH");
+        assertNotNull(ex.mentions().toString(), partner);
+        assertTrue(ex.claims().stream().anyMatch(c -> Vocabulary.PARTNER_OF.equals(c.predicate) && partner.ref.equals(c.object)));
+        // a generic "Partner der Region" names no organisation
+        final Extraction region = rules("Wir sind Partner der Region und der Menschen vor Ort.", "https://www.cloudwerk.de/",
+                vocabulary("software", "stackfinder-web"), List.of());
+        assertTrue(region.claims().stream().noneMatch(c -> Vocabulary.PARTNER_OF.equals(c.predicate)));
+    }
+
+    /** Benchmark finding: the heading before a price list line was read as part of its label ("Preise. Wartung Gasheizung"). */
+    @Test
+    public void aPriceListLabelStartsAfterTheHeading() {
+        final Extraction ex = rules("Preise. Wartung Gasheizung: 149 € pauschal. Stand: 09/2026", "https://www.mueller-haustechnik.de/preise",
+                care(false), List.of());
+        assertNotNull(ex.mentions().toString(), named(ex, Vocabulary.SERVICE, "Wartung Gasheizung"));
+        assertNull(named(ex, Vocabulary.SERVICE, "Preise. Wartung Gasheizung"));
+        for (final Claim c : ex.claims()) {
+            if (Vocabulary.NAME.equals(c.predicate) && "Wartung Gasheizung".equals(c.value)) {
+                assertTrue("the name's evidence is the label itself: " + c.excerpt, c.excerpt.contains("Wartung Gasheizung"));
+            }
+        }
+        assertEquals("Wartung Gasheizung", Values.afterLastSentence("Preise. Wartung Gasheizung"));
+        assertEquals("St. Martin Paket", Values.afterLastSentence("St. Martin Paket"));
+        assertEquals("Grundpaket", Values.afterLastSentence("Grundpaket"));
+    }
+
     @Test
     public void aPriceOnAPageThatIsNoPriceListNeedsANamedService() {
         final Extraction ex = rules("Willkommen. Jetzt nur 2 € für den Newsletter-Versand. Tagespflege gibt es auch.",

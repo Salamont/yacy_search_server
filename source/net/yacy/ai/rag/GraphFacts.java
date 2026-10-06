@@ -327,6 +327,9 @@ public final class GraphFacts {
         if ("ended".equals(f.note)) {
             return " (this job has ended)";
         }
+        if ("stale".equals(f.note)) {
+            return " (possibly outdated: older than the time Scoutro trusts a price without a newer date; give it only with its date and say so)";
+        }
         if (!"uncertain".equals(f.quality)) {
             return "";
         }

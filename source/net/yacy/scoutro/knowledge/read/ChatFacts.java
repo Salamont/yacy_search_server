@@ -61,11 +61,13 @@ public final class ChatFacts {
     /** Order of the facts in an entry. */
     private static final List<String> ORDER;
     static {
-        final List<String> o = new ArrayList<>(List.of(Vocabulary.LEGAL_FORM, Vocabulary.INDUSTRY, Vocabulary.INDUSTRY_CATEGORY,
-                Vocabulary.OPERATES, Vocabulary.PART_OF, Vocabulary.LOCATED_AT, Vocabulary.IN_PLACE, Vocabulary.OFFERS, Vocabulary.CATEGORY,
-                Vocabulary.PRICE, Vocabulary.ADDRESS, Vocabulary.POSTAL_CODE, Vocabulary.LOCALITY, Vocabulary.OPENING_HOURS,
-                Vocabulary.OFFICE_HOURS, Vocabulary.PHONE, Vocabulary.FAX, Vocabulary.EMAIL, Vocabulary.CONTACT_POINT, Vocabulary.CONTACT_FORM,
-                Vocabulary.WEBSITE, Vocabulary.SOCIAL_PROFILE, Vocabulary.DIRECTIONS));
+        // without a recognisable question intent the master data first, as in the first vocabulary; prices only as business
+        // facts with their date (below), never as a bare literal
+        final List<String> o = new ArrayList<>(List.of(Vocabulary.LEGAL_FORM, Vocabulary.OPERATES, Vocabulary.PART_OF, Vocabulary.LOCATED_AT,
+                Vocabulary.IN_PLACE, Vocabulary.ADDRESS, Vocabulary.POSTAL_CODE, Vocabulary.LOCALITY, Vocabulary.PHONE, Vocabulary.EMAIL,
+                Vocabulary.OPENING_HOURS, Vocabulary.OFFICE_HOURS, Vocabulary.WEBSITE, Vocabulary.INDUSTRY, Vocabulary.INDUSTRY_CATEGORY,
+                Vocabulary.OFFERS, Vocabulary.CATEGORY, Vocabulary.FAX, Vocabulary.CONTACT_POINT, Vocabulary.CONTACT_FORM,
+                Vocabulary.SOCIAL_PROFILE, Vocabulary.DIRECTIONS));
         // vocabulary 2: relations between organisations as the page states them (linked_to is no statement and never here)
         o.addAll(Vocabulary.BUSINESS_RELATIONS);
         o.addAll(List.of(Vocabulary.CERTIFICATION, Vocabulary.CUSTOMER_TYPE, Vocabulary.AUDIENCE_SEGMENT, Vocabulary.TARGET_INDUSTRY,
@@ -75,6 +77,128 @@ public final class ChatFacts {
     }
     /** Business facts added per entity (services' prices, jobs, incoming relations, suggestions). */
     static final int MAX_BUSINESS_FACTS = 8;
+
+    /**
+     * What a question asks for: words (compared as the question's stems) and the predicates they put first; the more
+     * specific intents before the general ones (opening hours before contacts).
+     */
+    private static final List<Object[]> INTENTS = intents(
+            new Object[] {List.of("telefon", "telefonnummer", "rufnummer", "nummer", "anrufen", "hotline", "phone", "call", "fax"),
+                List.of(Vocabulary.PHONE, Vocabulary.FAX, Vocabulary.CONTACT_POINT, Vocabulary.OFFICE_HOURS)},
+            new Object[] {List.of("adresse", "anschrift", "strasse", "standort", "sitz", "address", "located"),
+                List.of(Vocabulary.ADDRESS, Vocabulary.POSTAL_CODE, Vocabulary.LOCALITY, Vocabulary.DIRECTIONS, Vocabulary.LOCATED_AT)},
+            new Object[] {List.of("umsatzsteuer", "ust", "steuernummer", "vat", "handelsregister", "registergericht", "hrb", "lei", "wikidata"),
+                List.of(Vocabulary.ID_VAT, Vocabulary.ID_REGISTER, Vocabulary.ID_LEI, Vocabulary.ID_IK, Vocabulary.ID_WIKIDATA)},
+            new Object[] {List.of("offnungszeiten", "geoffnet", "zeiten", "uhrzeit", "erreichbar", "hours", "opening"),
+                List.of(Vocabulary.OPENING_HOURS, Vocabulary.OFFICE_HOURS)},
+            new Object[] {List.of("mail", "email", "kontakt", "contact"),
+                List.of(Vocabulary.EMAIL, Vocabulary.PHONE, Vocabulary.CONTACT_POINT, Vocabulary.CONTACT_FORM)},
+            new Object[] {List.of("preis", "preise", "kosten", "kostet", "teuer", "gebuhr", "euro", "tarif", "price", "cost", "vergleich",
+                "compare"), List.of(Vocabulary.PRICE, Vocabulary.OFFERS)},
+            new Object[] {List.of("stelle", "stellen", "job", "jobs", "karriere", "bewerben", "bewerbung", "gehalt", "vergutung", "verdienst",
+                "bezahlt", "ausbildung", "salary", "career"), List.of(Vocabulary.HIRING_ORGANIZATION)},
+            new Object[] {List.of("branche", "tatig", "industrie", "wirtschaftszweig", "sektor", "industry", "sector"),
+                List.of(Vocabulary.INDUSTRY, Vocabulary.INDUSTRY_CATEGORY, Vocabulary.CATEGORY)},
+            new Object[] {List.of("leistung", "leistungen", "angebot", "bietet", "anbieten", "service", "dienstleistung"),
+                List.of(Vocabulary.OFFERS, Vocabulary.CATEGORY, Vocabulary.INDUSTRY_CATEGORY)},
+            new Object[] {List.of("trager", "betreiber", "betreibt", "gehoren", "gehort", "einrichtung", "einrichtungen", "operator",
+                "tochter", "muttergesellschaft"), List.of(Vocabulary.OPERATES, Vocabulary.PART_OF, Vocabulary.CARRIER_OF, Vocabulary.PARENT_OF,
+                        Vocabulary.SUBSIDIARY_OF)},
+            new Object[] {List.of("partner", "kunden", "kunde", "mitglied", "innung", "verband", "zertifiziert", "lieferant", "referenz",
+                "kooperation", "kooperiert", "gefordert", "sponsor", "certified", "member", "supplier"), new ArrayList<>(Vocabulary.BUSINESS_RELATIONS)},
+            new Object[] {List.of("zertifiziert", "zertifikat", "certified", "siegel", "iso"), List.of(Vocabulary.CERTIFICATION, Vocabulary.CERTIFIED_BY)},
+            new Object[] {List.of("zielgruppe", "richtet", "gedacht", "privatpersonen", "unternehmen", "geschaftskunden", "b2b", "b2c",
+                "audience", "kunden"), List.of(Vocabulary.CUSTOMER_TYPE, Vocabulary.AUDIENCE_SEGMENT, Vocabulary.TARGET_INDUSTRY,
+                        Vocabulary.TARGET_CATEGORY, Vocabulary.COMPANY_SIZE, Vocabulary.SERVICE_AREA, Vocabulary.NEED)});
+
+    /** The intents with their words as question stems: folded, one ending off like the chat's own terms ("partner" -> "partn"). */
+    private static List<Object[]> intents(final Object[]... raw) {
+        final List<Object[]> out = new ArrayList<>();
+        for (final Object[] r : raw) {
+            final List<String> stems = new ArrayList<>();
+            for (final Object w : (List<?>) r[0]) {
+                final String st = stemLike((String) w);
+                if (!stems.contains(st)) {
+                    stems.add(st);
+                }
+            }
+            out.add(new Object[] {stems, r[1]});
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    /** The question stems of the chat ({@code RagQuery}): folded, without one of the endings ern, en, er, es, e, n, s, at least 5 letters. */
+    public static String stemLike(final String word) {
+        final String f = fold(word);
+        if (f.length() > 5) {
+            for (final String suffix : new String[] {"ern", "en", "er", "es", "e", "n", "s"}) {
+                if (f.endsWith(suffix) && f.length() - suffix.length() >= 5) {
+                    return f.substring(0, f.length() - suffix.length());
+                }
+            }
+        }
+        return f;
+    }
+
+    /** The visible name of who offers a service; null if no visible statement says so. */
+    private static String provider(final Connection c, final long service, final Viewer v) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT s.subj FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                + " WHERE s.obj_ent = ? AND v.name = 'offers' AND " + KgReader.visibleStatement(v, "s") + " LIMIT 1")) {
+            ps.setLong(1, service);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? KgReader.visibleName(c, rs.getLong(1), v) : null;
+            }
+        }
+    }
+
+    static final int PASS_ALL = 0;
+    static final int PASS_ASKED = 1;
+    static final int PASS_REST = 2;
+
+    /** Adds an entry, or its facts to the entry of the same entity and page from an earlier pass. */
+    private static void merge(final List<Entry> out, final Entry e) {
+        for (final Entry x : out) {
+            if (x.entity.equals(e.entity) && x.docId.equals(e.docId)) {
+                x.facts.addAll(e.facts);
+                return;
+            }
+        }
+        out.add(e);
+    }
+
+    /** True if a fact of {@code key} (a predicate; job, inverse relations and suggestions by their kind) belongs to the pass. */
+    private static boolean inPass(final String key, final List<String> asked, final int pass) {
+        if (pass == PASS_ALL) {
+            return true;
+        }
+        final String k = "job".equals(key) ? Vocabulary.HIRING_ORGANIZATION : key.startsWith("inverse:") ? Vocabulary.CUSTOMER_OF : key;
+        return asked.contains(k) == (pass == PASS_ASKED);
+    }
+
+    /** The predicates a question asks for (in the order of the intents it matches); empty if none is recognised. */
+    @SuppressWarnings("unchecked")
+    static List<String> intent(final List<String> terms) {
+        final List<String> out = new ArrayList<>();
+        for (final Object[] i : INTENTS) {
+            boolean hit = false;
+            for (final String t : terms) {
+                final String f = t == null ? "" : fold(t);
+                for (final String stem : (List<String>) i[0]) {
+                    if (stem.length() <= 3 ? f.equals(stem) : f.startsWith(stem) || stem.startsWith(f) && f.length() >= 5) {
+                        hit = true;
+                    }
+                }
+            }
+            if (hit) {
+                for (final String p : (List<String>) i[1]) {
+                    if (!out.contains(p)) {
+                        out.add(p);
+                    }
+                }
+            }
+        }
+        return out;
+    }
 
     /** One fact as the chat shows it. */
     public static final class Fact {
@@ -146,17 +270,22 @@ public final class ChatFacts {
     public List<Entry> select(final List<String> docIds, final List<String> terms, final Viewer v, final int maxFacts, final long deadline)
             throws KgException {
         final long now = this.reader.now();
+        final List<String> asked = intent(terms);
         return this.reader.store().read(c -> {
             final List<Long> entities = candidates(c, docIds, terms, v);
             final List<Entry> out = new ArrayList<>();
             int facts = 0;
-            for (final Long ent : entities) {
-                if (facts >= maxFacts) {
-                    break;
-                }
-                for (final Entry e : entries(c, ent, docIds, v, now, maxFacts - facts)) {
-                    out.add(e);
-                    facts += e.facts.size();
+            // with a recognised intent: first what the question asks for, over every candidate (the phone may be the
+            // home's, not its operator's), then the remaining facts; without one: everything in the usual order
+            for (final int pass : asked.isEmpty() ? new int[] {PASS_ALL} : new int[] {PASS_ASKED, PASS_REST}) {
+                for (final Long ent : entities) {
+                    if (facts >= maxFacts) {
+                        break;
+                    }
+                    for (final Entry e : entries(c, ent, docIds, v, now, maxFacts - facts, asked, pass)) {
+                        facts += e.facts.size();
+                        merge(out, e);
+                    }
                 }
             }
             return out;
@@ -263,7 +392,7 @@ public final class ChatFacts {
 
     /** The current supported and uncertain facts of an entity, grouped by the page each is read from. */
     private List<Entry> entries(final Connection c, final long ent, final List<String> docIds, final Viewer v, final long now,
-            final int room) throws SQLException {
+            final int room, final List<String> asked, final int pass) throws SQLException {
         final List<KgReader.Stat> stats = new ArrayList<>();
         try (PreparedStatement ps = c.prepareStatement("SELECT " + KgReader.STMT_COLUMNS + " FROM kg_statement s JOIN kg_vocab v"
                 + " ON v.term_id = s.pred WHERE s.subj = ? AND " + KgReader.visibleStatement(v, "s") + " LIMIT 200")) {
@@ -277,19 +406,31 @@ public final class ChatFacts {
         this.reader.compute(c, stats, v, now);
         final List<KgReader.Stat> chosen = new ArrayList<>();
         for (final KgReader.Stat s : stats) {
-            if (s.current && ("supported".equals(s.quality) || "uncertain".equals(s.quality)) && ORDER.contains(s.predicate)) {
+            if (s.current && ("supported".equals(s.quality) || "uncertain".equals(s.quality)) && ORDER.contains(s.predicate)
+                    && inPass(s.predicate, asked, pass)) {
                 chosen.add(s);
             }
         }
-        if (chosen.isEmpty()) {
+        // business facts (prices, jobs, stated relations, suggestions) belong to the pass of their kind
+        final boolean wantsBusiness = pass != PASS_ASKED || inPass(Vocabulary.PRICE, asked, pass) || inPass("job", asked, pass)
+                || inPass("inverse:", asked, pass);
+        if (chosen.isEmpty() && !wantsBusiness) {
             return Collections.emptyList();
         }
+        // what the question asks for first, then the usual order
         chosen.sort((a, b) -> {
+            final int ia = asked.indexOf(a.predicate), ib = asked.indexOf(b.predicate);
+            final int q = (ia < 0 ? Integer.MAX_VALUE : ia) - (ib < 0 ? Integer.MAX_VALUE : ib);
+            if (q != 0) {
+                return q < 0 ? -1 : 1;
+            }
             final int p = ORDER.indexOf(a.predicate) - ORDER.indexOf(b.predicate);
             return p != 0 ? p : a.rank() - b.rank();
         });
+        // prices and jobs the question asks for come before the other facts of the entity
+        final boolean businessFirst = asked.contains(Vocabulary.PRICE) || asked.contains(Vocabulary.HIRING_ORGANIZATION);
         final String id = KgReader.publicId(c, ent);
-        final String name = KgReader.visibleName(c, ent, v);
+        final String own = KgReader.visibleName(c, ent, v);
         final String type;
         try (PreparedStatement ps = c.prepareStatement("SELECT t.name FROM kg_entity e JOIN kg_vocab t ON t.term_id = e.type WHERE e.ent_rowid = ?")) {
             ps.setLong(1, ent);
@@ -297,9 +438,12 @@ public final class ChatFacts {
                 type = rs.next() ? rs.getString(1) : null;
             }
         }
+        // a service is named with its provider: "Kurzzeitpflege" of two homes are two services with different prices
+        final String provider = Vocabulary.SERVICE.equals(type) ? provider(c, ent, v) : null;
+        final String name = provider == null ? own : own + ", offered by " + provider;
         final Map<Long, Entry> byDoc = new LinkedHashMap<>();
         final Map<Long, String[]> docs = new HashMap<>();
-        int n = 0;
+        int n = businessFirst ? addBusiness(c, ent, docIds, v, now, room, 0, id, name, type, byDoc, docs, asked, pass) : 0;
         for (final KgReader.Stat s : chosen) {
             if (n >= room) {
                 break;
@@ -317,16 +461,42 @@ public final class ChatFacts {
             e.facts.add(new Fact(s.publicId, s.predicate, value, s.quality, s.kinds.size() == 1 && s.kinds.contains("llm"), !s.stated));
             n++;
         }
-        // vocabulary 2: prices of the offered services (with their date), jobs with their status, relations stated by other
-        // pages, suggestions as suggestions; each under the page it is read from
+        if (!businessFirst) {
+            n = addBusiness(c, ent, docIds, v, now, room, n, id, name, type, byDoc, docs, asked, pass);
+        }
+        final List<Entry> out = new ArrayList<>();
+        for (final Entry e : byDoc.values()) {
+            if (!e.facts.isEmpty()) {
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Vocabulary 2: prices of the offered services (with their date), jobs with their status, relations stated by other
+     * pages, suggestions as suggestions; each under the page it is read from. Returns the new number of facts.
+     */
+    private int addBusiness(final Connection c, final long ent, final List<String> docIds, final Viewer v, final long now, final int room,
+            final int already, final String id, final String name, final String type, final Map<Long, Entry> byDoc,
+            final Map<Long, String[]> docs, final List<String> asked, final int pass) throws SQLException {
+        int n = already;
         if (n < room) {
             final BusinessView bv = new BusinessView(this.reader);
             int added = 0;
-            for (final Object[] b : business(c, bv, ent, v, now)) {
+            final List<Object[]> items = business(c, bv, ent, v, now);
+            // a question about jobs gets the jobs before the prices; one about relations the stated relations
+            final boolean jobs = asked.contains(Vocabulary.HIRING_ORGANIZATION) && !asked.contains(Vocabulary.PRICE);
+            final boolean relations = asked.contains(Vocabulary.CUSTOMER_OF);
+            items.sort((a, b) -> rankBusiness((Fact) a[0], jobs, relations) - rankBusiness((Fact) b[0], jobs, relations));
+            for (final Object[] b : items) {
                 if (n >= room || added >= MAX_BUSINESS_FACTS) {
                     break;
                 }
                 final Fact f = (Fact) b[0];
+                if (!inPass("suggestion".equals(f.note) ? "suggestion" : f.predicate, asked, pass)) {
+                    continue;
+                }
                 final Long stmt = (Long) b[1];
                 Entry e;
                 if (stmt != null) {
@@ -347,13 +517,17 @@ public final class ChatFacts {
                 added++;
             }
         }
-        final List<Entry> out = new ArrayList<>();
-        for (final Entry e : byDoc.values()) {
-            if (!e.facts.isEmpty()) {
-                out.add(e);
-            }
+        return n;
+    }
+
+    private static int rankBusiness(final Fact f, final boolean jobs, final boolean relations) {
+        if (jobs) {
+            return "job".equals(f.predicate) ? 0 : 1;
         }
-        return out;
+        if (relations) {
+            return f.predicate.startsWith("inverse:") ? 0 : 1;
+        }
+        return 0; // stable: the view's order (prices, jobs, relations, suggestions)
     }
 
     /** A code or JSON value in words: category labels, NACE titles, a price or an area as the page states it. */
@@ -431,12 +605,17 @@ public final class ChatFacts {
     private List<Object[]> business(final Connection c, final BusinessView bv, final long ent, final Viewer v, final long now) throws SQLException {
         final List<Object[]> out = new ArrayList<>();
         final org.json.JSONObject view = bv.view(c, ent, v, now, false);
-        // prices with the service and the date (published, sourced, dated; an expired price is left out)
+        // prices with the service and the date (published, sourced, dated); an expired price is left out, an outdated one
+        // (older than the staleness window) comes after the current ones and is marked: the model must say so
         final org.json.JSONArray prices = view.optJSONArray("prices");
+        final List<org.json.JSONObject> ordered = new ArrayList<>();
         for (int i = 0; prices != null && i < prices.length(); i++) {
-            final org.json.JSONObject p = prices.optJSONObject(i);
+            ordered.add(prices.optJSONObject(i));
+        }
+        ordered.sort((a, b) -> Boolean.compare("stale".equals(a.optString("status")), "stale".equals(b.optString("status"))));
+        for (final org.json.JSONObject p : ordered) {
             final String status = p.optString("status");
-            if ("expired".equals(status) || "stale".equals(status)) {
+            if ("expired".equals(status)) {
                 continue;
             }
             final Long row = row(c, p.optString("statement"));
@@ -446,8 +625,9 @@ public final class ChatFacts {
             final String service = p.optString("service_name", "");
             final String value = (service.isEmpty() ? "" : service + ": ") + money(p.optJSONObject("value")) + "; as of " + p.optString("as_of")
                     + ("stated".equals(p.optString("as_of_basis")) ? " (stated on the page)" : " (last seen on the page)");
-            out.add(new Object[] {new Fact(p.optString("statement"), Vocabulary.PRICE, value, "conflicting".equals(status) ? "supported"
-                    : "current".equals(status) ? "supported" : "uncertain", false, false, "conflicting".equals(status) ? "conflicting" : null), row});
+            out.add(new Object[] {new Fact(p.optString("statement"), Vocabulary.PRICE, value, "conflicting".equals(status) || "stale".equals(status)
+                    ? "supported" : "current".equals(status) ? "supported" : "uncertain", false, false, "conflicting".equals(status) ? "conflicting"
+                            : "stale".equals(status) ? "stale" : null), row});
         }
         // jobs with their status (an ended job only within its visible days; the view hides the rest)
         final org.json.JSONObject jobs = view.optJSONObject("jobs");

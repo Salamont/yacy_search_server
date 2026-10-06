@@ -365,4 +365,26 @@ public class BusinessViewTest {
         assertTrue(suggestion);
         assertTrue(price);
     }
+
+    /** Benchmark finding: an outdated price is no longer dropped from the chat, it comes last and is marked; an expired one stays out. */
+    @Test
+    public void chatFactsGiveOutdatedPricesMarkedAndLeaveExpiredOnesOut() throws Exception {
+        final List<ChatFacts.Fact> prices = new ArrayList<>();
+        for (final ChatFacts.Entry e : new ChatFacts(this.reader).select(List.of(), List.of("preis", "lindenhof", "pflege"),
+                viewer("edelsenior-web"), 30, 5000)) {
+            for (final ChatFacts.Fact f : e.facts) {
+                if ("price".equals(f.predicate)) {
+                    prices.add(f);
+                }
+            }
+        }
+        final List<String> notes = new ArrayList<>();
+        for (final ChatFacts.Fact f : prices) {
+            notes.add(f.value.replaceFirst(":.*", "") + " " + f.note);
+            assertFalse("the expired price stays out: " + f.value, f.value.contains("89.90"));
+        }
+        assertTrue(notes.toString(), notes.contains("Verhinderungspflege stale"));
+        assertTrue(notes.toString(), notes.contains("Tagespflege conflicting"));
+        assertEquals("outdated prices after the current ones", "Verhinderungspflege stale", notes.get(notes.size() - 1));
+    }
 }

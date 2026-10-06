@@ -143,6 +143,37 @@ public class ChatFactsTest {
         assertFalse(t, t.contains("Sonnen"));
     }
 
+    /**
+     * Package 6 benchmark finding: with the business vocabulary an entity has many facts, and the fixed order
+     * cut the asked-for one (the VAT ID, the phone) off at the fact limit. What the question asks for comes first.
+     */
+    @Test
+    public void theFactsTheQuestionAsksForComeFirst() throws Exception {
+        publish("KLEEBLhost04", "https://www.kleeblatt-pflege.de/", "ca", "{\"@type\":\"Organization\",\"name\":\"Kleeblatt Pflege gGmbH\","
+                + "\"url\":\"https://www.kleeblatt-pflege.de/\",\"telephone\":\"0221 777000\",\"faxNumber\":\"0221 777009\","
+                + "\"email\":\"info@kleeblatt-pflege.de\",\"vatID\":\"DE999888777\",\"openingHours\":\"Mo-Fr 08:00-16:00\","
+                + "\"address\":{\"@type\":\"PostalAddress\",\"streetAddress\":\"Kleeweg 1\",\"postalCode\":\"50667\",\"addressLocality\":\"Köln\"}}");
+        final String plain = text(this.chat.select(List.of(), List.of("kleeblatt", "pfleg"), viewer("ca"), 4, 1000));
+        assertFalse("without an intent the master data fill the limit: " + plain, plain.contains("DE999888777"));
+        final String vat = text(this.chat.select(List.of(), List.of("umsatzsteu", "kleeblatt", "pfleg"), viewer("ca"), 4, 1000));
+        assertTrue("the VAT ID is asked for: " + vat, vat.contains("identifier:vat=DE999888777"));
+        final String hours = text(this.chat.select(List.of(), List.of("zeite", "kleeblatt", "pfleg"), viewer("ca"), 2, 1000));
+        assertTrue("opening hours first: " + hours, hours.contains("opening_hours=Mo-Fr 08:00-16:00"));
+        final String phone = text(this.chat.select(List.of(), List.of("telefonnumm", "kleeblatt", "pfleg"), viewer("ca"), 1, 1000));
+        assertTrue("the phone first: " + phone, phone.contains("phone=+49221777000") || phone.contains("phone=0221 777000"));
+        assertEquals(List.of(), ChatFacts.intent(List.of("kleeblatt", "pfleg")));
+        // the asked-for fact of a second entity comes before the other facts of the first one
+        publish("KLEEB2host05", "https://www.kleeblatt-pflege.de/haus", "ca", "{\"@type\":\"Organization\",\"name\":\"Kleeblatt Pflege Verwaltung GmbH\","
+                + "\"url\":\"https://www.kleeblatt-pflege.de/haus\",\"vatID\":\"DE555444333\",\"faxNumber\":\"0221 1\",\"email\":\"a@kleeblatt-pflege.de\"}");
+        final String both = text(this.chat.select(List.of(), List.of("umsatzsteu", "kleeblatt", "pfleg"), viewer("ca"), 2, 1000));
+        assertTrue("both VAT IDs fit into two facts: " + both, both.contains("DE999888777") && both.contains("DE555444333"));
+        assertTrue(ChatFacts.intent(List.of("koste", "kurzzeitpfleg")).contains(net.yacy.scoutro.knowledge.extract.Vocabulary.PRICE));
+        // the question's stems lose one ending: "Partner" arrives as "partn"
+        assertTrue(ChatFacts.intent(List.of("partn", "cloudwerk")).contains(net.yacy.scoutro.knowledge.extract.Vocabulary.PARTNER_OF));
+        assertEquals("partn", ChatFacts.stemLike("Partner"));
+        assertEquals("koste", ChatFacts.stemLike("Kosten"));
+    }
+
     @Test
     public void theNumberOfFactsIsBounded() throws Exception {
         int facts = 0;

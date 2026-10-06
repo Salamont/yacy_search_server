@@ -476,6 +476,30 @@ public final class Values {
 
     private static final Pattern ABBREVIATION = Pattern.compile("(?iu)(?:zzgl|inkl|exkl|ca|mtl|max|min|bzw|ggf|evtl|z\\.b|u\\.a|std|stk|p\\.a|p\\.m|nr|tel|str|incl|excl|approx|sfr|fr|co|gebr|dr|prof)$");
 
+    /**
+     * The text after the last sentence end in {@code text} ("Preise. Wartung Gasheizung" -> "Wartung Gasheizung");
+     * a dot of an abbreviation or a legal form ("St. Martin", "e.V.") is no sentence end.
+     */
+    static String afterLastSentence(final String text) {
+        for (int i = text.length() - 2; i > 0; i--) {
+            final char ch = text.charAt(i);
+            if ((ch == '.' || ch == '!' || ch == '?') && Character.isWhitespace(text.charAt(i + 1))
+                    && (ch != '.' || !abbreviationBefore(text, i) && !shortWordBefore(text, i))) {
+                return text.substring(i + 1).trim();
+            }
+        }
+        return text;
+    }
+
+    /** "St.", "Dr.": a word of at most two letters before a dot inside a label is an abbreviation. */
+    private static boolean shortWordBefore(final String text, final int dot) {
+        int s = dot;
+        while (s > 0 && Character.isLetter(text.charAt(s - 1))) {
+            s--;
+        }
+        return dot - s <= 2 && (s == 0 || !Character.isLetter(text.charAt(s - 1)));
+    }
+
     private static boolean abbreviationBefore(final String text, final int dot) {
         int s = dot;
         while (s > 0 && (Character.isLetter(text.charAt(s - 1)) || text.charAt(s - 1) == '.')) {
