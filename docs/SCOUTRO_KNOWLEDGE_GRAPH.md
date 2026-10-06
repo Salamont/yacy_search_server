@@ -54,6 +54,8 @@ reserve, automatic pause and resume, and bounded retention.
 19. [Package 2b implementation](#19-package-2b-implementation)
 20. [Package 3 implementation](#20-package-3-implementation)
 21. [Package 4 implementation](#21-package-4-implementation)
+22. [Package 5 implementation](#22-package-5-implementation)
+23. [Package 6 implementation](#23-package-6-implementation)
 
 ## 0. Decisions at a glance
 
@@ -1808,3 +1810,288 @@ The criteria of [12](#12-release-acceptance) and their evidence:
 - `push_p` answers 500 instead of a refusal when YaCy does not take a document: a `ClassCastException` in `Switchboard.parseDocument` when the crawl stacker rejects it, and a `NullPointerException` (`in.queueEntry`) when the parser returns nothing, for example for a host outside the network's domain (seen in the rollback test).
 - A crawl start on a page that answers 404 removes the page from the index before it is refused (seen end to end; the graph follows correctly).
 - The Olares upgrade, the rollout and a release tag.
+
+## 23. Package 6 implementation
+
+Package 6 makes the graph a business graph ("Business Knowledge Graph"): what a firm offers and what it costs, how firms relate, their industry, contacts, job postings and audiences, with a network view and a measured answer to whether graph facts make the chat better. It starts from `main` after the 0.7.0 release (`57d02c1`) and leaves that release's installation on Olares untouched.
+
+**Shipped in this PR:**
+
+| Area | Files |
+|---|---|
+| P0: the manual pause | `sync/SyncService`, `sync/LlmService`, `KgRebuild`, `KgRuntime` (pending work by type), page and banner |
+| Vocabulary 2, schema 4 (E) | `extract/Vocabulary` (version 2), `store/KgSchema` (schema 4: `kg_doc.content_hash`, `kg_doc_link`, `kg_derived`, change kind 3), `store/KgStore`, `store/KgChangeLog`, `publish/Publisher`, `resolve/IdentityResolver` (schemes `domain_operator`, `job_posting`, `place_name`, `service_name`), `vocab/KgVocabularies`, `vocab/Categories`, `vocab/Nace`, `vocab/TermMatcher`, `defaults/scoutro/knowledge/` (`categories.json`, `nace-2.1.csv`, README) |
+| Extraction (C, D, F, G, H, I) | `extract/JsonLdExtractor` (version 3), `extract/BusinessRules`, `extract/BusinessFacts`, `extract/Values`, `extract/RuleExtractor` (version 3), `extract/LlmExtractor` (tier 2 version 2), `extract/ExtractContext`, `extract/Claim`, `extract/Mention` |
+| Derived layer and matches (D, I) | `derive/DerivedService`, `KgRuntime` (maintenance step, `derive` action) |
+| Read side (B, C, D, F–I) | `read/BusinessView` (object view), `read/BusinessGraph` (neighbourhood, comparison, derived rows, facets), `read/KgReader` (entity filters), `read/KgExport` (derived rows), `read/ChatFacts` (facts that follow the question), `net/yacy/ai/rag/GraphFacts` |
+| Upgrade | `store/KgStore` (integrity check and verified copy before the migration, hold), `store/KgBackup` (`before-upgrade`), `KgBackups`, `sync/SyncService` and `sync/LlmService` (the hold) |
+| API, agents, tools | `api/KnowledgeApi`, `api/KnowledgeRead`, `agents/AgentActionRegistry`, generator, `openapi.json`, `actions.json` (62 actions), `scoutroctl kg business|neighborhood|compare|derived|facets|control derive` |
+| UI | `ScoutroKnowledge_p.html`, `knowledge.js`, `knowledge.css` (object view in sections, network view, comparison, filters), `de.lng`, `master.lng.xlf`, `help/ScoutroKnowledge_p.md` |
+| Benchmark (A) | `test/scoutro-kg-benchmark/` (corpus, catalog, harness, answers, scoring, review, results) |
+| Tests and measurement | four new test classes and thirteen extended ones ([23.14](#2314-tests-and-checks)); `KgLoadMeasurement` with vocabulary 2 content; `test/scoutro-api/kg-upgrade-live.py` (new); `test/scoutro-ui/knowledge-live-smoke.py`, `knowledge-ui-test.mjs` |
+| Documentation | this section, `docs/SCOUTRO_KNOWLEDGE.md`, `docs/API.md`, `docs/ACTIONS.md`, `docs/SCOUTRO.md`, help page |
+
+### 23.1 P0: the manual pause stops all enrichment
+
+Production showed growth and activity while the graph was paused. The guard refused growth writes, but three paths still worked or grew during the pause:
+
+1. the LLM tier claimed queue items and called the model, then had its writes refused, and called again;
+2. the sync extracted the first item of every batch, and a page that came back made its facts current again;
+3. a rebuild's shadow kept enriching and could swap in.
+
+Now:
+- the LLM tier and the sync ask the guard before their work and stay idle with the refusal as reason;
+- a returning page waits during the manual pause;
+- the shadow follows the pause, and the swap waits for the resume.
+
+Deletions, reconcile, retention, integrity and state checks continue. The status counts pending work by type (new pages, updates, deletions, reconcile checks, captured changes).
+
+### 23.2 Vocabulary 2 and schema 4 (E)
+
+- **The vocabulary.** The job type; predicates for service categories, descriptions and prices; fifteen directed relations between organisations (`parent_of`, `subsidiary_of`, `carrier_of`, `member_of`, `association_member`, `partner_of`, `cooperation_with`, `customer_of`, `reference_for`, `supplier_of`, `service_provider_for`, `brand_of`, `certified_by`, `funded_by`, `sponsored_by`); the industry (NACE Rev. 2.1 / WZ 2025 code at the safe level, and the Scoutro industry group); organisation contacts; job fields; the declared audience. Claims carry a confidence; evidence stores it.
+- **Business vocabularies.** `categories.json` holds the seed vocabularies of the four Scoutro collections:
+
+  | Vocabulary | Collection | Categories | Groups |
+  |---|---|---|---|
+  | care | `edelsenior-web` | 22 | 6 |
+  | coaching | `checkthecoach-web` | 34 | 7 |
+  | software | `stackfinder-web` | 35 | 8 |
+  | construction | `bauteamcheck-web` | 110 | 14 |
+
+  It also holds segments, customer types, company sizes and employment types. Files in `DATA/SCOUTRO/knowledge/vocabulary/*.json` extend it; NACE Rev. 2.1 comes from `nace-2.1.csv`. The vocabulary and the per-collection settings are part of the extractor identity: a change re-extracts at low priority.
+- **Schema 4** only adds:
+  - `kg_doc.content_hash`;
+  - `kg_doc_link` (outbound registrable domains);
+  - `kg_derived` (derived rows, visible only with both collections);
+  - change kind 3.
+
+  The change feed keeps its sequence. The LLM mark is the content hash, so a new vocabulary keeps the LLM evidence; a new prompt re-examines a page and keeps the old evidence until it is replaced.
+- **New identity schemes:**
+  - `domain_operator`: the unnamed operator of a services, prices or careers page. It is the declared operator if the domain has exactly one; otherwise a placeholder the operator takes in later.
+  - `job_posting`, `service_name`, `place_name`.
+
+### 23.3 Services and prices (C)
+
+- **Sources.** JSON-LD: offers, `priceRange`, `makesOffer`, offer catalogs, categories. Rules: service lists and price lines (unit, from/up to/range, conditions, care level, own share, VAT note, the page's date). The LLM tier only points at a price with a verbatim quote; Scoutro reads the amount from the quote.
+- **Exactly as published.** A price needs an explicit currency and a named service. Nothing is estimated, converted, normalised or averaged. Two different prices for the same service, unit and conditions are a visible conflict.
+- **Price tables** are read as YaCy's parser gives them to the index: the cells of all rows in one line, each price after the service of its row (tested with the parser's real output).
+- **Ambiguous amounts give no price.** In that line two cells can look like one grouped number ("Pflegegrad 2 | 980 €" became 2 980 €, found in the review). A plain space groups thousands only after a prefix, a currency or punctuation; after a word or a number the line gives no price. In JSON-LD the point is the decimal point (schema.org), and a string such as `"12.500"` (12.5 by the rule, 12 500 by German habit) gives none (`85b79f1`).
+- **Dates.**
+  - A price past its validity is expired and hidden.
+  - One older than `prices.staleDays[.<collection>]` (180) without a validity date is shown as possibly outdated, and in the chat after the current ones with a note.
+  - The page's date keeps its precision ("Stand 09/2026" stays `2026-09`; [23.12](#2312-benchmark-a)).
+- **Comparison.** `GET /kg/compare?category` lists one service category across providers: every price with conditions, date and sources, never averaged.
+
+### 23.4 Relations (D)
+
+- **Only explicit statements.** JSON-LD `memberOf`, `parentOrganization`, `subOrganization`, `brand`, `sponsor`, `funder`, credentials. Rules after explicit markers ("Mitglied der …", "Partner der …", "Kunden: …"): a qualified organisation name, never a person ("Partner der Region" names nobody). "Zertifiziert nach …" gives a certification.
+- **Directed.** A relation is stored once, from the page that states it. The object view and the network show it on both entities: outgoing on the one, incoming on the other.
+- **Weak signals stay weak.** `linked_to` comes from YaCy's outbound links between two declared site operators. It is a derived row with confidence 0.2, never a business relation, and shown only on request. Its collections are the linking page's and one holding a page of the target site, so its viewer sees both ends.
+- **Same operator.** Facilities or organisations of one operator or carrier are linked as `same_operator`, in groups of up to `sameOperator.maxGroup` (12).
+
+### 23.5 Industry (F)
+
+- **The safe level.** The industry is a NACE Rev. 2.1 / WZ 2025 code at the level the evidence makes safe:
+  - a service whose category has no reliable class gives only the section ("Sanierung" → F);
+  - a trade named in the imprint gives its class ("Gewerk: Dachdecker" → 43.41);
+  - the JSON-LD type of a nursing home gives 87.10.
+- **Main and secondary.** The best-supported code is the main industry; two equally supported ones give their common level ("43.21" and "43.34" → "43"); the others are secondary.
+
+### 23.6 Contacts (G)
+
+- **What is kept.** The organisation's phone, fax, role mailboxes, contact form, contact points by function (sales, press), office hours, company profiles and directions.
+- **No persons.** No personal e-mail address and no person names: the data minimality of package 5 ([22.2](#222-data-minimality-o7)) applies to every new field.
+
+### 23.7 Jobs (H)
+
+- **Off by default.** `jobs.collections` lists the collections with job postings.
+- **What a posting holds.** JSON-LD `JobPosting` and careers pages give the employer (never a recruiter), title, employment type, place, deadline, published salary with its unit and gross/net, and the application route.
+- **Lifecycle.**
+  - A posting is open until its deadline.
+  - It is ended when the deadline passes or its page disappears, then counted from the last time the page was seen.
+  - It stays visible for `jobs.endedVisibleDays` (90), then is hidden.
+
+  A test for the disappearing page found that such a posting ended "now" on every view and was never hidden: the reader now keeps the last load of a gone page (`5b1c0d8`).
+
+### 23.8 Audiences and suggested matches (I)
+
+- **Three layers, never mixed:**
+  - *declared*: what the firm says (customer type, segment, target industry and category, company size, service area, places served);
+  - *observed*: customers and references named on pages;
+  - *suggested*: matches Scoutro computed.
+- **Suggested matches are never facts.**
+  - `suggested_customer`: an organisation's declared target meets another's industry or services in its declared area.
+  - `suggested_partner`: the same audience with complementary services in the same place.
+  - Each row names the statements of both sides and both collections, has a confidence, and a viewer sees it only with both collections.
+  - **A row of collections (ca, cb) uses A's facts in ca and B's facts in cb only.** The review found that places, service categories, customer types and existing relations were read from every collection: a place known only from a third collection could confirm the area, and its key and statement ID went into the row's reason and basis. They are now read per collection, and the caps apply per pair of collections, so each collection's viewer gets the same suggestions (`d8f44c9`).
+  - A suggestion never repeats a relation its viewer sees and is capped per entity and collection (`matches.maxPerEntity`, 20) and in total (`matches.max`, 50 000).
+  - Full passes every `derived.intervalMinutes` (60) or on `derive` recompute it; stale rows are removed with a feed notice. A deleted entity records the deletion of its derived rows in the feed before the cascade removes them; with `derived.enabled=false` one pass removes all rows, with their notices.
+- **Places by name.** A place is keyed by country, level and name, so that a service area in the text meets an address. Two towns of one name in one country are one place, and a suggestion may take one for the other; it names the place, so its reader can check it. A postal code in the key would part every text area from the addresses, so this stays a documented limit.
+- **Pause and rebuild.** The derived layer is enrichment: the manual pause and every growth refusal stop it. It runs again after a rebuild (`2d06013`): the measurement found that a finished rebuild had kept it waiting until a restart.
+
+### 23.9 Read side, API, agents, export and chat
+
+- **Routes** for administrators and `kg.read` agents ([API.md](API.md#knowledge-graph)):
+  - `GET kg/entities/{id}/business`: the object view in sections;
+  - `…/neighborhood`: nodes and typed, directed edges with status, confidence and evidence count, depth 1 or 2, paged; there is no route for the whole graph;
+  - `GET kg/compare`, `kg/derived`, `kg/facets`;
+  - the entity filters `industry`, `category`, `audience`.
+
+  Every route is computed per collection; a `kg.export` token reaches none of them. Facets and the comparison count a fact only with a current page the viewer sees, as the object view does (`354236b`).
+- **Export and feed.** Derived rows are exported (phase `d`) and in the expanded change feed (kind 3), each only with both of its collections.
+- **Chat facts follow the question** (found by the benchmark's dry run, `10e7c4c`):
+  - recognised intents (phone, address, identifiers, hours, contacts, prices, jobs, industry, services, operator, relations, certification, audience) come first, over every candidate entity, then the rest;
+  - prices only with their date, outdated ones marked, expired ones out;
+  - jobs, incoming relations, and suggestions marked as such;
+  - a service is named with its provider.
+- **MCP and `scoutroctl`** use the same routes and grants.
+
+### 23.10 Network view and object view (B)
+
+- **The object view** shows the sections that have content: overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, evidence and sources, all facts. It has a table of contents, and status, confidence and evidence per value.
+- **The network** is an SVG drawn by the page, without an external library.
+  - Depth 1 or 2.
+  - Typed, directed lines whose style shows confirmed, uncertain, derived, weak and suggested.
+  - Filters, "show more", the keyboard (Tab, Enter, Escape), hover and focus showing lines and evidence.
+  - The same data as a list, and "list only".
+  - GraphML (Gephi, Cytoscape) and JSON downloads.
+  - Usable at 360 px.
+- **Tests.** Playwright checks the views in English and German at five widths.
+
+### 23.11 Upgrade from 0.7 and the way back
+
+- **Before the migration** (schema 3 → 4):
+  - `quick_check` on the unchanged file, bounded by `integrity.maxMillis`. A failed or unfinished check leaves the file untouched and the graph off (`upgrade_blocked`).
+  - A verified copy `backup/graph-<UTC>-before-upgrade.db` with metadata. The newest one survives the retention as the way back to 0.7.
+- **Without room for the copy,** the additive migration runs, but the re-extraction with the new vocabulary and the LLM re-examination wait (`upgrade_hold`) until a verified backup exists; the backup releases them.
+- **Any size.** The 50 000-page measurement found an old defect: a backup was admitted with the graph's size as its estimate, and the guard checked it against `wal.maxBytes` (64 MiB), although the copy writes no WAL. Every graph above 64 MiB was refused with `wal_limit`: no backup, no copy before the upgrade, and a hold that no backup could release. The guard now counts only the WAL part of an estimate against the WAL limit; a copy has none (`1e7e15d`). 0.7.0 still has the defect: [operator guide 9.4](SCOUTRO_KNOWLEDGE.md#94-upgrading-from-scoutro-07-vocabulary-2) says how to back up a larger 0.7 graph.
+- **The way back.** 0.7 refuses schema 4 (`schema_unsupported`) and leaves the file untouched. Restoring the copy before the upgrade brings the graph back ([operator guide 9.5](SCOUTRO_KNOWLEDGE.md#95-going-back-to-scoutro-07)).
+- **Rebuild with vocabulary 2.** An identity rebuild builds the shadow with the current vocabulary and rules.
+  - The rebuild test of the derived layer found an older identity defect: with two or more facility pages processed before the operator's own page, only the first parent organisation joined the declared operator, because the key table holds one entity per key. A rebuild in the same order split them again.
+  - Now every such page keeps its own key, and the operator takes in all of them (`bd167f8`). A rebuild repairs graphs split this way.
+
+### 23.12 Benchmark (A)
+
+The method, every figure and the limits are in [test/scoutro-kg-benchmark/README.md](../test/scoutro-kg-benchmark/README.md). In short:
+
+- **Setup.** 19 synthetic pages in four collections, 34 questions, graph facts off and on through the real chat endpoint of a disposable peer. The setting was read and restored byte for byte. One Claude agent per task answered from exactly the recorded messages, with 2 repetitions: 136 answers. The scoring is automatic, with a manual review of every flag, a 20 % sample and all re-answers.
+- **Result after the fix.**
+  - Fact hits 80.0 % → 100.0 % (+20 pp).
+  - No false or invented values; every answerable answer correctly sourced; every unanswerable question a correct "weiß ich nicht".
+  - The context grows from 196 to 534 tokens; the context build time from 132 to 142 ms (median).
+
+  **The rule is met.**
+- **Run 1 failed it on precision.** A stated month reached the model as a day ("as of 2026-09-30"), and 9 of 68 graph-on answers repeated the day. Fixed in `339452a`; the 16 affected answers were answered again.
+- **Where the gain comes from.** Facts that exist only in structured data (contacts in JSON-LD) and same-name firms. Wherever the page text held the fact, the model found it without the graph.
+- **Not evaluated.** The real collections on Olares were not reachable from the benchmark's environment, and `checkthecoach-web` is therefore "nicht auswertbar". The README lists what a production run needs.
+
+### 23.13 Measurements with vocabulary 2
+
+**Method** as in [22.4](#224-measurements-and-budget-evaluation): `KgLoadMeasurement`, the same seed and host mix, 4 CPUs, JDK 21, the graph with its own threads and the real clock. The corpus now carries vocabulary 2 content:
+- services and price pages on the care and trade hosts, `makesOffer` with prices in plugin-style JSON-LD;
+- careers pages (jobs switched on for two collections), memberships, partners and customers, audiences and service areas on the home pages;
+- the vocabularies of the collections (`pflege` → care, `web` → construction).
+
+New per run: the derive pass, and read latencies of the object view, the depth-2 neighbourhood and the chat facts (200 samples each). Measured on the final code (`1e7e15d`), with nothing else running.
+
+**Corpus and storage** (after the indexing):
+
+| Documents | Entities | Statements | Evidence | Graph (logical) | per document | JSON-LD (raw) | per document | Solr segments |
+|---|---|---|---|---|---|---|---|---|
+| 10 000 | 2 172 | 13 570 | 37 182 | 16.1 MiB | 1 692 B | 15.3 MiB | 1 604 B | 25.9 MiB |
+| 50 000 | 10 823 | 66 788 | 182 993 | 79.4 MiB | 1 665 B | 80.5 MiB | 1 689 B | 131.1 MiB |
+
+**Business content** (after the indexing; derived rows after the first pass):
+
+| Documents | Entities / page | Statements / page | Relations between firms | Services (offers) | Prices | Industries | Jobs | same_operator | suggested_customer | suggested_partner |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 10 000 | 0.22 | 1.36 | 140 (0.014 / page) | 1 231 (0.12) | 1 372 (0.14) | 625 | 195 (0.020) | 232 | 0 | 170 |
+| 50 000 | 0.22 | 1.34 | 769 (0.015) | 6 159 (0.12) | 6 697 (0.13) | 3 075 | 1 010 (0.020) | 955 | 107 | 415 |
+
+**Times:**
+
+| Documents | Heap | Graph after the index (docs/s) | LLM tier (calls) | Derive pass | Reconcile | Recrawl 10 % | Delete 5 % | Backup | Start reconcile | Rebuild | after the swap |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 10 000 | 600 MiB | 88 s (113/s) | 179 s (1 946) | 1.4 s | 1.2 s | 11.1 s | 2.5 s | 0.2 s, 14.2 MiB | 0.8 s | 90 s | 32 s |
+| 50 000 | 3 GiB | 482 s (103/s) | 867 s (8 853) | 1.4 s | 3.6 s | 65.3 s | 12.5 s | 0.6 s, 69.6 MiB | 3.7 s | 502 s | 190 s |
+
+**Memory, bounds and reads:**
+
+| Documents | Heap peak | Heap after GC | RSS peak | Work queue peak | WAL peak | Shadow peak | Object view p50 / p95 | Neighbourhood depth 2 | Chat facts |
+|---|---|---|---|---|---|---|---|---|---|
+| 10 000 | 182 MiB | 30 MiB | 583 MiB | 9 647 | 4.7 MiB | 18.8 MiB | 3.7 / 8.2 ms | 2.4 / 9.9 ms | 8.6 / 17.6 ms |
+| 50 000 | 272 MiB | 31 MiB | 746 MiB | 48 473 | 5.4 MiB | 72.3 MiB | 4.3 / 9.9 ms | 2.7 / 13.3 ms | 16.6 / 42.4 ms |
+
+**Findings:**
+
+- **Storage grows linearly, at 1.8 × vocabulary 1.** About 1.7 KB per page (vocabulary 1: 0.93–0.95 KB), 1.34 statements per page (0.51) and 0.22 entities per page (0.08): services, prices, places, industries and jobs are new entities and statements.
+  - A backup is 0.88 × the logical size, the shadow of a rebuild 0.95–1.2 ×.
+  - At the end of the 50 000 run the directory held 231 MiB: the database, a regular backup and the graph kept from before the rebuild (2.9 × the logical size).
+- **The backup works at any size now.** In the first 50 000-page run it was skipped with `wal_limit` (the graph had grown past 64 MiB): the defect of [23.11](#2311-upgrade-from-07-and-the-way-back), fixed in `1e7e15d`; the control run above made it in 0.6 s.
+- **Throughput.** The graph follows at 100–115 pages per second, 30–48 % below vocabulary 1 (155–197): the business rules match the vocabularies on every page and write 2.6 × as many statements. The first pass over one million pages takes about 2.5–3 h (vocabulary 1: about 1.5 h); the rebuild takes 1.6–1.8 × as long as before.
+- **The derive pass** takes 1.4 s at both sizes (computing 0.14 / 0.6 s); its heap peak is 95 MiB at 50 000 pages. It reads at most 200 000 rows per kind, so its memory stays bounded.
+- **Rebuild counts.** The verification before the swap counts 1 862 / 9 222 entities against 2 061 / 10 216 in the current graph. The shadow has tiers 1 and 2 only; the LLM tier comes back from the copied cache after the swap, and the graph then holds about as many entities as before (10 274 at 50 000). A diagnostic run at 2 000 pages compared both graphs: the same organisations, facilities, jobs and places.
+- **Reads.** The object view answers in 4 ms (p95 10 ms), the depth-2 neighbourhood in 3 ms (p95 13 ms), the chat facts in 17 ms (p95 42 ms) at 50 000 pages: small next to the search and the model (benchmark: context build 142 ms median).
+- **Heap and container.** The heap peak is 272 MiB of 3 GiB (9 %); the graph holds about 31 MiB after GC. The RSS peak is 746 MiB of the 16 GiB container (5 %).
+- **LLM tier.** 8 853 calls for 50 000 pages: the per-host cap holds, and vocabulary 2 does not raise the number of calls.
+
+**Budget evaluation** against the production values (graph 10 GiB, JSON-LD 2 GiB, `-Xmx3072m`, container 16 GiB, Olares `limitedDisk` 50 GiB); reserve factor 1.5 on the per-page costs, nothing changed:
+
+- **Graph, 10 GiB.** The brake is at 9 GiB, less 128 MiB for WAL and temp files. A database and one regular backup take 1.88 × the logical size, so the database may reach about 4.7 GiB: about **2.0 million pages** of this mix (vocabulary 1: 3.5 million).
+  - If a rebuild must stay possible at any time (shadow and the kept previous graph): about 2.3 GiB, about **1.0 million pages** (1.7 million).
+- **JSON-LD, 2 GiB raw.** Unchanged by vocabulary 2: 1.7 KB per page × 1.5 gives about **0.76 million pages**. Solr stores the field compressed (factor 6.3), about 0.3 GiB on disk at the brake.
+- **Heap, 3 GiB.** The peaks come from Solr's indexing with the graph working at the same time. 272 MiB at 50 000 pages leave a wide margin; the graph's gate `gate.minFreeHeapMB` pauses its work before the heap gets tight.
+- **Container, 16 GiB.** 0.75 GiB RSS at 50 000 pages; no limit in sight.
+- **Disk, `limitedDisk` 50 GiB.** The graph budget is 20 % of it; JSON-LD adds about 0.3 GiB on disk. The index itself was not measured here (the measurement's Solr core holds only the fields the graph reads; a real YaCy index takes 10–50 KB per page). With the graph at its budget, about 39 GiB remain for the index: roughly 0.8–4 million pages. Before the graph budget, the disk is likely the limit for a large crawl.
+
+**Recommendation** (the values stay as they are, as instructed):
+1. Keep **10 GiB** for the graph. It holds about 2 million pages of vocabulary 2 content with one backup, 1 million if a rebuild must be possible at any time. Watch the level from `notice` (70 %) on before a rebuild.
+2. Keep **2 GiB** for JSON-LD; raise it to 4–6 GiB for crawls beyond about 0.5 million pages with SEO plugins, as in [22.4](#224-measurements-and-budget-evaluation).
+3. Keep **`-Xmx3072m`** and the 16 GiB container.
+4. **Measure the real index on Olares** before a crawl beyond about 0.5 million pages: with `limitedDisk` 50 GiB the index, not the graph, decides how large the crawl can be. The disk reserve check protects `DATA` in any case.
+5. Plan the first pass after the 0.8.0 upgrade with about 100 pages per second for tiers 1 and 2, plus the LLM tier at the model's pace.
+
+**Not measured here** (no access to the Olares instance): the real index size per page, real JSON-LD and price pages, a real local model's latency, and the free space on the production `DATA` volume.
+
+### 23.14 Tests and checks
+
+- **Unit and integration tests** (new or extended for package 6):
+
+  | Test class | What it covers |
+  |---|---|
+  | `BusinessExtractionTest` (17, new) | JSON-LD offers, price lines and tables as the parser gives them, ambiguous amounts, relations after explicit markers, the industry at the safe level, contacts without persons, jobs only where switched on and never a person as employer, audiences |
+  | `BusinessViewTest` (13, new) | The object view in sections, jobs and their lifecycle, the three audience layers (a supplier is no observed customer), the network, the comparison and facets per collection, chat facts per collection |
+  | `DerivedServiceTest` (12, new) | Both sides named, visible only with both collections; the facts of the row's own two collections only; one seeker in two collections; no suggestion that repeats a relation; partners; weak links; the pause; switched off; a deleted entity |
+  | `KgUpgradeTest` (5, new) | Integrity first, the verified copy, the hold without room, a damaged graph, retention of the copy, a graph larger than the WAL limit |
+  | `KgRebuildTest` (+2), `PublisherTest` (+1), `KgBackupTest` (+1), `LlmExtractorTest` (+2), `ChatFactsTest`, `GraphFactsTest`, `KgSyncRuntimeTest`, `SyncServiceTest`, `LlmServiceTest`, `KgStoreTest` (+1 each) | The derived layer after a rebuild, the operator's earlier holders, a backup above the WAL limit, LLM tier 2, chat facts, the pause |
+  | `AgentKnowledgeTest`, `KnowledgeApiTest`, `AgentCatalogTest` | Every new route refuses another collection (`collection_not_in_scope`) and a `kg.export` token; actions match the OpenAPI enum |
+- **Mutation checks:** 28 mutations of security and integrity rules of package 6, one at a time against the tests named for them (`git checkout` after each). Among them: derived rows only with both collections and only from their own collections' facts, the caps per pair of collections, weak links, feed notices of deleted rows, a grounded quote for every LLM value and price, jobs only where switched on and never a person as employer, the integrity check and the copy before an upgrade, the upgrade hold, expired prices out of the chat, a stated date as precise as the page, ambiguous amounts, and facets and the comparison per viewer.
+  - The first run killed 24. Four rules had no test that noticed their removal: the employer never a person or another thing, a suggestion never repeating a relation (the old test checked a pair that would never have been suggested), observed audiences only from customers and references, and no re-extraction scan while an upgrade waits. New tests (`54e9fb4`) kill all four: **28 of 28**.
+- **Interface:** `knowledge-live-smoke.py` with `knowledge-ui-test.mjs`: 23 read API checks (collection isolation, vocabulary 2) and 469 Playwright checks in English and German at five widths (object view, network, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild).
+- **End to end:** `kg-e2e-live.py` on three disposable peers: the 16 steps (crawl, JSON-LD, facts, entities, evidence, API, UI, agent and chat, recrawl, update, deleted source, reconcile, restart, re-check, backup, restore in a fresh peer) and the limits (a disk reserve the graph cannot meet, a tiny JSON-LD budget, a queue overflow during a pause, a hard kill): 61 checks and 20 UI checks in English and German.
+  - One run failed at step 2: the operator's phone carried only the imprint's evidence. Its timestamps show that the start page had not reached the graph yet. Step 1 had waited for as many publications as Solr held pages, a count that includes the second collection, while YaCy may still hold a page in its own index queue.
+  - Six further runs passed step 2 (two of them all 16 steps), and 40 random processing orders of the site's pages at unit level never lost the JSON-LD evidence.
+  - The wait now needs the start page in Solr and every page of the collection processed by the graph (`343f431`); a lost JSON-LD fact still fails the step. The final run of the script: 62 checks and 20 UI checks, passed.
+- **Upgrade and the way back:** `kg-upgrade-live.py` (new): 26 checks on disposable `DATA` with a build of 0.7.0 (`57d02c1`): 0.7 builds a schema-3 graph → this version checks it, copies it and migrates it, with prices, the job, the operator of both homes, the industry and the derived layer → 0.7 refuses schema 4 and leaves the file untouched → the copy back in 0.7 → a second upgrade. `kg-rollback-live.py` (the version before the graph): 16 checks.
+- **Live smokes:** `kg-live-smoke.py` 31, `kg-llm-live-smoke.py` 19, `kg-agents-live-smoke.py` 33 and 32 chat UI checks. The other Scoutro smokes pass unchanged: SEO and AI Lab (560 and 123), dashboard (237), discovery (80 and 43), LLM selection (619 and 40), locales (75), crawl report (433 and 5), citation (15), RAG chat (60).
+- **Rights audit:** every route of `openapi.json` answers an anonymous caller as declared: 129 checked, 0 failures; the defaults stay 10 GiB and 2 GiB.
+- **Contract:** the generator reproduces `openapi.json` and `actions.json` byte for byte (62 actions); the OpenAPI document is valid; `test_flow_contract` (12) and `test_mcp_adapter` (9) pass.
+- **Suites:** `ant scoutro-agents-test` (568 tests: every Scoutro test class, the knowledge graph included, and `AdminSecurityTest`), `scoutro-rag-test` (31), `scoutro-llm-security-test` (32), `scoutro-report-test` (127) and `scoutro-dashboard-test` (17): **775 tests without a failure on JDK 21 and on JDK 24**, each built with its own JDK.
+- **Diff checks:** no whitespace errors (`git diff --check`), no CRLF, no credentials, tokens or private keys, no debug output, no model identifier in the repository.
+
+### 23.15 Before review, merge, 0.8.0 and rollout
+
+**Review and merge:**
+1. Review this PR against `main`; it is one package with logically separate commits.
+2. After the merge, run `ant scoutro-agents-test` on `main`.
+
+**Release 0.8.0** (not done here, as instructed):
+1. Raise `scoutro.release` (`1.942-scoutro.14`, alias `0.8.0`: new on-disk data with an automatic, verified upgrade).
+2. Run the publish workflow; build and smoke the image (`test/scoutro-api/kg-image-smoke.py`).
+
+**Rollout on Olares** (a separate task):
+1. Make and download a backup of the 0.7.0 graph. Above 64 MiB, 0.7.0 skips it with `wal_limit`: copy `graph.db` with the app stopped, or raise `wal.maxBytes` for the backup ([operator guide 9.4](SCOUTRO_KNOWLEDGE.md#94-upgrading-from-scoutro-07-vocabulary-2)).
+2. Check the free space on `DATA`: the upgrade copy needs about the graph's size, otherwise the re-extraction waits for a backup ([23.11](#2311-upgrade-from-07-and-the-way-back)).
+3. Choose `jobs.collections`; check the vocabularies of the collections (`scoutro.kg.vocab.<collection>`).
+4. After the start, watch `status.upgrade`, the re-extraction (pending work by type) and the first derive pass.
+5. Run the A/B benchmark on the real collections, with Claude as tester and judge of the instance's own model ([test/scoutro-kg-benchmark/README.md](../test/scoutro-kg-benchmark/README.md#limits)).
