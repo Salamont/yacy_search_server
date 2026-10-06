@@ -478,9 +478,17 @@ public final class KgReader {
                     }
                 }
             }
-            final JSONArray items = new JSONArray();
+            final List<Long> page = new ArrayList<>();
             for (final long[] r : rows) {
-                items.put(summary(c, r[0], v, now, false));
+                page.add(r[0]);
+            }
+            // hosts, collections, places and, for services and jobs, the providers: batched for the whole page
+            final Map<Long, JSONObject> context = EntityContexts.json(c, page, v, this, now);
+            final JSONArray items = new JSONArray();
+            for (final Long r : page) {
+                final JSONObject o = summary(c, r, v, now, false);
+                KgJson.put(o, "context", context.get(r));
+                items.put(o);
             }
             return page(q.offset, q.limit, total, items, c, v);
         });
