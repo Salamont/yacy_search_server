@@ -91,8 +91,8 @@ answered every fact its context held, and nothing else.
   - **2 repetitions**: 34 × 2 × 2 = 136 answers.
   - **No temperature is claimed**: the agents run with the platform's defaults. The
     repetitions show the variance: no question changed its result between them.
-  - The model identifier is kept out of the repository; the run's report in the pull request
-    names it.
+  - The model identifier is kept out of the repository and the pull request; the run's
+    report to its requester names it.
 - **Scoring** (`score.py`): automatic and reproducible. It covers:
   - fact hits, and whether the context held the fact;
   - false values and trap values;
