@@ -168,6 +168,29 @@ public final class Categories {
     }
 
     /** An audience segment by its stored code ({@code care/senioren}). */
+    /**
+     * The entry behind a code value of a predicate: a customer type, company
+     * size or employment type, an audience segment, or else a service category
+     * or group; null if the vocabulary does not know it.
+     */
+    public Entry code(final String predicate, final String value) {
+        if (value == null) {
+            return null;
+        }
+        switch (predicate == null ? "" : predicate) {
+            case "customer_type":
+                return this.customerTypes.get(value);
+            case "company_size":
+                return this.companySizes.get(value);
+            case "employment_type":
+                return this.employmentTypes.get(value);
+            case "audience_segment":
+                return segment(value);
+            default:
+                return entry(value);
+        }
+    }
+
     public Entry segment(final String id) {
         return id == null ? null : this.byId.get("segment:" + id);
     }

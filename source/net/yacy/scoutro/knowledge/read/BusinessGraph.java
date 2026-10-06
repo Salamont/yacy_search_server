@@ -315,7 +315,7 @@ public final class BusinessGraph {
         }
         final boolean segment = id.startsWith("segment:");
         final String code = id.substring(id.indexOf(':') + 1);
-        final Categories.Entry e = segment ? cats.segment(code) : cats.entry(code);
+        final Categories.Entry e = cats.code(segment ? Vocabulary.AUDIENCE_SEGMENT : Vocabulary.CUSTOMER_TYPE, code);
         return KgJson.obj("id", id, "type", "audience", "code", code, "label", e == null ? code : e.en, "label_de", e == null ? code : e.de,
                 "label_en", e == null ? code : e.en, "depth", depth, "value", true);
     }
@@ -464,7 +464,7 @@ public final class BusinessGraph {
                             if (Vocabulary.INDUSTRY.equals(f[1]) || Vocabulary.TARGET_INDUSTRY.equals(f[1])) {
                                 KgJson.put(item, "label", nace.label(code));
                             } else {
-                                final Categories.Entry e = Vocabulary.AUDIENCE_SEGMENT.equals(f[1]) ? cats.segment(code) : cats.entry(code);
+                                final Categories.Entry e = cats.code(f[1], code);
                                 KgJson.put(item, "label_de", e == null ? null : e.de);
                                 KgJson.put(item, "label_en", e == null ? null : e.en);
                             }

@@ -367,12 +367,8 @@ public final class ChatFacts {
             final String label = vocab.nace.label(value);
             return (label == null ? "" : label + " ") + "(NACE " + value + ")";
         }
-        if (Vocabulary.AUDIENCE_SEGMENT.equals(predicate)) {
-            final net.yacy.scoutro.knowledge.vocab.Categories.Entry e = vocab.categories.segment(value);
-            return e == null ? value : e.de + " / " + e.en;
-        }
         if (p != null && Vocabulary.T_CODE.equals(p.datatype)) {
-            final net.yacy.scoutro.knowledge.vocab.Categories.Entry e = vocab.categories.entry(value);
+            final net.yacy.scoutro.knowledge.vocab.Categories.Entry e = vocab.categories.code(predicate, value);
             return e == null ? value : e.de + " / " + e.en;
         }
         if (p != null && Vocabulary.T_JSON.equals(p.datatype)) {

@@ -797,18 +797,14 @@ public final class BusinessView {
         } else if (Vocabulary.INDUSTRY.equals(p) || Vocabulary.TARGET_INDUSTRY.equals(p)) {
             KgJson.put(o, "label", nace.label(value));
             KgJson.put(o, "classification", "NACE Rev. 2.1 / WZ 2025");
-        } else if (Vocabulary.AUDIENCE_SEGMENT.equals(p)) {
-            final Categories.Entry e = cats.segment(value);
-            if (e != null) {
-                KgJson.put(o, "label_de", e.de);
-                KgJson.put(o, "label_en", e.en);
-            }
         } else if (pred != null && Vocabulary.T_CODE.equals(pred.datatype)) {
-            final Categories.Entry e = cats.entry(value);
+            final Categories.Entry e = cats.code(p, value);
             if (e != null) {
                 KgJson.put(o, "label_de", e.de);
                 KgJson.put(o, "label_en", e.en);
-                KgJson.put(o, "nace", e.nace);
+                if (e.nace != null) {
+                    KgJson.put(o, "nace", e.nace);
+                }
             }
         }
         fact(o, f);

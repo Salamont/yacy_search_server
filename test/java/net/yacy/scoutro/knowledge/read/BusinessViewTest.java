@@ -153,7 +153,7 @@ public class BusinessViewTest {
         final Publisher.Doc swFor = doc("SWFORWhost01", "https://www.pflegesoft.de/fuer-wen", "stackfinder-web");
         swFor.linkDomains = new java.util.TreeMap<>(java.util.Map.of("lindenhof.de", 1));
         publish(swFor, "{\"@type\":\"Organization\",\"name\":\"PflegeSoft GmbH\",\"url\":\"https://www.pflegesoft.de/\"}",
-                "Für wen? Wir unterstützen Pflegeeinrichtungen bundesweit. Unsere Kunden: Muster Klinikum GmbH.", sw, fresh);
+                "Für wen? Wir unterstützen Pflegeeinrichtungen bundesweit, nur für Geschäftskunden. Unsere Kunden: Muster Klinikum GmbH.", sw, fresh);
         new DerivedService(this.cfg, this.store, () -> this.now).run();
     }
 
@@ -234,6 +234,10 @@ public class BusinessViewTest {
         final JSONObject both = new BusinessView(this.reader).entity(soft, viewer("stackfinder-web", "edelsenior-web"), false);
         final JSONObject a = both.getJSONObject("audiences");
         assertEquals(List.of("care/stationaere_langzeitpflege"), strings(a.getJSONObject("declared").getJSONArray("target_category"), "value"));
+        final JSONObject b2b = a.getJSONObject("declared").getJSONArray("customer_type").getJSONObject(0);
+        assertEquals("b2b", b2b.getString("value"));
+        assertEquals("customer type codes carry their labels", "Geschäftskunden (B2B)", b2b.getString("label_de"));
+        assertEquals("Businesses (B2B)", b2b.getString("label_en"));
         final List<String> observedNames = new ArrayList<>();
         for (int i = 0; i < a.getJSONArray("observed").length(); i++) {
             observedNames.add(a.getJSONArray("observed").getJSONObject(i).getJSONObject("other").getString("name"));
