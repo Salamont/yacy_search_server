@@ -33,8 +33,10 @@ GmbH is a partner of PflegeSoft GmbH".
 - **Suggested matches are never facts.** A derived layer suggests possible
   customers and partners and links firms that link to each other. Every
   such row names its evidence on both sides, and a viewer sees it only with
-  both collections. It is computed, labelled as a suggestion, and never
-  turned into a relation.
+  both collections. Each side uses only its facts in its own collection: a
+  place or a service known from a third collection never decides a row.
+  It is computed, labelled as a suggestion, and never turned into a
+  relation.
 
 - **Its own store.** The graph lives next to the search index, not in it. It
   is an embedded SQLite database in `DATA/SCOUTRO/knowledge/`, and it never
@@ -69,7 +71,8 @@ Further settings of the business facts (defaults in brackets):
 - `scoutro.kg.jobs.endedVisibleDays` (90): how long an ended posting stays
   visible.
 - `scoutro.kg.derived.enabled` (`true`) and
-  `scoutro.kg.derived.intervalMinutes` (60): the derived layer.
+  `scoutro.kg.derived.intervalMinutes` (60): the derived layer. Switched
+  off, one pass removes its rows, and the change feed reports each removal.
 - `scoutro.kg.matches.maxPerEntity` (20) and `scoutro.kg.matches.max`
   (50 000): caps for suggested matches.
 - `scoutro.kg.sameOperator.maxGroup` (12): the largest group of facilities
@@ -536,6 +539,11 @@ This is the default. The page shows the LLM tier as `off`.
 - **Suggestions are heuristics.** A suggested customer or partner only says
   that declared targets and offers meet; it is never checked against
   reality.
+- **Places by name.** A place is known by its country, its level and its
+  name, so that a service area in the text ("in Potsdam und Umgebung") meets
+  an address. Two towns of one name in one country (several *Neustadt*) are
+  one place in the graph, and a suggestion may take one for the other. The
+  suggestion names the place, so its reader can check it.
 
 ## 13. Checklist for operators
 
