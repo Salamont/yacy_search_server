@@ -209,6 +209,17 @@ public final class KgReader {
                 + ")) AND (" + d + ".loaded_at IS NULL OR " + d + ".loaded_at >= " + (now - this.cfg.maxAgeMillis) + "))";
     }
 
+    /**
+     * SQL condition: statement {@code alias} has a current source the viewer
+     * sees ({@link #current} as a query), so a list or a count agrees with
+     * the status the viewer's own view gives the fact.
+     */
+    String currentStatement(final Viewer v, final String alias, final long now) {
+        return "EXISTS (SELECT 1 FROM kg_evidence ce JOIN kg_doc cd ON cd.doc_rowid = ce.doc_rowid WHERE ce.stmt_rowid = " + alias + ".stmt_rowid"
+                + " AND (cd.state = 1 OR (cd.state = 2 AND cd.state_since >= " + (now - this.cfg.unavailableGraceMillis) + "))"
+                + " AND (cd.loaded_at IS NULL OR cd.loaded_at >= " + (now - this.cfg.maxAgeMillis) + ") AND " + visibleDoc(v, "cd") + ")";
+    }
+
     boolean current(final int state, final long stateSince, final Long loadedAt, final long now) {
         final boolean live = state == 1 || (state == 2 && now - stateSince <= this.cfg.unavailableGraceMillis);
         return live && (loadedAt == null || now - loadedAt <= this.cfg.maxAgeMillis);

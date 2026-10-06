@@ -425,6 +425,25 @@ public class BusinessViewTest {
         assertEquals("Lindenhof Pflege gGmbH", rows.getJSONObject(0).getJSONArray("providers").getJSONObject(0).getString("name"));
     }
 
+    /** Facets and the comparison count a fact as current only from a current page the viewer sees. */
+    @Test
+    public void facetsAndComparisonUseTheViewersOwnCurrentPages() throws Exception {
+        final String org = "{\"@type\":\"Organization\",\"name\":\"Muster Tagespflege GmbH\",\"url\":\"https://www.muster-tp.de/\"}";
+        final String text = "Unsere Leistungen: Tagespflege. Tagespflege ab 39 € pro Tag.";
+        // the same page content: long ago in one collection, today in another
+        publish(doc("MUSTEAhost06", "https://www.muster-tp.de/leistungen", "pflegeatlas-web"), org, text, ctx("care", "pflegeatlas-web", false),
+                this.now - 400 * DAY);
+        publish(doc("MUSTEBhost06", "https://www.muster-tp.de/angebot", "pflegeportal-web"), org, text, ctx("care", "pflegeportal-web", false),
+                this.now - DAY);
+        final BusinessGraph g = new BusinessGraph(this.reader);
+        final Viewer old = viewer("pflegeatlas-web");
+        final Viewer fresh = viewer("pflegeportal-web");
+        assertEquals(List.of(), strings(g.facets(old).getJSONArray("categories"), "code"));
+        assertEquals(List.of("care/tagespflege"), strings(g.facets(fresh).getJSONArray("categories"), "code"));
+        assertEquals(0, g.compare("care/tagespflege", 50, old).getJSONArray("rows").length());
+        assertEquals(1, g.compare("care/tagespflege", 50, fresh).getJSONArray("rows").length());
+    }
+
     @Test
     public void chatFactsWordSuggestionsAsSuggestionsAndPricesWithTheirDate() throws Exception {
         final Viewer both = viewer("stackfinder-web", "edelsenior-web");

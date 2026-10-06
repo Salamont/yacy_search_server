@@ -331,7 +331,8 @@ public final class BusinessGraph {
             final List<Long> services = new ArrayList<>();
             try (PreparedStatement ps = c.prepareStatement("SELECT DISTINCT s.subj FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
                     + " JOIN kg_entity e ON e.ent_rowid = s.subj WHERE v.kind = 2 AND v.name = 'category' AND s.obj_val = ? AND s.quality <> 4"
-                    + " AND e.status = 1 AND " + KgReader.visibleStatement(v, "s") + " LIMIT " + (limit + 1))) {
+                    + " AND e.status = 1 AND " + KgReader.visibleStatement(v, "s") + " AND " + this.reader.currentStatement(v, "s", now)
+                    + " LIMIT " + (limit + 1))) {
                 ps.setString(1, category);
                 try (ResultSet rs = ps.executeQuery()) {
                     while (rs.next()) {
@@ -445,6 +446,7 @@ public final class BusinessGraph {
 
     /** The filter values the viewer's graph holds: industries, service categories, audiences, places; with entity counts. */
     public JSONObject facets(final Viewer v) throws KgException {
+        final long now = this.reader.now();
         final Categories cats = KgVocabularies.get().categories;
         final Nace nace = KgVocabularies.get().nace;
         return this.reader.store().read(c -> {
@@ -455,7 +457,7 @@ public final class BusinessGraph {
                 final JSONArray items = new JSONArray();
                 try (PreparedStatement ps = c.prepareStatement("SELECT s.obj_val, count(DISTINCT s.subj) FROM kg_statement s JOIN kg_vocab v"
                         + " ON v.term_id = s.pred WHERE v.kind = 2 AND v.name = ? AND s.quality <> 4 AND " + KgReader.visibleStatement(v, "s")
-                        + " GROUP BY s.obj_val ORDER BY 2 DESC, 1 LIMIT 200")) {
+                        + " AND " + this.reader.currentStatement(v, "s", now) + " GROUP BY s.obj_val ORDER BY 2 DESC, 1 LIMIT 200")) {
                     ps.setString(1, f[1]);
                     try (ResultSet rs = ps.executeQuery()) {
                         while (rs.next()) {
