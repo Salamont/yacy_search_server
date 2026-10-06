@@ -131,4 +131,29 @@ public class KgConfigTest {
         assertEquals(13, c.maintenancePercent);
         assertEquals(1000 * KgTestSupport.MIB / 100 * 13, c.maintenanceBytes());
     }
+
+    /** Package 6.1: with *, the per-collection keys of a collection named nowhere else count; with a fixed list they do not. */
+    @Test
+    public void perCollectionKeysOfNewCollectionsCountUnderStarOnly() {
+        final Map<String, String> star = KgTestSupport.enabled(KgConfig.COLLECTIONS, "*", KgConfig.VOCAB_PREFIX + "newportal-web", "software",
+                KgConfig.PRICES_STALE_DAYS + ".newportal-web", "30", KgConfig.VOCAB_PREFIX + "bad name", "care");
+        final KgConfig withKeys = KgConfig.read(star::get, star.keySet());
+        assertTrue(withKeys.valid());
+        assertEquals("software", withKeys.vocabOverrides.get("newportal-web"));
+        assertEquals(30L * 86_400_000L, withKeys.priceStaleMillis("newportal-web"));
+        assertTrue(withKeys.extractionKey().contains("newportal-web=software"));
+        assertEquals(java.util.List.of(KgConfig.PRICES_STALE_DAYS + ".newportal-web", KgConfig.VOCAB_PREFIX + "newportal-web"),
+                withKeys.perCollectionKeys);
+        // without the key list (or with a fixed list) only the named and the Scoutro collections are read, as before
+        assertFalse(KgConfig.read(star::get).vocabOverrides.containsKey("newportal-web"));
+        final Map<String, String> fixed = new HashMap<>(star);
+        fixed.put(KgConfig.COLLECTIONS, "edelsenior-web");
+        final KgConfig list = KgConfig.read(fixed::get, fixed.keySet());
+        assertFalse(list.vocabOverrides.containsKey("newportal-web"));
+        assertTrue(list.perCollectionKeys.isEmpty());
+        assertFalse(list.follows("newportal-web"));
+        // no vocabulary is guessed from a name: a new collection has none unless mapped
+        assertEquals(null, withKeys.vocabularyOf("otherportal-web", java.util.Map.of("edelsenior-web", "care")));
+        assertFalse("jobs only when named", withKeys.jobsFor(java.util.List.of("newportal-web")));
+    }
 }

@@ -143,6 +143,8 @@ public final class KgRuntime {
         final Gates.Probe system;
         /** The LLM tier's model (Scoutro's LLM selection, usage knowledge). */
         final LlmClient llm;
+        /** The keys that are set (for the per-collection keys of collections named nowhere else, package 6.1). */
+        final Supplier<Iterable<String>> keys;
 
         /** Without Solr synchronisation (store, budget and status only). */
         public Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
@@ -161,6 +163,14 @@ public final class KgRuntime {
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
                 final KgStore.SqlWork<String> integrityCheck, final Supplier<SolrClient> solr, final Gates.Probe system,
                 final LlmClient llm) {
+            this(dataRoot, config, clock, probe, connections, monitorThread, integrityCheck, solr, system, llm, java.util.List::of);
+        }
+
+        private Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
+                final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
+                final KgStore.SqlWork<String> integrityCheck, final Supplier<SolrClient> solr, final Gates.Probe system,
+                final LlmClient llm, final Supplier<Iterable<String>> keys) {
+            this.keys = keys;
             this.dataRoot = dataRoot;
             this.config = config;
             this.clock = clock;
@@ -176,13 +186,19 @@ public final class KgRuntime {
         /** The same environment with another integrity check (tests). */
         Env withIntegrityCheck(final KgStore.SqlWork<String> check) {
             return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread, check,
-                    this.solr, this.system, this.llm);
+                    this.solr, this.system, this.llm, this.keys);
         }
 
         /** The same environment with another LLM model (tests). */
         Env withLlm(final LlmClient client) {
             return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread,
-                    this.integrityCheck, this.solr, this.system, client);
+                    this.integrityCheck, this.solr, this.system, client, this.keys);
+        }
+
+        /** The same environment with the keys that are set, read at every start (package 6.1). */
+        public Env withKeys(final Supplier<Iterable<String>> setKeys) {
+            return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread,
+                    this.integrityCheck, this.solr, this.system, this.llm, setKeys);
         }
 
         static Env of(final Switchboard sb) {
@@ -215,7 +231,21 @@ public final class KgRuntime {
             net.yacy.scoutro.knowledge.vocab.KgVocabularies.configure(
                     new File(sb.getAppPath(), net.yacy.scoutro.knowledge.vocab.KgVocabularies.DEFAULTS), null);
             return new Env(sb.getDataPath(), key -> sb.getConfig(key, null), System::currentTimeMillis,
-                    StorageProbe.SYSTEM, KgStore.SQLITE, true, QUICK_CHECK, solr, system, new YacyLlmClient());
+                    StorageProbe.SYSTEM, KgStore.SQLITE, true, QUICK_CHECK, solr, system, new YacyLlmClient(), () -> {
+                        // the knowledge graph's own keys, copied (the settings may change while they are read)
+                        final java.util.List<String> keys = new java.util.ArrayList<>();
+                        try {
+                            for (final java.util.Iterator<String> it = sb.configKeys(); it.hasNext();) {
+                                final String k = it.next();
+                                if (k != null && k.startsWith("scoutro.kg.")) {
+                                    keys.add(k);
+                                }
+                            }
+                        } catch (final RuntimeException e) {
+                            LOG.warn("knowledge graph: the set keys could not be read: " + e);
+                        }
+                        return keys;
+                    });
         }
     }
 
@@ -355,7 +385,7 @@ public final class KgRuntime {
         this.startedAt = this.env.clock.getAsLong();
         this.closing = false;
         try {
-            this.config = KgConfig.read(this.env.config);
+            this.config = KgConfig.read(this.env.config, this.env.keys.get());
             this.jsonld = new JsonLdCapturePolicy(this.config);
             if (!this.config.enabled) {
                 set(State.DISABLED, null, null);
@@ -1133,6 +1163,7 @@ public final class KgRuntime {
                     this.config.derivedIntervalMillis / 60_000L, "lastRun", dv == null || dv.lastRun() == 0L ? null : dv.lastRun(),
                     "last", dr == null ? null : dr.json()));
             KgJson.put(o, "vocabulary", vocabularyStatus());
+            KgJson.put(o, "collections", collectionsStatus(true));
             KgJson.put(o, "upgrade", upgradeStatus());
             KgJson.put(o, "events", recentEvents(s));
         }
@@ -1174,6 +1205,75 @@ public final class KgRuntime {
         } catch (final KgException | org.json.JSONException e) {
             return null;
         }
+    }
+
+    /** Documents per collection, counted at most once a minute (the status is polled). */
+    private volatile java.util.Map<String, Long> documentsByCollection;
+    private volatile long documentsCountedAt;
+    static final long DOCUMENT_COUNT_MILLIS = 60_000L;
+
+    private java.util.Map<String, Long> documentsByCollection() {
+        final long now = this.env.clock.getAsLong();
+        java.util.Map<String, Long> m = this.documentsByCollection;
+        if (m == null || now - this.documentsCountedAt >= DOCUMENT_COUNT_MILLIS || now < this.documentsCountedAt) {
+            try {
+                m = this.store.read(c -> {
+                    final java.util.Map<String, Long> out = new java.util.TreeMap<>();
+                    try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT k.name, x.n FROM (SELECT coll_id, count(*) n"
+                            + " FROM kg_doc_collection GROUP BY coll_id) x JOIN kg_collection k ON k.coll_id = x.coll_id");
+                            java.sql.ResultSet rs = ps.executeQuery()) {
+                        while (rs.next()) {
+                            out.put(rs.getString(1), rs.getLong(2));
+                        }
+                    }
+                    return out;
+                });
+                this.documentsByCollection = m;
+                this.documentsCountedAt = now;
+            } catch (final KgException e) {
+                return m == null ? java.util.Map.of() : m;
+            }
+        }
+        return m;
+    }
+
+    /** Drops the cached document counts (tests, after a swap). */
+    void forgetDocumentCounts() {
+        this.documentsByCollection = null;
+    }
+
+    /**
+     * The collections the graph follows, maps or holds (package 6.1), each
+     * with: followed or not, the vocabulary in force and where it comes from
+     * ({@code setting} for {@code scoutro.kg.vocab.<collection>},
+     * {@code vocabulary_files} for categories.json or an override file,
+     * {@code none}), whether that vocabulary exists, jobs, the LLM tier, the
+     * documents in the graph and a state. A collection without a vocabulary
+     * gets generic facts only; its vocabulary is never guessed from its name.
+     */
+    JSONArray collectionsStatus(final boolean withDocuments) {
+        final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot v = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
+        final java.util.Map<String, Long> docs = withDocuments && this.store != null ? documentsByCollection() : java.util.Map.of();
+        final java.util.Set<String> names = new java.util.TreeSet<>(this.config.collections);
+        names.addAll(v.categories.collections.keySet());
+        names.addAll(this.config.vocabOverrides.keySet());
+        names.addAll(this.config.jobsCollections);
+        names.addAll(this.config.llmCollections);
+        names.addAll(docs.keySet());
+        final JSONArray out = new JSONArray();
+        for (final String c : names) {
+            final boolean followed = this.config.follows(c);
+            final String setting = this.config.vocabOverrides.get(c);
+            final String vocabulary = this.config.vocabularyOf(c, v.categories.collections);
+            final boolean known = vocabulary == null || v.categories.vocabularies.containsKey(vocabulary);
+            final Long documents = withDocuments && this.store != null ? docs.getOrDefault(c, 0L) : null;
+            final String state = !followed ? "not_followed" : !known ? "unknown_vocabulary" : documents != null && documents == 0L ? "waiting"
+                    : "following";
+            out.put(KgJson.obj("collection", c, "followed", followed, "vocabulary", vocabulary, "vocabularySource", setting != null ? "setting"
+                    : v.categories.collections.containsKey(c) ? "vocabulary_files" : "none", "vocabularyKnown", known,
+                    "jobs", followed && this.config.jobsShown(c), "llm", this.config.llmFollows(c), "documents", documents, "state", state));
+        }
+        return out;
     }
 
     /** The business vocabularies in force (package 6): version, files, counts, problems, the vocabulary of each collection. */
