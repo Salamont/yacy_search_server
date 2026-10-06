@@ -107,6 +107,9 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 .skg-provider { overflow-wrap: anywhere; }
 .skg-domain { color: #44546a; }
 .skg-noprov, .skg-novocab { color: #8a1f17; font-style: italic; }
+/* a name the sources do not state (derived for display from a legal name, the operator or the domain) */
+.skg-name-domain, .skg-name-legal, .skg-name-operator, .skg-name-fallback { font-style: italic; }
+.skg-name-note { font-weight: normal; font-size: 13px; margin-left: 4px; }
 .skg-actions { font-size: 13px; }
 .skg-actions a { white-space: nowrap; }
 .skg-groups { margin: 8px 0 12px; padding: 8px 12px; border-left: 4px solid #b58300; background: #fff8e6; }

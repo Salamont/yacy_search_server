@@ -132,9 +132,11 @@ public final class ServiceGroups {
             for (final Long s : page) {
                 final JSONObject ctx = context.get(s);
                 final long[] p = prices.getOrDefault(s, new long[2]);
-                items.put(KgJson.obj("service", KgJson.obj("id", KgReader.publicId(c, s), "name", KgReader.visibleName(c, s, v), "quality",
+                final String sname = KgReader.visibleName(c, s, v);
+                items.put(KgJson.obj("service", DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, s), "name", sname, "quality",
                         ctx.opt("quality"), "sources", ctx.opt("sources"), "last_confirmed", ctx.opt("last_confirmed"), "hosts", ctx.opt("hosts"),
-                        "collections", ctx.opt("collections")), "providers", ctx.opt("providers"), "provider_count", ctx.opt("provider_count"),
+                        "collections", ctx.opt("collections")), DisplayNames.known(c, s, sname, v)), "providers", ctx.opt("providers"),
+                        "provider_count", ctx.opt("provider_count"),
                         "prices", KgJson.obj("current", p[0], "all", p[1])));
             }
             return KgJson.obj("schema", BusinessView.SCHEMA, "group", group, "offset", offset, "limit", limit, "total", services.size(), "items",

@@ -184,7 +184,10 @@
     const keys = ['kg_name', 'kg_type', 'kg_quality', 'kg_sources', 'kg_last_confirmed'];
     for (const k of keys) head.append(node('th', t(k)));
     for (const e of data.items) {
-      const row = body.insertRow(), a = node('a', e.name || e.id);
+      // the shown name (package 6.1): stated, else derived for display (marked), never the technical ID
+      const name = e.display_name || e.name;
+      const row = body.insertRow(), a = node('a', name && !/^kg[es]_[a-z2-7]{20}$/.test(name) ? name : t('kg_unnamed'));
+      if (e.display_name_source && e.display_name_source !== 'fact') a.title = t('kg_name_' + e.display_name_source);
       const q = new URLSearchParams({ view: 'object', id: e.id }); if (collection) q.set('collection', collection); a.href = 'ScoutroKnowledge_p.html?' + q;
       const cells = [a, t('kg_' + e.type) + (e.kind ? ' · ' + e.kind : ''), t('kg_' + e.quality), fmt(e.counts?.sources), e.last_confirmed ? date(e.last_confirmed) : t('missing')];
       cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = t(keys[i]); if (c instanceof Node) td.append(c); else td.textContent = c; });

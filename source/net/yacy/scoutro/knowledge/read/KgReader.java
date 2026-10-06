@@ -676,6 +676,8 @@ public final class KgReader {
             }
         }
         final JSONObject o = KgJson.obj("id", publicId, "type", type, "kind", kind, "name", name == null ? null : name.objVal);
+        // the name to show: the stated one, else a legal name, the site's operator or the domain; never the ID (package 6.1)
+        DisplayNames.put(o, DisplayNames.of(c, rowid, type, name == null ? null : name.objVal, aliases, v));
         if (detail) {
             KgJson.put(o, "aliases", new JSONArray(aliases));
             KgJson.put(o, "identifiers", identifiers);
@@ -872,14 +874,24 @@ public final class KgReader {
         final Vocabulary.Predicate p = Vocabulary.predicate(s.predicate);
         final JSONObject object;
         if (s.objEnt != null) {
-            object = KgJson.obj("entity", publicId(c, s.objEnt), "name", visibleName(c, s.objEnt, v));
+            final String name = visibleName(c, s.objEnt, v);
+            object = DisplayNames.put(KgJson.obj("entity", publicId(c, s.objEnt), "name", name), DisplayNames.known(c, s.objEnt, name, v));
         } else {
             object = KgJson.obj("value", s.objVal, "datatype", p == null ? Vocabulary.T_STRING : p.datatype);
         }
-        return KgJson.obj("id", s.publicId, "subject", publicId(c, s.subj), "subject_name", visibleName(c, s.subj, v),
-                "predicate", s.predicate, "object", object, "quality", s.quality, "certainty", s.stated || !s.current ? "stated" : "hedged",
-                "kinds", new JSONArray(s.kinds), "first_seen", iso(v.all() ? s.firstSeenStored : s.firstObserved),
-                "last_confirmed", iso(s.lastConfirmed), "sources", s.docs.size());
+        final String subjectName = visibleName(c, s.subj, v);
+        final JSONObject o = KgJson.obj("id", s.publicId, "subject", publicId(c, s.subj), "subject_name", subjectName);
+        // the names to show of both ends (package 6.1); never an ID
+        DisplayNames.put(o, DisplayNames.known(c, s.subj, subjectName, v), "subject_");
+        KgJson.put(o, "predicate", s.predicate);
+        KgJson.put(o, "object", object);
+        KgJson.put(o, "quality", s.quality);
+        KgJson.put(o, "certainty", s.stated || !s.current ? "stated" : "hedged");
+        KgJson.put(o, "kinds", new JSONArray(s.kinds));
+        KgJson.put(o, "first_seen", iso(v.all() ? s.firstSeenStored : s.firstObserved));
+        KgJson.put(o, "last_confirmed", iso(s.lastConfirmed));
+        KgJson.put(o, "sources", s.docs.size());
+        return o;
     }
 
     /** The best name of an entity among the viewer's name statements (stored order; nothing invisible is read). */

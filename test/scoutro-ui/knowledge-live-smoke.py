@@ -110,6 +110,7 @@ BUSINESS = [
 # package 6.1: "SAP" of three providers (two in kgb, one in kga), each its own service; a parent company for depth 2;
 # a followed collection kgc without a vocabulary (generic facts only)
 HOST_E, HOST_F, HOST_G, HOST_H = "www.ctcon-ui.de", "www.beta-it-ui.de", "www.gamma-ui.de", "www.neuportal-ui.de"
+HOST_I = "www.zimmerei-boehmer-ui.de"
 
 
 def sap_provider(name, host, extra, price):
@@ -125,6 +126,9 @@ SERVICES = [
     (f"https://{HOST_F}/angebot", "kgb", business("Angebot Beta", sap_provider("Beta IT UI AG", HOST_F,
         ',"address":{"streetAddress":"Ring 2","postalCode":"80331","addressLocality":"München"}', None), "Angebot.")),
     (f"https://{HOST_G}/sap", "kga", business("SAP Gamma", sap_provider("Gamma Pflege-IT UI GmbH", HOST_G, "", "99"), "SAP.")),
+    # a services page whose site declares no operator: an organisation without a name (the domain_operator placeholder)
+    (f"https://{HOST_I}/leistungen", "kgb", business("Leistungen", '{"@type":"WebPage","name":"Leistungen"}',
+                                                    "Unsere Leistungen: Cloud-Migration.")),
     (f"https://{HOST_H}/", "kgc", business("Neuportal", '{"@type":"Organization","name":"Neuportal UI GmbH","url":"https://www.neuportal-ui.de/",'
                                            '"telephone":"030 5550000"}', "Unsere Leistungen: Tagespflege und SAP-Beratung.")),
 ]
@@ -314,6 +318,14 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             assert "CT Holding UI AG" in labels_2 and "Cloud-Migration" not in labels_2, labels_2
             assert next(n for n in snet["nodes"] if n["id"] == ctcon)["hosts"] == [HOST_E]
             assert status(c, f"/scoutro/api/v1/kg/entities/{sap['id']}/neighborhood?collection=kga") == 404
+            # package 6.1: an organisation without a stated name is shown by its domain, never by its ID
+            orgs_b = get(c, "/scoutro/api/v1/kg/entities?collection=kgb&type=organization&limit=100")["items"]
+            unnamed = [o for o in orgs_b if o["name"] is None]
+            assert unnamed and unnamed[0]["display_name"] == "Zimmerei Boehmer Ui" and unnamed[0]["display_name_source"] == "domain" \
+                and unnamed[0]["display_host"] == HOST_I[4:], orgs_b
+            assert all(o["display_name"] and not o["display_name"].startswith("kge_") for o in orgs_b), orgs_b
+            unnamed_net = get(c, f"/scoutro/api/v1/kg/entities/{unnamed[0]['id']}/neighborhood?collection=kgb")
+            assert not any((n.get("display_name") or "").startswith("kge_") for n in unnamed_net["nodes"]), unnamed_net["nodes"]
             # a followed collection without a vocabulary: listed, said so, generic facts only
             # the document counts of the status are at most 10 s old
             s_c = wait(c, "the document count of kgc", lambda s: any(r["collection"] == "kgc" and r["documents"] == 1 for r in s["collections"]), 30)
@@ -322,11 +334,11 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             assert kgc["followed"] and kgc["vocabulary"] is None and kgc["vocabularySource"] == "none" and not kgc["jobs"] and kgc["documents"] == 1, kgc
             assert rows_c["kga"]["vocabulary"] == "care" and rows_c["kga"]["jobs"] and rows_c["kgb"]["vocabularySource"] == "setting", rows_c
             assert get(c, "/scoutro/api/v1/kg/facets?collection=kgc")["categories"] == [], "no guessed category for kgc"
-            checks += 13
+            checks += 16
             print(f"PASS: {checks} live knowledge read API checks (collection isolation, vocabulary 2, services across providers)", flush=True)
             env = {**os.environ, "SCOUTRO_URL": BASE, "SCOUTRO_KG_ENTITY": org["id"], "SCOUTRO_KG_HOST": HOST_A,
                    "SCOUTRO_KG_ONLY_B": b_only["id"], "SCOUTRO_KG_OPERATOR": operator["id"], "SCOUTRO_KG_SOFT": soft["id"],
-                   "SCOUTRO_KG_SAP": sap["id"], "SCOUTRO_KG_CTCON": ctcon}
+                   "SCOUTRO_KG_SAP": sap["id"], "SCOUTRO_KG_CTCON": ctcon, "SCOUTRO_KG_UNNAMED": unnamed[0]["id"]}
             subprocess.run(["node", str(REPO / "test/scoutro-ui/knowledge-ui-test.mjs")], cwd=REPO, env=env, check=True, timeout=900)
         except BaseException:
             log.flush()

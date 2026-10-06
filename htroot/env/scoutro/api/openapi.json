@@ -16589,7 +16589,29 @@
             "type": [
               "string",
               "null"
+            ],
+            "description": "The stated name over the viewer's evidence; null when the viewer sees none (see display_name)."
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+          },
+          "display_name_source": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "legal",
+              "operator",
+              "domain",
+              "fallback"
             ]
+          },
+          "display_host": {
+            "type": "string",
+            "description": "With display_name_source domain: the host the name is derived from."
           },
           "aliases": {
             "type": "array",
@@ -16803,6 +16825,27 @@
                     "null"
                   ]
                 },
+                "display_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                },
+                "display_name_source": {
+                  "type": "string",
+                  "enum": [
+                    "fact",
+                    "legal",
+                    "operator",
+                    "domain",
+                    "fallback"
+                  ]
+                },
+                "display_host": {
+                  "type": "string",
+                  "description": "With display_name_source domain: the host the name is derived from."
+                },
                 "type": {
                   "type": [
                     "string",
@@ -16880,12 +16923,33 @@
               "null"
             ]
           },
+          "subject_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+          },
+          "subject_display_name_source": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "legal",
+              "operator",
+              "domain",
+              "fallback"
+            ]
+          },
+          "subject_display_host": {
+            "type": "string",
+            "description": "With display_name_source domain: the host the name is derived from."
+          },
           "predicate": {
             "type": "string"
           },
           "object": {
             "type": "object",
-            "description": "A relation ({entity, name}) or a literal ({value, datatype}).",
+            "description": "A relation ({entity, name, display_name, ...}) or a literal ({value, datatype}).",
             "properties": {
               "entity": {
                 "type": "string"
@@ -16895,6 +16959,27 @@
                   "string",
                   "null"
                 ]
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
+                ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
               },
               "value": {
                 "type": "string"
@@ -17921,6 +18006,27 @@
                   "null"
                 ]
               },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
+                ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
+              },
               "type": {
                 "type": [
                   "string",
@@ -17941,6 +18047,27 @@
                   "string",
                   "null"
                 ]
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
+                ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
               },
               "type": {
                 "type": [
@@ -18134,6 +18261,27 @@
                   "string",
                   "null"
                 ]
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
+                ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
               },
               "type": {
                 "type": [
@@ -18413,6 +18561,27 @@
                             "null"
                           ]
                         },
+                        "display_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                        },
+                        "display_name_source": {
+                          "type": "string",
+                          "enum": [
+                            "fact",
+                            "legal",
+                            "operator",
+                            "domain",
+                            "fallback"
+                          ]
+                        },
+                        "display_host": {
+                          "type": "string",
+                          "description": "With display_name_source domain: the host the name is derived from."
+                        },
                         "type": {
                           "type": [
                             "string",
@@ -18572,6 +18741,27 @@
                             "string",
                             "null"
                           ]
+                        },
+                        "display_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                        },
+                        "display_name_source": {
+                          "type": "string",
+                          "enum": [
+                            "fact",
+                            "legal",
+                            "operator",
+                            "domain",
+                            "fallback"
+                          ]
+                        },
+                        "display_host": {
+                          "type": "string",
+                          "description": "With display_name_source domain: the host the name is derived from."
                         },
                         "type": {
                           "type": [
@@ -18762,7 +18952,29 @@
                   "type": [
                     "string",
                     "null"
+                  ],
+                  "description": "Entity nodes: the stated name (null without one; see display_name)."
+                },
+                "display_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                },
+                "display_name_source": {
+                  "type": "string",
+                  "enum": [
+                    "fact",
+                    "legal",
+                    "operator",
+                    "domain",
+                    "fallback"
                   ]
+                },
+                "display_host": {
+                  "type": "string",
+                  "description": "With display_name_source domain: the host the name is derived from."
                 },
                 "label_de": {
                   "type": [
@@ -19023,6 +19235,27 @@
                         "null"
                       ]
                     },
+                    "display_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                    },
+                    "display_name_source": {
+                      "type": "string",
+                      "enum": [
+                        "fact",
+                        "legal",
+                        "operator",
+                        "domain",
+                        "fallback"
+                      ]
+                    },
+                    "display_host": {
+                      "type": "string",
+                      "description": "With display_name_source domain: the host the name is derived from."
+                    },
                     "type": {
                       "type": [
                         "string",
@@ -19044,6 +19277,27 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "display_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                      },
+                      "display_name_source": {
+                        "type": "string",
+                        "enum": [
+                          "fact",
+                          "legal",
+                          "operator",
+                          "domain",
+                          "fallback"
+                        ]
+                      },
+                      "display_host": {
+                        "type": "string",
+                        "description": "With display_name_source domain: the host the name is derived from."
                       },
                       "locality": {
                         "type": [
@@ -19717,6 +19971,27 @@
                         "null"
                       ]
                     },
+                    "display_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                    },
+                    "display_name_source": {
+                      "type": "string",
+                      "enum": [
+                        "fact",
+                        "legal",
+                        "operator",
+                        "domain",
+                        "fallback"
+                      ]
+                    },
+                    "display_host": {
+                      "type": "string",
+                      "description": "With display_name_source domain: the host the name is derived from."
+                    },
                     "quality": {
                       "type": "string",
                       "enum": [
@@ -19766,6 +20041,27 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "display_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                      },
+                      "display_name_source": {
+                        "type": "string",
+                        "enum": [
+                          "fact",
+                          "legal",
+                          "operator",
+                          "domain",
+                          "fallback"
+                        ]
+                      },
+                      "display_host": {
+                        "type": "string",
+                        "description": "With display_name_source domain: the host the name is derived from."
                       },
                       "type": {
                         "type": [

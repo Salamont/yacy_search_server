@@ -14,7 +14,7 @@ const entity = process.env.SCOUTRO_KG_ENTITY, host = process.env.SCOUTRO_KG_HOST
 // vocabulary 2: the operator (kga) and the software firm (kgb) that suggests it as a possible customer
 const operator = process.env.SCOUTRO_KG_OPERATOR, soft = process.env.SCOUTRO_KG_SOFT;
 // package 6.1: CTcon's "SAP" (kgb), one of three providers of the name, and CTcon itself
-const sap = process.env.SCOUTRO_KG_SAP, ctcon = process.env.SCOUTRO_KG_CTCON;
+const sap = process.env.SCOUTRO_KG_SAP, ctcon = process.env.SCOUTRO_KG_CTCON, unnamedOrg = process.env.SCOUTRO_KG_UNNAMED;
 assert(base && new URL(base).hostname === '127.0.0.1' && entity && host && onlyB && operator && soft && sap && ctcon, 'Use knowledge-live-smoke.py; no production instance');
 const shots = process.env.SCOUTRO_SCREENSHOTS;
 if (shots) fs.mkdirSync(shots, { recursive: true });
@@ -25,6 +25,9 @@ const browser = await chromium.launch({
   args: ['--no-proxy-server'],
 });
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
+// package 6.1: no technical ID in any visible name (links, headings, network cards); the technical ID field is no name
+const noIdAsName = page => page.evaluate(() => ![...document.querySelectorAll('#skg-main a, main a, main h2, main h3, #skg-net-svg text, #skg-net-svg title')]
+  .filter(n => n.offsetParent !== null || n.closest('svg')).some(n => /kg[es]_[a-z2-7]{20}/.test(n.textContent)));
 try {
   const anonymous = await browser.newContext();
   for (const p of ['/ScoutroKnowledge_p.html', '/scoutro/api/v1/kg/entities', '/scoutro/api/v1/kg/entities/' + entity, '/scoutro/api/v1/kg/sources/AAAAAAAAAAAA',
@@ -80,6 +83,7 @@ try {
           && !document.querySelector('#skg-message').textContent.includes('…'));
         check(await page.locator('#skg-entities tbody tr').count() === 0, 'search within kga finds no kgb name' + where);
         check(await noOverflow(page), 'no horizontal overflow (objects)' + where);
+        check(await noIdAsName(page), 'no technical ID as a name (objects)' + where);
 
         // object view in kga: own facts, the LLM relation, no kgb data; evidence with source link
         await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${entity}&collection=kga`, { waitUntil: 'networkidle' });
@@ -211,6 +215,21 @@ try {
         await page.goto(base + '/ScoutroKnowledge_p.html?view=services&collection=kgb', { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-svc-groups tbody tr');
         check((await page.locator('#skg-svc-groups tbody').textContent()).includes('SAP'), 'the groups of every service name' + where);
+        // an organisation without a stated name: its domain, marked, never its ID; in the list, the object view and the network
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&type=organization&collection=kgb', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
+        const orgRows = await page.locator('#skg-entities tbody').textContent();
+        check(orgRows.includes('Zimmerei Boehmer Ui') && orgRows.includes(L('derived from the domain', 'aus Domain abgeleitet')), 'a nameless organisation by its domain, marked' + where);
+        check(await noIdAsName(page), 'no technical ID as a name in the list' + where);
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${unnamedOrg}&collection=kgb`, { waitUntil: 'networkidle' });
+        await page.waitForFunction(() => document.querySelector('#skg-object-name').textContent.length > 0);
+        check((await page.locator('#skg-object-name').textContent()).includes('Zimmerei Boehmer Ui'), 'object title from the domain' + where);
+        check((await page.locator('#skg-object-facts').textContent()).includes(unnamedOrg), 'the ID only in its technical field' + where);
+        check(await noIdAsName(page), 'no technical ID as a name in the object view' + where);
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${unnamedOrg}&collection=kgb`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        check((await page.locator('#skg-net-svg .skg-center').textContent()).includes('Zimmerei Boehmer Ui'), 'network centre from the domain' + where);
+        check(await noIdAsName(page), 'no technical ID as a name in the network' + where);
         // the network of CTcon's SAP: the provider above it through the incoming offer, its parent company at depth 2
         await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${sap}&collection=kgb`, { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');

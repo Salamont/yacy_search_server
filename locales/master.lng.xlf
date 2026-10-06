@@ -14228,6 +14228,9 @@
     <trans-unit id="12b9612c" xml:space="preserve" approved="no" translate="yes">
        <source>Technology</source>
     </trans-unit>
+    <trans-unit id="d3d3885e" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge</source>
+    </trans-unit>
     <trans-unit id="78d7e2b" xml:space="preserve" approved="no" translate="yes">
        <source>Crawl status</source>
     </trans-unit>
@@ -14320,6 +14323,12 @@
     </trans-unit>
     <trans-unit id="37831824" xml:space="preserve" approved="no" translate="yes">
        <source>Language and protocol distributions show up to 30 values.</source>
+    </trans-unit>
+    <trans-unit id="6f0c2c78" xml:space="preserve" approved="no" translate="yes">
+       <source>Open in the knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="b90f86fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.</source>
     </trans-unit>
     <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
        <source>Collection</source>
@@ -14882,17 +14891,20 @@
     <trans-unit id="b8236a5" xml:space="preserve" approved="no" translate="yes">
        <source>Open index schema</source>
     </trans-unit>
-    <trans-unit id="d3d3885e" xml:space="preserve" approved="no" translate="yes">
-       <source>Knowledge</source>
-    </trans-unit>
-    <trans-unit id="6f0c2c78" xml:space="preserve" approved="no" translate="yes">
-       <source>Open in the knowledge graph</source>
-    </trans-unit>
-    <trans-unit id="b90f86fe" xml:space="preserve" approved="no" translate="yes">
-       <source>Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.</source>
-    </trans-unit>
     <trans-unit id="24eeab" xml:space="preserve" approved="no" translate="yes">
        <source>Name</source>
+    </trans-unit>
+    <trans-unit id="624e78d1" xml:space="preserve" approved="no" translate="yes">
+       <source>Name not recognised</source>
+    </trans-unit>
+    <trans-unit id="a12e7586" xml:space="preserve" approved="no" translate="yes">
+       <source>derived from the domain</source>
+    </trans-unit>
+    <trans-unit id="1f12d392" xml:space="preserve" approved="no" translate="yes">
+       <source>legal name</source>
+    </trans-unit>
+    <trans-unit id="334a2e1f" xml:space="preserve" approved="no" translate="yes">
+       <source>operator of the website</source>
     </trans-unit>
     <trans-unit id="28035a" xml:space="preserve" approved="no" translate="yes">
        <source>Type</source>
@@ -16224,6 +16236,42 @@
     </trans-unit>
     <trans-unit id="965535a1" xml:space="preserve" approved="no" translate="yes">
        <source>place of work</source>
+    </trans-unit>
+    <trans-unit id="13016cda" xml:space="preserve" approved="no" translate="yes">
+       <source>Unnamed organisation</source>
+    </trans-unit>
+    <trans-unit id="6a2daa3" xml:space="preserve" approved="no" translate="yes">
+       <source>Unnamed facility</source>
+    </trans-unit>
+    <trans-unit id="74104b47" xml:space="preserve" approved="no" translate="yes">
+       <source>Unnamed site</source>
+    </trans-unit>
+    <trans-unit id="dcfed07" xml:space="preserve" approved="no" translate="yes">
+       <source>Unnamed place</source>
+    </trans-unit>
+    <trans-unit id="6d41dab5" xml:space="preserve" approved="no" translate="yes">
+       <source>Unnamed service</source>
+    </trans-unit>
+    <trans-unit id="9b64f9df" xml:space="preserve" approved="no" translate="yes">
+       <source>Unnamed job posting</source>
+    </trans-unit>
+    <trans-unit id="624e78d1" xml:space="preserve" approved="no" translate="yes">
+       <source>Name not recognised</source>
+    </trans-unit>
+    <trans-unit id="a12e7586" xml:space="preserve" approved="no" translate="yes">
+       <source>derived from the domain</source>
+    </trans-unit>
+    <trans-unit id="1f12d392" xml:space="preserve" approved="no" translate="yes">
+       <source>legal name</source>
+    </trans-unit>
+    <trans-unit id="334a2e1f" xml:space="preserve" approved="no" translate="yes">
+       <source>operator of the website</source>
+    </trans-unit>
+    <trans-unit id="20f87fa5" xml:space="preserve" approved="no" translate="yes">
+       <source>no name recognised</source>
+    </trans-unit>
+    <trans-unit id="fc607cde" xml:space="preserve" approved="no" translate="yes">
+       <source>Technical ID</source>
     </trans-unit>
     <trans-unit id="337a8b" xml:space="preserve" approved="no" translate="yes">
        <source>name</source>

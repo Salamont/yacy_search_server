@@ -56,6 +56,13 @@ describe the whole graph.
   version) and the excerpt; links to the source view and the Index Browser.
 - **Possible duplicates** are objects of the same type with the same name.
   They are never merged automatically.
+- **Names:** an object is shown with its stated name. Without one the page
+  uses a legal name, the declared operator of the site, or for an
+  organisation a name from its domain, marked "derived from the domain"
+  (`zimmerei-boehmer.de` → "Zimmerei Boehmer"); otherwise "Unnamed
+  organisation", "Unnamed service" and so on. These names are only for
+  display: they are not stored, not used to merge objects and not given to
+  the chat as facts. The ID appears only as *Technical ID* in the object view.
 
 ## Business view (vocabulary 2)
 

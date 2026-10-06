@@ -341,6 +341,12 @@ public final class BusinessGraph {
         return out;
     }
 
+    /** The subject of a derived row: ID, stated name and the name to show. */
+    private static JSONObject subjectRef(final Connection c, final long ent, final Viewer v) throws SQLException {
+        final String name = KgReader.visibleName(c, ent, v);
+        return DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, ent), "name", name), DisplayNames.known(c, ent, name, v));
+    }
+
     private static double strength(final String status, final double confidence, final int evidence) {
         final double base;
         switch (status) {
@@ -378,8 +384,10 @@ public final class BusinessGraph {
                 }
             }
         }
-        return KgJson.obj("id", KgReader.publicId(c, ent), "type", type, "kind", kind, "label", KgReader.visibleName(c, ent, v), "depth", depth,
-                "value", false);
+        final String name = KgReader.visibleName(c, ent, v);
+        // label: the stated name; display_name: what to show, never the ID (package 6.1)
+        return DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, ent), "type", type, "kind", kind, "label", name, "depth", depth,
+                "value", false), name != null ? DisplayNames.known(c, ent, name, v) : DisplayNames.of(c, ent, type, null, null, v));
     }
 
     private static JSONObject valueNode(final String id, final int depth) {
@@ -435,13 +443,15 @@ public final class BusinessGraph {
                 final JSONArray providers = new JSONArray();
                 for (final BusinessView.Fact f : this.view.facts(c, s, true, List.of(Vocabulary.OFFERS), v, now, 20)) {
                     if (BusinessView.visible(c, f.stat.subj, v)) {
-                        final JSONObject p = KgJson.obj("id", KgReader.publicId(c, f.stat.subj), "name", KgReader.visibleName(c, f.stat.subj, v),
-                                "locality", locality(c, f.stat.subj, v), "_row", f.stat.subj);
+                        final String pname = KgReader.visibleName(c, f.stat.subj, v);
+                        final JSONObject p = DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, f.stat.subj), "name", pname,
+                                "locality", locality(c, f.stat.subj, v), "_row", f.stat.subj), DisplayNames.known(c, f.stat.subj, pname, v));
                         providers.put(p);
                         providerRows.add(f.stat.subj);
                     }
                 }
-                rows.put(KgJson.obj("service", KgJson.obj("id", sid, "name", name), "providers", providers, "prices", items));
+                rows.put(KgJson.obj("service", DisplayNames.put(KgJson.obj("id", sid, "name", name), DisplayNames.known(c, s, name, v)),
+                        "providers", providers, "prices", items));
             }
             // each provider with the hosts and collections of the viewer's pages (package 6.1), batched
             final Map<Long, EntityContexts.Ctx> ctx = EntityContexts.of(c, providerRows, v, this.reader, now);
@@ -501,7 +511,7 @@ public final class BusinessGraph {
                             continue;
                         }
                         final JSONObject o = BusinessView.derivedJson(rs, rs.getLong(4), true, c, v);
-                        KgJson.put(o, "subject", KgJson.obj("id", KgReader.publicId(c, rs.getLong(3)), "name", KgReader.visibleName(c, rs.getLong(3), v)));
+                        KgJson.put(o, "subject", subjectRef(c, rs.getLong(3), v));
                         items.put(o);
                     }
                 }
@@ -526,7 +536,7 @@ public final class BusinessGraph {
                     return null;
                 }
                 final JSONObject o = BusinessView.derivedJson(rs, rs.getLong(4), true, c, v);
-                KgJson.put(o, "subject", KgJson.obj("id", KgReader.publicId(c, rs.getLong(3)), "name", KgReader.visibleName(c, rs.getLong(3), v)));
+                KgJson.put(o, "subject", subjectRef(c, rs.getLong(3), v));
                 return o;
             }
         }

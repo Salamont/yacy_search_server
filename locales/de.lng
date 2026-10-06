@@ -5404,6 +5404,10 @@ aria-label="Views"==aria-label="Ansichten"
 >Not enabled in the index schema:<==>Im Indexschema nicht aktiviert:<
 >Enable these fields in the index schema; they are filled for pages crawled afterwards.<==>Aktivieren Sie diese Felder im Indexschema; sie werden für danach gecrawlte Seiten gefüllt.<
 >Open index schema<==>Indexschema öffnen<
+>Name not recognised<==>Name nicht erkannt<
+>derived from the domain<==>aus Domain abgeleitet<
+>legal name<==>legaler Name<
+>operator of the website<==>Betreiber der Website<
 
 #File: ScoutroCrawls_p.html
 
@@ -5955,3 +5959,15 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >funded by<==>gefördert von<
 >sponsored by<==>gesponsert von<
 >job at<==>Job bei<
+>Unnamed organisation<==>Unbenannte Organisation<
+>Unnamed facility<==>Unbenannte Einrichtung<
+>Unnamed site<==>Unbenannter Standort<
+>Unnamed place<==>Unbenannter Ort<
+>Unnamed service<==>Unbenannte Leistung<
+>Unnamed job posting<==>Unbenannte Stellenanzeige<
+>Name not recognised<==>Name nicht erkannt<
+>derived from the domain<==>aus Domain abgeleitet<
+>legal name<==>legaler Name<
+>operator of the website<==>Betreiber der Website<
+>no name recognised<==>kein Name erkannt<
+>Technical ID<==>Technische ID<

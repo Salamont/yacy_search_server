@@ -33,6 +33,7 @@ public class GraphFactsTest {
         final List<String> terms = new ArrayList<>();
         long sleep;
         RuntimeException failure;
+        List<ChatFacts.Entry> answer;
 
         @Override
         public GraphFacts.Settings settings() {
@@ -52,7 +53,7 @@ public class GraphFactsTest {
             if (this.failure != null) {
                 throw this.failure;
             }
-            return List.of(entry());
+            return this.answer != null ? this.answer : List.of(entry());
         }
     }
 
@@ -128,6 +129,21 @@ public class GraphFactsTest {
         final Fake broken = new Fake();
         broken.failure = new IllegalStateException("store closed");
         assertEquals("error", GraphFacts.collect(broken, true, false, "kga", false, found("https://www.muster.de/"), QUESTION, 9000).reason);
+    }
+
+    @Test
+    public void anEntryWithoutAStatedNameIsWordedByItsTypeNeverByItsId() {
+        final ChatFacts.Entry e = new ChatFacts.Entry("kge_aaaaaaaaaaaaaaaaaaaa", null, "organization",
+                "https://www.zimmerei-boehmer.de/leistungen", "AAAAAAhost01", "kga");
+        e.facts.add(new ChatFacts.Fact("kgs_1", "offers", "Dachsanierung", "supported", false, false));
+        final Fake fake = new Fake();
+        fake.answer = List.of(e);
+        final GraphFacts.Built b = GraphFacts.format(GraphFacts.collect(fake, true, false, "kga", false,
+                found("https://www.zimmerei-boehmer.de/leistungen"), QUESTION, 9000), 1);
+        assertEquals("Scoutro knowledge graph: an unnamed organisation", b.sources.get(0).title);
+        assertFalse(b.text, b.text.contains("kge_"));
+        assertEquals("an unnamed service", GraphFacts.unnamed("service"));
+        assertEquals("an unnamed entry", GraphFacts.unnamed(null));
     }
 
     @Test

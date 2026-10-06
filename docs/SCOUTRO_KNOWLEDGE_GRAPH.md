@@ -2136,6 +2136,21 @@ Still an SVG drawn by `knowledge.js`, no library, no CDN.
 - **Status:** `status.collections` lists every collection the graph follows, maps or holds: `followed`, `vocabulary` (null for none), `vocabularySource` (`setting`, `vocabulary_files`, `none`), `vocabularyKnown`, `jobs`, `llm`, `documents` (counted from `kg_doc_collection` at most every 10 seconds) and `state` (`following`, `waiting`, `not_followed`, `unknown_vocabulary`); `config.jobsCollections` shows `scoutro.kg.jobs.collections`. The overview shows them as the *Collections* table with "No vocabulary assigned".
 - **Jobs:** only for collections named in `scoutro.kg.jobs.collections` (or `*`); a new collection never gets them by itself.
 
-### 24.5 API, agents and tools
+### 24.5 Display names, never an ID
 
-`GET services`, `GET services/providers`, the `prices` parameter of the neighbourhood, `context` in the entity list, the node and edge fields of the neighbourhood, `hosts`/`collections` of the compared providers and `status.collections` are in `openapi.json` and `actions.json` (64 actions), for agents behind `kg.read` (the viewer is the agent's collections; foreign collections are `403 collection_not_in_scope`), as MCP tools `scoutro_kg_services` and `scoutro_kg_services_providers` and as `scoutroctl kg services`, `kg service-providers NAME` and `kg neighborhood --prices`.
+**Cause.** The read API projected `name` only from a visible `name` statement. An entity without one — the unnamed operator of a services or careers page (the `domain_operator` placeholder of `BusinessRules`) before a page declares the operator, an organisation known only from links, a service whose name another collection holds — had `name: null`, and the object list, object view, network, comparison, matches, relations, provider lists, the SEO tab and the chat fell back to the ID (`kge_…`).
+
+**Fix** (`read/DisplayNames`). Every entity, reference, node, statement subject and object, provider, compared provider and service row now also carries `display_name` and `display_name_source`, computed for the viewer at each read:
+
+1. `fact`: the visible stated name;
+2. `legal`: a visible alias that is a legal name (`… GmbH`, `… AG`);
+3. `operator`: for the unnamed operator of a site, the visible name of the *one* declared operator of the same domain (`site_operator` key in the placeholder's `domain_operator` scope); with several, none;
+4. `domain`: for an organisation, a name from the host of most of the viewer's pages (`www.zimmerei-boehmer.de` → "Zimmerei Boehmer", with `display_host`; the host itself when no readable label is left: an address, punycode, digits); the page adds "derived from the domain";
+5. `fallback`: `display_name: null`; the page shows "Unnamed organisation", "Unnamed service", "Unnamed facility", "Unnamed site", "Unnamed place", "Unnamed job posting".
+
+Only `fact` is a name the sources state. The others are presentation: never stored, never an entity key, never used to merge, never given to the chat as a fact (the chat says "an unnamed organisation"). `name` stays the stated name or null. A stated name that turns up later replaces the fallback at the next read, without a migration. The ID stays the link target and appears only in the object view's *Technical ID* field.
+
+### 24.6 API, agents and tools
+
+
+`GET services`, `GET services/providers`, the `prices` parameter of the neighbourhood, `context` in the entity list, the display-name fields, the node and edge fields of the neighbourhood, `hosts`/`collections` of the compared providers and `status.collections` are in `openapi.json` and `actions.json` (64 actions), for agents behind `kg.read` (the viewer is the agent's collections; foreign collections are `403 collection_not_in_scope`), as MCP tools `scoutro_kg_services` and `scoutro_kg_services_providers` and as `scoutroctl kg services`, `kg service-providers NAME` and `kg neighborhood --prices`.

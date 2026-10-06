@@ -456,6 +456,9 @@ schemas["KgBackupFile"] = {"type": "string", "format": "binary", "description": 
 
 # knowledge graph read routes (package 3): shared by /v1/kg/... (administrator) and later /agent/v1/kg/... (kg.read)
 KG_DT = {"type": ["string", "null"], "format": "date-time"}
+KG_DISPLAY = {"display_name": {"type": ["string", "null"], "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."},
+    "display_name_source": {"type": "string", "enum": ["fact", "legal", "operator", "domain", "fallback"]},
+    "display_host": {"type": "string", "description": "With display_name_source domain: the host the name is derived from."}}
 KG_QUALITY = {"type": "string", "enum": ["supported", "uncertain", "conflicting", "stale"]}
 KG_AS_OF = {"type": "object", "description": "Dataset epoch and the latest change sequence when the answer was read.", "properties": {"epoch": {"type": "string"}, "seq": {"type": "integer"}}}
 KG_LAG = {"type": "object", "description": "How far the graph lags behind Solr (absent without the sync).", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}, "byType": {"type": ["object", "null"], "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.", "properties": {"new": {"type": "integer"}, "update": {"type": "integer"}, "delete": {"type": "integer"}, "reconcile": {"type": "integer"}, "captured": {"type": "integer"}}}}}
@@ -463,7 +466,7 @@ schemas["KgEntity"] = {"type": "object", "description": "An entity as one viewer
     "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"},
     "type": {"type": "string", "enum": ["organization", "facility", "site", "place", "service", "job"]},
     "kind": {"type": ["string", "null"], "description": "Facility kind (lower-case schema.org type or a collection vocabulary term); different kinds never merge."},
-    "name": {"type": ["string", "null"]}, "aliases": {"type": "array", "items": {"type": "string"}},
+    "name": {"type": ["string", "null"], "description": "The stated name over the viewer's evidence; null when the viewer sees none (see display_name)."}, **KG_DISPLAY, "aliases": {"type": "array", "items": {"type": "string"}},
     "identifiers": {"type": "array", "items": {"type": "object", "properties": {"scheme": {"type": "string"}, "value": {"type": "string"}, "quality": KG_QUALITY}}},
     "quality": KG_QUALITY, "first_seen": KG_DT, "last_confirmed": KG_DT,
     "counts": {"type": "object", "properties": {"statements": {"type": "integer"}, "sources": {"type": "integer"}, "truncated": {"type": "boolean", "description": "More than 2000 statements: the counts cover the first 2000."}}},
@@ -476,7 +479,7 @@ KG_CTX = {"hosts": {"type": "array", "items": {"type": "string"}, "description":
     "places": {"type": "array", "items": {"type": "string"}, "description": "Its stated locality, else the names of the places it is in (at most 3)."},
     "quality": {"type": "string", "enum": ["supported", "uncertain", "stale"], "description": "Over the viewer's evidence (the rule of the quality filter)."},
     "sources": {"type": "integer", "description": "Current visible source pages."}, "last_confirmed": KG_DT}
-KG_PROVIDER = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, "type": {"type": ["string", "null"]},
+KG_PROVIDER = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "type": {"type": ["string", "null"]},
     "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"], "places": KG_CTX["places"], "quality": KG_CTX["quality"]}}
 schemas["KgEntityContext"] = {"type": "object", "description": "Package 6.1, items of the entity list only: the context of a hit, computed for the whole page in a few batched queries over the viewer's evidence. For a service its providers (the visible subjects of a visible offers fact), for a job its employer (hiring_organization); every provider's service stays its own entity, nothing is merged.", "properties": {
     **KG_CTX, "relation": {"type": "string", "enum": ["offers", "hiring_organization"]},
@@ -484,8 +487,8 @@ schemas["KgEntityContext"] = {"type": "object", "description": "Package 6.1, ite
     "provider_count": {"type": "integer", "description": "All visible providers (the list shows at most 5)."}}}
 schemas["KgStatement"] = {"type": "object", "required": ["id", "subject", "predicate", "object", "quality"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "id": {"type": ["string", "null"], "pattern": "^kgs_[a-z2-7]{20}$"},
-    "subject": {"type": "string"}, "subject_name": {"type": ["string", "null"]}, "predicate": {"type": "string"},
-    "object": {"type": "object", "description": "A relation ({entity, name}) or a literal ({value, datatype}).", "properties": {"entity": {"type": "string"}, "name": {"type": ["string", "null"]}, "value": {"type": "string"}, "datatype": {"type": "string", "enum": ["string", "phone", "email", "url", "address", "geo", "json", "date", "code"], "description": "json: a canonical JSON value (price, salary, contact_point, service_area); date: yyyy-mm-dd or yyyy-mm; code: a vocabulary code (NACE, service category, customer type, segment, size, employment type)."}}},
+    "subject": {"type": "string"}, "subject_name": {"type": ["string", "null"]}, **{"subject_" + k: v for k, v in KG_DISPLAY.items()}, "predicate": {"type": "string"},
+    "object": {"type": "object", "description": "A relation ({entity, name, display_name, ...}) or a literal ({value, datatype}).", "properties": {"entity": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "value": {"type": "string"}, "datatype": {"type": "string", "enum": ["string", "phone", "email", "url", "address", "geo", "json", "date", "code"], "description": "json: a canonical JSON value (price, salary, contact_point, service_area); date: yyyy-mm-dd or yyyy-mm; code: a vocabulary code (NACE, service category, customer type, segment, size, employment type)."}}},
     "quality": KG_QUALITY, "certainty": {"type": "string", "enum": ["stated", "hedged"]},
     "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}, "description": "Kinds of the visible evidence; [\"llm\"] alone marks a fact only the LLM tier read (then uncertain)."},
     "first_seen": KG_DT, "last_confirmed": KG_DT, "sources": {"type": "integer", "description": "Current visible source documents."},
@@ -542,7 +545,7 @@ KG_FACT = {"statement": {"type": "string", "pattern": "^kgs_[a-z2-7]{20}$"}, "st
     "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."},
     "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}}, "last_confirmed": KG_DT,
     "sources": {"type": "integer"}, "source_docs": {"type": "array", "items": {"type": "object", "properties": {"doc_id": {"type": "string"}, "url": {"type": ["string", "null"]}}}, "description": "Up to 3 visible source pages."}}
-KG_REF = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, "type": {"type": ["string", "null"]}}}
+KG_REF = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "type": {"type": ["string", "null"]}}}
 schemas["KgLiteral"] = {"type": "object", "description": "A visible literal of the entity with its labels and status.", "properties": {**KG_FACT,
     "value": {"description": "The stored value; a JSON value (contact point, service area, price, salary) as an object."},
     "label": {"type": ["string", "null"], "description": "NACE: the official English title."}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]},
@@ -595,7 +598,7 @@ schemas["KgBusinessView"] = {"type": "object", "description": "The object view: 
 schemas["KgNeighborhood"] = {"type": "object", "required": ["schema", "center", "nodes", "edges"], "properties": {"schema": KG_BUSINESS_SCHEMA, "center": {"type": "string"},
     "depth": {"type": "integer", "minimum": 1, "maximum": 2}, "redirect": {"type": "string"},
     "nodes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string", "description": "An entity ID, or a value node nace:<code>, segment:<code>, customer_type:<code>, price:<statement>."},
-        "type": {"type": ["string", "null"], "description": "organization, facility, site, place, service, job; the value nodes industry, audience, price."}, "kind": {"type": ["string", "null"]}, "label": {"type": ["string", "null"]}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]},
+        "type": {"type": ["string", "null"], "description": "organization, facility, site, place, service, job; the value nodes industry, audience, price."}, "kind": {"type": ["string", "null"]}, "label": {"type": ["string", "null"], "description": "Entity nodes: the stated name (null without one; see display_name)."}, **KG_DISPLAY, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]},
         "code": {"type": "string"}, "depth": {"type": "integer"}, "value": {"type": "boolean"}, **KG_CTX,
         "price": {"description": "Price nodes (prices=true): the price exactly as published (KgPriceValue)."}, "status": KG_STATUS, "as_of": {"type": ["string", "null"]},
         "service": {"type": "string", "description": "Price nodes: the service the price belongs to (never another provider's)."}}}},
@@ -607,7 +610,7 @@ schemas["KgNeighborhood"] = {"type": "object", "required": ["schema", "center", 
     "truncated": {"type": "boolean"}, "next_offset": {"type": ["integer", "null"], "description": "offset for \"mehr anzeigen\"."}, "lag": KG_LAG}}
 schemas["KgCompare"] = {"type": "object", "properties": {"schema": KG_BUSINESS_SCHEMA,
     "category": {"type": "object", "properties": {"code": {"type": "string"}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]}, "nace": {"type": ["string", "null"]}}},
-    "rows": {"type": "array", "items": {"type": "object", "properties": {"service": KG_REF, "providers": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, "locality": {"type": ["string", "null"]}, "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"]}}},
+    "rows": {"type": "array", "items": {"type": "object", "properties": {"service": KG_REF, "providers": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "locality": {"type": ["string", "null"]}, "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"]}}},
         "prices": {"type": "array", "items": ref("KgPrice")}}}}, "truncated": {"type": "boolean"}, "note": {"type": "string"}, "lag": KG_LAG}}
 schemas["KgDerivedPage"] = {"type": "object", "required": ["schema", "offset", "limit", "total", "items"], "properties": {"schema": KG_BUSINESS_SCHEMA, "offset": {"type": "integer"}, "limit": {"type": "integer"},
     "total": {"type": "integer"}, "items": {"type": "array", "items": ref("KgDerived")}, "note": {"type": "string"}, "lag": KG_LAG}}
@@ -643,7 +646,7 @@ schemas["KgServiceGroupPage"] = {"type": "object", "required": ["schema", "offse
 schemas["KgServiceProviders"] = {"type": "object", "required": ["schema", "group", "items"], "properties": {"schema": KG_BUSINESS_SCHEMA, "group": KG_GROUP,
     "offset": {"type": "integer"}, "limit": {"type": "integer"}, "total": {"type": "integer"},
     "items": {"type": "array", "items": {"type": "object", "description": "One service with its own provider; its prices and sources are its own.", "properties": {
-        "service": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, "quality": KG_CTX["quality"], "sources": {"type": "integer"},
+        "service": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "quality": KG_CTX["quality"], "sources": {"type": "integer"},
             "last_confirmed": KG_DT, "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"]}},
         "providers": {"type": "array", "items": KG_PROVIDER, "description": "The provider of this service (at most 5); empty when none is visible."},
         "provider_count": {"type": "integer"}, "prices": {"type": "object", "properties": {"current": {"type": "integer"}, "all": {"type": "integer"}}, "description": "Visible price statements of this service."}}}},

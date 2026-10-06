@@ -57,6 +57,26 @@
     for (const [k, v] of rows) { dl.append(node('dt', t(k))); const dd = node('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = fmt(v); dl.append(dd); }
   }
   function predicate(p) { return labels['p_' + p] || p; }
+  // The name to show (package 6.1): the stated name, else what the read API derived for display (a legal name, the site's
+  // operator, the domain), else a typed "unnamed …". A technical ID (kge_…, kgs_…) is never shown as a name.
+  const UNNAMED = { organization: 'unnamed_organization', facility: 'unnamed_facility', site: 'unnamed_site', place: 'unnamed_place',
+    service: 'unnamed_service', job: 'unnamed_job' };
+  function shown(x, type, prefix = '') {
+    const name = x?.[prefix + 'display_name'] || x?.[prefix ? prefix + 'name' : 'name'];
+    return name && !/^kg[es]_[a-z2-7]{20}$/.test(name) ? name : t(UNNAMED[type || x?.type] || 'unnamed');
+  }
+  function shownSource(x, prefix = '') { const src = x?.[prefix + 'display_name_source']; return src && src !== 'fact' ? src : null; }
+  // a link to an object under its shown name; a name that is not stated by the sources is marked as such
+  function nameLink(x, id, type, prefix = '') {
+    const a = link(shown(x, type, prefix), { view: 'object', id });
+    const src = shownSource(x, prefix);
+    if (src) { a.classList.add('skg-name-' + src); a.title = t('name_src_' + src); }
+    return a;
+  }
+  function nameNote(x, prefix = '') {
+    const src = shownSource(x, prefix);
+    return src ? node('span', t('name_src_' + src) + (x?.[prefix + 'display_host'] && src === 'domain' ? ' · ' + x[prefix + 'display_host'] : ''), 'sseo-note skg-name-note') : null;
+  }
 
   function navigate(query, hash) {
     const p = new URLSearchParams(query); if (collection) p.set('collection', collection);
@@ -251,7 +271,7 @@
     if (ctx.providers) {
       const p = ctx.providers[0];
       if (!p) { box.append(node('span', t(e.type === 'job' ? 'no_employer' : 'no_provider'), 'skg-noprov')); return box; }
-      box.append(link(p.name || p.id, { view: 'object', id: p.id }));
+      box.append(nameLink(p, p.id, p.type));
       if (p.hosts?.length) box.append(' · ', node('span', domain(p.hosts[0]), 'skg-domain'));
       if ((ctx.provider_count || 0) > 1) box.append(' ', node('span', t('more_providers').replace('%1', fmt(ctx.provider_count - 1)), 'sseo-note'));
       return box;
@@ -283,7 +303,8 @@
     const heads = [...$('entities').tHead.rows[0].cells].map(c => c.textContent);
     for (const e of data.items) {
       const ctx = e.context || {};
-      const name = node('span', null, 'skg-hit-name'); name.append(link(e.name || e.id, { view: 'object', id: e.id }));
+      const name = node('span', null, 'skg-hit-name'); name.append(nameLink(e, e.id, e.type));
+      const note = nameNote(e); if (note) name.append(' ', note);
       rowInto(body, heads, [name, t(e.type) + (e.kind ? ' · ' + e.kind : ''), providerCell(e, ctx), (ctx.collections || []).join(', ') || t('none'),
         placeOf(ctx), qualityBadge(e.quality), fmt(e.counts?.sources), date(e.last_confirmed), hitActions(e, ctx)]).dataset.type = e.type;
     }
@@ -352,17 +373,18 @@
     const [e, b] = await Promise.all([api('entities/' + encodeURIComponent(id)), api('entities/' + encodeURIComponent(id) + '/business')]);
     if (run !== generation) return;
     if (e.redirect) { navigate({ view: 'object', id: e.redirect }); return; }
-    $('object-name').textContent = e.name || e.id;
+    $('object-name').textContent = shown(e);
     const net = $('object-network'); const np = new URLSearchParams({ view: 'network', id: e.id }); if (collection) np.set('collection', collection);
     net.href = 'ScoutroKnowledge_p.html?' + np; net.textContent = t('network_open');
     net.onclick = ev => { if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey) return; ev.preventDefault(); navigate({ view: 'network', id: e.id }); };
     const ids = node('span'); (e.identifiers || []).forEach((i, n) => { if (n) ids.append(', '); ids.append(i.scheme + ': ' + i.value + ' '); ids.append(qualityBadge(i.quality)); });
     const hosts = node('span'); (e.hosts || []).forEach((h, n) => { if (n) hosts.append(', '); hosts.append(link(h, { view: 'objects', host: h })); });
     const dups = node('span'); (e.possible_duplicates || []).forEach((d, n) => { if (n) dups.append(', '); dups.append(link(d, { view: 'object', id: d })); });
+    { const note = nameNote(e); if (note) $('object-name').append(' ', note); }
     stats('object-facts', [['type', t(e.type) + (e.kind ? ' · ' + e.kind : '')], ['quality', qualityBadge(e.quality)], ['aliases', (e.aliases || []).join(', ') || t('none')],
       ['identifiers', ids.childNodes.length ? ids : t('none')], ['hosts', hosts.childNodes.length ? hosts : t('none')],
       ['duplicates', dups.childNodes.length ? dups : t('none')], ['first_seen', date(e.first_seen)], ['last_confirmed', date(e.last_confirmed)],
-      ['statements', fmt(e.counts?.statements)], ['sources', fmt(e.counts?.sources)]]);
+      ['statements', fmt(e.counts?.statements)], ['sources', fmt(e.counts?.sources)], ['technical_id', e.id]]);
     businessInto(b);
     await statements(e.id, 'out', $('out'), 0, run);
     await statements(e.id, 'in', $('in'), 0, run);
@@ -391,9 +413,9 @@
   function statementItem(s, direction) {
     const li = node('li', null, 'skg-statement');
     const head = node('div', null, 'skg-statement-head');
-    if (direction === 'in') { head.append(link(s.subject_name || s.subject, { view: 'object', id: s.subject }), ' '); }
+    if (direction === 'in') { head.append(nameLink(s, s.subject, null, 'subject_'), ' '); }
     head.append(node('span', predicate(s.predicate), 'skg-predicate'), ' ');
-    if (s.object.entity) head.append(link(s.object.name || s.object.entity, { view: 'object', id: s.object.entity }));
+    if (s.object.entity) head.append(nameLink(s.object, s.object.entity));
     else head.append(node('span', s.object.value, 'skg-value'));
     li.append(head);
     const meta = node('div', null, 'skg-meta');
@@ -491,7 +513,7 @@
     const h = node('h3', t('sec_' + key)); h.id = 'skg-sec-' + key + '-title'; sec.setAttribute('aria-labelledby', h.id);
     sec.append(h, ...children.filter(Boolean)); return sec;
   }
-  function entityLink(ref) { return ref ? link(ref.name || ref.id, { view: 'object', id: ref.id }) : node('span', t('missing')); }
+  function entityLink(ref) { return ref ? nameLink(ref, ref.id, ref.type) : node('span', t('missing')); }
   function relationItem(r) {
     const head = node('div', null, 'skg-statement-head');
     if (r.direction === 'in') head.append(entityLink(r.other), ' ', node('span', predicate(r.predicate), 'skg-predicate'), ' ', node('span', $('object-name').textContent));
@@ -527,7 +549,7 @@
       if (p.stale_since) status.append(node('span', t('stale_since').replace('%1', p.stale_since).replace('%2', fmt(p.stale_after_days)), 'sseo-note'));
       if (p.conflicts_with?.length) status.append(node('span', t('conflicts_with'), 'sseo-note'));
       const ev = node('span'); ev.append(fmt(p.sources) + ' ', ...evidenceToggle(p.statement));
-      const service = p.service ? link(p.service_name || p.service, { view: 'object', id: p.service }) : node('span', t('general_price'));
+      const service = p.service ? link(p.service_name || t('unnamed_service'), { view: 'object', id: p.service }) : node('span', t('general_price'));
       const cells = [service, money(p.value), conditions(p.value) || t('none'), asOfText(p), status, ev];
       cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = t(cols[i]); if (c instanceof Node) td.append(c); else td.textContent = c; });
     }
@@ -536,7 +558,7 @@
   function jobItem(j) {
     const li = node('li', null, 'skg-statement skg-job');
     const head = node('div', null, 'skg-statement-head');
-    head.append(link(j.title || j.id, { view: 'object', id: j.id }), ' ', badge(t('job_' + j.status), 'j-' + j.status));
+    head.append(link(j.title || t('unnamed_job'), { view: 'object', id: j.id }), ' ', badge(t('job_' + j.status), 'j-' + j.status));
     li.append(head);
     const dl = node('dl', null, 'sseo-stats');
     const add = (k, v) => { if (v == null || v === '' || (Array.isArray(v) && !v.length)) return; dl.append(node('dt', t(k))); const dd = node('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = Array.isArray(v) ? v.join(', ') : v; dl.append(dd); };
@@ -569,7 +591,7 @@
     }
     if (b.categories?.length) box.append(section('services', list(b.categories, i => literalItem('category', i))));
     if (b.services?.length) box.append(section('services', list(b.services, sv => {
-      const head = node('div', null, 'skg-statement-head'); head.append(link(sv.name || sv.id, { view: 'object', id: sv.id }));
+      const head = node('div', null, 'skg-statement-head'); head.append(link(sv.name || t('unnamed_service'), { view: 'object', id: sv.id }));
       const li = factItem(head, sv);
       if (sv.categories?.length) li.insertBefore(node('p', sv.categories.map(c => codeLabel(c) || c.value).join(' · '), 'skg-value'), li.children[1]);
       if (sv.description) li.insertBefore(node('p', sv.description, 'skg-value'), li.children[1]);
@@ -717,7 +739,7 @@
     for (const f of FILTERS) $('f-' + f).checked = on.has(f);
     $('f-list').checked = p.get('list') === '1';
     $('net-wrap').hidden = $('f-list').checked;
-    $('network-title').textContent = t('network_of').replace('%1', head.name || head.id);
+    $('network-title').textContent = t('network_of').replace('%1', shown(head));
     const q = networkQuery(on, depth, 0);
     if (q.types === 'none') { graph = { center: head.id, centerType: type, nodes: [], edges: [], truncated: false, depth, on }; renderNetwork(); message(t('net_empty')); return; }
     const data = await api('entities/' + encodeURIComponent(id) + '/neighborhood', q); if (run !== generation) return;
@@ -745,13 +767,13 @@
     return g.edges.filter(e => !e.fact || (e.status === 'stale' ? g.on.has('stale') : g.on.has('current')));
   }
   const nodeKind = n => n.value ? (n.type === 'price' ? 'price' : 'value') : n.type === 'site' ? 'facility' : n.type;
-  const nodeLabel = n => n.type === 'price' ? money(n.price) : n.value ? ((de ? n.label_de : n.label_en) || n.label || n.code) : (n.label || n.id);
+  const nodeLabel = n => n.type === 'price' ? money(n.price) : n.value ? ((de ? n.label_de : n.label_en) || n.label || n.code) : shown({ ...n, name: n.label }, n.type);
   // the second line of a node: the domain of an organisation, "Service" for a service, the place of a facility
   function subLabel(n) {
     if (n.type === 'price') return t('price') + (n.status && n.status !== 'current' ? ' · ' + t('s_' + n.status) : '');
     if (n.type === 'industry') return t('industry') + ' · ' + n.code;
     if (n.type === 'audience') return t('audience');
-    if (n.type === 'organization') return n.hosts?.length ? domain(n.hosts[0]) : t('organization');
+    if (n.type === 'organization') return n.display_host || (n.hosts?.length ? domain(n.hosts[0]) : t('organization'));
     if (n.type === 'facility' || n.type === 'site') return t(n.type) + (n.places?.length ? ' · ' + n.places[0] : '');
     return t(n.type);
   }
@@ -1039,6 +1061,7 @@
     const box = $('net-detail'); box.replaceChildren(); box.hidden = false;
     box.append(node('h3', nodeLabel(n)));
     box.append(node('p', subLabel(n) + (n.kind ? ' · ' + n.kind : '') + (n.id === graph.center ? ' · ' + t('net_center') : ''), 'sseo-note'));
+    { const note = nameNote(n); if (note) box.append(note); }
     if (!n.value) box.append(detailStats([['type', t(n.type)], ['domain', (n.hosts || []).map(domain).join(', ') || t('missing')],
       ['collections', (n.collections || []).join(', ') || t('none')], ['places', (n.places || []).join(', ')],
       ['quality', n.quality ? qualityBadge(n.quality) : null], ['sources', fmt(n.sources)], ['last_confirmed', n.last_confirmed ? date(n.last_confirmed) : null]]));
@@ -1138,7 +1161,7 @@
       for (const r of data.items) {
         const sv = r.service, ctx = { providers: r.providers || [], provider_count: r.provider_count, places: [] };
         const e = { id: sv.id, name: sv.name, type: 'service' };
-        rowInto(body, heads, [link(sv.name || sv.id, { view: 'object', id: sv.id }), providerCell(e, ctx), (sv.collections || []).join(', ') || t('none'),
+        rowInto(body, heads, [nameLink(sv, sv.id, 'service'), providerCell(e, ctx), (sv.collections || []).join(', ') || t('none'),
           placeOf(ctx), t('prices_value').replace('%1', fmt(r.prices?.current)).replace('%2', fmt(r.prices?.all)), qualityBadge(sv.quality),
           fmt(sv.sources), date(sv.last_confirmed), hitActions(e, ctx)]);
       }
@@ -1180,8 +1203,8 @@
     const data = await api('compare', { category }); if (run !== generation) return;
     const heads = [...$('compare-table').tHead.rows[0].cells].map(c => c.textContent);
     for (const r of data.rows) {
-      const providers = () => { const box = node('span'); r.providers.forEach((pv, i) => { if (i) box.append(', '); box.append(link(pv.name || pv.id, { view: 'object', id: pv.id })); if (pv.locality) box.append(' · ' + pv.locality); }); return box; };
-      const service = () => link(r.service.name || r.service.id, { view: 'object', id: r.service.id });
+      const providers = () => { const box = node('span'); r.providers.forEach((pv, i) => { if (i) box.append(', '); box.append(nameLink(pv, pv.id, 'organization')); if (pv.locality) box.append(' · ' + pv.locality); }); return box; };
+      const service = () => nameLink(r.service, r.service.id, 'service');
       const prices = r.prices.length ? r.prices : [null];
       for (const p of prices) {
         const row = body.insertRow(); if (p) row.dataset.status = p.status;
@@ -1206,7 +1229,7 @@
     const list = node('ul', null, 'skg-statements');
     for (const item of data.items) {
       const li = statementItem(item, 'out');
-      li.querySelector('.skg-statement-head').prepend(link(item.subject_name || item.subject, { view: 'object', id: item.subject }), ' ');
+      li.querySelector('.skg-statement-head').prepend(nameLink(item, item.subject, null, 'subject_'), ' ');
       list.append(li);
     }
     $('source-items').replaceChildren(data.items.length ? list : node('p', t('none')));

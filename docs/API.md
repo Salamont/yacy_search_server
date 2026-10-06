@@ -585,6 +585,16 @@ is ever written to Solr.
 | `GET /scoutro/api/agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `…/kg/compare`, `…/kg/derived`, `…/kg/facets`, `…/kg/services`, `…/kg/services/providers` | agent with `kg.read` | The read routes for the agent's collections; derived rows only with both of their collections |
 | `GET /scoutro/api/agent/v1/kg/export`, `…/kg/changes` | agent with `kg.export` | Export pages and change feed for the agent's collections |
 
+**Display names (package 6.1).** Entities, references, nodes, statement
+subjects and objects, providers and service rows carry `display_name` and
+`display_name_source` next to `name`: `fact` (the stated name), `legal` (a
+legal-name alias), `operator` (for the unnamed operator of a site, the one
+declared operator of its domain), `domain` (an organisation's name derived
+from the host of the viewer's pages, with `display_host`) or `fallback`
+(`display_name: null`). Only `fact` is stated by the sources; the others are
+presentation, never stored, never used to merge, and `name` stays the stated
+name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
+
 - **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
   is created on disk, no thread runs and the SQLite native library is not
   loaded; `status` answers `state: disabled`. Settings take effect at the next

@@ -239,8 +239,9 @@ final class EntityContexts {
             if (l != null) {
                 final JSONArray items = new JSONArray();
                 for (final Long p : l.subList(0, Math.min(MAX_PROVIDERS, l.size()))) {
-                    final JSONObject item = KgJson.obj("id", KgReader.publicId(c, p), "name", KgReader.visibleName(c, p, v), "type",
-                            providerTypes.get(p));
+                    final String pname = KgReader.visibleName(c, p, v);
+                    final JSONObject item = KgJson.obj("id", KgReader.publicId(c, p), "name", pname, "type", providerTypes.get(p));
+                    DisplayNames.put(item, pname != null ? DisplayNames.known(c, p, pname, v) : DisplayNames.of(c, p, providerTypes.get(p), null, null, v));
                     final JSONObject pc = ctxJson(theirs.get(p));
                     for (final String k : new String[] {"hosts", "collections", "places", "quality"}) {
                         KgJson.put(item, k, pc.opt(k));

@@ -440,7 +440,8 @@ public final class ChatFacts {
         }
         // a service is named with its provider: "Kurzzeitpflege" of two homes are two services with different prices
         final String provider = Vocabulary.SERVICE.equals(type) ? provider(c, ent, v) : null;
-        final String name = provider == null ? own : own + ", offered by " + provider;
+        // without a stated name the entry stays unnamed (GraphFacts words it by type); never an ID, never a name from the domain
+        final String name = provider == null ? own : (own == null ? "a service" : own) + ", offered by " + provider;
         final Map<Long, Entry> byDoc = new LinkedHashMap<>();
         final Map<Long, String[]> docs = new HashMap<>();
         int n = businessFirst ? addBusiness(c, ent, docIds, v, now, room, 0, id, name, type, byDoc, docs, asked, pass) : 0;

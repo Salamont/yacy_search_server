@@ -234,6 +234,13 @@ A changed vocabulary re-extracts the pages at low priority.
   - It is usable with the keyboard and at 360 px.
 
   *Compare* lists the prices of one service category across providers.
+- **Names (package 6.1).** Pages never show an ID as a name. Without a
+  stated name an object is shown with a legal name, the declared operator of
+  its site or, for an organisation, a name from its domain ("Zimmerei
+  Boehmer", marked "derived from the domain"), else as "Unnamed
+  organisation" and the like. Such names are presentation only: not stored,
+  not used to merge, not a fact for the chat; a stated name replaces them as
+  soon as a page states it.
 - **Services of the same name (package 6.1).** A service belongs to its
   provider: "SAP" of one company and "SAP" of another are two objects, each
   with its own provider, prices and sources, and they are never merged.
