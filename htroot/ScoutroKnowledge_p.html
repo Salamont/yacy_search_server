@@ -9,7 +9,7 @@
 <main class="sseo-main skg-main">
 <h1>Knowledge graph</h1>
 <nav class="sseo-views" aria-label="Views">
-<a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
+<a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-services" href="ScoutroKnowledge_p.html?view=services" data-skg-view="services">Services</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
 </nav>
 <form id="skg-scope" class="sseo-search skg-scope">
 <label for="skg-collection">Collection (optional)<input class="form-control" id="skg-collection" type="text" maxlength="64" list="skg-collection-list" autocomplete="off" /></label>
@@ -34,6 +34,9 @@
 <section class="sseo-panel" aria-labelledby="skg-vocab-title"><h3 id="skg-vocab-title">Vocabulary and derived relations</h3><dl id="skg-vocab" class="sseo-stats"></dl>
 <div class="sseo-controls"><button class="btn btn-default" type="button" data-skg-action="derive">Recompute suggestions now</button></div>
 <p class="sseo-note">Industries follow NACE Rev. 2.1 / WZ 2025; service categories and audiences come from the Scoutro vocabularies of each collection. Derived relations (same operator, weak link signals, suggested customers and partners) are no facts; they are recomputed every interval and only shown to a viewer of both collections.</p></section>
+<section class="sseo-panel" aria-labelledby="skg-colls-title"><h3 id="skg-colls-title">Collections</h3>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-collections"><thead><tr><th>Collection</th><th>Followed</th><th>Vocabulary</th><th>Jobs</th><th>LLM tier</th><th>Documents in the graph</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+<p class="sseo-note">With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Jobs are read only for the collections named in scoutro.kg.jobs.collections.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-controls-title"><h3 id="skg-controls-title">Controls</h3>
 <div class="sseo-controls" id="skg-controls">
 <button class="btn btn-default" type="button" data-skg-action="pause">Pause growth</button>
@@ -71,7 +74,8 @@
 <label for="skg-audience">Audience<select class="form-control" id="skg-audience"><option value="">Any audience</option></select></label>
 <button class="btn btn-primary" type="submit">Search</button>
 </form>
-<div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-entities"><thead><tr><th>Name</th><th>Type</th><th>Quality</th><th>Sources</th><th>Last confirmed</th></tr></thead><tbody></tbody></table></div>
+<div id="skg-groups" class="skg-groups" hidden></div>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-entities"><thead><tr><th>Name</th><th>Type</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
 <div class="sseo-controls"><button class="btn btn-default" id="skg-prev" type="button">Previous</button><span id="skg-range" role="status"></span><button class="btn btn-default" id="skg-next" type="button">Next</button></div>
 </section>
 
@@ -87,24 +91,34 @@
 
 <section id="skg-network" hidden aria-labelledby="skg-network-title">
 <h2 id="skg-network-title" tabindex="-1">Network</h2>
-<p class="sseo-note">The neighbourhood of one object, never the whole graph. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Select a node or a line to see its evidence; open a node to go to its object.</p>
+<p class="sseo-note">The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.</p>
 <form id="skg-net-form" class="sseo-search skg-net-form">
 <label for="skg-depth">Depth<select class="form-control" id="skg-depth"><option value="1">1: direct neighbours</option><option value="2">2: also their neighbours</option></select></label>
-<fieldset class="skg-net-filters"><legend>Show</legend>
-<label><input type="checkbox" id="skg-f-business" checked /> Relations between organisations</label>
-<label><input type="checkbox" id="skg-f-structure" checked /> Facilities, sites and places</label>
-<label><input type="checkbox" id="skg-f-offers" checked /> Services and jobs</label>
-<label><input type="checkbox" id="skg-f-values" checked /> Industries and audiences</label>
-<label><input type="checkbox" id="skg-f-derived" checked /> Same operator (derived)</label>
+<fieldset class="skg-net-filters"><legend>Facts</legend>
+<label><input type="checkbox" id="skg-f-business" /> Relations between companies</label>
+<label><input type="checkbox" id="skg-f-structure" /> Structure and operators</label>
+<label><input type="checkbox" id="skg-f-offers" /> Services and providers</label>
+<label><input type="checkbox" id="skg-f-places" /> Places</label>
+<label><input type="checkbox" id="skg-f-industry" /> Industry</label>
+<label><input type="checkbox" id="skg-f-audiences" /> Audiences</label>
+<label><input type="checkbox" id="skg-f-jobs" /> Jobs and employers</label>
+<label><input type="checkbox" id="skg-f-prices" /> Prices of services</label>
+</fieldset>
+<fieldset class="skg-net-filters"><legend>Derived, no facts</legend>
+<label><input type="checkbox" id="skg-f-derived" /> Same operator</label>
 <label><input type="checkbox" id="skg-f-weak" /> Weak link signals</label>
-<label><input type="checkbox" id="skg-f-suggested" /> Suggestions</label>
-<label><input type="checkbox" id="skg-f-stale" /> Stale</label>
+<label><input type="checkbox" id="skg-f-suggested" /> Suggested customers and partners</label>
+</fieldset>
+<fieldset class="skg-net-filters"><legend>Status</legend>
+<label><input type="checkbox" id="skg-f-current" /> Current</label>
+<label><input type="checkbox" id="skg-f-stale" /> Outdated</label>
 </fieldset>
 <label class="skg-net-listonly"><input type="checkbox" id="skg-f-list" /> List only</label>
 <button class="btn btn-primary" type="submit">Apply</button>
+<button class="btn btn-default" type="button" id="skg-net-reset">Default view</button>
 </form>
 <div id="skg-net-wrap" class="skg-net-wrap"><svg id="skg-net-svg" class="skg-net-svg" role="group" aria-labelledby="skg-network-title" xmlns="http://www.w3.org/2000/svg"></svg></div>
-<div id="skg-net-detail" class="sseo-panel skg-net-detail" aria-live="polite" hidden></div>
+<div id="skg-net-detail" class="sseo-panel skg-net-detail" aria-live="polite" tabindex="-1" hidden></div>
 <div class="sseo-controls"><span id="skg-net-count" role="status"></span><button class="btn btn-default" id="skg-net-more" type="button" hidden>Show more</button>
 <a class="btn btn-default" id="skg-net-graphml" href="#" download="scoutro-network.graphml">GraphML (Gephi, Cytoscape)</a>
 <a class="btn btn-default" id="skg-net-json" href="#" download="scoutro-network.json">JSON</a></div>
@@ -121,6 +135,26 @@
 <button class="btn btn-primary" type="submit">Show comparison</button>
 </form>
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-compare-table"><thead><tr><th>Provider</th><th>Service</th><th>Price</th><th>Conditions</th><th>As of</th><th>Status</th><th>Sources</th></tr></thead><tbody></tbody></table></div>
+</section>
+
+<section id="skg-services" hidden aria-labelledby="skg-services-title">
+<h2 id="skg-services-title" tabindex="-1">Services across providers</h2>
+<p class="sseo-note">Services of the same name, counted across their providers. Every provider's service stays its own object with its own provider, prices and sources; this view only counts them, it merges, averages and mixes nothing.</p>
+<form id="skg-svc-form" class="sseo-search">
+<label for="skg-svc-q">Service name<input class="form-control" id="skg-svc-q" type="search" maxlength="200" autocomplete="off" /></label>
+<label for="skg-svc-category">Service category<select class="form-control" id="skg-svc-category"><option value="">Any category</option></select></label>
+<button class="btn btn-primary" type="submit">Show</button>
+</form>
+<div id="skg-svc-groups-box">
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-svc-groups"><thead><tr><th>Service</th><th>Providers</th><th>Collections</th><th>Places</th><th>With a current price</th><th>With a current source</th></tr></thead><tbody></tbody></table></div>
+</div>
+<div id="skg-svc-rows-box" hidden>
+<p><a id="skg-svc-back" href="ScoutroKnowledge_p.html?view=services">All service names</a></p>
+<h3 id="skg-svc-group-title"></h3>
+<dl id="skg-svc-group" class="sseo-stats"></dl>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-svc-rows"><thead><tr><th>Service</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Prices</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
+</div>
+<div class="sseo-controls"><button class="btn btn-default" id="skg-svc-prev" type="button">Previous</button><span id="skg-svc-range" role="status"></span><button class="btn btn-default" id="skg-svc-next" type="button">Next</button></div>
 </section>
 
 <section id="skg-source" hidden aria-labelledby="skg-source-title">
@@ -401,6 +435,84 @@
 <span data-skg-label="area_national">nationwide</span>
 <span data-skg-label="area_international">international</span>
 <span data-skg-label="area_radius">within %1 km</span>
+<span data-skg-label="col_provider">Provider and domain</span>
+<span data-skg-label="no_provider">No provider assigned</span>
+<span data-skg-label="no_employer">No employer assigned</span>
+<span data-skg-label="more_providers">+%1 more</span>
+<span data-skg-label="open_provider">Open provider</span>
+<span data-skg-label="open_service">Open service</span>
+<span data-skg-label="open_employer">Open employer</span>
+<span data-skg-label="show_network">Network</span>
+<span data-skg-label="show_sources">Sources</span>
+<span data-skg-label="all_providers">All providers</span>
+<span data-skg-label="group_title">%1 · %2 providers</span>
+<span data-skg-label="group_hint_note">Services of the same name stay separate objects, each with its own provider, prices and sources.</span>
+<span data-skg-label="services_empty">No visible services match.</span>
+<span data-skg-label="g_services">Services</span>
+<span data-skg-label="g_providers">Providers</span>
+<span data-skg-label="g_without_provider">Without a provider</span>
+<span data-skg-label="g_with_price">With a current price</span>
+<span data-skg-label="g_with_current">With a current source</span>
+<span data-skg-label="g_places">Places of the providers</span>
+<span data-skg-label="prices_value">%1 current of %2</span>
+<span data-skg-label="places">Places</span>
+<span data-skg-label="domain">Domain</span>
+<span data-skg-label="relation_to_centre">Relation to the centre</span>
+<span data-skg-label="other_relations">Further relations</span>
+<span data-skg-label="open_network">Network of this object</span>
+<span data-skg-label="open_sources">Open sources</span>
+<span data-skg-label="objects_industry">Objects of this industry</span>
+<span data-skg-label="objects_audience">Objects of this audience</span>
+<span data-skg-label="via">via %1</span>
+<span data-skg-label="col_followed">Followed</span>
+<span data-skg-label="no_vocabulary">No vocabulary assigned</span>
+<span data-skg-label="vocab_from_setting">by setting</span>
+<span data-skg-label="vocab_from_files">vocabulary file</span>
+<span data-skg-label="vocab_unknown">unknown vocabulary</span>
+<span data-skg-label="vstate_following">following</span>
+<span data-skg-label="vstate_waiting">waiting for documents</span>
+<span data-skg-label="vstate_not_followed">not followed</span>
+<span data-skg-label="vstate_unknown_vocabulary">vocabulary missing</span>
+<span data-skg-label="jobs_collections">Job collections</span>
+<span data-skg-label="legend_node_organization">organisation</span>
+<span data-skg-label="legend_node_facility">facility or site</span>
+<span data-skg-label="legend_node_service">service</span>
+<span data-skg-label="legend_node_job">job</span>
+<span data-skg-label="legend_node_place">place</span>
+<span data-skg-label="legend_node_value">industry or audience</span>
+<span data-skg-label="legend_node_price">price</span>
+<span data-skg-label="e_offers">offers</span>
+<span data-skg-label="e_partner_of">partner of</span>
+<span data-skg-label="e_customer_of">customer of</span>
+<span data-skg-label="e_same_operator">same carrier</span>
+<span data-skg-label="e_part_of">belongs to</span>
+<span data-skg-label="e_located_at">site</span>
+<span data-skg-label="e_in_place">location</span>
+<span data-skg-label="e_serves_place">serves</span>
+<span data-skg-label="e_operates">operates</span>
+<span data-skg-label="e_audience_segment">audience</span>
+<span data-skg-label="e_customer_type">audience</span>
+<span data-skg-label="e_industry">industry</span>
+<span data-skg-label="e_target_industry">target industry</span>
+<span data-skg-label="e_linked_to">weak link signal</span>
+<span data-skg-label="e_suggested_customer">suggested customer</span>
+<span data-skg-label="e_suggested_partner">suggested partner</span>
+<span data-skg-label="e_parent_of">parent of</span>
+<span data-skg-label="e_subsidiary_of">subsidiary of</span>
+<span data-skg-label="e_carrier_of">carrier of</span>
+<span data-skg-label="e_member_of">member of</span>
+<span data-skg-label="e_association_member">association member</span>
+<span data-skg-label="e_cooperation_with">cooperates with</span>
+<span data-skg-label="e_reference_for">reference for</span>
+<span data-skg-label="e_supplier_of">supplies</span>
+<span data-skg-label="e_service_provider_for">service provider for</span>
+<span data-skg-label="e_brand_of">brand of</span>
+<span data-skg-label="e_certified_by">certified by</span>
+<span data-skg-label="e_funded_by">funded by</span>
+<span data-skg-label="e_sponsored_by">sponsored by</span>
+<span data-skg-label="e_hiring_organization">job at</span>
+<span data-skg-label="e_job_location">place of work</span>
+<span data-skg-label="e_price">price</span>
 <span data-skg-label="p_name">name</span>
 <span data-skg-label="p_alias">other name</span>
 <span data-skg-label="p_legal_form">legal form</span>

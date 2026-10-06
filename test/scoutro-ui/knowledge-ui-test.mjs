@@ -13,7 +13,9 @@ const base = process.env.SCOUTRO_URL;
 const entity = process.env.SCOUTRO_KG_ENTITY, host = process.env.SCOUTRO_KG_HOST, onlyB = process.env.SCOUTRO_KG_ONLY_B;
 // vocabulary 2: the operator (kga) and the software firm (kgb) that suggests it as a possible customer
 const operator = process.env.SCOUTRO_KG_OPERATOR, soft = process.env.SCOUTRO_KG_SOFT;
-assert(base && new URL(base).hostname === '127.0.0.1' && entity && host && onlyB && operator && soft, 'Use knowledge-live-smoke.py; no production instance');
+// package 6.1: CTcon's "SAP" (kgb), one of three providers of the name, and CTcon itself
+const sap = process.env.SCOUTRO_KG_SAP, ctcon = process.env.SCOUTRO_KG_CTCON;
+assert(base && new URL(base).hostname === '127.0.0.1' && entity && host && onlyB && operator && soft && sap && ctcon, 'Use knowledge-live-smoke.py; no production instance');
 const shots = process.env.SCOUTRO_SCREENSHOTS;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 let checks = 0;
@@ -52,6 +54,12 @@ try {
         const vocab = await page.locator('#skg-vocab').textContent();
         check(vocab.includes('kga: care') && vocab.includes('kgb: software') && /1[.,]?047/.test(vocab), 'vocabularies per collection and NACE codes' + where);
         check(await page.locator('#skg-upgrade-note').isHidden(), 'no upgrade waiting on a new graph' + where);
+        // package 6.1: every followed collection with its vocabulary; none is said, not hidden
+        const de0 = language === 'de';
+        const kgc = page.locator('#skg-collections tbody tr[data-collection="kgc"]');
+        check((await kgc.textContent()).includes(de0 ? 'Kein Vokabular zugeordnet' : 'No vocabulary assigned'), 'a collection without a vocabulary says so' + where);
+        check(await page.locator('#skg-collections tbody tr[data-collection="kga"]').textContent().then(x => x.includes('care')), 'kga with care' + where);
+        check(await kgc.getAttribute('data-state') === 'following', 'kgc followed' + where);
         check(await noOverflow(page), 'no horizontal overflow (overview)' + where);
         if (shots) await page.screenshot({ path: path.join(shots, `kg-overview-${language}-${width}.png`), fullPage: true });
 
@@ -157,20 +165,83 @@ try {
         await page.waitForFunction(() => new URLSearchParams(location.search).get('depth') === '2' && document.querySelector('#skg-net-svg').dataset.state === 'ready');
         await page.waitForSelector('#skg-net-svg .skg-edge.skg-e-derived');
         check((await page.locator('#skg-net-table').textContent()).includes(L('same operator (derived)', 'gleicher Träger (abgeleitet)')), 'same operator at depth 2, also in the list' + where);
-        await page.locator('#skg-f-values').uncheck();
+        await page.locator('#skg-f-industry').uncheck();
+        await page.locator('#skg-f-audiences').uncheck();
         await page.locator('#skg-net-form button[type=submit]').click();
         await page.waitForFunction(() => new URLSearchParams(location.search).get('f') !== null && document.querySelector('#skg-net-svg').dataset.state === 'ready');
         check(await page.locator('#skg-net-svg .skg-t-value').count() === 0, 'filter: no industry or audience nodes' + where);
         await page.locator('#skg-f-list').check();
         check(await page.locator('#skg-net-wrap').isHidden() && await page.locator('#skg-net-table').isVisible(), 'list only' + where);
         await page.locator('#skg-f-list').uncheck();
-        await birke.press('Enter');
-        await page.waitForSelector('#skg-object:not([hidden]) #skg-out .skg-statement');
-        check((await page.locator('#skg-object-name').textContent()).includes('Haus Birke'), 'Enter on a node opens its object' + where);
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        await page.locator('#skg-net-svg .skg-node', { hasText: 'Haus Birke' }).first().press('Enter');
+        await page.waitForSelector('#skg-net-detail:not([hidden]) .skg-detail-actions a');
+        await page.locator('#skg-net-detail .skg-detail-actions a').first().click();
+        await page.waitForFunction(() => !document.querySelector('#skg-object').hidden && document.querySelector('#skg-object-name').textContent.includes('Haus Birke')
+          && document.querySelector('#skg-out .skg-statement') !== null, null, { timeout: 15000 }).catch(() => {});
+        check((await page.locator('#skg-object-name').textContent()).includes('Haus Birke'), 'Enter on a node shows its details, the panel opens its object' + where);
         // the administrator without a filter sees the suggestions on request
         await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${operator}&f=business,structure,offers,values,derived,suggested`, { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
         check(await page.locator('#skg-net-svg .skg-edge.skg-e-suggested').count() >= 1, 'suggestions shown on request, dotted' + where);
+
+        // package 6.1: services of the same name across providers, with provider and domain; the network around a service
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&q=SAP&type=service&collection=kgb', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
+        const hits = page.locator('#skg-entities tbody tr');
+        check(await hits.count() === 2, 'two services named SAP in kgb, never merged' + where);
+        const hitText = await page.locator('#skg-entities tbody').textContent();
+        check(hitText.includes('CTcon UI GmbH') && hitText.includes('ctcon-ui.de') && hitText.includes('Beta IT UI AG') && hitText.includes('beta-it-ui.de'),
+          'each SAP with its provider and domain' + where);
+        check(!hitText.includes('Gamma') && hitText.includes('kgb') && !hitText.includes('kga'), 'only the providers of kgb' + where);
+        const actions = await hits.first().locator('.skg-actions').textContent();
+        check(actions.includes(L('Open provider', 'Anbieter öffnen')) && actions.includes(L('Open service', 'Leistung öffnen')) && !/[a-z]_[a-z]/.test(actions),
+          'provider, service, network, sources and all providers from the hit, every action labelled: ' + actions + where);
+        await page.waitForSelector('#skg-groups:not([hidden])');
+        check((await page.locator('#skg-groups').textContent()).includes(L('SAP · 2 providers', 'SAP · 2 Anbieter')), 'the group of the name, of kgb only' + where);
+        check(await noOverflow(page), 'no horizontal overflow (service hits)' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-sap-hits-${language}-${width}.png`), fullPage: true });
+        await page.locator('#skg-groups a').first().click();
+        await page.waitForSelector('#skg-svc-rows tbody tr');
+        check(await page.locator('#skg-svc-rows tbody tr').count() === 2 && (await page.locator('#skg-svc-group-title').textContent()).includes('SAP'),
+          'all providers of SAP, one row each' + where);
+        const svcRows = await page.locator('#skg-svc-rows tbody').textContent();
+        check(svcRows.includes('CTcon UI GmbH') && svcRows.includes('Beta IT UI AG') && svcRows.includes(L('1 current of 1', '1 aktuell von 1')), 'each row its own prices' + where);
+        check(await noOverflow(page), 'no horizontal overflow (services across providers)' + where);
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=services&collection=kgb', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-svc-groups tbody tr');
+        check((await page.locator('#skg-svc-groups tbody').textContent()).includes('SAP'), 'the groups of every service name' + where);
+        // the network of CTcon's SAP: the provider above it through the incoming offer, its parent company at depth 2
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${sap}&collection=kgb`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        check(await page.locator('#skg-depth').inputValue() === '2' && await page.locator('#skg-f-offers').isChecked() && !(await page.locator('#skg-f-industry').isChecked()),
+          'a service in the centre: providers, depth 2, no industry by default' + where);
+        const provider = page.locator(`#skg-net-svg .skg-node[data-node="${ctcon}"]`);
+        check(await provider.count() === 1 && (await provider.textContent()).includes('ctcon-ui.de'), 'provider node with its domain' + where);
+        const centre = page.locator('#skg-net-svg .skg-node.skg-center');
+        check((await centre.textContent()).includes('SAP') && (await centre.textContent()).includes(L('Service', 'Leistung')), 'the service in the centre, marked as a service' + where);
+        check(await page.locator(`#skg-net-svg .skg-edge[data-from="${ctcon}"][data-to="${sap}"][data-type="offers"]`).count() === 1, 'CTcon → offers → SAP' + where);
+        check((await page.locator('#skg-net-svg .skg-elabel, #skg-net-svg .skg-caption').allTextContents()).includes(L('offers', 'bietet an')), 'the line says what it is' + where);
+        check((await page.locator('#skg-net-svg').textContent()).includes('CT Holding UI AG') && !(await page.locator('#skg-net-svg').textContent()).includes('Cloud-Migration'),
+          "the provider's parent, not its other services" + where);
+        const box = await page.locator('#skg-net-svg').boundingBox();
+        check(box.width <= width && box.height < 700, 'the drawing fits its content: ' + JSON.stringify(box) + where);
+        if (width < 640) check(await page.locator('#skg-net-svg').getAttribute('data-layout') === 'layered', 'layered on a narrow screen' + where);
+        check(await noOverflow(page), 'no horizontal overflow (service network)' + where);
+        await provider.click();
+        await page.waitForSelector('#skg-net-detail:not([hidden])');
+        const detail = await page.locator('#skg-net-detail').textContent();
+        check(detail.includes('CTcon UI GmbH') && detail.includes('ctcon-ui.de') && detail.includes('kgb') && detail.includes(L('offers', 'bietet an')),
+          'detail: name, domain, collection and the relation to the centre' + where);
+        check(await page.locator('#skg-net-detail .skg-detail-actions a').count() === 3, 'detail: open object, its network, its sources' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-sap-network-${language}-${width}.png`), fullPage: true });
+        await page.locator('#skg-net-detail .skg-detail-actions a').nth(1).click();
+        await page.waitForFunction(id => new URLSearchParams(location.search).get('id') === id && document.querySelector('#skg-net-svg').dataset.state === 'ready', ctcon);
+        check(await page.locator('#skg-depth').inputValue() === '1' && (await page.locator('#skg-net-svg').textContent()).includes('Cloud-Migration'),
+          "the provider's own network with all its services" + where);
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${sap}&collection=kgb&list=1`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-net-table tbody tr');
+        check(await page.locator('#skg-net-wrap').isHidden() && (await page.locator('#skg-net-table').textContent()).includes('CTcon UI GmbH'), 'the list instead of the drawing' + where);
 
         // comparison: one category across providers, prices exactly as published
         await page.goto(base + '/ScoutroKnowledge_p.html?view=compare', { waitUntil: 'networkidle' });
@@ -269,4 +340,4 @@ try {
   check(errors.length === 0, 'no JavaScript errors in the integrations: ' + errors.join(', '));
   await context.close();
 } finally { await browser.close(); }
-console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, business view, network, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);
+console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, business view, network, services across providers, service network, collections, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);

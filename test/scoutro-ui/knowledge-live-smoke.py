@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Disposable live harness for the knowledge graph interface (packages 3 and 6). GPL-2.0-or-later.
+"""Disposable live harness for the knowledge graph interface (packages 3, 6 and 6.1). GPL-2.0-or-later.
 
 Starts a NEW temporary peer with the graph following the collections kga and
 kgb (LLM tier for kga, fake OpenAI-compatible model on 127.0.0.1), indexes
 three pages and a small business set (an operator with two homes, prices and
-a job in kga; a software firm in kgb) through YaCy's parser (api/push_p),
+a job in kga; a software firm in kgb; "SAP" of three providers in kga and kgb;
+a followed collection kgc without a vocabulary) through YaCy's parser (api/push_p),
 waits for the graph and the derived layer, checks the read API, the business
 view, network, comparison, facets and derived rows and their collection
 isolation, then runs the Playwright test
@@ -106,6 +107,28 @@ BUSINESS = [
                                                    "Unsere Kunden: Muster Klinikum UI GmbH.")),
 ]
 
+# package 6.1: "SAP" of three providers (two in kgb, one in kga), each its own service; a parent company for depth 2;
+# a followed collection kgc without a vocabulary (generic facts only)
+HOST_E, HOST_F, HOST_G, HOST_H = "www.ctcon-ui.de", "www.beta-it-ui.de", "www.gamma-ui.de", "www.neuportal-ui.de"
+
+
+def sap_provider(name, host, extra, price):
+    offer = '{"@type":"Offer","itemOffered":{"@type":"Service","name":"SAP"}' + (f',"price":"{price}","priceCurrency":"EUR"' if price else '') + '}'
+    return ('{"@context":"https://schema.org","@type":"Organization","name":"' + name + '","url":"https://' + host + '/"' + extra
+            + ',"makesOffer":[' + offer + ',{"@type":"Offer","itemOffered":{"@type":"Service","name":"Cloud-Migration"}}]}')
+
+
+SERVICES = [
+    (f"https://{HOST_E}/leistungen", "kgb", business("Leistungen CTcon", sap_provider("CTcon UI GmbH", HOST_E,
+        ',"address":{"streetAddress":"Hafenstraße 1","postalCode":"20457","addressLocality":"Hamburg"},'
+        '"parentOrganization":{"@type":"Organization","name":"CT Holding UI AG","url":"https://www.ct-holding-ui.de/"}', "120"), "Leistungen.")),
+    (f"https://{HOST_F}/angebot", "kgb", business("Angebot Beta", sap_provider("Beta IT UI AG", HOST_F,
+        ',"address":{"streetAddress":"Ring 2","postalCode":"80331","addressLocality":"München"}', None), "Angebot.")),
+    (f"https://{HOST_G}/sap", "kga", business("SAP Gamma", sap_provider("Gamma Pflege-IT UI GmbH", HOST_G, "", "99"), "SAP.")),
+    (f"https://{HOST_H}/", "kgc", business("Neuportal", '{"@type":"Organization","name":"Neuportal UI GmbH","url":"https://www.neuportal-ui.de/",'
+                                           '"telephone":"030 5550000"}', "Unsere Leistungen: Tagespflege und SAP-Beratung.")),
+]
+
 PAGES = [
     (f"https://{HOST_A}/impressum", "kga", page("Muster Pflege gGmbH", HOST_A, "",
                                                  "Die Muster Pflege gGmbH betreibt das Haus Lindenhof in Berlin.")),
@@ -184,7 +207,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
         "autocrawl=false", "server.https=false", "locale.language=browser", "upnp.enabled=false", "donation.iframesource=",
         "resource.disk.free.min.steadystate=1", "resource.disk.free.min.undershot=1",
         "resource.disk.used.max.steadystate=1000000000000", "resource.disk.used.max.overshot=1000000000000",
-        "scoutro.kg.enabled=true", "scoutro.kg.collections=kga,kgb", "scoutro.kg.jsonld.enabled=true",
+        "scoutro.kg.enabled=true", "scoutro.kg.collections=kga,kgb,kgc", "scoutro.kg.jsonld.enabled=true",
         "scoutro.kg.llm.collections=kga", "scoutro.kg.llm.kinds.kga=nursinghome",
         "scoutro.kg.vocab.kga=care", "scoutro.kg.vocab.kgb=software", "scoutro.kg.jobs.collections=kga",
         "ai.production_models=" + json.dumps(models, separators=(",", ":")),
@@ -209,9 +232,9 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
                     time.sleep(0.5)
             wait(c, "the start backfill", lambda s: s.get("sync", {}).get("reconcile", {}).get("last") is not None)
             # the business pages first: the three pages of the isolation checks stay the newest objects
-            for url, collection, html in BUSINESS + PAGES:
+            for url, collection, html in BUSINESS + SERVICES + PAGES:
                 push(c, url, html, collection)
-            total = len(BUSINESS) + len(PAGES)
+            total = len(BUSINESS) + len(SERVICES) + len(PAGES)
             wait(c, f"{total} published pages and the LLM result",
                  lambda s: s["sync"]["processed"]["published"] >= total and s["llm"]["processed"]["published"] >= 1)
             checks = 0
@@ -267,13 +290,43 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             assert [r["service"]["name"] for r in cmp["rows"]] == ["Tagespflege"] and len(cmp["rows"][0]["prices"]) == 2, cmp
             assert get(c, "/scoutro/api/v1/kg/compare?category=care/tagespflege&collection=kgb")["rows"] == []
             facets = get(c, "/scoutro/api/v1/kg/facets?collection=kgb")
-            assert [f["code"] for f in facets["customer_types"]] == ["b2b"] and facets["categories"] == [] and facets["counts"]["jobs"] == 0, facets
+            assert [f["code"] for f in facets["customer_types"]] == ["b2b"] and {f["code"] for f in facets["categories"]} == {"software/sap", "software/cloud"} \
+                and facets["counts"]["jobs"] == 0, facets
             assert {d["kind"] for d in get(c, "/scoutro/api/v1/kg/derived?collection=kga")["items"]} == {"same_operator"}
             assert get(c, "/scoutro/api/v1/kg/derived?kind=suggested_customer&collection=kgb")["total"] == 0
             checks += 16
-            print(f"PASS: {checks} live knowledge read API checks (collection isolation, vocabulary 2)", flush=True)
+            # package 6.1: every provider's SAP is its own service, listed with its provider and domain; groups count them
+            hits = get(c, "/scoutro/api/v1/kg/entities?q=SAP&type=service&collection=kgb")["items"]
+            seen = sorted((h["context"]["providers"][0]["name"], h["context"]["providers"][0]["hosts"][0]) for h in hits)
+            assert seen == [("Beta IT UI AG", HOST_F), ("CTcon UI GmbH", HOST_E)] and len({h["id"] for h in hits}) == 2, hits
+            assert all(h["context"]["collections"] == ["kgb"] and h["context"]["provider_count"] == 1 for h in hits), hits
+            sap = next(h for h in hits if h["context"]["providers"][0]["name"] == "CTcon UI GmbH")
+            group = lambda q: get(c, "/scoutro/api/v1/kg/services?q=SAP" + q)["items"][0]
+            assert (group("&collection=kgb")["providers"], group("&collection=kga")["providers"], group("")["providers"]) == (2, 1, 3)
+            assert [x["name"] for x in group("&collection=kgb")["collections"]] == ["kgb"] and group("&collection=kgb")["with_price"] == 1
+            rows = get(c, "/scoutro/api/v1/kg/services/providers?name=SAP&collection=kgb")
+            assert rows["total"] == 2 and sorted(r["prices"]["current"] for r in rows["items"]) == [0, 1], rows
+            assert "Gamma" not in json.dumps(rows) and "kga" not in json.dumps(rows["items"]), "no other collection in the group"
+            ctcon = sap["context"]["providers"][0]["id"]
+            snet = get(c, f"/scoutro/api/v1/kg/entities/{sap['id']}/neighborhood?collection=kgb&depth=2")
+            assert any(e["from"] == ctcon and e["to"] == sap["id"] and e["type"] == "offers" and e["direction"] == "in" for e in snet["edges"]), snet["edges"]
+            labels_2 = {n["label"] for n in snet["nodes"]}
+            assert "CT Holding UI AG" in labels_2 and "Cloud-Migration" not in labels_2, labels_2
+            assert next(n for n in snet["nodes"] if n["id"] == ctcon)["hosts"] == [HOST_E]
+            assert status(c, f"/scoutro/api/v1/kg/entities/{sap['id']}/neighborhood?collection=kga") == 404
+            # a followed collection without a vocabulary: listed, said so, generic facts only
+            # the document counts of the status are at most 10 s old
+            s_c = wait(c, "the document count of kgc", lambda s: any(r["collection"] == "kgc" and r["documents"] == 1 for r in s["collections"]), 30)
+            rows_c = {r["collection"]: r for r in s_c["collections"]}
+            kgc = rows_c["kgc"]
+            assert kgc["followed"] and kgc["vocabulary"] is None and kgc["vocabularySource"] == "none" and not kgc["jobs"] and kgc["documents"] == 1, kgc
+            assert rows_c["kga"]["vocabulary"] == "care" and rows_c["kga"]["jobs"] and rows_c["kgb"]["vocabularySource"] == "setting", rows_c
+            assert get(c, "/scoutro/api/v1/kg/facets?collection=kgc")["categories"] == [], "no guessed category for kgc"
+            checks += 13
+            print(f"PASS: {checks} live knowledge read API checks (collection isolation, vocabulary 2, services across providers)", flush=True)
             env = {**os.environ, "SCOUTRO_URL": BASE, "SCOUTRO_KG_ENTITY": org["id"], "SCOUTRO_KG_HOST": HOST_A,
-                   "SCOUTRO_KG_ONLY_B": b_only["id"], "SCOUTRO_KG_OPERATOR": operator["id"], "SCOUTRO_KG_SOFT": soft["id"]}
+                   "SCOUTRO_KG_ONLY_B": b_only["id"], "SCOUTRO_KG_OPERATOR": operator["id"], "SCOUTRO_KG_SOFT": soft["id"],
+                   "SCOUTRO_KG_SAP": sap["id"], "SCOUTRO_KG_CTCON": ctcon}
             subprocess.run(["node", str(REPO / "test/scoutro-ui/knowledge-ui-test.mjs")], cwd=REPO, env=env, check=True, timeout=900)
         except BaseException:
             log.flush()

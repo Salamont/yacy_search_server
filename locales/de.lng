@@ -5692,14 +5692,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >all<==>alle<
 >no<==>nein<
 #-----------------------------
-> Facilities, sites and places<==> Einrichtungen, Standorte und Orte<
-> Industries and audiences<==> Branchen und Zielgruppen<
 > List only<==> Nur als Liste<
-> Relations between organisations<==> Beziehungen zwischen Organisationen<
-> Same operator (derived)<==> Gleicher Träger (abgeleitet)<
-> Services and jobs<==> Leistungen und Jobs<
-> Stale<==> Veraltet<
-> Suggestions<==> Vorschläge<
 > Weak link signals<==> Schwache Link-Signale<
 >%1 ended jobs older than the visibility window are hidden.<==>%1 beendete Jobs, älter als das Sichtbarkeitsfenster, sind ausgeblendet.<
 >%1 objects, %2 lines<==>%1 Objekte, %2 Linien<
@@ -5770,7 +5763,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Status<==>Status<
 >Suggested matches<==>Vorgeschlagene Matches<
 >Suggestions are no facts: they combine what A offers with what B seeks. A suggested customer is a possible customer, never a customer relation.<==>Vorschläge sind keine Fakten: Sie verbinden, was A anbietet, mit dem, was B sucht. Ein vorgeschlagener Kunde ist ein möglicher Kunde, nie eine Kundenbeziehung.<
->The neighbourhood of one object, never the whole graph. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Select a node or a line to see its evidence; open a node to go to its object.<==>Die Nachbarschaft eines Objekts, nie der ganze Graph. Durchgezogene Linien sind Fakten mit Beleg, gestrichelte unsichere Fakten, gepunktete abgeleitete Einträge, die keine Fakten sind: ein gemeinsamer Träger, ein schwaches Link-Signal oder ein Vorschlag. Wählen Sie einen Knoten oder eine Linie, um die Belege zu sehen; öffnen Sie einen Knoten, um zu seinem Objekt zu gelangen.<
 >To<==>Nach<
 >VAT-exempt<==>umsatzsteuerfrei<
 >apply until<==>bewerben bis<
@@ -5878,3 +5870,88 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >copy before the upgrade: %1<==>Kopie vor dem Upgrade: %1<
 >waiting for a verified backup (%1)<==>wartet auf ein geprüftes Backup (%1)<
 >jobs<==>Jobs<
+>Followed<==>Verfolgt<
+>Vocabulary<==>Vokabular<
+>Documents in the graph<==>Dokumente im Graph<
+>With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Jobs are read only for the collections named in scoutro.kg.jobs.collections.<==>Mit scoutro.kg.collections=* wird eine neue Collection sofort verfolgt; mit einer festen Liste nur die genannten. Eine Collection ohne Vokabular erhält nur allgemeine Fakten (Namen, Adressen, Kontakte, Beziehungen), keine Leistungskategorien; ihr Vokabular wird nie aus ihrem Namen erraten. Ein vorhandenes Vokabular weisen Sie mit scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; zu, ein neues mit einer Datei in DATA/SCOUTRO/knowledge/vocabulary. Jobs werden nur für die Collections gelesen, die in scoutro.kg.jobs.collections genannt sind.<
+>Provider and domain<==>Anbieter und Domain<
+>Actions<==>Aktionen<
+>The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.<==>Die Nachbarschaft eines Objekts, nie der ganze Graph. Pfeile zeigen in die Richtung, die die Quelle angibt: Ein Anbieter bietet eine Leistung an, ein Unternehmen ist Partner eines anderen. Durchgezogene Linien sind Fakten mit Belegen, gestrichelte unsichere Fakten, gepunktete abgeleitete Zeilen, die keine Fakten sind: ein gemeinsamer Träger, ein schwaches Link-Signal oder ein Vorschlag. Tippen Sie auf einen Knoten oder eine Linie für Details, die Beziehung zum Zentrum und die Quellen; um eine Leistung herum werden ihre Anbieter gezeigt, um einen Job sein Arbeitgeber.<
+>Facts<==>Fakten<
+> Relations between companies<==> Unternehmensbeziehungen<
+> Structure and operators<==> Struktur und Betreiber<
+> Services and providers<==> Leistungen und Anbieter<
+> Places<==> Orte<
+> Industry<==> Branche<
+> Audiences<==> Zielgruppen<
+> Jobs and employers<==> Jobs und Arbeitgeber<
+> Prices of services<==> Preise der Leistungen<
+> Same operator<==> Gleicher Träger<
+> Suggested customers and partners<==> Vorgeschlagene Kunden und Partner<
+> Current<==> Aktuell<
+> Outdated<==> Veraltet<
+>Default view<==>Standardansicht<
+>Services across providers<==>Leistungen über Anbieter hinweg<
+>Services of the same name, counted across their providers. Every provider's service stays its own object with its own provider, prices and sources; this view only counts them, it merges, averages and mixes nothing.<==>Gleichnamige Leistungen, über ihre Anbieter hinweg gezählt. Die Leistung jedes Anbieters bleibt ein eigenes Objekt mit eigenem Anbieter, eigenen Preisen und Quellen; diese Ansicht zählt nur, sie führt nichts zusammen, bildet keine Mittelwerte und vermischt nichts.<
+>Service name<==>Name der Leistung<
+>Providers<==>Anbieter<
+>Places<==>Orte<
+>With a current price<==>Mit aktuellem Preis<
+>With a current source<==>Mit aktueller Quelle<
+>All service names<==>Alle Leistungsnamen<
+>No provider assigned<==>Kein Anbieter zugeordnet<
+>No employer assigned<==>Kein Arbeitgeber zugeordnet<
+>+%1 more<==>+%1 weitere<
+>Open provider<==>Anbieter öffnen<
+>Open service<==>Leistung öffnen<
+>Open employer<==>Arbeitgeber öffnen<
+>All providers<==>Alle Anbieter<
+>%1 · %2 providers<==>%1 · %2 Anbieter<
+>Services of the same name stay separate objects, each with its own provider, prices and sources.<==>Gleichnamige Leistungen bleiben getrennte Objekte, jede mit eigenem Anbieter, eigenen Preisen und Quellen.<
+>No visible services match.<==>Keine sichtbaren Leistungen gefunden.<
+>Without a provider<==>Ohne Anbieter<
+>Places of the providers<==>Orte der Anbieter<
+>%1 current of %2<==>%1 aktuell von %2<
+>Domain<==>Domain<
+>Relation to the centre<==>Beziehung zum Zentrum<
+>Further relations<==>Weitere Beziehungen<
+>Network of this object<==>Netz dieses Objekts<
+>Open sources<==>Quellen öffnen<
+>Objects of this industry<==>Objekte dieser Branche<
+>Objects of this audience<==>Objekte dieser Zielgruppe<
+>via %1<==>über %1<
+>No vocabulary assigned<==>Kein Vokabular zugeordnet<
+>by setting<==>per Einstellung<
+>vocabulary file<==>Vokabulardatei<
+>unknown vocabulary<==>unbekanntes Vokabular<
+>following<==>wird verfolgt<
+>waiting for documents<==>wartet auf Dokumente<
+>not followed<==>nicht verfolgt<
+>vocabulary missing<==>Vokabular fehlt<
+>Job collections<==>Job-Collections<
+>organisation<==>Organisation<
+>facility or site<==>Einrichtung oder Standort<
+>service<==>Leistung<
+>job<==>Job<
+>place<==>Ort<
+>partner of<==>Partner von<
+>customer of<==>Kunde von<
+>same carrier<==>gleicher Träger<
+>belongs to<==>gehört zu<
+>site<==>Standort<
+>location<==>Standort<
+>weak link signal<==>schwaches Link-Signal<
+>suggested customer<==>vorgeschlagener Kunde<
+>suggested partner<==>vorgeschlagener Partner<
+>parent of<==>Mutter von<
+>subsidiary of<==>Tochter von<
+>carrier of<==>Träger von<
+>member of<==>Mitglied von<
+>association member<==>Verbandsmitglied<
+>reference for<==>Referenz für<
+>service provider for<==>Dienstleister für<
+>brand of<==>Marke von<
+>certified by<==>zertifiziert durch<
+>funded by<==>gefördert von<
+>sponsored by<==>gesponsert von<
+>job at<==>Job bei<
