@@ -46,7 +46,9 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * <li>{@code operator_name}: the same legal name of an organisation that is <em>not</em> declared as
  * operator (a parent organisation on a facility page, a name in running text): it resolves to the
  * declared operator of the domain, in either order, but two such mentions never merge with each other
- * (a portal lists unrelated organisations whose legal names may be equal);</li>
+ * (a portal lists unrelated organisations whose legal names may be equal); the key holds the legal
+ * name and the document ({@code name|docId}), so that every such organisation keeps one and the
+ * operator, once declared, takes in all of them;</li>
  * <li>{@code facility_address}: name and <em>full</em> address, within the registrable domain;</li>
  * <li>{@code job_posting} (version 2): employer, title and location of a job, within the registrable domain;</li>
  * <li>{@code place_name} (version 2): a place by country, level and name, global (a state, a country, a locality);</li>
@@ -120,7 +122,10 @@ public final class IdentityResolver {
         if (Vocabulary.ORGANIZATION.equals(m.type) && domain != null) {
             final String legal = Normalizers.legalNameKey(m.legalName);
             if (legal != null) {
-                out.add(new Key(m.siteOperator ? Vocabulary.SITE_OPERATOR : Vocabulary.OPERATOR_NAME, m.type + "@" + domain, legal));
+                // an operator name per document: the key table holds one entity per key, and several pages may name the
+                // operator before its own page declares it (each stays apart until then, then all of them join it)
+                out.add(m.siteOperator ? new Key(Vocabulary.SITE_OPERATOR, m.type + "@" + domain, legal)
+                        : new Key(Vocabulary.OPERATOR_NAME, m.type + "@" + domain, Normalizers.clip(legal, 480) + OPERATOR_NAME_DOC + docId));
             }
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.address != null && m.address.complete()
@@ -156,7 +161,7 @@ public final class IdentityResolver {
         final Map<Key, Long> found = new LinkedHashMap<>();
         for (final Key k : keys) {
             // an operator name looks for the declared operator only, never for another holder of the name
-            Long ent = lookup(tx, Vocabulary.OPERATOR_NAME.equals(k.scheme) ? new Key(Vocabulary.SITE_OPERATOR, k.scope, k.value) : k);
+            Long ent = lookup(tx, Vocabulary.OPERATOR_NAME.equals(k.scheme) ? new Key(Vocabulary.SITE_OPERATOR, k.scope, operatorName(k.value)) : k);
             if (ent == null && Vocabulary.DOMAIN_OPERATOR.equals(k.scheme)) {
                 ent = soleOperator(tx, k.scope); // the unnamed operator is the declared one, if the domain has exactly one
             }
@@ -185,11 +190,13 @@ public final class IdentityResolver {
         if (primary == null) {
             primary = create(tx, m, creationKey(keys, found), agg);
         }
-        // the declared operator takes in the organisations of the domain that were seen under its legal name before
+        // the declared operator takes in every organisation of the domain that was seen under its legal name before
         for (final Key k : keys) {
             if (Vocabulary.SITE_OPERATOR.equals(k.scheme)) {
-                final Long named = lookup(tx, new Key(Vocabulary.OPERATOR_NAME, k.scope, k.value));
-                if (named != null && !named.equals(primary)) {
+                for (final Long named : operatorNamed(tx, k.scope, k.value)) {
+                    if (named.equals(primary)) {
+                        continue;
+                    }
                     if (mergeable(tx, primary, named)) {
                         primary = merge(tx, primary, named, agg);
                     } else {
@@ -273,6 +280,36 @@ public final class IdentityResolver {
                 return rs.next();
             }
         }
+    }
+
+    /** Separates the legal name and the document in an {@code operator_name} key ({@link Normalizers#key} never yields it). */
+    static final String OPERATOR_NAME_DOC = "|";
+
+    /** The legal name of an {@code operator_name} key (a key of Scoutro 0.7 is the name alone). */
+    static String operatorName(final String value) {
+        final int i = value.indexOf(OPERATOR_NAME_DOC);
+        return i < 0 ? value : value.substring(0, i);
+    }
+
+    /** The active entities holding an {@code operator_name} key of {@code legal} in {@code scope}, oldest first. */
+    private List<Long> operatorNamed(final Connection tx, final String scope, final String legal) throws SQLException {
+        final List<Long> out = new ArrayList<>();
+        final String name = Normalizers.clip(legal, 480);
+        try (PreparedStatement ps = tx.prepareStatement("SELECT DISTINCT k.ent_rowid FROM kg_entity_key k JOIN kg_entity e"
+                + " ON e.ent_rowid = k.ent_rowid WHERE k.scheme = ? AND k.scope = ? AND (k.value = ? OR (k.value >= ? AND k.value < ?))"
+                + " AND e.status = 1 ORDER BY e.created_seq")) {
+            ps.setInt(1, this.terms.scheme(Vocabulary.OPERATOR_NAME));
+            ps.setString(2, scope);
+            ps.setString(3, legal);
+            ps.setString(4, name + OPERATOR_NAME_DOC);
+            ps.setString(5, name + (char) (OPERATOR_NAME_DOC.charAt(0) + 1));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getLong(1));
+                }
+            }
+        }
+        return out;
     }
 
     private Long lookup(final Connection tx, final Key k) throws SQLException {

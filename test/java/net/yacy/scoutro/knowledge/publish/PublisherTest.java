@@ -208,6 +208,27 @@ public class PublisherTest {
                 + " WHERE e.status = 1 AND v.name = 'organization'"));
     }
 
+    /**
+     * Several facility pages before the operator's own page: each names the operator as its parent and stays apart until the
+     * operator is declared, then all of them join it (only the first did: the key table holds one entity per key).
+     */
+    @Test
+    public void everyParentOrganisationSeenBeforeTheOperatorJoinsIt() throws Exception {
+        for (final String house : new String[] {"Birke", "Eiche", "Linde"}) {
+            final Publisher.Doc d = doc("H" + house.toUpperCase(java.util.Locale.ROOT).substring(0, 4) + "0host01",
+                    "https://www.lindenhof.de/haus-" + house.toLowerCase(java.util.Locale.ROOT), "c1");
+            publish(d, jsonld(d, String.format(HOUSE, house)));
+        }
+        assertEquals("apart until the operator is declared", 3L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v"
+                + " ON v.term_id = e.type WHERE e.status = 1 AND v.name = 'organization'"));
+        final Publisher.Doc home = doc("ZHOME0host01", "https://www.lindenhof.de/", "c1");
+        publish(home, jsonld(home, OPERATOR));
+        assertEquals(1L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type"
+                + " WHERE e.status = 1 AND v.name = 'organization'"));
+        assertEquals("the operator operates all three houses", 3L, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v"
+                + " ON v.term_id = s.pred JOIN kg_entity e ON e.ent_rowid = s.subj WHERE v.name = 'operates' AND e.status = 1"));
+    }
+
     @Test
     public void twoOrganisationsOfThePortalWithTheSameLegalNameStaySeparate() throws Exception {
         // a portal lists two providers called alike; neither is the portal's operator
