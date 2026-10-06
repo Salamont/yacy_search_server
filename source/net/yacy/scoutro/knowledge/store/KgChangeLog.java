@@ -50,8 +50,14 @@ import net.yacy.scoutro.knowledge.KgIds;
  */
 public final class KgChangeLog {
 
+    /**
+     * What changed. {@code DERIVED} (schema 4) is a derived relation or a
+     * suggested match ({@code kg_derived}); its collections never change over
+     * its life (they are part of its ID), and a viewer sees it only with
+     * <em>all</em> of them, because it combines the facts of two collections.
+     */
     public enum Kind {
-        ENTITY(1), STATEMENT(2);
+        ENTITY(1), STATEMENT(2), DERIVED(3);
 
         public final int code;
 
@@ -60,7 +66,12 @@ public final class KgChangeLog {
         }
 
         static Kind of(final int code) {
-            return code == 1 ? ENTITY : STATEMENT;
+            return code == 1 ? ENTITY : code == 3 ? DERIVED : STATEMENT;
+        }
+
+        /** The name in the export and the feed. */
+        public String label() {
+            return this == ENTITY ? "entity" : this == DERIVED ? "derived" : "statement";
         }
     }
 
@@ -108,6 +119,11 @@ public final class KgChangeLog {
                 }
             }
             return false;
+        }
+
+        /** True if every one of {@code scopes} is visible (and there is at least one). */
+        public boolean containsAll(final Set<Integer> scopes) {
+            return this.collections == null || !scopes.isEmpty() && this.collections.containsAll(scopes);
         }
     }
 
@@ -240,9 +256,11 @@ public final class KgChangeLog {
                     }
                     final long seq = rs.getLong(1);
                     last = seq;
-                    final Op op = visibleOp(viewer, Op.of(rs.getInt(4)), parse(rs.getString(6)), parse(rs.getString(7)));
+                    final Kind kind = Kind.of(rs.getInt(2));
+                    final Op op = kind == Kind.DERIVED ? visibleDerived(viewer, Op.of(rs.getInt(4)), parse(rs.getString(7)))
+                            : visibleOp(viewer, Op.of(rs.getInt(4)), parse(rs.getString(6)), parse(rs.getString(7)));
                     if (op != null) {
-                        items.add(new Item(seq, Kind.of(rs.getInt(2)), rs.getString(3), op,
+                        items.add(new Item(seq, kind, rs.getString(3), op,
                                 op == Op.REDIRECT ? rs.getString(5) : null, rs.getLong(8)));
                     }
                 }
@@ -270,6 +288,11 @@ public final class KgChangeLog {
             return Op.DELETE;
         }
         return null;
+    }
+
+    /** A derived row: seen with all of its collections or not at all (its collections are fixed). */
+    static Op visibleDerived(final Viewer viewer, final Op op, final Set<Integer> seen) {
+        return viewer.all() || viewer.containsAll(seen) ? op : null;
     }
 
     /**

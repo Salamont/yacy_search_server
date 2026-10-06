@@ -11,7 +11,9 @@ import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL;
 const entity = process.env.SCOUTRO_KG_ENTITY, host = process.env.SCOUTRO_KG_HOST, onlyB = process.env.SCOUTRO_KG_ONLY_B;
-assert(base && new URL(base).hostname === '127.0.0.1' && entity && host && onlyB, 'Use knowledge-live-smoke.py; no production instance');
+// vocabulary 2: the operator (kga) and the software firm (kgb) that suggests it as a possible customer
+const operator = process.env.SCOUTRO_KG_OPERATOR, soft = process.env.SCOUTRO_KG_SOFT;
+assert(base && new URL(base).hostname === '127.0.0.1' && entity && host && onlyB && operator && soft, 'Use knowledge-live-smoke.py; no production instance');
 const shots = process.env.SCOUTRO_SCREENSHOTS;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 let checks = 0;
@@ -23,7 +25,9 @@ const browser = await chromium.launch({
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
 try {
   const anonymous = await browser.newContext();
-  for (const p of ['/ScoutroKnowledge_p.html', '/scoutro/api/v1/kg/entities', '/scoutro/api/v1/kg/entities/' + entity, '/scoutro/api/v1/kg/sources/AAAAAAAAAAAA'])
+  for (const p of ['/ScoutroKnowledge_p.html', '/scoutro/api/v1/kg/entities', '/scoutro/api/v1/kg/entities/' + entity, '/scoutro/api/v1/kg/sources/AAAAAAAAAAAA',
+    '/scoutro/api/v1/kg/entities/' + operator + '/business', '/scoutro/api/v1/kg/entities/' + operator + '/neighborhood',
+    '/scoutro/api/v1/kg/compare?category=care/tagespflege', '/scoutro/api/v1/kg/derived', '/scoutro/api/v1/kg/facets'])
     check((await anonymous.request.get(base + p)).status() === 401, 'administrator required: ' + p);
   await anonymous.close();
 
@@ -44,6 +48,10 @@ try {
         check((await page.locator('#skg-cards').textContent()).includes('running'), 'state running' + where);
         if (language === 'de') check((await page.locator('h1').textContent()).trim() === 'Wissensgraph', 'German heading' + where);
         check(await page.locator('#scoutro-adminnav a[href="ScoutroKnowledge_p.html"]').count() === 1, 'navigation entry' + where);
+        await page.waitForFunction(() => document.querySelector('#skg-vocab').children.length > 0);
+        const vocab = await page.locator('#skg-vocab').textContent();
+        check(vocab.includes('kga: care') && vocab.includes('kgb: software') && /1[.,]?047/.test(vocab), 'vocabularies per collection and NACE codes' + where);
+        check(await page.locator('#skg-upgrade-note').isHidden(), 'no upgrade waiting on a new graph' + where);
         check(await noOverflow(page), 'no horizontal overflow (overview)' + where);
         if (shots) await page.screenshot({ path: path.join(shots, `kg-overview-${language}-${width}.png`), fullPage: true });
 
@@ -93,6 +101,95 @@ try {
         await page.waitForFunction(() => document.querySelector('#skg-message').textContent.includes('404'));
         check(true, 'kgb object not found in kga' + where);
 
+        // vocabulary 2: the object view in sections, only those with content
+        const de = language === 'de', L = (en, deText) => de ? deText : en;
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${operator}`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-sec-prices');
+        for (const sec of ['industry', 'services', 'prices', 'contacts', 'relations', 'jobs', 'matches', 'sources'])
+          check(await page.locator('#skg-sec-' + sec).isVisible(), 'section ' + sec + where);
+        check(await page.locator('#skg-sec-audiences').count() === 0, 'no empty audience section for the operator' + where);
+        check(await page.locator('#skg-toc a').count() >= 9, 'table of contents of the sections' + where);
+        check((await page.locator('#skg-sec-prices h3').textContent()).trim() === L('Prices', 'Preise'), 'section heading translated' + where);
+        const prices = await page.locator('#skg-sec-prices').textContent();
+        check(prices.includes(L('from 49 EUR per day', 'ab 49 EUR pro Tag')) && prices.includes(L('from 59 EUR per day', 'ab 59 EUR pro Tag')),
+          'prices as published, both kept: ' + prices.slice(0, 200) + where);
+        check(await page.locator('#skg-sec-prices tr[data-status="conflicting"]').count() === 2, 'the conflicting prices are marked' + where);
+        check(prices.includes('2026-09'), 'the stated date of the price list' + where);
+        check((await page.locator('#skg-sec-industry').textContent()).includes('NACE Rev. 2.1 / WZ 2025'), 'industry with its classification' + where);
+        const jobs = await page.locator('#skg-sec-jobs').textContent();
+        check(jobs.includes('Pflegefachkraft (m/w/d)') && jobs.includes(L('3,400 EUR to 3,900 EUR per month', '3.400 EUR bis 3.900 EUR pro Monat')), 'job with its salary and unit' + where);
+        const matches = await page.locator('#skg-sec-matches').textContent();
+        check(matches.includes('PflegeSoft UI GmbH') && matches.includes(L('suggestion', 'Vorschlag')) && !matches.includes(L('is a customer of', 'ist Kunde von')),
+          'a suggestion, never a customer relation' + where);
+        await page.locator('#skg-toc a', { hasText: L('Jobs', 'Jobs') }).click();
+        check(await page.evaluate(() => document.activeElement?.closest('#skg-sec-jobs') !== null), 'table of contents moves the focus' + where);
+        check(await noOverflow(page), 'no horizontal overflow (business view)' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-business-${language}-${width}.png`), fullPage: true });
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${operator}&collection=kga`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-sec-prices');
+        check(await page.locator('#skg-sec-matches').count() === 0 && !(await page.locator('#skg-object').textContent()).includes('PflegeSoft'),
+          'kga sees no suggestion that needs kgb' + where);
+
+        // the network: SVG and list from the same data, filters, keyboard, export
+        await page.locator('#skg-object-network').click();
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        check(new URL(page.url()).searchParams.get('view') === 'network' && new URL(page.url()).searchParams.get('collection') === 'kga', 'network keeps the collection' + where);
+        const edges = await page.locator('#skg-net-svg .skg-edge').count();
+        check(edges >= 6 && await page.locator('#skg-net-table tbody tr').count() === edges, 'every line is also a list row' + where);
+        check(await page.locator('#skg-net-svg .skg-edge.skg-e-suggested').count() === 0, 'no suggestions unless asked' + where);
+        check(await noOverflow(page), 'no horizontal overflow (network)' + where);
+        const birke = page.locator('#skg-net-svg .skg-node', { hasText: 'Haus Birke' }).first();
+        await birke.focus();
+        await page.waitForSelector('#skg-net-detail:not([hidden])');
+        check((await page.locator('#skg-net-detail').textContent()).includes('Lindenhof Pflege gGmbH'), 'focus shows the node and its lines' + where);
+        check(await page.locator('#skg-net-svg .skg-edge.skg-hl').count() >= 1, 'its lines are highlighted' + where);
+        const line = page.locator('#skg-net-svg .skg-edge.skg-e-confirmed').first();
+        await line.focus();
+        await page.locator('#skg-net-detail button').first().click();
+        await page.locator('#skg-net-detail .skg-excerpt, #skg-net-detail .skg-evidence li').first().waitFor();
+        check(true, 'a line shows its evidence' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-network-${language}-${width}.png`), fullPage: true });
+        const graphml = await page.evaluate(async () => (await fetch(document.querySelector('#skg-net-graphml').href)).text());
+        check(graphml.includes('<graphml') && graphml.includes('edgedefault="directed"') && graphml.includes('Haus Birke'), 'GraphML export' + where);
+        // depth 2: the homes' own lines, the derived "same operator" between them dotted
+        await page.locator('#skg-depth').selectOption('2');
+        await page.locator('#skg-net-form button[type=submit]').click();
+        await page.waitForFunction(() => new URLSearchParams(location.search).get('depth') === '2' && document.querySelector('#skg-net-svg').dataset.state === 'ready');
+        await page.waitForSelector('#skg-net-svg .skg-edge.skg-e-derived');
+        check((await page.locator('#skg-net-table').textContent()).includes(L('same operator (derived)', 'gleicher Träger (abgeleitet)')), 'same operator at depth 2, also in the list' + where);
+        await page.locator('#skg-f-values').uncheck();
+        await page.locator('#skg-net-form button[type=submit]').click();
+        await page.waitForFunction(() => new URLSearchParams(location.search).get('f') !== null && document.querySelector('#skg-net-svg').dataset.state === 'ready');
+        check(await page.locator('#skg-net-svg .skg-t-value').count() === 0, 'filter: no industry or audience nodes' + where);
+        await page.locator('#skg-f-list').check();
+        check(await page.locator('#skg-net-wrap').isHidden() && await page.locator('#skg-net-table').isVisible(), 'list only' + where);
+        await page.locator('#skg-f-list').uncheck();
+        await birke.press('Enter');
+        await page.waitForSelector('#skg-object:not([hidden]) #skg-out .skg-statement');
+        check((await page.locator('#skg-object-name').textContent()).includes('Haus Birke'), 'Enter on a node opens its object' + where);
+        // the administrator without a filter sees the suggestions on request
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${operator}&f=business,structure,offers,values,derived,suggested`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        check(await page.locator('#skg-net-svg .skg-edge.skg-e-suggested').count() >= 1, 'suggestions shown on request, dotted' + where);
+
+        // comparison: one category across providers, prices exactly as published
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=compare', { waitUntil: 'networkidle' });
+        await page.waitForFunction(() => document.querySelectorAll('#skg-compare-category option').length > 1);
+        await page.locator('#skg-compare-category').selectOption('care/tagespflege');
+        await page.locator('#skg-compare-form button[type=submit]').click();
+        await page.waitForSelector('#skg-compare-table tbody tr');
+        const table = await page.locator('#skg-compare-table').textContent();
+        check(await page.locator('#skg-compare-table tbody tr').count() === 2 && table.includes('Lindenhof Pflege gGmbH') && table.includes(L('from 49 EUR', 'ab 49 EUR')),
+          'comparison rows' + where);
+        check(await noOverflow(page), 'no horizontal overflow (comparison)' + where);
+        if (width < 768) check(await page.locator('#skg-compare-table tbody tr').first().evaluate(r => getComputedStyle(r).display !== 'table-row'), 'comparison rows as cards' + where);
+        // entity filters from the facets
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&category=care/tagespflege', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
+        const filtered = await page.locator('#skg-entities tbody').textContent();
+        check(filtered.includes('Lindenhof Pflege gGmbH') && !filtered.includes('Nur Bee GmbH') && await page.locator('#skg-category').inputValue() === 'care/tagespflege',
+          'category filter' + where);
+
         // settings
         await page.goto(base + '/ScoutroKnowledge_p.html?view=settings', { waitUntil: 'networkidle' });
         await page.waitForFunction(() => document.querySelector('#skg-config').children.length > 0);
@@ -124,6 +221,9 @@ try {
   await page.waitForFunction(() => document.querySelector('#scoutro-kg-state').textContent !== '—');
   check((await page.locator('#scoutro-kg-state').textContent()).trim() === 'Running', 'dashboard tile');
   await page.goto(base + '/ScoutroKnowledge_p.html', { waitUntil: 'networkidle' });
+  await page.locator('[data-skg-action="derive"]').click();
+  await page.waitForFunction(() => document.querySelector('#skg-message').textContent === 'Done.');
+  check(true, 'derived relations recomputed on request');
   await page.locator('[data-skg-action="pause"]').click();
   await page.waitForFunction(() => document.querySelector('#skg-storage').textContent.includes('manual'));
   check(true, 'pause through the page');
@@ -169,4 +269,4 @@ try {
   check(errors.length === 0, 'no JavaScript errors in the integrations: ' + errors.join(', '));
   await context.close();
 } finally { await browser.close(); }
-console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);
+console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, business view, network, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);

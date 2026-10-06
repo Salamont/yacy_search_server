@@ -18,7 +18,9 @@ package net.yacy.scoutro.knowledge.extract;
 
 /**
  * One statement about a mention, as extracted: a relation to another mention
- * of the same document or a canonical literal value, with its source location.
+ * of the same document or a canonical literal value, with its source location
+ * and, from version 2, the extractor's confidence (null: the default of its
+ * kind, {@link #defaultConfidence}).
  */
 public final class Claim {
 
@@ -38,9 +40,16 @@ public final class Claim {
     public final boolean hedged;
     public final String locator;
     public final String excerpt;
+    /** 0..1, or null for the default of the kind. */
+    public final Double confidence;
 
     public Claim(final String subject, final String predicate, final String object, final String value, final int tier,
             final int kind, final boolean hedged, final String locator, final String excerpt) {
+        this(subject, predicate, object, value, tier, kind, hedged, locator, excerpt, null);
+    }
+
+    public Claim(final String subject, final String predicate, final String object, final String value, final int tier,
+            final int kind, final boolean hedged, final String locator, final String excerpt, final Double confidence) {
         this.subject = subject;
         this.predicate = predicate;
         this.object = object;
@@ -50,6 +59,36 @@ public final class Claim {
         this.hedged = hedged;
         this.locator = locator == null || locator.length() <= 200 ? locator : locator.substring(0, 200);
         this.excerpt = excerpt;
+        this.confidence = confidence == null || confidence.isNaN() ? null : Math.max(0.0, Math.min(1.0, confidence));
+    }
+
+    /**
+     * The confidence of a claim without its own: structured data 0.9, page
+     * metadata 0.8, deterministic rules 0.7, the language model 0.5; a hedged
+     * statement half of that.
+     */
+    public static double defaultConfidence(final int kind, final boolean hedged) {
+        final double c;
+        switch (kind) {
+            case KIND_JSONLD:
+                c = 0.9;
+                break;
+            case KIND_METADATA:
+                c = 0.8;
+                break;
+            case KIND_RULE:
+                c = 0.7;
+                break;
+            default:
+                c = 0.5;
+        }
+        return hedged ? c / 2.0 : c;
+    }
+
+    /** The confidence stored with the evidence. */
+    public double effectiveConfidence() {
+        return this.confidence != null ? (this.hedged ? Math.min(this.confidence, defaultConfidence(this.kind, true)) : this.confidence)
+                : defaultConfidence(this.kind, this.hedged);
     }
 
     public boolean relation() {

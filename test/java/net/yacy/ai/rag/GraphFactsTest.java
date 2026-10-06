@@ -73,6 +73,15 @@ public class GraphFactsTest {
 
     private static final RagQuery QUESTION = RagQuery.prepare("Was betreibt die Muster Pflege gGmbH?");
 
+    /** The intents of the graph facts compare words as the chat's question stems: both stemmers must agree. */
+    @Test
+    public void theIntentStemsAreTheQuestionStems() {
+        for (final String w : new String[] {"Partner", "Kosten", "Telefonnummer", "Öffnungszeiten", "Umsatzsteuer", "Stellen", "Kunden",
+            "Träger", "zertifiziert", "Branche", "Leistungen", "Zielgruppe", "Preise", "job", "Mitglied"}) {
+            org.junit.Assert.assertEquals(w, RagQuery.stem(w), ChatFacts.stemLike(w));
+        }
+    }
+
     @Test
     public void onlyLocalAndAdministratorAccessGetsGraphFactsUnlessGuestsAreAllowed() {
         final Fake fake = new Fake();

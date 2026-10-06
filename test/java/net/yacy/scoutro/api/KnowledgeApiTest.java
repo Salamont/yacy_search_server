@@ -211,7 +211,25 @@ public class KnowledgeApiTest {
             assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20)));
             assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/statements", "direction", "in"));
             assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/statements", "direction", "up"));
-            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/statements", "predicate", "salary"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/statements", "predicate", "estimated_salary"));
+            // vocabulary 2 routes validate like the others
+            assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/business"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/business", "include", "everything"));
+            assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "depth", "2", "weak", "true"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "depth", "3"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "limit", "201"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "types", "knows"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "weak", "yes"));
+            assertEquals(400, read(api, "GET", "compare"));
+            assertEquals(400, read(api, "GET", "compare", "category", "Care Tagespflege"));
+            assertEquals(200, read(api, "GET", "compare", "category", "care/tagespflege"));
+            assertEquals(200, read(api, "GET", "derived", "kind", "suggested_customer"));
+            assertEquals(400, read(api, "GET", "derived", "kind", "customer_of"));
+            assertEquals(400, read(api, "GET", "derived", "entity", "not-an-id"));
+            assertEquals(200, read(api, "GET", "facets"));
+            assertEquals(400, read(api, "GET", "facets", "limit", "5"));
+            assertEquals(200, read(api, "GET", "entities", "industry", "87.10", "category", "care/tagespflege", "audience", "b2b"));
+            assertEquals(400, read(api, "GET", "entities", "industry", "8710"));
             assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/nothing"));
             assertEquals(404, read(api, "GET", "statements/kgs_" + "b".repeat(20)));
             assertEquals(404, read(api, "GET", "statements/kgs_" + "b".repeat(20) + "/evidence", "limit", "50"));

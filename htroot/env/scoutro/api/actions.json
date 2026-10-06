@@ -1394,7 +1394,7 @@
     },
     {
       "name": "kg.control",
-      "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"} (restore with \"backup\"); unknown fields are refused. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
+      "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"} (restore with \"backup\"); unknown fields are refused. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
       "mutating": true,
       "auth": "admin",
       "http": {
@@ -1405,7 +1405,7 @@
       "parameters": {
         "backup": {
           "type": "string",
-          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$",
+          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$",
           "description": "With action restore only: the backup file.",
           "in": "body",
           "required": false
@@ -1422,9 +1422,10 @@
             "restore",
             "rebuild",
             "rebuild_cancel",
-            "rebuild_confirm"
+            "rebuild_confirm",
+            "derive"
           ],
-          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity: it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise.",
+          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false.",
           "in": "body",
           "required": true
         }
@@ -1442,7 +1443,7 @@
         422,
         503
       ],
-      "cli": "scoutroctl kg control pause|resume|reconcile|confirm_reconcile|llm_retry (administrator)",
+      "cli": "scoutroctl kg control pause|resume|reconcile|confirm_reconcile|llm_retry|derive (administrator)",
       "mcpTool": "scoutro_kg_control",
       "agent": {
         "grantable": false
@@ -1487,7 +1488,7 @@
       "parameters": {
         "file": {
           "type": "string",
-          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$",
+          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$",
           "in": "path",
           "required": true,
           "description": "A backup file name."
@@ -1532,7 +1533,8 @@
             "facility",
             "site",
             "place",
-            "service"
+            "service",
+            "job"
           ],
           "in": "query",
           "required": false,
@@ -1555,6 +1557,30 @@
           "in": "query",
           "required": false,
           "description": "supported: a visible supported fact; uncertain: current facts, none supported; stale: no current fact."
+        },
+        "industry": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^(?:[A-V]|[0-9]{2}(?:\\.[0-9](?:[0-9])?)?)$",
+          "in": "query",
+          "required": false,
+          "description": "A NACE Rev. 2.1 / WZ 2025 code (section, division, group or class): entities with a visible industry within it (43 finds 43.22)."
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$",
+          "in": "query",
+          "required": false,
+          "description": "A Scoutro service category or group (care/tagespflege, care.stationaer): entities offering such a service, and services of that category."
+        },
+        "audience": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$",
+          "in": "query",
+          "required": false,
+          "description": "A declared customer type, segment or company size (b2b, care/angehoerige, sme)."
         },
         "offset": {
           "type": "integer",
@@ -1591,7 +1617,7 @@
         409,
         503
       ],
-      "cli": "scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--collection NAME]",
+      "cli": "scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--industry CODE] [--category C] [--audience A] [--collection NAME]",
       "mcpTool": "scoutro_kg_entities",
       "agent": {
         "grantable": true,
@@ -2033,6 +2059,389 @@
       }
     },
     {
+      "name": "kg.entity.business",
+      "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/entities/{id}/business",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "Entity ID."
+        },
+        "include": {
+          "type": "string",
+          "enum": [
+            "hidden_jobs"
+          ],
+          "in": "query",
+          "required": false,
+          "description": "Also ended jobs past the visibility window."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgBusinessView",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg business ID [--include-hidden-jobs]",
+      "mcpTool": "scoutro_kg_entity_business",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities/{id}/business"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
+      "name": "kg.entity.neighborhood",
+      "description": "The neighbourhood of one entity for the network view: nodes (entities, industry and audience values) and typed, directed edges with status, confidence and evidence count. Depth 2 continues only from organisations and facilities; there is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/entities/{id}/neighborhood",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "Entity ID."
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2,
+          "default": 1,
+          "in": "query",
+          "required": false,
+          "description": "1: direct neighbours; 2: also their neighbours."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200,
+          "default": 50,
+          "in": "query",
+          "required": false,
+          "description": "Direct neighbours per page (strongest first)."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0,
+          "in": "query",
+          "required": false,
+          "description": "First item."
+        },
+        "types": {
+          "type": "string",
+          "maxLength": 2000,
+          "in": "query",
+          "required": false,
+          "description": "Comma-separated edge types: relation predicates, industry, target_industry, customer_type, audience_segment and the derived kinds."
+        },
+        "weak": {
+          "type": "boolean",
+          "default": false,
+          "in": "query",
+          "required": false,
+          "description": "Include linked_to (weak, never upgraded)."
+        },
+        "derived": {
+          "type": "boolean",
+          "default": true,
+          "in": "query",
+          "required": false,
+          "description": "Include same_operator."
+        },
+        "suggested": {
+          "type": "boolean",
+          "default": false,
+          "in": "query",
+          "required": false,
+          "description": "Include suggested_customer and suggested_partner."
+        },
+        "values": {
+          "type": "boolean",
+          "default": true,
+          "in": "query",
+          "required": false,
+          "description": "Include industry and audience value nodes."
+        },
+        "include": {
+          "type": "string",
+          "enum": [
+            "stale"
+          ],
+          "in": "query",
+          "required": false,
+          "description": "Also stale edges."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgNeighborhood",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--types T,T]",
+      "mcpTool": "scoutro_kg_entity_neighborhood",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities/{id}/neighborhood"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
+      "name": "kg.compare",
+      "description": "All visible services of one Scoutro category with their providers and prices as published (amount, currency, unit, kind, conditions, VAT, date, status, sources); never converted, normalised or averaged; conflicts stay visible. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/compare",
+        "successStatus": 200
+      },
+      "parameters": {
+        "category": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$",
+          "in": "query",
+          "required": true,
+          "description": "Service category (care/kurzzeitpflege)."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 50,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgCompare",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg compare CATEGORY",
+      "mcpTool": "scoutro_kg_compare",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/compare"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
+      "name": "kg.derived",
+      "description": "Derived rows the viewer may see (both collections): linked_to (weak), same_operator, suggested_customer, suggested_partner; never facts, each with its reason and the facts of both sides. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/derived",
+        "successStatus": 200
+      },
+      "parameters": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "linked_to",
+            "same_operator",
+            "suggested_customer",
+            "suggested_partner"
+          ],
+          "in": "query",
+          "required": false,
+          "description": "One kind."
+        },
+        "entity": {
+          "type": "string",
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "query",
+          "required": false,
+          "description": "Only rows of this entity (either side)."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0,
+          "in": "query",
+          "required": false,
+          "description": "First item."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgDerivedPage",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg derived [--kind K] [--entity ID]",
+      "mcpTool": "scoutro_kg_derived",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/derived"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
+      "name": "kg.facets",
+      "description": "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/facets",
+        "successStatus": 200
+      },
+      "parameters": {
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgFacets",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg facets",
+      "mcpTool": "scoutro_kg_facets",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/facets"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
       "name": "kg.export",
       "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
       "mutating": false,
@@ -2046,7 +2455,7 @@
         "cursor": {
           "type": "string",
           "maxLength": 80,
-          "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[es][0-9]{1,18}$",
+          "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esd][0-9]{1,18}$",
           "in": "query",
           "required": false,
           "description": "From next of the previous page; absent to start."
@@ -5695,6 +6104,13 @@
             "initialized": {
               "type": "boolean"
             },
+            "upgradeHold": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Why the re-extraction of an upgrade waits for a verified backup (the guard's refusal of the copy before it); null if nothing waits."
+            },
             "resetInProgress": {
               "type": "boolean",
               "description": "A full clear of the index (*:*) is being applied: new dataset epoch, graph data deleted in bounded batches."
@@ -5719,7 +6135,15 @@
               ]
             },
             "growthBlocked": {
-              "type": "boolean"
+              "type": "boolean",
+              "description": "True while new extraction waits: growth is refused or was refused within the last 30 s."
+            },
+            "growthRefusal": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Why growth is refused at the last batch (manual, budget, disk_reserve, integrity_pending, ...); null if admitted. Enrichment asks before it starts, so a pause stops extraction, the LLM tier and a rebuild, not only their writes."
             },
             "changes": {
               "type": "object",
@@ -5955,6 +6379,30 @@
                 },
                 "reconcile_pending": {
                   "type": "boolean"
+                },
+                "byType": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                  "properties": {
+                    "new": {
+                      "type": "integer"
+                    },
+                    "update": {
+                      "type": "integer"
+                    },
+                    "delete": {
+                      "type": "integer"
+                    },
+                    "reconcile": {
+                      "type": "integer"
+                    },
+                    "captured": {
+                      "type": "integer"
+                    }
+                  }
                 }
               }
             }
@@ -6475,6 +6923,166 @@
               "enum": [
                 "DATA/SCOUTRO/knowledge/rebuild"
               ]
+            },
+            "paused": {
+              "type": "boolean",
+              "description": "The graph is paused: the shadow enriches nothing and the swap waits for the resume."
+            }
+          }
+        },
+        "derived": {
+          "type": "object",
+          "description": "The derived layer (package 6): weak link signals, same operator, suggested customers and partners; no facts.",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "intervalMinutes": {
+              "type": "integer"
+            },
+            "lastRun": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "last": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "computed": {
+                  "type": "integer"
+                },
+                "inserted": {
+                  "type": "integer"
+                },
+                "updated": {
+                  "type": "integer"
+                },
+                "deleted": {
+                  "type": "integer"
+                },
+                "byKind": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "integer"
+                  }
+                },
+                "refused": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "durationMs": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "vocabulary": {
+          "type": "object",
+          "description": "The business vocabularies in force (package 6).",
+          "properties": {
+            "graphVocabulary": {
+              "type": "string",
+              "enum": [
+                "2"
+              ]
+            },
+            "version": {
+              "type": "string",
+              "description": "Hash of the category files and the number of NACE codes; part of the extractor identity."
+            },
+            "vocabularies": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "categories": {
+              "type": "integer"
+            },
+            "naceCodes": {
+              "type": "integer"
+            },
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "defaults/scoutro/knowledge and overrides in DATA/SCOUTRO/knowledge/vocabulary."
+            },
+            "problems": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "collections": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "vocabulary": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "jobs": {
+                    "type": "boolean"
+                  },
+                  "priceStaleDays": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "upgrade": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The last schema migration of this graph (package 6: 3 -> 4); null if it was never upgraded. Before it: PRAGMA quick_check (a failed or unfinished check keeps the graph off, state unavailable, reason upgrade_blocked, file unchanged) and a verified copy graph-<UTC>-before-upgrade.db. Without room for the copy the additive migration still runs, but the re-extraction with vocabulary 2 waits (waiting) until a verified backup exists.",
+          "properties": {
+            "from": {
+              "type": "integer"
+            },
+            "to": {
+              "type": "integer"
+            },
+            "at": {
+              "type": "integer"
+            },
+            "quickCheck": {
+              "type": "string",
+              "enum": [
+                "ok"
+              ]
+            },
+            "backup": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bytes": {
+              "type": "integer"
+            },
+            "hold": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "waiting": {
+              "type": "boolean"
             }
           }
         },
@@ -6517,7 +7125,7 @@
       "properties": {
         "backup": {
           "type": "string",
-          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild)?\\.db$",
+          "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$",
           "description": "With action restore only: the backup file."
         },
         "action": {
@@ -6532,9 +7140,10 @@
             "restore",
             "rebuild",
             "rebuild_cancel",
-            "rebuild_confirm"
+            "rebuild_confirm",
+            "derive"
           ],
-          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity: it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise."
+          "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false."
         }
       }
     },
@@ -6664,8 +7273,10 @@
                 "enum": [
                   "backup",
                   "before_restore",
-                  "before_rebuild"
-                ]
+                  "before_rebuild",
+                  "before_upgrade"
+                ],
+                "description": "before_upgrade: the copy of the old graph before a schema migration (package 6); the newest one survives the retention as the way back to the previous version."
               },
               "bytes": {
                 "type": "integer"
@@ -6747,7 +7358,8 @@
             "facility",
             "site",
             "place",
-            "service"
+            "service",
+            "job"
           ]
         },
         "kind": {
@@ -6871,6 +7483,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         },
@@ -6939,8 +7575,12 @@
                 "email",
                 "url",
                 "address",
-                "geo"
-              ]
+                "geo",
+                "json",
+                "date",
+                "code"
+              ],
+              "description": "json: a canonical JSON value (price, salary, contact_point, service_area); date: yyyy-mm-dd or yyyy-mm; code: a vocabulary code (NACE, service category, customer type, segment, size, employment type)."
             }
           }
         },
@@ -7022,6 +7662,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         },
@@ -7182,6 +7846,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         },
@@ -7249,6 +7937,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         },
@@ -7326,6 +8038,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         },
@@ -7393,6 +8129,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         },
@@ -7478,6 +8238,1818 @@
         }
       }
     },
+    "KgLiteral": {
+      "type": "object",
+      "description": "A visible literal of the entity with its labels and status.",
+      "properties": {
+        "statement": {
+          "type": "string",
+          "pattern": "^kgs_[a-z2-7]{20}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "current",
+            "uncertain",
+            "conflicting",
+            "stale",
+            "expired"
+          ],
+          "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "uncertain",
+            "conflicting",
+            "stale"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "jsonld",
+              "metadata",
+              "rule",
+              "llm"
+            ]
+          }
+        },
+        "last_confirmed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "sources": {
+          "type": "integer"
+        },
+        "source_docs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "doc_id": {
+                "type": "string"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "description": "Up to 3 visible source pages."
+        },
+        "value": {
+          "description": "The stored value; a JSON value (contact point, service area, price, salary) as an object."
+        },
+        "label": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "NACE: the official English title."
+        },
+        "label_de": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label_en": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "classification": {
+          "type": "string",
+          "enum": [
+            "NACE Rev. 2.1 / WZ 2025"
+          ]
+        },
+        "nace": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Category: the NACE code it implies."
+        }
+      }
+    },
+    "KgPriceValue": {
+      "type": "object",
+      "description": "A price exactly as published: never estimated, converted, normalised or averaged.",
+      "properties": {
+        "amount": {
+          "type": "number"
+        },
+        "min": {
+          "type": "number"
+        },
+        "max": {
+          "type": "number"
+        },
+        "currency": {
+          "type": "string",
+          "examples": [
+            "EUR"
+          ]
+        },
+        "unit": {
+          "type": "string",
+          "examples": [
+            "month",
+            "day",
+            "hour",
+            "once",
+            "visit",
+            "m2",
+            "user_month",
+            "other"
+          ]
+        },
+        "unit_text": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "fixed",
+            "from",
+            "up_to",
+            "range"
+          ]
+        },
+        "vat": {
+          "type": "string",
+          "enum": [
+            "incl",
+            "excl",
+            "exempt"
+          ]
+        },
+        "care_level": {
+          "type": "string"
+        },
+        "own_share": {
+          "type": "boolean",
+          "description": "The amount is the resident's or client's own share."
+        },
+        "conditions": {
+          "type": "string"
+        },
+        "as_of": {
+          "type": "string",
+          "description": "Date stated by the source (yyyy-mm-dd or yyyy-mm)."
+        },
+        "valid_from": {
+          "type": "string"
+        },
+        "valid_through": {
+          "type": "string"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "general"
+          ],
+          "description": "general: a price range of the business, not of one service."
+        }
+      },
+      "additionalProperties": true
+    },
+    "KgPrice": {
+      "type": "object",
+      "properties": {
+        "statement": {
+          "type": "string",
+          "pattern": "^kgs_[a-z2-7]{20}$"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "current",
+            "uncertain",
+            "conflicting",
+            "stale",
+            "expired"
+          ],
+          "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "uncertain",
+            "conflicting",
+            "stale"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "jsonld",
+              "metadata",
+              "rule",
+              "llm"
+            ]
+          }
+        },
+        "last_confirmed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "sources": {
+          "type": "integer"
+        },
+        "source_docs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "doc_id": {
+                "type": "string"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "description": "Up to 3 visible source pages."
+        },
+        "service": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "service_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value": {
+          "$ref": "#/components/schemas/KgPriceValue"
+        },
+        "as_of": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "The source's stated date, else the day the price was last confirmed."
+        },
+        "as_of_basis": {
+          "type": "string",
+          "enum": [
+            "stated",
+            "last_confirmed"
+          ]
+        },
+        "valid_through": {
+          "type": "string"
+        },
+        "stale_since": {
+          "type": "string"
+        },
+        "stale_after_days": {
+          "type": "integer",
+          "description": "scoutro.kg.prices.staleDays[.<collection>] (default 180); an explicit validity date wins."
+        },
+        "conflicts_with": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Statements with a different amount for the same service, currency, unit, kind and conditions; conflicts stay visible."
+        }
+      }
+    },
+    "KgDerived": {
+      "type": "object",
+      "description": "A derived row, never a fact: a weak link signal, a shared operator or a suggested match. Visible only to a viewer who sees both collections it was computed from.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^kgd_[a-z2-7]{20}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "linked_to",
+            "same_operator",
+            "suggested_customer",
+            "suggested_partner"
+          ]
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "out",
+            "in"
+          ]
+        },
+        "subject": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "other": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why it was suggested, e.g. offers care/tagespflege, seeks target_category care.ambulant, same region."
+        },
+        "basis": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The facts of both sides it rests on (statement IDs of A and of B, shared places, link pages)."
+        },
+        "computed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "fact": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        "label": {
+          "type": "string",
+          "enum": [
+            "weak_signal",
+            "derived",
+            "suggestion"
+          ],
+          "description": "UI and chat show suggestion as \"Vorschlag\" / \"moeglicher Kunde\", never as a customer relation."
+        }
+      }
+    },
+    "KgJob": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "valid_through": {
+          "type": "string"
+        },
+        "date_posted": {
+          "type": "string"
+        },
+        "start_date": {
+          "type": "string"
+        },
+        "occupational_field": {
+          "type": "string"
+        },
+        "employment_type": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgLiteral"
+          }
+        },
+        "industry": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgLiteral"
+          }
+        },
+        "application_route": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgLiteral"
+          }
+        },
+        "salary": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "statement": {
+                "type": "string",
+                "pattern": "^kgs_[a-z2-7]{20}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "uncertain",
+                  "conflicting",
+                  "stale",
+                  "expired"
+                ],
+                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+              },
+              "quality": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "uncertain",
+                  "conflicting",
+                  "stale"
+                ]
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "jsonld",
+                    "metadata",
+                    "rule",
+                    "llm"
+                  ]
+                }
+              },
+              "last_confirmed": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "sources": {
+                "type": "integer"
+              },
+              "source_docs": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "doc_id": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                },
+                "description": "Up to 3 visible source pages."
+              },
+              "value": {
+                "type": "object",
+                "description": "amount or min/max, currency, unit (hour, month, year), gross/net as published."
+              },
+              "as_of": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "location": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "open",
+            "ended"
+          ]
+        },
+        "ended_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "last_confirmed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "Ended longer than scoutro.kg.jobs.endedVisibleDays (90) ago: not shown in the UI and the chat."
+        }
+      }
+    },
+    "KgBusinessView": {
+      "type": "object",
+      "description": "The object view: only sections with visible content are present.",
+      "required": [
+        "schema"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "id": {
+          "type": "string"
+        },
+        "overview": {
+          "$ref": "#/components/schemas/KgEntity"
+        },
+        "redirect": {
+          "type": "string"
+        },
+        "industry": {
+          "type": "object",
+          "properties": {
+            "main": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "properties": {
+                "classification": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "level": {
+                  "type": "string",
+                  "enum": [
+                    "section",
+                    "division",
+                    "group",
+                    "class"
+                  ]
+                },
+                "path": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "basis": {
+                  "type": "string",
+                  "enum": [
+                    "best_supported",
+                    "common_level"
+                  ],
+                  "description": "best_supported: the best candidate (confidence x sources x quality); common_level: two different codes scored equally, so the safe common higher level is shown."
+                }
+              }
+            },
+            "secondary": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgLiteral"
+              }
+            },
+            "categories": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgLiteral"
+              },
+              "description": "Scoutro subcategories (groups) of the industry."
+            }
+          }
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgLiteral"
+          },
+          "description": "For a service: its categories (several, versioned with the vocabulary)."
+        },
+        "services": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "offer": {
+                "type": "string"
+              },
+              "categories": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/KgLiteral"
+                }
+              },
+              "description": {
+                "type": "string"
+              },
+              "prices": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "prices": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgPrice"
+          }
+        },
+        "contacts": {
+          "type": "object",
+          "description": "Organisation contacts only (phone, fax, email of role mailboxes, contact_point, contact_form, opening_hours, directions, social_profile, url); never persons.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KgLiteral"
+            }
+          }
+        },
+        "relations": {
+          "type": "object",
+          "properties": {
+            "facts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "statement": {
+                    "type": "string",
+                    "pattern": "^kgs_[a-z2-7]{20}$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "current",
+                      "uncertain",
+                      "conflicting",
+                      "stale",
+                      "expired"
+                    ],
+                    "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+                  },
+                  "quality": {
+                    "type": "string",
+                    "enum": [
+                      "supported",
+                      "uncertain",
+                      "conflicting",
+                      "stale"
+                    ]
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."
+                  },
+                  "kinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "jsonld",
+                        "metadata",
+                        "rule",
+                        "llm"
+                      ]
+                    }
+                  },
+                  "last_confirmed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "sources": {
+                    "type": "integer"
+                  },
+                  "source_docs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "doc_id": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    "description": "Up to 3 visible source pages."
+                  },
+                  "predicate": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "out",
+                      "in"
+                    ]
+                  },
+                  "business": {
+                    "type": "boolean",
+                    "description": "One of the business relations between organisations (carrier_of, subsidiary_of, partner_of, customer_of, ...)."
+                  },
+                  "other": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^kge_[a-z2-7]{20}$"
+                      },
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "type": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "derived": {
+              "type": "object",
+              "properties": {
+                "linked_to": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KgDerived"
+                  }
+                },
+                "same_operator": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KgDerived"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "jobs": {
+          "type": "object",
+          "properties": {
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgJob"
+              }
+            },
+            "hidden_ended": {
+              "type": "integer"
+            }
+          }
+        },
+        "job": {
+          "$ref": "#/components/schemas/KgJob"
+        },
+        "audiences": {
+          "type": "object",
+          "description": "Three layers, never mixed.",
+          "properties": {
+            "declared": {
+              "type": "object",
+              "description": "declared_audience: customer_type, audience_segment, target_industry, target_category, company_size, need, serves_place.",
+              "additionalProperties": {
+                "type": "array"
+              }
+            },
+            "observed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "statement": {
+                    "type": "string",
+                    "pattern": "^kgs_[a-z2-7]{20}$"
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "current",
+                      "uncertain",
+                      "conflicting",
+                      "stale",
+                      "expired"
+                    ],
+                    "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+                  },
+                  "quality": {
+                    "type": "string",
+                    "enum": [
+                      "supported",
+                      "uncertain",
+                      "conflicting",
+                      "stale"
+                    ]
+                  },
+                  "confidence": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."
+                  },
+                  "kinds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "jsonld",
+                        "metadata",
+                        "rule",
+                        "llm"
+                      ]
+                    }
+                  },
+                  "last_confirmed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "sources": {
+                    "type": "integer"
+                  },
+                  "source_docs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "doc_id": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    },
+                    "description": "Up to 3 visible source pages."
+                  },
+                  "predicate": {
+                    "type": "string"
+                  },
+                  "direction": {
+                    "type": "string",
+                    "enum": [
+                      "out",
+                      "in"
+                    ]
+                  },
+                  "business": {
+                    "type": "boolean",
+                    "description": "One of the business relations between organisations (carrier_of, subsidiary_of, partner_of, customer_of, ...)."
+                  },
+                  "other": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "pattern": "^kge_[a-z2-7]{20}$"
+                      },
+                      "name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "type": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "description": "observed_customer: published customer_of / reference_for relations."
+            },
+            "suggested": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgDerived"
+              },
+              "description": "suggested_match: Scoutro suggestions, no facts."
+            }
+          }
+        },
+        "suggested_matches": {
+          "type": "object",
+          "properties": {
+            "suggested_customer": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgDerived"
+              }
+            },
+            "suggested_partner": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgDerived"
+              }
+            },
+            "as_possible_customer": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/KgDerived"
+              },
+              "description": "Providers for which this entity could be a customer."
+            }
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "doc_id": {
+                "type": "string"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "state": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "loaded_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "as_of": {
+          "type": "object",
+          "description": "Dataset epoch and the latest change sequence when the answer was read.",
+          "properties": {
+            "epoch": {
+              "type": "string"
+            },
+            "seq": {
+              "type": "integer"
+            }
+          }
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgNeighborhood": {
+      "type": "object",
+      "required": [
+        "schema",
+        "center",
+        "nodes",
+        "edges"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "center": {
+          "type": "string"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2
+        },
+        "redirect": {
+          "type": "string"
+        },
+        "nodes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "An entity ID, or a value node nace:<code>, segment:<code>, customer_type:<code>."
+              },
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "kind": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_de": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "code": {
+                "type": "string"
+              },
+              "depth": {
+                "type": "integer"
+              },
+              "value": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Statement (kgs_) or derived row (kgd_) ID."
+              },
+              "from": {
+                "type": "string"
+              },
+              "to": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string"
+              },
+              "business": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "uncertain",
+                  "stale",
+                  "weak",
+                  "derived",
+                  "suggested"
+                ]
+              },
+              "confidence": {
+                "type": "number"
+              },
+              "evidence": {
+                "type": "integer",
+                "description": "Visible source pages (0 for derived rows)."
+              },
+              "fact": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "neighbours": {
+          "type": "integer",
+          "description": "Direct neighbours before paging."
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "next_offset": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "offset for \"mehr anzeigen\"."
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgCompare": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "category": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "label_de": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "label_en": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "nace": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "service": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              },
+              "providers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "locality": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  }
+                }
+              },
+              "prices": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/KgPrice"
+                }
+              }
+            }
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgDerivedPage": {
+      "type": "object",
+      "required": [
+        "schema",
+        "offset",
+        "limit",
+        "total",
+        "items"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgDerived"
+          }
+        },
+        "note": {
+          "type": "string"
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgFacets": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "industries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "entities": {
+                "type": "integer"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_de": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "categories": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "entities": {
+                "type": "integer"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_de": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "customer_types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "entities": {
+                "type": "integer"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_de": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "segments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "entities": {
+                "type": "integer"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_de": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "target_industries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "entities": {
+                "type": "integer"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_de": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "employment_types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "entities": {
+                "type": "integer"
+              },
+              "label": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_de": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "label_en": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "counts": {
+          "type": "object",
+          "properties": {
+            "jobs": {
+              "type": "integer"
+            },
+            "services": {
+              "type": "integer"
+            },
+            "prices": {
+              "type": "integer"
+            },
+            "derived": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "KgExportRecord": {
       "type": "object",
       "required": [
@@ -7490,9 +10062,10 @@
           "type": "string",
           "enum": [
             "entity",
-            "statement"
+            "statement",
+            "derived"
           ],
-          "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first)."
+          "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first); derived: a KgDerived row (vocabulary 2), only where the viewer sees both of its collections."
         },
         "id": {
           "type": "string"
@@ -7536,7 +10109,7 @@
           "items": {
             "$ref": "#/components/schemas/KgExportRecord"
           },
-          "description": "First all visible entities, then all visible statements, each in ID order."
+          "description": "First all visible entities, then all visible statements, then the visible derived rows, each in ID order."
         },
         "complete": {
           "type": "boolean"
@@ -7567,6 +10140,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         }
@@ -7588,7 +10185,8 @@
           "type": "string",
           "enum": [
             "entity",
-            "statement"
+            "statement",
+            "derived"
           ]
         },
         "id": {
@@ -7621,7 +10219,7 @@
             "object",
             "null"
           ],
-          "description": "With expand=true for an upsert: the current KgEntity or KgStatement for this viewer (null if it is no longer visible)."
+          "description": "With expand=true for an upsert: the current KgEntity, KgStatement or KgDerived for this viewer (null if it is no longer visible)."
         }
       }
     },
@@ -7680,6 +10278,30 @@
             },
             "reconcile_pending": {
               "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
             }
           }
         }
@@ -7753,6 +10375,9 @@
                   "type": "integer"
                 },
                 "evidence": {
+                  "type": "integer"
+                },
+                "derived": {
                   "type": "integer"
                 }
               }

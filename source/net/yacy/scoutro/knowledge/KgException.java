@@ -53,6 +53,13 @@ public class KgException extends Exception {
     public static final String SYNC_UNAVAILABLE = "sync_unavailable";
     /** The LLM tier is off: no {@code llm.collections}, or no Solr synchronisation. */
     public static final String LLM_UNAVAILABLE = "llm_unavailable";
+    /**
+     * The integrity check before a schema migration failed or did not finish
+     * (package 6); the graph file is unchanged and the graph stays off.
+     */
+    public static final String UPGRADE_BLOCKED = "upgrade_blocked";
+    /** {@code derive} while the derived layer is off (package 6). */
+    public static final String DERIVED_UNAVAILABLE = "derived_unavailable";
     /** A backup, restore or rebuild is already running (package 5). */
     public static final String OPERATION_RUNNING = "operation_running";
     /** A backup could not be written or verified; the detail names the step. */

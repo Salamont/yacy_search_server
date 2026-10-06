@@ -132,6 +132,12 @@ public final class KgReader {
         public String type;
         public String host;
         public String quality;
+        /** Vocabulary 2: a NACE code; entities with an industry at this code or finer. */
+        public String industry;
+        /** A service category: entities offering a service of it (or services of it). */
+        public String category;
+        /** An audience code (customer type, segment, target category or industry). */
+        public String audience;
         public int offset;
         public int limit = 25;
     }
@@ -203,6 +209,17 @@ public final class KgReader {
                 + ")) AND (" + d + ".loaded_at IS NULL OR " + d + ".loaded_at >= " + (now - this.cfg.maxAgeMillis) + "))";
     }
 
+    /**
+     * SQL condition: statement {@code alias} has a current source the viewer
+     * sees ({@link #current} as a query), so a list or a count agrees with
+     * the status the viewer's own view gives the fact.
+     */
+    String currentStatement(final Viewer v, final String alias, final long now) {
+        return "EXISTS (SELECT 1 FROM kg_evidence ce JOIN kg_doc cd ON cd.doc_rowid = ce.doc_rowid WHERE ce.stmt_rowid = " + alias + ".stmt_rowid"
+                + " AND (cd.state = 1 OR (cd.state = 2 AND cd.state_since >= " + (now - this.cfg.unavailableGraceMillis) + "))"
+                + " AND (cd.loaded_at IS NULL OR cd.loaded_at >= " + (now - this.cfg.maxAgeMillis) + ") AND " + visibleDoc(v, "cd") + ")";
+    }
+
     boolean current(final int state, final long stateSince, final Long loadedAt, final long now) {
         final boolean live = state == 1 || (state == 2 && now - stateSince <= this.cfg.unavailableGraceMillis);
         return live && (loadedAt == null || now - loadedAt <= this.cfg.maxAgeMillis);
@@ -226,6 +243,8 @@ public final class KgReader {
         final Set<Long> docs = new HashSet<>();
         final Set<String> kinds = new TreeSet<>();
         Long lastConfirmed;
+        /** The last load of any visible page behind it, current or not: when a fact that is gone was last seen. */
+        Long lastSeen;
         Long firstObserved;
         String quality;
 
@@ -292,6 +311,9 @@ public final class KgReader {
                     s.firstObserved = s.firstObserved == null ? observed : Math.min(s.firstObserved, observed);
                     final int state = rs.getInt(6);
                     final Long loaded = rs.getObject(8) == null ? null : rs.getLong(8);
+                    if (loaded != null && (s.lastSeen == null || loaded > s.lastSeen)) {
+                        s.lastSeen = loaded;
+                    }
                     if (!current(state, rs.getLong(7), loaded, now)) {
                         continue;
                     }
@@ -413,6 +435,29 @@ public final class KgReader {
             if (q.quality != null) {
                 where.append(" AND ").append(entityQuality(q.quality, v, now));
             }
+            if (q.industry != null) {
+                final List<String> codes = within(q.industry);
+                where.append(" AND e.ent_rowid IN (SELECT s.subj FROM kg_statement s JOIN kg_vocab iv ON iv.term_id = s.pred WHERE iv.kind = 2"
+                        + " AND iv.name = 'industry' AND s.obj_val IN (").append(placeholders(codes.size())).append(") AND ")
+                        .append(visibleStatement(v, "s")).append(")");
+                args.addAll(codes);
+            }
+            if (q.category != null) {
+                where.append(" AND (e.ent_rowid IN (SELECT o.subj FROM kg_statement o JOIN kg_vocab ov ON ov.term_id = o.pred JOIN kg_statement k"
+                        + " ON k.subj = o.obj_ent JOIN kg_vocab kv ON kv.term_id = k.pred WHERE ov.kind = 2 AND ov.name = 'offers' AND kv.kind = 2"
+                        + " AND kv.name = 'category' AND k.obj_val = ? AND ").append(visibleStatement(v, "o")).append(" AND ")
+                        .append(visibleStatement(v, "k")).append(") OR e.ent_rowid IN (SELECT k.subj FROM kg_statement k JOIN kg_vocab kv"
+                        + " ON kv.term_id = k.pred WHERE kv.kind = 2 AND kv.name = 'category' AND k.obj_val = ? AND ")
+                        .append(visibleStatement(v, "k")).append("))");
+                args.add(q.category);
+                args.add(q.category);
+            }
+            if (q.audience != null) {
+                where.append(" AND e.ent_rowid IN (SELECT s.subj FROM kg_statement s JOIN kg_vocab av ON av.term_id = s.pred WHERE av.kind = 2"
+                        + " AND av.name IN ('customer_type', 'audience_segment', 'target_category', 'target_industry', 'company_size')"
+                        + " AND s.obj_val = ? AND ").append(visibleStatement(v, "s")).append(")");
+                args.add(q.audience);
+            }
             final long total;
             try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_entity e WHERE " + where)) {
                 bind(ps, args);
@@ -439,6 +484,23 @@ public final class KgReader {
             }
             return page(q.offset, q.limit, total, items, c, v);
         });
+    }
+
+    /** The NACE codes at {@code code} or finer (an industry filter matches finer classifications too). */
+    static List<String> within(final String code) {
+        final net.yacy.scoutro.knowledge.vocab.Nace nace = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().nace;
+        final List<String> out = new ArrayList<>();
+        if (nace.size() > 0) {
+            for (final String c : nace.codes()) {
+                if (nace.within(c, code)) {
+                    out.add(c);
+                }
+            }
+        }
+        if (out.isEmpty()) {
+            out.add(code);
+        }
+        return out;
     }
 
     /** Entity filter by viewer quality: supported (or conflicting), uncertain, or stale. */

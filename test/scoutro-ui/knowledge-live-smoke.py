@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Disposable live harness for the knowledge graph interface (package 3). GPL-2.0-or-later.
+"""Disposable live harness for the knowledge graph interface (packages 3 and 6). GPL-2.0-or-later.
 
 Starts a NEW temporary peer with the graph following the collections kga and
 kgb (LLM tier for kga, fake OpenAI-compatible model on 127.0.0.1), indexes
-three pages through YaCy's parser (api/push_p), waits for the graph, checks
-the read API and its collection isolation, then runs the Playwright test
+three pages and a small business set (an operator with two homes, prices and
+a job in kga; a software firm in kgb) through YaCy's parser (api/push_p),
+waits for the graph and the derived layer, checks the read API, the business
+view, network, comparison, facets and derived rows and their collection
+isolation, then runs the Playwright test
 test/scoutro-ui/knowledge-ui-test.mjs. Nothing leaves the machine; no
 existing peer or DATA directory is touched.
 
@@ -69,6 +72,40 @@ def page(name, host, extra, text):
 <body><h1>Impressum</h1><p>{text}</p></body></html>"""
 
 
+HOST_C = "www.lindenhof-ui.de"
+HOST_D = "www.pflegesoft-ui.de"
+OP_C = '{"@type":"Organization","name":"Lindenhof Pflege gGmbH","url":"https://www.lindenhof-ui.de/"}'
+
+
+def business(title, jsonld, text):
+    return f"""<html><head><title>{title}</title>
+<script type="application/ld+json">{jsonld}</script></head>
+<body><h1>{title}</h1><p>{text}</p></body></html>"""
+
+
+def home(name, street):
+    return ('{"@context":"https://schema.org","@type":"NursingHome","name":"' + name + '","address":{"streetAddress":"' + street
+            + '","postalCode":"10115","addressLocality":"Berlin"},"parentOrganization":' + OP_C + '}')
+
+
+# vocabulary 2 (package 6): an operator with two homes, prices and jobs in kga (care); a software firm of kgb (software)
+# naming a customer and the kind of homes it serves; suggestions between them only for a viewer of both collections
+BUSINESS = [
+    (f"https://{HOST_C}/", "kga", business("Lindenhof Pflege", OP_C[:-1] + ',"telephone":"030 7654321","faxNumber":"030 7654322"}',
+                                            "Willkommen bei der Lindenhof Pflege gGmbH.")),
+    (f"https://{HOST_C}/haus-birke", "kga", business("Haus Birke", home("Haus Birke", "Birkenweg 1"), "Haus Birke.")),
+    (f"https://{HOST_C}/haus-eiche", "kga", business("Haus Eiche", home("Haus Eiche", "Eichenweg 1"), "Haus Eiche.")),
+    (f"https://{HOST_C}/preise", "kga", business("Preise", OP_C,
+                                                 "Preise. Tagespflege ab 49 € pro Tag. Kurzzeitpflege: 89,90 €/Tag. Stand: 09/2026")),
+    (f"https://{HOST_C}/kosten", "kga", business("Kosten", OP_C, "Kosten. Tagespflege ab 59 € pro Tag.")),
+    (f"https://{HOST_C}/karriere", "kga", business("Karriere", OP_C,
+                                                   "Karriere. Pflegefachkraft (m/w/d) in Vollzeit. Vergütung: 3.400 – 3.900 € brutto monatlich. "
+                                                   "Bewerbungsfrist: 31.03.2027.")),
+    (f"https://{HOST_D}/fuer-wen", "kgb", business("Für wen", '{"@type":"Organization","name":"PflegeSoft UI GmbH","url":"https://www.pflegesoft-ui.de/"}',
+                                                   "Für wen? Wir unterstützen Pflegeeinrichtungen bundesweit, nur für Geschäftskunden. "
+                                                   "Unsere Kunden: Muster Klinikum UI GmbH.")),
+]
+
 PAGES = [
     (f"https://{HOST_A}/impressum", "kga", page("Muster Pflege gGmbH", HOST_A, "",
                                                  "Die Muster Pflege gGmbH betreibt das Haus Lindenhof in Berlin.")),
@@ -103,6 +140,21 @@ def push(c, url, html, collection):
         assert json.loads(r.read()).get("countsuccess") == 1
 
 
+def post(c, path, body):
+    req = urllib.request.Request(BASE + path, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json", "Origin": BASE})
+    with c.open(req, timeout=30) as r:
+        return json.loads(r.read())
+
+
+def status(c, path):
+    try:
+        with c.open(BASE + path, timeout=30) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+
+
 def wait(c, what, predicate, timeout=180):
     deadline = time.monotonic() + timeout
     while True:
@@ -134,6 +186,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
         "resource.disk.used.max.steadystate=1000000000000", "resource.disk.used.max.overshot=1000000000000",
         "scoutro.kg.enabled=true", "scoutro.kg.collections=kga,kgb", "scoutro.kg.jsonld.enabled=true",
         "scoutro.kg.llm.collections=kga", "scoutro.kg.llm.kinds.kga=nursinghome",
+        "scoutro.kg.vocab.kga=care", "scoutro.kg.vocab.kgb=software", "scoutro.kg.jobs.collections=kga",
         "ai.production_models=" + json.dumps(models, separators=(",", ":")),
     ]) + "\n")
     (root / "DATA/LOCALE/htroot/de").mkdir(parents=True)
@@ -155,10 +208,12 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
                         raise
                     time.sleep(0.5)
             wait(c, "the start backfill", lambda s: s.get("sync", {}).get("reconcile", {}).get("last") is not None)
-            for url, collection, html in PAGES:
+            # the business pages first: the three pages of the isolation checks stay the newest objects
+            for url, collection, html in BUSINESS + PAGES:
                 push(c, url, html, collection)
-            wait(c, "three published pages and the LLM result",
-                 lambda s: s["sync"]["processed"]["published"] >= 3 and s["llm"]["processed"]["published"] >= 1)
+            total = len(BUSINESS) + len(PAGES)
+            wait(c, f"{total} published pages and the LLM result",
+                 lambda s: s["sync"]["processed"]["published"] >= total and s["llm"]["processed"]["published"] >= 1)
             checks = 0
             # read API: collection isolation
             a = get(c, "/scoutro/api/v1/kg/entities?collection=kga&limit=100")
@@ -180,9 +235,45 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             host_a = get(c, f"/scoutro/api/v1/kg/hosts/{HOST_B}/entities?collection=kga")
             assert host_a["total"] == 0, host_a
             checks += 7
-            print(f"PASS: {checks} live knowledge read API checks (collection isolation)", flush=True)
+            # vocabulary 2: the derived layer on request, then the business view, network, comparison, facets and
+            # derived rows, each computed only over the viewer's collections (suggestions need both collections)
+            post(c, "/scoutro/api/v1/kg/control", {"action": "derive"})
+            wait(c, "the derived pass", lambda s: (((s.get("derived") or {}).get("last") or {}).get("computed") or 0) >= 4)
+            operator = next(e for e in get(c, "/scoutro/api/v1/kg/entities?collection=kga&type=organization&limit=100")["items"]
+                            if e["name"] == "Lindenhof Pflege gGmbH")
+            soft = next(e for e in get(c, "/scoutro/api/v1/kg/entities?collection=kgb&type=organization&limit=100")["items"]
+                        if e["name"] == "PflegeSoft UI GmbH")
+            kga = get(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/business?collection=kga")
+            assert kga["industry"]["main"]["code"] in ("87.10", "88.10") and kga["industry"]["main"]["classification"] == "NACE Rev. 2.1 / WZ 2025", kga["industry"]
+            assert sorted(sv["name"] for sv in kga["services"]) == ["Kurzzeitpflege", "Tagespflege"], kga["services"]
+            day = [p for p in kga["prices"] if p["service_name"] == "Tagespflege"]
+            assert sorted(p["value"]["amount"] for p in day) == ["49.00", "59.00"] and {p["status"] for p in day} == {"conflicting"}, day
+            assert next(p for p in day if p["value"]["amount"] == "49.00")["as_of_basis"] == "stated", day
+            job = kga["jobs"]["items"][0]
+            assert job["title"] == "Pflegefachkraft (m/w/d)" and job["status"] == "open" and job["salary"][0]["value"]["unit"] == "month", job
+            assert "suggested_matches" not in kga and "PflegeSoft" not in json.dumps(kga), "a kga viewer sees no kgb suggestion"
+            full = get(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/business")
+            match = full["suggested_matches"]["as_possible_customer"][0]
+            assert match["other"]["name"] == "PflegeSoft UI GmbH" and match["fact"] is False and match["label"] == "suggestion", match
+            assert status(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/business?collection=kgb") == 404
+            assert status(c, f"/scoutro/api/v1/kg/entities/{soft['id']}/neighborhood?collection=kga") == 404
+            net = get(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/neighborhood?collection=kga&suggested=true&depth=2")
+            assert {e["type"] for e in net["edges"]} >= {"operates", "offers", "same_operator"} and not any(
+                e["status"] == "suggested" for e in net["edges"]), net["edges"]
+            assert "PflegeSoft" not in json.dumps(net), "no kgb node in a kga network"
+            both = get(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/neighborhood?suggested=true")
+            assert any(e["type"] == "suggested_customer" and e["fact"] is False for e in both["edges"]), both["edges"]
+            cmp = get(c, "/scoutro/api/v1/kg/compare?category=care/tagespflege&collection=kga")
+            assert [r["service"]["name"] for r in cmp["rows"]] == ["Tagespflege"] and len(cmp["rows"][0]["prices"]) == 2, cmp
+            assert get(c, "/scoutro/api/v1/kg/compare?category=care/tagespflege&collection=kgb")["rows"] == []
+            facets = get(c, "/scoutro/api/v1/kg/facets?collection=kgb")
+            assert [f["code"] for f in facets["customer_types"]] == ["b2b"] and facets["categories"] == [] and facets["counts"]["jobs"] == 0, facets
+            assert {d["kind"] for d in get(c, "/scoutro/api/v1/kg/derived?collection=kga")["items"]} == {"same_operator"}
+            assert get(c, "/scoutro/api/v1/kg/derived?kind=suggested_customer&collection=kgb")["total"] == 0
+            checks += 16
+            print(f"PASS: {checks} live knowledge read API checks (collection isolation, vocabulary 2)", flush=True)
             env = {**os.environ, "SCOUTRO_URL": BASE, "SCOUTRO_KG_ENTITY": org["id"], "SCOUTRO_KG_HOST": HOST_A,
-                   "SCOUTRO_KG_ONLY_B": b_only["id"]}
+                   "SCOUTRO_KG_ONLY_B": b_only["id"], "SCOUTRO_KG_OPERATOR": operator["id"], "SCOUTRO_KG_SOFT": soft["id"]}
             subprocess.run(["node", str(REPO / "test/scoutro-ui/knowledge-ui-test.mjs")], cwd=REPO, env=env, check=True, timeout=900)
         except BaseException:
             log.flush()

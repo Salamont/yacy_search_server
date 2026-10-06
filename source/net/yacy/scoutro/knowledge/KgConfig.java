@@ -96,6 +96,22 @@ public final class KgConfig {
     public static final String CHAT_MAX_FACTS = "scoutro.kg.chat.maxFacts";
     public static final String CHAT_MAX_CHARS = "scoutro.kg.chat.maxChars";
     public static final String CHAT_TIMEOUT_MS = "scoutro.kg.chat.timeoutMs";
+    /** Vocabulary 2: the business vocabulary of a collection ({@code scoutro.kg.vocab.<collection>=care}); empty switches it off. */
+    public static final String VOCAB_PREFIX = "scoutro.kg.vocab.";
+    /** Collections whose job postings the graph reads (comma-separated or *); off by default. */
+    public static final String JOBS_COLLECTIONS = "scoutro.kg.jobs.collections";
+    /** Days an ended job stays visible as ended before it is hidden from views and chat. */
+    public static final String JOBS_ENDED_VISIBLE_DAYS = "scoutro.kg.jobs.endedVisibleDays";
+    /** Days after its date (or last confirmation) a price counts as stale; {@code .<collection>} overrides per collection. */
+    public static final String PRICES_STALE_DAYS = "scoutro.kg.prices.staleDays";
+    public static final String DERIVED_ENABLED = "scoutro.kg.derived.enabled";
+    public static final String DERIVED_INTERVAL_MINUTES = "scoutro.kg.derived.intervalMinutes";
+    public static final String MATCHES_MAX_PER_ENTITY = "scoutro.kg.matches.maxPerEntity";
+    public static final String MATCHES_MAX = "scoutro.kg.matches.max";
+    public static final String SAME_OPERATOR_MAX_GROUP = "scoutro.kg.sameOperator.maxGroup";
+    /** The Scoutro collections that have a default vocabulary (their per-collection keys are read even with {@code *}). */
+    public static final java.util.List<String> SCOUTRO_COLLECTIONS = java.util.List.of("edelsenior-web", "checkthecoach-web",
+            "stackfinder-web", "bauteamcheck-web");
 
     /** Collection names the graph follows; {@code *} follows every collection. */
     public static final String ALL_COLLECTIONS = "*";
@@ -191,6 +207,18 @@ public final class KgConfig {
     public final int chatMaxChars;
     public final long chatTimeoutMillis;
     /** Facility kinds the LLM tier may assign, per LLM collection ({@link KindHints}). */
+    /** Vocabulary 2: collection -> vocabulary name set by the operator ("" = none); merged over the defaults of categories.json. */
+    public final Map<String, String> vocabOverrides;
+    public final Set<String> jobsCollections;
+    public final boolean jobsAllCollections;
+    public final long jobsEndedVisibleMillis;
+    public final long priceStaleMillis;
+    public final Map<String, Long> priceStaleByCollection;
+    public final boolean derivedEnabled;
+    public final long derivedIntervalMillis;
+    public final int matchesMaxPerEntity;
+    public final int matchesMax;
+    public final int sameOperatorMaxGroup;
     public final Map<String, Set<String>> llmKinds;
     /** LLM collections that are not followed (ignored, shown in the status). */
     public final Set<String> llmIgnored;
@@ -266,6 +294,33 @@ public final class KgConfig {
         this.chatMaxFacts = (int) p.longValue(CHAT_MAX_FACTS, 8, 1, 30);
         this.chatMaxChars = (int) p.longValue(CHAT_MAX_CHARS, 1500, 300, 8000);
         this.chatTimeoutMillis = p.longValue(CHAT_TIMEOUT_MS, 300, 50, 5000);
+        final Set<String> perCollection = new TreeSet<>(this.collections);
+        perCollection.addAll(SCOUTRO_COLLECTIONS);
+        final Map<String, String> vocab = new TreeMap<>();
+        final Map<String, Long> stale = new TreeMap<>();
+        for (final String c : perCollection) {
+            final String v = p.vocabulary(VOCAB_PREFIX + c);
+            if (v != null) {
+                vocab.put(c, v);
+            }
+            final long days = p.longValue(PRICES_STALE_DAYS + "." + c, -1, 1, 3650);
+            if (days > 0) {
+                stale.put(c, DAY * days);
+            }
+        }
+        this.vocabOverrides = Collections.unmodifiableMap(vocab);
+        this.priceStaleByCollection = Collections.unmodifiableMap(stale);
+        this.priceStaleMillis = DAY * p.longValue(PRICES_STALE_DAYS, 180, 1, 3650);
+        final Set<String> jobs = p.collections(JOBS_COLLECTIONS);
+        this.jobsAllCollections = jobs.contains(ALL_COLLECTIONS);
+        jobs.remove(ALL_COLLECTIONS);
+        this.jobsCollections = Collections.unmodifiableSet(jobs);
+        this.jobsEndedVisibleMillis = DAY * p.longValue(JOBS_ENDED_VISIBLE_DAYS, 90, 0, 3650);
+        this.derivedEnabled = p.bool(DERIVED_ENABLED, true);
+        this.derivedIntervalMillis = 60_000L * p.longValue(DERIVED_INTERVAL_MINUTES, 60, 5, 1440);
+        this.matchesMaxPerEntity = (int) p.longValue(MATCHES_MAX_PER_ENTITY, 20, 0, 200);
+        this.matchesMax = (int) p.longValue(MATCHES_MAX, 50_000, 0, 1_000_000);
+        this.sameOperatorMaxGroup = (int) p.longValue(SAME_OPERATOR_MAX_GROUP, 12, 2, 100);
         final Set<String> ignored = new TreeSet<>();
         for (final String c : this.llmCollections) {
             if (!follows(c)) {
@@ -349,6 +404,61 @@ public final class KgConfig {
             }
         }
         return out;
+    }
+
+    /** True if job postings of a document in these collections are read (vocabulary 2, opt-in per collection). */
+    public boolean jobsFor(final Collection<String> docCollections) {
+        if (docCollections == null) {
+            return false;
+        }
+        for (final String c : docCollections) {
+            if (follows(c) && (this.jobsAllCollections || this.jobsCollections.contains(c))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True if jobs of this collection may be shown (the read side hides the jobs of a collection that switched them off). */
+    public boolean jobsShown(final String collection) {
+        return collection != null && (this.jobsAllCollections || this.jobsCollections.contains(collection));
+    }
+
+    /** The vocabulary in force for a collection: the operator's setting, else the default; null for none. */
+    public String vocabularyOf(final String collection, final Map<String, String> defaults) {
+        if (collection == null) {
+            return null;
+        }
+        final String o = this.vocabOverrides.get(collection);
+        if (o != null) {
+            return o.isEmpty() ? null : o;
+        }
+        return defaults == null ? null : defaults.get(collection);
+    }
+
+    /** The vocabularies of a document's collections. */
+    public Set<String> vocabulariesOf(final Collection<String> docCollections, final Map<String, String> defaults) {
+        final Set<String> out = new TreeSet<>();
+        if (docCollections != null) {
+            for (final String c : docCollections) {
+                final String v = vocabularyOf(c, defaults);
+                if (v != null) {
+                    out.add(v);
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Milliseconds after which a price of this collection counts as stale. */
+    public long priceStaleMillis(final String collection) {
+        final Long v = collection == null ? null : this.priceStaleByCollection.get(collection);
+        return v != null ? v : this.priceStaleMillis;
+    }
+
+    /** Stable description of what the extraction reads per collection (vocabularies, jobs): part of the extractor identity. */
+    public String extractionKey() {
+        return this.vocabOverrides + "|" + (this.jobsAllCollections ? ALL_COLLECTIONS : String.join(",", this.jobsCollections));
     }
 
     /** Stable description of what the LLM tier selects (collections, kinds, per-host cap). */
@@ -569,6 +679,19 @@ public final class KgConfig {
                 }
             }
             return out;
+        }
+
+        /** A vocabulary name; null if the key is not set, "" for an empty value (no vocabulary). */
+        String vocabulary(final String key) {
+            final String v = raw(key);
+            if (v == null) {
+                return null;
+            }
+            if (v.isEmpty() || net.yacy.scoutro.knowledge.vocab.Categories.VOCABULARY.matcher(v).matches()) {
+                return v;
+            }
+            problem(key, "invalid vocabulary name '" + clip(v) + "' (lower-case letters, digits and '_')");
+            return null;
         }
 
         /** Comma- or space-separated facility kinds; null if the key is not set (an empty value means none). */

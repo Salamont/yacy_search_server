@@ -46,8 +46,17 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * <li>{@code operator_name}: the same legal name of an organisation that is <em>not</em> declared as
  * operator (a parent organisation on a facility page, a name in running text): it resolves to the
  * declared operator of the domain, in either order, but two such mentions never merge with each other
- * (a portal lists unrelated organisations whose legal names may be equal);</li>
+ * (a portal lists unrelated organisations whose legal names may be equal); the key holds the legal
+ * name and the document ({@code name|docId}), so that every such organisation keeps one and the
+ * operator, once declared, takes in all of them;</li>
  * <li>{@code facility_address}: name and <em>full</em> address, within the registrable domain;</li>
+ * <li>{@code job_posting} (version 2): employer, title and location of a job, within the registrable domain;</li>
+ * <li>{@code place_name} (version 2): a place by country, level and name, global (a state, a country, a locality);</li>
+ * <li>{@code service_name} (version 2): a service by its provider and its category or name, within the registrable domain;</li>
+ * <li>{@code domain_operator} (version 2): the unnamed operator of a page's site (a services, prices or careers
+ * page); it resolves to the declared site operator of the registrable domain if there is exactly one, otherwise it
+ * stays a placeholder that the declared operator takes in when it appears (never one that is itself a declared
+ * operator, so two operators of one domain never merge through it);</li>
  * <li>{@code doc_local}: the mention within its document (keeps re-extraction stable).</li>
  * </ol>
  * Name and postal code, phone, e-mail and homepage are never keys. A merge
@@ -85,6 +94,8 @@ public final class IdentityResolver {
         public int conflicts;
     }
 
+    static final String DOMAIN_OPERATOR_VALUE = "operator";
+
     private final Terms terms;
     private final Counters counters = new Counters();
 
@@ -111,7 +122,10 @@ public final class IdentityResolver {
         if (Vocabulary.ORGANIZATION.equals(m.type) && domain != null) {
             final String legal = Normalizers.legalNameKey(m.legalName);
             if (legal != null) {
-                out.add(new Key(m.siteOperator ? Vocabulary.SITE_OPERATOR : Vocabulary.OPERATOR_NAME, m.type + "@" + domain, legal));
+                // an operator name per document: the key table holds one entity per key, and several pages may name the
+                // operator before its own page declares it (each stays apart until then, then all of them join it)
+                out.add(m.siteOperator ? new Key(Vocabulary.SITE_OPERATOR, m.type + "@" + domain, legal)
+                        : new Key(Vocabulary.OPERATOR_NAME, m.type + "@" + domain, Normalizers.clip(legal, 480) + OPERATOR_NAME_DOC + docId));
             }
         }
         if ((Vocabulary.FACILITY.equals(m.type) || Vocabulary.SITE.equals(m.type)) && m.address != null && m.address.complete()
@@ -119,6 +133,18 @@ public final class IdentityResolver {
             // the facility kind is part of the key: a day care and a residential home at one address are two facilities
             out.add(new Key(Vocabulary.FACILITY_ADDRESS, m.type + "@" + domain,
                     (m.subkind == null ? "" : m.subkind) + "|" + Normalizers.key(m.name) + "|" + m.address.key()));
+        }
+        if (Vocabulary.PLACE.equals(m.type) && m.placeKey != null) {
+            out.add(new Key(Vocabulary.PLACE_NAME, m.type, Normalizers.clip(m.placeKey, 300)));
+        }
+        if (Vocabulary.SERVICE.equals(m.type) && m.serviceKey != null && domain != null) {
+            out.add(new Key(Vocabulary.SERVICE_NAME, m.type + "@" + domain, Normalizers.clip(m.serviceKey, 500)));
+        }
+        if (Vocabulary.JOB.equals(m.type) && m.jobKey != null && domain != null) {
+            out.add(new Key(Vocabulary.JOB_POSTING, m.type + "@" + domain, Normalizers.clip(m.jobKey, 500)));
+        }
+        if (Vocabulary.ORGANIZATION.equals(m.type) && m.domainOperator && domain != null) {
+            out.add(new Key(Vocabulary.DOMAIN_OPERATOR, m.type + "@" + domain, DOMAIN_OPERATOR_VALUE));
         }
         out.add(new Key(Vocabulary.DOC_LOCAL, m.type + "#" + docId, m.ref));
         return out;
@@ -135,7 +161,10 @@ public final class IdentityResolver {
         final Map<Key, Long> found = new LinkedHashMap<>();
         for (final Key k : keys) {
             // an operator name looks for the declared operator only, never for another holder of the name
-            final Long ent = lookup(tx, Vocabulary.OPERATOR_NAME.equals(k.scheme) ? new Key(Vocabulary.SITE_OPERATOR, k.scope, k.value) : k);
+            Long ent = lookup(tx, Vocabulary.OPERATOR_NAME.equals(k.scheme) ? new Key(Vocabulary.SITE_OPERATOR, k.scope, operatorName(k.value)) : k);
+            if (ent == null && Vocabulary.DOMAIN_OPERATOR.equals(k.scheme)) {
+                ent = soleOperator(tx, k.scope); // the unnamed operator is the declared one, if the domain has exactly one
+            }
             if (ent != null) {
                 found.put(k, ent);
             }
@@ -161,15 +190,27 @@ public final class IdentityResolver {
         if (primary == null) {
             primary = create(tx, m, creationKey(keys, found), agg);
         }
-        // the declared operator takes in the organisations of the domain that were seen under its legal name before
+        // the declared operator takes in every organisation of the domain that was seen under its legal name before
         for (final Key k : keys) {
             if (Vocabulary.SITE_OPERATOR.equals(k.scheme)) {
-                final Long named = lookup(tx, new Key(Vocabulary.OPERATOR_NAME, k.scope, k.value));
-                if (named != null && !named.equals(primary)) {
+                for (final Long named : operatorNamed(tx, k.scope, k.value)) {
+                    if (named.equals(primary)) {
+                        continue;
+                    }
                     if (mergeable(tx, primary, named)) {
                         primary = merge(tx, primary, named, agg);
                     } else {
                         conflict(tx, agg, primary, named, m, "discriminator");
+                    }
+                }
+                // and the placeholder of the domain's unnamed operator, unless that is a declared operator itself
+                final Long unnamed = lookup(tx, new Key(Vocabulary.DOMAIN_OPERATOR, k.scope, DOMAIN_OPERATOR_VALUE));
+                if (unnamed != null && !unnamed.equals(primary) && !hasScheme(tx, unnamed, Vocabulary.SITE_OPERATOR)
+                        && soleOperatorAfter(tx, k.scope, primary)) {
+                    if (mergeable(tx, primary, unnamed)) {
+                        primary = merge(tx, primary, unnamed, agg);
+                    } else {
+                        conflict(tx, agg, primary, unnamed, m, "discriminator");
                     }
                 }
             }
@@ -202,6 +243,75 @@ public final class IdentityResolver {
         return new Key(local.scheme, local.scope, local.value + "~" + keys.size() + "~" + found.size());
     }
 
+    /** The only active entity with a {@code site_operator} key in {@code scope}; null if there is none or more than one. */
+    private Long soleOperator(final Connection tx, final String scope) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("SELECT DISTINCT k.ent_rowid FROM kg_entity_key k JOIN kg_entity e"
+                + " ON e.ent_rowid = k.ent_rowid WHERE k.scheme = ? AND k.scope = ? AND e.status = 1 LIMIT 2")) {
+            ps.setInt(1, this.terms.scheme(Vocabulary.SITE_OPERATOR));
+            ps.setString(2, scope);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                final long ent = rs.getLong(1);
+                return rs.next() ? null : ent;
+            }
+        }
+    }
+
+    /** True if no declared operator of {@code scope} other than {@code ent} exists. */
+    private boolean soleOperatorAfter(final Connection tx, final String scope, final long ent) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("SELECT 1 FROM kg_entity_key k JOIN kg_entity e ON e.ent_rowid = k.ent_rowid"
+                + " WHERE k.scheme = ? AND k.scope = ? AND e.status = 1 AND k.ent_rowid <> ? LIMIT 1")) {
+            ps.setInt(1, this.terms.scheme(Vocabulary.SITE_OPERATOR));
+            ps.setString(2, scope);
+            ps.setLong(3, ent);
+            try (ResultSet rs = ps.executeQuery()) {
+                return !rs.next();
+            }
+        }
+    }
+
+    private boolean hasScheme(final Connection tx, final long ent, final String scheme) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("SELECT 1 FROM kg_entity_key WHERE ent_rowid = ? AND scheme = ? LIMIT 1")) {
+            ps.setLong(1, ent);
+            ps.setInt(2, this.terms.scheme(scheme));
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
+        }
+    }
+
+    /** Separates the legal name and the document in an {@code operator_name} key ({@link Normalizers#key} never yields it). */
+    static final String OPERATOR_NAME_DOC = "|";
+
+    /** The legal name of an {@code operator_name} key (a key of Scoutro 0.7 is the name alone). */
+    static String operatorName(final String value) {
+        final int i = value.indexOf(OPERATOR_NAME_DOC);
+        return i < 0 ? value : value.substring(0, i);
+    }
+
+    /** The active entities holding an {@code operator_name} key of {@code legal} in {@code scope}, oldest first. */
+    private List<Long> operatorNamed(final Connection tx, final String scope, final String legal) throws SQLException {
+        final List<Long> out = new ArrayList<>();
+        final String name = Normalizers.clip(legal, 480);
+        try (PreparedStatement ps = tx.prepareStatement("SELECT DISTINCT k.ent_rowid FROM kg_entity_key k JOIN kg_entity e"
+                + " ON e.ent_rowid = k.ent_rowid WHERE k.scheme = ? AND k.scope = ? AND (k.value = ? OR (k.value >= ? AND k.value < ?))"
+                + " AND e.status = 1 ORDER BY e.created_seq")) {
+            ps.setInt(1, this.terms.scheme(Vocabulary.OPERATOR_NAME));
+            ps.setString(2, scope);
+            ps.setString(3, legal);
+            ps.setString(4, name + OPERATOR_NAME_DOC);
+            ps.setString(5, name + (char) (OPERATOR_NAME_DOC.charAt(0) + 1));
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getLong(1));
+                }
+            }
+        }
+        return out;
+    }
+
     private Long lookup(final Connection tx, final Key k) throws SQLException {
         try (PreparedStatement ps = tx.prepareStatement("SELECT k.ent_rowid FROM kg_entity_key k JOIN kg_entity e ON e.ent_rowid = k.ent_rowid"
                 + " WHERE k.scheme = ? AND k.scope = ? AND k.value = ? AND e.status = 1")) {
@@ -219,7 +329,7 @@ public final class IdentityResolver {
         final Map<String, List<String>> have = keysOf(tx, ent);
         for (final Key k : keys) {
             if (Vocabulary.DOC_LOCAL.equals(k.scheme) || Vocabulary.SITE_OPERATOR.equals(k.scheme)
-                    || Vocabulary.OPERATOR_NAME.equals(k.scheme)) {
+                    || Vocabulary.OPERATOR_NAME.equals(k.scheme) || Vocabulary.DOMAIN_OPERATOR.equals(k.scheme)) {
                 continue;
             }
             final List<String> existing = have.get(k.scheme + "\u0000" + k.scope);
@@ -245,7 +355,8 @@ public final class IdentityResolver {
         final Map<String, List<String>> vb = keysOf(tx, b);
         for (final Map.Entry<String, List<String>> e : va.entrySet()) {
             final String scheme = e.getKey().substring(0, e.getKey().indexOf('\u0000'));
-            if (Vocabulary.DOC_LOCAL.equals(scheme) || Vocabulary.SITE_OPERATOR.equals(scheme) || Vocabulary.OPERATOR_NAME.equals(scheme)) {
+            if (Vocabulary.DOC_LOCAL.equals(scheme) || Vocabulary.SITE_OPERATOR.equals(scheme) || Vocabulary.OPERATOR_NAME.equals(scheme)
+                    || Vocabulary.DOMAIN_OPERATOR.equals(scheme)) {
                 continue;
             }
             final List<String> other = vb.get(e.getKey());
@@ -338,7 +449,8 @@ public final class IdentityResolver {
                     continue; // owned by an entity that could not be merged
                 }
                 if (Vocabulary.STRONG_SCHEMES.contains(k.scheme) || Vocabulary.LD_ID.equals(k.scheme)
-                        || Vocabulary.FACILITY_ADDRESS.equals(k.scheme)) {
+                        || Vocabulary.FACILITY_ADDRESS.equals(k.scheme) || Vocabulary.JOB_POSTING.equals(k.scheme)
+                        || Vocabulary.PLACE_NAME.equals(k.scheme) || Vocabulary.SERVICE_NAME.equals(k.scheme)) {
                     final List<String> existing = have.get(k.scheme + "\u0000" + k.scope);
                     if (existing != null && !existing.contains(k.value)) {
                         continue; // a second value of a discriminating scheme is never attached

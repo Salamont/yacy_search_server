@@ -41,6 +41,29 @@ public final class Mention {
     public boolean siteOperator;
     /** Legal name including its legal form, if known. */
     public String legalName;
+    /**
+     * The unnamed operator of the page's site (version 2): a services, prices or careers page that does not say who
+     * offers them; resolved by the {@code domain_operator} key to the declared site operator.
+     */
+    public boolean domainOperator;
+    /** A key of the {@code job_posting} scheme (employer, title, location), within the registrable domain. */
+    public String jobKey;
+    /** A key of the {@code place_name} scheme ({@code de|state|bayern}); global. */
+    public String placeKey;
+    /** A key of the {@code service_name} scheme (provider and category or name), within the registrable domain. */
+    public String serviceKey;
+
+    /** The provider part of a service key: the site's operator, or the named organisation or facility; null if unnamed. */
+    public static String providerKey(final Mention provider) {
+        if (provider == null) {
+            return null;
+        }
+        if (provider.siteOperator || provider.domainOperator) {
+            return "operator";
+        }
+        final String k = net.yacy.scoutro.knowledge.resolve.Normalizers.key(provider.name);
+        return k == null ? null : provider.type + ":" + (provider.subkind == null ? "" : provider.subkind + ":") + k;
+    }
     public Address address;
 
     public Mention(final String ref, final String type, final int tier) {

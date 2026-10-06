@@ -8,11 +8,35 @@ it are in the [plan](SCOUTRO_KNOWLEDGE_GRAPH.md). The routes are in
 
 ## 1. What it is
 
-Scoutro Knowledge is a small graph of **organisations, facilities, sites,
-places and services**, read from the pages Scoutro has crawled. Each fact
-says where it comes from. Examples: "Muster Pflege gGmbH operates Haus
-Lindenhof", "Haus Lindenhof: phone +49 30 1234567", "Haus Lindenhof offers
-day care".
+Scoutro Knowledge is a business graph of **organisations, facilities, sites,
+places, services and job postings**, read from the pages Scoutro has
+crawled. Each fact says where it comes from. Examples: "Muster Pflege gGmbH
+operates Haus Lindenhof", "Haus Lindenhof: phone +49 30 1234567", "Haus
+Lindenhof offers short-term care, 89,90 € per day, Stand 08/2026", "CloudWerk
+GmbH is a partner of PflegeSoft GmbH".
+
+- **What a firm offers and what it costs.** Services with their category,
+  and prices exactly as published (amount, unit, from/up to/range,
+  conditions, VAT note, the page's date). Nothing is estimated, converted
+  or averaged. Two different prices stay visible as a conflict.
+- **How firms relate.** Fifteen relations between organisations: operator,
+  parent and subsidiary, partner, customer, supplier, member, certified by,
+  and more. Each relation comes only from an explicit statement and is
+  directed.
+- **Industry, contacts, jobs, audiences.**
+  - The industry as a NACE Rev. 2.1 / WZ 2025 code, given only at the level
+    the page makes safe.
+  - The organisation's contacts (no persons).
+  - Job postings where switched on (no persons).
+  - The audience in three separate layers: what the firm declares, what its
+    pages show, and what Scoutro suggests.
+- **Suggested matches are never facts.** A derived layer suggests possible
+  customers and partners and links firms that link to each other. Every
+  such row names its evidence on both sides, and a viewer sees it only with
+  both collections. Each side uses only its facts in its own collection: a
+  place or a service known from a third collection never decides a row.
+  It is computed, labelled as a suggestion, and never turned into a
+  relation.
 
 - **Its own store.** The graph lives next to the search index, not in it. It
   is an embedded SQLite database in `DATA/SCOUTRO/knowledge/`, and it never
@@ -36,6 +60,27 @@ Scoutro:
 | `scoutro.kg.collections` | e.g. `edelsenior-web,bauteamcheck-web`, or `*` for all | The collections the graph follows; nothing outside them is read |
 | `scoutro.kg.jsonld.enabled` | `true` | Captures `<script type="application/ld+json">` while crawling. Without it, tier 1 only has metadata, and only pages crawled after the switch carry JSON-LD |
 | `scoutro.kg.llm.collections` | optional, e.g. `edelsenior-web` | The optional LLM tier ([5.3](#53-the-optional-llm-tier)) |
+| `scoutro.kg.jobs.collections` | optional, e.g. `edelsenior-web,bauteamcheck-web` | Job postings ([4.4](#44-business-facts-vocabulary-2)); off by default |
+
+Further settings of the business facts (defaults in brackets):
+- `scoutro.kg.vocab.<collection>`: the business vocabulary of a collection.
+  The four Scoutro collections have one (`care`, `coaching`, `software`,
+  `construction`); empty means none.
+- `scoutro.kg.prices.staleDays[.<collection>]` (180): after how many days a
+  price without a validity date counts as possibly outdated.
+- `scoutro.kg.jobs.endedVisibleDays` (90): how long an ended posting stays
+  visible.
+- `scoutro.kg.derived.enabled` (`true`) and
+  `scoutro.kg.derived.intervalMinutes` (60): the derived layer. Switched
+  off, one pass removes its rows, and the change feed reports each removal.
+- `scoutro.kg.matches.maxPerEntity` (20) and `scoutro.kg.matches.max`
+  (50 000): caps for suggested matches.
+- `scoutro.kg.sameOperator.maxGroup` (12): the largest group of facilities
+  linked as having the same operator.
+
+Own vocabularies are JSON files in `DATA/SCOUTRO/knowledge/vocabulary/`
+([defaults/scoutro/knowledge/README.md](../defaults/scoutro/knowledge/README.md)).
+A changed vocabulary re-extracts the pages at low priority.
 
 - **Invalid settings keep the graph off.** The page *Knowledge graph →
   Settings* lists every invalid value. Nothing falls back silently.
@@ -52,7 +97,10 @@ Scoutro:
 | Names, legal forms, identifiers (register entry, VAT ID, LEI, Wikidata, IK) of organisations and facilities | Persons: no managing directors, owners, contact persons or staff, as entities or as facts |
 | Addresses, postal codes, localities, coordinates, opening hours, websites | E-mail addresses that may belong to a person (`max.mustermann@…`, `m.mustermann@…`, `erika@…`) |
 | Phone numbers and **role** e-mail addresses (`info@`, `kontakt@`, `verwaltung-berlin@`, …) as the organisation publishes them | Names of persons in evidence excerpts: after a role marker or salutation they become `[…]` |
-| Relations: operates, part of, located at, in place, offers | Page text beyond the excerpt (at most `extract.maxExcerptChars`, default 200 characters, per fact) |
+| Relations: operates, part of, located at, in place, offers, and the relations between organisations (partner, customer, member, …) | Page text beyond the excerpt (at most `extract.maxExcerptChars`, default 200 characters, per fact) |
+| Services, prices as published with their date and conditions, the industry code, the declared audience and service area | Prices that are not on the page: no estimates, conversions, averages, and no price without an explicit currency |
+| Job postings (title, employment type, place, deadline, published salary) in the collections of `jobs.collections` | Recruiters and contact persons of a posting; a posting more than `jobs.endedVisibleDays` after its end |
+| Derived rows (weak links, same operator, suggested matches) with the statements of both sides | A suggestion as a fact: it never becomes a relation |
 | Per fact: the page (Solr ID, URL), its collections, its state, the extractor and an excerpt (the evidence) | Anything about visitors, searches or users of Scoutro |
 | The validated answers of the LLM tier (a cache, so a page is not sent twice) | The model's raw output, the model's host or key |
 
@@ -151,6 +199,42 @@ Scoutro:
   budget), so a recrawl without changes, a reconcile or an identity rebuild
   calls the model only for changed text.
 
+### 4.4 Business facts (vocabulary 2)
+
+- **Tiers as above.** JSON-LD gives offers, prices, `makesOffer`, catalogs,
+  categories, `memberOf`, parent and sub organisations, credentials, contact
+  points, `JobPosting` (where jobs are on), audience and service area.
+  - The rules read service lists, price lines, relations after explicit
+    markers ("Mitglied der …", "Partner der …", "Kunden: …"), the industry
+    of an imprint, contacts, job pages and audiences.
+  - The LLM tier may point at a relation or a job, but every value (price,
+    salary, code) is read from its verbatim quote by Scoutro, never from
+    the model.
+- **Prices.** Each price belongs to a named service and keeps its date as
+  the page wrote it ("Stand 09/2026").
+  - A price past its validity date is expired and hidden.
+  - A price older than `prices.staleDays` without a validity date is shown
+    as possibly outdated; the chat says so.
+- **Industry.** A code is given only at the level the page makes safe: for
+  example `87` when only "Pflege" is sure, `87.10` for a nursing home.
+  Main and secondary industries are kept apart.
+- **Jobs** follow the posting: open, ended (visible for `endedVisibleDays`),
+  then hidden. A posting whose page disappears ends with it.
+- **Audiences in three layers.** *Declared* is what the firm says; *observed*
+  is what its pages show, such as a price for private clients; *suggested*
+  is a match Scoutro computed. The page, the API and the chat never mix
+  them.
+- **The object view and the network.** *Knowledge graph → object* shows the
+  sections with content: overview, industry, services, prices, contacts,
+  relations, jobs, audiences, suggested matches, evidence and sources. *Network*
+  draws the neighbours of an object (depth 1 or 2; typed, directed lines whose
+  style shows confirmed, uncertain, derived, weak and suggested).
+  - It has the same data as a list, and can be downloaded as GraphML
+    (Gephi, Cytoscape) or JSON.
+  - It is usable with the keyboard and at 360 px.
+
+  *Compare* lists the prices of one service category across providers.
+
 ### 5.4 Collections (O5)
 
 - **Every view is computed from one collection.** Every name, value, count,
@@ -167,7 +251,7 @@ Scoutro:
 | Who | What |
 |---|---|
 | Administrator (Digest login) | The page `ScoutroKnowledge_p.html`; every route under `/scoutro/api/v1/kg/`: status, control, reads, export, change feed, download, backups |
-| Agent with grant `kg.read` | Reads under `/scoutro/api/agent/v1/kg/` (entities, statements, evidence, hosts, sources), always within the agent's collections |
+| Agent with grant `kg.read` | Reads under `/scoutro/api/agent/v1/kg/` (entities, statements, evidence, hosts, sources, the business view, the neighbourhood, the comparison, derived rows, facets), always within the agent's collections; derived rows only with both collections |
 | Agent with grant `kg.export` (separate) | Export pages and change feed for its collections. Evidence names the extractor but not the model, and the agent gets no backlog |
 | Agents, never | Status, control, backups, the whole-graph download |
 | Chat, local and administrator | Graph facts as numbered sources marked "Scoutro knowledge graph", within the chat's collection (`scoutro.kg.chat.*`) |
@@ -323,7 +407,61 @@ would not make.
   model calls. They are missing from the moment of the swap until the LLM
   tier has gone through the pages again.
 
-### 9.4 Going back to a version without the graph
+### 9.4 Upgrading from Scoutro 0.7 (vocabulary 2)
+
+Scoutro 0.8 stores the business facts in schema 4 (0.7: schema 3). The
+upgrade happens at the first start of the new version:
+
+1. **Integrity first.** `PRAGMA quick_check` runs on the unchanged file
+   (bounded by `integrity.maxMillis`). A damaged or unchecked graph is not
+   migrated: the graph stays off (`upgrade_blocked`) and the file stays
+   as it is. Restore a backup or reset the graph.
+2. **A copy before the migration.** The old graph is copied to
+   `backup/graph-<UTC>-before-upgrade.db`, verified and given metadata like
+   any backup. The newest such copy survives the backup retention: it is
+   the way back to 0.7.
+3. **The migration** only adds tables and columns; the existing facts,
+   IDs and the change feed with its sequence stay.
+4. **The re-extraction.** Every page is read again with the new vocabulary,
+   at low priority behind the usual gates. The LLM tier, where configured,
+   reads its pages again with the new prompt. Old LLM evidence stays until
+   it is replaced.
+5. **Without room for the copy** (budget or disk), the migration still
+   runs, but the re-extraction and the LLM re-examination wait
+   (`status.upgrade.hold`, `sync.upgradeHold`). Free space and make a backup
+   (*Create backup*); a verified backup releases the hold.
+
+`GET /kg/status` reports `upgrade` (from, to, the copy or the hold, what
+waits). Make and download a backup before the upgrade in any case.
+
+**A 0.7 graph larger than 64 MiB.** Scoutro 0.7 checks a backup against
+the WAL limit (`scoutro.kg.wal.maxBytes`, 64 MiB), although a backup writes
+no WAL, and skips it with `wal_limit`. 0.8 no longer does, and its copy
+before the upgrade works at any size. For the backup in 0.7, stop Scoutro
+and copy `graph.db` (with `graph.db-wal` and `graph.db-shm`, if present).
+Alternatively raise `scoutro.kg.wal.maxBytes` above the size of `graph.db`
+for that backup and set it back afterwards. With the default budget this
+works up to about 900 MiB: the maintenance share (10 % of the budget) must
+hold the WAL and temp limits, and the settings page names a value it
+cannot hold.
+
+### 9.5 Going back to Scoutro 0.7
+
+- **0.7 does not open a schema-4 graph.** It reports `schema_unsupported`
+  and leaves the file untouched; search and crawl run without the graph.
+- **To keep the graph in 0.7,** stop Scoutro and restore the copy made
+  before the upgrade:
+  1. move `graph.db` (and `graph.db-wal`, `graph.db-shm`, if present) out of
+     `DATA/SCOUTRO/knowledge/`;
+  2. copy `backup/graph-<UTC>-before-upgrade.db` to `graph.db`;
+  3. start 0.7.
+
+  The graph reconciles with the index. Facts of pages changed since the
+  upgrade come back with their next processing. Business facts of 0.8 are
+  not in this copy.
+- **Coming back to 0.8** upgrades again (with a new copy).
+
+### 9.6 Going back to a version without the graph
 
 - **The index keeps working.** The old version writes its own Solr
   configuration and reads and searches every document. Its partial updates
@@ -393,6 +531,30 @@ This is the default. The page shows the LLM tier as `off`.
 - **One graph per installation.** Remote Solr is not followed.
 - **Not covered by the shutdown work.** YaCy's own 30-second shutdown and
   other YaCy core issues are outside this feature.
+- **Generic services.** Next to the specific services of a page, the rules
+  add the vocabulary's general ones that the page names (a firm "für
+  Heizung und Sanitär" offers *Heizung* and *Sanitär*). They are not wrong,
+  but coarser than the page's own list.
+- **Prices only as written.** A price needs an explicit currency and a named
+  service. Price tables are read as YaCy's parser gives them (row after
+  row, each price after the service of its row); a price with no service
+  before it is not kept. Units, ranges and conditions are kept as the page
+  states them, and are never normalised for a comparison.
+- **Ambiguous amounts are left out.** A plain space groups thousands only
+  where nothing else can be meant ("Kosten: 1 250 €", "ab 1 250 €"); after
+  a word or a number it may part two cells of a table row ("Pflegegrad 2
+  980 €"), so that line gives no price. In JSON-LD the point is the decimal
+  point (schema.org); a string such as `"12.500"`, which German pages also
+  use for 12 500, gives no price. The page text still gives it where it
+  names it.
+- **Suggestions are heuristics.** A suggested customer or partner only says
+  that declared targets and offers meet; it is never checked against
+  reality.
+- **Places by name.** A place is known by its country, its level and its
+  name, so that a service area in the text ("in Potsdam und Umgebung") meets
+  an address. Two towns of one name in one country (several *Neustadt*) are
+  one place in the graph, and a suggestion may take one for the other. The
+  suggestion names the place, so its reader can check it.
 
 ## 13. Checklist for operators
 
@@ -409,3 +571,7 @@ This is the default. The page shows the LLM tier as `off`.
   confirming.
 - **Before an upgrade or going back to an older version:** make a backup
   and download it.
+- **After the upgrade to 0.8:** `status.upgrade` shows the copy
+  (`backup`) or a hold. With a hold, free space and make a backup. Then the
+  re-extraction runs (pending work by type on the overview), and the
+  business sections fill.

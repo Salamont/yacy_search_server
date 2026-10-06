@@ -64,6 +64,22 @@ public final class KgIds {
         return STATEMENT_PREFIX + base32(sha256("scoutro-kg/statement/v1", subjectId, predicate, canonicalObject), ID_CHARS);
     }
 
+    public static final String DERIVED_PREFIX = "kgd_";
+    private static final Pattern DERIVED = Pattern.compile("^kgd_[a-z2-7]{20}$");
+
+    /**
+     * ID of a derived relation or suggested match (schema 4): kind, the two
+     * entities and the two collections whose facts it combines; so its
+     * collections never change over its life.
+     */
+    public static String derivedId(final String kind, final String a, final String b, final String collA, final String collB) {
+        return DERIVED_PREFIX + base32(sha256("scoutro-kg/derived/v1", kind, a, b, collA, collB), ID_CHARS);
+    }
+
+    public static boolean isDerivedId(final String s) {
+        return s != null && DERIVED.matcher(s).matches();
+    }
+
     /** 16-byte key of a canonical object value, used for statement uniqueness. */
     public static byte[] objectKey(final String canonicalObject) {
         return Arrays.copyOf(sha256("scoutro-kg/object/v1", canonicalObject), 16);

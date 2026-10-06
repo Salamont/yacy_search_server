@@ -63,8 +63,10 @@ public final class KgBackup {
     public static final String SCHEMA = "scoutro.kg.backup.v1";
     public static final String BEFORE_RESTORE = "-before-restore";
     public static final String BEFORE_REBUILD = "-before-rebuild";
+    /** The copy before a schema migration (package 6): the way back to the previous Scoutro version. */
+    public static final String BEFORE_UPGRADE = "-before-upgrade";
     /** File names this class writes and accepts; nothing else in the directory is ever touched. */
-    public static final Pattern NAME = Pattern.compile("^graph-([0-9]{8}T[0-9]{6}Z)(-before-restore|-before-rebuild)?\\.db$");
+    public static final Pattern NAME = Pattern.compile("^graph-([0-9]{8}T[0-9]{6}Z)(-before-restore|-before-rebuild|-before-upgrade)?\\.db$");
     private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(ZoneOffset.UTC);
 
     private KgBackup() {}
@@ -88,7 +90,13 @@ public final class KgBackup {
         return f.isFile() ? f : null;
     }
 
-    /** True for a safety copy of a restore or a rebuild. */
+    /** True for a copy before an upgrade; the newest one stays through the retention (the way back). */
+    public static boolean beforeUpgrade(final String name) {
+        final Matcher m = NAME.matcher(name);
+        return m.matches() && BEFORE_UPGRADE.equals(m.group(2));
+    }
+
+    /** True for a safety copy of a restore, a rebuild or an upgrade. */
     public static boolean safety(final String name) {
         final Matcher m = NAME.matcher(name);
         return m.matches() && m.group(2) != null;
@@ -213,7 +221,12 @@ public final class KgBackup {
             }
         }
         if (newestRegular != null) {
+            boolean upgradeKept = false;
             for (final File f : list(dir)) {
+                if (beforeUpgrade(f.getName()) && !upgradeKept) {
+                    upgradeKept = true; // the newest copy before an upgrade stays: it is the way back to the previous version
+                    continue;
+                }
                 if (safety(f.getName()) && stamp(f.getName()).compareTo(newestRegular) < 0) {
                     delete(f, removed);
                 }

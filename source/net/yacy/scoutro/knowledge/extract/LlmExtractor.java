@@ -48,11 +48,16 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * model gets no tools, and the answer must be one JSON object of at most
  * 64 KiB with exactly the fields of {@link #SCHEMA} (≤ 40 entities and ≤ 40
  * claims per chunk, strings ≤ 300 characters);</li>
- * <li>only the vocabulary's organisation, facility, site and service types and
- * the relations {@code operates}, {@code offers}, {@code located_at},
- * {@code part_of} are accepted, with type rules per relation; no persons, no
- * e-mail addresses, no phone numbers (contact data comes only from the
- * structured and rule tiers);</li>
+ * <li>only the vocabulary's organisation, facility, site, service and job
+ * types and the relations {@code operates}, {@code offers},
+ * {@code located_at}, {@code part_of}, {@code hiring_organization} and the
+ * relations between organisations (version 2) are accepted, with type rules
+ * per relation; no persons, no e-mail addresses, no phone numbers (contact
+ * data comes only from the structured and rule tiers);</li>
+ * <li>values (version 2: prices, salaries, categories, industries, audience
+ * codes) are only pointed at with a verbatim quote; this class reads the
+ * value from the quote, so the model can never state a number or a code
+ * the page does not;</li>
  * <li>every entity and every relation needs a quote of at most 200 characters
  * that occurs <em>verbatim</em> (whitespace-normalised) in the text and
  * contains the names involved; anything else is dropped and counted, so the
@@ -66,7 +71,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class LlmExtractor {
 
     public static final String NAME = "llm";
-    public static final String VERSION = "1";
+    public static final String VERSION = "2";
     public static final int TIER = 3;
     public static final int CHUNK_CHARS = 4000;
     public static final int MAX_ANSWER_BYTES = 64 * 1024;
@@ -74,8 +79,23 @@ public final class LlmExtractor {
     public static final int MAX_STRING = 300;
     public static final int MAX_QUOTE = 200;
 
-    static final List<String> TYPES = List.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY, Vocabulary.SITE, Vocabulary.SERVICE);
-    static final List<String> PREDICATES = List.of(Vocabulary.OPERATES, Vocabulary.OFFERS, Vocabulary.LOCATED_AT, Vocabulary.PART_OF);
+    static final List<String> TYPES = List.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY, Vocabulary.SITE, Vocabulary.SERVICE,
+            Vocabulary.JOB);
+    static final List<String> PREDICATES;
+    static {
+        final List<String> p = new ArrayList<>(List.of(Vocabulary.OPERATES, Vocabulary.OFFERS, Vocabulary.LOCATED_AT, Vocabulary.PART_OF,
+                Vocabulary.HIRING_ORGANIZATION));
+        p.addAll(Vocabulary.BUSINESS_RELATIONS);
+        PREDICATES = java.util.Collections.unmodifiableList(p);
+    }
+    /**
+     * Values (vocabulary 2) the model may only point at: it names the subject, the kind of value and a verbatim
+     * quote; the value itself (an amount, a code) is read from the quote by this class, so a number or a category
+     * the page does not state can never enter the graph.
+     */
+    static final List<String> VALUE_PREDICATES = List.of(Vocabulary.PRICE, Vocabulary.SALARY, Vocabulary.CATEGORY, Vocabulary.INDUSTRY,
+            Vocabulary.CUSTOMER_TYPE, Vocabulary.AUDIENCE_SEGMENT, Vocabulary.TARGET_CATEGORY, Vocabulary.COMPANY_SIZE,
+            Vocabulary.EMPLOYMENT_TYPE);
 
     /** Subject and object types each relation accepts. */
     private static final Map<String, Set<String>[]> RELATION_TYPES = new LinkedHashMap<>();
@@ -85,6 +105,11 @@ public final class LlmExtractor {
         RELATION_TYPES.put(Vocabulary.LOCATED_AT, types(Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY, Vocabulary.SERVICE),
                 Set.of(Vocabulary.SITE, Vocabulary.FACILITY)));
         RELATION_TYPES.put(Vocabulary.PART_OF, types(Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY), Set.of(Vocabulary.ORGANIZATION)));
+        RELATION_TYPES.put(Vocabulary.HIRING_ORGANIZATION, types(Set.of(Vocabulary.JOB), Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY)));
+        for (final String r : Vocabulary.BUSINESS_RELATIONS) {
+            RELATION_TYPES.put(r, types(Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY), Vocabulary.CARRIER_OF.equals(r)
+                    ? Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY) : Set.of(Vocabulary.ORGANIZATION)));
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -102,6 +127,7 @@ public final class LlmExtractor {
             + "|@|https?://|(?:\\d[\\s/().-]*){6,}");
     private static final Set<String> ENTITY_KEYS = Set.of("id", "type", "name", "kind", "quote");
     private static final Set<String> CLAIM_KEYS = Set.of("subject", "predicate", "object", "hedged", "quote");
+    private static final Set<String> VALUE_KEYS = Set.of("subject", "predicate", "quote");
 
     public static final String SYSTEM_PROMPT = "You extract organisations, facilities, sites and services and the relations between them"
             + " from one web page for a knowledge graph.\n"
@@ -112,12 +138,22 @@ public final class LlmExtractor {
             + " (at most 200 characters) that contains the names involved.\n"
             + "4. Do not extract persons or private individuals, and no e-mail addresses or phone numbers.\n"
             + "5. Types: organization, facility (a physical place of business or care with its own name), site (a building or"
-            + " location), service (a service or product offered). Relations: operates (organization -> facility or site),"
-            + " offers (organization or facility -> service), located_at (organization, facility or service -> site or facility),"
-            + " part_of (organization or facility -> organization).\n"
+            + " location), service (a service or product offered), job (a job posting with its title). Relations: operates"
+            + " (organization -> facility or site), offers (organization or facility -> service), located_at (organization, facility"
+            + " or service -> site or facility), part_of (organization or facility -> organization), hiring_organization (job ->"
+            + " organization or facility), and between organisations, in the direction the text states: parent_of, subsidiary_of,"
+            + " carrier_of (the carrier of an organisation or facility), member_of, association_member, partner_of, cooperation_with,"
+            + " customer_of (subject is a customer of object), reference_for (subject is a reference of object), supplier_of,"
+            + " service_provider_for, brand_of (subject is a brand of object), certified_by, funded_by, sponsored_by. A link or a"
+            + " mention alone is no relation.\n"
             + "6. Set \"hedged\": true if the text states a claim as planned, possible or uncertain.\n"
             + "7. Known entities of the page are listed with ids k1, k2, ...; refer to them by these ids instead of repeating them.\n"
-            + "8. Answer with one JSON object with the fields \"entities\" and \"claims\" and nothing else. Empty arrays are fine.";
+            + "8. \"values\" point at values the text states about an entity: price (of a service), salary (of a job), category"
+            + " (the kind of a service), industry, customer_type, audience_segment, target_category (whom an organisation or service is"
+            + " for), company_size, employment_type. Give only subject, predicate and the verbatim quote that states the value; never"
+            + " write the value yourself, never compute, convert or estimate.\n"
+            + "9. Answer with one JSON object with the fields \"entities\", \"claims\" and \"values\" and nothing else. Empty arrays"
+            + " are fine.";
 
     /** The answer schema, sent as {@code response_format} where the endpoint supports it. */
     public static final JSONObject SCHEMA;
@@ -144,11 +180,19 @@ public final class LlmExtractor {
                             .put("object", new JSONObject().put("type", "string").put("maxLength", 32))
                             .put("hedged", new JSONObject().put("type", "boolean"))
                             .put("quote", new JSONObject().put("type", "string").put("maxLength", MAX_QUOTE)));
+            final JSONObject value = new JSONObject()
+                    .put("type", "object").put("additionalProperties", false)
+                    .put("required", new JSONArray(List.of("subject", "predicate", "quote")))
+                    .put("properties", new JSONObject()
+                            .put("subject", new JSONObject().put("type", "string").put("maxLength", 32))
+                            .put("predicate", new JSONObject().put("type", "string").put("enum", new JSONArray(VALUE_PREDICATES)))
+                            .put("quote", new JSONObject().put("type", "string").put("maxLength", MAX_QUOTE)));
             SCHEMA = new JSONObject().put("type", "object").put("additionalProperties", false)
-                    .put("required", new JSONArray(List.of("entities", "claims")))
+                    .put("required", new JSONArray(List.of("entities", "claims", "values")))
                     .put("properties", new JSONObject()
                             .put("entities", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS).put("items", entity))
-                            .put("claims", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS).put("items", claim)));
+                            .put("claims", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS).put("items", claim))
+                            .put("values", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS).put("items", value)));
         } catch (final JSONException e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -185,6 +229,7 @@ public final class LlmExtractor {
         public final String refused;
         public int entities;
         public int claims;
+        public int values;
         public int droppedUngrounded;
         public int droppedInvalid;
 
@@ -330,18 +375,21 @@ public final class LlmExtractor {
         }
         for (final Iterator<String> it = o.keys(); it.hasNext();) {
             final String k = it.next();
-            if (!"entities".equals(k) && !"claims".equals(k)) {
+            if (!"entities".equals(k) && !"claims".equals(k) && !"values".equals(k)) {
                 return new Result(null, "unknown_field");
             }
         }
         final Object ents = o.opt("entities");
         final Object cls = o.opt("claims");
-        if ((ents != null && !(ents instanceof JSONArray)) || (cls != null && !(cls instanceof JSONArray))) {
+        final Object vals = o.opt("values");
+        if ((ents != null && !(ents instanceof JSONArray)) || (cls != null && !(cls instanceof JSONArray))
+                || (vals != null && !(vals instanceof JSONArray))) {
             return new Result(null, "schema");
         }
         final JSONArray entities = ents == null ? new JSONArray() : (JSONArray) ents;
         final JSONArray claims = cls == null ? new JSONArray() : (JSONArray) cls;
-        if (entities.length() > MAX_ITEMS || claims.length() > MAX_ITEMS) {
+        final JSONArray values = vals == null ? new JSONArray() : (JSONArray) vals;
+        if (entities.length() > MAX_ITEMS || claims.length() > MAX_ITEMS || values.length() > MAX_ITEMS) {
             return new Result(null, "too_many_items");
         }
         final String text = normal(chunk.text);
@@ -415,12 +463,54 @@ public final class LlmExtractor {
                     "quote", Normalizers.text(quote), "at", chunk.offset + rawOffset(chunk.text, quote)));
             r.claims++;
         }
+        final JSONArray okValues = new JSONArray();
+        for (int i = 0; i < values.length(); i++) {
+            final JSONObject v = values.optJSONObject(i);
+            if (v == null || !onlyKeys(v, VALUE_KEYS)) {
+                r.droppedInvalid++;
+                continue;
+            }
+            final String subject = string(v, "subject");
+            final String predicate = string(v, "predicate");
+            final String quote = string(v, "quote");
+            final String[] s = subject == null ? null : names.get(subject);
+            if (s == null || predicate == null || !VALUE_PREDICATES.contains(predicate) || quote == null || quote.length() > MAX_QUOTE
+                    || !valueSubject(predicate, s[0])) {
+                r.droppedInvalid++;
+                continue;
+            }
+            if (groundedAt(text, quote, List.of()) < 0) {
+                r.droppedUngrounded++; // a value the page does not state verbatim
+                continue;
+            }
+            if ((Vocabulary.PRICE.equals(predicate) || Vocabulary.SALARY.equals(predicate)) && Values.prices(quote, 0, quote.length()).isEmpty()) {
+                r.droppedUngrounded++; // the quote holds no amount with a currency
+                continue;
+            }
+            okValues.put(item("subject", subject, "predicate", predicate, "quote", Normalizers.text(quote),
+                    "at", chunk.offset + rawOffset(chunk.text, quote)));
+            r.values++;
+        }
         try {
-            r.accepted.put("entities", okEntities).put("claims", okClaims);
+            r.accepted.put("entities", okEntities).put("claims", okClaims).put("values", okValues);
         } catch (final JSONException e) {
             return new Result(null, "invalid_json");
         }
         return r;
+    }
+
+    /** The entity types a value may describe. */
+    private static boolean valueSubject(final String predicate, final String type) {
+        switch (predicate) {
+            case Vocabulary.PRICE:
+            case Vocabulary.CATEGORY:
+                return Vocabulary.SERVICE.equals(type) || Vocabulary.PRICE.equals(predicate) && Vocabulary.FACILITY.equals(type);
+            case Vocabulary.SALARY:
+            case Vocabulary.EMPLOYMENT_TYPE:
+                return Vocabulary.JOB.equals(type);
+            default:
+                return Vocabulary.ORGANIZATION.equals(type) || Vocabulary.FACILITY.equals(type) || Vocabulary.SERVICE.equals(type);
+        }
     }
 
     /**
@@ -431,6 +521,16 @@ public final class LlmExtractor {
      * entity (same page).
      */
     public static void apply(final JSONObject accepted, final List<Known> known, final Extraction out) {
+        apply(accepted, known, out, ExtractContext.none());
+    }
+
+    /**
+     * {@link #apply(JSONObject, List, Extraction)} with vocabulary 2: values
+     * are read from their quotes with the vocabularies of the document's
+     * collections (a cached answer stays valid when a vocabulary changes); a
+     * job only if jobs are on for the collection.
+     */
+    public static void apply(final JSONObject accepted, final List<Known> known, final Extraction out, final ExtractContext ctx) {
         if (accepted == null) {
             return;
         }
@@ -450,6 +550,9 @@ public final class LlmExtractor {
             final String key = Normalizers.key(name);
             final String same = knownByName.get(type + "\u0000" + key);
             final String ref = same != null ? same : "llm:" + type + ":" + key;
+            if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
+                continue; // jobs are switched on per collection
+            }
             refs.put(e.optString("id"), ref);
             Mention m = out.mention(ref);
             if (m == null) {
@@ -472,7 +575,90 @@ public final class LlmExtractor {
             out.add(new Claim(s, c.optString("predicate"), o, null, TIER, Claim.KIND_LLM, c.optBoolean("hedged"), locator(c),
                     c.optString("quote")));
         }
+        final JSONArray values = accepted.optJSONArray("values");
+        for (int i = 0; values != null && i < values.length(); i++) {
+            final JSONObject v = values.optJSONObject(i);
+            final String s = refs.get(v.optString("subject"));
+            if (s == null || out.mention(s) == null) {
+                continue;
+            }
+            for (final String value : read(v.optString("predicate"), v.optString("quote"), ctx)) {
+                out.add(new Claim(s, v.optString("predicate"), null, value, TIER, Claim.KIND_LLM, false, locator(v), v.optString("quote")));
+            }
+        }
+        BusinessFacts.industriesFromServices(out, ctx, TIER, MAX_QUOTE);
         out.ranTier(TIER);
+    }
+
+    /** The values a quote states for a value predicate, read deterministically; empty if it states none. */
+    static List<String> read(final String predicate, final String quote, final ExtractContext ctx) {
+        final List<String> out = new ArrayList<>();
+        if (quote == null || quote.isEmpty()) {
+            return out;
+        }
+        final ExtractContext c = ctx == null ? ExtractContext.none() : ctx;
+        switch (predicate) {
+            case Vocabulary.PRICE:
+            case Vocabulary.SALARY:
+                for (final Values.Price p : Values.prices(quote, 0, quote.length())) {
+                    if (Vocabulary.SALARY.equals(predicate)) {
+                        final Object unit = p.fields.get("unit");
+                        if (unit == null || Values.UNIT_OTHER.equals(unit) || Values.UNIT_ONCE.equals(unit)) {
+                            continue; // a salary without its period is not kept
+                        }
+                    }
+                    out.add(p.json);
+                    break;
+                }
+                break;
+            case Vocabulary.CATEGORY:
+                for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h
+                        : BusinessFacts.categories(c, quote, 0, quote.length())) {
+                    if (!out.contains(h.entry.id)) {
+                        out.add(h.entry.id);
+                    }
+                }
+                break;
+            case Vocabulary.INDUSTRY:
+                for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h
+                        : BusinessFacts.categories(c, quote, 0, quote.length())) {
+                    if (h.entry.nace != null && !out.contains(h.entry.nace)) {
+                        out.add(h.entry.nace);
+                    }
+                }
+                break;
+            case Vocabulary.TARGET_CATEGORY:
+                for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : c.allVocabularies()) {
+                    for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h
+                            : v.categories(quote, 0, quote.length())) {
+                        if (!out.contains(h.entry.id)) {
+                            out.add(h.entry.id);
+                        }
+                    }
+                }
+                break;
+            case Vocabulary.AUDIENCE_SEGMENT:
+                for (final net.yacy.scoutro.knowledge.vocab.Categories.Vocab v : c.vocabularies) {
+                    for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h
+                            : v.segments(quote, 0, quote.length())) {
+                        if (!out.contains(h.entry.id)) {
+                            out.add(h.entry.id);
+                        }
+                    }
+                }
+                break;
+            default:
+                final List<net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry>> hits
+                        = Vocabulary.CUSTOMER_TYPE.equals(predicate) ? c.categories.customerTypes(quote, 0, quote.length())
+                        : Vocabulary.COMPANY_SIZE.equals(predicate) ? c.categories.companySizes(quote, 0, quote.length())
+                        : c.categories.employmentTypes(quote, 0, quote.length());
+                for (final net.yacy.scoutro.knowledge.vocab.TermMatcher.Hit<net.yacy.scoutro.knowledge.vocab.Categories.Entry> h : hits) {
+                    if (!out.contains(h.entry.id)) {
+                        out.add(h.entry.id);
+                    }
+                }
+        }
+        return out;
     }
 
     private static String locator(final JSONObject item) {

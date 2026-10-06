@@ -222,9 +222,43 @@ public final class LlmService {
                 }
             }
             KgStore.putMeta(tx, KgSchema.META_LLM_SELECTION, key);
+            if (KgStore.getMeta(tx, KgSchema.META_UPGRADE_HOLD) == null) {
+                reexamineIfChanged(tx);
+            } // an upgrade without its copy: the documents are examined again once the hold is released
             return null;
         });
         this.initialized = true;
+    }
+
+    /**
+     * A new prompt or version (vocabulary 2) reads every document again; the
+     * old evidence stays until replaced. A graph upgraded from a version
+     * without this record (Scoutro 0.7) counts as changed.
+     */
+    private void reexamineIfChanged(final java.sql.Connection tx) throws java.sql.SQLException {
+        final String extractor = LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/" + LlmExtractor.PROMPT_HASH;
+        final String lastExtractor = KgStore.getMeta(tx, KgSchema.META_LLM_EXTRACTOR);
+        final boolean upgraded = lastExtractor == null && KgStore.getMeta(tx, KgSchema.META_UPGRADE) != null;
+        if (upgraded || lastExtractor != null && !lastExtractor.equals(extractor)) {
+            final int n = LlmQueue.reexamine(tx, LlmQueue.STATUS_DONE) + LlmQueue.reexamine(tx, LlmQueue.STATUS_FAILED);
+            if (n > 0) {
+                KgStore.event(tx, 1, "llm_extractor_changed", n + " documents are examined again by " + extractor,
+                        this.clock.getAsLong());
+            }
+        }
+        KgStore.putMeta(tx, KgSchema.META_LLM_EXTRACTOR, extractor);
+    }
+
+    /** After the upgrade hold was released: the re-examination it held back. */
+    public void releaseUpgradeHold() throws KgException {
+        if (!this.initialized) {
+            return;
+        }
+        this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+            reexamineIfChanged(tx);
+            return null;
+        });
+        wake();
     }
 
     // ------------------------------------------------------------------ step
@@ -264,6 +298,11 @@ public final class LlmService {
             }
             if (resetInProgress()) {
                 return idle("waiting", "full_reset", GATE_MILLIS);
+            }
+            final String growth = this.store.growthRefusal();
+            if (growth != null) {
+                // the manual pause (or the budget, disk or integrity): no queue fill, no claim, no model call
+                return idle("paused", growth, GATE_MILLIS);
             }
             scan(now);
             final LlmQueue.Item item = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> LlmQueue.claim(tx, now));
@@ -532,8 +571,9 @@ public final class LlmService {
             cachePut(key, m, status, value);
         }
         final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d);
         for (final JSONObject a : accepted) {
-            LlmExtractor.apply(a, known, ex);
+            LlmExtractor.apply(a, known, ex, ctx);
         }
         ex.ranTier(LlmExtractor.TIER);
         publish(item, d, row, ex, keys, m);

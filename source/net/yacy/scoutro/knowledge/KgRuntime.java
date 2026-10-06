@@ -211,6 +211,9 @@ public final class KgRuntime {
                     return sb.onlineCaution();
                 }
             };
+            // the business vocabularies of the application (package 6), not of the working directory
+            net.yacy.scoutro.knowledge.vocab.KgVocabularies.configure(
+                    new File(sb.getAppPath(), net.yacy.scoutro.knowledge.vocab.KgVocabularies.DEFAULTS), null);
             return new Env(sb.getDataPath(), key -> sb.getConfig(key, null), System::currentTimeMillis,
                     StorageProbe.SYSTEM, KgStore.SQLITE, true, QUICK_CHECK, solr, system, new YacyLlmClient());
         }
@@ -231,6 +234,8 @@ public final class KgRuntime {
     private DirtySet dirty;
     private volatile SyncService sync;
     private volatile LlmService llm;
+    /** Vocabulary 2: linked_to, same_operator and the suggested matches (package 6). */
+    private volatile net.yacy.scoutro.knowledge.derive.DerivedService derived;
     private ScheduledExecutorService llmThreads;
     private volatile KgBackups backups;
     private EmbeddedSolrSource source;
@@ -362,6 +367,9 @@ public final class KgRuntime {
                 return;
             }
             this.paths = new KgPaths(this.env.dataRoot);
+            // the operator's vocabulary extensions live with the graph's data
+            net.yacy.scoutro.knowledge.vocab.KgVocabularies.overrides(new File(this.paths.dir,
+                    net.yacy.scoutro.knowledge.vocab.KgVocabularies.OVERRIDES));
             this.guard = new StorageGuard(this.config, this.paths, this.env.probe, this.env.clock);
             this.guard.refresh();
             this.store = KgStore.open(this.paths, this.config, this.guard, this.env.connections, this.env.clock);
@@ -372,6 +380,7 @@ public final class KgRuntime {
                     KgStore.getMeta(c, KgSchema.META_CREATED_AT)});
             this.backups = new KgBackups(() -> this.store, this.paths, this.config, this.guard, this.env.clock,
                     (level, code, detail) -> recordEvent(level, code, detail, false), parseLong(backupMeta[0]), parseLong(backupMeta[1]));
+            this.backups.afterVerified(this::releaseUpgradeHold);
             if (this.rebuild == null && KgRebuild.discardLeftover(this.paths)) {
                 // a stop or crash in the middle of a rebuild: its shadow is gone, the graph is unchanged
                 this.lastRebuild = KgJson.obj("phase", "interrupted", "finishedAt", this.startedAt);
@@ -428,6 +437,7 @@ public final class KgRuntime {
         this.source = source;
         this.gates = gates;
         this.sync = new SyncService(this.config, this.store, this.dirty, source, gates, this.env.clock, this.uncleanStartDetected);
+        this.derived = new net.yacy.scoutro.knowledge.derive.DerivedService(this.config, this.store, this.env.clock);
         if (this.config.llmEnabled()) {
             this.llm = new LlmService(this.config, this.store, source, gates, this.env.llm, this.env.clock);
             this.sync.onLlmInput(this.llm::wake);
@@ -716,6 +726,17 @@ public final class KgRuntime {
                 }
                 this.jsonldLevel = noteLevel("jsonld_level", this.jsonldLevel, this.jsonld.level(), this.config.jsonldMaxTotalBytes);
             }
+            // the derived layer, after the sync has caught up once (enrichment: paused with every growth refusal) and not
+            // while a rebuild runs; a finished rebuild stays referenced for its status and must not keep it waiting
+            final net.yacy.scoutro.knowledge.derive.DerivedService dv = this.derived;
+            final SyncService sy = this.sync;
+            final KgRebuild rb = this.rebuild;
+            if (dv != null && sy != null && sy.initialized() && (rb == null || !rb.active())) {
+                final net.yacy.scoutro.knowledge.derive.DerivedService.Result r = dv.tick(now);
+                if (r != null && r.refused == null && r.inserted + r.deleted > 0) {
+                    recordEvent(1, "derived_updated", r.inserted + " new, " + r.updated + " changed, " + r.deleted + " removed", false);
+                }
+            }
         } catch (final KgException e) {
             // recorded by the guard and visible in the status
         } catch (final RuntimeException e) {
@@ -858,9 +879,11 @@ public final class KgRuntime {
     }
 
     /**
-     * Stops new growth (extraction and backfill in later packages); deletions
-     * continue. Takes effect at once and is stored; if the guard refuses the
-     * write, the maintenance thread stores it later.
+     * Stops new enrichment: tier 1 and 2 extraction of new and changed pages,
+     * a page that comes back, the LLM tier (no queue fill, no model call) and
+     * the shadow of a rebuild with its swap. Deletions, reconcile, retention,
+     * integrity and state checks continue. Takes effect at once and is stored;
+     * if the guard refuses the write, the maintenance thread stores it later.
      */
     public synchronized JSONObject pause() throws KgException {
         requireRunning();
@@ -897,6 +920,22 @@ public final class KgRuntime {
     public synchronized JSONObject reconcile() throws KgException {
         requireRunning();
         requireSync().requestReconcile(Reconciler.REASON_ADMIN);
+        return status();
+    }
+
+    /**
+     * Makes the derived layer (weak links, same operator, suggested matches)
+     * due at the next maintenance step instead of after its interval
+     * ({@code POST /kg/control {"action":"derive"}}). It still waits for the
+     * sync's first pass, a running rebuild and every growth refusal.
+     */
+    public synchronized JSONObject derive() throws KgException {
+        requireRunning();
+        final net.yacy.scoutro.knowledge.derive.DerivedService dv = this.derived;
+        if (dv == null || !this.config.derivedEnabled) {
+            throw new KgException(KgException.DERIVED_UNAVAILABLE, "the derived layer is off (scoutro.kg.derived.enabled=false or no Solr synchronisation)");
+        }
+        dv.requestRun();
         return status();
     }
 
@@ -1088,9 +1127,71 @@ public final class KgRuntime {
             }
             final KgRebuild rb = this.rebuild;
             KgJson.put(o, "rebuild", rb != null ? rb.status() : this.lastRebuild != null ? this.lastRebuild : KgJson.obj("phase", "none"));
+            final net.yacy.scoutro.knowledge.derive.DerivedService dv = this.derived;
+            final net.yacy.scoutro.knowledge.derive.DerivedService.Result dr = dv == null ? null : dv.last();
+            KgJson.put(o, "derived", KgJson.obj("enabled", this.config.derivedEnabled, "intervalMinutes",
+                    this.config.derivedIntervalMillis / 60_000L, "lastRun", dv == null || dv.lastRun() == 0L ? null : dv.lastRun(),
+                    "last", dr == null ? null : dr.json()));
+            KgJson.put(o, "vocabulary", vocabularyStatus());
+            KgJson.put(o, "upgrade", upgradeStatus());
             KgJson.put(o, "events", recentEvents(s));
         }
         return o;
+    }
+
+    /**
+     * Ends the wait of an upgrade that could not take its copy first, after a
+     * verified backup (package 6): the sync re-extracts every page with the
+     * new vocabulary, the LLM tier examines its documents again. Never throws.
+     */
+    void releaseUpgradeHold() {
+        try {
+            final SyncService sy = this.sync;
+            if (sy != null && sy.releaseUpgradeHold()) {
+                final LlmService ll = this.llm;
+                if (ll != null) {
+                    ll.releaseUpgradeHold();
+                }
+                LOG.info("knowledge graph upgrade: a verified backup exists, the re-extraction starts");
+            }
+        } catch (final KgException | RuntimeException e) {
+            LOG.warn("knowledge graph upgrade hold not released: " + e);
+        }
+    }
+
+    /** The upgrade of the last migration (package 6), with the current hold; null if this graph was never upgraded. */
+    private JSONObject upgradeStatus() {
+        try {
+            final String[] m = this.store.read(c -> new String[] {KgStore.getMeta(c, KgSchema.META_UPGRADE),
+                KgStore.getMeta(c, KgSchema.META_UPGRADE_HOLD)});
+            if (m[0] == null) {
+                return null;
+            }
+            final JSONObject o = new JSONObject(m[0]);
+            KgJson.put(o, "hold", m[1] == null ? JSONObject.NULL : m[1]);
+            KgJson.put(o, "waiting", m[1] != null);
+            return o;
+        } catch (final KgException | org.json.JSONException e) {
+            return null;
+        }
+    }
+
+    /** The business vocabularies in force (package 6): version, files, counts, problems, the vocabulary of each collection. */
+    private JSONObject vocabularyStatus() {
+        final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot v = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
+        final JSONObject collections = new JSONObject();
+        final java.util.Set<String> names = new java.util.TreeSet<>(this.config.collections);
+        names.addAll(v.categories.collections.keySet());
+        for (final String c : names) {
+            if (this.config.follows(c)) {
+                KgJson.put(collections, c, KgJson.obj("vocabulary", this.config.vocabularyOf(c, v.categories.collections),
+                        "jobs", this.config.jobsShown(c), "priceStaleDays", this.config.priceStaleMillis(c) / 86_400_000L));
+            }
+        }
+        return KgJson.obj("graphVocabulary", net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION, "version", v.version(),
+                "vocabularies", new org.json.JSONArray(v.categories.vocabularies.keySet()), "categories", v.categories.categoryCount(),
+                "naceCodes", v.nace.size(), "files", new org.json.JSONArray(v.files), "problems", new org.json.JSONArray(v.problems),
+                "collections", collections);
     }
 
     private static long parseLong(final String v) {

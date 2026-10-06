@@ -159,6 +159,18 @@ public final class KgLoadMeasurement {
      * the hosts are care providers in the collection {@code pflege} (the LLM
      * collection), 10 % of those also in {@code web}. Imprints name a managing
      * director, which must never be extracted.
+     * <p>
+     * Vocabulary 2 (package 6): {@code pflege} has the care vocabulary and
+     * {@code web} the construction vocabulary, jobs are on in both. After its
+     * facility pages every host has a services page (three to four services of
+     * its trade; plugin and sparse hosts also as {@code makesOffer} with two
+     * prices), a price list (prices per day, hour or flat, "ab", Stand) and,
+     * for 40 % of the hosts, a careers page (one or two postings with salary
+     * and deadline). Home pages state relations after explicit markers: 50 %
+     * of the trades a guild membership, 20 % of all hosts a partner (another
+     * host's organisation), 10 % customers, and every home page its audience.
+     * Trades outside the construction vocabulary (law firm, bakery, …) name
+     * services the vocabulary does not know.
      */
     static final class Corpus {
         static final String[] PREFIX_CARE = {"Pflegedienst", "Sozialstation", "Seniorenresidenz", "Diakoniestation", "Pflegeheim", "Tagespflege"};
@@ -175,6 +187,22 @@ public final class KgLoadMeasurement {
         static final String[] HOUSES = {"Abendsonne", "Birkenhof", "Eichenhain", "Rosenhof", "Seeblick", "Talblick", "Wiesengrund",
             "Lindenhof", "Bergfried", "Auenland"};
         static final String[] SERVICES = {"Tagespflege", "Kurzzeitpflege", "Verhinderungspflege", "Nachtpflege"};
+        /** Services pages (vocabulary 2): the care services, and per trade its construction categories or its own off-vocabulary services. */
+        static final String[] CARE_SERVICES = {"Stationäre Langzeitpflege", "Kurzzeitpflege", "Verhinderungspflege", "Tagespflege", "Ambulante Pflege",
+            "Demenzpflege", "Betreutes Wohnen", "Pflegeberatung", "Hausnotruf", "Essen auf Rädern"};
+        static final Map<String, String[]> TRADE_SERVICES = Map.of(
+                "Tischlerei", new String[] {"Tischlerei", "Innenausbau", "Küchen- und Möbelmontage", "Fenster"},
+                "Elektro", new String[] {"Elektroinstallation", "Photovoltaik", "Smart Home", "Ladeinfrastruktur"},
+                "Malerbetrieb", new String[] {"Malerarbeiten", "Fassade", "Wärmedämmung/WDVS", "Bodenbeläge"},
+                "Architekturbüro", new String[] {"Architektur", "Genehmigungsplanung", "Bauleitung", "Energieberatung"},
+                "Kanzlei", new String[] {"Rechtsberatung", "Vertragsgestaltung", "Prozessvertretung"},
+                "Autohaus", new String[] {"Neuwagen", "Werkstattservice", "Reifenservice"},
+                "Bäckerei", new String[] {"Brot und Brötchen", "Torten", "Partyservice"},
+                "Zahnarztpraxis", new String[] {"Prophylaxe", "Zahnersatz", "Implantologie"},
+                "Steuerberatung", new String[] {"Steuererklärung", "Lohnbuchhaltung", "Jahresabschluss"},
+                "Physiotherapie", new String[] {"Krankengymnastik", "Manuelle Therapie", "Massage"});
+        static final String[] CARE_ROLES = {"Pflegefachkraft", "Pflegehelfer", "Alltagsbegleiter", "Wohnbereichsleitung"};
+        static final String[] TRADE_ROLES = {"Geselle", "Monteur", "Auszubildende", "Projektleitung"};
         static final String[] WORDS = ("und der die das mit für eine einen unserer Pflege Betreuung Beratung Termine Angebot Leistungen "
                 + "Familie Angehörige Qualität Team Erfahrung Region Kunden Service Projekt Werkstatt Planung Umsetzung Wohnen Alltag "
                 + "Gesundheit Versorgung Ausbildung Stellenangebot Veranstaltung Sommerfest Information aktuell neue Öffnungszeiten "
@@ -204,6 +232,12 @@ public final class KgLoadMeasurement {
             String director;
             int pages;
             List<String> houses = new ArrayList<>();
+            // vocabulary 2: trade, careers page, relations stated on the home page
+            String trade;
+            boolean jobs;
+            boolean member;
+            int partner = -1;
+            boolean customers;
         }
 
         Corpus(final int size) {
@@ -247,6 +281,18 @@ public final class KgLoadMeasurement {
                         host.houses.add(HOUSES[(h + i * 3) % HOUSES.length]);
                     }
                 }
+                // vocabulary 2, from a stream of its own so that the base corpus stays the one of package 5
+                final Random biz = new Random(h * 7_919L + 6L);
+                host.trade = null; // the trade its name names (a second domain or a same-name host carries another host's name)
+                for (final String t : PREFIX_OTHER) {
+                    if (host.org.startsWith(t + " ")) {
+                        host.trade = t;
+                    }
+                }
+                host.jobs = biz.nextInt(100) < 40;
+                host.member = !host.care && biz.nextInt(100) < 50;
+                host.partner = h > 0 && biz.nextInt(100) < 20 ? biz.nextInt(h) : -1;
+                host.customers = h > 2 && biz.nextInt(100) < 10;
                 this.hosts.add(host);
                 docs += host.pages;
                 h++;
@@ -285,6 +331,16 @@ public final class KgLoadMeasurement {
             if (p - 3 < h.houses.size()) {
                 return "/standorte/haus-" + slug(h.houses.get(p - 3));
             }
+            final int k = p - 3 - h.houses.size();
+            if (k == 0) {
+                return "/leistungen";
+            }
+            if (k == 1) {
+                return "/preise";
+            }
+            if (k == 2 && h.jobs) {
+                return "/karriere";
+            }
             return "/aktuelles/beitrag-" + p;
         }
 
@@ -313,10 +369,39 @@ public final class KgLoadMeasurement {
                 if (!"none".equals(h.style)) {
                     blocks.add(facility(h, name, phone));
                 }
+            } else if ("/leistungen".equals(path)) {
+                title = "Leistungen – " + h.org;
+                final String[] svc = services(h);
+                text.append("Unsere Leistungen: ").append(String.join(", ", svc)).append(". ");
+                if (!"none".equals(h.style)) {
+                    blocks.add(offers(h, svc));
+                }
+            } else if ("/preise".equals(path)) {
+                title = "Preise – " + h.org;
+                final String[] svc = services(h);
+                final String unit = h.care ? "pro Tag" : "pro Stunde";
+                text.append("Preise. ").append(svc[0]).append(": ").append(40 + h.index % 60).append(",90 € ").append(unit).append(". ")
+                        .append(svc[1]).append(" ab ").append(25 + h.index % 40).append(" € ").append(unit).append(". ")
+                        .append(svc[2]).append(": ").append(150 + h.index % 200).append(" € pauschal. Stand: ")
+                        .append(String.format("%02d", 1 + h.index % 12)).append("/2026. ");
+            } else if ("/karriere".equals(path)) {
+                title = "Karriere – " + h.org;
+                final String[] roles = h.care ? CARE_ROLES : TRADE_ROLES;
+                final int n = 1 + h.index % 2;
+                text.append("Karriere. ");
+                for (int i = 0; i < n; i++) {
+                    final String role = roles[(h.index + i) % roles.length];
+                    text.append(role).append(" (m/w/d) in Vollzeit. Vergütung: ").append(String.format("%d.%03d", 2 + (h.index + i) % 2, (h.index * 100) % 1000))
+                            .append(" – ").append(String.format("%d.%03d", 3 + (h.index + i) % 2, (h.index * 100) % 1000))
+                            .append(" € brutto monatlich. Bewerbungsfrist: ").append(String.format("%02d", 1 + (h.index + i) % 28)).append(".12.2026. ");
+                }
             } else {
                 title = p == 0 ? h.org : p == 2 ? "Kontakt – " + h.org : "Aktuelles " + p + " – " + h.org;
                 if (p == 0 && !"none".equals(h.style)) {
                     blocks.add(organization(h, phone, rev));
+                }
+                if (p == 0) {
+                    relations(h, text);
                 }
             }
             if ("plugin".equals(h.style)) {
@@ -332,7 +417,8 @@ public final class KgLoadMeasurement {
                     this.invalidBlocks++;
                 }
             }
-            final int words = p > 2 && !house ? 300 + rnd.nextInt(600) : 120 + rnd.nextInt(200);
+            final boolean business = path.equals("/leistungen") || path.equals("/preise") || path.equals("/karriere");
+            final int words = p > 2 && !house && !business ? 300 + rnd.nextInt(600) : 120 + rnd.nextInt(200);
             for (int i = 0; i < words; i++) {
                 text.append(WORDS[rnd.nextInt(WORDS.length)]).append(i % 14 == 13 ? ". " : " ");
             }
@@ -379,6 +465,41 @@ public final class KgLoadMeasurement {
                 o.put("openingHours", "Mo-Fr 08:00-17:00");
             }
             return o.toString();
+        }
+
+        /** The services of a host's trade (care: three of the care services by its index). */
+        static String[] services(final Host h) {
+            if (h.care || h.trade == null) {
+                return new String[] {CARE_SERVICES[h.index % CARE_SERVICES.length], CARE_SERVICES[(h.index + 3) % CARE_SERVICES.length],
+                    CARE_SERVICES[(h.index + 6) % CARE_SERVICES.length]};
+            }
+            return TRADE_SERVICES.get(h.trade);
+        }
+
+        /** The relations and the audience a home page states, after the explicit markers the rules know. */
+        void relations(final Host h, final StringBuilder text) {
+            if (h.member && h.trade != null) {
+                text.append("Wir sind Mitglied der Innung ").append(h.trade).append(' ').append(h.city[0]).append(". ");
+            }
+            if (h.partner >= 0 && !this.hosts.get(h.partner).org.equals(h.org)) {
+                text.append("Wir sind Partner der ").append(this.hosts.get(h.partner).org).append(". ");
+            }
+            if (h.customers) {
+                text.append("Unsere Kunden: ").append(this.hosts.get(h.index - 1).org).append(", ").append(this.hosts.get(h.index - 2).org).append(". ");
+            }
+            text.append(h.care ? "Unser Angebot richtet sich an Senioren und pflegebedürftige Menschen in " : "Wir arbeiten für Privatkunden und Gewerbekunden in ")
+                    .append(h.city[0]).append(" und Umgebung. ");
+        }
+
+        /** {@code makesOffer} with the first two services and their prices, as shop and booking plugins write it. */
+        static String offers(final Host h, final String[] svc) throws org.json.JSONException {
+            final JSONArray offers = new JSONArray();
+            for (int i = 0; i < 2; i++) {
+                offers.put(new JSONObject().put("@type", "Offer").put("itemOffered", new JSONObject().put("@type", "Service").put("name", svc[i]))
+                        .put("price", String.valueOf(40 + h.index % 60 + i * 10)).put("priceCurrency", "EUR"));
+            }
+            return new JSONObject().put("@context", "https://schema.org").put("@type", h.care ? "MedicalOrganization" : "Organization")
+                    .put("name", h.org).put("url", "https://" + h.domain + "/").put("makesOffer", offers).toString();
         }
 
         static String facility(final Host h, final String name, final String phone) throws org.json.JSONException {
@@ -626,6 +747,11 @@ public final class KgLoadMeasurement {
         }
     }
 
+    static long derivedLastRun(final KgRuntime r) {
+        final JSONObject d = r.status().optJSONObject("derived");
+        return d == null ? 0L : d.optLong("lastRun", 0L);
+    }
+
     static long reconcileCompletedAt(final KgRuntime r) {
         final JSONObject rec = r.status().optJSONObject("sync") == null ? null : r.status().optJSONObject("sync").optJSONObject("reconcile");
         return rec == null ? 0L : rec.optLong("lastCompletedAt", 0L);
@@ -640,6 +766,7 @@ public final class KgLoadMeasurement {
             KgStore.queryLong(x, "SELECT count(*) FROM kg_change"), KgStore.queryLong(x, "SELECT coalesce(sum(jsonld_bytes), 0) FROM kg_doc"),
             KgStore.queryLong(x, "SELECT count(*) FROM kg_extraction"), KgStore.queryLong(x, "SELECT coalesce(sum(bytes), 0) FROM kg_extraction"),
             KgStore.queryLong(x, "SELECT count(*) FROM kg_entity_key")});
+        final JSONObject business = r.store().read(KgLoadMeasurement::business);
         final JSONObject storage = s.optJSONObject("storage");
         final JSONObject files = storage == null ? null : storage.optJSONObject("files");
         final JSONObject pages = storage == null ? null : storage.optJSONObject("pages");
@@ -652,7 +779,95 @@ public final class KgLoadMeasurement {
                 "level", storage == null ? null : storage.opt("level"), "jsonldEstimatedBytes", jsonld == null ? null : jsonld.opt("estimatedBytes"),
                 "jsonldLevel", jsonld == null ? null : jsonld.opt("level"), "solrSegmentBytes", solrBytes(index)[0],
                 "solrTlogBytes", solrBytes(index)[1], "solrDirBytes", dirBytes(index),
-                "knowledgeDirBytes", dirBytes(new File(data, KgPaths.RELATIVE_DIR)), "heapAfterGcBytes", heapAfterGc(), "rssBytes", rss());
+                "knowledgeDirBytes", dirBytes(new File(data, KgPaths.RELATIVE_DIR)), "heapAfterGcBytes", heapAfterGc(), "rssBytes", rss(),
+                "business", business);
+    }
+
+    /** Vocabulary 2: statements per predicate, entities per type, derived rows per kind. */
+    static JSONObject business(final java.sql.Connection c) throws java.sql.SQLException {
+        final JSONObject predicates = new JSONObject();
+        final JSONObject types = new JSONObject();
+        final JSONObject derived = new JSONObject();
+        try (java.sql.Statement st = c.createStatement()) {
+            try (java.sql.ResultSet rs = st.executeQuery("SELECT v.name, count(*) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                    + " GROUP BY v.name")) {
+                while (rs.next()) {
+                    KgJson.put(predicates, rs.getString(1), rs.getLong(2));
+                }
+            }
+            try (java.sql.ResultSet rs = st.executeQuery("SELECT v.name, count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type"
+                    + " WHERE e.status = 1 GROUP BY v.name")) {
+                while (rs.next()) {
+                    KgJson.put(types, rs.getString(1), rs.getLong(2));
+                }
+            }
+            final String[] kinds = {null, "linked_to", "same_operator", "suggested_customer", "suggested_partner"};
+            try (java.sql.ResultSet rs = st.executeQuery("SELECT kind, count(*) FROM kg_derived GROUP BY kind")) {
+                while (rs.next()) {
+                    KgJson.put(derived, kinds[rs.getInt(1)], rs.getLong(2));
+                }
+            }
+        }
+        long relations = 0L;
+        for (final String rel : net.yacy.scoutro.knowledge.extract.Vocabulary.BUSINESS_RELATIONS) {
+            relations += predicates.optLong(rel, 0L);
+        }
+        return KgJson.obj("offers", predicates.optLong(net.yacy.scoutro.knowledge.extract.Vocabulary.OFFERS, 0L), "prices",
+                predicates.optLong(net.yacy.scoutro.knowledge.extract.Vocabulary.PRICE, 0L), "businessRelations", relations, "industries",
+                predicates.optLong(net.yacy.scoutro.knowledge.extract.Vocabulary.INDUSTRY, 0L), "jobs", types.optLong("job", 0L),
+                "services", types.optLong("service", 0L), "statementsByPredicate", predicates, "entitiesByType", types, "derivedByKind", derived);
+    }
+
+    /** Read latency of the business view, the neighbourhood (depth 2, with suggestions) and the chat facts over the organisations. */
+    static JSONObject readLatency(final KgRuntime r, final int samples) throws Exception {
+        final net.yacy.scoutro.knowledge.read.KgReader reader = r.reader();
+        final List<String[]> orgs = r.store().read(c -> {
+            final List<String[]> out = new ArrayList<>();
+            try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT e.public_id, (SELECT d.doc_id FROM kg_evidence ev JOIN kg_doc d"
+                    + " ON d.doc_rowid = ev.doc_rowid JOIN kg_statement s ON s.stmt_rowid = ev.stmt_rowid WHERE s.subj = e.ent_rowid LIMIT 1)"
+                    + " FROM kg_entity e JOIN kg_vocab v ON v.term_id = e.type WHERE e.status = 1 AND v.name = 'organization'"
+                    + " ORDER BY e.ent_rowid LIMIT ?")) {
+                ps.setInt(1, samples);
+                try (java.sql.ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        out.add(new String[] {rs.getString(1), rs.getString(2)});
+                    }
+                }
+            }
+            return out;
+        });
+        final List<Long> view = new ArrayList<>();
+        final List<Long> network = new ArrayList<>();
+        final List<Long> chat = new ArrayList<>();
+        final net.yacy.scoutro.knowledge.read.BusinessGraph.Query q = new net.yacy.scoutro.knowledge.read.BusinessGraph.Query();
+        q.depth = 2;
+        q.suggested = true;
+        final net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer all = net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer.ALL;
+        for (final String[] o : orgs) {
+            long t = System.nanoTime();
+            new net.yacy.scoutro.knowledge.read.BusinessView(reader).entity(o[0], all, false);
+            view.add((System.nanoTime() - t) / 1_000L);
+            t = System.nanoTime();
+            new net.yacy.scoutro.knowledge.read.BusinessGraph(reader).neighborhood(o[0], q, all);
+            network.add((System.nanoTime() - t) / 1_000L);
+            if (o[1] != null) {
+                t = System.nanoTime();
+                new net.yacy.scoutro.knowledge.read.ChatFacts(reader).select(List.of(o[1]), List.of("preis", "telefon", "leistung"), all, 8, 300L);
+                chat.add((System.nanoTime() - t) / 1_000L);
+            }
+        }
+        return KgJson.obj("samples", orgs.size(), "businessViewMicros", percentiles(view), "neighborhoodDepth2Micros", percentiles(network),
+                "chatFactsMicros", percentiles(chat));
+    }
+
+    static JSONObject percentiles(final List<Long> v) {
+        if (v.isEmpty()) {
+            return null;
+        }
+        final List<Long> s = new ArrayList<>(v);
+        java.util.Collections.sort(s);
+        return KgJson.obj("p50", s.get(s.size() / 2), "p95", s.get((int) Math.min(s.size() - 1, Math.round(0.95 * (s.size() - 1)))), "max",
+                s.get(s.size() - 1));
     }
 
     // ------------------------------------------------------------------ run
@@ -675,7 +890,8 @@ public final class KgLoadMeasurement {
             final long heapSolr = heapAfterGc();
             final Model model = new Model(latency);
             final Map<String, String> settings = KgTestSupport.enabled(KgConfig.COLLECTIONS, "web,pflege", KgConfig.LLM_COLLECTIONS, "pflege",
-                    KgConfig.JSONLD_ENABLED, "true");
+                    KgConfig.JSONLD_ENABLED, "true", KgConfig.VOCAB_PREFIX + "pflege", "care", KgConfig.VOCAB_PREFIX + "web", "construction",
+                    KgConfig.JOBS_COLLECTIONS, "web,pflege");
             final KgRuntime.Env env = new KgRuntime.Env(data, settings::get, System::currentTimeMillis, StorageProbe.SYSTEM, KgStore.SQLITE, true,
                     () -> client, Gates.IDLE).withLlm(model);
             long t = System.nanoTime();
@@ -720,6 +936,16 @@ public final class KgLoadMeasurement {
             out.put("afterIndexing", snapshot(r, index, data));
             out.put("llm", KgJson.obj("calls", model.calls.get(), "callsAfterTiers12", model.calls.get() - callsBefore,
                     "inputChars", model.inputChars.get(), "latencyMs", latency, "status", r.status().opt("llm")));
+
+            // 1b. vocabulary 2: the derived layer (weak links, same operator, suggested matches), then read latency
+            sampler.reset();
+            final long derivedBefore = derivedLastRun(started);
+            r.derive();
+            phases.put("deriveMs", waitFor("derived layer", 3_600_000L, () -> derivedLastRun(started) > derivedBefore));
+            out.put("derived", r.status().optJSONObject("derived") == null ? null : r.status().optJSONObject("derived").opt("last"));
+            out.put("peaksDerive", sampler.peaks());
+            out.put("afterDerive", snapshot(r, index, data));
+            out.put("readLatency", readLatency(r, 200));
 
             // 2. a full reconcile without changes
             sampler.reset();

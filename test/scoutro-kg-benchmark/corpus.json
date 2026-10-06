@@ -1,0 +1,157 @@
+{
+ "note": "Synthetic business corpus for the knowledge graph A/B benchmark (package 6). Every host is .example; nothing is fetched. Collections carry the names of the real Scoutro portals so that their vocabularies apply; the data is invented.",
+ "documents": [
+  {
+   "id": "lindenhof-home",
+   "collection": "edelsenior-web",
+   "url": "https://www.lindenhof-pflege.example/",
+   "title": "Lindenhof Pflege gGmbH – Pflege in Köln",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Lindenhof Pflege gGmbH\", \"url\": \"https://www.lindenhof-pflege.example/\", \"telephone\": \"0221 4711000\", \"faxNumber\": \"0221 4711009\", \"email\": \"info@lindenhof-pflege.example\", \"vatID\": \"DE111222333\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Lindenstraße 12\", \"postalCode\": \"50674\", \"addressLocality\": \"Köln\"}, \"openingHours\": \"Mo-Fr 08:00-16:00\"}",
+   "text": "Willkommen bei der Lindenhof Pflege gGmbH. Wir begleiten ältere Menschen in Köln mit stationärer Pflege, Kurzzeitpflege und Tagespflege. Unsere Häuser stellen wir Ihnen auf den Seiten Haus Birke und Haus Eiche vor."
+  },
+  {
+   "id": "lindenhof-birke",
+   "collection": "edelsenior-web",
+   "url": "https://www.lindenhof-pflege.example/haus-birke",
+   "title": "Haus Birke – Pflegeheim in Köln-Ehrenfeld",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"NursingHome\", \"name\": \"Haus Birke\", \"telephone\": \"0221 4711010\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Birkenweg 3\", \"postalCode\": \"50823\", \"addressLocality\": \"Köln\"}, \"parentOrganization\": {\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Lindenhof Pflege gGmbH\", \"url\": \"https://www.lindenhof-pflege.example/\"}}",
+   "text": "Haus Birke in Köln-Ehrenfeld bietet 80 Plätze in der stationären Pflege und einen geschützten Wohnbereich für Menschen mit Demenz."
+  },
+  {
+   "id": "lindenhof-eiche",
+   "collection": "edelsenior-web",
+   "url": "https://www.lindenhof-pflege.example/haus-eiche",
+   "title": "Haus Eiche – Pflegeheim in Köln-Nippes",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"NursingHome\", \"name\": \"Haus Eiche\", \"telephone\": \"0221 4711020\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Eichenallee 7\", \"postalCode\": \"50733\", \"addressLocality\": \"Köln\"}, \"parentOrganization\": {\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Lindenhof Pflege gGmbH\", \"url\": \"https://www.lindenhof-pflege.example/\"}}",
+   "text": "Haus Eiche in Köln-Nippes ist ein Pflegeheim mit 60 Plätzen und einem Garten für die Bewohnerinnen und Bewohner."
+  },
+  {
+   "id": "lindenhof-preise",
+   "collection": "edelsenior-web",
+   "url": "https://www.lindenhof-pflege.example/preise",
+   "title": "Preise – Lindenhof Pflege",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Lindenhof Pflege gGmbH\", \"url\": \"https://www.lindenhof-pflege.example/\"}",
+   "text": "Preise. Kurzzeitpflege: 89,90 € pro Tag. Tagespflege ab 49 € pro Tag. Stand: 08/2026"
+  },
+  {
+   "id": "lindenhof-karriere",
+   "collection": "edelsenior-web",
+   "url": "https://www.lindenhof-pflege.example/karriere",
+   "title": "Karriere – Lindenhof Pflege",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Lindenhof Pflege gGmbH\", \"url\": \"https://www.lindenhof-pflege.example/\"}",
+   "text": "Karriere. Pflegefachkraft (m/w/d) in Vollzeit. Vergütung: 3.400 – 3.900 € brutto monatlich. Bewerbungsfrist: 31.03.2027. Bewerbungen an karriere@lindenhof-pflege.example."
+  },
+  {
+   "id": "sonnenhof-home",
+   "collection": "edelsenior-web",
+   "url": "https://www.sonnenhof-senioren.example/",
+   "title": "Sonnenhof Seniorenresidenz Köln",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"NursingHome\", \"name\": \"Sonnenhof Seniorenresidenz GmbH\", \"url\": \"https://www.sonnenhof-senioren.example/\", \"telephone\": \"0221 9990000\", \"email\": \"kontakt@sonnenhof-senioren.example\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Sonnenweg 1\", \"postalCode\": \"51103\", \"addressLocality\": \"Köln\"}}",
+   "text": "Die Sonnenhof Seniorenresidenz in Köln-Kalk bietet Kurzzeitpflege und stationäre Pflege. Träger ist die Caritas Köln e.V."
+  },
+  {
+   "id": "sonnenhof-preise",
+   "collection": "edelsenior-web",
+   "url": "https://www.sonnenhof-senioren.example/preise",
+   "title": "Preise – Sonnenhof Seniorenresidenz",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Sonnenhof Seniorenresidenz GmbH\", \"url\": \"https://www.sonnenhof-senioren.example/\"}",
+   "text": "Preise. Kurzzeitpflege: 95 € pro Tag. Stand: 09/2026"
+  },
+  {
+   "id": "sonnenhof-preise-alt",
+   "collection": "edelsenior-web",
+   "url": "https://www.sonnenhof-senioren.example/preise-2024",
+   "title": "Preisliste 2024 – Sonnenhof Seniorenresidenz",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Sonnenhof Seniorenresidenz GmbH\", \"url\": \"https://www.sonnenhof-senioren.example/\"}",
+   "text": "Preise. Kurzzeitpflege: 79 € pro Tag. Stand: 01/2024"
+  },
+  {
+   "id": "sonnenhof-coaching",
+   "collection": "checkthecoach-web",
+   "url": "https://www.sonnenhof-coaching.example/",
+   "title": "Sonnenhof Coaching München",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Sonnenhof Coaching GmbH\", \"url\": \"https://www.sonnenhof-coaching.example/\", \"telephone\": \"089 1234000\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Leopoldstraße 50\", \"postalCode\": \"80802\", \"addressLocality\": \"München\"}}",
+   "text": "Sonnenhof Coaching begleitet Führungskräfte mit Business-Coaching. Coaching-Sitzung: 180 € pro Stunde zzgl. MwSt. Für Unternehmen und Führungskräfte."
+  },
+  {
+   "id": "klarblick-coaching",
+   "collection": "checkthecoach-web",
+   "url": "https://www.klarblick-coaching.example/",
+   "title": "Klarblick Coaching Hamburg",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Klarblick Coaching GmbH\", \"url\": \"https://www.klarblick-coaching.example/\", \"telephone\": \"040 7770000\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Jungfernstieg 1\", \"postalCode\": \"20095\", \"addressLocality\": \"Hamburg\"}}",
+   "text": "Klarblick Coaching bietet Karrierecoaching für Privatpersonen. Coaching-Sitzung: 120 € pro Stunde."
+  },
+  {
+   "id": "pflegesoft-home",
+   "collection": "stackfinder-web",
+   "url": "https://www.pflegesoft.example/",
+   "title": "PflegeSoft – Software für die Pflege",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"PflegeSoft GmbH\", \"url\": \"https://www.pflegesoft.example/\", \"telephone\": \"040 5551000\", \"email\": \"vertrieb@pflegesoft.example\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Hafenstraße 9\", \"postalCode\": \"20457\", \"addressLocality\": \"Hamburg\"}}",
+   "text": "PflegeSoft entwickelt Pflegesoftware für die Dokumentation und Dienstplanung."
+  },
+  {
+   "id": "pflegesoft-fuer-wen",
+   "collection": "stackfinder-web",
+   "url": "https://www.pflegesoft.example/fuer-wen",
+   "title": "Für wen – PflegeSoft",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"PflegeSoft GmbH\", \"url\": \"https://www.pflegesoft.example/\"}",
+   "text": "Für wen? Wir unterstützen Pflegeeinrichtungen bundesweit, nur für Geschäftskunden. Unsere Kunden: Muster Klinikum Hamburg GmbH."
+  },
+  {
+   "id": "pflegesoft-preise",
+   "collection": "stackfinder-web",
+   "url": "https://www.pflegesoft.example/preise",
+   "title": "Preise – PflegeSoft",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"PflegeSoft GmbH\", \"url\": \"https://www.pflegesoft.example/\"}",
+   "text": "Preise. Pflegesoftware ab 12 € pro Monat zzgl. MwSt. Stand: 08/2026"
+  },
+  {
+   "id": "cloudwerk-home",
+   "collection": "stackfinder-web",
+   "url": "https://www.cloudwerk.example/",
+   "title": "CloudWerk – ERP für das Handwerk",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"CloudWerk GmbH\", \"url\": \"https://www.cloudwerk.example/\", \"telephone\": \"030 8880000\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Torstraße 100\", \"postalCode\": \"10119\", \"addressLocality\": \"Berlin\"}}",
+   "text": "CloudWerk entwickelt ERP-Software für Handwerksbetriebe. Wir sind Partner der PflegeSoft GmbH. Zertifiziert nach ISO 27001."
+  },
+  {
+   "id": "mueller-home",
+   "collection": "bauteamcheck-web",
+   "url": "https://www.mueller-haustechnik.example/",
+   "title": "Müller Haustechnik – Heizung und Sanitär in Köln",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Müller Haustechnik GmbH\", \"url\": \"https://www.mueller-haustechnik.example/\", \"telephone\": \"0221 3330000\", \"email\": \"info@mueller-haustechnik.example\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Handwerkerweg 5\", \"postalCode\": \"50827\", \"addressLocality\": \"Köln\"}, \"openingHours\": \"Mo-Fr 07:00-17:00\"}",
+   "text": "Müller Haustechnik ist Ihr Fachbetrieb für Heizung und Sanitär in Köln. Leistungen: Heizungsinstallation, Badsanierung und Wärmepumpen. Wir sind Mitglied der Innung SHK Köln."
+  },
+  {
+   "id": "mueller-preise",
+   "collection": "bauteamcheck-web",
+   "url": "https://www.mueller-haustechnik.example/preise",
+   "title": "Preise – Müller Haustechnik",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Müller Haustechnik GmbH\", \"url\": \"https://www.mueller-haustechnik.example/\"}",
+   "text": "Preise. Wartung Gasheizung: 149 € pauschal. Stand: 09/2026"
+  },
+  {
+   "id": "schmidt-home",
+   "collection": "bauteamcheck-web",
+   "url": "https://www.schmidt-bau.example/",
+   "title": "Schmidt Bau – Hochbau in Bonn",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Schmidt Bau GmbH\", \"url\": \"https://www.schmidt-bau.example/\", \"telephone\": \"0228 4440000\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Baustraße 2\", \"postalCode\": \"53111\", \"addressLocality\": \"Bonn\"}}",
+   "text": "Schmidt Bau ist ein Bauunternehmen für Hochbau und Rohbau in Bonn und der Region."
+  },
+  {
+   "id": "schmidt-karriere",
+   "collection": "bauteamcheck-web",
+   "url": "https://www.schmidt-bau.example/karriere",
+   "title": "Karriere – Schmidt Bau",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Schmidt Bau GmbH\", \"url\": \"https://www.schmidt-bau.example/\"}",
+   "text": "Karriere. Maurer (m/w/d) in Vollzeit. Vergütung: 20 € brutto pro Stunde. Bewerbungsfrist: 30.11.2026."
+  },
+  {
+   "id": "weber-home",
+   "collection": "bauteamcheck-web",
+   "url": "https://www.weber-elektro.example/",
+   "title": "Weber Elektro – Elektroinstallation in Bonn",
+   "jsonld": "{\"@context\": \"https://schema.org\", \"@type\": \"Organization\", \"name\": \"Weber Elektro GmbH\", \"url\": \"https://www.weber-elektro.example/\", \"telephone\": \"0228 5550000\", \"address\": {\"@type\": \"PostalAddress\", \"streetAddress\": \"Stromweg 8\", \"postalCode\": \"53113\", \"addressLocality\": \"Bonn\"}}",
+   "text": "Weber Elektro ist Ihr Elektrofachbetrieb für Elektroinstallation und Photovoltaik in Bonn."
+  }
+ ]
+}

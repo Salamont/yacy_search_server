@@ -17,9 +17,10 @@
 package net.yacy.scoutro.knowledge.store;
 
 /**
- * Schema version 1 of the knowledge graph store (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
- * section "Physical schema"). Until the first release, v1 is a draft:
- * development databases are recreated when it changes.
+ * Schema of the knowledge graph store (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
+ * section "Physical schema"): version 1 and the forward migrations to the
+ * current version (2 and 3: packages 2a and 2b, 4: package 6, the business
+ * graph). A database of a newer version is never opened.
  * <p>
  * Rules encoded here:
  * <ul>
@@ -38,7 +39,7 @@ package net.yacy.scoutro.knowledge.store;
  */
 public final class KgSchema {
 
-    public static final int CURRENT_VERSION = 3;
+    public static final int CURRENT_VERSION = 4;
 
     private KgSchema() {}
 
@@ -333,6 +334,65 @@ public final class KgSchema {
             "CREATE INDEX kg_doc_llm_host ON kg_doc (host_id) WHERE llm_status = 1",
             "CREATE INDEX kg_doc_llm_status ON kg_doc (llm_status) WHERE llm_status IS NOT NULL",
         },
+        // 3 -> 4 (package 6, vocabulary 2): derived relations and suggested matches, outbound link targets, the content
+        // hash the LLM tier compares, and the change feed's third kind; nothing existing is dropped
+        {
+            // what tiers 1 and 2 read, without the extractor versions: a new vocabulary does not invalidate the LLM tier
+            "ALTER TABLE kg_doc ADD COLUMN content_hash BLOB CHECK (content_hash IS NULL OR length(content_hash) = 16)",
+            // registrable domains a document links to (YaCy's outbound links), the input of the weak relation linked_to
+            "CREATE TABLE kg_doc_link ("
+                + " doc_rowid INTEGER NOT NULL REFERENCES kg_doc (doc_rowid) ON DELETE CASCADE,"
+                + " domain TEXT NOT NULL CHECK (length(domain) BETWEEN 3 AND 253 AND domain NOT GLOB '*[^a-z0-9.-]*'),"
+                + " n INTEGER NOT NULL CHECK (n > 0),"
+                + " PRIMARY KEY (doc_rowid, domain)"
+                + ") WITHOUT ROWID",
+            "CREATE INDEX kg_doc_link_domain ON kg_doc_link (domain)",
+            // derived, never stated: kind 1 linked_to, 2 same_operator, 3 suggested_customer, 4 suggested_partner;
+            // visible only to a viewer of both collections (coll_a holds a's basis, coll_b b's)
+            "CREATE TABLE kg_derived ("
+                + " der_rowid INTEGER PRIMARY KEY,"
+                + " public_id TEXT NOT NULL UNIQUE CHECK (" + publicId("public_id", "kgd_") + "),"
+                + " kind INTEGER NOT NULL CHECK (kind IN (1, 2, 3, 4)),"
+                + " a_ent INTEGER NOT NULL REFERENCES kg_entity (ent_rowid) ON DELETE CASCADE,"
+                + " b_ent INTEGER NOT NULL REFERENCES kg_entity (ent_rowid) ON DELETE CASCADE,"
+                + " coll_a INTEGER NOT NULL REFERENCES kg_collection (coll_id),"
+                + " coll_b INTEGER NOT NULL REFERENCES kg_collection (coll_id),"
+                + " confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),"
+                + " reason TEXT NOT NULL CHECK (length(reason) BETWEEN 1 AND 500),"
+                + " basis TEXT NOT NULL CHECK (length(basis) BETWEEN 2 AND 4000),"
+                + " computed_at INTEGER NOT NULL,"
+                + " CHECK (a_ent <> b_ent),"
+                + " UNIQUE (kind, a_ent, b_ent, coll_a, coll_b)"
+                + ")",
+            "CREATE INDEX kg_derived_a ON kg_derived (a_ent, kind)",
+            "CREATE INDEX kg_derived_b ON kg_derived (b_ent, kind)",
+            "CREATE INDEX kg_derived_coll ON kg_derived (coll_a, coll_b)",
+            // the change feed gets kind 3 (derived); the table is copied with its sequence, so no cursor moves back
+            "CREATE TABLE kg_change_v4 ("
+                + " seq INTEGER PRIMARY KEY AUTOINCREMENT,"
+                + " kind INTEGER NOT NULL CHECK (kind IN (1, 2, 3)),"
+                + " public_id TEXT NOT NULL CHECK (length(public_id) = 24),"
+                + " op INTEGER NOT NULL CHECK (op IN (1, 2, 3)),"
+                + " redirect_to TEXT CHECK (redirect_to IS NULL OR length(redirect_to) = 24),"
+                + " scopes_now TEXT NOT NULL DEFAULT '' CHECK (" + scopes("scopes_now") + "),"
+                + " scopes_seen TEXT NOT NULL DEFAULT '' CHECK (" + scopes("scopes_seen") + "),"
+                + " at INTEGER NOT NULL,"
+                + " CHECK ((op = 3) = (redirect_to IS NOT NULL)),"
+                + " UNIQUE (kind, public_id)"
+                + ")",
+            "INSERT INTO kg_change_v4 (seq, kind, public_id, op, redirect_to, scopes_now, scopes_seen, at)"
+                + " SELECT seq, kind, public_id, op, redirect_to, scopes_now, scopes_seen, at FROM kg_change",
+            "INSERT OR REPLACE INTO kg_meta (key, value) SELECT 'migration_change_seq', CAST(seq AS TEXT) FROM sqlite_sequence"
+                + " WHERE name = 'kg_change'",
+            "DROP TABLE kg_change",
+            "ALTER TABLE kg_change_v4 RENAME TO kg_change",
+            "UPDATE sqlite_sequence SET seq = max(seq, (SELECT CAST(value AS INTEGER) FROM kg_meta WHERE key = 'migration_change_seq'))"
+                + " WHERE name = 'kg_change' AND EXISTS (SELECT 1 FROM kg_meta WHERE key = 'migration_change_seq')",
+            "INSERT INTO sqlite_sequence (name, seq) SELECT 'kg_change', CAST(value AS INTEGER) FROM kg_meta"
+                + " WHERE key = 'migration_change_seq' AND NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = 'kg_change')",
+            "DELETE FROM kg_meta WHERE key = 'migration_change_seq'",
+            "CREATE INDEX kg_change_at ON kg_change (at)",
+        },
     };
 
     /** Keys of kg_meta written by the store. */
@@ -360,4 +420,15 @@ public final class KgSchema {
     public static final String META_LLM_SELECTION = "llm_selection";
     /** Time of the last verified backup (package 5); the schedule counts from it. */
     public static final String META_LAST_BACKUP_AT = "last_backup_at";
+    /**
+     * Set by an upgrade that could not take its backup first (package 6): the re-extraction with the new
+     * vocabulary waits until a verified backup exists; the value says why.
+     */
+    public static final String META_UPGRADE_HOLD = "upgrade_hold";
+    /** The upgrade of the last start (package 6): from-version, backup file or reason, time. */
+    public static final String META_UPGRADE = "upgrade";
+    /** The LLM tier's extractor (version and prompt hash) of the last start; a change re-examines every document. */
+    public static final String META_LLM_EXTRACTOR = "llm_extractor";
+    /** End of the last derivation of linked_to, same_operator and the suggested matches. */
+    public static final String META_DERIVED_AT = "derived_at";
 }

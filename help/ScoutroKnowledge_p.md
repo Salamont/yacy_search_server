@@ -12,10 +12,14 @@ backend_java: source/net/yacy/htroot/ScoutroKnowledge_p.java
 
 ## Purpose
 
-The knowledge graph collects organisations, facilities, sites and services from
-the crawled pages of the followed collections, with every fact tied to the page
-it comes from. This page shows its status, its objects with their facts and
-relations, and the evidence behind each fact. Operator guide:
+The knowledge graph collects organisations, facilities, sites, places,
+services and jobs from the crawled pages of the followed collections, with
+every fact tied to the page it comes from. Since vocabulary 2 (Scoutro 0.8) it
+also holds the business view of a company: industry (NACE Rev. 2.1 / WZ 2025),
+services and their published prices, organisation contacts, relations between
+companies, jobs and audiences, plus suggested matches that are marked as
+suggestions. This page shows its status, its objects, their network and a
+price comparison, and the evidence behind each fact. Operator guide:
 `docs/SCOUTRO_KNOWLEDGE.md`; plan: `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`; API:
 `docs/API.md`, section "Knowledge graph".
 
@@ -24,8 +28,10 @@ relations, and the evidence behind each fact. Operator guide:
 | View | URL | Content |
 | --- | --- | --- |
 | Overview | `ScoutroKnowledge_p.html` | State, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, controls, backups, identity rebuild, recent events |
-| Objects | `?view=objects&q=&type=&quality=&host=` | Search by name, filter by type, quality and host; 25 per page |
-| Object | `?view=object&id=kge_…` | Names, identifiers, hosts, possible duplicates, facts and relations, relations pointing to it; evidence per fact |
+| Objects | `?view=objects&q=&type=&quality=&host=&industry=&category=&audience=` | Search by name, filter by type, quality, host, industry (NACE code; a section or division finds everything below it), service category and audience; 25 per page |
+| Object | `?view=object&id=kge_…` | Sections with content only: Overview, Industry, Services, Prices, Contacts, Relations, Jobs, Audiences, Suggested matches, Evidence and sources, all facts and relations, relations pointing to it; evidence per fact; link to the network |
+| Network | `?view=network&id=kge_…&depth=2&f=…&list=1` | The neighbourhood of one object as a drawing and as a list (see below) |
+| Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published |
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
 | Settings | `?view=settings` | The effective settings and their problems (read-only) |
 
@@ -49,6 +55,57 @@ describe the whole graph.
   version) and the excerpt; links to the source view and the Index Browser.
 - **Possible duplicates** are objects of the same type with the same name.
   They are never merged automatically.
+
+## Business view (vocabulary 2)
+
+- **Industry:** main and further industries with their NACE Rev. 2.1 / WZ 2025
+  code down to the four-digit class, the path (section › division › group ›
+  class) and the Scoutro categories. If two different codes are equally
+  strong, the safe common higher level is shown. Labels are the official
+  English NACE titles.
+- **Services and prices:** every price exactly as the page published it:
+  amount or range, currency, unit, kind (from, up to, range), conditions, VAT,
+  care level, own share and the date. Nothing is estimated, converted,
+  normalised or averaged. Two different published amounts for the same thing
+  stay visible as **conflicting**. A price without a date of its own is
+  **outdated** after `scoutro.kg.prices.staleDays` (180; per collection
+  `scoutro.kg.prices.staleDays.<collection>`); a validity date of the source
+  wins (**expired**).
+- **Contacts:** only organisation contacts (central phone, fax, role
+  mailboxes, contact form, departments without names, opening and office
+  hours, company profiles, website, directions). Person names, personal
+  e-mail addresses and extensions are never stored.
+- **Relations:** carrier, parent and subsidiary, member, partner,
+  cooperation, customer and reference, supplier, service provider, brand,
+  certification, funding and sponsoring, with their direction. **Derived,
+  no facts:** "same operator" and weak link signals (linked pages).
+- **Jobs** (only for `scoutro.kg.jobs.collections`): title, employment type,
+  place, salary with unit and date, dates and how to apply. A job ends at its
+  deadline or when its page is gone; ended jobs stay visible for
+  `scoutro.kg.jobs.endedVisibleDays` (90) days.
+- **Audiences** in three layers that never mix: the declared audience
+  (customer types, segments, sizes, target industries, sought services,
+  service area), published customers and references, and **suggestions**.
+- **Suggested matches** combine what one company offers with what another
+  seeks (or a shared audience for partners). They are always labelled as a
+  suggestion or possible customer, never as a customer relation, and only
+  shown to a viewer of both collections.
+
+## Network
+
+The network shows the neighbourhood of one object, never the whole graph:
+depth 1 (direct neighbours) or 2 (also the neighbours of organisations and
+facilities), the 50 strongest neighbours first and **Show more** for the
+next. Solid lines are facts with evidence, dashed lines uncertain facts,
+dotted lines derived rows (same operator, weak link signals, suggestions).
+Filters: relations between organisations, facilities and places, services
+and jobs, industries and audiences, same operator, weak link signals,
+suggestions, stale. Select a node or a line with the mouse or the keyboard
+(Tab) to see its lines and evidence; Enter or a click opens the object. The
+same data is always listed as a table below (**List only** hides the
+drawing). **GraphML** (for Gephi or Cytoscape) and **JSON** download what is
+shown. On a narrow screen the drawing scrolls inside its frame. No external
+library is loaded.
 
 ## Storage levels
 
@@ -79,10 +136,23 @@ confirmation, checks the backup first, keeps the current graph as a backup
 and reconciles with the index. Scheduled every `scoutro.kg.backup.intervalDays`
 (7); the newest `scoutro.kg.backup.keep` (1) stay.
 
+## Vocabulary and upgrade
+
+The overview shows the vocabularies in force (categories per collection, NACE
+codes), the derived relations (last run, interval
+`scoutro.kg.derived.intervalMinutes`, 60) and the upgrade of the last start.
+**Recompute suggestions now** runs the derived layer at the next maintenance
+step. When a graph of Scoutro 0.7 is upgraded, it is first checked
+(`quick_check`) and copied to `graph-<UTC>-before-upgrade.db` in the backup
+folder; that copy is the way back to 0.7 and stays through the backup
+retention. A graph that fails the check is not touched and the graph stays off
+(`upgrade_blocked`). If there is no room for the copy, a banner says so: the
+new extraction of every page waits until a backup succeeds.
+
 ## Re-resolve identities
 
 **Rebuild identities** builds the whole graph anew from the Solr index with the
-current identity rules, in `DATA/SCOUTRO/knowledge/rebuild` and within the
+current identity rules and vocabulary, in `DATA/SCOUTRO/knowledge/rebuild` and within the
 remaining budget, while the current graph keeps serving. The panel shows the
 phase and the progress and refreshes itself. Before the swap the new graph is
 checked; if it has far fewer pages than the current one it waits for **Swap
@@ -102,13 +172,18 @@ text; links to crawled pages open in a new tab without a referrer.
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
 | `/scoutro/api/v1/kg/status` | GET | Status |
-| `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `offset`, `limit`, `collection`) |
+| `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`) |
+| `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
+| `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes and edges (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `include=stale`) |
+| `/scoutro/api/v1/kg/compare` | GET | One service category across providers (`category`) |
+| `/scoutro/api/v1/kg/derived` | GET | Derived rows (`kind`, `entity`) |
+| `/scoutro/api/v1/kg/facets` | GET | Industries, categories, audiences and counts of the visible graph |
 | `/scoutro/api/v1/kg/entities/{id}` | GET | Object (or `{"redirect":…}` after a merge) |
 | `/scoutro/api/v1/kg/entities/{id}/statements` | GET | Facts and relations (`direction=out|in`, `predicate`, `include=stale`) |
 | `/scoutro/api/v1/kg/statements/{id}` / `…/evidence` | GET | One fact and its evidence (≤ 50 per page) |
 | `/scoutro/api/v1/kg/hosts/{host}/entities` | GET | Objects of a host |
 | `/scoutro/api/v1/kg/sources/{docId}` | GET | What the graph holds from one page |
-| `/scoutro/api/v1/kg/control` | POST | `pause`, `resume`, `reconcile`, `confirm_reconcile`, `llm_retry`, `backup`, `restore` (with `backup`), `rebuild`, `rebuild_cancel`, `rebuild_confirm` |
+| `/scoutro/api/v1/kg/control` | POST | `pause`, `resume`, `reconcile`, `confirm_reconcile`, `llm_retry`, `backup`, `restore` (with `backup`), `rebuild`, `rebuild_cancel`, `rebuild_confirm`, `derive` |
 | `/scoutro/api/v1/kg/backups` | GET | The backup files with their metadata |
 | `/scoutro/api/v1/kg/backups/{file}` | GET | Download one backup (SQLite file) |
 | `/scoutro/api/v1/kg/export` | GET | Export pages (`cursor`, `limit` ≤ 200, `include=evidence`, `collection`) |
@@ -129,7 +204,9 @@ controls and the download are never available to agents.
 
 **Chat:** for local and administrator use, the chat adds facts of the graph as
 numbered sources marked "Scoutro knowledge graph", each linking the page it
-was read from, within the chat's collection. Settings: `scoutro.kg.chat.*`
+was read from, within the chat's collection: also industries, services,
+prices (always with their date), jobs (with status; salaries with unit and
+date) and incoming relations; suggestions are marked as such. Settings: `scoutro.kg.chat.*`
 (shown under Settings).
 
 Settings are `scoutro.kg.*` configuration keys; they take effect at the next

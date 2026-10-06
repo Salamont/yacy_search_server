@@ -142,7 +142,7 @@ public class KgStoreTest {
         assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());
         this.store.read(c -> {
             assertEquals(Integer.toString(KgSchema.CURRENT_VERSION), KgStore.getMeta(c, KgSchema.META_SCHEMA_VERSION));
-            assertEquals("one event per step (v1 -> v2 -> v3)", KgSchema.CURRENT_VERSION - 1L,
+            assertEquals("one event per step (v1 -> v2 -> v3 -> v4)", KgSchema.CURRENT_VERSION - 1L,
                     KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'"));
             assertEquals("v3: the LLM queue", 0L, KgStore.queryLong(c, "SELECT count(*) FROM kg_llm_work"));
             assertEquals("v3: no LLM state yet", 0L, KgStore.queryLong(c, "SELECT count(llm_status) + count(llm_hash) FROM kg_doc"));
@@ -159,6 +159,58 @@ public class KgStoreTest {
         this.store = KgStore.open(v1, this.cfg, this.guard, KgStore.SQLITE, System::currentTimeMillis);
         assertEquals(KgSchema.CURRENT_VERSION - 1L,
                 (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'")));
+    }
+
+    @Test
+    public void schemaV3IsMigratedToV4KeepingTheChangeFeedAndItsSequence() throws Exception {
+        this.store.close();
+        this.store = null;
+        final KgPaths v3 = new KgPaths(this.tmp.newFolder("v3"));
+        assertTrue(v3.dir.mkdirs());
+        try (Connection c = new org.sqlite.JDBC().connect("jdbc:sqlite:" + v3.db.getAbsolutePath(), new Properties());
+                Statement st = c.createStatement()) {
+            st.execute("PRAGMA auto_vacuum=INCREMENTAL");
+            st.execute("PRAGMA journal_mode=WAL");
+            for (final String ddl : KgSchema.DDL_V1) {
+                st.execute(ddl);
+            }
+            for (int v = 0; v < 2; v++) {
+                for (final String ddl : KgSchema.MIGRATIONS[v]) {
+                    st.execute(ddl);
+                }
+            }
+            st.execute("INSERT INTO kg_meta (key, value) VALUES ('" + KgSchema.META_SCHEMA_VERSION + "', '3'), ('"
+                    + KgSchema.META_EPOCH + "', '" + KgIds.newEpoch() + "'), ('" + KgSchema.META_CLEAN_SHUTDOWN + "', '1'), ('"
+                    + KgSchema.META_CHANGES_MIN_SEQ + "', '1')");
+            // the feed's sequence is ahead of its rows (the newest row was coalesced away): no cursor may move back
+            st.execute("INSERT INTO kg_change (seq, kind, public_id, op, scopes_now, scopes_seen, at) VALUES"
+                    + " (5, 1, 'kge_aaaaaaaaaaaaaaaaaaaa', 1, '1', '1', 10), (9, 2, 'kgs_aaaaaaaaaaaaaaaaaaaa', 2, '', '1,2', 11),"
+                    + " (12, 1, 'kge_bbbbbbbbbbbbbbbbbbbb', 1, '2', '2', 12)");
+            st.execute("DELETE FROM kg_change WHERE seq = 12");
+        }
+        this.store = KgStore.open(v3, this.cfg, this.guard, KgStore.SQLITE, System::currentTimeMillis);
+        assertEquals(4, this.store.schemaVersion());
+        this.store.read(c -> {
+            assertEquals(1L, KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'"));
+            assertEquals("the rows are copied with their sequence numbers", "5:1:1:1,9:2:2:1,2",
+                    KgStore.queryString(c, "SELECT group_concat(seq || ':' || kind || ':' || op || ':' || scopes_seen, ',') FROM"
+                            + " (SELECT * FROM kg_change ORDER BY seq)"));
+            assertEquals("the sequence is kept", 12L, KgStore.queryLong(c, "SELECT seq FROM sqlite_sequence WHERE name = 'kg_change'"));
+            assertEquals(0L, KgStore.queryLong(c, "SELECT count(*) FROM kg_meta WHERE key = 'migration_change_seq'"));
+            assertEquals(0L, KgStore.queryLong(c, "SELECT count(*) FROM kg_derived") + KgStore.queryLong(c, "SELECT count(*) FROM kg_doc_link"));
+            assertEquals(0L, KgStore.queryLong(c, "SELECT count(content_hash) FROM kg_doc"));
+            assertEquals(1L, KgStore.queryLong(c, "SELECT count(*) FROM sqlite_master WHERE name = 'kg_change_at'"));
+            assertEquals("ok", KgStore.queryString(c, "PRAGMA integrity_check"));
+            assertEquals("ok", KgStore.queryString(c, "PRAGMA foreign_key_check") == null ? "ok" : "violations");
+            return null;
+        });
+        this.store.write(WriteClass.SYSTEM, 0, c -> {
+            // the third kind (derived) is accepted, and the next change continues after the kept sequence
+            exec(c, "INSERT INTO kg_change (kind, public_id, op, scopes_now, scopes_seen, at) VALUES (3, 'kgd_aaaaaaaaaaaaaaaaaaaa', 1, '1', '1', 13)");
+            assertEquals(13L, KgStore.queryLong(c, "SELECT seq FROM kg_change WHERE kind = 3"));
+            return null;
+        });
+        expectConstraint(c -> exec(c, "INSERT INTO kg_change (kind, public_id, op, at) VALUES (4, 'kgd_bbbbbbbbbbbbbbbbbbbb', 1, 0)"));
     }
 
     @Test

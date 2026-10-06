@@ -708,6 +708,69 @@ public class SyncServiceTest {
     }
 
     @Test
+    public void theManualPauseStopsEnrichmentWhileDeletionsContinueAndTheResumeCatchesUp() throws Exception {
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        add("BBBBBBhost01", "https://www.muster.de/b", org("B GmbH", "030 2222222"));
+        add("CCCCCChost01", "https://www.muster.de/c", org("C GmbH", "030 3333333"));
+        commit();
+        settle();
+        // C is gone (404) before the pause; its facts are no longer current
+        final SolrInputDocument gone = doc("CCCCCChost01", "https://www.muster.de/c", "c1", null);
+        gone.setField("httpstatus_i", 404);
+        gone.setField("failtype_s", "fail");
+        client().add(gone);
+        settle();
+        assertEquals(3L, count("SELECT state FROM kg_doc WHERE doc_id = 'CCCCCChost01'"));
+        final String facts = "SELECT (SELECT count(*) FROM kg_entity) || '/' || (SELECT count(*) FROM kg_statement) || '/'"
+                + " || (SELECT count(*) FROM kg_evidence) || '/' || (SELECT count(*) FROM kg_statement WHERE quality = 1)";
+        final String before = strings(facts).get(0);
+
+        this.guard.setManualPause(true);
+        final long extractions = this.sync.counters.extractions.get();
+        add("NNNNNNhost01", "https://www.muster.de/n", org("N GmbH", "030 5555555")); // a new page
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 9999999")); // an update
+        add("CCCCCChost01", "https://www.muster.de/c", org("C GmbH", "030 3333333")); // back, same content
+        client().deleteById("BBBBBBhost01"); // a deletion
+        commit();
+        for (int i = 0; i < 40; i++) {
+            this.sync.step();
+            this.clock.addAndGet(3000L);
+        }
+        assertFalse("the deletion ran during the pause", tracked("BBBBBBhost01"));
+        assertFalse("no new page during the pause", tracked("NNNNNNhost01"));
+        assertEquals("no update during the pause", List.of("+49301111111", "+49303333333"), phones());
+        assertEquals("a page that is back stays as it was until the resume", 3L,
+                count("SELECT state FROM kg_doc WHERE doc_id = 'CCCCCChost01'"));
+        assertEquals("no extraction is even started", extractions, this.sync.counters.extractions.get());
+        final String during = strings(facts).get(0);
+        final long[] b = java.util.Arrays.stream(before.split("/")).mapToLong(Long::parseLong).toArray();
+        final long[] d = java.util.Arrays.stream(during.split("/")).mapToLong(Long::parseLong).toArray();
+        for (int i = 0; i < b.length; i++) {
+            assertTrue("no growth during the pause: " + before + " -> " + during, d[i] <= b[i]);
+        }
+        final org.json.JSONObject byType = this.sync.status().getJSONObject("lag").getJSONObject("byType");
+        assertEquals(byType.toString(), 1L, byType.getLong("new"));
+        assertEquals(byType.toString(), 2L, byType.getLong("update"));
+        assertEquals(byType.toString(), 0L, byType.getLong("delete"));
+        assertEquals(StorageGuard.MANUAL, this.sync.status().optString("growthRefusal"));
+        // the pause also survives more time: nothing moves
+        this.clock.addAndGet(10L * SyncService.GROWTH_RETRY_MILLIS);
+        for (int i = 0; i < 20; i++) {
+            this.sync.step();
+            this.clock.addAndGet(3000L);
+        }
+        assertEquals(during, strings(facts).get(0));
+
+        this.guard.setManualPause(false);
+        this.clock.addAndGet(SyncService.GROWTH_RETRY_MILLIS + 1000L);
+        settle();
+        assertTrue("the resume picks up the new page", tracked("NNNNNNhost01"));
+        assertEquals(List.of("+49303333333", "+49305555555", "+49309999999"), phones());
+        assertEquals(1L, count("SELECT state FROM kg_doc WHERE doc_id = 'CCCCCChost01'"));
+        assertTrue(this.sync.counters.extractions.get() > extractions);
+    }
+
+    @Test
     public void closedGatesDeferExtractionButNotRemovals() throws Exception {
         final AtomicInteger indexing = new AtomicInteger();
         final Gates.Probe busy = new Gates.Probe() {

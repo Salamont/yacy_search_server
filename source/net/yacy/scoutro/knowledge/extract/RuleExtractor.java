@@ -42,11 +42,15 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * e-mail addresses that may be a person's ({@link Normalizers#roleEmail}).
  * Every claim keeps its text location ({@code text:offset+length}) and an
  * excerpt of at most {@code maxExcerpt} characters.
+ * <p>
+ * Version 3 (vocabulary 2) adds the business rules ({@link BusinessRules})
+ * for the page's organisation: services, prices, relations, industry,
+ * contacts, jobs and audiences, and the places of addresses.
  */
 public final class RuleExtractor {
 
     public static final String NAME = "rule";
-    public static final String VERSION = "2";
+    public static final String VERSION = "3";
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;
@@ -96,10 +100,12 @@ public final class RuleExtractor {
 
     private final int maxExcerpt;
     private final int maxInput;
+    private final BusinessRules business;
 
     public RuleExtractor(final int maxExcerpt, final int maxInput) {
         this.maxExcerpt = maxExcerpt;
         this.maxInput = maxInput;
+        this.business = new BusinessRules(maxExcerpt);
     }
 
     /** True if tier 2 reads the text of this page (imprint, contact and similar paths or titles, home page, pages with structured data). */
@@ -116,7 +122,7 @@ public final class RuleExtractor {
         if (path == null || path.isEmpty() || "/".equals(path) || path.matches("(?i)^/(?:index\\.(?:html?|php)|home|start|de|en)/?$")) {
             return true;
         }
-        if (CANDIDATE_PATH.matcher(path).find()) {
+        if (CANDIDATE_PATH.matcher(path).find() || !BusinessRules.kinds(url, null).isEmpty()) {
             return true;
         }
         if (titles != null) {
@@ -129,7 +135,14 @@ public final class RuleExtractor {
         return false;
     }
 
+    /** Tier 2 without the business rules (the imprint and contact rules of version 2). */
     public void extract(final String fullText, final String url, final String host, final String language, final Extraction out) {
+        extract(fullText, url, host, language, out, null, null, null);
+    }
+
+    /** Tier 2 with the business rules of vocabulary 2 (titles and outbound links as Solr has them). */
+    public void extract(final String fullText, final String url, final String host, final String language, final Extraction out,
+            final ExtractContext ctx, final List<String> titles, final List<String> outbound) {
         if (fullText == null || fullText.isEmpty()) {
             return;
         }
@@ -137,10 +150,21 @@ public final class RuleExtractor {
         final String cc = Normalizers.countryCallingCode(host, language);
         final Matcher marker = IMPRINT_MARKER.matcher(text);
         final List<Mention> subjects = out.subjects(1);
-        if (marker.find()) {
+        final boolean imprint = marker.find();
+        if (imprint) {
             imprint(text, marker.end(), cc, out);
         } else if (subjects.size() == 1) {
             contact(text, 0, text.length(), cc, out, subjects.get(0));
+        }
+        if (ctx != null) {
+            final java.util.Set<BusinessRules.PageKind> kinds = BusinessRules.kinds(url, titles);
+            if (imprint) {
+                kinds.add(BusinessRules.PageKind.IMPRINT);
+            }
+            final Mention subject = BusinessRules.subject(out, out.mention(OPERATOR_REF));
+            this.business.extract(text, url, host, language, outbound, out, ctx, kinds, subject);
+            BusinessFacts.ownPlaces(out, host, 2);
+            BusinessFacts.industriesFromServices(out, ctx, 2, this.maxExcerpt);
         }
         out.ranTier(2);
     }

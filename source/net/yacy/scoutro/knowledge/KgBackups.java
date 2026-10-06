@@ -73,6 +73,13 @@ final class KgBackups {
     private volatile long lastBackupAt;
     private volatile long nextAttemptAt;
 
+    private volatile Runnable afterVerified;
+
+    /** Runs on the backup thread after every verified backup; must not throw. */
+    void afterVerified(final Runnable r) {
+        this.afterVerified = r;
+    }
+
     KgBackups(final Supplier<KgStore> store, final KgPaths paths, final KgConfig cfg, final StorageGuard guard, final LongSupplier clock,
             final Events events, final long lastBackupAt, final long createdAt) {
         this.store = store;
@@ -182,6 +189,10 @@ final class KgBackups {
                     "removed", new JSONArray(removed));
             this.events.record(1, "backup_created", name + " (" + target.length() + " bytes, " + took + " ms, " + trigger + ")");
             LOG.info("knowledge graph backup " + name + " written in " + took + " ms");
+            final Runnable after = this.afterVerified;
+            if (after != null) {
+                after.run(); // e.g. ends the wait of an upgrade without its copy
+            }
         } catch (final KgException e) {
             deleteQuietly(partial);
             final boolean refused = KgException.WRITE_REFUSED.equals(e.code());
@@ -247,7 +258,8 @@ final class KgBackups {
         for (final File f : KgBackup.list(this.paths.backup)) {
             final JSONObject meta = KgBackup.readMeta(f);
             items.put(KgJson.obj("file", f.getName(), "kind", KgBackup.safety(f.getName())
-                    ? (f.getName().contains(KgBackup.BEFORE_REBUILD) ? "before_rebuild" : "before_restore") : "backup",
+                    ? (f.getName().contains(KgBackup.BEFORE_REBUILD) ? "before_rebuild" : KgBackup.beforeUpgrade(f.getName()) ? "before_upgrade"
+                            : "before_restore") : "backup",
                     "bytes", f.length(), "created_at", meta == null ? null : meta.opt("created_at"),
                     "sha256", meta == null ? null : meta.opt("sha256"), "metadata", meta != null,
                     "kg_schema_version", meta == null ? null : meta.opt("kg_schema_version"),

@@ -563,19 +563,24 @@ is ever written to Solr.
 | Route | Access | Purpose |
 |---|---|---|
 | `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable |
-| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"`, `"llm_retry"`, `"backup"`, `"restore"` (with `"backup": "<file>"`), `"rebuild"`, `"rebuild_cancel"` or `"rebuild_confirm"` |
+| `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"`, `"llm_retry"`, `"backup"`, `"restore"` (with `"backup": "<file>"`), `"rebuild"`, `"rebuild_cancel"`, `"rebuild_confirm"` or `"derive"` (recompute the derived layer now; 409 `derived_unavailable` while it is off) |
 | `GET /scoutro/api/v1/kg/backups` | administrator (Digest) | The backup files with their metadata (`scoutro.kg.backup.v1`), newest first |
 | `GET /scoutro/api/v1/kg/backups/{file}` | administrator only, never an agent | One backup as a SQLite file (`application/vnd.sqlite3`), to keep it outside the app |
-| `GET /scoutro/api/v1/kg/entities?q&type&host&quality&offset&limit&collection` | administrator (Digest) | Entities, newest first (`scoutro.kg.v1`) |
+| `GET /scoutro/api/v1/kg/entities?q&type&host&quality&industry&category&audience&offset&limit&collection` | administrator (Digest) | Entities, newest first (`scoutro.kg.v1`); `industry` a NACE Rev. 2.1 / WZ 2025 code or prefix (`43`, `43.22`), `category` a service category or group, `audience` a customer type, segment or company size; `type` also `job` |
 | `GET /scoutro/api/v1/kg/entities/{id}` | administrator | One entity, or `{"redirect": id}` after a merge |
 | `GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out\|in&predicate&include=stale&offset&limit&collection` | administrator | Facts and relations |
 | `GET /scoutro/api/v1/kg/statements/{id}` and `.../evidence?offset&limit&collection` | administrator | One statement and its evidence (≤ 50 per page) |
 | `GET /scoutro/api/v1/kg/hosts/{host}/entities?offset&limit&collection` | administrator | Entities of a host (SEO tab, Index Browser) |
 | `GET /scoutro/api/v1/kg/sources/{docId}?offset&limit&collection` | administrator | What the graph holds from one page |
+| `GET /scoutro/api/v1/kg/entities/{id}/business?include=hidden_jobs&collection` | administrator | The object view in sections: industry (main, secondary, categories), services, prices with as-of, staleness, validity and conflicts, contacts, relations both ways, jobs (ended ones visible for `jobs.endedVisibleDays`), the audience layers declared/observed/suggested, suggested matches, sources |
+| `GET /scoutro/api/v1/kg/entities/{id}/neighborhood?depth&limit&offset&types&weak&derived&suggested&values&include&collection` | administrator | Nodes and typed, directed edges with status, confidence and evidence count, depth 1 or 2, paged for "more"; weak (`linked_to`) and suggested edges only on request. There is no route for the whole graph |
+| `GET /scoutro/api/v1/kg/compare?category&limit&collection` | administrator | One service category across providers: every price as published with conditions, date and sources, never averaged |
+| `GET /scoutro/api/v1/kg/derived?kind&entity&offset&limit&collection` | administrator | Derived rows (`linked_to`, `same_operator`, `suggested_customer`, `suggested_partner`), never facts; a row only with both of its collections |
+| `GET /scoutro/api/v1/kg/facets?collection` | administrator | The industries, categories and audiences of the visible graph, for the entity filters |
 | `GET /scoutro/api/v1/kg/export?cursor&limit&include=evidence&collection` | administrator | Export pages: entities, then statements (`limit` 1–200) |
 | `GET /scoutro/api/v1/kg/changes?cursor&limit&expand&collection` | administrator | Change feed with delete notices (`limit` 1–1000, 1–100 with `expand=true`) |
 | `GET /scoutro/api/v1/kg/export/download?format=ndjson\|json&include=evidence&collection` | administrator only, never an agent | The whole export as one streamed download |
-| `GET /scoutro/api/agent/v1/kg/{entities,statements,hosts,sources}/…` | agent with `kg.read` | The read routes for the agent's collections |
+| `GET /scoutro/api/agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `…/kg/compare`, `…/kg/derived`, `…/kg/facets` | agent with `kg.read` | The read routes for the agent's collections; derived rows only with both of their collections |
 | `GET /scoutro/api/agent/v1/kg/export`, `…/kg/changes` | agent with `kg.export` | Export pages and change feed for the agent's collections |
 
 - **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
