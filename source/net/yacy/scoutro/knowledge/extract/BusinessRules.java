@@ -401,7 +401,7 @@ public final class BusinessRules {
             + "|federation|council|chamber|foundation)");
     private static final Pattern ASSOCIATION = Pattern.compile("(?iu)verband|verbandes|innung|kammer|bund\\b|association|federation|chamber"
             + "|council|netzwerk|arbeitsgemeinschaft|vereinigung");
-    private static final Pattern ITEM_SPLIT = Pattern.compile("\\s*(?:[,;•|·\\n]|\\.\\s+|\\s+und\\s+|\\s+sowie\\s+|\\s+and\\s+|\\s+&\\s+(?=\\p{Lu}\\p{L}+\\s))\\s*");
+    private static final Pattern ITEM_SPLIT = Pattern.compile("\\s*(?:[,;•|·\\n]|(?<![\\s.]\\p{L})(?<!Co)\\.\\s+|\\s+und\\s+|\\s+sowie\\s+|\\s+and\\s+|\\s+&\\s+(?=\\p{Lu}\\p{L}+\\s))\\s*");
     private static final Pattern STOP_WORDS = Pattern.compile("(?iu)^(?:der|die|das|den|dem|des|the|a|an|unser(?:e|em|en|er)?|our|ein(?:e|em|en|er)?)\\s+");
     /** A word that ends a list: the next sentence starts. */
     private static final Pattern NOT_A_NAME = Pattern.compile("(?iu)^(?:wir|sie|ich|es|mehr|weitere|alle|unsere?|hier|jetzt|kontakt|impressum"
@@ -486,17 +486,39 @@ public final class BusinessRules {
         final Matcher sp = ITEM_SPLIT.matcher(text).region(from, to);
         int start = from;
         int misses = 0;
+        boolean afterSentence = false;
         while (start < to && misses < 3 && out.size() < 20) {
             final int stop;
             final int next;
+            final boolean sentence;
             if (sp.find()) {
                 stop = sp.start();
                 next = sp.end();
+                final String sep = sp.group().trim();
+                sentence = sep.startsWith(".") || sp.group().indexOf('\n') >= 0;
             } else {
                 stop = to;
                 next = to;
+                sentence = false;
             }
-            final String item = text.substring(start, stop).trim();
+            String item = text.substring(start, stop).trim();
+            if (afterSentence && SENTENCE_START.matcher(item).find()) {
+                break; // a new sentence ("Die ... GmbH ist ..."), not a list item
+            }
+            final Matcher form = LEGAL_FORM.matcher(item);
+            if (form.find()) {
+                item = item.substring(0, form.end()); // a name ends with its legal form; the next sentence is not part of it
+            } else {
+                // the last item of a sentence carries its predicate: "Bosch vertrauen uns" names "Bosch"
+                final Matcher tail = PREDICATE_TAIL.matcher(item);
+                if (tail.find()) {
+                    item = item.substring(0, tail.start()).trim();
+                }
+                item = item.replaceAll("[.!?,;]+$", "").trim(); // the end of the text is no part of the name
+            }
+            if (item.indexOf(':') >= 0) {
+                break; // the next heading or marker: the list has ended
+            }
             if (!item.isEmpty()) {
                 final int lead = text.indexOf(item, start);
                 if (qualifies(item, true)) {
@@ -506,12 +528,23 @@ public final class BusinessRules {
                     misses = 0;
                 } else {
                     misses++;
+                    if (sentence || afterSentence) {
+                        break; // a sentence that starts or ends without an organisation ends the list
+                    }
                 }
             }
+            afterSentence = sentence;
             start = next;
         }
         return out;
     }
+
+    /** Lower-case words to the end of the item, without any capitalised word: a predicate, not part of a name. */
+    private static final Pattern PREDICATE_TAIL = Pattern.compile("(?<=\\S)\\s+\\p{Ll}[\\p{Ll}\\-]*(?:\\s+\\p{Ll}[\\p{Ll}\\-]*)*\\s*[.!]?$");
+
+    /** A sentence, not a list item, starts with an article, a pronoun or a preposition. */
+    private static final Pattern SENTENCE_START = Pattern.compile("^(?:Die|Der|Das|Den|Dem|Des|Ein|Eine|Wir|Sie|Es|Er|Ihr|Ihre|Unser|Unsere"
+            + "|Seit|Mit|Als|In|Auf|Für|Bei|Durch|Zu|Zur|Zum|Nach|Von|Vom|Im|Am|Hier|Damit|Dabei|Auch|So|Und|The|We|Our|With|In)\\s");
 
     /** An organisation name: a legal form, an institution word, or (in a list) a one-word brand; never two plain capitalised words. */
     static boolean qualifies(final String item, final boolean list) {
@@ -611,7 +644,8 @@ public final class BusinessRules {
         final Matcher dep = DEPARTMENT.matcher(run.text);
         int points = 0;
         while (dep.find() && points < 8) {
-            final int to = Math.min(run.text.length(), dep.end() + 100);
+            // the department's own clause only: the next sentence may be a person's line
+            final int to = Values.clauseEnd(run.text, dep.end(), Math.min(run.text.length(), dep.end() + 100));
             if (personBetween(run.text, dep.start(), to)) {
                 continue; // a department with a named person: the person's line is not kept
             }
@@ -671,6 +705,10 @@ public final class BusinessRules {
             + "((?:[0-3]?[0-9]\\.\\s?[01]?[0-9]\\.\\s?20[0-9]{2})|20[0-9]{2}-[01][0-9]-[0-3][0-9])");
     private static final Pattern APPLY_ONLINE = Pattern.compile("(?iu)\\b(?:online\\s+bewerben|jetzt\\s+bewerben|bewerbungsformular|apply\\s+now|apply\\s+online)\\b");
     private static final Pattern SALARY_WORD = Pattern.compile("(?iu)\\b(?:gehalt|vergütung|verguetung|lohn|stundenlohn|brutto|salary|pay|entgelt|tvöd|tv-l|avr)\\b");
+    /** Words before a title that are not part of it ("Wir suchen", "Gesucht:"). */
+    private static final Pattern JOB_LEAD = Pattern.compile("(?iu)^(?:(?:zur\\s+verstärkung\\s+(?:unseres\\s+teams\\s+)?)?(?:suchen\\s+wir|wir\\s+suchen)"
+            + "(?:\\s+(?:ab\\s+sofort|zum\\s+nächstmöglichen\\s+zeitpunkt|für\\s+unser(?:e|en)?\\s+\\S+|eine?n?))*|gesucht(?:\\s+wird)?"
+            + "|stellenangebot|wir\\s+stellen\\s+ein|we\\s+are\\s+hiring)\\s*:?\\s*");
     private static final Pattern WORK_PLACE = Pattern.compile("(?iu)\\b(?:standort|einsatzort|arbeitsort|location)\\s*:?\\s*(\\p{Lu}[\\p{L}\\-]{2,40})");
 
     private void jobs(final Run run) {
@@ -685,7 +723,7 @@ public final class BusinessRules {
         final Set<String> seen = new LinkedHashSet<>();
         for (int i = 0; i < titles.size(); i++) {
             final int[] t = titles.get(i);
-            final String title = run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim();
+            final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
             final String key = Normalizers.key(title);
             if (key == null || !seen.add(key) || BusinessFacts.personLike(title)) {
                 continue;

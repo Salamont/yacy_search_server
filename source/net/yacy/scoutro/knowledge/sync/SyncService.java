@@ -808,7 +808,7 @@ public final class SyncService {
         return this.retention;
     }
 
-    boolean initialized() {
+    public boolean initialized() {
         return this.initialized;
     }
 

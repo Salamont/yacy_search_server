@@ -199,7 +199,7 @@ public final class Values {
 
     // ----------------------------------------------------------------- units
 
-    private static final Pattern UNIT = Pattern.compile("(?iu)^[\\s,]*(?:"
+    private static final Pattern UNIT = Pattern.compile("(?iu)^[\\s,]*(?:(?:brutto|netto|gross|net)\\s+)?(?:"
             + "(?<hour>/\\s?(?:std\\.?|stunde|h|hour|hr)\\b|(?:pro|je|per|die|a|an)\\s+(?:stunde|std\\.?|hour)\\b|stündlich|hourly|/\\s?h\\b)"
             + "|(?<day>/\\s?(?:tag|day)\\b|(?:pro|je|per|am|a)\\s+(?:tag|day)\\b|täglich|daily|tagessatz)"
             + "|(?<week>/\\s?(?:woche|week|wk)\\b|(?:pro|je|per|die|a)\\s+(?:woche|week)\\b|wöchentlich|weekly)"
@@ -474,14 +474,16 @@ public final class Values {
         return from;
     }
 
-    private static final Pattern ABBREVIATION = Pattern.compile("(?iu)(?:zzgl|inkl|exkl|ca|mtl|max|min|bzw|ggf|evtl|z\\.b|u\\.a|std|stk|p\\.a|p\\.m|nr|tel|str|incl|excl|approx|sfr|fr)$");
+    private static final Pattern ABBREVIATION = Pattern.compile("(?iu)(?:zzgl|inkl|exkl|ca|mtl|max|min|bzw|ggf|evtl|z\\.b|u\\.a|std|stk|p\\.a|p\\.m|nr|tel|str|incl|excl|approx|sfr|fr|co|gebr|dr|prof)$");
 
     private static boolean abbreviationBefore(final String text, final int dot) {
         int s = dot;
         while (s > 0 && (Character.isLetter(text.charAt(s - 1)) || text.charAt(s - 1) == '.')) {
             s--;
         }
-        return ABBREVIATION.matcher(text.substring(s, dot)).find() || s < dot && dot - s == 1;
+        final String word = text.substring(s, dot);
+        // "e.V.", "e.K.", "S.A.", "Co.": a legal form or an abbreviation does not end the sentence
+        return ABBREVIATION.matcher(word).find() || s < dot && dot - s == 1 || word.matches("(?:\\p{L}\\.)+\\p{L}");
     }
 
     /** "Stand: 01/2026" on the page: the date as {@code yyyy-mm} or {@code yyyy-mm-dd}, or null. Only if stated once. */

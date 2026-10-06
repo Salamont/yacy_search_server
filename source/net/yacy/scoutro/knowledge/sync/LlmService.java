@@ -548,8 +548,9 @@ public final class LlmService {
             cachePut(key, m, status, value);
         }
         final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d);
         for (final JSONObject a : accepted) {
-            LlmExtractor.apply(a, known, ex);
+            LlmExtractor.apply(a, known, ex, ctx);
         }
         ex.ranTier(LlmExtractor.TIER);
         publish(item, d, row, ex, keys, m);

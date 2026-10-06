@@ -79,6 +79,14 @@ public final class KgVocabularies {
         snapshot = null;
     }
 
+    /** Sets the operator's override directory (graph start); reloads only if it changed. */
+    public static synchronized void overrides(final File overrides) {
+        if (overrides == null ? overridesDir != null : !overrides.equals(overridesDir)) {
+            overridesDir = overrides;
+            snapshot = null;
+        }
+    }
+
     /** The snapshot in force, loaded on first use. */
     public static Snapshot get() {
         Snapshot s = snapshot;

@@ -191,7 +191,13 @@ public final class JsonLdExtractor {
         String type = null;
         String schemaType = null;
         boolean page = false;
-        for (final String t : JsonLdBlocks.types(o)) {
+        final List<String> declared = JsonLdBlocks.types(o);
+        for (final String t : declared) {
+            if ("person".equals(bare(t)) || "patient".equals(bare(t))) {
+                return null; // persons are never entities (O7), whatever property names them
+            }
+        }
+        for (final String t : declared) {
             final String g = Vocabulary.typeOf(t);
             if (g != null && (type == null || rank(g) > rank(type))) {
                 type = g;
@@ -203,7 +209,8 @@ public final class JsonLdExtractor {
             pageNode(run, o, p, depth);
             return null;
         }
-        if (type == null) {
+        if (type == null && (declared.isEmpty() || Vocabulary.SITE.equals(forcedType) || Vocabulary.SERVICE.equals(forcedType))) {
+            // a typeless node takes the type its property implies; a node of an unknown type only as a site or service
             type = forcedType;
         }
         if (type == null) {
@@ -492,9 +499,11 @@ public final class JsonLdExtractor {
                 }
             }
         }
-        for (final Object v : values(o.opt("makesOffer"))) {
-            if (v instanceof JSONObject) {
-                offer(run, m, (JSONObject) v, p + "/makesOffer", depth + 1);
+        final List<Object> offers = values(o.opt("makesOffer"));
+        for (int i = 0; i < offers.size(); i++) {
+            if (offers.get(i) instanceof JSONObject) {
+                // each offer has its own path: several offers are several services (version 2 fix: they collapsed into one)
+                offer(run, m, (JSONObject) offers.get(i), p + "/makesOffer" + (offers.size() == 1 ? "" : "/" + i), depth + 1);
             }
         }
         final Object catalog = o.opt("hasOfferCatalog");
@@ -797,10 +806,12 @@ public final class JsonLdExtractor {
                 name = string(ao.opt("name"));
                 final Object r = ao.opt("geoRadius");
                 if (r != null) {
-                    final double km = number(r instanceof JSONObject ? ((JSONObject) r).opt("value") : r);
-                    if (!Double.isNaN(km) && km > 0 && km < 5000) {
-                        // schema.org geoRadius is in metres when it is a bare number
-                        radius = Long.toString(Math.round(r instanceof JSONObject ? km : km / 1000.0));
+                    final double raw = number(r instanceof JSONObject ? ((JSONObject) r).opt("value") : r);
+                    // schema.org geoRadius is in metres when it is a bare number; a QuantitativeValue states its unit
+                    final String unit = r instanceof JSONObject ? string(((JSONObject) r).opt("unitCode")) : null;
+                    final double km = r instanceof JSONObject && unit != null && unit.equalsIgnoreCase("KMT") ? raw : raw / 1000.0;
+                    if (!Double.isNaN(km) && km >= 1 && km < 5000) {
+                        radius = Long.toString(Math.round(km));
                     }
                 }
                 final Object mid = ao.opt("geoMidpoint");

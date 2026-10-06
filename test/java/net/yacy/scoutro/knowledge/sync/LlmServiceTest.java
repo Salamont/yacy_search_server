@@ -297,7 +297,7 @@ public class LlmServiceTest {
                 + " JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'name' AND s.obj_val = 'Muster Pflege gGmbH'"));
         assertEquals("the planned facility is hedged", List.of("2"), strings("SELECT e.certainty FROM kg_evidence e JOIN kg_statement s"
                 + " ON s.stmt_rowid = e.stmt_rowid JOIN kg_statement n ON n.subj = s.obj_ent AND n.obj_val = 'Haus Am See' WHERE e.tier = 3"));
-        assertEquals("provenance: model and prompt of the extractor", List.of("llm|1|TEST/fixture|" + LlmExtractor.PROMPT_HASH),
+        assertEquals("provenance: model and prompt of the extractor", List.of("llm|" + LlmExtractor.VERSION + "|TEST/fixture|" + LlmExtractor.PROMPT_HASH),
                 strings("SELECT DISTINCT x.name || '|' || x.version || '|' || x.model || '|' || x.prompt_hash FROM kg_evidence e"
                         + " JOIN kg_extractor x ON x.ext_id = e.ext_id WHERE e.tier = 3"));
         assertTrue(strings("SELECT excerpt FROM kg_evidence WHERE tier = 3").contains("Die Muster Pflege gGmbH betreibt das Haus Lindenhof"));

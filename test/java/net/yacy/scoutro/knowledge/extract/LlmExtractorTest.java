@@ -224,4 +224,69 @@ public class LlmExtractorTest {
         assertTrue(LlmExtractor.chunks(null, 100).isEmpty());
         assertTrue(LlmExtractor.chunks("", 100).isEmpty());
     }
+
+    static final String PRICE_TEXT = "Die Muster Pflege gGmbH betreibt das Haus Lindenhof. Das Haus Lindenhof bietet Kurzzeitpflege an,"
+            + " Kurzzeitpflege ab 89,90 € pro Tag. Partner ist die Beispiel Software GmbH.";
+
+    @Test
+    public void valuesAreReadFromTheQuoteNeverFromTheModel() throws Exception {
+        final LlmExtractor.Chunk chunk = LlmExtractor.chunks(PRICE_TEXT, 12_000).get(0);
+        final String answer = "{\"entities\":["
+                + "{\"id\":\"e1\",\"type\":\"facility\",\"name\":\"Haus Lindenhof\",\"quote\":\"betreibt das Haus Lindenhof\"},"
+                + "{\"id\":\"e2\",\"type\":\"service\",\"name\":\"Kurzzeitpflege\",\"quote\":\"Das Haus Lindenhof bietet Kurzzeitpflege an\"},"
+                + "{\"id\":\"e3\",\"type\":\"organization\",\"name\":\"Beispiel Software GmbH\",\"quote\":\"Partner ist die Beispiel Software GmbH\"}],"
+                + "\"claims\":[{\"subject\":\"e1\",\"predicate\":\"offers\",\"object\":\"e2\",\"quote\":\"Das Haus Lindenhof bietet Kurzzeitpflege an\"},"
+                + "{\"subject\":\"k1\",\"predicate\":\"partner_of\",\"object\":\"e3\",\"quote\":\"Die Muster Pflege gGmbH betreibt das Haus"
+                + " Lindenhof. Das Haus Lindenhof bietet Kurzzeitpflege an, Kurzzeitpflege ab 89,90 € pro Tag. Partner ist die Beispiel Software GmbH\"}],"
+                + "\"values\":["
+                + "{\"subject\":\"e2\",\"predicate\":\"price\",\"quote\":\"Kurzzeitpflege ab 89,90 € pro Tag\"},"
+                // the model invents a price: not in the text
+                + "{\"subject\":\"e2\",\"predicate\":\"price\",\"quote\":\"Kurzzeitpflege ab 79 € pro Tag\"},"
+                // a quote without an amount and a currency is no price
+                + "{\"subject\":\"e2\",\"predicate\":\"price\",\"quote\":\"bietet Kurzzeitpflege an\"},"
+                // the model may not write the value itself
+                + "{\"subject\":\"e2\",\"predicate\":\"price\",\"quote\":\"Kurzzeitpflege ab 89,90 € pro Tag\",\"value\":\"59 EUR\"},"
+                + "{\"subject\":\"e2\",\"predicate\":\"category\",\"quote\":\"bietet Kurzzeitpflege an\"},"
+                // a salary is no fact of a service
+                + "{\"subject\":\"e2\",\"predicate\":\"salary\",\"quote\":\"Kurzzeitpflege ab 89,90 € pro Tag\"}]}";
+        final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, known(), Set.of());
+        assertNull(r.refused);
+        assertEquals("the price and the category", 2, r.values);
+        assertEquals("the invented price and the quote without an amount", 2, r.droppedUngrounded);
+        assertEquals("the value written by the model, the salary of a service", 2, r.droppedInvalid);
+        assertEquals(2, r.claims);
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(r.accepted, known(), ex, new ExtractContext(net.yacy.scoutro.knowledge.vocab.KgVocabularies.get(),
+                Set.of("care"), false, List.of("edelsenior-web")));
+        final java.util.List<String> got = new java.util.ArrayList<>();
+        for (final Claim c : ex.claims()) {
+            if (c.value != null && !Vocabulary.NAME.equals(c.predicate)) {
+                got.add(c.predicate + "=" + c.value + "@" + c.tier);
+            }
+        }
+        assertEquals(List.of("price={\"amount\":\"89.90\",\"currency\":\"EUR\",\"kind\":\"from\",\"unit\":\"day\"}@3",
+                "category=care/kurzzeitpflege@3", "industry=87.10@3", "industry_category=care.stationaer@3"), got);
+        // tier 3 is never a supported fact: the reader keeps it uncertain (KgReaderTest)
+    }
+
+    @Test
+    public void aJobOfTheModelNeedsJobsSwitchedOn() throws Exception {
+        final String text = "Wir suchen eine Pflegefachkraft (m/w/d) für das Haus Lindenhof der Muster Pflege gGmbH.";
+        final LlmExtractor.Chunk chunk = LlmExtractor.chunks(text, 12_000).get(0);
+        final String answer = "{\"entities\":[{\"id\":\"j1\",\"type\":\"job\",\"name\":\"Pflegefachkraft (m/w/d)\",\"quote\":"
+                + "\"Wir suchen eine Pflegefachkraft (m/w/d)\"}],\"claims\":[{\"subject\":\"j1\",\"predicate\":\"hiring_organization\","
+                + "\"object\":\"k1\",\"quote\":\"Pflegefachkraft (m/w/d) für das Haus Lindenhof der Muster Pflege gGmbH\"}],\"values\":[]}";
+        final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, known(), Set.of());
+        assertEquals(1, r.entities);
+        assertEquals(1, r.claims);
+        final Extraction off = new Extraction(100);
+        LlmExtractor.apply(r.accepted, known(), off, new ExtractContext(net.yacy.scoutro.knowledge.vocab.KgVocabularies.get(),
+                Set.of("care"), false, List.of("edelsenior-web")));
+        assertTrue(off.mentions().stream().noneMatch(m -> Vocabulary.JOB.equals(m.type)));
+        final Extraction on = new Extraction(100);
+        LlmExtractor.apply(r.accepted, known(), on, new ExtractContext(net.yacy.scoutro.knowledge.vocab.KgVocabularies.get(),
+                Set.of("care"), true, List.of("edelsenior-web")));
+        assertEquals(1, on.mentions().stream().filter(m -> Vocabulary.JOB.equals(m.type)).count());
+        assertEquals(1, on.claims().stream().filter(c -> Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)).count());
+    }
 }
