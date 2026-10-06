@@ -1,0 +1,1678 @@
+{
+ "one_model_for_all_tasks": true,
+ "tasks": {
+  "887e7d9e4fa6": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5905
+   }
+  ],
+  "a7df4ef66a67": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4905
+   }
+  ],
+  "fa04ef2294f0": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5757
+   }
+  ],
+  "68587c7a5c32": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2548
+   }
+  ],
+  "0f373dfe7fbc": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6277
+   }
+  ],
+  "7810b6f7bbaf": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4252
+   }
+  ],
+  "5b57b9a41714": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4688
+   }
+  ],
+  "f4979e195c18": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4950
+   }
+  ],
+  "56d84659dab9": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5073
+   }
+  ],
+  "0fed37859f8b": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4066
+   }
+  ],
+  "fcfd8bc2a004": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 7474
+   }
+  ],
+  "47fa80bc7857": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5838
+   }
+  ],
+  "ec481e3df5dd": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4709
+   }
+  ],
+  "281c47051a86": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3137
+   }
+  ],
+  "c1a7fdae229a": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4442
+   }
+  ],
+  "411f65adb2b3": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6576
+   }
+  ],
+  "7ae8605da764": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3114
+   }
+  ],
+  "21836ed9dcb5": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3984
+   }
+  ],
+  "f5bdcf0c2fbe": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4491
+   }
+  ],
+  "b3db2ff230b5": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5278
+   }
+  ],
+  "5d8aa2dfabe5": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4639
+   }
+  ],
+  "671941a310b8": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3177
+   }
+  ],
+  "ab69aff83534": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4682
+   }
+  ],
+  "dbe21b8f3727": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2544
+   }
+  ],
+  "01bd9a6eeb19": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4608
+   }
+  ],
+  "bf879b706f9f": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5714
+   }
+  ],
+  "880fa14d5861": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3775
+   }
+  ],
+  "39b067c3d6c5": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3237
+   }
+  ],
+  "3d6999d6a3bb": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5137
+   }
+  ],
+  "2dc2339b0a37": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3866
+   }
+  ],
+  "b1725d16027e": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3141
+   }
+  ],
+  "1bac61d751f2": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4334
+   }
+  ],
+  "46c3a73c20a7": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3474
+   }
+  ],
+  "edf17005c507": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4606
+   }
+  ],
+  "9dd0348faf1e": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5622
+   }
+  ],
+  "5c783c630bd6": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4226
+   }
+  ],
+  "0313535c5ed1": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6562
+   }
+  ],
+  "20d97c67a025": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 7957
+   }
+  ],
+  "562d156fd230": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3301
+   }
+  ],
+  "cf3175c0e199": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4273
+   }
+  ],
+  "dedb37ee2720": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 7025
+   }
+  ],
+  "2916153953d5": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2933
+   }
+  ],
+  "b473406ea6b7": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4226
+   }
+  ],
+  "bfb6f536a36f": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3954
+   }
+  ],
+  "d23b1cf8dbe5": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4134
+   }
+  ],
+  "3da16734e823": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4525
+   }
+  ],
+  "9dd9653be01f": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3351
+   }
+  ],
+  "39371611a3bf": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4920
+   }
+  ],
+  "9bba85ba6183": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6072
+   }
+  ],
+  "622d3e6389d3": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4263
+   }
+  ],
+  "a199e857dbec": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5547
+   }
+  ],
+  "b7d06cae6db9": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 7257
+   }
+  ],
+  "1bda6ab02029": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4108
+   }
+  ],
+  "2014f9c73fa6": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4454
+   }
+  ],
+  "863c4410e555": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4204
+   }
+  ],
+  "462af83b8337": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4124
+   }
+  ],
+  "f3638f8515ea": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4695
+   }
+  ],
+  "461df39fa7eb": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4785
+   }
+  ],
+  "7966c2f58355": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2467
+   }
+  ],
+  "ebdd5d394fa4": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5353
+   }
+  ],
+  "0f873877d57d": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4435
+   }
+  ],
+  "d40cb1c3e204": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4170
+   }
+  ],
+  "18e80bd805a2": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3943
+   }
+  ],
+  "88b8a7d62168": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3264
+   }
+  ],
+  "71dc97ea683c": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2685
+   }
+  ],
+  "b76cc10dd6bb": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5130
+   }
+  ],
+  "20a88e234c5c": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5580
+   }
+  ],
+  "b159adf5252a": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3621
+   }
+  ],
+  "7f89b84749c5": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5040
+   }
+  ],
+  "39a75d334af6": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4618
+   }
+  ],
+  "01276e9e04eb": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3955
+   }
+  ],
+  "8c1ca9fd8d65": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4579
+   }
+  ],
+  "d59eb2fcaa03": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5058
+   }
+  ],
+  "d3f081dfe754": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3423
+   }
+  ],
+  "08b1004dda26": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4439
+   }
+  ],
+  "dc3a5fb65e0e": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4214
+   }
+  ],
+  "d6fad99ee03b": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 7480
+   }
+  ],
+  "b0801dea330c": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 8197
+   }
+  ],
+  "5c7ca49ac2c2": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4658
+   }
+  ],
+  "72a1c1015af8": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5276
+   }
+  ],
+  "403f966c8e27": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4446
+   }
+  ],
+  "0aa2dd0e9f93": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3828
+   }
+  ],
+  "fb1f40985c38": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "Edit",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5305
+   }
+  ],
+  "50613065ca68": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2584
+   }
+  ],
+  "3a1d5a23fa06": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4918
+   }
+  ],
+  "403ed8a81ed1": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3937
+   }
+  ],
+  "644c1106b9eb": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2580
+   }
+  ],
+  "f60ebfc1244a": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4123
+   }
+  ],
+  "5a0fee14e6c6": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6064
+   }
+  ],
+  "6dc319aa135c": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4182
+   }
+  ],
+  "05f34fe6d576": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5299
+   }
+  ],
+  "00c6949804f2": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6638
+   }
+  ],
+  "a8b6af8f4613": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3005
+   }
+  ],
+  "9304b5caafcc": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 7987
+   }
+  ],
+  "072dbd1e416a": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4604
+   }
+  ],
+  "1d4fd46950be": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4255
+   }
+  ],
+  "78947c8d83ce": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3307
+   }
+  ],
+  "051bf1ca76f4": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5708
+   }
+  ],
+  "160326b134de": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 8651
+   }
+  ],
+  "935cf6316657": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5385
+   }
+  ],
+  "9089c7dc0ece": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3180
+   }
+  ],
+  "8eea95f9615b": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3825
+   }
+  ],
+  "0f4d976adfdb": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3242
+   }
+  ],
+  "475ae2e03527": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4623
+   }
+  ],
+  "45bceb233602": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4244
+   }
+  ],
+  "93f6dbfdf422": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4601
+   }
+  ],
+  "3a3ed0788cf0": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4467
+   }
+  ],
+  "79768201e966": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2400
+   }
+  ],
+  "4f1aecb9ab2d": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4954
+   }
+  ],
+  "5bb01f81f5f4": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6779
+   }
+  ],
+  "4f77ee4b532b": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5690
+   }
+  ],
+  "c0f6cc311658": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5451
+   }
+  ],
+  "026582260ee9": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3632
+   }
+  ],
+  "54a7b6589d74": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5055
+   }
+  ],
+  "234139d87d9a": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4105
+   }
+  ],
+  "3569fcaec42d": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3747
+   }
+  ],
+  "131f5c413e9b": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4047
+   }
+  ],
+  "d71601a6c122": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3738
+   }
+  ],
+  "a1e1996eccc1": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4527
+   }
+  ],
+  "50a4ec7b6d51": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2966
+   }
+  ],
+  "8c275140c068": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3858
+   }
+  ],
+  "917c704d8919": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 13510
+   }
+  ],
+  "f6b55ca4e7c4": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3552
+   }
+  ],
+  "f4a30328fb76": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2271
+   }
+  ],
+  "548dd7d8695b": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4926
+   }
+  ],
+  "9e3847a63c72": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4633
+   }
+  ],
+  "7be5d0ca388d": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3350
+   }
+  ],
+  "7e8dd96160f9": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4445
+   }
+  ],
+  "bef037e85368": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4393
+   }
+  ],
+  "5426b7814b26": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5086
+   }
+  ],
+  "9955d8a6273f": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3934
+   }
+  ],
+  "87e08179180f": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4756
+   }
+  ],
+  "f57b2f14b0f2": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5589
+   }
+  ],
+  "f11de698d667": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 7194
+   }
+  ],
+  "0be321075635": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2946
+   }
+  ],
+  "a02194ce90ef": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4092
+   }
+  ],
+  "1553178fcd77": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4743
+   }
+  ],
+  "1423ae698f24": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4568
+   }
+  ],
+  "547d2d94d95c": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4284
+   }
+  ],
+  "ce1578020b21": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6291
+   }
+  ],
+  "3e16ecfff614": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5256
+   }
+  ],
+  "05cc8edee971": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2910
+   }
+  ],
+  "a6ae97fbb263": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3966
+   }
+  ],
+  "da8291787921": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 5110
+   }
+  ],
+  "776ff818da64": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3826
+   }
+  ],
+  "c992b6475be1": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2861
+   }
+  ],
+  "aaef5c1a848d": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4931
+   }
+  ],
+  "439e94f9e598": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6618
+   }
+  ],
+  "0d4fb0b43b75": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 2881
+   }
+  ],
+  "541a7c0a04f9": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 4353
+   }
+  ],
+  "2cde86b36c16": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 6547
+   }
+  ],
+  "f0aa3e4dbe1a": [
+   {
+    "tools": [
+     "Read",
+     "Write",
+     "SubagentHandback"
+    ],
+    "rules_kept": true,
+    "generation_ms": 3867
+   }
+  ]
+ }
+}

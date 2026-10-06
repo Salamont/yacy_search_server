@@ -1,0 +1,351 @@
+{
+ "note": "Manual review of the package 6 runs. Reviewer: the Claude session that implemented package 6 (not a human, and the same model family as the answering model); a human review of a sample is still recommended. items: every flag the automatic scoring raised; sample: 28 of 136 answers (~20 %), 14 questions drawn with random.Random(6), both modes of one drawn repetition, read against catalog, context and sources.",
+ "items": [
+  {
+   "task": "c0f6cc311658",
+   "kind": "foreign_citation",
+   "value": "[5] sonnenhof-senioren.example",
+   "verdict": "correct",
+   "reason": "the answer says that [5] belongs to another provider; nothing about Lindenhof is taken from it."
+  },
+  {
+   "task": "ab69aff83534",
+   "kind": "foreign_citation",
+   "value": "[3] cloudwerk.example",
+   "verdict": "correct",
+   "reason": "cites CloudWerk's page for \"CloudWerk is a partner, not a customer\", which that page states."
+  },
+  {
+   "task": "9dd0348faf1e",
+   "kind": "foreign_citation",
+   "value": "[3] cloudwerk.example",
+   "verdict": "correct",
+   "reason": "same as above: the partnership is stated on CloudWerk's page."
+  },
+  {
+   "task": "9304b5caafcc",
+   "kind": "invented",
+   "value": "71,40 €",
+   "verdict": "derived",
+   "reason": "14 days x 5.10 € (95 € - 89.90 €), introduced as \"rechnerisch etwa\"; no fact claimed for a source."
+  },
+  {
+   "task": "917c704d8919",
+   "kind": "invented",
+   "value": "71,40 €",
+   "verdict": "derived",
+   "reason": "re-answer of Q14: again 14 days x 5.10 €, introduced as \"bei 14 Tagen sind das rund\"; no fact claimed for a source."
+  },
+  {
+   "task": "b76cc10dd6bb",
+   "kind": "imprecise",
+   "value": "31.08.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "2014f9c73fa6",
+   "kind": "imprecise",
+   "value": "31.08.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "fb1f40985c38",
+   "kind": "imprecise",
+   "value": "30.09.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "403ed8a81ed1",
+   "kind": "imprecise",
+   "value": "30.09.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "8c1ca9fd8d65",
+   "kind": "imprecise",
+   "value": "30.09.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "f0aa3e4dbe1a",
+   "kind": "imprecise",
+   "value": "30.09.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "f0aa3e4dbe1a",
+   "kind": "imprecise",
+   "value": "31.01.2024",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "fa04ef2294f0",
+   "kind": "imprecise",
+   "value": "30.09.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "fa04ef2294f0",
+   "kind": "imprecise",
+   "value": "31.01.2024",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "4f77ee4b532b",
+   "kind": "imprecise",
+   "value": "31.08.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  },
+  {
+   "task": "5bb01f81f5f4",
+   "kind": "imprecise",
+   "value": "31.08.2026",
+   "verdict": "confirmed",
+   "reason": "a day the page never stated: the page gives the month (Stand MM/YYYY), the chat facts of run 1 gave its last day as \"stated on the page\"; fixed in 339452a"
+  }
+ ],
+ "sample": [
+  {
+   "task": "541a7c0a04f9",
+   "question": "Q01",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "honest \"weiß ich nicht\": the context holds no phone number; the only contact it names, the careers address, is given with its page."
+  },
+  {
+   "task": "2916153953d5",
+   "question": "Q01",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "phone, fax and address exactly as the graph fact [4] states them."
+  },
+  {
+   "task": "1423ae698f24",
+   "question": "Q02",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "honest \"weiß ich nicht\"; the hint where the address might be is marked as a guess."
+  },
+  {
+   "task": "9dd9653be01f",
+   "question": "Q02",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "address and phone from the graph fact [2]; says correctly that the houses' addresses are missing."
+  },
+  {
+   "task": "863c4410e555",
+   "question": "Q05",
+   "mode": "off",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "honest \"weiß ich nicht\": no hours in the context."
+  },
+  {
+   "task": "88b8a7d62168",
+   "question": "Q05",
+   "mode": "on",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "hours Mo–Fr 08:00–16:00, phone and address from [2]; says what is missing (weekends)."
+  },
+  {
+   "task": "051bf1ca76f4",
+   "question": "Q06",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "operator right; says openly that the page only lists the house among \"unsere Häuser\"."
+  },
+  {
+   "task": "bfb6f536a36f",
+   "question": "Q06",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "operator from the graph fact; the house's own address and phone from its facility facts [5]."
+  },
+  {
+   "task": "7e8dd96160f9",
+   "question": "Q11",
+   "mode": "off",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "the three services of the page."
+  },
+  {
+   "task": "72a1c1015af8",
+   "question": "Q11",
+   "mode": "on",
+   "repetition": 1,
+   "verdict": "agrees, note",
+   "note": "the three services; also lists the graph's generic services \"Sanitär\" and \"Sanierung\" (from the heading words \"Heizung und Sanitär\" and \"Badsanierung\"), the latter as \"Sanierung allgemein\": not false, but a less precise duplicate the graph adds."
+  },
+  {
+   "task": "880fa14d5861",
+   "question": "Q12",
+   "mode": "off",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "149 € pauschal with Stand 09/2026."
+  },
+  {
+   "task": "403ed8a81ed1",
+   "question": "Q12",
+   "mode": "on",
+   "repetition": 1,
+   "verdict": "agrees, finding",
+   "note": "price right; repeats the graph's \"as of 2026-09-30\" as \"Stand den 30.09.2026\" although the page says only 09/2026: false precision from the chat facts, fixed after the run (ChatFacts gives the stated date as precise as the page)."
+  },
+  {
+   "task": "562d156fd230",
+   "question": "Q16",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "partner PflegeSoft GmbH from the page."
+  },
+  {
+   "task": "131f5c413e9b",
+   "question": "Q16",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "partner from page and graph, plus the inverse relation; no claim beyond the sources."
+  },
+  {
+   "task": "d40cb1c3e204",
+   "question": "Q17",
+   "mode": "off",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "Innung SHK Köln, notes it is a self-statement."
+  },
+  {
+   "task": "d23b1cf8dbe5",
+   "question": "Q17",
+   "mode": "on",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "Innung from page and graph; contact data from [2] correct."
+  },
+  {
+   "task": "cf3175c0e199",
+   "question": "Q19",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "ISO 27001, notes it is a self-statement."
+  },
+  {
+   "task": "93f6dbfdf422",
+   "question": "Q19",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "ISO 27001 from page and graph."
+  },
+  {
+   "task": "0aa2dd0e9f93",
+   "question": "Q22",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "care facilities, nationwide, business customers only."
+  },
+  {
+   "task": "f57b2f14b0f2",
+   "question": "Q22",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "B2B, care facilities, national; adds the target industry NACE 87.10 the graph states."
+  },
+  {
+   "task": "20a88e234c5c",
+   "question": "Q24",
+   "mode": "off",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "job, salary range gross monthly, deadline; separates care prices from salaries."
+  },
+  {
+   "task": "00c6949804f2",
+   "question": "Q24",
+   "mode": "on",
+   "repetition": 1,
+   "verdict": "agrees",
+   "note": "same job facts; \"Stand 06.10.2026\" is the day the graph last confirmed the job, as the context says."
+  },
+  {
+   "task": "b1725d16027e",
+   "question": "Q25",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "deadline 30.11.2026 and 20 € per hour."
+  },
+  {
+   "task": "0fed37859f8b",
+   "question": "Q25",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "same facts from page and graph."
+  },
+  {
+   "task": "71dc97ea683c",
+   "question": "Q30",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "79 € per day, Stand 01/2024."
+  },
+  {
+   "task": "fa04ef2294f0",
+   "question": "Q30",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees, finding",
+   "note": "79 € with Stand 01/2024, marked outdated, current 95 € named; also repeats the graph's day \"31.01.2024\" and \"30.09.2026\" (same false-precision finding, fixed)."
+  },
+  {
+   "task": "0f873877d57d",
+   "question": "Q32",
+   "mode": "off",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "correct \"weiß ich nicht\", no price invented."
+  },
+  {
+   "task": "5bb01f81f5f4",
+   "question": "Q32",
+   "mode": "on",
+   "repetition": 2,
+   "verdict": "agrees",
+   "note": "correct \"weiß ich nicht\"; the other prices are named as not applicable to a single room."
+  }
+ ],
+ "findings": [
+  "False precision of stated price dates: the chat facts gave a month-precise stated date (Stand 09/2026) as the end of the month (2026-09-30); 9 of 68 graph-on answers repeated such a day. Fixed after the run in ChatFacts (the date as precise as the page wrote it), with a regression assertion in BusinessViewTest.",
+  "Generic services: the rule extractor adds vocabulary-level services (\"Sanitär\", \"Sanierung\", \"Heizung\") next to the specific ones of the page; answers list them as services. Not false, less precise; left as is for package 6."
+ ],
+ "reanswers": {
+  "note": "After the date fix the graph-on contexts of 8 questions changed (only the stated price dates: 2026-09-30 -> 2026-09 and alike); their 16 graph-on answers were answered again under new task ids (run label date-precision) and all 16 were read.",
+  "verdict": "16 of 16 correct and complete; none repeats a day the page did not state (0 of 16, before: 9 of the 68 graph-on answers); stale and current prices of Sonnenhof kept apart in Q10, Q14, Q30; Q32 still a correct \"weiß ich nicht\"."
+ }
+}

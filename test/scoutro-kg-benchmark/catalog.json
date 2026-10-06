@@ -1,0 +1,737 @@
+{
+ "note": "A/B benchmark catalog (package 6): every question is asked in its collection, once with the graph facts off and once on. facts: each needs one regex of 'any' in the answer (fact hit); sources: URL substrings of pages that support the answer; wrong: regexes of false or out-of-scope values; unanswerable: the data does not hold the answer, a correct answer says so and contains no trap value.",
+ "abstention": "(?i)weiß ich nicht|nicht bekannt|keine (Angabe|Angaben|Information|Informationen|Daten|Hinweise)|nicht (enthalten|vorhanden|genannt|angegeben|ersichtlich|beantworten|aufgeführt|zu finden|finden)|liegen (mir )?keine|kann ich (nicht|leider nicht)|ich habe keine|lässt sich nicht|geht (daraus|aus den Quellen) nicht hervor|nicht hervor|keinen? (Hinweis|Preis|Angabe|Eintrag|Beleg)|nichts (gefunden|Konkretes|dazu|darüber)|finde ich [^.]{0,80}?(nichts|keine|nicht)|nicht (nennen|sagen|bestätigen|erwähnt|belegen)|kommt [^.]{0,60}nicht vor|steht [^.]{0,80}nicht|fehlt|fehlen",
+ "questions": [
+  {
+   "id": "Q01",
+   "topic": "phone",
+   "collection": "edelsenior-web",
+   "question": "Welche Telefonnummer hat die Lindenhof Pflege gGmbH?",
+   "facts": [
+    {
+     "label": "Zentrale 0221 4711000",
+     "any": [
+      "0221[\\s/-]*471[\\s-]*1?000|\\+49[\\s-]*221[\\s-]*4711000|4711000"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example"
+   ],
+   "wrong": [
+    "999\\s*0000",
+    "333\\s*0000"
+   ],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q02",
+   "topic": "address",
+   "collection": "edelsenior-web",
+   "question": "Wie lautet die Adresse der Lindenhof Pflege gGmbH?",
+   "facts": [
+    {
+     "label": "Lindenstraße 12",
+     "any": [
+      "Lindenstra(ß|ss)e\\s*12"
+     ]
+    },
+    {
+     "label": "50674 Köln",
+     "any": [
+      "50674"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example"
+   ],
+   "wrong": [
+    "Birkenweg|Eichenallee"
+   ],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q03",
+   "topic": "email",
+   "collection": "edelsenior-web",
+   "question": "Welche zentrale E-Mail-Adresse hat die Lindenhof Pflege?",
+   "facts": [
+    {
+     "label": "info@",
+     "any": [
+      "info@lindenhof-pflege\\.example"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q04",
+   "topic": "vat",
+   "collection": "edelsenior-web",
+   "question": "Wie lautet die Umsatzsteuer-ID der Lindenhof Pflege gGmbH?",
+   "facts": [
+    {
+     "label": "DE111222333",
+     "any": [
+      "DE\\s*111\\s*222\\s*333"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q05",
+   "topic": "hours",
+   "collection": "edelsenior-web",
+   "question": "Zu welchen Zeiten ist die Lindenhof Pflege gGmbH erreichbar?",
+   "facts": [
+    {
+     "label": "Mo–Fr 8–16 Uhr",
+     "any": [
+      "0?8(:00)?\\s*(Uhr)?\\s*(–|-|bis)\\s*16(:00)?"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q06",
+   "topic": "operator",
+   "collection": "edelsenior-web",
+   "question": "Wer betreibt das Haus Birke?",
+   "facts": [
+    {
+     "label": "Lindenhof Pflege gGmbH",
+     "any": [
+      "Lindenhof Pflege"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q07",
+   "topic": "facilities",
+   "collection": "edelsenior-web",
+   "question": "Welche Pflegeheime gehören zur Lindenhof Pflege gGmbH?",
+   "facts": [
+    {
+     "label": "Haus Birke",
+     "any": [
+      "Haus Birke"
+     ]
+    },
+    {
+     "label": "Haus Eiche",
+     "any": [
+      "Haus Eiche"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q08",
+   "topic": "carrier",
+   "collection": "edelsenior-web",
+   "question": "Wer ist der Träger der Sonnenhof Seniorenresidenz?",
+   "facts": [
+    {
+     "label": "Caritas Köln e.V.",
+     "any": [
+      "Caritas"
+     ]
+    }
+   ],
+   "sources": [
+    "sonnenhof-senioren.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q09",
+   "topic": "price",
+   "collection": "edelsenior-web",
+   "question": "Was kostet die Kurzzeitpflege bei der Lindenhof Pflege?",
+   "facts": [
+    {
+     "label": "89,90 € pro Tag",
+     "any": [
+      "89[,.]90"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example/preise"
+   ],
+   "wrong": [
+    "\\b95\\s*(€|Euro)",
+    "\\b79\\s*(€|Euro)"
+   ],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q10",
+   "topic": "price-stale",
+   "collection": "edelsenior-web",
+   "question": "Was kostet die Kurzzeitpflege in der Sonnenhof Seniorenresidenz?",
+   "facts": [
+    {
+     "label": "95 € pro Tag",
+     "any": [
+      "\\b95\\s*(,00\\s*)?(€|Euro)"
+     ]
+    }
+   ],
+   "sources": [
+    "sonnenhof-senioren.example/preise"
+   ],
+   "wrong": [
+    "(?<![\\d,.])79\\s*(,00\\s*)?(€|Euro)(?![^.]{0,80}(2024|alt|veraltet|früher|vorher|frühere|ältere|bisher))",
+    "89[,.]90"
+   ],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q11",
+   "topic": "services",
+   "collection": "bauteamcheck-web",
+   "question": "Welche Leistungen bietet Müller Haustechnik an?",
+   "facts": [
+    {
+     "label": "Heizungsinstallation",
+     "any": [
+      "Heizung"
+     ]
+    },
+    {
+     "label": "Badsanierung",
+     "any": [
+      "Bad"
+     ]
+    },
+    {
+     "label": "Wärmepumpen",
+     "any": [
+      "Wärmepumpe"
+     ]
+    }
+   ],
+   "sources": [
+    "mueller-haustechnik.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q12",
+   "topic": "price",
+   "collection": "bauteamcheck-web",
+   "question": "Was kostet die Wartung einer Gasheizung bei Müller Haustechnik?",
+   "facts": [
+    {
+     "label": "149 € pauschal",
+     "any": [
+      "\\b149\\s*(,00\\s*)?(€|Euro)"
+     ]
+    }
+   ],
+   "sources": [
+    "mueller-haustechnik.example/preise"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q13",
+   "topic": "price",
+   "collection": "stackfinder-web",
+   "question": "Was kostet die Software von PflegeSoft?",
+   "facts": [
+    {
+     "label": "ab 12 € pro Monat",
+     "any": [
+      "\\b12\\s*(,00\\s*)?(€|Euro)"
+     ]
+    },
+    {
+     "label": "zzgl. MwSt.",
+     "any": [
+      "zzgl|zuzüglich|netto|ohne MwSt|exkl"
+     ]
+    }
+   ],
+   "sources": [
+    "pflegesoft.example/preise"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q14",
+   "topic": "compare",
+   "collection": "edelsenior-web",
+   "question": "Vergleiche die Preise für Kurzzeitpflege bei Lindenhof Pflege und in der Sonnenhof Seniorenresidenz.",
+   "facts": [
+    {
+     "label": "Lindenhof 89,90 €",
+     "any": [
+      "89[,.]90"
+     ]
+    },
+    {
+     "label": "Sonnenhof 95 €",
+     "any": [
+      "\\b95\\s*(,00\\s*)?(€|Euro)"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example/preise",
+    "sonnenhof-senioren.example/preise"
+   ],
+   "wrong": [
+    "(?<![\\d,.])79\\s*(,00\\s*)?(€|Euro)(?![^.]{0,80}(2024|alt|veraltet|früher|vorher|frühere|ältere|bisher))"
+   ],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q15",
+   "topic": "compare",
+   "collection": "checkthecoach-web",
+   "question": "Was kostet eine Coaching-Sitzung bei Sonnenhof Coaching und bei Klarblick Coaching?",
+   "facts": [
+    {
+     "label": "Sonnenhof 180 €",
+     "any": [
+      "\\b180\\s*(€|Euro)"
+     ]
+    },
+    {
+     "label": "Klarblick 120 €",
+     "any": [
+      "\\b120\\s*(€|Euro)"
+     ]
+    }
+   ],
+   "sources": [
+    "sonnenhof-coaching.example",
+    "klarblick-coaching.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q16",
+   "topic": "relation",
+   "collection": "stackfinder-web",
+   "question": "Mit welchem Unternehmen arbeitet CloudWerk als Partner zusammen?",
+   "facts": [
+    {
+     "label": "PflegeSoft GmbH",
+     "any": [
+      "PflegeSoft"
+     ]
+    }
+   ],
+   "sources": [
+    "cloudwerk.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q17",
+   "topic": "relation",
+   "collection": "bauteamcheck-web",
+   "question": "Ist Müller Haustechnik Mitglied einer Innung?",
+   "facts": [
+    {
+     "label": "Innung SHK Köln",
+     "any": [
+      "Innung\\s+SHK"
+     ]
+    }
+   ],
+   "sources": [
+    "mueller-haustechnik.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q18",
+   "topic": "relation",
+   "collection": "stackfinder-web",
+   "question": "Welche Kunden nennt PflegeSoft auf seiner Website?",
+   "facts": [
+    {
+     "label": "Muster Klinikum Hamburg GmbH",
+     "any": [
+      "Muster Klinikum"
+     ]
+    }
+   ],
+   "sources": [
+    "pflegesoft.example/fuer-wen"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q19",
+   "topic": "relation",
+   "collection": "stackfinder-web",
+   "question": "Ist CloudWerk zertifiziert?",
+   "facts": [
+    {
+     "label": "ISO 27001",
+     "any": [
+      "ISO\\s*27001"
+     ]
+    }
+   ],
+   "sources": [
+    "cloudwerk.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q20",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "question": "In welcher Branche ist Müller Haustechnik tätig?",
+   "facts": [
+    {
+     "label": "Heizung/Sanitär",
+     "any": [
+      "Heizung|Sanitär|Installation"
+     ]
+    }
+   ],
+   "sources": [
+    "mueller-haustechnik.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q21",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "question": "In welcher Branche ist Weber Elektro tätig?",
+   "facts": [
+    {
+     "label": "Elektroinstallation",
+     "any": [
+      "Elektro"
+     ]
+    }
+   ],
+   "sources": [
+    "weber-elektro.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q22",
+   "topic": "audience",
+   "collection": "stackfinder-web",
+   "question": "Für welche Kunden ist PflegeSoft gedacht?",
+   "facts": [
+    {
+     "label": "Pflegeeinrichtungen",
+     "any": [
+      "Pflegeeinrichtung|Pflegeheim|stationär"
+     ]
+    },
+    {
+     "label": "Geschäftskunden (B2B)",
+     "any": [
+      "Geschäftskund|B2B|Unternehmen"
+     ]
+    },
+    {
+     "label": "bundesweit",
+     "any": [
+      "bundesweit|Deutschland|ganz Deutschland"
+     ]
+    }
+   ],
+   "sources": [
+    "pflegesoft.example/fuer-wen"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q23",
+   "topic": "audience",
+   "collection": "checkthecoach-web",
+   "question": "Richtet sich Klarblick Coaching an Unternehmen oder an Privatpersonen?",
+   "facts": [
+    {
+     "label": "Privatpersonen",
+     "any": [
+      "Privatperson|privat"
+     ]
+    }
+   ],
+   "sources": [
+    "klarblick-coaching.example"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q24",
+   "topic": "jobs",
+   "collection": "edelsenior-web",
+   "question": "Welche Stellen bietet die Lindenhof Pflege an und was wird bezahlt?",
+   "facts": [
+    {
+     "label": "Pflegefachkraft",
+     "any": [
+      "Pflegefachkraft"
+     ]
+    },
+    {
+     "label": "3.400–3.900 €",
+     "any": [
+      "3[.,]?400"
+     ]
+    },
+    {
+     "label": "brutto im Monat",
+     "any": [
+      "brutto|monatlich|pro Monat|im Monat"
+     ]
+    }
+   ],
+   "sources": [
+    "lindenhof-pflege.example/karriere"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q25",
+   "topic": "jobs",
+   "collection": "bauteamcheck-web",
+   "question": "Bis wann kann man sich bei Schmidt Bau als Maurer bewerben und was wird bezahlt?",
+   "facts": [
+    {
+     "label": "30.11.2026",
+     "any": [
+      "30\\.\\s*11\\.\\s*2026|30\\.\\s*November\\s*2026"
+     ]
+    },
+    {
+     "label": "20 € pro Stunde",
+     "any": [
+      "\\b20\\s*(,00\\s*)?(€|Euro)"
+     ]
+    }
+   ],
+   "sources": [
+    "schmidt-bau.example/karriere"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q26",
+   "topic": "same-name",
+   "collection": "edelsenior-web",
+   "question": "Welche Telefonnummer hat der Sonnenhof?",
+   "facts": [
+    {
+     "label": "0221 9990000",
+     "any": [
+      "0221[\\s/-]*999[\\s-]*0000|9990000"
+     ]
+    }
+   ],
+   "sources": [
+    "sonnenhof-senioren.example"
+   ],
+   "wrong": [
+    "089[\\s/-]*1234"
+   ],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q27",
+   "topic": "same-name",
+   "collection": "checkthecoach-web",
+   "question": "Welche Telefonnummer hat Sonnenhof?",
+   "facts": [
+    {
+     "label": "089 1234000",
+     "any": [
+      "089[\\s/-]*123[\\s-]*4000|1234000"
+     ]
+    }
+   ],
+   "sources": [
+    "sonnenhof-coaching.example"
+   ],
+   "wrong": [
+    "0221[\\s/-]*999"
+   ],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q28",
+   "topic": "collection-limit",
+   "collection": "stackfinder-web",
+   "question": "Welche Telefonnummer hat die Lindenhof Pflege gGmbH?",
+   "facts": [],
+   "sources": [],
+   "wrong": [],
+   "unanswerable": true,
+   "trap": [
+    "0221[\\s/-]*471[\\s-]*1?000|\\+49[\\s-]*221[\\s-]*4711000|4711000",
+    "0221"
+   ]
+  },
+  {
+   "id": "Q29",
+   "topic": "collection-limit",
+   "collection": "bauteamcheck-web",
+   "question": "Was kostet die Kurzzeitpflege im Sonnenhof?",
+   "facts": [],
+   "sources": [],
+   "wrong": [],
+   "unanswerable": true,
+   "trap": [
+    "\\b95\\s*(€|Euro)",
+    "\\b79\\s*(€|Euro)"
+   ]
+  },
+  {
+   "id": "Q30",
+   "topic": "stale-history",
+   "collection": "edelsenior-web",
+   "question": "Was kostete die Kurzzeitpflege im Sonnenhof laut der Preisliste von 2024?",
+   "facts": [
+    {
+     "label": "79 € (Stand 01/2024)",
+     "any": [
+      "\\b79\\s*(,00\\s*)?(€|Euro)"
+     ]
+    }
+   ],
+   "sources": [
+    "sonnenhof-senioren.example/preise-2024"
+   ],
+   "wrong": [],
+   "unanswerable": false,
+   "trap": []
+  },
+  {
+   "id": "Q31",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "question": "Wie viele Mitarbeiter hat die Lindenhof Pflege gGmbH?",
+   "facts": [],
+   "sources": [],
+   "wrong": [],
+   "unanswerable": true,
+   "trap": [
+    "\\d+\\s*(Mitarbeiter|Beschäftigte|Angestellte)"
+   ]
+  },
+  {
+   "id": "Q32",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "question": "Was kostet ein Einzelzimmer im Haus Eiche?",
+   "facts": [],
+   "sources": [],
+   "wrong": [],
+   "unanswerable": true,
+   "trap": [
+    "Einzelzimmer[^.]{0,40}\\d+[.,]?\\d*\\s*(€|Euro)"
+   ]
+  },
+  {
+   "id": "Q33",
+   "topic": "unanswerable",
+   "collection": "stackfinder-web",
+   "question": "Hat PflegeSoft eine Niederlassung in Wien?",
+   "facts": [],
+   "sources": [],
+   "wrong": [],
+   "unanswerable": true,
+   "trap": [
+    "(?i)ja,? (PflegeSoft )?hat|Niederlassung in Wien (befindet|liegt|ist)|\\b1010 Wien"
+   ]
+  },
+  {
+   "id": "Q34",
+   "topic": "unanswerable",
+   "collection": "bauteamcheck-web",
+   "question": "Welche Bewertung hat Müller Haustechnik bei Google?",
+   "facts": [],
+   "sources": [],
+   "wrong": [],
+   "unanswerable": true,
+   "trap": [
+    "\\d([.,]\\d)?\\s*(von 5|Sternen?|/5)"
+   ]
+  }
+ ]
+}

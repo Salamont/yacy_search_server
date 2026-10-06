@@ -1,0 +1,7439 @@
+{
+ "reviewed": true,
+ "unreviewed_flags": [],
+ "modes": {
+  "off": {
+   "answers": 68,
+   "answerable_answers": 56,
+   "unanswerable_answers": 12,
+   "fact_hit_rate": 80.0,
+   "context_fact_coverage": 80.0,
+   "facts_in_context_missed": 0,
+   "complete_answer_rate": 75.0,
+   "false_facts": 0,
+   "answers_with_false_facts": 0,
+   "invented_values": 0,
+   "answers_with_invented_values": 0,
+   "hallucination_rate": 0.0,
+   "imprecise_values": 0,
+   "answers_with_imprecise_values": 0,
+   "correct_source_rate": 100.0,
+   "false_sources": 0,
+   "answers_with_false_sources": 0,
+   "foreign_citations_flagged": 1,
+   "correct_abstention_rate": 100.0,
+   "false_abstentions": 0,
+   "answerable_without_fact_in_context": 14,
+   "honest_abstentions": 14,
+   "contradictions_in_answer": 0,
+   "mean_answer_chars": 614,
+   "mean_answer_words": 91,
+   "mean_context_chars": 784,
+   "mean_context_tokens": 196,
+   "mean_graph_facts": 0,
+   "context_ms_median": 132.0,
+   "context_ms_p95": 163,
+   "generation_ms_median": 4343.5,
+   "inconsistent_questions": 0,
+   "inconsistent_list": []
+  },
+  "on": {
+   "answers": 68,
+   "answerable_answers": 56,
+   "unanswerable_answers": 12,
+   "fact_hit_rate": 100.0,
+   "context_fact_coverage": 100.0,
+   "facts_in_context_missed": 0,
+   "complete_answer_rate": 100.0,
+   "false_facts": 0,
+   "answers_with_false_facts": 0,
+   "invented_values": 0,
+   "answers_with_invented_values": 0,
+   "hallucination_rate": 0.0,
+   "imprecise_values": 0,
+   "answers_with_imprecise_values": 0,
+   "correct_source_rate": 100.0,
+   "false_sources": 0,
+   "answers_with_false_sources": 0,
+   "foreign_citations_flagged": 2,
+   "correct_abstention_rate": 100.0,
+   "false_abstentions": 0,
+   "answerable_without_fact_in_context": 0,
+   "honest_abstentions": 0,
+   "contradictions_in_answer": 0,
+   "mean_answer_chars": 646,
+   "mean_answer_words": 94,
+   "mean_context_chars": 1795,
+   "mean_context_tokens": 533,
+   "mean_graph_facts": 7.5,
+   "context_ms_median": 141.5,
+   "context_ms_p95": 178,
+   "generation_ms_median": 4605.0,
+   "inconsistent_questions": 0,
+   "inconsistent_list": []
+  }
+ },
+ "decision": {
+  "fact_hit_delta_pp": 20.0,
+  "required_pp": 10,
+  "worse_on": [],
+  "pays_off": true
+ },
+ "automatic": {
+  "modes": {
+   "off": {
+    "answers": 68,
+    "answerable_answers": 56,
+    "unanswerable_answers": 12,
+    "fact_hit_rate": 80.0,
+    "context_fact_coverage": 80.0,
+    "facts_in_context_missed": 0,
+    "complete_answer_rate": 75.0,
+    "false_facts": 0,
+    "answers_with_false_facts": 0,
+    "invented_values": 0,
+    "answers_with_invented_values": 0,
+    "hallucination_rate": 0.0,
+    "imprecise_values": 0,
+    "answers_with_imprecise_values": 0,
+    "correct_source_rate": 100.0,
+    "false_sources": 1,
+    "answers_with_false_sources": 1,
+    "foreign_citations_flagged": 1,
+    "correct_abstention_rate": 100.0,
+    "false_abstentions": 0,
+    "answerable_without_fact_in_context": 14,
+    "honest_abstentions": 14,
+    "contradictions_in_answer": 0,
+    "mean_answer_chars": 614,
+    "mean_answer_words": 91,
+    "mean_context_chars": 784,
+    "mean_context_tokens": 196,
+    "mean_graph_facts": 0,
+    "context_ms_median": 132.0,
+    "context_ms_p95": 163,
+    "generation_ms_median": 4343.5,
+    "inconsistent_questions": 0,
+    "inconsistent_list": []
+   },
+   "on": {
+    "answers": 68,
+    "answerable_answers": 56,
+    "unanswerable_answers": 12,
+    "fact_hit_rate": 100.0,
+    "context_fact_coverage": 100.0,
+    "facts_in_context_missed": 0,
+    "complete_answer_rate": 98.2,
+    "false_facts": 0,
+    "answers_with_false_facts": 0,
+    "invented_values": 1,
+    "answers_with_invented_values": 1,
+    "hallucination_rate": 1.5,
+    "imprecise_values": 0,
+    "answers_with_imprecise_values": 0,
+    "correct_source_rate": 100.0,
+    "false_sources": 2,
+    "answers_with_false_sources": 2,
+    "foreign_citations_flagged": 2,
+    "correct_abstention_rate": 100.0,
+    "false_abstentions": 0,
+    "answerable_without_fact_in_context": 0,
+    "honest_abstentions": 0,
+    "contradictions_in_answer": 0,
+    "mean_answer_chars": 646,
+    "mean_answer_words": 94,
+    "mean_context_chars": 1795,
+    "mean_context_tokens": 533,
+    "mean_graph_facts": 7.5,
+    "context_ms_median": 141.5,
+    "context_ms_p95": 178,
+    "generation_ms_median": 4605.0,
+    "inconsistent_questions": 0,
+    "inconsistent_list": []
+   }
+  },
+  "decision": {
+   "fact_hit_delta_pp": 20.0,
+   "required_pp": 10,
+   "worse_on": [
+    "hallucination",
+    "invented_values",
+    "false_sources"
+   ],
+   "pays_off": false
+  }
+ },
+ "by": {
+  "topic": {
+   "audiences": {
+    "off": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 362,
+     "mean_answer_words": 51,
+     "mean_context_chars": 471,
+     "mean_context_tokens": 92,
+     "mean_graph_facts": 0,
+     "context_ms_median": 132.0,
+     "context_ms_p95": 144,
+     "generation_ms_median": 3532.5
+    },
+    "on": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 650,
+     "mean_answer_words": 87,
+     "mean_context_chars": 1300,
+     "mean_context_tokens": 367,
+     "mean_graph_facts": 8,
+     "context_ms_median": 145.0,
+     "context_ms_p95": 167,
+     "generation_ms_median": 4864.0
+    }
+   },
+   "collection limit": {
+    "off": {
+     "answers": 4,
+     "answerable_answers": 0,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": null,
+     "context_fact_coverage": null,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": null,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": null,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 638,
+     "mean_answer_words": 94,
+     "mean_context_chars": 334,
+     "mean_context_tokens": 44,
+     "mean_graph_facts": 0,
+     "context_ms_median": 115.0,
+     "context_ms_p95": 119,
+     "generation_ms_median": 4358.5
+    },
+    "on": {
+     "answers": 4,
+     "answerable_answers": 0,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": null,
+     "context_fact_coverage": null,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": null,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": null,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 643,
+     "mean_answer_words": 96,
+     "mean_context_chars": 700,
+     "mean_context_tokens": 167,
+     "mean_graph_facts": 4,
+     "context_ms_median": 113.0,
+     "context_ms_p95": 118,
+     "generation_ms_median": 4589.0
+    }
+   },
+   "comparison": {
+    "off": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 1002,
+     "mean_answer_words": 154,
+     "mean_context_chars": 1079,
+     "mean_context_tokens": 282,
+     "mean_graph_facts": 0,
+     "context_ms_median": 146.5,
+     "context_ms_p95": 173,
+     "generation_ms_median": 6454.0
+    },
+    "on": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 1145,
+     "mean_answer_words": 171,
+     "mean_context_chars": 2232,
+     "mean_context_tokens": 666,
+     "mean_graph_facts": 7.5,
+     "context_ms_median": 162.0,
+     "context_ms_p95": 190,
+     "generation_ms_median": 7014.5
+    }
+   },
+   "contacts": {
+    "off": {
+     "answers": 10,
+     "answerable_answers": 10,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 0.0,
+     "context_fact_coverage": 0.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 0.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 1,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 10,
+     "honest_abstentions": 10,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 779,
+     "mean_answer_words": 112,
+     "mean_context_chars": 989,
+     "mean_context_tokens": 264,
+     "mean_graph_facts": 0,
+     "context_ms_median": 151.0,
+     "context_ms_p95": 154,
+     "generation_ms_median": 4603.5
+    },
+    "on": {
+     "answers": 10,
+     "answerable_answers": 10,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 382,
+     "mean_answer_words": 54,
+     "mean_context_chars": 2066,
+     "mean_context_tokens": 623,
+     "mean_graph_facts": 8,
+     "context_ms_median": 167.0,
+     "context_ms_p95": 178,
+     "generation_ms_median": 3200.5
+    }
+   },
+   "industry": {
+    "off": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 368,
+     "mean_answer_words": 53,
+     "mean_context_chars": 666,
+     "mean_context_tokens": 160,
+     "mean_graph_facts": 0,
+     "context_ms_median": 114.0,
+     "context_ms_p95": 119,
+     "generation_ms_median": 3356.5
+    },
+    "on": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 672,
+     "mean_answer_words": 93,
+     "mean_context_chars": 2010,
+     "mean_context_tokens": 608,
+     "mean_graph_facts": 8,
+     "context_ms_median": 126.0,
+     "context_ms_p95": 131,
+     "generation_ms_median": 3592.0
+    }
+   },
+   "jobs": {
+    "off": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 625,
+     "mean_answer_words": 91,
+     "mean_context_chars": 856,
+     "mean_context_tokens": 214,
+     "mean_graph_facts": 0,
+     "context_ms_median": 138.0,
+     "context_ms_p95": 152,
+     "generation_ms_median": 4263.0
+    },
+    "on": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 698,
+     "mean_answer_words": 100,
+     "mean_context_chars": 2008,
+     "mean_context_tokens": 598,
+     "mean_graph_facts": 7.5,
+     "context_ms_median": 155.0,
+     "context_ms_p95": 172,
+     "generation_ms_median": 5178.5
+    }
+   },
+   "operator/facilities": {
+    "off": {
+     "answers": 6,
+     "answerable_answers": 6,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 619,
+     "mean_answer_words": 94,
+     "mean_context_chars": 684,
+     "mean_context_tokens": 166,
+     "mean_graph_facts": 0,
+     "context_ms_median": 131.0,
+     "context_ms_p95": 163,
+     "generation_ms_median": 5246.5
+    },
+    "on": {
+     "answers": 6,
+     "answerable_answers": 6,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 715,
+     "mean_answer_words": 108,
+     "mean_context_chars": 1623,
+     "mean_context_tokens": 479,
+     "mean_graph_facts": 8,
+     "context_ms_median": 159.0,
+     "context_ms_p95": 176,
+     "generation_ms_median": 5087.0
+    }
+   },
+   "prices": {
+    "off": {
+     "answers": 10,
+     "answerable_answers": 10,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 418,
+     "mean_answer_words": 64,
+     "mean_context_chars": 1006,
+     "mean_context_tokens": 268,
+     "mean_graph_facts": 0,
+     "context_ms_median": 153.0,
+     "context_ms_p95": 174,
+     "generation_ms_median": 3599.0
+    },
+    "on": {
+     "answers": 10,
+     "answerable_answers": 10,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 576,
+     "mean_answer_words": 88,
+     "mean_context_chars": 2215,
+     "mean_context_tokens": 671,
+     "mean_graph_facts": 6.6,
+     "context_ms_median": 170.0,
+     "context_ms_p95": 211,
+     "generation_ms_median": 4640.5
+    }
+   },
+   "relations": {
+    "off": {
+     "answers": 8,
+     "answerable_answers": 8,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 433,
+     "mean_answer_words": 64,
+     "mean_context_chars": 511,
+     "mean_context_tokens": 108,
+     "mean_graph_facts": 0,
+     "context_ms_median": 113.5,
+     "context_ms_p95": 141,
+     "generation_ms_median": 4221.5
+    },
+    "on": {
+     "answers": 8,
+     "answerable_answers": 8,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 2,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 622,
+     "mean_answer_words": 91,
+     "mean_context_chars": 1266,
+     "mean_context_tokens": 359,
+     "mean_graph_facts": 8,
+     "context_ms_median": 125.5,
+     "context_ms_p95": 151,
+     "generation_ms_median": 4194.5
+    }
+   },
+   "same name": {
+    "off": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 0.0,
+     "context_fact_coverage": 0.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 0.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 4,
+     "honest_abstentions": 4,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 746,
+     "mean_answer_words": 105,
+     "mean_context_chars": 762,
+     "mean_context_tokens": 194,
+     "mean_graph_facts": 0,
+     "context_ms_median": 120.5,
+     "context_ms_p95": 133,
+     "generation_ms_median": 4729.0
+    },
+    "on": {
+     "answers": 4,
+     "answerable_answers": 4,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 405,
+     "mean_answer_words": 54,
+     "mean_context_chars": 1738,
+     "mean_context_tokens": 520,
+     "mean_graph_facts": 8,
+     "context_ms_median": 128.5,
+     "context_ms_p95": 138,
+     "generation_ms_median": 3983.0
+    }
+   },
+   "services": {
+    "off": {
+     "answers": 2,
+     "answerable_answers": 2,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 535,
+     "mean_answer_words": 78,
+     "mean_context_chars": 600,
+     "mean_context_tokens": 137,
+     "mean_graph_facts": 0,
+     "context_ms_median": 119.0,
+     "context_ms_p95": 119,
+     "generation_ms_median": 4354.0
+    },
+    "on": {
+     "answers": 2,
+     "answerable_answers": 2,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 715,
+     "mean_answer_words": 106,
+     "mean_context_chars": 1680,
+     "mean_context_tokens": 497,
+     "mean_graph_facts": 8,
+     "context_ms_median": 128.0,
+     "context_ms_p95": 128,
+     "generation_ms_median": 5314.5
+    }
+   },
+   "unanswerable": {
+    "off": {
+     "answers": 8,
+     "answerable_answers": 0,
+     "unanswerable_answers": 8,
+     "fact_hit_rate": null,
+     "context_fact_coverage": null,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": null,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": null,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 825,
+     "mean_answer_words": 125,
+     "mean_context_chars": 908,
+     "mean_context_tokens": 240,
+     "mean_graph_facts": 0,
+     "context_ms_median": 136.0,
+     "context_ms_p95": 157,
+     "generation_ms_median": 4438.5
+    },
+    "on": {
+     "answers": 8,
+     "answerable_answers": 0,
+     "unanswerable_answers": 8,
+     "fact_hit_rate": null,
+     "context_fact_coverage": null,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": null,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": null,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 850,
+     "mean_answer_words": 127,
+     "mean_context_chars": 2010,
+     "mean_context_tokens": 607,
+     "mean_graph_facts": 7.8,
+     "context_ms_median": 138.5,
+     "context_ms_p95": 154,
+     "generation_ms_median": 5003.0
+    }
+   }
+  },
+  "collection": {
+   "bauteamcheck-web": {
+    "off": {
+     "answers": 16,
+     "answerable_answers": 12,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 482,
+     "mean_answer_words": 72,
+     "mean_context_chars": 563,
+     "mean_context_tokens": 122,
+     "mean_graph_facts": 0,
+     "context_ms_median": 119.0,
+     "context_ms_p95": 124,
+     "generation_ms_median": 3761.0
+    },
+    "on": {
+     "answers": 16,
+     "answerable_answers": 12,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 631,
+     "mean_answer_words": 92,
+     "mean_context_chars": 1440,
+     "mean_context_tokens": 414,
+     "mean_graph_facts": 7,
+     "context_ms_median": 129.5,
+     "context_ms_p95": 145,
+     "generation_ms_median": 4094.5
+    }
+   },
+   "checkthecoach-web": {
+    "off": {
+     "answers": 6,
+     "answerable_answers": 6,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 75.0,
+     "context_fact_coverage": 75.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 66.7,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 2,
+     "honest_abstentions": 2,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 652,
+     "mean_answer_words": 94,
+     "mean_context_chars": 598,
+     "mean_context_tokens": 131,
+     "mean_graph_facts": 0,
+     "context_ms_median": 120.0,
+     "context_ms_p95": 120,
+     "generation_ms_median": 4607.5
+    },
+    "on": {
+     "answers": 6,
+     "answerable_answers": 6,
+     "unanswerable_answers": 0,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": null,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 699,
+     "mean_answer_words": 97,
+     "mean_context_chars": 1268,
+     "mean_context_tokens": 354,
+     "mean_graph_facts": 8,
+     "context_ms_median": 123.0,
+     "context_ms_p95": 134,
+     "generation_ms_median": 4646.0
+    }
+   },
+   "edelsenior-web": {
+    "off": {
+     "answers": 32,
+     "answerable_answers": 28,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": 63.2,
+     "context_fact_coverage": 63.2,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 57.1,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 1,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 12,
+     "honest_abstentions": 12,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 698,
+     "mean_answer_words": 104,
+     "mean_context_chars": 985,
+     "mean_context_tokens": 262,
+     "mean_graph_facts": 0,
+     "context_ms_median": 152.0,
+     "context_ms_p95": 173,
+     "generation_ms_median": 4547.5
+    },
+    "on": {
+     "answers": 32,
+     "answerable_answers": 28,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 628,
+     "mean_answer_words": 94,
+     "mean_context_chars": 2177,
+     "mean_context_tokens": 660,
+     "mean_graph_facts": 7.4,
+     "context_ms_median": 167.5,
+     "context_ms_p95": 190,
+     "generation_ms_median": 4357.0
+    }
+   },
+   "stackfinder-web": {
+    "off": {
+     "answers": 14,
+     "answerable_answers": 10,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 0,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 559,
+     "mean_answer_words": 82,
+     "mean_context_chars": 655,
+     "mean_context_tokens": 156,
+     "mean_graph_facts": 0,
+     "context_ms_median": 141.0,
+     "context_ms_p95": 144,
+     "generation_ms_median": 4303.5
+    },
+    "on": {
+     "answers": 14,
+     "answerable_answers": 10,
+     "unanswerable_answers": 4,
+     "fact_hit_rate": 100.0,
+     "context_fact_coverage": 100.0,
+     "facts_in_context_missed": 0,
+     "complete_answer_rate": 100.0,
+     "false_facts": 0,
+     "answers_with_false_facts": 0,
+     "invented_values": 0,
+     "answers_with_invented_values": 0,
+     "hallucination_rate": 0.0,
+     "imprecise_values": 0,
+     "answers_with_imprecise_values": 0,
+     "correct_source_rate": 100.0,
+     "false_sources": 0,
+     "answers_with_false_sources": 0,
+     "foreign_citations_flagged": 2,
+     "correct_abstention_rate": 100.0,
+     "false_abstentions": 0,
+     "answerable_without_fact_in_context": 0,
+     "honest_abstentions": 0,
+     "contradictions_in_answer": 0,
+     "mean_answer_chars": 680,
+     "mean_answer_words": 97,
+     "mean_context_chars": 1554,
+     "mean_context_tokens": 456,
+     "mean_graph_facts": 8,
+     "context_ms_median": 120.0,
+     "context_ms_p95": 167,
+     "generation_ms_median": 4923.0
+    }
+   }
+  }
+ },
+ "per_question": {
+  "Q01": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 1,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q02": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 2,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   }
+  },
+  "Q03": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 1,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q04": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 1,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q05": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 1,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q06": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q07": {
+   "off": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   }
+  },
+  "Q08": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q09": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   }
+  },
+  "Q10": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   }
+  },
+  "Q11": {
+   "off": {
+    "hits": [
+     3,
+     3
+    ],
+    "facts": 3,
+    "covered": 3,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     3,
+     3
+    ],
+    "facts": 3,
+    "covered": 3,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q12": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   }
+  },
+  "Q13": {
+   "off": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q14": {
+   "off": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q15": {
+   "off": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q16": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   }
+  },
+  "Q17": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   }
+  },
+  "Q18": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q19": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q20": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q21": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q22": {
+   "off": {
+    "hits": [
+     3,
+     3
+    ],
+    "facts": 3,
+    "covered": 3,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     3,
+     3
+    ],
+    "facts": 3,
+    "covered": 3,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   }
+  },
+  "Q23": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q24": {
+   "off": {
+    "hits": [
+     3,
+     3
+    ],
+    "facts": 3,
+    "covered": 3,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     3,
+     3
+    ],
+    "facts": 3,
+    "covered": 3,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q25": {
+   "off": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     2,
+     2
+    ],
+    "facts": 2,
+    "covered": 2,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     true
+    ]
+   }
+  },
+  "Q26": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 1,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   }
+  },
+  "Q27": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 1,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q28": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q29": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q30": {
+   "off": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     false,
+     false
+    ]
+   },
+   "on": {
+    "hits": [
+     1,
+     1
+    ],
+    "facts": 1,
+    "covered": 1,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     false
+    ]
+   }
+  },
+  "Q31": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q32": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q33": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  },
+  "Q34": {
+   "off": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   },
+   "on": {
+    "hits": [
+     0,
+     0
+    ],
+    "facts": 0,
+    "covered": 0,
+    "false": 0,
+    "invented": 0,
+    "false_sources": 0,
+    "abstains": [
+     true,
+     true
+    ]
+   }
+  }
+ },
+ "answers": [
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 755,
+   "words": 103,
+   "context_chars": 1216,
+   "context_tokens": 341,
+   "context_ms": 154,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "3a3ed0788cf0",
+   "question": "Q01",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4467,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 650,
+   "words": 94,
+   "context_chars": 1216,
+   "context_tokens": 341,
+   "context_ms": 154,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "541a7c0a04f9",
+   "question": "Q01",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4353,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Zentrale 0221 4711000"
+   ],
+   "covered": [
+    "Zentrale 0221 4711000"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 369,
+   "words": 49,
+   "context_chars": 2174,
+   "context_tokens": 660,
+   "context_ms": 109,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "46c3a73c20a7",
+   "question": "Q01",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3474,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Zentrale 0221 4711000"
+   ],
+   "covered": [
+    "Zentrale 0221 4711000"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 247,
+   "words": 34,
+   "context_chars": 2174,
+   "context_tokens": 660,
+   "context_ms": 109,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "2916153953d5",
+   "question": "Q01",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2933,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 703,
+   "words": 104,
+   "context_chars": 611,
+   "context_tokens": 140,
+   "context_ms": 150,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "462af83b8337",
+   "question": "Q02",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4124,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 816,
+   "words": 125,
+   "context_chars": 611,
+   "context_tokens": 140,
+   "context_ms": 150,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "1423ae698f24",
+   "question": "Q02",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4568,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Lindenstraße 12",
+    "50674 Köln"
+   ],
+   "covered": [
+    "Lindenstraße 12",
+    "50674 Köln"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 394,
+   "words": 60,
+   "context_chars": 1853,
+   "context_tokens": 554,
+   "context_ms": 178,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "dbe21b8f3727",
+   "question": "Q02",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 2544,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Lindenstraße 12",
+    "50674 Köln"
+   ],
+   "covered": [
+    "Lindenstraße 12",
+    "50674 Köln"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 437,
+   "words": 65,
+   "context_chars": 1853,
+   "context_tokens": 554,
+   "context_ms": 178,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "9dd9653be01f",
+   "question": "Q02",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3351,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 806,
+   "words": 119,
+   "context_chars": 1877,
+   "context_tokens": 560,
+   "context_ms": 151,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "f4979e195c18",
+   "question": "Q03",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4950,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [
+    "[5] sonnenhof-senioren.example"
+   ],
+   "abstains": true,
+   "chars": 876,
+   "words": 116,
+   "context_chars": 1877,
+   "context_tokens": 560,
+   "context_ms": 151,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "c0f6cc311658",
+   "question": "Q03",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5451,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "info@"
+   ],
+   "covered": [
+    "info@"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    6,
+    7
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 487,
+   "words": 62,
+   "context_chars": 3132,
+   "context_tokens": 978,
+   "context_ms": 167,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "9955d8a6273f",
+   "question": "Q03",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3934,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "info@"
+   ],
+   "covered": [
+    "info@"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    6,
+    7
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 407,
+   "words": 51,
+   "context_chars": 3132,
+   "context_tokens": 978,
+   "context_ms": 167,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "7ae8605da764",
+   "question": "Q03",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3114,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 814,
+   "words": 120,
+   "context_chars": 619,
+   "context_tokens": 140,
+   "context_ms": 151,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "5d8aa2dfabe5",
+   "question": "Q04",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4639,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 956,
+   "words": 136,
+   "context_chars": 619,
+   "context_tokens": 140,
+   "context_ms": 151,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "3d6999d6a3bb",
+   "question": "Q04",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5137,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "DE111222333"
+   ],
+   "covered": [
+    "DE111222333"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 386,
+   "words": 54,
+   "context_chars": 1578,
+   "context_tokens": 459,
+   "context_ms": 168,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "281c47051a86",
+   "question": "Q04",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3137,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "DE111222333"
+   ],
+   "covered": [
+    "DE111222333"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 247,
+   "words": 34,
+   "context_chars": 1578,
+   "context_tokens": 459,
+   "context_ms": 168,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "f4a30328fb76",
+   "question": "Q04",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2271,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 653,
+   "words": 89,
+   "context_chars": 621,
+   "context_tokens": 140,
+   "context_ms": 152,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "863c4410e555",
+   "question": "Q05",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4204,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 760,
+   "words": 112,
+   "context_chars": 621,
+   "context_tokens": 140,
+   "context_ms": 152,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "a7df4ef66a67",
+   "question": "Q05",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4905,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Mo–Fr 8–16 Uhr"
+   ],
+   "covered": [
+    "Mo–Fr 8–16 Uhr"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 323,
+   "words": 52,
+   "context_chars": 1593,
+   "context_tokens": 464,
+   "context_ms": 165,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "88b8a7d62168",
+   "question": "Q05",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3264,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Mo–Fr 8–16 Uhr"
+   ],
+   "covered": [
+    "Mo–Fr 8–16 Uhr"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 521,
+   "words": 78,
+   "context_chars": 1593,
+   "context_tokens": 464,
+   "context_ms": 165,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "edf17005c507",
+   "question": "Q05",
+   "topic": "contacts",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4606,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "covered": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 914,
+   "words": 136,
+   "context_chars": 941,
+   "context_tokens": 257,
+   "context_ms": 129,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "5a0fee14e6c6",
+   "question": "Q06",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 6064,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "covered": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 795,
+   "words": 124,
+   "context_chars": 941,
+   "context_tokens": 257,
+   "context_ms": 129,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "051bf1ca76f4",
+   "question": "Q06",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5708,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "covered": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    4,
+    5
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 712,
+   "words": 106,
+   "context_chars": 1917,
+   "context_tokens": 582,
+   "context_ms": 159,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "ec481e3df5dd",
+   "question": "Q06",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4709,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "covered": [
+    "Lindenhof Pflege gGmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    4,
+    5
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 561,
+   "words": 89,
+   "context_chars": 1917,
+   "context_tokens": 582,
+   "context_ms": 159,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "bfb6f536a36f",
+   "question": "Q06",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3954,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "covered": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 790,
+   "words": 122,
+   "context_chars": 615,
+   "context_tokens": 140,
+   "context_ms": 163,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "2cde86b36c16",
+   "question": "Q07",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 6547,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "covered": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 662,
+   "words": 102,
+   "context_chars": 615,
+   "context_tokens": 140,
+   "context_ms": 163,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "461df39fa7eb",
+   "question": "Q07",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4785,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "covered": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 803,
+   "words": 125,
+   "context_chars": 1857,
+   "context_tokens": 554,
+   "context_ms": 176,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "b0801dea330c",
+   "question": "Q07",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 8197,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "covered": [
+    "Haus Birke",
+    "Haus Eiche"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 904,
+   "words": 141,
+   "context_chars": 1857,
+   "context_tokens": 554,
+   "context_ms": 176,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "b3db2ff230b5",
+   "question": "Q07",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5278,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Caritas Köln e.V."
+   ],
+   "covered": [
+    "Caritas Köln e.V."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 299,
+   "words": 44,
+   "context_chars": 496,
+   "context_tokens": 101,
+   "context_ms": 131,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "68587c7a5c32",
+   "question": "Q08",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 2548,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Caritas Köln e.V."
+   ],
+   "covered": [
+    "Caritas Köln e.V."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 254,
+   "words": 38,
+   "context_chars": 496,
+   "context_tokens": 101,
+   "context_ms": 131,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "644c1106b9eb",
+   "question": "Q08",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2580,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Caritas Köln e.V."
+   ],
+   "covered": [
+    "Caritas Köln e.V."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 640,
+   "words": 95,
+   "context_chars": 1096,
+   "context_tokens": 301,
+   "context_ms": 137,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "3e16ecfff614",
+   "question": "Q08",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5256,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Caritas Köln e.V."
+   ],
+   "covered": [
+    "Caritas Köln e.V."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 668,
+   "words": 94,
+   "context_chars": 1096,
+   "context_tokens": 301,
+   "context_ms": 137,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "3a1d5a23fa06",
+   "question": "Q08",
+   "topic": "operator/facilities",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4918,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "89,90 € pro Tag"
+   ],
+   "covered": [
+    "89,90 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 289,
+   "words": 47,
+   "context_chars": 2066,
+   "context_tokens": 623,
+   "context_ms": 174,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "d3f081dfe754",
+   "question": "Q09",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3423,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "89,90 € pro Tag"
+   ],
+   "covered": [
+    "89,90 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 392,
+   "words": 57,
+   "context_chars": 2066,
+   "context_tokens": 623,
+   "context_ms": 174,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "671941a310b8",
+   "question": "Q09",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3177,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "89,90 € pro Tag"
+   ],
+   "covered": [
+    "89,90 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    7,
+    8
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 503,
+   "words": 79,
+   "context_chars": 3360,
+   "context_tokens": 1054,
+   "context_ms": 211,
+   "graph_facts": 6,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "8eea95f9615b",
+   "question": "Q09",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3825,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "89,90 € pro Tag"
+   ],
+   "covered": [
+    "89,90 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    7,
+    8
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 642,
+   "words": 100,
+   "context_chars": 3360,
+   "context_tokens": 1054,
+   "context_ms": 211,
+   "graph_facts": 6,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "5c7ca49ac2c2",
+   "question": "Q09",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4658,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "95 € pro Tag"
+   ],
+   "covered": [
+    "95 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 588,
+   "words": 91,
+   "context_chars": 1052,
+   "context_tokens": 282,
+   "context_ms": 153,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "f3638f8515ea",
+   "question": "Q10",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4695,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "95 € pro Tag"
+   ],
+   "covered": [
+    "95 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 588,
+   "words": 94,
+   "context_chars": 1052,
+   "context_tokens": 282,
+   "context_ms": 153,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "bef037e85368",
+   "question": "Q10",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4393,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "95 € pro Tag"
+   ],
+   "covered": [
+    "95 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 642,
+   "words": 98,
+   "context_chars": 2285,
+   "context_tokens": 693,
+   "context_ms": 173,
+   "graph_facts": 6,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "160326b134de",
+   "question": "Q10",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 8651,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "95 € pro Tag"
+   ],
+   "covered": [
+    "95 € pro Tag"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 669,
+   "words": 97,
+   "context_chars": 2285,
+   "context_tokens": 693,
+   "context_ms": 173,
+   "graph_facts": 6,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "475ae2e03527",
+   "question": "Q10",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4623,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "covered": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 542,
+   "words": 81,
+   "context_chars": 600,
+   "context_tokens": 137,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "7e8dd96160f9",
+   "question": "Q11",
+   "topic": "services",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4445,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "covered": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 528,
+   "words": 76,
+   "context_chars": 600,
+   "context_tokens": 137,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "622d3e6389d3",
+   "question": "Q11",
+   "topic": "services",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4263,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "covered": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 726,
+   "words": 108,
+   "context_chars": 1680,
+   "context_tokens": 497,
+   "context_ms": 128,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "72a1c1015af8",
+   "question": "Q11",
+   "topic": "services",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5276,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "covered": [
+    "Heizungsinstallation",
+    "Badsanierung",
+    "Wärmepumpen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 704,
+   "words": 104,
+   "context_chars": 1680,
+   "context_tokens": 497,
+   "context_ms": 128,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "ebdd5d394fa4",
+   "question": "Q11",
+   "topic": "services",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5353,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "149 € pauschal"
+   ],
+   "covered": [
+    "149 € pauschal"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 320,
+   "words": 51,
+   "context_chars": 444,
+   "context_tokens": 80,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "880fa14d5861",
+   "question": "Q12",
+   "topic": "prices",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3775,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "149 € pauschal"
+   ],
+   "covered": [
+    "149 € pauschal"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 329,
+   "words": 50,
+   "context_chars": 444,
+   "context_tokens": 80,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "50613065ca68",
+   "question": "Q12",
+   "topic": "prices",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2584,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "149 € pauschal"
+   ],
+   "covered": [
+    "149 € pauschal"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 569,
+   "words": 85,
+   "context_chars": 1583,
+   "context_tokens": 459,
+   "context_ms": 145,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "56d84659dab9",
+   "question": "Q12",
+   "topic": "prices",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5073,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "149 € pauschal"
+   ],
+   "covered": [
+    "149 € pauschal"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 411,
+   "words": 64,
+   "context_chars": 1583,
+   "context_tokens": 459,
+   "context_ms": 145,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "18e80bd805a2",
+   "question": "Q12",
+   "topic": "prices",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3943,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "covered": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 598,
+   "words": 91,
+   "context_chars": 966,
+   "context_tokens": 262,
+   "context_ms": 141,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "b473406ea6b7",
+   "question": "Q13",
+   "topic": "prices",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4226,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "covered": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 561,
+   "words": 78,
+   "context_chars": 966,
+   "context_tokens": 262,
+   "context_ms": 141,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "9e3847a63c72",
+   "question": "Q13",
+   "topic": "prices",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4633,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "covered": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    6
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 601,
+   "words": 92,
+   "context_chars": 1887,
+   "context_tokens": 569,
+   "context_ms": 167,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "01bd9a6eeb19",
+   "question": "Q13",
+   "topic": "prices",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4608,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "covered": [
+    "ab 12 € pro Monat",
+    "zzgl. MwSt."
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    6
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 682,
+   "words": 101,
+   "context_chars": 1887,
+   "context_tokens": 569,
+   "context_ms": 167,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "548dd7d8695b",
+   "question": "Q13",
+   "topic": "prices",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4926,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "covered": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1187,
+   "words": 187,
+   "context_chars": 1343,
+   "context_tokens": 367,
+   "context_ms": 173,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "fcfd8bc2a004",
+   "question": "Q14",
+   "topic": "comparison",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 7474,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "covered": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1134,
+   "words": 181,
+   "context_chars": 1343,
+   "context_tokens": 367,
+   "context_ms": 173,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "f11de698d667",
+   "question": "Q14",
+   "topic": "comparison",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 7194,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "covered": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1282,
+   "words": 200,
+   "context_chars": 2712,
+   "context_tokens": 823,
+   "context_ms": 190,
+   "graph_facts": 7,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "917c704d8919",
+   "question": "Q14",
+   "topic": "comparison",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 13510,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "covered": [
+    "Lindenhof 89,90 €",
+    "Sonnenhof 95 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    5,
+    6,
+    7
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1221,
+   "words": 194,
+   "context_chars": 2712,
+   "context_tokens": 823,
+   "context_ms": 190,
+   "graph_facts": 7,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "20d97c67a025",
+   "question": "Q14",
+   "topic": "comparison",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 7957,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "covered": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 915,
+   "words": 138,
+   "context_chars": 815,
+   "context_tokens": 197,
+   "context_ms": 120,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "bf879b706f9f",
+   "question": "Q15",
+   "topic": "comparison",
+   "collection": "checkthecoach-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5714,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "covered": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 770,
+   "words": 112,
+   "context_chars": 815,
+   "context_tokens": 197,
+   "context_ms": 120,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "4f1aecb9ab2d",
+   "question": "Q15",
+   "topic": "comparison",
+   "collection": "checkthecoach-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4954,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "covered": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 944,
+   "words": 135,
+   "context_chars": 1752,
+   "context_tokens": 509,
+   "context_ms": 134,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "a199e857dbec",
+   "question": "Q15",
+   "topic": "comparison",
+   "collection": "checkthecoach-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5547,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "covered": [
+    "Sonnenhof 180 €",
+    "Klarblick 120 €"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1134,
+   "words": 154,
+   "context_chars": 1752,
+   "context_tokens": 509,
+   "context_ms": 134,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "9bba85ba6183",
+   "question": "Q15",
+   "topic": "comparison",
+   "collection": "checkthecoach-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 6072,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "PflegeSoft GmbH"
+   ],
+   "covered": [
+    "PflegeSoft GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 243,
+   "words": 35,
+   "context_chars": 507,
+   "context_tokens": 100,
+   "context_ms": 109,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "7966c2f58355",
+   "question": "Q16",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 2467,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "PflegeSoft GmbH"
+   ],
+   "covered": [
+    "PflegeSoft GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 268,
+   "words": 36,
+   "context_chars": 507,
+   "context_tokens": 100,
+   "context_ms": 109,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "562d156fd230",
+   "question": "Q16",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3301,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "PflegeSoft GmbH"
+   ],
+   "covered": [
+    "PflegeSoft GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 450,
+   "words": 63,
+   "context_chars": 1202,
+   "context_tokens": 332,
+   "context_ms": 116,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "7be5d0ca388d",
+   "question": "Q16",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3350,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "PflegeSoft GmbH"
+   ],
+   "covered": [
+    "PflegeSoft GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 599,
+   "words": 86,
+   "context_chars": 1202,
+   "context_tokens": 332,
+   "context_ms": 116,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "131f5c413e9b",
+   "question": "Q16",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4047,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Innung SHK Köln"
+   ],
+   "covered": [
+    "Innung SHK Köln"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 622,
+   "words": 93,
+   "context_chars": 598,
+   "context_tokens": 137,
+   "context_ms": 118,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "d40cb1c3e204",
+   "question": "Q17",
+   "topic": "relations",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4170,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Innung SHK Köln"
+   ],
+   "covered": [
+    "Innung SHK Köln"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 292,
+   "words": 49,
+   "context_chars": 598,
+   "context_tokens": 137,
+   "context_ms": 118,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "79768201e966",
+   "question": "Q17",
+   "topic": "relations",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2400,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Innung SHK Köln"
+   ],
+   "covered": [
+    "Innung SHK Köln"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 764,
+   "words": 109,
+   "context_chars": 1097,
+   "context_tokens": 303,
+   "context_ms": 131,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "d23b1cf8dbe5",
+   "question": "Q17",
+   "topic": "relations",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4134,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Innung SHK Köln"
+   ],
+   "covered": [
+    "Innung SHK Köln"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 408,
+   "words": 64,
+   "context_chars": 1097,
+   "context_tokens": 303,
+   "context_ms": 131,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "c992b6475be1",
+   "question": "Q17",
+   "topic": "relations",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2861,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "covered": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 503,
+   "words": 74,
+   "context_chars": 470,
+   "context_tokens": 93,
+   "context_ms": 141,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "39a75d334af6",
+   "question": "Q18",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4618,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "covered": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 429,
+   "words": 61,
+   "context_chars": 470,
+   "context_tokens": 93,
+   "context_ms": 141,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "1bac61d751f2",
+   "question": "Q18",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4334,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "covered": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [
+    "[3] cloudwerk.example"
+   ],
+   "abstains": true,
+   "chars": 617,
+   "words": 91,
+   "context_chars": 1615,
+   "context_tokens": 474,
+   "context_ms": 151,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "ab69aff83534",
+   "question": "Q18",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4682,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "covered": [
+    "Muster Klinikum Hamburg GmbH"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [
+    "[3] cloudwerk.example"
+   ],
+   "abstains": true,
+   "chars": 888,
+   "words": 130,
+   "context_chars": 1615,
+   "context_tokens": 474,
+   "context_ms": 151,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "9dd0348faf1e",
+   "question": "Q18",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5622,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "ISO 27001"
+   ],
+   "covered": [
+    "ISO 27001"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 608,
+   "words": 96,
+   "context_chars": 470,
+   "context_tokens": 100,
+   "context_ms": 107,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "08b1004dda26",
+   "question": "Q19",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4439,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "ISO 27001"
+   ],
+   "covered": [
+    "ISO 27001"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 497,
+   "words": 69,
+   "context_chars": 470,
+   "context_tokens": 100,
+   "context_ms": 107,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "cf3175c0e199",
+   "question": "Q19",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4273,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "ISO 27001"
+   ],
+   "covered": [
+    "ISO 27001"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 618,
+   "words": 94,
+   "context_chars": 1150,
+   "context_tokens": 327,
+   "context_ms": 120,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "1d4fd46950be",
+   "question": "Q19",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4255,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "ISO 27001"
+   ],
+   "covered": [
+    "ISO 27001"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 636,
+   "words": 90,
+   "context_chars": 1150,
+   "context_tokens": 327,
+   "context_ms": 120,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "93f6dbfdf422",
+   "question": "Q19",
+   "topic": "relations",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4601,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Heizung/Sanitär"
+   ],
+   "covered": [
+    "Heizung/Sanitär"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 441,
+   "words": 68,
+   "context_chars": 841,
+   "context_tokens": 217,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "3569fcaec42d",
+   "question": "Q20",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3747,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Heizung/Sanitär"
+   ],
+   "covered": [
+    "Heizung/Sanitär"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 454,
+   "words": 66,
+   "context_chars": 841,
+   "context_tokens": 217,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "dc3a5fb65e0e",
+   "question": "Q20",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4214,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Heizung/Sanitär"
+   ],
+   "covered": [
+    "Heizung/Sanitär"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 816,
+   "words": 117,
+   "context_chars": 2314,
+   "context_tokens": 708,
+   "context_ms": 131,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "05f34fe6d576",
+   "question": "Q20",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5299,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Heizung/Sanitär"
+   ],
+   "covered": [
+    "Heizung/Sanitär"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    3,
+    4,
+    5,
+    6
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 708,
+   "words": 100,
+   "context_chars": 2314,
+   "context_tokens": 708,
+   "context_ms": 131,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "f6b55ca4e7c4",
+   "question": "Q20",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3552,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Elektroinstallation"
+   ],
+   "covered": [
+    "Elektroinstallation"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 285,
+   "words": 38,
+   "context_chars": 491,
+   "context_tokens": 102,
+   "context_ms": 109,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "50a4ec7b6d51",
+   "question": "Q21",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 2966,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Elektroinstallation"
+   ],
+   "covered": [
+    "Elektroinstallation"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 290,
+   "words": 39,
+   "context_chars": 491,
+   "context_tokens": 102,
+   "context_ms": 109,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "05cc8edee971",
+   "question": "Q21",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2910,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Elektroinstallation"
+   ],
+   "covered": [
+    "Elektroinstallation"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 581,
+   "words": 78,
+   "context_chars": 1707,
+   "context_tokens": 507,
+   "context_ms": 121,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "026582260ee9",
+   "question": "Q21",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3632,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Elektroinstallation"
+   ],
+   "covered": [
+    "Elektroinstallation"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 585,
+   "words": 77,
+   "context_chars": 1707,
+   "context_tokens": 507,
+   "context_ms": 121,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "0f4d976adfdb",
+   "question": "Q21",
+   "topic": "industry",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3242,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "covered": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 408,
+   "words": 58,
+   "context_chars": 461,
+   "context_tokens": 93,
+   "context_ms": 144,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "6dc319aa135c",
+   "question": "Q22",
+   "topic": "audiences",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4182,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "covered": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 377,
+   "words": 52,
+   "context_chars": 461,
+   "context_tokens": 93,
+   "context_ms": 144,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "0aa2dd0e9f93",
+   "question": "Q22",
+   "topic": "audiences",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3828,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "covered": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 690,
+   "words": 89,
+   "context_chars": 1606,
+   "context_tokens": 474,
+   "context_ms": 167,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "7f89b84749c5",
+   "question": "Q22",
+   "topic": "audiences",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5040,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "covered": [
+    "Pflegeeinrichtungen",
+    "Geschäftskunden (B2B)",
+    "bundesweit"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 695,
+   "words": 83,
+   "context_chars": 1606,
+   "context_tokens": 474,
+   "context_ms": 167,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "f57b2f14b0f2",
+   "question": "Q22",
+   "topic": "audiences",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5589,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Privatpersonen"
+   ],
+   "covered": [
+    "Privatpersonen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 349,
+   "words": 51,
+   "context_chars": 481,
+   "context_tokens": 90,
+   "context_ms": 120,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "0be321075635",
+   "question": "Q23",
+   "topic": "audiences",
+   "collection": "checkthecoach-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 2946,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Privatpersonen"
+   ],
+   "covered": [
+    "Privatpersonen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 313,
+   "words": 44,
+   "context_chars": 481,
+   "context_tokens": 90,
+   "context_ms": 120,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "39b067c3d6c5",
+   "question": "Q23",
+   "topic": "audiences",
+   "collection": "checkthecoach-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3237,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Privatpersonen"
+   ],
+   "covered": [
+    "Privatpersonen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 646,
+   "words": 93,
+   "context_chars": 993,
+   "context_tokens": 260,
+   "context_ms": 123,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "5b57b9a41714",
+   "question": "Q23",
+   "topic": "audiences",
+   "collection": "checkthecoach-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4688,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "Privatpersonen"
+   ],
+   "covered": [
+    "Privatpersonen"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 570,
+   "words": 82,
+   "context_chars": 993,
+   "context_tokens": 260,
+   "context_ms": 123,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "21836ed9dcb5",
+   "question": "Q23",
+   "topic": "audiences",
+   "collection": "checkthecoach-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3984,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "covered": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 896,
+   "words": 128,
+   "context_chars": 1231,
+   "context_tokens": 341,
+   "context_ms": 152,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "20a88e234c5c",
+   "question": "Q24",
+   "topic": "jobs",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 5580,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "covered": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 761,
+   "words": 106,
+   "context_chars": 1231,
+   "context_tokens": 341,
+   "context_ms": 152,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "935cf6316657",
+   "question": "Q24",
+   "topic": "jobs",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5385,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "covered": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    3,
+    4,
+    5
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 876,
+   "words": 124,
+   "context_chars": 2689,
+   "context_tokens": 827,
+   "context_ms": 172,
+   "graph_facts": 7,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "ce1578020b21",
+   "question": "Q24",
+   "topic": "jobs",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 6291,
+   "imprecise": []
+  },
+  {
+   "facts": 3,
+   "hits": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "covered": [
+    "Pflegefachkraft",
+    "3.400–3.900 €",
+    "brutto im Monat"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    3,
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 868,
+   "words": 116,
+   "context_chars": 2689,
+   "context_tokens": 827,
+   "context_ms": 172,
+   "graph_facts": 7,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "411f65adb2b3",
+   "question": "Q24",
+   "topic": "jobs",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 6576,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "covered": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 387,
+   "words": 56,
+   "context_chars": 482,
+   "context_tokens": 87,
+   "context_ms": 124,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "0d4fb0b43b75",
+   "question": "Q25",
+   "topic": "jobs",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 2881,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "covered": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 457,
+   "words": 74,
+   "context_chars": 482,
+   "context_tokens": 87,
+   "context_ms": 124,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "b1725d16027e",
+   "question": "Q25",
+   "topic": "jobs",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3141,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "covered": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 562,
+   "words": 85,
+   "context_chars": 1326,
+   "context_tokens": 368,
+   "context_ms": 138,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "776ff818da64",
+   "question": "Q25",
+   "topic": "jobs",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3826,
+   "imprecise": []
+  },
+  {
+   "facts": 2,
+   "hits": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "covered": [
+    "30.11.2026",
+    "20 € pro Stunde"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 485,
+   "words": 74,
+   "context_chars": 1326,
+   "context_tokens": 368,
+   "context_ms": 138,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "0fed37859f8b",
+   "question": "Q25",
+   "topic": "jobs",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4066,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 714,
+   "words": 100,
+   "context_chars": 1027,
+   "context_tokens": 282,
+   "context_ms": 133,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "a1e1996eccc1",
+   "question": "Q26",
+   "topic": "same name",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4527,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 708,
+   "words": 99,
+   "context_chars": 1027,
+   "context_tokens": 282,
+   "context_ms": 133,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "da8291787921",
+   "question": "Q26",
+   "topic": "same name",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 5110,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "0221 9990000"
+   ],
+   "covered": [
+    "0221 9990000"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 404,
+   "words": 54,
+   "context_chars": 2418,
+   "context_tokens": 746,
+   "context_ms": 138,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "8c275140c068",
+   "question": "Q26",
+   "topic": "same name",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3858,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "0221 9990000"
+   ],
+   "covered": [
+    "0221 9990000"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    4
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 317,
+   "words": 42,
+   "context_chars": 2418,
+   "context_tokens": 746,
+   "context_ms": 138,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "1bda6ab02029",
+   "question": "Q26",
+   "topic": "same name",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4108,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 906,
+   "words": 125,
+   "context_chars": 497,
+   "context_tokens": 107,
+   "context_ms": 108,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "aaef5c1a848d",
+   "question": "Q27",
+   "topic": "same name",
+   "collection": "checkthecoach-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4931,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 656,
+   "words": 96,
+   "context_chars": 497,
+   "context_tokens": 107,
+   "context_ms": 108,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": true,
+   "contradiction": false,
+   "complete": false,
+   "task": "547d2d94d95c",
+   "question": "Q27",
+   "topic": "same name",
+   "collection": "checkthecoach-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 4284,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "089 1234000"
+   ],
+   "covered": [
+    "089 1234000"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 445,
+   "words": 58,
+   "context_chars": 1059,
+   "context_tokens": 294,
+   "context_ms": 119,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "072dbd1e416a",
+   "question": "Q27",
+   "topic": "same name",
+   "collection": "checkthecoach-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4604,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "089 1234000"
+   ],
+   "covered": [
+    "089 1234000"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 454,
+   "words": 60,
+   "context_chars": 1059,
+   "context_tokens": 294,
+   "context_ms": 119,
+   "graph_facts": 8,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "b159adf5252a",
+   "question": "Q27",
+   "topic": "same name",
+   "collection": "checkthecoach-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3621,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 704,
+   "words": 105,
+   "context_chars": 462,
+   "context_tokens": 89,
+   "context_ms": 111,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "f5bdcf0c2fbe",
+   "question": "Q28",
+   "topic": "collection limit",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 4491,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 601,
+   "words": 85,
+   "context_chars": 462,
+   "context_tokens": 89,
+   "context_ms": 111,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "5c783c630bd6",
+   "question": "Q28",
+   "topic": "collection limit",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 4226,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 771,
+   "words": 114,
+   "context_chars": 1196,
+   "context_tokens": 334,
+   "context_ms": 118,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "54a7b6589d74",
+   "question": "Q28",
+   "topic": "collection limit",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 5055,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 761,
+   "words": 111,
+   "context_chars": 1196,
+   "context_tokens": 334,
+   "context_ms": 118,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "47fa80bc7857",
+   "question": "Q28",
+   "topic": "collection limit",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 5838,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 527,
+   "words": 75,
+   "context_chars": 205,
+   "context_tokens": 0,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "9089c7dc0ece",
+   "question": "Q29",
+   "topic": "collection limit",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 3180,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 722,
+   "words": 111,
+   "context_chars": 205,
+   "context_tokens": 0,
+   "context_ms": 119,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "d59eb2fcaa03",
+   "question": "Q29",
+   "topic": "collection limit",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 5058,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 523,
+   "words": 79,
+   "context_chars": 205,
+   "context_tokens": 0,
+   "context_ms": 108,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "78947c8d83ce",
+   "question": "Q29",
+   "topic": "collection limit",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 3307,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 517,
+   "words": 78,
+   "context_chars": 205,
+   "context_tokens": 0,
+   "context_ms": 108,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "f60ebfc1244a",
+   "question": "Q29",
+   "topic": "collection limit",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 4123,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "79 € (Stand 01/2024)"
+   ],
+   "covered": [
+    "79 € (Stand 01/2024)"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 272,
+   "words": 41,
+   "context_chars": 501,
+   "context_tokens": 95,
+   "context_ms": 153,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "a8b6af8f4613",
+   "question": "Q30",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 3005,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "79 € (Stand 01/2024)"
+   ],
+   "covered": [
+    "79 € (Stand 01/2024)"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 245,
+   "words": 36,
+   "context_chars": 501,
+   "context_tokens": 95,
+   "context_ms": 153,
+   "graph_facts": 0,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "71dc97ea683c",
+   "question": "Q30",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 2685,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "79 € (Stand 01/2024)"
+   ],
+   "covered": [
+    "79 € (Stand 01/2024)"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 600,
+   "words": 92,
+   "context_chars": 1962,
+   "context_tokens": 582,
+   "context_ms": 170,
+   "graph_facts": 5,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "87e08179180f",
+   "question": "Q30",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": false,
+   "generation_ms": 4756,
+   "imprecise": []
+  },
+  {
+   "facts": 1,
+   "hits": [
+    "79 € (Stand 01/2024)"
+   ],
+   "covered": [
+    "79 € (Stand 01/2024)"
+   ],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3
+   ],
+   "correct_source": true,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": false,
+   "chars": 436,
+   "words": 70,
+   "context_chars": 1962,
+   "context_tokens": 582,
+   "context_ms": 170,
+   "graph_facts": 5,
+   "false_abstention": false,
+   "honest_abstention": false,
+   "contradiction": false,
+   "complete": true,
+   "task": "d71601a6c122",
+   "question": "Q30",
+   "topic": "prices",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": false,
+   "generation_ms": 3738,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 792,
+   "words": 118,
+   "context_chars": 614,
+   "context_tokens": 140,
+   "context_ms": 157,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "45bceb233602",
+   "question": "Q31",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 4244,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 702,
+   "words": 99,
+   "context_chars": 614,
+   "context_tokens": 140,
+   "context_ms": 157,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "403f966c8e27",
+   "question": "Q31",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 4446,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 717,
+   "words": 106,
+   "context_chars": 1856,
+   "context_tokens": 554,
+   "context_ms": 153,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "a6ae97fbb263",
+   "question": "Q31",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 3966,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4,
+    5
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 697,
+   "words": 101,
+   "context_chars": 1856,
+   "context_tokens": 554,
+   "context_ms": 153,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "a02194ce90ef",
+   "question": "Q31",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 4092,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 781,
+   "words": 125,
+   "context_chars": 928,
+   "context_tokens": 248,
+   "context_ms": 131,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "c1a7fdae229a",
+   "question": "Q32",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 4442,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 788,
+   "words": 126,
+   "context_chars": 928,
+   "context_tokens": 248,
+   "context_ms": 131,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "0f873877d57d",
+   "question": "Q32",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 4435,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    5,
+    6
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1017,
+   "words": 169,
+   "context_chars": 2350,
+   "context_tokens": 722,
+   "context_ms": 154,
+   "graph_facts": 7,
+   "correct_abstention": true,
+   "task": "439e94f9e598",
+   "question": "Q32",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 6618,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    5,
+    6
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1111,
+   "words": 174,
+   "context_chars": 2350,
+   "context_tokens": 722,
+   "context_ms": 154,
+   "graph_facts": 7,
+   "correct_abstention": true,
+   "task": "dedb37ee2720",
+   "question": "Q32",
+   "topic": "unanswerable",
+   "collection": "edelsenior-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 7025,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 947,
+   "words": 144,
+   "context_chars": 1248,
+   "context_tokens": 355,
+   "context_ms": 141,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "887e7d9e4fa6",
+   "question": "Q33",
+   "topic": "unanswerable",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 5905,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 1083,
+   "words": 163,
+   "context_chars": 1248,
+   "context_tokens": 355,
+   "context_ms": 141,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "b7d06cae6db9",
+   "question": "Q33",
+   "topic": "unanswerable",
+   "collection": "stackfinder-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 7257,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    6
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 795,
+   "words": 115,
+   "context_chars": 2222,
+   "context_tokens": 679,
+   "context_ms": 49,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "39371611a3bf",
+   "question": "Q33",
+   "topic": "unanswerable",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 4920,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    2,
+    6,
+    7
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 723,
+   "words": 105,
+   "context_chars": 2222,
+   "context_tokens": 679,
+   "context_ms": 49,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "5426b7814b26",
+   "question": "Q33",
+   "topic": "unanswerable",
+   "collection": "stackfinder-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 5086,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 778,
+   "words": 115,
+   "context_chars": 844,
+   "context_tokens": 217,
+   "context_ms": 118,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "234139d87d9a",
+   "question": "Q34",
+   "topic": "unanswerable",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 4105,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 731,
+   "words": 109,
+   "context_chars": 844,
+   "context_tokens": 217,
+   "context_ms": 118,
+   "graph_facts": 0,
+   "correct_abstention": true,
+   "task": "01276e9e04eb",
+   "question": "Q34",
+   "topic": "unanswerable",
+   "collection": "bauteamcheck-web",
+   "mode": "off",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 3955,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 846,
+   "words": 121,
+   "context_chars": 1611,
+   "context_tokens": 473,
+   "context_ms": 124,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "0f373dfe7fbc",
+   "question": "Q34",
+   "topic": "unanswerable",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 1,
+   "unanswerable": true,
+   "generation_ms": 6277,
+   "imprecise": []
+  },
+  {
+   "facts": 0,
+   "hits": [],
+   "covered": [],
+   "false": [],
+   "invented": [],
+   "cited": [
+    1,
+    2,
+    3,
+    4
+   ],
+   "correct_source": null,
+   "false_sources": [],
+   "foreign_citations": [],
+   "abstains": true,
+   "chars": 896,
+   "words": 127,
+   "context_chars": 1611,
+   "context_tokens": 473,
+   "context_ms": 124,
+   "graph_facts": 8,
+   "correct_abstention": true,
+   "task": "3da16734e823",
+   "question": "Q34",
+   "topic": "unanswerable",
+   "collection": "bauteamcheck-web",
+   "mode": "on",
+   "repetition": 2,
+   "unanswerable": true,
+   "generation_ms": 4525,
+   "imprecise": []
+  }
+ ]
+}
