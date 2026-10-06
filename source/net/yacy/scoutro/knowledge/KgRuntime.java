@@ -1207,10 +1207,10 @@ public final class KgRuntime {
         }
     }
 
-    /** Documents per collection, counted at most once a minute (the status is polled). */
+    /** Documents per collection, counted at most every 10 seconds (the status is polled; one index scan of kg_doc_collection). */
     private volatile java.util.Map<String, Long> documentsByCollection;
     private volatile long documentsCountedAt;
-    static final long DOCUMENT_COUNT_MILLIS = 60_000L;
+    static final long DOCUMENT_COUNT_MILLIS = 10_000L;
 
     private java.util.Map<String, Long> documentsByCollection() {
         final long now = this.env.clock.getAsLong();
@@ -1248,7 +1248,7 @@ public final class KgRuntime {
      * ({@code setting} for {@code scoutro.kg.vocab.<collection>},
      * {@code vocabulary_files} for categories.json or an override file,
      * {@code none}), whether that vocabulary exists, jobs, the LLM tier, the
-     * documents in the graph and a state. A collection without a vocabulary
+     * documents in the graph (at most 10 seconds old) and a state. A collection without a vocabulary
      * gets generic facts only; its vocabulary is never guessed from its name.
      */
     JSONArray collectionsStatus(final boolean withDocuments) {
