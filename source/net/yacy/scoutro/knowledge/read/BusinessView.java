@@ -589,8 +589,9 @@ public final class BusinessView {
         String validThrough = null;
         for (final Fact f : facts) {
             current |= !"stale".equals(f.stat.quality);
-            if (f.stat.lastConfirmed != null && (lastSeen == null || f.stat.lastConfirmed > lastSeen)) {
-                lastSeen = f.stat.lastConfirmed;
+            // the last load of its pages, also of a page that is gone (lastConfirmed counts current pages only)
+            if (f.stat.lastSeen != null && (lastSeen == null || f.stat.lastSeen > lastSeen)) {
+                lastSeen = f.stat.lastSeen;
             }
             collect(f, docs);
             switch (f.stat.predicate) {

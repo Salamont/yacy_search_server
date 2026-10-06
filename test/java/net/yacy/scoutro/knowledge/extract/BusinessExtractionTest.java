@@ -224,6 +224,24 @@ public class BusinessExtractionTest {
                 .map(c -> c.predicate).distinct().collect(java.util.stream.Collectors.toList()));
     }
 
+    /**
+     * A price table as YaCy's HTML parser gives it to the index: the cells of all rows in one line, separated by spaces, no
+     * colons ({@code <tr><td>Kurzzeitpflege</td><td>89,90 € pro Tag</td></tr>} …, checked with {@code TextParser}).
+     */
+    @Test
+    public void aPriceTableKeepsEveryPriceWithTheServiceOfItsRow() {
+        final String table = "Preise – Muster Pflege. # Preise. Leistung Preis Kurzzeitpflege 89,90 € pro Tag Tagespflege ab 49 € pro Tag "
+                + "Verhinderungspflege 25 €/Stunde Stand: 08/2026.";
+        final Extraction ex = rules(table, "https://www.muster-pflege.de/preise", care(false), List.of());
+        assertEquals(List.of("{\"amount\":\"89.90\",\"as_of\":\"2026-08\",\"currency\":\"EUR\",\"kind\":\"fixed\",\"unit\":\"day\"}"),
+                valuesOf(ex, named(ex, Vocabulary.SERVICE, "Kurzzeitpflege"), Vocabulary.PRICE));
+        assertEquals(List.of("{\"amount\":\"49.00\",\"as_of\":\"2026-08\",\"currency\":\"EUR\",\"kind\":\"from\",\"unit\":\"day\"}"),
+                valuesOf(ex, named(ex, Vocabulary.SERVICE, "Tagespflege"), Vocabulary.PRICE));
+        assertEquals(List.of("{\"amount\":\"25.00\",\"as_of\":\"2026-08\",\"currency\":\"EUR\",\"kind\":\"fixed\",\"unit\":\"hour\"}"),
+                valuesOf(ex, named(ex, Vocabulary.SERVICE, "Verhinderungspflege"), Vocabulary.PRICE));
+        assertEquals("three prices, none twice and none for the column heads", 3, values(ex, Vocabulary.PRICE).size());
+    }
+
     /** Benchmark finding: "Wir sind Partner der …" named no partner. */
     @Test
     public void aPartnerNamedInASentenceIsAPartner() {

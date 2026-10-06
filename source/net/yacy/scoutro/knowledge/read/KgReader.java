@@ -232,6 +232,8 @@ public final class KgReader {
         final Set<Long> docs = new HashSet<>();
         final Set<String> kinds = new TreeSet<>();
         Long lastConfirmed;
+        /** The last load of any visible page behind it, current or not: when a fact that is gone was last seen. */
+        Long lastSeen;
         Long firstObserved;
         String quality;
 
@@ -298,6 +300,9 @@ public final class KgReader {
                     s.firstObserved = s.firstObserved == null ? observed : Math.min(s.firstObserved, observed);
                     final int state = rs.getInt(6);
                     final Long loaded = rs.getObject(8) == null ? null : rs.getLong(8);
+                    if (loaded != null && (s.lastSeen == null || loaded > s.lastSeen)) {
+                        s.lastSeen = loaded;
+                    }
                     if (!current(state, rs.getLong(7), loaded, now)) {
                         continue;
                     }

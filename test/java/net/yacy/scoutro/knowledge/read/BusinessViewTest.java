@@ -174,6 +174,61 @@ public class BusinessViewTest {
         return out;
     }
 
+    private static JSONObject job(final BusinessView bv, final String entity, final Viewer v, final String title) throws Exception {
+        final JSONObject jobs = bv.entity(entity, v, false).optJSONObject("jobs");
+        for (int i = 0; jobs != null && i < jobs.getJSONArray("items").length(); i++) {
+            final JSONObject j = jobs.getJSONArray("items").getJSONObject(i);
+            if (j.getString("title").startsWith(title)) {
+                return j;
+            }
+        }
+        return null;
+    }
+
+    /** Several industries: the best-supported one is the main industry; two equally supported ones give their safe common level. */
+    @Test
+    public void severalIndustriesGiveAMainOneAndTheOthersAsSecondary() throws Exception {
+        final ExtractContext bau = ctx("construction", "bauteamcheck-web", false);
+        final String org = "{\"@type\":\"Organization\",\"name\":\"Muster Ausbau GmbH\",\"url\":\"https://www.muster-ausbau.de/\"}";
+        publish(doc("AUSBAUhost03", "https://www.muster-ausbau.de/leistungen", "bauteamcheck-web"), org,
+                "Leistungen. Elektroinstallation und Malerarbeiten aus einer Hand.", bau, this.now - DAY);
+        final BusinessView bv = new BusinessView(this.reader);
+        final Viewer v = viewer("bauteamcheck-web");
+        JSONObject industry = bv.entity(entity("Muster Ausbau GmbH"), v, false).getJSONObject("industry");
+        assertEquals("equally supported: their common level", "43", industry.getJSONObject("main").getString("code"));
+        assertEquals("common_level", industry.getJSONObject("main").getString("basis"));
+        List<String> secondary = strings(industry.getJSONArray("secondary"), "code");
+        java.util.Collections.sort(secondary);
+        assertEquals(List.of("43.21", "43.34"), secondary);
+        // a second page with the electrical work: it is the best-supported industry now
+        publish(doc("AUSBA2host03", "https://www.muster-ausbau.de/leistungen/elektro", "bauteamcheck-web"), org,
+                "Leistungen. Elektroinstallation für Neubau und Bestand.", bau, this.now - DAY);
+        industry = new BusinessView(this.reader).entity(entity("Muster Ausbau GmbH"), v, false).getJSONObject("industry");
+        assertEquals("43.21", industry.getJSONObject("main").getString("code"));
+        assertEquals("best_supported", industry.getJSONObject("main").getString("basis"));
+        assertEquals(List.of("43.34"), strings(industry.getJSONArray("secondary"), "code"));
+    }
+
+    /** A posting whose page disappears ends when the page was last seen, and is hidden after the visible days. */
+    @Test
+    public void aPostingWhosePageDisappearsEndsWithIt() throws Exception {
+        final long seen = this.now - 10 * DAY;
+        publish(doc("JOBSB1host02", "https://www.lindenhof.de/stellen", "edelsenior-web"), OP,
+                "Karriere. Alltagsbegleiter (m/w/d) in Teilzeit. Bewerbungsfrist: 31.12.2027.", ctx("care", "edelsenior-web", true), seen);
+        final String op = entity("Lindenhof Pflege gGmbH");
+        final Viewer v = viewer("edelsenior-web");
+        assertEquals("open", job(new BusinessView(this.reader), op, v, "Alltagsbegleiter").getString("status"));
+        final long rowid = this.store.read(c -> KgStore.queryLong(c, "SELECT doc_rowid FROM kg_doc WHERE doc_id = 'JOBSB1host02'"));
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> this.publisher.setState(tx, List.of(rowid), Aggregates.STATE_GONE, this.now - DAY));
+        final JSONObject ended = job(new BusinessView(this.reader), op, v, "Alltagsbegleiter");
+        assertNotNull("an ended posting stays visible for its days", ended);
+        assertEquals("ended", ended.getString("status"));
+        assertEquals("ended when its page was last seen", KgReader.iso(seen), ended.getString("ended_at"));
+        final KgReader later = new KgReader(this.store, this.cfg, () -> this.now + 100 * DAY);
+        assertEquals("hidden 90 days after its end", null, job(new BusinessView(later), op, later.viewer(List.of("edelsenior-web")),
+                "Alltagsbegleiter"));
+    }
+
     @Test
     public void pricesShowTheirDateStalenessExpiryAndConflictsWithoutAveraging() throws Exception {
         final JSONObject view = new BusinessView(this.reader).entity(entity("Lindenhof Pflege gGmbH"), viewer("edelsenior-web"), false);
