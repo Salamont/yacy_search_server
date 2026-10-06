@@ -183,9 +183,19 @@ public final class StorageGuard {
      * Measures the files first; the store calls it under its write lock.
      */
     public synchronized void admit(final WriteClass writeClass, final long estimateBytes) throws KgException {
+        admit(writeClass, estimateBytes, estimateBytes);
+    }
+
+    /**
+     * Admits a write that adds up to {@code estimateBytes} to the disk usage,
+     * of which {@code walEstimateBytes} pass through the WAL: a copy into
+     * another file ({@code VACUUM INTO}) passes none, so a graph larger than
+     * {@code wal.maxBytes} can still be copied.
+     */
+    public synchronized void admit(final WriteClass writeClass, final long estimateBytes, final long walEstimateBytes) throws KgException {
         measureFast();
         final long est = Math.max(0L, estimateBytes);
-        final String reason = refusal(writeClass, est);
+        final String reason = refusal(writeClass, est, Math.max(0L, walEstimateBytes));
         if (reason != null) {
             this.refused.merge(reason, 1L, Long::sum);
             throw KgException.refused(reason, "knowledge graph write refused (" + writeClass.name().toLowerCase()
@@ -194,13 +204,17 @@ public final class StorageGuard {
     }
 
     private String refusal(final WriteClass writeClass, final long est) {
+        return refusal(writeClass, est, est);
+    }
+
+    private String refusal(final WriteClass writeClass, final long est, final long walEst) {
         if (this.storageError != null) {
             return STORAGE_ERROR;
         }
         if (this.usableBytes - est < this.cfg.criticalFloorBytes()) {
             return DISK_CRITICAL;
         }
-        if (this.walBytes + est > this.cfg.walMaxBytes) {
+        if (this.walBytes + walEst > this.cfg.walMaxBytes) {
             return this.checkpointBlockedSince > 0 ? WAL_CHECKPOINT_BLOCKED : WAL_LIMIT;
         }
         if (writeClass == WriteClass.SYSTEM) {

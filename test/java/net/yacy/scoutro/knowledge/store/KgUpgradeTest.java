@@ -134,6 +134,21 @@ public class KgUpgradeTest {
         assertEquals(2, backups(p).length);
     }
 
+    /** The copy before the upgrade writes no WAL: a graph larger than {@code wal.maxBytes} gets it (it was held with wal_limit). */
+    @Test
+    public void aGraphLargerThanTheWalLimitGetsItsCopyBeforeTheUpgrade() throws Exception {
+        final KgPaths p = v3("large", 12_000);
+        assertTrue("larger than the WAL limit: " + p.db.length(), p.db.length() > (4L << 20));
+        final KgConfig cfg = KgTestSupport.config(KgTestSupport.enabled(KgConfig.WAL_MAX_BYTES, Long.toString(4L << 20),
+                KgConfig.WAL_CHECKPOINT_BYTES, Long.toString(1L << 20)));
+        final StorageGuard guard = new StorageGuard(cfg, p, new KgTestSupport.Probe(), System::currentTimeMillis);
+        this.store = KgStore.open(p, cfg, guard, KgStore.SQLITE, System::currentTimeMillis);
+        final JSONObject up = this.store.upgrade();
+        assertTrue(up.toString(), up.has("backup") && !up.isNull("backup"));
+        assertEquals(3, KgBackup.verify(new File(p.backup, up.getString("backup")), 3).getInt("schema_version"));
+        assertNull("nothing waits", this.store.read(c -> KgStore.getMeta(c, KgSchema.META_UPGRADE_HOLD)));
+    }
+
     @Test
     public void withoutRoomForTheCopyTheMigrationRunsAndTheReextractionWaits() throws Exception {
         final KgPaths p = v3("full", 20);

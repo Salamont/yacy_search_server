@@ -157,6 +157,33 @@ public class KgBackupTest {
         assertNull(this.runtime.backupFile("graph.db"));
     }
 
+    /**
+     * A copy goes into another file, not through the WAL: a graph larger than
+     * {@code wal.maxBytes} is backed up (it was refused with wal_limit).
+     */
+    @Test
+    public void aGraphLargerThanTheWalLimitIsBackedUp() throws Exception {
+        this.runtime.close();
+        this.runtime = open(KgConfig.WAL_MAX_BYTES, Long.toString(4L << 20), KgConfig.WAL_CHECKPOINT_BYTES, Long.toString(1L << 20));
+        final KgStore store = KgTestSupport.store(this.runtime);
+        final String pad = "x".repeat(4000);
+        for (int batch = 0; batch < 8; batch++) {
+            final int b = batch;
+            store.write(WriteClass.SYSTEM, 200L * 4096, tx -> {
+                for (int i = 0; i < 200; i++) {
+                    KgStore.putMeta(tx, "test.pad." + b + "." + i, pad);
+                }
+                return null;
+            });
+        }
+        final long logical = store.read(c -> (KgStore.queryLong(c, "PRAGMA page_count") - KgStore.queryLong(c, "PRAGMA freelist_count"))
+                * KgStore.queryLong(c, "PRAGMA page_size"));
+        assertTrue("the graph is larger than the WAL limit: " + logical, logical > (4L << 20));
+        final JSONObject last = backup();
+        assertEquals(last.toString(), "created", last.getString("result"));
+        assertTrue(last.getLong("bytes") > (4L << 20));
+    }
+
     @Test
     public void aRestorePutsTheBackupBackWithANewEpochAndKeepsThePreviousGraph() throws Exception {
         final String file = backup().getString("file");

@@ -510,14 +510,19 @@ public final class KgStore implements AutoCloseable {
 
     /** Admission with one checkpoint attempt when only the WAL is in the way; caller holds the write lock. */
     private void admitLocked(final WriteClass writeClass, final long estimateBytes) throws KgException {
+        admitLocked(writeClass, estimateBytes, estimateBytes);
+    }
+
+    /** {@link #admitLocked(WriteClass, long)} for a write of which only {@code walEstimateBytes} pass through the WAL. */
+    private void admitLocked(final WriteClass writeClass, final long estimateBytes, final long walEstimateBytes) throws KgException {
         try {
-            this.guard.admit(writeClass, estimateBytes);
+            this.guard.admit(writeClass, estimateBytes, walEstimateBytes);
         } catch (final KgException e) {
             if (!StorageGuard.WAL_LIMIT.equals(e.reason()) && !StorageGuard.WAL_CHECKPOINT_BLOCKED.equals(e.reason())) {
                 throw e;
             }
             checkpoint();
-            this.guard.admit(writeClass, estimateBytes);
+            this.guard.admit(writeClass, estimateBytes, walEstimateBytes);
         }
     }
 
@@ -902,8 +907,9 @@ public final class KgStore implements AutoCloseable {
      * dedicated read-only connection outside the reader pool, so writers keep
      * going. Admitted as growth with the logical size as estimate under the
      * write lock, so it starts only if the budget, the pause state and the
-     * disk reserve allow it; interrupted at {@code deadlineMillis}. A failed
-     * or interrupted copy is deleted.
+     * disk reserve allow it (the WAL limit does not apply: the copy writes
+     * no WAL); interrupted at {@code deadlineMillis}. A failed or
+     * interrupted copy is deleted.
      *
      * @return the size of the copy in bytes
      * @throws KgException {@link KgException#WRITE_REFUSED} with the guard's reason,
@@ -923,7 +929,8 @@ public final class KgStore implements AutoCloseable {
         try {
             final long logical = (queryLong(this.writer, "PRAGMA page_count") - queryLong(this.writer, "PRAGMA freelist_count"))
                     * this.pageSize;
-            admitLocked(writeClass, logical);
+            // the copy grows the disk usage by its size, but writes nothing to this database's WAL
+            admitLocked(writeClass, logical, 0L);
         } catch (final SQLException e) {
             throw mapWrite(e);
         } finally {
