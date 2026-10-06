@@ -419,7 +419,10 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-agents-") as temporary:
             guest_names = choices(call(ANON, "GET", "/yacychat.html", None, {"X-Forwarded-For": "198.51.100.25"})[2].decode())
             assert guest_names == ["", "kga"], guest_names
             local_names = choices(call(ANON, "GET", "/yacychat.html")[2].decode())
-            assert local_names[0] == "" and {"kga", "kgb"} <= set(local_names) and local_names[1:] == sorted(local_names[1:], key=lambda c: (c.lower(), c)), local_names
+            # local access: every collection of the index (the administrator's list without YaCy's robot_ collections), sorted
+            index_names = sorted((x["id"] for x in get(c, "/scoutro/api/v1/collections")["collections"] if not x["id"].startswith("robot_")),
+                                 key=lambda name: (name.lower(), name))
+            assert "kga" in index_names and local_names == [""] + index_names, (local_names, index_names)
             checks += 10
             print(f"PASS: {checks} live checks of agents, export, change feed, download, scoutroctl, MCP and chat", flush=True)
 

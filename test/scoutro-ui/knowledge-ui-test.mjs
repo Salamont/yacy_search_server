@@ -86,9 +86,10 @@ try {
           && JSON.stringify(scopeOptions.slice(1).map(o => o[0])) === JSON.stringify(indexNames) && ['kga', 'kgb', 'kgc'].every(c => indexNames.includes(c)),
           'all collections first, then every collection of the index sorted, the new kgc included: ' + JSON.stringify(scopeOptions) + where);
         await scope.selectOption('kgb');
-        await page.waitForFunction(() => new URLSearchParams(location.search).get('collection') === 'kgb');
-        await page.waitForSelector('#skg-entities tbody tr');
-        check((await page.locator('#skg-entities tbody').textContent()).includes('Nur Bee GmbH'), 'choosing a collection applies it at once' + where);
+        await page.waitForFunction(() => new URLSearchParams(location.search).get('collection') === 'kgb'
+          && (document.querySelector('#skg-entities tbody')?.textContent || '').includes('Nur Bee GmbH'));
+        check(await scope.inputValue() === 'kgb' && (await page.locator('#skg-entities tbody').textContent()).includes('Nur Bee GmbH'),
+          'choosing a collection applies it at once' + where);
         await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&collection=unknown-web', { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-entities tbody tr');
         check(await scope.inputValue() === '' && await page.locator('#skg-scope-unknown').isVisible() && !new URL(page.url()).searchParams.has('collection')
