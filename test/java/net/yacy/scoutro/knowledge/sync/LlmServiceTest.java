@@ -280,7 +280,74 @@ public class LlmServiceTest {
             + " WHERE n.subj = s.obj_ent AND nv.name = 'name' LIMIT 1) || ' q' || s.quality FROM kg_statement s"
             + " JOIN kg_vocab v ON v.term_id = s.pred WHERE s.obj_ent IS NOT NULL ORDER BY 1";
 
+    static net.yacy.scoutro.knowledge.extract.Mention mention() {
+        final net.yacy.scoutro.knowledge.extract.Mention m = new net.yacy.scoutro.knowledge.extract.Mention("jsonld:0",
+                net.yacy.scoutro.knowledge.extract.Vocabulary.ORGANIZATION, 1);
+        m.name = "Muster Pflege gGmbH";
+        return m;
+    }
+
+    static long sum(final JSONObject byReason) throws Exception {
+        long n = 0;
+        for (final String k : byReason.keySet()) {
+            n += byReason.getLong(k);
+        }
+        return n;
+    }
+
     // -------------------------------------------------------------- tests
+
+    @Test
+    public void theCountersOfTheItemsAddUpAndRefusedAnswersCountNoItem() throws Exception {
+        final LlmService.Counters c = new LlmService.Counters();
+        final JSONObject zero = c.json();
+        assertEquals(0L, zero.getLong("valuesAccepted"));
+        assertEquals(0L, zero.getLong("droppedInvalid"));
+        final JSONObject by0 = zero.getJSONObject("droppedInvalidByReason");
+        assertEquals("every code, also before the first answer", LlmExtractor.INVALID_REASONS.size(), by0.length());
+        for (final String reason : LlmExtractor.INVALID_REASONS) {
+            assertEquals(reason, 0L, by0.getLong(reason));
+        }
+        assertTrue("the whole-answer refusals stay apart", zero.getJSONObject("refusedBy").keySet().isEmpty());
+        final LlmExtractor.Chunk chunk = LlmExtractor.chunks(TEXT, 12_000).get(0);
+        final List<LlmExtractor.Known> known = List.of(new LlmExtractor.Known("k1", mention()));
+        final String answer = "{\"entities\":[{\"id\":\"e1\",\"type\":\"facility\",\"name\":\"Haus Lindenhof\",\"quote\":\"betreibt das Haus Lindenhof\"},"
+                + "{\"id\":\"e2\",\"type\":\"service\",\"name\":\"Tagespflege\",\"quote\":\"bietet Tagespflege an\",\"source\":\"page\"},"
+                + "{\"id\":\"e3\",\"type\":\"company\",\"name\":\"Haus Am See\",\"quote\":\"das Haus Am See\"}],"
+                + "\"claims\":[{\"subject\":\"k1\",\"predicate\":\"operates\",\"object\":\"e1\",\"quote\":\"Die Muster Pflege gGmbH betreibt das Haus Lindenhof\"},"
+                + "{\"subject\":\"k1\",\"predicate\":\"offers\",\"object\":\"e2\",\"quote\":\"bietet Tagespflege an\"}],"
+                + "\"values\":[{\"subject\":\"e1\",\"predicate\":\"price\",\"quote\":\"das Haus Lindenhof\"}]}";
+        final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, known, java.util.Set.of());
+        assertNull(r.refused);
+        c.accepted(r);
+        c.accepted(r);
+        c.refused(LlmExtractor.validate("{\"entities\":[],\"note\":1}", chunk, known, java.util.Set.of()).refused);
+        c.refused(LlmExtractor.validate("not json", chunk, known, java.util.Set.of()).refused);
+        final JSONObject p = c.json();
+        assertEquals(2L, p.getLong("answersAccepted"));
+        assertEquals(2L, p.getLong("answersRefused"));
+        assertEquals(1L, p.getJSONObject("refusedBy").getLong("unknown_field"));
+        assertEquals(1L, p.getJSONObject("refusedBy").getLong("invalid_json"));
+        assertEquals(2L, p.getLong("entitiesAccepted"));
+        assertEquals(2L, p.getLong("claimsAccepted"));
+        assertEquals("a price quote without an amount is not grounded", 0L, p.getLong("valuesAccepted"));
+        assertEquals(2L, p.getLong("droppedUngrounded"));
+        // the entity with the extra field and the one with an unknown type, then the claim about the dropped service
+        assertEquals(6L, p.getLong("droppedInvalid"));
+        final JSONObject by = p.getJSONObject("droppedInvalidByReason");
+        assertEquals(2L, by.getLong("entity_extra_field"));
+        assertEquals(2L, by.getLong("entity_unknown_type"));
+        assertEquals(2L, by.getLong("claim_unresolved_object"));
+        assertEquals(p.getLong("droppedInvalid"), sum(by));
+        assertEquals(LlmExtractor.INVALID_REASONS.size(), by.length());
+        // a value accepted
+        final LlmExtractor.Result v = LlmExtractor.validate("{\"entities\":[{\"id\":\"e2\",\"type\":\"service\",\"name\":\"Tagespflege\","
+                + "\"quote\":\"bietet Tagespflege an\"}],\"claims\":[],\"values\":[{\"subject\":\"e2\",\"predicate\":\"category\","
+                + "\"quote\":\"bietet Tagespflege an\"}]}", chunk, known, java.util.Set.of());
+        c.accepted(v);
+        assertEquals(1L, c.json().getLong("valuesAccepted"));
+        assertEquals(6L, c.json().getLong("droppedInvalid"));
+    }
 
     @Test
     public void groundedRelationsArePublishedAsUncertainWithProvenance() throws Exception {
@@ -307,6 +374,14 @@ public class LlmServiceTest {
         final JSONObject st = this.llm.status();
         assertEquals(1L, st.getJSONObject("processed").getLong("droppedUngrounded"));
         assertEquals(1L, st.getJSONObject("processed").getLong("published"));
+        // the items of the answer: the claim about the dropped holding is invalid (its object was not accepted)
+        final JSONObject p = st.getJSONObject("processed");
+        assertEquals(3L, p.getLong("entitiesAccepted"));
+        assertEquals(3L, p.getLong("claimsAccepted"));
+        assertEquals(0L, p.getLong("valuesAccepted"));
+        assertEquals(1L, p.getLong("droppedInvalid"));
+        assertEquals(1L, p.getJSONObject("droppedInvalidByReason").getLong("claim_unresolved_object"));
+        assertEquals(p.getLong("droppedInvalid"), sum(p.getJSONObject("droppedInvalidByReason")));
         // the same document processed again by the sync (unchanged) keeps the LLM result
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);
         settleSync();

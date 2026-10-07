@@ -682,9 +682,15 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     `bytes`, `maxBytes`), `breaker` (`open`, `consecutiveFailures`,
     `openUntil`, `backoffMillis`, `timesOpened`, `lastFailure`) and
     `processed` (calls, failures, timeouts, average call time, accepted and
-    refused answers by reason, accepted entities and claims, dropped
-    ungrounded and invalid items, cache hits and misses, published
-    documents and statements, skipped documents by reason);
+    refused answers by reason, accepted entities, claims and values
+    (`valuesAccepted`), dropped ungrounded and invalid items with
+    `droppedInvalidByReason`, cache hits and misses, published
+    documents and statements, skipped documents by reason). `droppedInvalid`
+    counts single dropped entities, claims and values, not calls;
+    `droppedInvalidByReason` has every reason code (0 if it never occurred,
+    docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3) and adds up to `droppedInvalid`.
+    All `processed` counters are in memory since the start and reset by a
+    restart; no model answer is stored;
   - `store`: schema version, dataset epoch, `uncleanStartDetected`,
     `startRecorded`, `integrity` (state of `PRAGMA quick_check`),
     `manualPause`, `manualPauseSaved`;

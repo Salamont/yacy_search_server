@@ -74,6 +74,47 @@ try {
         check(await noOverflow(page), 'no horizontal overflow (overview)' + where);
         if (shots) await page.screenshot({ path: path.join(shots, `kg-overview-${language}-${width}.png`), fullPage: true });
 
+        // the LLM tier's counters since the start: droppedInvalid with its reasons (folded) and valuesAccepted
+        const llmPanel = page.locator('#skg-llm-title').locator('..');
+        check((await page.locator('#skg-llm').textContent()).includes(await lbl('dropped_invalid')) && (await page.locator('#skg-llm').textContent()).includes(await lbl('llm_accepted')),
+          'LLM tier: accepted items and dropped as invalid' + where);
+        check((await llmPanel.textContent()).includes(language === 'de' ? 'seit dem letzten Start' : 'since the last start'), 'counters marked as since the last start' + where);
+        check(!(await page.locator('#skg-llm-invalid-details').evaluate(d => d.open)), 'reasons folded' + where);
+        const liveStatus = await page.evaluate(async () => (await fetch('/scoutro/api/v1/kg/status', { credentials: 'same-origin' })).json());
+        const processed = liveStatus.llm.processed;
+        const reasons = Object.values(processed.droppedInvalidByReason || {});
+        check(typeof processed.valuesAccepted === 'number' && reasons.length >= 46 && reasons.reduce((a, b) => a + b, 0) === processed.droppedInvalid,
+          'status: valuesAccepted, every reason code, the reasons add up to droppedInvalid' + where);
+        if (width === 360 || width === 1280) {
+          // the reasons that occurred, the most frequent first; zeros, an older server and missing counters stay calm
+          const zeros = Object.fromEntries(Object.keys(processed.droppedInvalidByReason).map(k => [k, 0]));
+          const variants = [
+            ['reasons', { ...processed, valuesAccepted: 2, droppedInvalid: 10, droppedInvalidByReason: { ...zeros, claim_unresolved_object: 3, entity_extra_field: 7 } }],
+            ['zeros', { ...processed, droppedInvalid: 0, droppedInvalidByReason: zeros }],
+            ['older server', { calls: 1, entitiesAccepted: 1, claimsAccepted: 0, droppedUngrounded: 0 }],
+            ['nulls', { calls: null, entitiesAccepted: null, valuesAccepted: null, droppedInvalid: null, droppedInvalidByReason: null }],
+            ['no counters', null]];
+          for (const [name, variant] of variants) {
+            // the live status of this page with other counters (the page's own request is answered, nothing else changes)
+            await page.route(/\/scoutro\/api\/v1\/kg\/status(\?|$)/, route => route.fulfill({ status: 200, contentType: 'application/json',
+              body: JSON.stringify({ ...liveStatus, llm: { ...liveStatus.llm, processed: variant } }) }));
+            await page.goto(base + '/ScoutroKnowledge_p.html', { waitUntil: 'networkidle' });
+            await page.waitForFunction(() => document.querySelector('#skg-llm').children.length > 0);
+            await page.locator('#skg-llm-invalid-details summary').click();
+            const shown = await page.locator('#skg-llm-invalid dt').allTextContents();
+            if (name === 'reasons') {
+              check(JSON.stringify(shown) === JSON.stringify(['entity_extra_field', 'claim_unresolved_object'])
+                && JSON.stringify(await page.locator('#skg-llm-invalid dd').allTextContents()) === JSON.stringify(['7', '3']), 'reasons, most frequent first, zeros left out' + where);
+              const llmRow = async key => page.evaluate(l => [...document.querySelectorAll('#skg-llm dt')].find(d => d.textContent === l)?.nextElementSibling?.textContent, await lbl(key));
+              check(await llmRow('dropped_invalid') === '10' && (await llmRow('llm_accepted') || '').endsWith(' · 2'), 'droppedInvalid and valuesAccepted shown' + where);
+            } else check(shown.length === 0 && (await page.locator('#skg-llm-invalid').textContent()) === await lbl('none'), 'no reason: none (' + name + ')' + where);
+            check(await noOverflow(page), 'no horizontal overflow (LLM reasons, ' + name + ')' + where);
+            if (shots && name === 'reasons') await page.screenshot({ path: path.join(shots, `kg-llm-reasons-${language}-${width}.png`), fullPage: true });
+            await page.unroute(/\/scoutro\/api\/v1\/kg\/status(\?|$)/);
+          }
+          check(errors.length === 0, 'no JavaScript error with any counters: ' + errors.join('; ') + where);
+        }
+
         // objects: all collections, then kga only
         await page.goto(base + '/ScoutroKnowledge_p.html?view=objects', { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-entities tbody tr');

@@ -15251,6 +15251,15 @@
     <trans-unit id="10915355" xml:space="preserve" approved="no" translate="yes">
        <source>LLM tier</source>
     </trans-unit>
+    <trans-unit id="6c8a5371" xml:space="preserve" approved="no" translate="yes">
+       <source>Calls and items count since the last start of Scoutro; every restart resets them.</source>
+    </trans-unit>
+    <trans-unit id="adc509b0" xml:space="preserve" approved="no" translate="yes">
+       <source>Invalid items by reason (since the last start)</source>
+    </trans-unit>
+    <trans-unit id="d1e3b094" xml:space="preserve" approved="no" translate="yes">
+       <source>Single entities, claims and values the validator dropped, each under the first rule it breaks; not failed calls and not refused answers. Diagnostic counters only; no model answer is stored.</source>
+    </trans-unit>
     <trans-unit id="2080ae11" xml:space="preserve" approved="no" translate="yes">
        <source>Vocabulary and derived relations</source>
     </trans-unit>
@@ -15700,6 +15709,12 @@
     </trans-unit>
     <trans-unit id="723e7f83" xml:space="preserve" approved="no" translate="yes">
        <source>Dropped as not quoted</source>
+    </trans-unit>
+    <trans-unit id="64de9c89" xml:space="preserve" approved="no" translate="yes">
+       <source>Dropped as invalid</source>
+    </trans-unit>
+    <trans-unit id="85d332e5" xml:space="preserve" approved="no" translate="yes">
+       <source>Accepted entities · claims · values</source>
     </trans-unit>
     <trans-unit id="1d2e7" xml:space="preserve" approved="no" translate="yes">
        <source>yes</source>

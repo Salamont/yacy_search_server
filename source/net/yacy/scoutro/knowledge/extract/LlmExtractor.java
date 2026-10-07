@@ -232,12 +232,64 @@ public final class LlmExtractor {
         public int values;
         public int droppedUngrounded;
         public int droppedInvalid;
+        /**
+         * {@link #droppedInvalid} by reason ({@link #INVALID_REASONS}): every dropped item counts once, under the first
+         * rule it breaks in the order the validator checks them, so the counts add up to {@link #droppedInvalid}.
+         */
+        public final Map<String, Integer> droppedInvalidByReason = new LinkedHashMap<>();
 
         Result(final JSONObject accepted, final String refused) {
             this.accepted = accepted;
             this.refused = refused;
         }
+
+        void invalid(final String reason) {
+            this.droppedInvalid++;
+            this.droppedInvalidByReason.merge(reason, 1, Integer::sum);
+        }
     }
+
+    /**
+     * Why a single entity, claim or value was dropped as invalid (diagnostics for {@link Result#droppedInvalid}), in
+     * the order {@link #validate} checks the rules; an item breaking several rules counts under the first. "missing"
+     * means the field is absent, JSON null or (a name) blank; "malformed" that it is no string or a string over
+     * {@link #MAX_STRING} characters. Whole answers refused ({@link Result#refused}) count none of these.
+     */
+    public static final List<String> INVALID_REASONS = List.of(
+            // entities
+            "entity_not_object", // the item is no JSON object
+            "entity_extra_field", // a field other than id, type, name, kind, quote
+            "entity_missing_id", "entity_malformed_id",
+            "entity_invalid_id", // not ^[A-Za-z0-9_-]{1,32}$
+            "entity_duplicate_id", // the id of a known entity (k1, ...) or of an entity accepted before in the answer
+            "entity_missing_type", "entity_malformed_type",
+            "entity_unknown_type", // not one of TYPES
+            "entity_missing_name", "entity_malformed_name",
+            "entity_name_too_short", // under 2 characters
+            "entity_person_or_contact", // a salutation or title first, an e-mail address, a URL or a phone number (O7)
+            "entity_missing_quote", "entity_malformed_quote",
+            "entity_quote_too_long", // over MAX_QUOTE characters
+            // claims
+            "claim_not_object",
+            "claim_extra_field", // a field other than subject, predicate, object, hedged, quote
+            "claim_missing_subject", "claim_malformed_subject",
+            "claim_missing_object", "claim_malformed_object",
+            "claim_self_reference", // subject equals object
+            "claim_missing_predicate", "claim_malformed_predicate",
+            "claim_unknown_predicate", // not one of PREDICATES
+            "claim_missing_quote", "claim_malformed_quote", "claim_quote_too_long",
+            "claim_invalid_hedged", // hedged present but no boolean
+            "claim_unresolved_subject", "claim_unresolved_object", // no known entity and no entity accepted in the answer
+            "claim_subject_type_mismatch", "claim_object_type_mismatch", // the type rules of the relation
+            // values
+            "value_not_object",
+            "value_extra_field", // a field other than subject, predicate, quote
+            "value_missing_subject", "value_malformed_subject",
+            "value_unresolved_subject",
+            "value_missing_predicate", "value_malformed_predicate",
+            "value_unknown_predicate", // not one of VALUE_PREDICATES
+            "value_missing_quote", "value_malformed_quote", "value_quote_too_long",
+            "value_subject_type_mismatch"); // the entity types the value may describe
 
     private LlmExtractor() {
     }
@@ -403,17 +455,16 @@ public final class LlmExtractor {
         for (int i = 0; i < entities.length(); i++) {
             final JSONObject e = entities.optJSONObject(i);
             if (e == null || !onlyKeys(e, ENTITY_KEYS)) {
-                r.droppedInvalid++;
+                r.invalid(e == null ? "entity_not_object" : "entity_extra_field");
                 continue;
             }
             final String id = string(e, "id");
             final String type = string(e, "type");
             final String name = Normalizers.clip(string(e, "name"), MAX_STRING);
             final String quote = string(e, "quote");
-            if (id == null || !ID.matcher(id).matches() || names.containsKey(id) || type == null || !TYPES.contains(type)
-                    || name == null || name.length() < 2 || PERSON_OR_CONTACT.matcher(name).find() || quote == null
-                    || quote.length() > MAX_QUOTE) {
-                r.droppedInvalid++;
+            final String invalid = invalidEntity(e, id, type, name, quote, names);
+            if (invalid != null) {
+                r.invalid(invalid);
                 continue;
             }
             final int at = groundedAt(text, quote, List.of(name));
@@ -434,7 +485,7 @@ public final class LlmExtractor {
         for (int i = 0; i < claims.length(); i++) {
             final JSONObject c = claims.optJSONObject(i);
             if (c == null || !onlyKeys(c, CLAIM_KEYS)) {
-                r.droppedInvalid++;
+                r.invalid(c == null ? "claim_not_object" : "claim_extra_field");
                 continue;
             }
             final String subject = string(c, "subject");
@@ -442,16 +493,17 @@ public final class LlmExtractor {
             final String object = string(c, "object");
             final String quote = string(c, "quote");
             final Object hedgedValue = c.opt("hedged");
-            if (subject == null || object == null || subject.equals(object) || predicate == null || !PREDICATES.contains(predicate)
-                    || quote == null || quote.length() > MAX_QUOTE || (hedgedValue != null && !(hedgedValue instanceof Boolean))) {
-                r.droppedInvalid++;
+            final String invalid = invalidClaim(c, subject, predicate, object, quote, hedgedValue);
+            if (invalid != null) {
+                r.invalid(invalid);
                 continue;
             }
             final String[] s = names.get(subject);
             final String[] ob = names.get(object);
             final Set<String>[] rule = RELATION_TYPES.get(predicate);
             if (s == null || ob == null || !rule[0].contains(s[0]) || !rule[1].contains(ob[0])) {
-                r.droppedInvalid++;
+                r.invalid(s == null ? "claim_unresolved_subject" : ob == null ? "claim_unresolved_object"
+                        : !rule[0].contains(s[0]) ? "claim_subject_type_mismatch" : "claim_object_type_mismatch");
                 continue;
             }
             if (groundedAt(text, quote, List.of(s[1], ob[1])) < 0) {
@@ -467,16 +519,16 @@ public final class LlmExtractor {
         for (int i = 0; i < values.length(); i++) {
             final JSONObject v = values.optJSONObject(i);
             if (v == null || !onlyKeys(v, VALUE_KEYS)) {
-                r.droppedInvalid++;
+                r.invalid(v == null ? "value_not_object" : "value_extra_field");
                 continue;
             }
             final String subject = string(v, "subject");
             final String predicate = string(v, "predicate");
             final String quote = string(v, "quote");
             final String[] s = subject == null ? null : names.get(subject);
-            if (s == null || predicate == null || !VALUE_PREDICATES.contains(predicate) || quote == null || quote.length() > MAX_QUOTE
-                    || !valueSubject(predicate, s[0])) {
-                r.droppedInvalid++;
+            final String invalid = invalidValue(v, subject, s, predicate, quote);
+            if (invalid != null) {
+                r.invalid(invalid);
                 continue;
             }
             if (groundedAt(text, quote, List.of()) < 0) {
@@ -497,6 +549,97 @@ public final class LlmExtractor {
             return new Result(null, "invalid_json");
         }
         return r;
+    }
+
+    /*
+     * The rules of one item in the order validate always checked them (the first one broken is the reason; null: all
+     * kept). They only name the rule; whether an item is dropped is the same as before the reasons were counted.
+     */
+
+    private static String invalidEntity(final JSONObject e, final String id, final String type, final String name, final String quote,
+            final Map<String, String[]> names) {
+        if (id == null) {
+            return unusable(e, "id", "entity_missing_id", "entity_malformed_id");
+        }
+        if (!ID.matcher(id).matches()) {
+            return "entity_invalid_id";
+        }
+        if (names.containsKey(id)) {
+            return "entity_duplicate_id";
+        }
+        if (type == null) {
+            return unusable(e, "type", "entity_missing_type", "entity_malformed_type");
+        }
+        if (!TYPES.contains(type)) {
+            return "entity_unknown_type";
+        }
+        if (name == null) {
+            return unusable(e, "name", "entity_missing_name", "entity_malformed_name");
+        }
+        if (name.length() < 2) {
+            return "entity_name_too_short";
+        }
+        if (PERSON_OR_CONTACT.matcher(name).find()) {
+            return "entity_person_or_contact";
+        }
+        return invalidQuote(e, quote, "entity_missing_quote", "entity_malformed_quote", "entity_quote_too_long");
+    }
+
+    private static String invalidClaim(final JSONObject c, final String subject, final String predicate, final String object,
+            final String quote, final Object hedgedValue) {
+        if (subject == null) {
+            return unusable(c, "subject", "claim_missing_subject", "claim_malformed_subject");
+        }
+        if (object == null) {
+            return unusable(c, "object", "claim_missing_object", "claim_malformed_object");
+        }
+        if (subject.equals(object)) {
+            return "claim_self_reference";
+        }
+        if (predicate == null) {
+            return unusable(c, "predicate", "claim_missing_predicate", "claim_malformed_predicate");
+        }
+        if (!PREDICATES.contains(predicate)) {
+            return "claim_unknown_predicate";
+        }
+        final String q = invalidQuote(c, quote, "claim_missing_quote", "claim_malformed_quote", "claim_quote_too_long");
+        if (q != null) {
+            return q;
+        }
+        return hedgedValue != null && !(hedgedValue instanceof Boolean) ? "claim_invalid_hedged" : null;
+    }
+
+    private static String invalidValue(final JSONObject v, final String subject, final String[] s, final String predicate,
+            final String quote) {
+        if (s == null) {
+            return subject != null ? "value_unresolved_subject" : unusable(v, "subject", "value_missing_subject", "value_malformed_subject");
+        }
+        if (predicate == null) {
+            return unusable(v, "predicate", "value_missing_predicate", "value_malformed_predicate");
+        }
+        if (!VALUE_PREDICATES.contains(predicate)) {
+            return "value_unknown_predicate";
+        }
+        final String q = invalidQuote(v, quote, "value_missing_quote", "value_malformed_quote", "value_quote_too_long");
+        if (q != null) {
+            return q;
+        }
+        return valueSubject(predicate, s[0]) ? null : "value_subject_type_mismatch";
+    }
+
+    private static String invalidQuote(final JSONObject o, final String quote, final String missing, final String malformed,
+            final String tooLong) {
+        if (quote == null) {
+            return o.opt("quote") instanceof String ? tooLong : unusable(o, "quote", missing, malformed); // a string: over MAX_STRING
+        }
+        return quote.length() > MAX_QUOTE ? tooLong : null;
+    }
+
+    /** Why {@link #string} (or a name's normalisation) gave no value: absent, JSON null or blank is missing; anything else malformed. */
+    private static String unusable(final JSONObject o, final String key, final String missing, final String malformed) {
+        final Object v = o.opt(key);
+        return v == null || JSONObject.NULL.equals(v)
+                || v instanceof String && ((String) v).length() <= MAX_STRING && Normalizers.text((String) v) == null ? missing : malformed;
     }
 
     /** The entity types a value may describe. */

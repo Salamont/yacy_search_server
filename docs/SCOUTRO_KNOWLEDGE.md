@@ -211,6 +211,18 @@ A changed vocabulary re-extracts the pages at low priority.
   breaker (`llm.breakerFailures`, 3; backoff up to
   `llm.breakerMaxBackoffMinutes`, 60) and at most `llm.maxDocsPerHost` (25)
   pages per host. Input is capped at `extract.maxInputChars` (12 000).
+- **Counters since the start.** The overview's LLM tier panel and
+  `llm.processed` in `GET /scoutro/api/v1/kg/status` count in memory since
+  the last start (since the pod start); every restart or upgrade resets
+  them, nothing is persisted. **Dropped as invalid** (`droppedInvalid`)
+  counts single dropped entities, claims and values, not failed calls: one
+  answer can bring valid items and several invalid ones. Answers refused as
+  a whole are `refusedBy` (`invalid_json`, `unknown_field`, ...). The folded
+  **Invalid items by reason** (`droppedInvalidByReason`) splits
+  `droppedInvalid` by the first rule each item breaks; the codes add up to
+  it and are diagnostics only, no model answer is stored for them (codes:
+  `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, 6.3). `valuesAccepted` counts the
+  accepted values (prices, categories, ...).
 - **Kinds per collection (O2).** The facility kinds the model may assign come
   from `scoutro.kg.llm.kinds.<collection>`, a comma-separated list such as
   `nursinghome,assistedliving`. Start lists exist for the four Scoutro
