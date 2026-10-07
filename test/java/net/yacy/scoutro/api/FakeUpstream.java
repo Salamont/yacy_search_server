@@ -52,6 +52,9 @@ class FakeUpstream implements Upstream {
     final Map<String, List<String>> searchResults = new LinkedHashMap<>();
     final Map<String, Crawl> crawls = new LinkedHashMap<>();
     long solrNumFound = 3;
+    /** The collection facet of the fake index (collections that hold pages, with their counts); null: no facet. */
+    Map<String, Long> indexCollections = new LinkedHashMap<>(Map.of("research", 4L, "edelsenior-web", 3L,
+            "checkthecoach-web", 2L, "robot_internal", 1L));
     /** Fault injection for crawl starts: "reject" (YaCy refuses), "crash" (error after the profile exists), "lost" (connection lost before YaCy answered, profile exists). */
     String crawlStartFault = null;
     /** numFound for negative collection filters (documents outside a scope). */
@@ -85,6 +88,12 @@ class FakeUpstream implements Upstream {
             }
             return Json.obj("channels", new JSONArray().put(Json.obj("totalResults", String.valueOf(urls.size()),
                     "items", items))).toString();
+        }
+        if ("solr/select".equals(path) && "collection_sxt".equals(params.get("facet.field")) && this.indexCollections != null) {
+            final JSONArray facet = new JSONArray();
+            for (final Map.Entry<String, Long> e : this.indexCollections.entrySet()) facet.put(e.getKey()).put(e.getValue());
+            return Json.obj("response", Json.obj("numFound", 0, "docs", new JSONArray()),
+                    "facet_counts", Json.obj("facet_fields", Json.obj("collection_sxt", facet))).toString();
         }
         if ("solr/select".equals(path)) {
             final JSONArray docs = new JSONArray();

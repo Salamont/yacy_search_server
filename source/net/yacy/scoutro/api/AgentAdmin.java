@@ -25,7 +25,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import org.json.JSONArray;
@@ -248,26 +247,25 @@ public final class AgentAdmin {
     // collections
     // ------------------------------------------------------------------
 
-    /** Collections that occur in the index (Solr facet), sorted; empty if the index cannot be read. */
+    /**
+     * The collections an agent may be granted: every selectable collection of the
+     * catalog (index, created, Discovery profiles; never YaCy's internal ones), sorted.
+     */
     public static List<String> indexCollections() {
+        return CollectionCatalog.current().selectable();
+    }
+
+    /** The selectable collections of the catalog with name and document count, sorted (agent grant forms). */
+    public static List<CollectionCatalog.Entry> collectionChoices() {
+        final List<CollectionCatalog.Entry> out = new ArrayList<>();
         try {
-            final String body = new YaCyLoopback().getAdmin("solr/select", new YaCyLoopback.Params()
-                    .add("q", "*:*").add("rows", 0).add("wt", "json").add("facet", "true")
-                    .add("facet.field", "collection_sxt").add("facet.limit", 500).add("facet.mincount", 1));
-            final JSONObject facets = new JSONObject(body).optJSONObject("facet_counts");
-            final JSONArray values = facets == null || facets.optJSONObject("facet_fields") == null ? null
-                    : facets.optJSONObject("facet_fields").optJSONArray("collection_sxt");
-            final Set<String> out = new TreeSet<>();
-            for (int i = 0; values != null && i < values.length(); i += 2) {
-                final String c = values.optString(i);
-                if (!c.startsWith("robot_")) { // YaCy's internal snippet fetch collections
-                    out.add(c);
-                }
+            for (final CollectionCatalog.Entry e : CollectionCatalog.current().entries(false)) {
+                if (e.selectable()) out.add(e);
             }
-            return new ArrayList<>(out);
-        } catch (final ApiException | JSONException | RuntimeException e) {
-            return new ArrayList<>();
+        } catch (final ApiException e) {
+            // entries(false) keeps the created and profile collections when the index cannot be read
         }
+        return out;
     }
 
     /** Collections of the discovery portal profiles (collection and legacy collections). */
@@ -276,10 +274,23 @@ public final class AgentAdmin {
         if (sb == null) {
             return new ArrayList<>();
         }
-        return profileCollections(new File(sb.getAppPath(), "tools/scoutro/discovery/profiles.json"));
+        return profileCollections(new File(sb.getAppPath(), "tools/scoutro/discovery/profiles.json"), true);
+    }
+
+    /** The collection of each Discovery profile, without its legacy collections (the catalog: a configured portal exists). */
+    public static List<String> profilePrimaryCollections() {
+        final Switchboard sb = Switchboard.getSwitchboard();
+        if (sb == null) {
+            return new ArrayList<>();
+        }
+        return profileCollections(new File(sb.getAppPath(), "tools/scoutro/discovery/profiles.json"), false);
     }
 
     static List<String> profileCollections(final File profiles) {
+        return profileCollections(profiles, true);
+    }
+
+    static List<String> profileCollections(final File profiles, final boolean legacy) {
         final Set<String> out = new LinkedHashSet<>();
         try {
             final JSONObject p = new JSONObject(new String(Files.readAllBytes(profiles.toPath()), StandardCharsets.UTF_8))
@@ -291,7 +302,9 @@ public final class AgentAdmin {
                         if (!prof.optString("collection", "").isEmpty()) {
                             out.add(prof.optString("collection"));
                         }
-                        out.addAll(strings(prof.optJSONArray("legacy_collections")));
+                        if (legacy) {
+                            out.addAll(strings(prof.optJSONArray("legacy_collections")));
+                        }
                     }
                 }
             }

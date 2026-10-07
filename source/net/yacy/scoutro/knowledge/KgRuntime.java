@@ -1242,6 +1242,17 @@ public final class KgRuntime {
         this.documentsByCollection = null;
     }
 
+    /** The knowledge graph's view of each collection (as in the status), for the collection catalog. */
+    public java.util.Map<String, JSONObject> collectionStates() {
+        final java.util.Map<String, JSONObject> out = new java.util.HashMap<>();
+        final JSONArray rows = collectionsStatus(true);
+        for (int i = 0; i < rows.length(); i++) {
+            final JSONObject row = rows.optJSONObject(i);
+            if (row != null) out.put(row.optString("collection"), row);
+        }
+        return out;
+    }
+
     /**
      * The collections the graph follows, maps or holds (package 6.1), each
      * with: followed or not, the vocabulary in force and where it comes from

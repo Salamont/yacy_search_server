@@ -15,9 +15,10 @@ import net.yacy.search.SwitchboardConstants;
 
 /**
  * The collections a chat client may choose as its search scope (package 6.1).
- * Local and administrator access may use every collection of the index; anyone
+ * Local and administrator access may use every selectable collection of the
+ * catalog ({@code net.yacy.scoutro.api.CollectionCatalog}); anyone
  * else (an AI Shield guest) only the collections the administrator released in
- * {@value #GUEST_SETTING} that exist in the index, none by default. The chat
+ * {@value #GUEST_SETTING} that exist, none by default. The chat
  * page lists exactly these, sorted alphabetically, and the chat endpoint
  * accepts no other: a name outside the list is refused with the same answer
  * whether it exists or not, and never echoed.
@@ -27,12 +28,8 @@ public final class ChatCollections {
     /** Comma- or space-separated collections an AI Shield guest may choose in the chat; empty: none. */
     public static final String GUEST_SETTING = "ai.shield.guest-collections";
 
-    /** Alphabetical regardless of case, then by code point. */
-    public static final Comparator<String> ORDER = String.CASE_INSENSITIVE_ORDER.thenComparing(Comparator.naturalOrder());
-
-    private static final long INDEX_CACHE_MS = 10_000L;
-    private static volatile List<String> indexCache = null;
-    private static volatile long indexCachedAt = 0L;
+    /** Alphabetical regardless of case, then by code point (the catalog's order). */
+    public static final Comparator<String> ORDER = net.yacy.scoutro.api.CollectionCatalog.ORDER;
 
     private ChatCollections() {
     }
@@ -72,17 +69,5 @@ public final class ChatCollections {
     /** Whether the client may scope a question to the collection (null: the whole index, always). */
     public static boolean permits(final boolean privileged, final String collection, final String setting) {
         return collection == null || privileged || released(setting).contains(collection);
-    }
-
-    /** The index's collections, read at most every 10 seconds: the chat page is public and must not query Solr per view. */
-    public static List<String> cachedIndex(final Supplier<List<String>> read) {
-        final long now = System.currentTimeMillis();
-        List<String> cached = indexCache;
-        if (cached == null || now - indexCachedAt > INDEX_CACHE_MS) {
-            cached = List.copyOf(read.get());
-            indexCache = cached;
-            indexCachedAt = now;
-        }
-        return cached;
     }
 }

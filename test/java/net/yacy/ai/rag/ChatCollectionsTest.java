@@ -61,13 +61,4 @@ public class ChatCollectionsTest {
         assertFalse("a client behind a proxy on loopback is a guest", ChatCollections.privileged(proxied, null));
         assertFalse(ChatCollections.privileged(remote, null));
     }
-
-    @Test
-    public void theIndexIsReadAtMostEveryTenSeconds() {
-        final AtomicInteger reads = new AtomicInteger();
-        final List<String> first = ChatCollections.cachedIndex(() -> { reads.incrementAndGet(); return List.of("a"); });
-        final List<String> second = ChatCollections.cachedIndex(() -> { reads.incrementAndGet(); return List.of("b"); });
-        assertEquals(first, second);
-        assertTrue(reads.get() <= 1);
-    }
 }

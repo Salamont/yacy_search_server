@@ -25,7 +25,7 @@ import java.util.List;
 import net.yacy.ai.rag.ChatCollections;
 import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.http.servlets.LLMAccess;
-import net.yacy.scoutro.api.AgentAdmin;
+import net.yacy.scoutro.api.CollectionCatalog;
 import net.yacy.search.Switchboard;
 import net.yacy.search.SwitchboardConstants;
 import net.yacy.server.serverObjects;
@@ -70,9 +70,17 @@ public class yacychat {
         // local and administrator access all of the index, anyone else only the released ones; sorted alphabetically
         final boolean privileged = ChatCollections.privileged(LLMAccess.client(header), header);
         final List<String> collections = ChatCollections.allowed(privileged,
-                () -> ChatCollections.cachedIndex(AgentAdmin::indexCollections), sb.getConfig(ChatCollections.GUEST_SETTING, ""));
+                () -> CollectionCatalog.current().selectable(), sb.getConfig(ChatCollections.GUEST_SETTING, ""));
+        final java.util.Map<String, String> names = new java.util.HashMap<>();
+        try {
+            for (final CollectionCatalog.Entry e : CollectionCatalog.current().entries(false)) names.put(e.id, e.name);
+        } catch (final net.yacy.scoutro.api.ApiException e) {
+            // entries(false) does not fail for the index
+        }
         for (int i = 0; i < collections.size(); i++) {
-            prop.putHTML("collections_" + i + "_id", collections.get(i));
+            final String id = collections.get(i), name = names.get(id);
+            prop.putHTML("collections_" + i + "_id", id);
+            prop.putHTML("collections_" + i + "_label", name == null || name.equals(id) ? id : name + " · " + id);
         }
         prop.put("collections", collections.size());
 

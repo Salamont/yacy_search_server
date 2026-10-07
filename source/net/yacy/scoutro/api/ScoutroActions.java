@@ -89,6 +89,7 @@ final class ScoutroActions {
 
     private final Upstream yacy;
     private final CrawlLedger crawlLedger;
+    private final CollectionCatalog catalog;
 
     ScoutroActions() {
         this(new YaCyLoopback());
@@ -97,6 +98,13 @@ final class ScoutroActions {
     ScoutroActions(final Upstream upstream) {
         this.yacy = upstream;
         this.crawlLedger = new CrawlLedger(upstream::crawlMetadataPath);
+        // the running peer shares one catalog with its pages and the chat; a test transport keeps its own in memory
+        this.catalog = upstream instanceof YaCyLoopback ? CollectionCatalog.current()
+                : new CollectionCatalog(null, this::indexCollectionCounts, java.util.List::of);
+    }
+
+    CollectionCatalog catalog() {
+        return this.catalog;
     }
 
     // ------------------------------------------------------------------
@@ -286,20 +294,50 @@ final class ScoutroActions {
         return collection == null || collection.isBlank() ? "" : "&collection=" + java.net.URLEncoder.encode(collection.trim(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    JSONObject collections() throws ApiException {
-        final JSONObject data = Json.parseUpstream(this.yacy.getAdmin("solr/select", new YaCyLoopback.Params()
+    /** The collections of the index with their document counts (Solr facet). */
+    Map<String, Long> indexCollectionCounts() throws ApiException {
+        return CollectionCatalog.facetCounts(Json.parseUpstream(this.yacy.getAdmin("solr/select", new YaCyLoopback.Params()
                 .add("q", "*:*").add("rows", 0).add("wt", "json").add("facet", "true")
-                .add("facet.field", "collection_sxt").add("facet.limit", 500).add("facet.mincount", 1)), "solr/select");
-        final JSONObject counts = data.optJSONObject("facet_counts");
-        final JSONObject fields = counts == null ? null : counts.optJSONObject("facet_fields");
-        final JSONArray facets = fields == null ? null : fields.optJSONArray("collection_sxt");
-        if (facets == null) throw new ApiException(503, "index_unavailable", "Collection catalog is unavailable.");
-        final JSONArray items = new JSONArray();
-        for (int i = 0; i + 1 < facets.length(); i += 2) {
-            final String id = facets.optString(i);
-            if (COLLECTION.matcher(id).matches()) items.put(Json.obj("id", id, "documents", facets.optLong(i + 1)));
+                .add("facet.field", "collection_sxt").add("facet.limit", 500).add("facet.mincount", 1)), "solr/select"));
+    }
+
+    /** collections.list for the administrator. */
+    JSONObject collections() throws ApiException {
+        return collections(true);
+    }
+
+    /**
+     * collections.list: every collection of the catalog with name, description,
+     * documents, sources and what it may be used for; YaCy's internal ones are
+     * listed as such and never selectable. The administrator also gets the
+     * knowledge graph's view of each collection and may create one
+     * ({@code canCreate}); nobody may enter a new name elsewhere ({@code allowNew}).
+     */
+    JSONObject collections(final boolean administrator) throws ApiException {
+        final Map<String, JSONObject> graph = new java.util.HashMap<>();
+        final net.yacy.scoutro.knowledge.KgRuntime kg = administrator ? net.yacy.scoutro.knowledge.KgRuntime.current() : null;
+        if (kg != null) {
+            try {
+                graph.putAll(kg.collectionStates());
+            } catch (final RuntimeException e) {
+                // the catalog does not depend on the graph
+            }
         }
-        return Json.obj("collections", items, "allowNew", true, "limit", 500);
+        final JSONArray items = new JSONArray();
+        for (final CollectionCatalog.Entry e : this.catalog.entries(true)) {
+            final JSONObject o = e.json();
+            final JSONObject g = graph.get(e.id);
+            if (administrator) Json.put(o, "graph", g == null || e.internal() ? null : Json.obj("followed", g.optBoolean("followed"),
+                    "vocabulary", g.opt("vocabulary"), "vocabularySource", g.opt("vocabularySource"), "jobs", g.optBoolean("jobs"),
+                    "llm", g.optBoolean("llm"), "state", g.opt("state")));
+            items.put(o);
+        }
+        return Json.obj("collections", items, "allowNew", false, "canCreate", administrator, "limit", 500);
+    }
+
+    /** collections.create (administrator): a new, empty collection that every choice offers at once. */
+    JSONObject collectionCreate(final JSONObject body) throws ApiException {
+        return Json.obj("collection", this.catalog.create(body).json(), "created", true);
     }
 
     /** index.lookup: is a URL indexed, or how many documents does a host have (embedded Solr). */
@@ -658,6 +696,12 @@ final class ScoutroActions {
 
     JSONObject crawlStartAdmin(final JSONObject body, final String key) throws ApiException {
         final CrawlRequest request = CrawlRequest.parse(body);
+        this.yacy.requireCollectionStorage(); // before anything is read for the crawl
+        // a crawl writes into an existing collection only; a new one is created explicitly first (no phantom collections)
+        if (!this.catalog.known(request.collection)) {
+            throw new ApiException(400, "collection_unknown", "Unknown collection: choose an existing one or create it first"
+                    + " (New collection on the crawl page, POST /scoutro/api/v1/collections).", Json.obj("field", "collection"));
+        }
         final String valid = CrawlRequest.key(key);
         return startCrawl(request, null, valid == null ? null : "admin:" + valid);
     }

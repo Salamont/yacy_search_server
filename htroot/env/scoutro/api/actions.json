@@ -1049,7 +1049,7 @@
     },
     {
       "name": "crawl.start",
-      "description": "Requires an explicit collection. Refuses a second active crawl on the same host. Durable start intent is saved before dispatch; use Idempotency-Key for safe retries. Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).",
+      "description": "Requires an explicit, existing collection: one of the catalog (index, created, Discovery profiles; never YaCy's internal ones), else 400 collection_unknown; a new collection is created first (POST /v1/collections). Refuses a second active crawl on the same host. Durable start intent is saved before dispatch; use Idempotency-Key for safe retries. Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).",
       "mutating": true,
       "auth": "admin",
       "http": {
@@ -3426,7 +3426,7 @@
     },
     {
       "name": "collections.list",
-      "description": "Collection suggestions. Admin: up to 500 indexed names (new names may be entered). Scoped agent: granted collection names, including empty ones; document counts are unknown. No runtime taxonomy edits.",
+      "description": "The collection catalog (package 6.1). Admin: every collection of the index (up to 500), the created ones and those of the Discovery profiles, with name, documents, sources, use flags (YaCy's internal robot_… collections are listed as internal, never selectable), the knowledge graph's view and canCreate=true; no name is entered freely (allowNew=false). Scoped agent: granted collection names, including empty ones, canCreate=false; document counts are unknown.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -3458,6 +3458,54 @@
           "method": "GET",
           "path": "/scoutro/api/agent/v1/collections"
         }
+      }
+    },
+    {
+      "name": "collections.create",
+      "description": "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Creates an empty collection that every collection choice (crawl start, filters, chat, agent grants) offers at once; a crawl can then write into it. 400 collection_id_invalid, 400 collection_reserved (robot_… or a reserved word), 400 invalid_request (name missing or too long, unknown field), 409 collection_exists (also for a name differing only in case), 503 index_unavailable (duplicates cannot be checked), 503 collection_store_unavailable. Agents cannot create collections.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections",
+        "successStatus": 201
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,63}$",
+          "description": "2–64 lower-case letters, digits and single hyphens; without it the id is derived from the name. Never an existing collection (also not one differing only in case), never robot_… or one of all, none, default, user, any, new.",
+          "in": "body",
+          "required": false
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "in": "body",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionCreated",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)",
+      "mcpTool": "scoutro_collections_create",
+      "agent": {
+        "grantable": false
       }
     },
     {
@@ -13010,31 +13058,155 @@
         }
       }
     },
+    "CollectionEntry": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "description": "Package 6.1: one collection of the catalog (the index, the created collections, the Discovery profiles). A scoped agent's granted collections carry id and documents only.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name (the given name of a created collection, else the id)."
+        },
+        "description": {
+          "type": "string"
+        },
+        "documents": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Pages of it in the index (0 for a created collection without pages; null: unknown)."
+        },
+        "internal": {
+          "type": "boolean",
+          "description": "YaCy's own collection (robot_…): never selectable."
+        },
+        "selectable": {
+          "type": "boolean",
+          "description": "Offered in every collection choice. Equal to chat, knowledgeGraph and crawlTarget: one definition for all uses."
+        },
+        "chat": {
+          "type": "boolean"
+        },
+        "knowledgeGraph": {
+          "type": "boolean"
+        },
+        "crawlTarget": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "index",
+              "created",
+              "profile"
+            ]
+          }
+        },
+        "createdAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "graph": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Administrator only: the knowledge graph's view of the collection (as in kg/status.collections); null when the graph does not know it or is off.",
+          "properties": {
+            "followed": {
+              "type": "boolean"
+            },
+            "vocabulary": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "vocabularySource": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "jobs": {
+              "type": "boolean"
+            },
+            "llm": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
     "Collections": {
       "type": "object",
       "properties": {
         "collections": {
           "type": "array",
           "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "documents": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
-              }
-            }
+            "$ref": "#/components/schemas/CollectionEntry"
           }
         },
         "allowNew": {
-          "type": "boolean"
+          "const": false,
+          "description": "No collection name is ever entered freely; new collections are created explicitly."
+        },
+        "canCreate": {
+          "type": "boolean",
+          "description": "Whether this caller may create a collection (administrator only; never an agent)."
         },
         "limit": {
           "type": "integer"
+        }
+      }
+    },
+    "CollectionCreate": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,63}$",
+          "description": "2–64 lower-case letters, digits and single hyphens; without it the id is derived from the name. Never an existing collection (also not one differing only in case), never robot_… or one of all, none, default, user, any, new."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "CollectionCreated": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "$ref": "#/components/schemas/CollectionEntry"
+        },
+        "created": {
+          "const": true
         }
       }
     },

@@ -6,7 +6,7 @@ import java.util.TreeSet;
 
 import net.yacy.ai.rag.ChatCollections;
 import net.yacy.cora.protocol.RequestHeader;
-import net.yacy.scoutro.api.AgentAdmin;
+import net.yacy.scoutro.api.CollectionCatalog;
 import net.yacy.search.Switchboard;
 import net.yacy.server.serverObjects;
 import net.yacy.server.serverSwitch;
@@ -70,8 +70,8 @@ public class AIShield_p {
 
         // every collection of the index, and released ones the index no longer holds, so a save keeps them
         final List<String> released = ChatCollections.released(sb.getConfig(ChatCollections.GUEST_SETTING, ""));
-        final TreeSet<String> collections = new TreeSet<>(ChatCollections.ORDER);
-        collections.addAll(ChatCollections.allowed(true, AgentAdmin::indexCollections, ""));
+        final TreeSet<String> collections = new TreeSet<>(CollectionCatalog.ORDER);
+        collections.addAll(CollectionCatalog.current().selectable());
         collections.addAll(released);
         int i = 0;
         for (final String name : collections) {

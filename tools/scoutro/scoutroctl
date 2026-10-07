@@ -140,7 +140,12 @@ def build_parser():
     sub.add_parser("discovery",
                    help="profile discovery (status|start|pause|resume|classify|search|export|migrate-state|selftest); delegates to scoutro-discovery")
 
-    sub.add_parser("collections", help="indexed/admin or granted/agent collection suggestions")
+    cols = sub.add_parser("collections", help="the collection catalog (admin) or the granted collections (agent); create one (admin)")
+    cols_sub = cols.add_subparsers(dest="collections_command")
+    create = cols_sub.add_parser("create", help="administrator: create an empty collection that crawls and filters can choose")
+    create.add_argument("name", help="display name, e.g. 'Mein neues Portal'")
+    create.add_argument("--id", help="collection id (2-64 lower-case letters, digits, single hyphens); default: derived from the name")
+    create.add_argument("--description", help="optional description")
     host = sub.add_parser("host", help="normalize a host or URL and check the index").add_subparsers(dest="host_command", required=True)
     resolve = host.add_parser("resolve")
     resolve.add_argument("input")
@@ -317,7 +322,15 @@ def main(argv=None):
     elif c == "openapi":
         result = client.call("GET", "/openapi.json")
     elif c == "collections":
-        result = client.call("GET", v1 + "/collections")
+        if getattr(args, "collections_command", None) == "create":
+            body = {"name": args.name}
+            if args.id:
+                body["id"] = args.id
+            if args.description:
+                body["description"] = args.description
+            result = client.call("POST", v1 + "/collections", body=body)
+        else:
+            result = client.call("GET", v1 + "/collections")
     elif c == "host":
         result = client.call("GET", v1 + "/hosts/resolve", {"input": args.input, "collection": args.collection})
     elif c == "automation":
