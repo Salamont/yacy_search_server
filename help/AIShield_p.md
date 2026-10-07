@@ -102,7 +102,10 @@ Shield guest may pick in the chat's *Collection* list
 (`ai.shield.guest-collections`, none by default). Guests still search the whole
 index; they never see the names of collections that are not ticked, and the
 chat refuses any other collection (403 `collection_not_allowed`). Local and
-administrator access may choose every collection.
+administrator access may choose every collection. The boxes list the
+collection catalog (the index, the collections created with **New collection**
+and those of the Discovery profiles; internal `robot_*` collections are not
+offered), plus released collections that no longer exist, so a save keeps them.
 
 ## Related Pages
 

@@ -165,8 +165,10 @@ The chat page shows a translated message per code.
 ## 6a. Collections in the chat (package 6.1)
 
 - **Local and administrator access** (a direct loopback connection, or the
-  YaCy administrator login) may scope a question to every collection of the
-  index.
+  YaCy administrator login) may scope a question to every selectable
+  collection of the collection catalog (the index, the created collections and
+  the Discovery profiles; YaCy's internal `robot_*` collections are not listed;
+  see `docs/API.md`, "Collections").
 - **AI Shield guests** may choose only the collections released on the AI
   Shield page (ticked boxes, stored as `ai.shield.guest-collections`,
   comma-separated; default empty). They still search the whole index without

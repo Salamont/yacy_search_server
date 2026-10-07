@@ -4860,7 +4860,8 @@ The Scoutro research worker receives research tasks from Clustro and uses only t
 Scoutro research agent (Clustro worker)==Scoutro-Rechercheagent (Clustro-Worker)
 The agent can only read and crawl in the selected collections. Searches, text evidence, lookups and crawls outside them are refused.==Der Agent kann nur in den ausgewählten Collections lesen und crawlen. Suchen, Textbelege, Abfragen und Crawls außerhalb davon werden abgelehnt.
 (no documents yet)==(noch keine Dokumente)
-Further collections==Weitere Collections
+Collections are chosen from the list. A new collection is created with New collection and then ticked.==Collections werden aus der Liste gewählt. Eine neue Collection wird mit „Neue Collection“ angelegt und dann angehakt.
+>New collection<==>Neue Collection<
 Grant the complete local index==Gesamten lokalen Index freigeben
 I confirm that this agent may read all collections of this Scoutro instance.==Ich bestätige, dass dieser Agent alle Collections dieser Scoutro-Instanz lesen darf.
 Network search of other peers is never part of a data scope; it is a separate action.==Die Netzwerksuche bei anderen Peers ist nie Teil eines Datenbereichs; sie ist eine eigene Action.
@@ -4926,6 +4927,9 @@ Data scope==Datenbereich
 
 #File: ScoutroAgents_p.html
 #---------------------------
+Collections are chosen from the list. A new collection is created with New collection and then ticked.==Collections werden aus der Liste gewählt. Eine neue Collection wird mit „Neue Collection“ angelegt und dann angehakt.
+>New collection<==>Neue Collection<
+(not in the collection list)==(nicht in der Collection-Liste)
 These crawl starts were recorded, but no crawl profile carries their start marker (for example after a crash between the start and storing its id, when the crawl has meanwhile finished and YaCy removed its profile). Scoutro never repeats them automatically. Check the Crawler monitor and the index; if the start should be repeated, mark it as not started.==Diese Crawlstarts wurden protokolliert, aber kein Crawl-Profil trägt ihren Start-Marker (zum Beispiel nach einem Absturz zwischen Start und Speichern der ID, wenn der Crawl inzwischen beendet ist und YaCy sein Profil entfernt hat). Scoutro wiederholt sie nie automatisch. Prüfen Sie Crawler-Monitor und Index; soll der Start wiederholt werden, markieren Sie ihn als nicht gestartet.
 Unconfirmed crawl starts==Unbestätigte Crawlstarts
 Mark as not started==Als nicht gestartet markieren
@@ -5430,7 +5434,9 @@ aria-label="Views"==aria-label="Ansichten"
 >Subpath<==>Unterpfad<
 >Maximum pages per domain<==>Maximale Seiten pro Domain<
 >Crawl depth<==>Crawl-Tiefe<
->Choose an existing collection or enter a new name. There is no default collection.<==>Eine bestehende Collection wählen oder einen neuen Namen eingeben. Es gibt keine Standard-Collection.<
+>Choose an existing collection or create a new one with New collection. There is no default collection.<==>Eine bestehende Collection wählen oder mit „Neue Collection“ eine neue anlegen. Es gibt keine Standard-Collection.<
+>Choose a collection<==>Collection wählen<
+>New collection<==>Neue Collection<
 >Start crawl<==>Crawl starten<
 >Crawl status<==>Crawl-Status<
 >Refresh<==>Aktualisieren<
@@ -5441,7 +5447,8 @@ aria-label="Views"==aria-label="Ansichten"
 >Crawl accepted.<==>Crawl angenommen.<
 >Existing crawl returned. No second start.<==>Bestehender Crawl zurückgegeben. Kein zweiter Start.<
 >Request failed<==>Anfrage fehlgeschlagen<
->Collection suggestions unavailable. Enter a collection explicitly.<==>Collection-Vorschläge nicht verfügbar. Eine Collection ausdrücklich eingeben.<
+>The collection list is unavailable. Reload the page later.<==>Die Collection-Liste ist nicht verfügbar. Laden Sie die Seite später neu.<
+>The collection of the link is not available. Choose one from the list.<==>Die Collection des Links steht nicht zur Verfügung. Wählen Sie eine aus der Liste.<
 >Collection<==>Collection<
 >Pages loaded<==>Geladene Seiten<
 >Start recorded<==>Start registriert<
@@ -5492,6 +5499,29 @@ Administration and technical details:==Administration und technische Details:
 >Source code<==>Quellcode<
 >YaCy project<==>YaCy-Projekt<
 >License<==>Lizenz<
+#-----------------------------
+
+#File: env/templates/scoutro/collection-create.template
+#---------------------------
+>New collection<==>Neue Collection<
+A collection groups the pages of one portal or project. Once created, it can be chosen everywhere: for crawls, filters, the chat and agent grants.==Eine Collection fasst die Seiten eines Portals oder Projekts zusammen. Nach dem Anlegen ist sie überall wählbar: für Crawls, Filter, den Chat und Agent-Freigaben.
+>Display name<==>Anzeigename<
+>Collection ID<==>Collection-ID<
+Suggested from the display name; check it before saving. Lower-case letters, digits and single hyphens. It cannot be changed later.==Aus dem Anzeigenamen vorgeschlagen; vor dem Speichern prüfen. Kleinbuchstaben, Ziffern und einzelne Bindestriche. Sie kann später nicht geändert werden.
+>Description (optional)<==>Beschreibung (optional)<
+>Create collection<==>Collection anlegen<
+>Cancel<==>Abbrechen<
+A collection with this ID exists already. Choose it from the list or use another ID.==Eine Collection mit dieser ID gibt es schon. Wählen Sie sie aus der Liste oder verwenden Sie eine andere ID.
+The ID needs 2 to 64 lower-case letters, digits and single hyphens, starting and ending with a letter or digit.==Die ID braucht 2 bis 64 Kleinbuchstaben, Ziffern und einzelne Bindestriche und beginnt und endet mit einem Buchstaben oder einer Ziffer.
+This ID is reserved for Scoutro or YaCy. Choose another ID.==Diese ID ist für Scoutro oder YaCy reserviert. Wählen Sie eine andere ID.
+Enter a display name.==Geben Sie einen Anzeigenamen ein.
+Check the display name and the description.==Prüfen Sie Anzeigename und Beschreibung.
+The index cannot be read, so duplicates cannot be checked. Try again later.==Der Index kann nicht gelesen werden, daher lassen sich Dubletten nicht prüfen. Versuchen Sie es später erneut.
+The collection list cannot be written. Nothing was created.==Die Collection-Liste kann nicht geschrieben werden. Es wurde nichts angelegt.
+Only the administrator can create collections.==Nur der Administrator kann Collections anlegen.
+The collection could not be created.==Die Collection konnte nicht angelegt werden.
+Collection created and selected:==Collection angelegt und gewählt:
+>Choose a collection<==>Collection wählen<
 #-----------------------------
 
 #File: env/templates/scoutro/tagline.template

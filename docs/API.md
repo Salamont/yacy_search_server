@@ -273,7 +273,7 @@ curl --digest -u admin -X POST -H 'Content-Type: application/json' \
 | `depth` | integer 0–10 | 2 | link depth |
 | `scope` | `domain` \| `subpath` \| `wide` | `domain` | stay on the host / below the start path / follow other hosts |
 | `maxPages` | integer 1–1000000 | unlimited | pages per domain |
-| `collection` | `[A-Za-z0-9_-]{1,64}` | required | Explicit target; no fallback |
+| `collection` | `[A-Za-z0-9_-]{1,64}` | required | Explicit target; no fallback; must be in the collection catalog (below), otherwise `400 collection_unknown` before anything is dispatched |
 
 Unknown fields are rejected (`400`), so typos in agent calls do not go
 unnoticed. Answer `201` with a `Location` header:
@@ -299,6 +299,44 @@ network), the answer is `422 crawl_rejected` with YaCy's reason.
 
 `state` = `paused` means that YaCy's local crawler queue is paused as a whole
 (YaCy has no per-crawl pause).
+
+### Collections
+
+Collections are chosen from a list everywhere in Scoutro and never typed. The
+list is the **collection catalog** (`CollectionCatalog`): the collections of the
+index (facet `collection_sxt`, read at most every 10 seconds), the collections
+created with `POST /v1/collections` (`DATA/SCOUTRO/collections.json`, schema
+`scoutro.collections.v1`) and the collections of the Discovery profiles. A
+collection beginning with `robot_` is internal: listed with `internal:true`,
+never offered as a choice, never a crawl target. The chat, the knowledge graph
+filters, crawl starts and agent grants all take their choices from it.
+
+- `GET /v1/collections` (administrator): `collections`, one entry per
+  collection, alphabetically regardless of case: `id`, `name` (display
+  name), `description`, `documents`, `internal`, `selectable`, `chat`,
+  `knowledgeGraph`, `crawlTarget`, `sources` (`index`, `created`, `profile`),
+  `createdAt`, and `graph` with `followed`, `vocabulary`, `vocabularySource`,
+  `jobs`, `llm` and `state` of the knowledge graph; then `allowNew:false` (no
+  free names), `canCreate` and `limit` (500).
+- `POST /v1/collections` (administrator, same-origin JSON, at most 4 KiB):
+
+  ```sh
+  curl --digest -u admin -X POST -H 'Content-Type: application/json' \
+    -d '{"id":"mein-neues-portal","name":"Mein neues Portal","description":"optional"}' \
+    http://scoutro:8090/scoutro/api/v1/collections
+  ```
+
+  `201 {"collection":{...entry...},"created":true}`. `id` (derived from the
+  name when it is left out): 2 to 64 lower-case letters, digits and single hyphens, starting and ending with a letter or digit
+  (`400 collection_id_invalid`); not reserved (`robot_*`, `all`, `none`,
+  `default`, `user`, `any`, `new`: `400 collection_reserved`); not in the
+  catalog in any case (`409 collection_exists`, nothing is overwritten). `name`
+  (required, at most 80 characters, no control characters) and `description`
+  (at most 500) otherwise `400 invalid_request`, as is any other field. `503
+  index_unavailable` when the index cannot be read (duplicates cannot be
+  checked) and `503 collection_store_unavailable` when the list cannot be
+  written or is damaged; in both cases nothing is created. Agents have no
+  create grant (`405` on the agent path).
 
 ### Index
 

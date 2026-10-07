@@ -46,9 +46,22 @@ The SEO UI offers an explicit Start crawl link prefilled with seed and selected
 collection. It never submits automatically. After crawling/indexing the status
 card links back to analysis, which resolves the host again. Termination alone
 is not proof of indexing. Exact hosts and www variants remain distinct index
-lookups. `GET /v1/collections` provides up to 500 indexed collection suggestions;
-admin may type a new valid name. `/agent/v1/collections` reports granted names,
-including empty collections, without foreign counts.
+lookups. The collection of a crawl is chosen from a list, never typed:
+`GET /v1/collections` (administrator) lists up to 500 collections of the
+collection catalog (`CollectionCatalog`: the index facet `collection_sxt`, the
+collections created with `POST /v1/collections` in
+`DATA/SCOUTRO/collections.json` and the collections of the Discovery profiles;
+`robot_*` is internal and never listed as a choice). **New collection** next to
+the list opens a dialog (display name, ID suggested from it, optional
+description); `POST /v1/collections` validates it on the server (`400
+collection_id_invalid`, `400 collection_reserved`, `409 collection_exists`,
+`400 invalid_request`, `503 index_unavailable` when duplicates cannot be
+checked, `503 collection_store_unavailable`), the list is reloaded and the new
+collection selected. `POST /v1/crawls` refuses a collection outside the catalog
+with `400 collection_unknown` before anything is dispatched; agents and
+Discovery keep their scope from their grants and profiles.
+`/agent/v1/collections` reports granted names, including empty collections,
+without foreign counts.
 
 Agent equivalents use `/agent/v1/hosts/resolve` and `/agent/v1/collections` with
 explicit new grants `host.resolve`/`collections.list`. Reads filter collections
@@ -121,6 +134,7 @@ MCP tool names in actions.json are mappings, not a new MCP server.
 ```
 scoutroctl host resolve 'https://www.example.com/path' --collection research
 scoutroctl collections
+scoutroctl collections create 'Mein neues Portal' --description 'optional'
 scoutroctl crawl start https://www.example.com/ --collection research --max-pages 15 --depth 2 --idempotency-key run-1
 scoutroctl crawl status CRAWL_ID
 scoutroctl automation status

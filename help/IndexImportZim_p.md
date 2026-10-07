@@ -29,7 +29,7 @@ Import and export pages translate external data formats into YaCy documents or m
 | Control | Meaning | Values or examples |
 | --- | --- | --- |
 | `file` | Selected or uploaded file. | Text value; use the page label and surrounding context to choose the exact content. |
-| `collection` | Collection name used to group indexed documents. | `user` |
+| `collection` | Collection name used to group indexed documents. In Scoutro the field is a list of existing collections; **New collection** creates one first. Without JavaScript, or while the catalog cannot be read (not yet signed in as administrator, index unavailable), YaCy's original text field stays. | `user` |
 | `submit` | Submits the form. | `Import ZIM File` |
 | `abort` | File. | `Stop` |
 

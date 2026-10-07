@@ -62,7 +62,7 @@ The wizard is meant for people. Scripts that need an agent should use the wizard
 
 ## Crawl and status grants
 
-Crawl start requires an explicit granted Collection. Optional `host.resolve`/`collections.list` reads are scoped. Global `discovery.status` is admin-risk and absent from presets. No Discovery write permission is introduced.
+Crawl start requires an explicit granted Collection. In step 2 the collections are ticked in a list of existing collections; **New collection** creates one (display name, ID, optional description) and ticks it. No collection name is typed, and the server refuses a collection outside the list. Optional `host.resolve`/`collections.list` reads are scoped. Global `discovery.status` is admin-risk and absent from presets. No Discovery write permission is introduced.
 
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
 

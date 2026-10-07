@@ -29,7 +29,7 @@ Crawler pages separate three decisions: the source to load, the rules that decid
 | Control | Meaning | Values or examples |
 | --- | --- | --- |
 | `url` | URL to inspect, crawl, import, or act on. | URL or URL-derived value; use the exact format shown by the page. |
-| `collection` | Collection name. Use it to group crawled or imported documents and to search or manage that group later. | Collection name such as `user`, `docs`, or a project-specific name. |
+| `collection` | Collection name. Use it to group crawled or imported documents and to search or manage that group later. In Scoutro the field is a list of existing collections; **New collection** creates one first. Without JavaScript, or while the catalog cannot be read (not yet signed in as administrator, index unavailable), YaCy's original text field stays. | Collection name such as `user`, `docs`, or a project-specific name. |
 | `repeat` | Choice value. Options: `off`, `on`. | `off`, `on` |
 | `repeat_time` | Choice value. Options: `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `10`, `12`, `14`, `21`, `28`, `30`. | `1`, `2`, `3`, `4`, `5`, `6`, `7`, `8`, `9`, `10`, `12`, `14`, `21`, `28`, `30` |
 | `repeat_unit` | Choice value. Options: `selminutes` = minutes, `selhours` = hours, `seldays` = days. | `selminutes` = minutes, `selhours` = hours, `seldays` = days |

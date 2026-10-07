@@ -87,6 +87,10 @@ the knowledge graph stay administrator functions.
 
 `host.resolve` and `collections.list` are collection-scoped. `discovery.status` is a global admin-risk read grant for external agents. All are absent from presets; existing agents receive no new rights automatically. Crawl start always requires a granted explicit Collection.
 
+## Granted collections
+
+The collections of an agent are ticked in a list of existing collections (the collection catalog, as on the crawl page; internal `robot_*` collections are not offered); no name is typed. **New collection** creates one with display name, ID and optional description and adds it to the list, ticked. The server accepts only listed collections and those the agent already holds, so a collection the index no longer has is kept until it is unticked.
+
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
 
 Scoutro responsive layout: existing navigation and controls are reused at 360/390/412/768 pixels and desktop. Tables display the original rows as labelled cards on narrow screens; control names, values, events and save paths are unchanged.

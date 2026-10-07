@@ -13025,9 +13025,6 @@
     <trans-unit id="3e7fa88d" xml:space="preserve" approved="no" translate="yes">
        <source>"Next"</source>
     </trans-unit>
-    <trans-unit id="d0854407" xml:space="preserve" approved="no" translate="yes">
-       <source>"collection-a, collection-b"</source>
-    </trans-unit>
     <trans-unit id="3dd46d19" xml:space="preserve" approved="no" translate="yes">
        <source>"Back"</source>
     </trans-unit>
@@ -13100,8 +13097,11 @@
     <trans-unit id="f8b24fc0" xml:space="preserve" approved="no" translate="yes">
        <source>(no documents yet)</source>
     </trans-unit>
-    <trans-unit id="6db1e579" xml:space="preserve" approved="no" translate="yes">
-       <source>Further collections</source>
+    <trans-unit id="b3a4e53e" xml:space="preserve" approved="no" translate="yes">
+       <source>New collection</source>
+    </trans-unit>
+    <trans-unit id="d72b6a89" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections are chosen from the list. A new collection is created with New collection and then ticked.</source>
     </trans-unit>
     <trans-unit id="adfcab4b" xml:space="preserve" approved="no" translate="yes">
        <source>Complete index</source>
@@ -13281,12 +13281,6 @@
     <trans-unit id="d7ab7fa" xml:space="preserve" approved="no" translate="yes">
        <source>"revoke"</source>
     </trans-unit>
-    <trans-unit id="e91630cb" xml:space="preserve" approved="no" translate="yes">
-       <source>"further collections"</source>
-    </trans-unit>
-    <trans-unit id="f4db64eb" xml:space="preserve" approved="no" translate="yes">
-       <source>"Further collections"</source>
-    </trans-unit>
     <trans-unit id="bdeed617" xml:space="preserve" approved="no" translate="yes">
        <source>"update"</source>
     </trans-unit>
@@ -13409,6 +13403,15 @@
     </trans-unit>
     <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
        <source>Collections</source>
+    </trans-unit>
+    <trans-unit id="a4a3e7be" xml:space="preserve" approved="no" translate="yes">
+       <source>(not in the collection list)</source>
+    </trans-unit>
+    <trans-unit id="b3a4e53e" xml:space="preserve" approved="no" translate="yes">
+       <source>New collection</source>
+    </trans-unit>
+    <trans-unit id="d72b6a89" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections are chosen from the list. A new collection is created with New collection and then ticked.</source>
     </trans-unit>
     <trans-unit id="8bf86269" xml:space="preserve" approved="no" translate="yes">
        <source>Grant the complete local index</source>
@@ -13830,6 +13833,12 @@
     <trans-unit id="813b3fe4" xml:space="preserve" approved="no" translate="yes">
        <source>Collection (required)</source>
     </trans-unit>
+    <trans-unit id="e04faf06" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose a collection</source>
+    </trans-unit>
+    <trans-unit id="b3a4e53e" xml:space="preserve" approved="no" translate="yes">
+       <source>New collection</source>
+    </trans-unit>
     <trans-unit id="4c04e34" xml:space="preserve" approved="no" translate="yes">
        <source>Scope</source>
     </trans-unit>
@@ -13845,8 +13854,8 @@
     <trans-unit id="c595f16a" xml:space="preserve" approved="no" translate="yes">
        <source>Crawl depth</source>
     </trans-unit>
-    <trans-unit id="3b480ae2" xml:space="preserve" approved="no" translate="yes">
-       <source>Choose an existing collection or enter a new name. There is no default collection.</source>
+    <trans-unit id="5489fdf9" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose an existing collection or create a new one with New collection. There is no default collection.</source>
     </trans-unit>
     <trans-unit id="9c3792c9" xml:space="preserve" approved="no" translate="yes">
        <source>Start crawl</source>
@@ -13878,8 +13887,11 @@
     <trans-unit id="42c9a70e" xml:space="preserve" approved="no" translate="yes">
        <source>Request failed</source>
     </trans-unit>
-    <trans-unit id="9e1b981" xml:space="preserve" approved="no" translate="yes">
-       <source>Collection suggestions unavailable. Enter a collection explicitly.</source>
+    <trans-unit id="48e5b0b8" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection list is unavailable. Reload the page later.</source>
+    </trans-unit>
+    <trans-unit id="3f57fef5" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection of the link is not available. Choose one from the list.</source>
     </trans-unit>
     <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
        <source>Collection</source>
@@ -14985,6 +14997,67 @@
   <body>
     <trans-unit id="91604ae6" xml:space="preserve" approved="no" translate="yes">
        <source>Search. Crawl. Discover.</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="env/templates/scoutro/collection-create.template"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="b3a4e53e" xml:space="preserve" approved="no" translate="yes">
+       <source>New collection</source>
+    </trans-unit>
+    <trans-unit id="3dc2fada" xml:space="preserve" approved="no" translate="yes">
+       <source>A collection groups the pages of one portal or project. Once created, it can be chosen everywhere: for crawls, filters, the chat and agent grants.</source>
+    </trans-unit>
+    <trans-unit id="6697cf49" xml:space="preserve" approved="no" translate="yes">
+       <source>Display name</source>
+    </trans-unit>
+    <trans-unit id="feab15bd" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection ID</source>
+    </trans-unit>
+    <trans-unit id="9f733708" xml:space="preserve" approved="no" translate="yes">
+       <source>Suggested from the display name; check it before saving. Lower-case letters, digits and single hyphens. It cannot be changed later.</source>
+    </trans-unit>
+    <trans-unit id="e3813865" xml:space="preserve" approved="no" translate="yes">
+       <source>Description (optional)</source>
+    </trans-unit>
+    <trans-unit id="e9457022" xml:space="preserve" approved="no" translate="yes">
+       <source>Create collection</source>
+    </trans-unit>
+    <trans-unit id="77df1a9a" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel</source>
+    </trans-unit>
+    <trans-unit id="d9fd3049" xml:space="preserve" approved="no" translate="yes">
+       <source>A collection with this ID exists already. Choose it from the list or use another ID.</source>
+    </trans-unit>
+    <trans-unit id="91c9650e" xml:space="preserve" approved="no" translate="yes">
+       <source>The ID needs 2 to 64 lower-case letters, digits and single hyphens, starting and ending with a letter or digit.</source>
+    </trans-unit>
+    <trans-unit id="5f2fde79" xml:space="preserve" approved="no" translate="yes">
+       <source>This ID is reserved for Scoutro or YaCy. Choose another ID.</source>
+    </trans-unit>
+    <trans-unit id="4e06c33e" xml:space="preserve" approved="no" translate="yes">
+       <source>Enter a display name.</source>
+    </trans-unit>
+    <trans-unit id="2134d59a" xml:space="preserve" approved="no" translate="yes">
+       <source>Check the display name and the description.</source>
+    </trans-unit>
+    <trans-unit id="3504e2a5" xml:space="preserve" approved="no" translate="yes">
+       <source>The index cannot be read, so duplicates cannot be checked. Try again later.</source>
+    </trans-unit>
+    <trans-unit id="4fb140a" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection list cannot be written. Nothing was created.</source>
+    </trans-unit>
+    <trans-unit id="51d8f177" xml:space="preserve" approved="no" translate="yes">
+       <source>Only the administrator can create collections.</source>
+    </trans-unit>
+    <trans-unit id="432dc844" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection could not be created.</source>
+    </trans-unit>
+    <trans-unit id="1dcd76dc" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection created and selected:</source>
+    </trans-unit>
+    <trans-unit id="e04faf06" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose a collection</source>
     </trans-unit>
   </body>
 </file>
