@@ -325,6 +325,38 @@ public final class KgRuntime {
         }
     }
 
+    /**
+     * Applies changed settings at once (package 6.2: a collection switched on or off, its vocabulary): closes the graph cleanly and
+     * opens it again with the settings as they are now, in the same environment. The sync then runs the reconcile of every start,
+     * which enqueues the pages a collection switched on already has in the index (the backfill) and keeps those of a collection
+     * switched off; a manual pause stays. Refused, before anything is closed, while a backup, a restore or a rebuild runs.
+     *
+     * @return true if a running graph was reopened, false if there was none (the settings count at its next start)
+     */
+    public static synchronized boolean reopen() throws KgException {
+        final KgRuntime r = current;
+        if (r == null) {
+            return false;
+        }
+        r.requireQuiet();
+        final Env env = r.env;
+        stop();
+        start(env);
+        return true;
+    }
+
+    /** No backup, restore or rebuild in progress (read without the instance lock: called under the class lock). */
+    public void requireQuiet() throws KgException {
+        final KgRebuild rb = this.rebuild;
+        if (rb != null && rb.active()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a rebuild is running");
+        }
+        final KgBackups b = this.backups;
+        if (b != null && b.busy()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup or restore is running");
+        }
+    }
+
     /** {@link #start()} with a given environment (tests). */
     static synchronized void start(final Env env) {
         if (current != null) {
@@ -1059,9 +1091,9 @@ public final class KgRuntime {
                 this.guard == null ? 0L : diskUsable(this.guard.status()));
         if (st == JsonLdCapturePolicy.State.ACTIVE) {
             JsonLdCapture.activate(this.config.jsonldMaxBlocksPerDoc, (int) Math.min(Integer.MAX_VALUE, this.config.jsonldMaxBytesPerDoc),
-                    this.config.allCollections, this.config.collections);
+                    this.config.allCollections, this.config.collections, this.config.inactiveCollections);
         } else if (st == JsonLdCapturePolicy.State.PAUSED) {
-            JsonLdCapture.pause(this.config.allCollections, this.config.collections);
+            JsonLdCapture.pause(this.config.allCollections, this.config.collections, this.config.inactiveCollections);
         } else {
             JsonLdCapture.off();
         }
@@ -1266,6 +1298,7 @@ public final class KgRuntime {
         final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot v = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
         final java.util.Map<String, Long> docs = withDocuments && this.store != null ? documentsByCollection() : java.util.Map.of();
         final java.util.Set<String> names = new java.util.TreeSet<>(this.config.collections);
+        names.addAll(this.config.inactiveCollections);
         names.addAll(v.categories.collections.keySet());
         names.addAll(this.config.vocabOverrides.keySet());
         names.addAll(this.config.jobsCollections);
@@ -1274,14 +1307,16 @@ public final class KgRuntime {
         final JSONArray out = new JSONArray();
         for (final String c : names) {
             final boolean followed = this.config.follows(c);
+            final boolean inactive = this.config.holds(c);
             final String setting = this.config.vocabOverrides.get(c);
             final String vocabulary = this.config.vocabularyOf(c, v.categories.collections);
             final boolean known = vocabulary == null || v.categories.vocabularies.containsKey(vocabulary);
             final Long documents = withDocuments && this.store != null ? docs.getOrDefault(c, 0L) : null;
-            final String state = !followed ? "not_followed" : !known ? "unknown_vocabulary" : documents != null && documents == 0L ? "waiting"
-                    : "following";
-            out.put(KgJson.obj("collection", c, "followed", followed, "vocabulary", vocabulary, "vocabularySource", setting != null ? "setting"
-                    : v.categories.collections.containsKey(c) ? "vocabulary_files" : "none", "vocabularyKnown", known,
+            // switched off (package 6.2): not followed, its graph data kept
+            final String state = inactive ? "inactive" : !followed ? "not_followed" : !known ? "unknown_vocabulary"
+                    : documents != null && documents == 0L ? "waiting" : "following";
+            out.put(KgJson.obj("collection", c, "followed", followed, "inactive", inactive, "vocabulary", vocabulary, "vocabularySource",
+                    setting != null ? "setting" : v.categories.collections.containsKey(c) ? "vocabulary_files" : "none", "vocabularyKnown", known,
                     "jobs", followed && this.config.jobsShown(c), "llm", this.config.llmFollows(c), "documents", documents, "state", state));
         }
         return out;

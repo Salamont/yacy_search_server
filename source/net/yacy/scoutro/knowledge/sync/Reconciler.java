@@ -463,7 +463,7 @@ public final class Reconciler {
     private void scan(final Run r, final long now) throws KgException {
         final SolrSource.Page page;
         try {
-            page = this.solr.scan(r.cursor, this.page, this.cfg.allCollections ? null : this.cfg.collections, 0L);
+            page = this.solr.scan(r.cursor, this.page, this.cfg.scanCollections(), 0L);
         } catch (final IOException e) {
             abort(r, "solr_error: " + e.getMessage(), now);
             return;
@@ -513,6 +513,9 @@ public final class Reconciler {
             inSolr.add(d.id);
             if (!KgIds.isDocId(d.id)) {
                 continue;
+            }
+            if (d.heldOnly(this.cfg)) {
+                continue; // a collection switched off (package 6.2): seen, so kept; not enqueued
             }
             final Tracked t = graph.get(d.id);
             if (t == null) {
@@ -600,17 +603,21 @@ public final class Reconciler {
             return;
         }
         final List<String> present = new ArrayList<>();
+        final List<String> held = new ArrayList<>();
         final List<String> absent = new ArrayList<>();
         for (final String id : ids) {
             final SolrDoc d = found.get(id);
             if (d != null && !d.followed(this.cfg).isEmpty()) {
                 present.add(id);
+            } else if (d != null && d.heldOnly(this.cfg)) {
+                held.add(id); // a collection switched off: kept as it is, not processed
             } else {
                 absent.add(id);
             }
         }
         this.store.write(WriteClass.MAINTENANCE, ESTIMATE, tx -> {
             verdict(tx, r.id, present, VERDICT_PRESENT);
+            verdict(tx, r.id, held, VERDICT_PRESENT);
             verdict(tx, r.id, absent, VERDICT_ABSENT);
             // a candidate the scan missed (not yet committed) is processed like any other change
             final WorkQueue.Added a = WorkQueue.scanned(tx, present, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_VERIFIED, 0L, now,
@@ -671,6 +678,8 @@ public final class Reconciler {
             final SolrDoc d = found.get(id);
             if (d != null && !d.followed(this.cfg).isEmpty()) {
                 back.add(id);
+            } else if (d != null && d.heldOnly(this.cfg)) {
+                continue; // a collection switched off: kept as it is
             } else if (this.dirty.hasNewer(id, 0L)) {
                 back.add(id); // a change is pending in memory: its event decides
             } else {

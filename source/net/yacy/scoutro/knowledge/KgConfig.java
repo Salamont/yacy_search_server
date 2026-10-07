@@ -61,6 +61,12 @@ public final class KgConfig {
     public static final String JSONLD_MAX_BLOCKS_PER_DOC = "scoutro.kg.jsonld.maxBlocksPerDoc";
     public static final String JSONLD_MAX_TOTAL_BYTES = "scoutro.kg.jsonld.maxTotalBytes";
     public static final String COLLECTIONS = "scoutro.kg.collections";
+    /**
+     * Collections switched off for the graph (package 6.2, comma-separated): not followed, also under {@code *}, and their graph data
+     * are kept as they are: the reconcile deletes nothing of them and nothing new is extracted from them, until they are switched on
+     * again. A page deleted from the index still leaves the graph.
+     */
+    public static final String INACTIVE_COLLECTIONS = "scoutro.kg.collections.inactive";
     public static final String CAPTURE_MAX_PENDING = "scoutro.kg.capture.maxPending";
     public static final String QUEUE_MAX_ITEMS = "scoutro.kg.queue.maxItems";
     public static final String EXTRACT_MAX_STATEMENTS_PER_DOC = "scoutro.kg.extract.maxStatementsPerDoc";
@@ -165,6 +171,8 @@ public final class KgConfig {
     public final Set<String> collections;
     /** True for {@code scoutro.kg.collections=*}. */
     public final boolean allCollections;
+    /** Collections switched off ({@link #INACTIVE_COLLECTIONS}, sorted): never followed, their graph data kept. */
+    public final Set<String> inactiveCollections;
     public final int captureMaxPending;
     public final long queueMaxItems;
     public final int extractMaxStatementsPerDoc;
@@ -262,6 +270,11 @@ public final class KgConfig {
         this.allCollections = colls.contains(ALL_COLLECTIONS);
         colls.remove(ALL_COLLECTIONS);
         this.collections = Collections.unmodifiableSet(colls);
+        final Set<String> inactive = p.collections(INACTIVE_COLLECTIONS);
+        if (inactive.remove(ALL_COLLECTIONS)) {
+            p.problem(INACTIVE_COLLECTIONS, "names collections, not * (to follow none, leave " + COLLECTIONS + " empty)");
+        }
+        this.inactiveCollections = Collections.unmodifiableSet(inactive);
         this.captureMaxPending = (int) p.longValue(CAPTURE_MAX_PENDING, 100_000, 1_000, 1_000_000);
         this.queueMaxItems = p.longValue(QUEUE_MAX_ITEMS, 200_000, 1_000, 10_000_000);
         this.extractMaxStatementsPerDoc = (int) p.longValue(EXTRACT_MAX_STATEMENTS_PER_DOC, 50, 1, 500);
@@ -302,6 +315,8 @@ public final class KgConfig {
         this.chatTimeoutMillis = p.longValue(CHAT_TIMEOUT_MS, 300, 50, 5000);
         final Set<String> perCollection = new TreeSet<>(this.collections);
         perCollection.addAll(SCOUTRO_COLLECTIONS);
+        // a collection switched off keeps its settings: its vocabulary stays part of the extraction identity (no re-extraction)
+        perCollection.addAll(this.inactiveCollections);
         // with *, every collection is followed: its per-collection keys count too, also for a collection named nowhere else
         final List<String> keyed = new ArrayList<>();
         if (this.allCollections) {
@@ -406,12 +421,51 @@ public final class KgConfig {
 
     /** True if documents of {@code collection} are followed by the graph. */
     public boolean follows(final String collection) {
-        return collection != null && (this.allCollections || this.collections.contains(collection));
+        return collection != null && !this.inactiveCollections.contains(collection)
+                && (this.allCollections || this.collections.contains(collection));
     }
 
     /** True if at least one collection is followed. */
     public boolean followsAny() {
-        return this.allCollections || !this.collections.isEmpty();
+        if (this.allCollections) {
+            return true;
+        }
+        for (final String c : this.collections) {
+            if (!this.inactiveCollections.contains(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** True if {@code collection} is switched off: not followed, its graph data kept (package 6.2). */
+    public boolean holds(final String collection) {
+        return collection != null && this.inactiveCollections.contains(collection);
+    }
+
+    /**
+     * The collections the reconcile reads from Solr: the followed ones and those switched off (so that their documents are seen and
+     * kept); null for any collection ({@code *}).
+     */
+    public Set<String> scanCollections() {
+        if (this.allCollections) {
+            return null;
+        }
+        final Set<String> out = new TreeSet<>();
+        for (final String c : this.collections) {
+            if (!this.inactiveCollections.contains(c)) {
+                out.add(c);
+            }
+        }
+        out.addAll(this.inactiveCollections);
+        return Collections.unmodifiableSet(out);
+    }
+
+    /** The followed collections without those switched off (sorted; empty under {@code *}, see {@link #allCollections}). */
+    public Set<String> activeCollections() {
+        final Set<String> out = new TreeSet<>(this.collections);
+        out.removeAll(this.inactiveCollections);
+        return Collections.unmodifiableSet(out);
     }
 
     /** True if the LLM tier reads documents of {@code collection} (it must also be followed). */
@@ -501,9 +555,10 @@ public final class KgConfig {
         return dataBytes() / 100L * this.cacheMaxPercent;
     }
 
-    /** Stable description of the followed collections ({@code *} or the sorted names). */
+    /** Stable description of the followed collections ({@code *} or the sorted names; then {@code -} and those switched off). */
     public String collectionsKey() {
-        return this.allCollections ? ALL_COLLECTIONS : String.join(",", this.collections);
+        return (this.allCollections ? ALL_COLLECTIONS : String.join(",", this.collections))
+                + (this.inactiveCollections.isEmpty() ? "" : "-" + String.join(",", this.inactiveCollections));
     }
 
     public List<Problem> problems() {
@@ -627,7 +682,8 @@ public final class KgConfig {
         for (final String c : this.jobsCollections) {
             jobs.put(c);
         }
-        return KgJson.obj("valid", valid(), "errors", errors, "collections", colls, "llmCollections", llm, "jobsCollections", jobs,
+        return KgJson.obj("valid", valid(), "errors", errors, "collections", colls, "inactiveCollections",
+                new JSONArray(this.inactiveCollections), "llmCollections", llm, "jobsCollections", jobs,
                 "llmIgnoredCollections", new JSONArray(this.llmIgnored), "llmKinds", kinds,
                 "chat", KgJson.obj("enabled", this.chatEnabled, "allowGuests", this.chatAllowGuests, "maxFacts", this.chatMaxFacts,
                         "maxChars", this.chatMaxChars, "timeoutMs", this.chatTimeoutMillis));

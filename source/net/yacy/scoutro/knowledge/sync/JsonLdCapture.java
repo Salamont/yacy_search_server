@@ -56,12 +56,15 @@ public final class JsonLdCapture {
         final int maxBytes;
         final boolean allCollections;
         final Set<String> collections;
+        /** Collections switched off (package 6.2): never captured, also under {@code *}. */
+        final Set<String> inactive;
 
-        Active(final int maxBlocks, final int maxBytes, final boolean allCollections, final Set<String> collections) {
+        Active(final int maxBlocks, final int maxBytes, final boolean allCollections, final Set<String> collections, final Set<String> inactive) {
             this.maxBlocks = maxBlocks;
             this.maxBytes = maxBytes;
             this.allCollections = allCollections;
             this.collections = collections;
+            this.inactive = inactive == null ? Set.of() : inactive;
         }
 
         boolean followsAny(final Collection<?> cs) {
@@ -69,7 +72,7 @@ public final class JsonLdCapture {
                 return false;
             }
             for (final Object c : cs) {
-                if (c != null && (this.allCollections || this.collections.contains(c.toString()))) {
+                if (c != null && !this.inactive.contains(c.toString()) && (this.allCollections || this.collections.contains(c.toString()))) {
                     return true;
                 }
             }
@@ -116,13 +119,24 @@ public final class JsonLdCapture {
 
     /** Activates the capture with these limits for the followed collections. */
     public static void activate(final int maxBlocks, final int maxBytes, final boolean allCollections, final Set<String> collections) {
-        active = new Active(maxBlocks, maxBytes, allCollections, collections);
+        activate(maxBlocks, maxBytes, allCollections, collections, Set.of());
+    }
+
+    /** {@link #activate(int, int, boolean, Set)} without the collections switched off (package 6.2). */
+    public static void activate(final int maxBlocks, final int maxBytes, final boolean allCollections, final Set<String> collections,
+            final Set<String> inactive) {
+        active = new Active(maxBlocks, maxBytes, allCollections, collections, inactive);
         paused = null;
     }
 
     /** Pauses the capture (budget or disk reserve); documents of followed collections are recorded as skipped. */
     public static void pause(final boolean allCollections, final Set<String> collections) {
-        paused = new Active(0, 0, allCollections, collections);
+        pause(allCollections, collections, Set.of());
+    }
+
+    /** {@link #pause(boolean, Set)} without the collections switched off (package 6.2). */
+    public static void pause(final boolean allCollections, final Set<String> collections, final Set<String> inactive) {
+        paused = new Active(0, 0, allCollections, collections, inactive);
         active = null;
     }
 

@@ -33,8 +33,10 @@ import net.yacy.scoutro.knowledge.read.KgReader;
  * {@link KnowledgeRead} (filtered by the optional {@code collection}),
  * {@code GET /v1/kg/status} and {@code POST /v1/kg/control} with the actions
  * {@code pause}, {@code resume}, {@code reconcile}, {@code confirm_reconcile} and
- * {@code llm_retry}, and the streamed download {@code GET /v1/kg/export/download}
- * ({@link #download}), which agents never get.
+ * {@code llm_retry}, the streamed download {@code GET /v1/kg/export/download}
+ * ({@link #download}), and (package 6.2) the settings of each collection
+ * {@code GET /v1/kg/collections} and {@code PATCH /v1/kg/collections/{collection}}
+ * ({@link KgCollectionSettings}); agents never get these.
  * The servlet checks the administrator role before calling this class; the
  * control body goes through the servlet's cross-site checks.
  */
@@ -58,9 +60,15 @@ final class KnowledgeApi {
             "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm", "derive");
 
     private final Supplier<KgRuntime> runtime;
+    private final Supplier<KgCollectionSettings> settings;
 
     KnowledgeApi(final Supplier<KgRuntime> runtime) {
+        this(runtime, KgCollectionSettings::current);
+    }
+
+    KnowledgeApi(final Supplier<KgRuntime> runtime, final Supplier<KgCollectionSettings> settings) {
         this.runtime = runtime;
+        this.settings = settings;
     }
 
     JSONObject route(final String method, final String[] parts, final Body body) throws ApiException, IOException {
@@ -74,6 +82,9 @@ final class KnowledgeApi {
                 || parts.length == 4 && KnowledgeRead.single(parts[3])) {
             return new KnowledgeRead(this.runtime).route(method, java.util.Arrays.asList(parts).subList(3, parts.length), query,
                     SeoAnalysis.adminCollections(query));
+        }
+        if ((parts.length == 4 || parts.length == 5) && "collections".equals(parts[3])) {
+            return collections(method, parts, query, body);
         }
         if (parts.length != 4) {
             throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
@@ -94,6 +105,24 @@ final class KnowledgeApi {
             default:
                 throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
+    }
+
+    /** The settings of each collection (package 6.2): GET the list, PATCH one collection. */
+    private JSONObject collections(final String method, final String[] parts, final java.util.Map<String, String> query, final Body body)
+            throws ApiException, IOException {
+        if (parts.length == 4) {
+            allow(method, "GET");
+        } else {
+            allow(method, "PATCH");
+        }
+        if (!query.isEmpty()) {
+            throw ApiException.invalid(query.keySet().iterator().next(), "This route takes no parameters.");
+        }
+        final KgCollectionSettings s = this.settings.get();
+        if (s == null) {
+            throw new ApiException(503, "settings_unavailable", "The settings cannot be read.");
+        }
+        return parts.length == 4 ? s.list() : s.update(parts[4], body.get());
     }
 
     /**
