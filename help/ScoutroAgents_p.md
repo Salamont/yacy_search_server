@@ -34,7 +34,7 @@ Without the `agent` parameter the page shows the list and the recent activity of
 | `agent` | Agent id. | `agt_` followed by 12 characters. |
 | `op` | Operation. | `update`, `pause`, `resume`, `revoke`, `rotate`, `revokeToken`, `clustro`, `abandonCrawlStart`. |
 | `name`, `description` | Identity (with `op=update`). | 1–80 and at most 500 characters. |
-| `col_<collection>`, `extraCollections` | Data scope (with `op=update`). | Checkbox per collection; further names separated by commas. |
+| `col_<collection>` | Data scope (with `op=update`). | Checkbox per collection of the catalog or already granted to the agent; a new collection is created first (New collection). `extraCollections` (free text) is refused. |
 | `allCollections`, `confirmAllCollections` | Complete local index (with `op=update`). | Both checkboxes are required together. |
 | `act_<action>` | Granted actions (with `op=update`). | Checkbox per action, e.g. `act_search`. |
 | `domains`, `maxDepth`, `maxPages`, `maxParallelCrawls`, `requestsPerMinute`, `maxTaskSeconds`, `modelAllowed` | Limits (with `op=update`). | Depth 0–3, pages 1–1000, parallel 1–5, requests 1–600 per minute, task 30–3600 seconds. |

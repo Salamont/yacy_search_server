@@ -32,7 +32,7 @@ All steps are one POST form. The fields of earlier steps travel in the hidden fi
 | Control | Step | Meaning |
 | --- | --- | --- |
 | `name`, `description`, `kind` | 1 | `kind` is `external` or `research_worker`. |
-| `scopeForm`, `col_<collection>`, `extraCollections`, `allCollections`, `confirmAllCollections` | 2 | Collection names match `[A-Za-z0-9_-]{1,64}`. |
+| `scopeForm`, `col_<collection>`, `allCollections`, `confirmAllCollections` | 2 | One checkbox per collection of the catalog; a collection outside it is refused, so a new one is created first (New collection). `extraCollections` (free text) is no longer accepted. |
 | `actionsForm`, `preset`, `act_<action>` | 3 | `preset` is `research`, `research_crawl` or `custom`. |
 | `limitsForm`, `domains`, `maxDepth`, `maxPages`, `maxParallelCrawls`, `requestsPerMinute`, `maxTaskSeconds`, `modelAllowed` | 4 | Same ranges as on the management page. |
 | `expiresInDays`, `clustroBaseUrl`, `clustroWorkspaceId`, `clustroConnectionId`, `clustroAgentKey` | 5 | The Clustro fields only for a research worker; the key has the form `ak_` + 64 hex characters. |
