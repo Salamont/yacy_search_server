@@ -63,8 +63,19 @@ public final class AgentAdmin {
     // form parsing
     // ------------------------------------------------------------------
 
-    /** Agent fields from a form (as a map of single values; checkbox present = on). */
+    /** Agent fields from a form (as a map of single values; checkbox present = on); collections only from the catalog. */
     public static Agent.Builder parseGrant(final Agent.Builder into, final Map<String, String> form) throws AgentException {
+        return parseGrant(into, form, null);
+    }
+
+    /**
+     * Agent fields from a form. Collections are only chosen (checkboxes), never
+     * typed: each must be one of {@code choosable} (null: the selectable
+     * collections of the catalog) or one the agent has already; a new collection
+     * is created first and then chosen (package 6.1).
+     */
+    public static Agent.Builder parseGrant(final Agent.Builder into, final Map<String, String> form,
+            final java.util.Collection<String> choosable) throws AgentException {
         if (form.containsKey("name")) {
             into.name = form.get("name");
         }
@@ -81,10 +92,14 @@ public final class AgentAdmin {
                     collections.add(e.getKey().substring(4));
                 }
             }
-            for (final String c : split(form.get("extraCollections"))) {
-                collections.add(c);
+            if (!split(form.get("extraCollections")).isEmpty()) {
+                throw AgentException.invalid("extraCollections",
+                        "Collections are chosen from the list; create a new collection first, then choose it.");
             }
             final boolean all = isOn(form.get("allCollections"));
+            if (!all) {
+                requireKnownCollections(collections, choosable, into.scope);
+            }
             // confirmation only when the complete index is granted newly, not when an agent keeps it
             final boolean alreadyGranted = into.scope != null && into.scope.allCollections;
             if (all && !alreadyGranted && !isOn(form.get("confirmAllCollections"))) {
@@ -121,6 +136,24 @@ public final class AgentAdmin {
                     isOn(form.get("modelAllowed")));
         }
         return into;
+    }
+
+    /**
+     * Every collection must exist (one of {@code choosable}, null: the catalog's
+     * selectable ones) or already belong to the agent ({@code previous}); never
+     * an internal or a phantom collection.
+     */
+    public static void requireKnownCollections(final java.util.Collection<String> collections, final java.util.Collection<String> choosable,
+            final Agent.Scope previous) throws AgentException {
+        final Set<String> allowed = new java.util.HashSet<>(choosable == null ? CollectionCatalog.current().selectable() : choosable);
+        if (previous != null) {
+            allowed.addAll(previous.collections);
+        }
+        for (final String c : collections) {
+            if (!allowed.contains(c) || CollectionCatalog.isInternal(c)) {
+                throw AgentException.invalid("collections", "Unknown collection: create it first, then choose it from the list.");
+            }
+        }
     }
 
     /** Validate everything the store would check, without storing (for the wizard steps). */

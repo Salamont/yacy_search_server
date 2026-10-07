@@ -94,8 +94,11 @@
         <dd><textarea name="description" id="editDescription" rows="2" cols="40" maxlength="500">#[description]#</textarea></dd>
         <dt>Collections</dt>
         <dd>
-          #{cols}#<label class="scoutro-check"><input type="checkbox" name="col_#[name]#"#(checked)#:: checked="checked"#(/checked)#/> <code>#[name]#</code></label><br/>#{/cols}#
-          <input type="text" name="extraCollections" value="" size="40" placeholder="further collections" aria-label="Further collections"/><br/>
+          <div class="scoutro-collection-choices" data-scoutro-collection-choices>
+          #{cols}#<label class="scoutro-check"><input type="checkbox" name="col_#[name]#"#(checked)#:: checked="checked"#(/checked)#/> <code>#[name]#</code>#(named)#:: #[title]##(/named)##(missing)#:: (not in the collection list)#(/missing)#</label><br/>#{/cols}#
+          </div>
+          <button type="button" class="btn btn-default btn-sm" data-scoutro-collection-new hidden>New collection</button>
+          <p class="help-block">Collections are chosen from the list. A new collection is created with New collection and then ticked.</p>
           <label><input type="checkbox" name="allCollections"#(all)#:: checked="checked"#(/all)#/> Grant the complete local index</label>
           <label><input type="checkbox" name="confirmAllCollections"/> confirmed</label>
         </dd>
@@ -228,6 +231,9 @@
     </table>
     </div>
 #(/view)#
+#%env/templates/scoutro/collection-create.template%#
+<script src="env/scoutro/collections.js"></script>
+<script src="env/scoutro/collection-choices.js"></script>
 
 #%env/templates/footer.template%#
 </body>

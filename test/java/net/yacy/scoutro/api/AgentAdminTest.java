@@ -43,13 +43,37 @@ public class AgentAdminTest {
         return m;
     }
 
+    private static final List<String> CATALOG = List.of("edelsenior-web", "checkthecoach-web", "prospect-edelsenior");
+
     @Test
-    public void scopeFromCheckboxesAndExtraField() throws Exception {
+    public void scopeOnlyFromTheCheckboxesOfExistingCollections() throws Exception {
         final Agent.Builder b = AgentAdmin.parseGrant(new Agent.Builder(), form("scopeForm", "1",
-                "col_edelsenior-web", "on", "col_checkthecoach-web", "", "extraCollections", "prospect-edelsenior, x_y"));
-        Assert.assertEquals(new LinkedHashSet<>(Arrays.asList("edelsenior-web", "prospect-edelsenior", "x_y")),
-                b.scope.collections);
+                "col_edelsenior-web", "on", "col_checkthecoach-web", "", "col_prospect-edelsenior", "on"), CATALOG);
+        Assert.assertEquals(new LinkedHashSet<>(Arrays.asList("edelsenior-web", "prospect-edelsenior")), b.scope.collections);
         Assert.assertFalse(b.scope.allCollections);
+        // package 6.1: no typed collection names, no phantom or internal collections
+        for (final Map<String, String> bad : List.of(
+                form("scopeForm", "1", "col_edelsenior-web", "on", "extraCollections", "prospect-edelsenior"),
+                form("scopeForm", "1", "col_neu-ohne-anlage", "on"),
+                form("scopeForm", "1", "col_robot_snippet", "on"))) {
+            try {
+                AgentAdmin.parseGrant(new Agent.Builder(), bad, List.of("edelsenior-web", "prospect-edelsenior", "robot_snippet"));
+                Assert.fail("accepted " + bad);
+            } catch (final AgentException e) {
+                Assert.assertTrue(e.field(), List.of("extraCollections", "collections").contains(e.field()));
+            }
+        }
+        // an agent keeps a collection it already has, even if the catalog does not list it (any more)
+        final Agent.Builder existing = new Agent.Builder();
+        existing.scope = new Agent.Scope(Set.of("altes-portal"), false);
+        Assert.assertEquals(Set.of("altes-portal", "edelsenior-web"), new java.util.HashSet<>(AgentAdmin.parseGrant(existing,
+                form("scopeForm", "1", "col_altes-portal", "on", "col_edelsenior-web", "on"), CATALOG).scope.collections));
+        try {
+            AgentAdmin.requireKnownCollections(List.of("phantom"), CATALOG, null);
+            Assert.fail("a phantom collection in a (manipulated) wizard draft");
+        } catch (final AgentException e) {
+            Assert.assertEquals("collections", e.field());
+        }
     }
 
     @Test

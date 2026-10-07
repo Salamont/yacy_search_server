@@ -114,6 +114,10 @@ public class ScoutroAgentWizard_p {
     private static int create(final ScoutroAgents agents, final Agent.Builder draft, final Map<String, String> form,
             final RequestHeader header, final serverObjects prop) throws AgentException {
         final long ttl = AgentAdmin.tokenTtl(form);
+        // the draft is client-side state: its collections are checked against the catalog once more before storing
+        if (draft.scope != null && !draft.scope.allCollections) {
+            AgentAdmin.requireKnownCollections(draft.scope.collections, null, null);
+        }
         final JSONObject clustro = draft.kind == Agent.Kind.RESEARCH_WORKER ? AgentAdmin.parseClustro(form, null) : null;
         final Agent agent;
         final AgentTokens.Issued token;
@@ -167,15 +171,19 @@ public class ScoutroAgentWizard_p {
         prop.put(p + "kindWorker", d.kind == Agent.Kind.RESEARCH_WORKER ? 1 : 0);
 
         // step 2
-        final Set<String> known = new LinkedHashSet<>(AgentAdmin.profileCollections());
-        final List<String> index = AgentAdmin.indexCollections();
-        known.addAll(index);
+        // package 6.1: the catalog's selectable collections, never typed; a new one is created and then ticked
+        final java.util.Map<String, net.yacy.scoutro.api.CollectionCatalog.Entry> entries = new java.util.LinkedHashMap<>();
+        for (final net.yacy.scoutro.api.CollectionCatalog.Entry c : AgentAdmin.collectionChoices()) entries.put(c.id, c);
+        final Set<String> known = new LinkedHashSet<>(entries.keySet());
         known.addAll(d.scope.collections);
         int i = 0;
         for (final String c : known) {
+            final net.yacy.scoutro.api.CollectionCatalog.Entry entry = entries.get(c);
             prop.putHTML(p + "cols_" + i + "_name", c);
             prop.put(p + "cols_" + i + "_checked", d.scope.collections.contains(c) ? 1 : 0);
-            prop.put(p + "cols_" + i + "_indexed", index.contains(c) ? 1 : 0);
+            prop.put(p + "cols_" + i + "_named", entry != null && !entry.name.equals(c) ? 1 : 0);
+            prop.putHTML(p + "cols_" + i + "_named_title", entry == null ? "" : entry.name);
+            prop.put(p + "cols_" + i + "_indexed", entry != null && entry.documents > 0 ? 1 : 0);
             i++;
         }
         prop.put(p + "cols", i);
