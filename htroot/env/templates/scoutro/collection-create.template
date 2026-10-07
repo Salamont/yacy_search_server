@@ -1,4 +1,4 @@
-<dialog class="scoutro-collection-dialog" id="scoutro-collection-dialog" aria-labelledby="scoutro-collection-title">
+<dialog class="scoutro-collection-dialog" id="scoutro-collection-dialog" aria-labelledby="scoutro-collection-title" data-scoutro-admin="#(authorized)#0::1#(/authorized)#">
 <form id="scoutro-collection-form" novalidate>
 <h2 id="scoutro-collection-title">New collection</h2>
 <p class="scoutro-collection-intro">A collection groups the pages of one portal or project. Once created, it can be chosen everywhere: for crawls, filters, the chat and agent grants.</p>

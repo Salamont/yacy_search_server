@@ -1,13 +1,14 @@
 /* Scoutro contributors, GPL-2.0-or-later. YaCy's own crawl and import forms (package 6.1): their collection field
    becomes the catalog's dropdown, so no collection name is typed; "New collection" creates one (administrator)
-   and selects it. Without JavaScript, or when the catalog cannot be read (not signed in as administrator yet,
-   index unavailable), YaCy's original field stays, so the form and its login keep working. The form still sends
-   the parameter "collection". */
+   and selects it. Without JavaScript, while no administrator is signed in (the public crawl pages: asking the
+   API would only raise a login prompt) or when the catalog cannot be read, YaCy's original field stays, so the
+   form and its login keep working. The form still sends the parameter "collection". */
 (function () {
   'use strict';
-  if (!window.ScoutroCollections) return;
+  var dialog = document.getElementById('scoutro-collection-dialog');
+  if (!window.ScoutroCollections || !dialog || dialog.dataset.scoutroAdmin !== '1') return;
   var labels = {};
-  document.querySelectorAll('#scoutro-collection-dialog [data-scoutro-collection-label]').forEach(function (n) { labels[n.dataset.scoutroCollectionLabel] = n.textContent; });
+  dialog.querySelectorAll('[data-scoutro-collection-label]').forEach(function (n) { labels[n.dataset.scoutroCollectionLabel] = n.textContent; });
   var inputs = [].slice.call(document.querySelectorAll('input[data-scoutro-collection-select]')).filter(function (input) {
     return !input.disabled; // disabled: YaCy's collections are switched off
   });
