@@ -116,11 +116,33 @@
       const a = node('a', t('download')); a.href = ROOT + 'backups/' + encodeURIComponent(f.file); a.setAttribute('download', f.file);
       const r = node('button', t('restore'), 'btn btn-default btn-xs'); r.type = 'button'; r.dataset.skgRestore = f.file;
       r.addEventListener('click', () => guarded(() => control('restore', { backup: f.file })));
-      actions.append(a, ' ', r);
+      // package 6.3: delete one backup, after a question that names it with its type, size and date
+      const d = node('button', t('delete_backup'), 'btn btn-danger btn-xs'); d.type = 'button'; d.dataset.skgDelete = f.file;
+      d.addEventListener('click', () => guarded(() => deleteBackup(f, d)));
+      actions.append(a, ' ', r, ' ', d);
       const cells = [f.file, t('kind_' + f.kind), bytes(f.bytes), f.created_at ? date(Date.parse(f.created_at)) : t('missing'), actions];
       cells.forEach((v, i) => { const td = row.insertCell(); td.dataset.label = i === 4 ? '' : t(cols[i]); if (v instanceof Node) td.append(v); else td.textContent = v; });
     }
     box.append(table);
+  }
+
+  async function deleteBackup(f, button) {
+    const when = f.created_at ? date(Date.parse(f.created_at)) : t('missing');
+    let question = t('delete_backup_question').replace('%1', f.file).replace('%2', t('kind_' + f.kind)).replace('%3', bytes(f.bytes)).replace('%4', when);
+    if (f.kind === 'before_upgrade') question += '\n\n' + t('delete_backup_upgrade_note');
+    if (!window.confirm(question)) return;
+    button.disabled = true; message(t('loading'));
+    const response = await fetch(ROOT + 'control', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_backup', backup: f.file }) });
+    let body = null; try { body = await response.json(); } catch (_) { /* below */ }
+    if (!response.ok) {
+      button.disabled = false;
+      const code = body?.error?.code || 'error';
+      const text = code === 'operation_running' ? t('delete_backup_busy') : code === 'backup_not_found' ? t('delete_backup_gone') : t('delete_backup_failed');
+      await overview();
+      throw new Error(text.replace('%1', f.file) + ' (HTTP ' + response.status + ', ' + code + ')');
+    }
+    await overview(); message(t('delete_backup_done').replace('%1', f.file));
   }
 
   // The identity rebuild: phase, progress, the check before the swap and the buttons for its phase.
@@ -158,6 +180,11 @@
     const cards = $('cards'); cards.replaceChildren();
     const card = (k, v) => { const dl = node('dl', null, 'sseo-card'); dl.append(node('dt', t(k)), node('dd', fmt(v))); cards.append(dl); };
     card('state', s.state + (s.reason ? ' · ' + s.reason : ''));
+    // package 6.3: the deterministic graph and the LLM enrichment are two layers; the model is the one of the LLM selection
+    const layers = llmLayers(s);
+    card('kg_deterministic', layers.deterministic);
+    card('kg_llm', layers.llm);
+    card('kg_model', layers.model);
     card('objects_count', objects);
     card('lag', s.sync?.lag?.pending);
     const pausedNote = $('paused-note'); if (pausedNote) pausedNote.hidden = !(s.storage?.reasons || []).some(r => r.code === 'manual');
@@ -190,7 +217,7 @@
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
       ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
     const l = s.llm || {};
-    stats('llm', [['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model], ['queue', l.queue?.items],
+    stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')], ['queue', l.queue?.items],
       ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', l.processed?.calls],
       ['dropped', l.processed?.droppedUngrounded], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
     document.querySelector('[data-skg-action="confirm_reconcile"]').hidden = !sy.reconcile?.awaitingConfirmation;
@@ -221,6 +248,19 @@
       events.append(table);
     } else events.append(node('p', t('none')));
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
+  }
+
+  // The two layers in words: the deterministic graph (rules, structured data) and the LLM enrichment with its model.
+  function llmLayers(s) {
+    const running = s.state === 'running', l = s.llm || {}, followed = (s.config?.collections || []).length > 0;
+    const deterministic = running && followed ? t('kg_on') : t('kg_off') + ' · ' + (running ? t('kg_reason_no_collections') : s.state);
+    let llm;
+    if (running && l.enabled && l.model && !['off', 'not_configured'].includes(l.state)) llm = t('kg_on') + (l.state && l.state !== 'running' && l.state !== 'idle' ? ' · ' + l.state + (l.reason ? ' (' + l.reason + ')' : '') : '');
+    else if (l.reason === 'llm_collections_not_followed') llm = t('kg_off') + ' · ' + t('llm_reason_not_followed');
+    else if (!l.enabled || l.reason === 'no_llm_collections') llm = t('kg_off') + ' · ' + t('llm_reason_no_collections');
+    else if (!l.model || l.state === 'not_configured') llm = t('kg_off') + ' · ' + t('llm_reason_no_model');
+    else llm = t('kg_off') + ' · ' + (l.reason || l.state || '');
+    return { deterministic, llm, model: l.model || t('kg_no_model') };
   }
 
   // Every collection the graph follows, maps or holds: vocabulary (or none, said so), jobs, LLM tier, documents, state.
@@ -1356,6 +1396,11 @@
     if (!r.ok || !data) throw new Error(t('error') + ' (HTTP ' + r.status + ', ' + (data?.error?.code || 'error') + ')');
     const body = $('kgc').tBodies[0]; body.replaceChildren();
     const heads = [...$('kgc').tHead.rows[0].cells].map(c => c.textContent);
+    // the model of the LLM enrichment is the one of the LLM selection (usage knowledge); there is no second setting
+    const lm = data.llm || {};
+    $('kgc-model').textContent = lm.model ? t('kgc_model').replace('%1', lm.model) : t('kgc_no_model');
+    $('kgc-llm-state').textContent = t('kg_llm') + ': ' + (lm.active ? t('kg_on') : t('kg_off') + ' · '
+      + t(!lm.model ? 'llm_reason_no_model' : 'llm_reason_no_collections'));
     for (const c of data.collections) {
       const name = node('span'); name.append(node('strong', c.name));
       if (c.name !== c.collection) name.append(' ', node('code', c.collection));
@@ -1371,24 +1416,33 @@
       if (c.vocabularySetting && !data.vocabularies.includes(c.vocabularySetting)) { const o = node('option', c.vocabularySetting + ' (' + t('vocab_unknown') + ')'); o.value = c.vocabularySetting; vocab.append(o); }
       vocab.append(none);
       vocab.value = c.vocabularySetting == null ? '__default' : c.vocabularySetting === '' ? '__none' : c.vocabularySetting;
+      // the LLM enrichment of this collection: never on by itself; with * for every collection it is shown, not changed here
+      const llm = node('select', null, 'form-control'); llm.setAttribute('aria-label', t('kgc_label_llm').replace('%1', c.name));
+      for (const [v, k] of [['off', 'kgc_llm_off'], ['on', 'kgc_llm_on']]) { const o = node('option', t(k)); o.value = v; llm.append(o); }
+      llm.value = c.llm ? 'on' : 'off';
+      if (c.llmBy === 'all') { llm.disabled = true; llm.title = t('kgc_llm_all'); llm.options[1].textContent = t('kgc_llm_all'); }
+      const llmCell = node('span'); llmCell.append(llm);
+      if (c.llm && !c.llmActive) llmCell.append(' ', node('span', '(' + t(!lm.model ? 'llm_reason_no_model' : 'kgc_llm_waits') + ')', 'sseo-note'));
       const save = node('button', t('kgc_save'), 'btn btn-default btn-sm'); save.type = 'button'; save.disabled = true;
-      const initial = [active.value, vocab.value];
-      const changed = () => { save.disabled = active.value === initial[0] && vocab.value === initial[1]; };
-      active.addEventListener('change', changed); vocab.addEventListener('change', changed);
-      save.addEventListener('click', () => guarded(() => saveKgCollection(c, active, vocab, initial)));
-      const row = rowInto(body, heads, [name, c.indexDocuments == null ? t('missing') : fmt(c.indexDocuments), active, vocab,
+      const initial = [active.value, vocab.value, llm.value];
+      const changed = () => { save.disabled = active.value === initial[0] && vocab.value === initial[1] && llm.value === initial[2]; };
+      active.addEventListener('change', changed); vocab.addEventListener('change', changed); llm.addEventListener('change', changed);
+      save.addEventListener('click', () => guarded(() => saveKgCollection(c, active, vocab, initial, llm, lm.model)));
+      const row = rowInto(body, heads, [name, c.indexDocuments == null ? t('missing') : fmt(c.indexDocuments), active, vocab, llmCell,
         c.graphDocuments == null ? t('missing') : fmt(c.graphDocuments), t('vstate_' + c.state), save]);
       row.dataset.collection = c.collection; row.dataset.state = c.state;
     }
     if (!data.collections.length) { const row = body.insertRow(); const td = row.insertCell(); td.colSpan = heads.length; td.textContent = t('kgc_empty'); }
   }
-  async function saveKgCollection(c, active, vocab, initial) {
+  async function saveKgCollection(c, active, vocab, initial, llm, model) {
     const change = {};
     if (active.value !== initial[0]) change.active = active.value === 'on';
     if (vocab.value !== initial[1]) change.vocabulary = vocab.value === '__default' ? null : vocab.value === '__none' ? '' : vocab.value;
+    if (llm.value !== initial[2]) change.llm = llm.value === 'on';
     if (!Object.keys(change).length) return;
     if (change.active === false && !window.confirm(t('kgc_off_question').replace('%1', c.name))) return;
     if ('vocabulary' in change && (change.active ?? c.active) && !window.confirm(t('kgc_vocab_question').replace('%1', c.name))) return;
+    if (change.llm === true && !window.confirm((model ? t('kgc_llm_question').replace('%2', model) : t('kgc_llm_question_no_model')).replace('%1', c.name))) return;
     $('kgc-message').textContent = t('loading');
     const response = await fetch(ROOT + 'collections/' + encodeURIComponent(c.collection), { method: 'PATCH', credentials: 'same-origin', cache: 'no-store',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
@@ -1398,7 +1452,9 @@
       throw new Error(t('error') + ' (HTTP ' + response.status + ', ' + (body?.error?.code || 'error') + ')');
     }
     const done = !body.changed ? t('kgc_unchanged') : body.applied ? t('kgc_saved') : t('kgc_stored');
-    const text = [done.replace('%1', c.name), body.backfill ? t('kgc_backfill') : '', body.reextract ? t('kgc_reextract') : ''].filter(Boolean).join(' ');
+    const text = [done.replace('%1', c.name), body.backfill ? t('kgc_backfill') : '', body.reextract ? t('kgc_reextract') : '',
+      body.llmWarning === 'no_model' ? t('kgc_llm_warn_no_model') : body.llmWarning === 'collection_not_active' ? t('kgc_llm_warn_not_active') : '']
+      .filter(Boolean).join(' ');
     await settings();
     $('kgc-message').textContent = text;
   }

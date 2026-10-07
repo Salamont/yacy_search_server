@@ -64,6 +64,7 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 .skg-t-facility .skg-card { fill: #eef8f1; stroke: #7fbf93; } .skg-t-facility .skg-stripe { fill: #2f8a50; }
 .skg-t-service .skg-card { fill: #fff8e6; stroke: #d9b45a; } .skg-t-service .skg-stripe { fill: #b58300; }
 .skg-kgc select { min-width: 9em; max-width: 100%; }
+.skg-kgc-llm { font-weight: 600; margin-bottom: 2px; }
 .skg-t-group .skg-card { fill: #fff8e6; stroke: #b58300; stroke-dasharray: 6 3; } .skg-t-group .skg-stripe { fill: #b58300; }
 .skg-t-job .skg-card { fill: #f6effb; stroke: #b28fd0; } .skg-t-job .skg-stripe { fill: #7b43a6; }
 .skg-t-place .skg-card { fill: #f4f4f4; stroke: #a0a0a0; } .skg-t-place .skg-stripe { fill: #777; }

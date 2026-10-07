@@ -172,8 +172,11 @@
 <section class="sseo-panel" aria-labelledby="skg-kgc-title">
 <h3 id="skg-kgc-title">Collections in the knowledge graph</h3>
 <p class="sseo-note">Every collection of the catalog is listed here, a new one too; YaCy's internal collections never. Switching a collection off keeps its graph data: nothing is deleted and nothing new is read from it. Switching it on reads the pages it already has in the index. A change concerns only this collection and takes effect at once (the graph is reopened). A new vocabulary of a followed collection makes the graph read its pages again in the background. Settings keys:</p>
-<p class="sseo-note"><code>scoutro.kg.collections</code>, <code>scoutro.kg.collections.inactive</code>, <code>scoutro.kg.vocab.&lt;collection&gt;</code></p>
-<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-kgc" id="skg-kgc"><thead><tr><th>Collection</th><th>Pages in the index</th><th>Knowledge graph</th><th>Vocabulary</th><th>Documents in the graph</th><th>Status</th><th>Save</th></tr></thead><tbody></tbody></table></div>
+<p class="sseo-note"><code>scoutro.kg.collections</code>, <code>scoutro.kg.collections.inactive</code>, <code>scoutro.kg.vocab.&lt;collection&gt;</code>, <code>scoutro.kg.llm.collections</code></p>
+<p class="sseo-note">The LLM enrichment reads the pages of the collections switched on for it in addition, with the model of the LLM selection that has the usage knowledge; there is no second model setting. It is never switched on by itself, and without it the knowledge graph works as before.</p>
+<p class="skg-kgc-llm" id="skg-kgc-llm-state"></p>
+<p><span id="skg-kgc-model"></span> <a href="LLMSelection_p.html">LLM selection</a></p>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-kgc" id="skg-kgc"><thead><tr><th>Collection</th><th>Pages in the index</th><th>Knowledge graph</th><th>Vocabulary</th><th>LLM enrichment</th><th>Documents in the graph</th><th>Status</th><th>Save</th></tr></thead><tbody></tbody></table></div>
 <p id="skg-kgc-message" class="sseo-note" role="status" aria-live="polite"></p>
 </section>
 </section>
@@ -508,6 +511,34 @@
 <span data-skg-label="kgc_empty">No collection yet.</span>
 <span data-skg-label="kgc_label_active">Knowledge graph for %1</span>
 <span data-skg-label="kgc_label_vocabulary">Vocabulary for %1</span>
+<span data-skg-label="kg_deterministic">Knowledge graph (rules and structured data)</span>
+<span data-skg-label="kg_llm">LLM enrichment</span>
+<span data-skg-label="kg_model">Model (usage knowledge)</span>
+<span data-skg-label="kg_on">active</span>
+<span data-skg-label="kg_off">inactive</span>
+<span data-skg-label="kg_no_model">no model with the usage knowledge</span>
+<span data-skg-label="kg_reason_no_collections">no collection switched on</span>
+<span data-skg-label="llm_reason_no_collections">no collection switched on for the LLM enrichment</span>
+<span data-skg-label="llm_reason_not_followed">the collections switched on for it are off for the knowledge graph</span>
+<span data-skg-label="llm_reason_no_model">no model with the usage knowledge in the LLM selection</span>
+<span data-skg-label="kgc_model">Model: %1 (LLM selection, usage knowledge)</span>
+<span data-skg-label="kgc_no_model">No model has the usage knowledge in the LLM selection: the LLM enrichment waits, the knowledge graph works without it.</span>
+<span data-skg-label="kgc_label_llm">LLM enrichment for %1</span>
+<span data-skg-label="kgc_llm_on">On</span>
+<span data-skg-label="kgc_llm_off">Off</span>
+<span data-skg-label="kgc_llm_all">On (all collections, *)</span>
+<span data-skg-label="kgc_llm_waits">takes effect once the collection is on</span>
+<span data-skg-label="kgc_llm_question">Switch the LLM enrichment on for %1? The model %2 reads the pages of this collection in addition.</span>
+<span data-skg-label="kgc_llm_question_no_model">Switch the LLM enrichment on for %1? No model has the usage knowledge yet; the enrichment waits until one is chosen in the LLM selection.</span>
+<span data-skg-label="kgc_llm_warn_no_model">No model has the usage knowledge in the LLM selection: the LLM enrichment waits; the knowledge graph works without it.</span>
+<span data-skg-label="delete_backup">Delete</span>
+<span data-skg-label="delete_backup_question">Delete this backup for good? File: %1 · Type: %2 · Size: %3 · Created: %4. The graph and the other backups stay as they are.</span>
+<span data-skg-label="delete_backup_upgrade_note">This copy was taken before an upgrade: it is the way back to the previous version.</span>
+<span data-skg-label="delete_backup_done">Backup %1 deleted.</span>
+<span data-skg-label="delete_backup_busy">%1 was not deleted: a backup, restore or rebuild is running. Try again when it has ended.</span>
+<span data-skg-label="delete_backup_gone">%1 was not deleted: there is no such backup (any more).</span>
+<span data-skg-label="delete_backup_failed">%1 could not be deleted.</span>
+<span data-skg-label="kgc_llm_warn_not_active">The collection is off for the knowledge graph; the LLM enrichment takes effect once it is on.</span>
 <span data-skg-label="jobs_collections">Job collections</span>
 <span data-skg-label="legend_node_organization">organisation</span>
 <span data-skg-label="legend_node_facility">facility or site</span>
