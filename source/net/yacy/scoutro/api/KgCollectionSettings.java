@@ -42,9 +42,12 @@ import net.yacy.search.Switchboard;
  * vocabulary (set, default of the vocabulary files, or none) and the graph's
  * status. A new collection of the catalog appears here by itself.</li>
  * <li>{@code PATCH /v1/kg/collections/{collection}} with {@code active}
- * (switch the collection on or off) and/or {@code vocabulary} (a vocabulary
+ * (switch the collection on or off), {@code vocabulary} (a vocabulary
  * name, {@code ""} for none, {@code null} for the default of the vocabulary
- * files).</li>
+ * files) and/or {@code llm} (package 6.3: the LLM tier for the collection on
+ * or off, {@code scoutro.kg.llm.collections}; the model stays the one of the
+ * LLM selection with the usage {@code knowledge}, there is no second model
+ * setting; never switched on by itself).</li>
  * </ul>
  * Only the keys of that one collection change, with their existing meaning:
  * {@code scoutro.kg.collections} (the name added or removed, the other names
@@ -74,19 +77,27 @@ final class KgCollectionSettings {
         boolean apply() throws KgException;
     }
 
-    static final Set<String> FIELDS = Set.of("active", "vocabulary");
+    static final Set<String> FIELDS = Set.of("active", "vocabulary", "llm");
     private static final Object LOCK = new Object();
 
     private final Settings settings;
     private final CollectionCatalog catalog;
     private final Supplier<KgRuntime> runtime;
     private final Apply apply;
+    /** The model of the LLM selection with the usage knowledge ({@code service/model}), null for none. */
+    private final Supplier<String> model;
 
     KgCollectionSettings(final Settings settings, final CollectionCatalog catalog, final Supplier<KgRuntime> runtime, final Apply apply) {
+        this(settings, catalog, runtime, apply, () -> null);
+    }
+
+    KgCollectionSettings(final Settings settings, final CollectionCatalog catalog, final Supplier<KgRuntime> runtime, final Apply apply,
+            final Supplier<String> model) {
         this.settings = settings;
         this.catalog = catalog;
         this.runtime = runtime;
         this.apply = apply;
+        this.model = model;
     }
 
     /** The settings of the running peer: YaCy's configuration, the collection catalog, the running graph. */
@@ -123,7 +134,19 @@ final class KgCollectionSettings {
                 }
                 return keys;
             }
-        }, CollectionCatalog.current(), KgRuntime::current, KgRuntime::reopen);
+        }, CollectionCatalog.current(), KgRuntime::current, KgRuntime::reopen, () -> {
+            // the running graph's client, else the LLM selection itself: the same configuration either way
+            final KgRuntime r = KgRuntime.current();
+            return r != null ? r.llmModel() : new net.yacy.scoutro.knowledge.extract.YacyLlmClient().model();
+        });
+    }
+
+    private String model() {
+        try {
+            return this.model.get();
+        } catch (final RuntimeException e) {
+            return null;
+        }
     }
 
     private KgConfig config() {
@@ -143,13 +166,23 @@ final class KgCollectionSettings {
         for (final String c : named(cfg, graph)) {
             names.putIfAbsent(c, Boolean.TRUE);
         }
+        final String m = model();
         final JSONArray rows = new JSONArray();
         for (final String c : names.keySet()) {
-            rows.put(row(c, entries.get(c), cfg, v, graph.get(c)));
+            rows.put(row(c, entries.get(c), cfg, v, graph.get(c), m));
         }
         final KgRuntime r = this.runtime.get();
+        final JSONArray llmNamed = new JSONArray();
+        if (cfg.llmAllCollections) {
+            llmNamed.put(KgConfig.ALL_COLLECTIONS);
+        }
+        for (final String c : cfg.llmCollections) {
+            llmNamed.put(c);
+        }
         return Json.obj("enabled", cfg.enabled, "valid", cfg.valid(), "state", r == null ? "stopped" : r.state().name().toLowerCase(),
                 "followAll", cfg.allCollections, "vocabularies", new JSONArray(new java.util.TreeSet<>(v.categories.vocabularies.keySet())),
+                "llm", Json.obj("model", m, "allCollections", cfg.llmAllCollections, "collections", llmNamed, "enabled", cfg.llmEnabled(),
+                        "active", cfg.enabled && cfg.llmEnabled() && m != null),
                 "collections", rows, "note", "switching a collection off keeps its graph data; switching it on picks up the pages it already"
                         + " has in the index; a change reopens the graph at once");
     }
@@ -183,6 +216,11 @@ final class KgCollectionSettings {
             throw ApiException.invalid("vocabulary", "Field 'vocabulary' must be a vocabulary name, \"\" for none or null for the default.");
         }
         final String vocabulary = vo instanceof String ? (String) vo : null;
+        final Object lo = body.opt("llm");
+        if (lo != null && !(lo instanceof Boolean)) {
+            throw ApiException.invalid("llm", "Field 'llm' must be true or false.");
+        }
+        final Boolean llm = (Boolean) lo;
         final KgVocabularies.Snapshot v = KgVocabularies.get();
         if (vocabulary != null && !vocabulary.isEmpty() && !v.categories.vocabularies.containsKey(vocabulary)) {
             throw new ApiException(400, "vocabulary_unknown", "Unknown vocabulary '" + clip(vocabulary) + "'. Known: "
@@ -222,6 +260,25 @@ final class KgCollectionSettings {
                     }
                 }
             }
+            if (llm != null) {
+                final String list = this.settings.get(KgConfig.LLM_COLLECTIONS);
+                if (before.llmAllCollections) {
+                    if (!llm) {
+                        // * cannot leave one out; it is never rewritten into a list by itself
+                        throw new ApiException(409, "llm_all_collections", "scoutro.kg.llm.collections is *: every followed collection uses"
+                                + " the LLM tier. Name the collections instead of * to switch one off.", Json.obj("field", "llm"));
+                    }
+                } else {
+                    final String newList = llm ? with(list, collection) : without(list, collection);
+                    if (!same(list, newList)) {
+                        if (newList.isEmpty() && list != null) {
+                            removes.add(KgConfig.LLM_COLLECTIONS);
+                        } else {
+                            writes.put(KgConfig.LLM_COLLECTIONS, newList);
+                        }
+                    }
+                }
+            }
             if (setVocabulary) {
                 final String key = KgConfig.VOCAB_PREFIX + collection;
                 final String old = this.settings.get(key);
@@ -250,18 +307,24 @@ final class KgCollectionSettings {
                     applyError = e.code(); // stored; it counts at the next start of the graph
                 }
             }
-            final JSONObject out = Json.obj("collection", row(collection, catalogEntries().get(collection), after, v, graphStates().get(collection)),
+            final String m = model();
+            final JSONObject out = Json.obj("collection", row(collection, catalogEntries().get(collection), after, v, graphStates().get(collection), m),
                     "changed", changed, "applied", applied, "backfill", changed && !before.follows(collection) && after.follows(collection),
                     "kept", changed && before.follows(collection) && after.holds(collection),
                     "reextract", changed && !before.extractionKey().equals(after.extractionKey()), "keys", new JSONArray(changedKeys(writes, removes)));
             Json.put(out, "applyError", applyError);
+            // the LLM tier reads with the model of the LLM selection; without one it waits (and the deterministic graph runs on)
+            Json.put(out, "llmModel", m);
+            Json.put(out, "llmWarning", after.llmFollows(collection) && m == null ? "no_model"
+                    : (after.llmAllCollections || after.llmCollections.contains(collection)) && !after.follows(collection) ? "collection_not_active"
+                            : null);
             return out;
         }
     }
 
     /** One collection: in the catalog or not, followed or switched off, its vocabulary and the graph's view of it. */
     private JSONObject row(final String c, final CollectionCatalog.Entry e, final KgConfig cfg, final KgVocabularies.Snapshot v,
-            final JSONObject graph) {
+            final JSONObject graph, final String model) {
         final String raw = this.settings.get(KgConfig.VOCAB_PREFIX + c);
         final String setting = raw == null ? null : raw.trim();
         final String dflt = v.categories.collections.get(c);
@@ -272,13 +335,16 @@ final class KgCollectionSettings {
         final Object documents = graph == null ? null : graph.opt("documents");
         final String state = inactive ? "inactive" : !active ? "not_followed" : !known ? "unknown_vocabulary"
                 : documents instanceof Number && ((Number) documents).longValue() == 0L ? "waiting" : "following";
+        // the LLM tier for this collection (package 6.3): named (or *), and in effect only for a followed collection with a model
+        final boolean llm = cfg.llmAllCollections || cfg.llmCollections.contains(c);
         final JSONObject o = Json.obj("collection", c, "name", e == null ? c : e.name, "inCatalog", e != null, "indexDocuments",
                 e == null ? null : e.documents, "active", active, "inactive", inactive, "followedBy", inactive ? "inactive"
                         : cfg.allCollections ? "all" : cfg.collections.contains(c) ? "list" : "none",
                 "vocabulary", vocabulary, "vocabularySetting", setting, "defaultVocabulary", dflt, "vocabularySource", setting != null ? "setting"
-                        : dflt != null ? "vocabulary_files" : "none", "vocabularyKnown", known, "graphDocuments", documents, "state", state);
+                        : dflt != null ? "vocabulary_files" : "none", "vocabularyKnown", known, "graphDocuments", documents, "state", state,
+                "llm", llm, "llmBy", cfg.llmAllCollections ? "all" : llm ? "list" : "none", "llmActive", cfg.enabled && cfg.llmFollows(c)
+                        && model != null);
         Json.put(o, "jobs", graph == null ? null : graph.opt("jobs"));
-        Json.put(o, "llm", graph == null ? null : graph.opt("llm"));
         return o;
     }
 

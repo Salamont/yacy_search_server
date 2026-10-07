@@ -128,6 +128,28 @@ public class KnowledgeApiTest {
             enumValues.add(published.getString(i));
         }
         assertEquals(enumValues, KnowledgeApi.ACTIONS);
+    }
+
+    /** Package 6.3: a backup is deleted by its name of GET /kg/backups only; a path is refused before anything is looked up. */
+    @Test
+    public void deletingABackupTakesItsNameNeverAPath() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            for (final String name : new String[] {"../graph.db", "graph.db", "/etc/passwd", "graph-20300101T000000Z.db/../../graph.db",
+                    "backup/graph-20300101T000000Z.db", "graph-20300101T000000Z.json", "%2e%2e%2fgraph.db", ""}) {
+                assertEquals(name, 400, status(api, "POST", CONTROL, Json.obj("action", "delete_backup", "backup", name).toString()));
+            }
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"delete_backup\"}"));
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"delete_backup\",\"backup\":\"graph-20300101T000000Z.db\",\"path\":\"/tmp\"}"));
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"pause\",\"backup\":\"graph-20300101T000000Z.db\"}"));
+            assertEquals("a well-formed name that is no backup", 404,
+                    status(api, "POST", CONTROL, "{\"action\":\"delete_backup\",\"backup\":\"graph-20300101T000000Z.db\"}"));
+            assertEquals(405, status(api, "GET", CONTROL, "{\"action\":\"delete_backup\",\"backup\":\"graph-20300101T000000Z.db\"}"));
+        } finally {
+            r.close();
+        }
+        assertEquals(503, KnowledgeApi.toApi(new KgException(KgException.BACKUP_DELETE_FAILED, "x")).status());
         assertTrue(KnowledgeApi.ACTIONS.containsAll(java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile", "llm_retry",
                 "backup", "restore")));
         final ApiException llm = KnowledgeApi.toApi(new KgException(KgException.LLM_UNAVAILABLE, "off"));

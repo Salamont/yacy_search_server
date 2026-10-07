@@ -57,7 +57,7 @@ final class KnowledgeApi {
 
     /** Allowed values of {@code action}. */
     static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
-            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm", "derive");
+            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm", "derive", "delete_backup");
 
     private final Supplier<KgRuntime> runtime;
     private final Supplier<KgCollectionSettings> settings;
@@ -239,15 +239,17 @@ final class KnowledgeApi {
         final Iterator<?> keys = body.keys();
         while (keys.hasNext()) {
             final String k = String.valueOf(keys.next());
-            if (!"action".equals(k) && !("backup".equals(k) && "restore".equals(action))) {
-                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action" + ("restore".equals(action) ? ", backup." : "."));
+            final boolean named = "restore".equals(action) || "delete_backup".equals(action);
+            if (!"action".equals(k) && !("backup".equals(k) && named)) {
+                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action" + (named ? ", backup." : "."));
             }
         }
         if (!ACTIONS.contains(action)) {
             throw ApiException.invalid("action", "Field 'action' must be one of: " + String.join(", ", ACTIONS) + ".");
         }
         final String backup = body.optString("backup", "");
-        if ("restore".equals(action) && !net.yacy.scoutro.knowledge.store.KgBackup.NAME.matcher(backup).matches()) {
+        // a backup is named, never given as a path: only the names of GET /kg/backups match
+        if (("restore".equals(action) || "delete_backup".equals(action)) && !net.yacy.scoutro.knowledge.store.KgBackup.NAME.matcher(backup).matches()) {
             throw ApiException.invalid("backup", "Field 'backup' must name a backup file of GET /scoutro/api/v1/kg/backups.");
         }
         final KgRuntime r = this.runtime.get();
@@ -269,6 +271,8 @@ final class KnowledgeApi {
                     return r.backup();
                 case "restore":
                     return r.restore(backup);
+                case "delete_backup":
+                    return r.deleteBackup(backup);
                 case "rebuild":
                     return r.rebuild();
                 case "rebuild_cancel":
@@ -303,6 +307,8 @@ final class KnowledgeApi {
             case KgException.RESTORE_FAILED:
                 return new ApiException(503, KgException.RESTORE_FAILED, "The restore failed: " + e.getMessage() + ".",
                         Json.obj("reason", e.reason()));
+            case KgException.BACKUP_DELETE_FAILED:
+                return new ApiException(503, KgException.BACKUP_DELETE_FAILED, "The backup could not be deleted: " + e.getMessage() + ".");
             case KgException.NO_REBUILD:
                 return new ApiException(409, KgException.NO_REBUILD, "No identity rebuild is running or waiting for confirmation.");
             case KgException.INVALID_CURSOR:

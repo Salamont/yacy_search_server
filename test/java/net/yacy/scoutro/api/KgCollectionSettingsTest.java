@@ -356,4 +356,82 @@ public class KgCollectionSettingsTest {
         assertFalse(KnowledgeRead.known(List.of("collections")));
         assertFalse(KnowledgeRead.handles("collections"));
     }
+
+    // ------------------------------------------------------------- LLM tier (6.3)
+
+    private KgCollectionSettings withModel(final String model) {
+        return new KgCollectionSettings(store(), this.catalog, () -> null, () -> {
+            this.applied.incrementAndGet();
+            return true;
+        }, () -> model);
+    }
+
+    @Test
+    public void theLlmTierIsSwitchedPerCollectionWithTheModelOfTheLlmSelection() throws Exception {
+        productive();
+        this.settings = withModel("OLLAMA/qwen3:8b");
+        final JSONObject list = this.settings.list();
+        final JSONObject llm = list.getJSONObject("llm");
+        assertEquals("the model of the LLM selection (usage knowledge), no second model setting", "OLLAMA/qwen3:8b", llm.getString("model"));
+        assertFalse("no collection for the LLM tier: off", llm.getBoolean("active"));
+        for (final String c : names(list)) {
+            assertFalse("never switched on by itself: " + c, row(list, c).getBoolean("llm"));
+            assertFalse(row(list, c).getBoolean("llmActive"));
+        }
+        final Map<String, String> others = new TreeMap<>(this.conf);
+        final JSONObject on = patch("edelsenior-web", "{\"llm\":true}");
+        assertTrue(on.getBoolean("changed") && on.getBoolean("applied"));
+        assertEquals("edelsenior-web", this.conf.get(KgConfig.LLM_COLLECTIONS));
+        assertTrue(on.getJSONObject("collection").getBoolean("llm") && on.getJSONObject("collection").getBoolean("llmActive"));
+        assertEquals("OLLAMA/qwen3:8b", on.getString("llmModel"));
+        assertTrue(on.isNull("llmWarning"));
+        assertTrue(this.settings.list().getJSONObject("llm").getBoolean("active"));
+        assertTrue("the deterministic graph stays as it was", row(this.settings.list(), "edelsenior-web").getBoolean("active"));
+        // a collection the graph does not follow: stored, said so, not in effect
+        final JSONObject notActive = patch("bauteamcheck-web", "{\"llm\":true}");
+        assertEquals("collection_not_active", notActive.getString("llmWarning"));
+        assertFalse(notActive.getJSONObject("collection").getBoolean("llmActive"));
+        assertEquals("edelsenior-web,bauteamcheck-web", this.conf.get(KgConfig.LLM_COLLECTIONS));
+        patch("bauteamcheck-web", "{\"llm\":false}");
+        final JSONObject off = patch("edelsenior-web", "{\"llm\":false}");
+        assertTrue(off.getBoolean("changed"));
+        assertFalse(this.conf.containsKey(KgConfig.LLM_COLLECTIONS));
+        assertEquals("only the LLM list changed, and it is gone again", others, this.conf);
+        assertFalse(patch("edelsenior-web", "{\"llm\":false}").getBoolean("changed"));
+        assertEquals(400, status("edelsenior-web", "{\"llm\":\"yes\"}"));
+    }
+
+    @Test
+    public void withoutAKnowledgeModelTheLlmSwitchIsStoredAndSaysSo() throws Exception {
+        productive();
+        this.settings = withModel(null);
+        final JSONObject on = patch("stackfinder-web", "{\"llm\":true}");
+        assertEquals("stackfinder-web", this.conf.get(KgConfig.LLM_COLLECTIONS));
+        assertEquals("no_model", on.getString("llmWarning"));
+        assertTrue(on.isNull("llmModel"));
+        assertFalse(on.getJSONObject("collection").getBoolean("llmActive"));
+        final JSONObject llm = this.settings.list().getJSONObject("llm");
+        assertTrue(llm.isNull("model"));
+        assertFalse("no model: the LLM tier is not active, the deterministic graph is", llm.getBoolean("active"));
+        assertTrue(row(this.settings.list(), "stackfinder-web").getBoolean("active"));
+    }
+
+    @Test
+    public void allCollectionsForTheLlmTierAreNeverRewrittenIntoAList() throws Exception {
+        productive();
+        this.settings = withModel("OLLAMA/qwen3:8b");
+        this.conf.put(KgConfig.LLM_COLLECTIONS, "*");
+        final Map<String, String> before = new TreeMap<>(this.conf);
+        assertEquals("all", row(this.settings.list(), "edelsenior-web").getString("llmBy"));
+        try {
+            patch("edelsenior-web", "{\"llm\":false,\"vocabulary\":\"\"}");
+            fail("* cannot leave one out");
+        } catch (final ApiException e) {
+            assertEquals(409, e.status());
+            assertEquals("llm_all_collections", e.code());
+        }
+        assertEquals("nothing written, also not the vocabulary of the same request", before, this.conf);
+        assertFalse(patch("edelsenior-web", "{\"llm\":true}").getBoolean("changed"));
+        assertEquals(0, this.applied.get());
+    }
 }

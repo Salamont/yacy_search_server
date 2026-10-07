@@ -332,4 +332,106 @@ public class KgBackupTest {
         final long next = this.runtime.status().getJSONObject("backup").getLong("nextScheduledAt");
         assertTrue(next >= this.now.get() + KgConfig.DAY - 1000L);
     }
+
+    // ------------------------------------------------------------- deletion (6.3)
+
+    private void expectNotFound(final String name) {
+        try {
+            this.runtime.deleteBackup(name);
+            fail("deleted: " + name);
+        } catch (final KgException e) {
+            assertEquals(name, KgException.BACKUP_NOT_FOUND, e.code());
+        }
+    }
+
+    /** Package 6.3: a backup is deleted by its name only, with its metadata; the other backups, restore and download stay as they were. */
+    @Test
+    public void aBackupIsDeletedByItsNameOnlyWithItsMetadata() throws Exception {
+        this.runtime.close();
+        this.runtime = open(KgConfig.BACKUP_KEEP, "3");
+        final String older = backup().getString("file");
+        this.now.addAndGet(60_000L);
+        final String newer = backup().getString("file");
+        assertNotEquals(older, newer);
+        final File olderDb = new File(dir(), older);
+        assertTrue(olderDb.isFile() && KgBackup.meta(olderDb).isFile());
+        final JSONObject before = this.runtime.status().getJSONObject("backup");
+        assertEquals(2, before.getInt("files"));
+        final JSONObject after = this.runtime.deleteBackup(older);
+        assertEquals(older, after.getString("deleted"));
+        assertFalse("the backup is gone", olderDb.exists());
+        assertFalse("its metadata file too", KgBackup.meta(olderDb).exists());
+        assertEquals("the list and the used space follow at once", 1, after.getJSONObject("backup").getInt("files"));
+        assertTrue(after.getJSONObject("backup").getLong("bytes") < before.getLong("bytes"));
+        final JSONArray items = this.runtime.backups().getJSONArray("items");
+        assertEquals(1, items.length());
+        assertEquals(newer, items.getJSONObject(0).getString("file"));
+        // the graph runs on, its own files untouched; the other backup can still be downloaded and restored
+        final KgPaths paths = new KgPaths(this.data);
+        assertTrue(paths.db.isFile());
+        assertEquals(KgRuntime.State.RUNNING, this.runtime.state());
+        assertNotNull(this.runtime.backupFile(newer));
+        assertNull(this.runtime.backupFile(older));
+        assertTrue(this.runtime.status().getJSONArray("events").toString().contains("backup_deleted"));
+        expectNotFound(older);
+        this.runtime.restore(newer);
+        assertEquals(KgRuntime.State.RUNNING, this.runtime.state());
+        assertEquals(1L, count("SELECT count(*) FROM kg_doc"));
+    }
+
+    /** Package 6.3: no path, no other file, never the graph's own database, WAL or SHM, nothing outside backup/. */
+    @Test
+    public void onlyRealBackupFilesOfTheBackupDirectoryCanBeDeleted() throws Exception {
+        final String file = backup().getString("file");
+        final KgPaths paths = new KgPaths(this.data);
+        final long graphBytes = paths.db.length();
+        for (final String name : new String[] {"graph.db", "graph.db-wal", "graph.db-shm", "../graph.db", "../../SETTINGS/yacy.conf",
+                "/etc/passwd", file + "/../../graph.db", "backup/" + file, "./" + file, file.replace(".db", ".json"), file + ".partial",
+                file.replace(".db", ".DB"), "graph-20990101T000000Z.db", "", null}) {
+            expectNotFound(name);
+        }
+        assertTrue("the graph's own database is untouched", paths.db.isFile() && paths.db.length() == graphBytes);
+        // a symbolic link named like a backup, pointing to the graph's own database: refused, both stay
+        final File link = new File(dir(), "graph-20400101T000000Z.db");
+        Files.createSymbolicLink(link.toPath(), paths.db.toPath().toAbsolutePath());
+        expectNotFound(link.getName());
+        assertTrue(Files.isSymbolicLink(link.toPath()) && paths.db.isFile());
+        // a file outside backup/, reached through a linked directory: refused
+        final File outside = this.tmp.newFolder("outside");
+        final File victim = new File(outside, "graph-20410101T000000Z.db");
+        Files.copy(new File(dir(), file).toPath(), victim.toPath());
+        final File linkedDir = new File(dir(), "linked");
+        Files.createSymbolicLink(linkedDir.toPath(), outside.toPath());
+        expectNotFound("linked/" + victim.getName());
+        assertTrue(victim.isFile());
+        // a directory named like a backup is no backup
+        assertTrue(new File(dir(), "graph-20420101T000000Z.db").mkdir());
+        expectNotFound("graph-20420101T000000Z.db");
+        // the real backup is still there and can be deleted
+        assertTrue(new File(dir(), file).isFile());
+        this.runtime.deleteBackup(file);
+        assertFalse(new File(dir(), file).exists());
+        assertTrue(victim.isFile() && paths.db.isFile());
+    }
+
+    /** Package 6.3: while a backup, a restore or a rebuild swap holds the slot, nothing is deleted. */
+    @Test
+    public void nothingIsDeletedWhileTheBackupSlotIsTaken() throws Exception {
+        final String file = backup().getString("file");
+        final java.lang.reflect.Field f = KgRuntime.class.getDeclaredField("backups");
+        f.setAccessible(true);
+        final KgBackups slot = (KgBackups) f.get(this.runtime);
+        assertTrue(slot.claim());
+        try {
+            this.runtime.deleteBackup(file);
+            fail("deleted while the slot is taken");
+        } catch (final KgException e) {
+            assertEquals(KgException.OPERATION_RUNNING, e.code());
+        } finally {
+            slot.release();
+        }
+        assertTrue(new File(dir(), file).isFile());
+        this.runtime.deleteBackup(file);
+        assertFalse(new File(dir(), file).exists());
+    }
 }

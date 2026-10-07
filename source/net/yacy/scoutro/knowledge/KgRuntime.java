@@ -345,6 +345,18 @@ public final class KgRuntime {
         return true;
     }
 
+    /**
+     * The model of Scoutro's LLM selection with the usage {@code knowledge} ({@code service/model}), read at once; null if none
+     * is selected or it cannot be read. It is the only model configuration of the LLM tier (package 6.3).
+     */
+    public String llmModel() {
+        try {
+            return this.env.llm == null ? null : this.env.llm.model();
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
     /** No backup, restore or rebuild in progress (read without the instance lock: called under the class lock). */
     public void requireQuiet() throws KgException {
         final KgRebuild rb = this.rebuild;
@@ -1180,9 +1192,13 @@ public final class KgRuntime {
             KgJson.put(o, "sync", sy != null ? sy.status()
                     : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped"));
             final LlmService ll = this.llm;
+            // the model of the LLM selection (usage knowledge) is shown also while the tier is off (package 6.3)
+            // no_llm_collections only while no collection is switched on for it; switched on but all off for the graph is said so
+            final boolean llmNamed = this.config.llmAllCollections || !this.config.llmCollections.isEmpty();
             KgJson.put(o, "llm", ll != null ? ll.status()
-                    : KgJson.obj("state", "off", "reason", !this.config.llmEnabled() ? "no_llm_collections"
-                            : sy == null ? "no_sync" : "stopped", "enabled", this.config.llmEnabled()));
+                    : KgJson.obj("state", "off", "reason", !this.config.llmEnabled()
+                            ? (llmNamed ? "llm_collections_not_followed" : "no_llm_collections")
+                            : sy == null ? "no_sync" : "stopped", "enabled", this.config.llmEnabled(), "model", llmModel()));
             final KgBackups b = this.backups;
             if (b != null) {
                 KgJson.put(o, "backup", b.status());
@@ -1487,6 +1503,64 @@ public final class KgRuntime {
     public synchronized File backupFile(final String name) throws KgException {
         requireRunning();
         return KgBackup.find(this.paths.backup, name);
+    }
+
+    /**
+     * Deletes one backup (package 6.3), administrator only: a name of {@link KgBackup#NAME}, never a path; the file must be a regular
+     * file directly in {@code backup/} (no symbolic link, nothing outside it) and is never the graph's own database, WAL or SHM. Its
+     * metadata file goes with it. Refused while a backup, a restore or a rebuild swap holds the backup slot, which it holds itself
+     * while it deletes. Restore and download of the other backups are unchanged.
+     *
+     * @return the status, with {@code deleted} (the name) and the backup state after the deletion
+     */
+    public synchronized JSONObject deleteBackup(final String name) throws KgException {
+        requireRunning();
+        final File f = safeBackup(name);
+        final KgBackups b = this.backups;
+        if (b == null || !b.claim()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup, restore or rebuild is running");
+        }
+        final long bytes = f.length();
+        try {
+            safeBackup(name); // again under the slot: a restore or rebuild cannot have replaced it meanwhile
+            if (!KgBackup.remove(f)) {
+                throw new KgException(KgException.BACKUP_DELETE_FAILED, "the file " + name + " could not be deleted");
+            }
+        } finally {
+            b.release();
+        }
+        recordEvent(1, "backup_deleted", name + " (" + bytes + " bytes)", false);
+        this.guard.refresh();
+        final JSONObject o = status();
+        KgJson.put(o, "deleted", name);
+        return o;
+    }
+
+    /** The backup {@code name}, checked to be a real backup file of {@code backup/}; else {@link KgException#BACKUP_NOT_FOUND}. */
+    private File safeBackup(final String name) throws KgException {
+        final File f = KgBackup.find(this.paths.backup, name);
+        final KgException none = new KgException(KgException.BACKUP_NOT_FOUND, "no backup " + name + " in " + KgPaths.RELATIVE_DIR + "/backup");
+        if (f == null) {
+            throw none;
+        }
+        try {
+            final java.nio.file.Path p = f.toPath();
+            final java.nio.file.Path dir = this.paths.backup.toPath().toRealPath();
+            final java.nio.file.Path real = p.toRealPath();
+            final java.util.Set<java.nio.file.Path> live = new java.util.HashSet<>();
+            for (final File g : new File[] {this.paths.db, this.paths.wal, this.paths.shm}) {
+                if (g.exists()) {
+                    live.add(g.toPath().toRealPath());
+                }
+            }
+            if (java.nio.file.Files.isSymbolicLink(p) || !java.nio.file.Files.isRegularFile(real, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                    || !dir.equals(real.getParent()) || live.contains(real)) {
+                throw none;
+            }
+        } catch (final java.io.IOException e) {
+            throw none;
+        }
+        return f;
     }
 
     /**

@@ -235,6 +235,16 @@ public final class KgBackup {
         return removed;
     }
 
+    /**
+     * Deletes one backup with its metadata file (and a WAL or SHM file of that copy, should one exist): the files next to it in its
+     * own directory, never another file. True if the backup file is gone.
+     */
+    public static boolean remove(final File db) {
+        final List<String> removed = new ArrayList<>();
+        delete(db, removed);
+        return !db.exists();
+    }
+
     private static void delete(final File db, final List<String> removed) {
         for (final File f : new File[] {db, meta(db), new File(db.getPath() + "-wal"), new File(db.getPath() + "-shm")}) {
             if (f.isFile() && f.delete() && f == db) {
