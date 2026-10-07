@@ -449,6 +449,39 @@ schemas["KgBackupList"] = {"type": "object", "properties": {**KG_BACKUP_STATUS["
     "items": {"type": "array", "items": {"type": "object", "properties": {"file": {"type": "string"}, "kind": {"type": "string", "enum": ["backup", "before_restore", "before_rebuild", "before_upgrade"], "description": "before_upgrade: the copy of the old graph before a schema migration (package 6); the newest one survives the retention as the way back to the previous version."},
         "bytes": {"type": "integer"}, "created_at": KG_DT_OR_NULL, "sha256": {"type": ["string", "null"]}, "metadata": {"type": "boolean", "description": "false for a file copied in by hand: a restore then relies on quick_check and the schema check alone"},
         "kg_schema_version": {"type": ["integer", "null"]}, "epoch": {"type": ["string", "null"]}, "counts": {"type": ["object", "null"]}, "trigger": {"type": ["string", "null"]}}}}}}
+KG_COLLECTION_ROW = {"type": "object", "required": ["collection", "active", "inactive", "state"], "properties": {
+    "collection": {"type": "string"}, "name": {"type": "string", "description": "The catalog's display name (else the ID)."},
+    "inCatalog": {"type": "boolean", "description": "False for a collection only the graph's settings or data name."},
+    "indexDocuments": {"type": ["integer", "null"], "description": "Pages of the collection in the index (the catalog's count)."},
+    "active": {"type": "boolean", "description": "The graph follows the collection."},
+    "inactive": {"type": "boolean", "description": "Switched off (scoutro.kg.collections.inactive): not followed, its graph data kept."},
+    "followedBy": {"type": "string", "enum": ["list", "all", "inactive", "none"], "description": "Why: named in scoutro.kg.collections, * (every collection), switched off, or neither."},
+    "vocabulary": {"type": ["string", "null"], "description": "The vocabulary in force; null for none."},
+    "vocabularySetting": {"type": ["string", "null"], "description": "scoutro.kg.vocab.<collection>: a name, \"\" for no vocabulary, null when not set (the default)."},
+    "defaultVocabulary": {"type": ["string", "null"], "description": "The default of the vocabulary files (categories.json); never guessed from the name."},
+    "vocabularySource": {"type": "string", "enum": ["setting", "vocabulary_files", "none"]}, "vocabularyKnown": {"type": "boolean"},
+    "graphDocuments": {"type": ["integer", "null"], "description": "Documents of the collection in the graph; null while the graph is not running."},
+    "jobs": {"type": ["boolean", "null"]}, "llm": {"type": ["boolean", "null"]},
+    "state": {"type": "string", "enum": ["following", "waiting", "inactive", "not_followed", "unknown_vocabulary"]}}}
+schemas["KgCollectionSettings"] = {"type": "object", "required": ["collections", "vocabularies"], "properties": {
+    "enabled": {"type": "boolean"}, "valid": {"type": "boolean"}, "state": {"type": "string"}, "followAll": {"type": "boolean", "description": "scoutro.kg.collections=*."},
+    "vocabularies": {"type": "array", "items": {"type": "string"}, "description": "The vocabularies a collection can be given."},
+    "collections": {"type": "array", "items": KG_COLLECTION_ROW, "description": "Every collection of the catalog (never robot_*) and every collection the graph's settings or data name."},
+    "note": {"type": "string"}}}
+schemas["KgCollectionChange"] = {"type": "object", "minProperties": 1, "additionalProperties": False, "properties": {
+    "active": {"type": "boolean", "description": "true: followed (added to scoutro.kg.collections unless it is *, removed from the collections switched off); false: switched off (removed from the list, added to scoutro.kg.collections.inactive), its graph data kept."},
+    "vocabulary": {"type": ["string", "null"], "description": "A vocabulary of GET /kg/collections (vocabularies); \"\" for no vocabulary; null for the default of the vocabulary files (the key is removed)."}}}
+schemas["KgCollectionChanged"] = {"type": "object", "required": ["collection", "changed", "applied"], "properties": {"collection": KG_COLLECTION_ROW,
+    "changed": {"type": "boolean", "description": "False when the settings already were so (nothing written, nothing reopened)."},
+    "applied": {"type": "boolean", "description": "The running graph was reopened with the new settings; false while it is off (they count at its next start)."},
+    "backfill": {"type": "boolean", "description": "Switched on: the start reconcile reads the pages the collection already has in the index."},
+    "kept": {"type": "boolean", "description": "Switched off: its graph data are kept."},
+    "reextract": {"type": "boolean", "description": "The extraction identity changed (a followed collection's vocabulary): the graph reads its pages again in the background."},
+    "keys": {"type": "array", "items": {"type": "string"}, "description": "The settings keys written or removed."},
+    "applyError": {"type": ["string", "null"], "description": "Why the graph could not be reopened; the settings are stored and count at its next start."}}}
+paths["/v1/kg/collections"] = {"get": op("kg.collections", "Knowledge graph settings of each collection", "Package 6.2, administrator only, never an agent grant: every collection of the collection catalog (a new one by itself; YaCy's internal robot_* never) and every collection the graph's settings or data name, each with whether the graph follows it (or it is switched off, its data kept), its vocabulary (set, default of the vocabulary files, or none; never guessed from the name), its pages in the index and documents in the graph, and its state. Takes no parameters.", ["knowledge"], {**ok("Collections.", "KgCollectionSettings"), **errs("400", "401", "404", "405", "503")})}
+paths["/v1/kg/collections/{collection}"] = {"patch": op("kg.collection.update", "Switch a collection on or off for the knowledge graph, set its vocabulary", "Package 6.2, administrator only, never an agent grant. JSON body with active and/or vocabulary; unknown fields are refused. Only this collection's keys change, with their existing meaning: scoutro.kg.collections (the name added or removed, the other names as they are; * stays *), scoutro.kg.collections.inactive (switched off: not followed, also under *; the reconcile deletes nothing of it and nothing new is extracted from it; a page deleted from the index still leaves the graph) and scoutro.kg.vocab.<collection>. A change takes effect at once: the running graph is reopened with the new settings (a manual pause stays), and the reconcile of every start reads the pages a collection switched on already has in the index (the existing backfill). No schema change, no deletion, no new collection. 400 collection_id_invalid, 400 collection_reserved (robot_*), 400 vocabulary_unknown, 400 invalid_request, 404 collection_unknown (neither in the catalog nor named by the graph), 409 operation_running while a backup, restore or rebuild runs (nothing written).", ["knowledge"], {**ok("The collection after the change.", "KgCollectionChanged"), **errs("400", "401", "403", "404", "405", "409", "413", "415", "503")}, params=[
+    {"name": "collection", "in": "path", "required": True, "schema": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "description": "A collection of GET /kg/collections."}], body="KgCollectionChange", mutating=True)}
 paths["/v1/kg/backups"] = {"get": op("kg.backups", "Knowledge graph backups", "Administrator only: the backup files in DATA/SCOUTRO/knowledge/backup, newest first, with their metadata (SHA-256, size, schema version, epoch, counts), and the backup state. A file copied into that directory by hand (named graph-<yyyyMMddTHHmmssZ>.db) is listed without metadata and can be restored.", ["knowledge"], {**ok("Backups.", "KgBackupList"), **errs("400", "401", "404", "405", "409", "503")})}
 paths["/v1/kg/backups/{file}"] = {"get": op("kg.backup.download", "Download a knowledge graph backup", "Administrator only, never an agent grant: the backup as one SQLite file (application/vnd.sqlite3, Content-Disposition), to keep it outside the app. 404 backup_not_found for anything but a listed backup name.", ["knowledge"], {"200": {"description": "The SQLite file.", "content": {"application/json": {"schema": ref("KgBackupFile")}, "application/vnd.sqlite3": {"schema": {"type": "string", "format": "binary"}}}}, **errs("401", "404", "405", "409", "503")}, params=[
     {"name": "file", "in": "path", "required": True, "description": "A backup file name.", "schema": {"type": "string", "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$"}}])}
@@ -657,6 +690,28 @@ paths["/v1/kg/services"] = {"get": op("kg.services", "Services of the same name 
 paths["/v1/kg/services/providers"] = {"get": op("kg.services.providers", "The services of one name, each with its provider", "Package 6.1: the group of one service name and its services, one row per service with its own provider (name, hosts, collections, places), quality, sources and price counts. 404 not_found when no visible service has the name." + KG_READ_NOTE, ["knowledge"], {**ok("Services of the name.", "KgServiceProviders"), **KG_ERRS}, params=[
     q("name", {"type": "string", "maxLength": 200}, "The service name; compared in lower case without surrounding spaces.", True), q("category", {"type": "string", "maxLength": 80, "pattern": KG_CODE_PATTERN}, "Only services of this category."),
     KG_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
+KG_SERVICE_REF = {"type": "object", "description": "The provider's own service: its own ID, name, prices, sources and collections, never another provider's.", "properties": {
+    "id": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "quality": KG_CTX["quality"], "sources": {"type": "integer"}, "last_confirmed": KG_DT,
+    "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"],
+    "prices": {"type": "object", "properties": {"current": {"type": "integer"}, "all": {"type": "integer"}}, "description": "Visible price statements of this service."}}}
+schemas["KgServiceNetwork"] = {"type": "object", "required": ["schema", "aggregated", "center", "group", "nodes", "edges"], "properties": {"schema": KG_BUSINESS_SCHEMA,
+    "aggregated": {"type": "boolean", "description": "Always true: the network of a name, not of an object."},
+    "center": {"type": "string", "description": "service_group:<key>: the virtual centre, the name only; never an entity ID, never an object to open."},
+    "group": KG_GROUP, "depth": {"type": "integer", "enum": [1]},
+    "nodes": {"type": "array", "description": "The centre (type service_group, virtual true, with the counts services, providers, without_provider) and one node per provider of the page, as in the neighbourhood (KgNeighborhood nodes, depth 1, with their context).",
+        "items": {"type": "object", "properties": {"id": {"type": "string"}, "type": {"type": ["string", "null"]}, "kind": {"type": ["string", "null"]}, "label": {"type": ["string", "null"]},
+            **KG_DISPLAY, "depth": {"type": "integer"}, "value": {"type": "boolean"}, "virtual": {"type": "boolean", "description": "The centre only."},
+            "services": {"type": "integer"}, "providers": {"type": "integer"}, "without_provider": {"type": "integer"}, **KG_CTX}}},
+    "edges": {"type": "array", "description": "One line per visible offers statement of a provider of the page: from the provider to the centre, naming the provider's own service.",
+        "items": {"type": "object", "properties": {"id": {"type": "string", "description": "The offers statement (kgs_)."}, "from": {"type": "string"}, "to": {"type": "string"},
+            "type": {"type": "string", "enum": ["offers"]}, "business": {"type": "boolean"}, "status": {"type": "string", "enum": ["confirmed", "uncertain", "stale"]},
+            "confidence": {"type": "number"}, "evidence": {"type": "integer"}, "fact": {"type": "boolean"}, "direction": {"type": "string", "enum": ["in"]}, "service": KG_SERVICE_REF}}},
+    "offset": {"type": "integer"}, "limit": {"type": "integer"}, "neighbours": {"type": "integer", "description": "Providers before paging."},
+    "truncated": {"type": "boolean"}, "next_offset": {"type": ["integer", "null"]}, "note": {"type": "string"}, "lag": KG_LAG}}
+paths["/v1/kg/services/network"] = {"get": op("kg.services.network", "Network of all providers of one service name", "Package 6.2: all visible providers of one service name (SAP) around a virtual centre that is the name only, no object: one node per provider with its context, one line per provider's own offers statement to its own service, which the line names (field service, with its own prices, sources and collections). Services, prices, sources and facts of different providers are never merged or mixed. Paged by provider, the strongest line first; outdated offers only with include=stale. Services without a visible provider are counted in group.without_provider, not drawn. The network of one object (GET entities/{id}/neighborhood) is unchanged. 404 not_found when no visible service has the name." + KG_READ_NOTE, ["knowledge"], {**ok("Network of the name.", "KgServiceNetwork"), **KG_ERRS}, params=[
+    q("name", {"type": "string", "maxLength": 200}, "The service name; compared in lower case without surrounding spaces.", True), q("category", {"type": "string", "maxLength": 80, "pattern": KG_CODE_PATTERN}, "Only services of this category."),
+    KG_OFFSET, q("limit", {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}, "Providers per page (strongest line first)."),
+    q("include", {"type": "string", "enum": ["stale"]}, "Also outdated offers."), KG_COLLECTION])}
 paths["/v1/kg/facets"] = {"get": op("kg.facets", "Filter values of the knowledge graph", "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows." + KG_READ_NOTE, ["knowledge"], {**ok("Facets.", "KgFacets"), **KG_ERRS}, params=[KG_COLLECTION])}
 
 # knowledge graph export, change feed and download (package 4)
@@ -890,7 +945,8 @@ for suffix, operation, result_schema, parameters in report_endpoints:
 
 # Knowledge graph on the agent path: the read routes (kg.read) and export/changes (kg.export), never status, control or the download.
 KG_AGENT_NOTE = " On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field."
-for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/export/download")]:
+for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/export/download",
+        "/v1/kg/collections", "/v1/kg/collections/{collection}")]:
     o = paths[path]["get"]
     grant = "kg.export" if o["operationId"] in ("kg.export", "kg.changes") else "kg.read"
     responses = {c: (EA[c] if c in EA else r) for c, r in o["responses"].items() if c != "401"}
@@ -1155,10 +1211,14 @@ mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entit
 cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
 mcp.update({'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
             'kg.derived': 'scoutro_kg_derived', 'kg.facets': 'scoutro_kg_facets', 'kg.services': 'scoutro_kg_services',
-            'kg.services.providers': 'scoutro_kg_services_providers'})
+            'kg.services.providers': 'scoutro_kg_services_providers', 'kg.services.network': 'scoutro_kg_services_network',
+            'kg.collections': 'scoutro_kg_collections', 'kg.collection.update': 'scoutro_kg_collection_update'})
 cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]',
             'kg.compare': 'scoutroctl kg compare CATEGORY', 'kg.derived': 'scoutroctl kg derived [--kind K] [--entity ID]', 'kg.facets': 'scoutroctl kg facets',
-            'kg.services': 'scoutroctl kg services [--q TEXT] [--category C]', 'kg.services.providers': 'scoutroctl kg service-providers NAME [--category C]'})
+            'kg.services': 'scoutroctl kg services [--q TEXT] [--category C]', 'kg.services.providers': 'scoutroctl kg service-providers NAME [--category C]',
+            'kg.services.network': 'scoutroctl kg service-network NAME [--category C] [--limit N] [--offset N] [--include-stale]',
+            'kg.collections': 'scoutroctl kg collections (administrator)',
+            'kg.collection.update': 'scoutroctl kg collection NAME [--on|--off] [--vocabulary V|--no-vocabulary|--default-vocabulary] (administrator)'})
 mcp.update({'kg.export': 'scoutro_kg_export', 'kg.changes': 'scoutro_kg_changes', 'kg.download': 'scoutro_kg_download',
             'kg.backups': 'scoutro_kg_backups', 'kg.backup.download': 'scoutro_kg_backup_download'})
 cli.update({'kg.backups': 'scoutroctl kg backups (administrator)', 'kg.backup.download': 'scoutroctl kg backup-download FILE > graph.db (administrator)'})

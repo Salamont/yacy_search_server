@@ -2174,3 +2174,53 @@ No collection name has to be typed or known anywhere. Every visible collection f
 The collection catalog (`GET /v1/collections` with its entries, `POST /v1/collections`, `collection_unknown` of the crawl start) is in `openapi.json` and `actions.json` (65 actions) as `collections.list` and `collections.create`, with `scoutroctl collections` and `scoutroctl collections create NAME [--id ID] [--description TEXT]`.
 
 `GET services`, `GET services/providers`, the `prices` parameter of the neighbourhood, `context` in the entity list, the display-name fields, the node and edge fields of the neighbourhood, `hosts`/`collections` of the compared providers and `status.collections` are in `openapi.json` and `actions.json`, for agents behind `kg.read` (the viewer is the agent's collections; foreign collections are `403 collection_not_in_scope`), as MCP tools `scoutro_kg_services` and `scoutro_kg_services_providers` and as `scoutroctl kg services`, `kg service-providers NAME` and `kg neighborhood --prices`.
+
+## 25. Package 6.2: the network of a service name and collections switched on and off
+
+Package 6.2 starts from `main` after 0.8.1 (`b180200`). It adds no schema change (the graph stays at schema 4), no new on-disk data of the graph and no release; one new setting, `scoutro.kg.collections.inactive`.
+
+### 25.1 The network of a service name
+
+`GET services/network?name&category&offset&limit&include=stale` (`read/ServiceGroups.network`) draws every visible provider of one name, `CTcon GmbH → offers → SAP`, reusing the group of `services/providers` (key, services, summary):
+
+- **Centre:** a virtual node `service_group:<key>` (`type: service_group`, `virtual: true`, with the counts `services`, `providers`, `without_provider`). It is the name only: no entity, no ID, no hosts, sources or prices of its own, nothing to open or merge.
+- **Lines:** every visible `offers` statement of a visible provider to a service of the group (`BusinessView.factsTo`, one batched read with the quality and evidence of the viewer) is its own edge from the provider to the centre, `direction: in`, with the status, confidence and evidence count of that statement and `service`: the provider's own service (ID, name, display name, quality, sources, hosts, collections and its own price counts). A provider with two services of the name has two edges; two providers of one service entity are two nodes. Nothing of different providers is merged, averaged or mixed.
+- **Providers:** nodes as in the neighbourhood (`BusinessGraph.node`, with their context). Ordered by their strongest line (as the neighbourhood orders neighbours), then by age; paged by provider (`limit` 1–200, default 50, the page asks for 24 on a phone), `neighbours`, `truncated`, `next_offset`. Outdated offers only with `include=stale`. Services without a visible provider are counted in `group.without_provider`, not drawn.
+- **Rights:** everything per viewer: the services, statements, providers, names and contexts of the requested collection or of the agent's scope only (`kg.read`, `403 collection_not_in_scope` outside it); a name no visible service has is `404`.
+- **Unchanged:** the network of one object (`entities/{id}/neighborhood`), including a service centre with its own providers.
+- **Page:** `?view=network&group=<name>` in `ScoutroKnowledge_p.html`, from **Network** next to a group, **Network of all providers** above its rows and the groups hint of the object search. The same SVG renderer (layered on a phone, radial for a few providers), a dashed centre card, status filter only (depth and layers do not apply), a detail panel for the centre (the group's counts, **All providers as a list**), a provider (its lines with their own services) and a line (its own service, **Open service**, **Network of this service**); the list names each line's own service; GraphML and JSON carry `virtual` and `service`.
+
+### 25.2 Collections switched on and off
+
+**Finding.** Until 6.2 the only way to stop following a collection was to remove it from `scoutro.kg.collections`, and the next reconcile then treated its pages as out of scope: real-time get confirmed them, and below the mass-deletion brake they were deleted from the graph (`SyncServiceTest.allowlistChangeTriggersAReconcileThatRemovesUnfollowedDocuments`). So "off" could not keep the data.
+
+**Setting.** `scoutro.kg.collections.inactive` (`KgConfig.INACTIVE_COLLECTIONS`, names only, `*` is invalid) holds the collections switched off. `follows(c)` is false for them, also under `*`; `holds(c)` is true. Their per-collection keys stay read (`scoutro.kg.vocab.<c>`), so switching off or on changes no extraction identity and re-extracts nothing. `collectionsKey()` appends `-<inactive>` only when the list is non-empty, so a running graph without inactive collections sees no change.
+
+**Sync** (`SolrDoc.kept`, `SolrDoc.heldOnly`):
+
+- the reconcile scans the followed collections and the inactive ones (`scanCollections()`; `*` scans everything as before); a page of inactive collections only is seen (so it is no deletion candidate) but not enqueued;
+- the verification and the delete step treat such a page as present: no verdict "absent", no deletion;
+- an event of such a page (a recrawl) completes without extraction (`counters.held`); its graph data stay as they were;
+- a page also in a followed collection is extracted through that one and keeps its membership of the inactive one (`doc.collections = kept`); the extraction context still reads the followed collections only;
+- the JSON-LD capture skips inactive collections, also under `*`;
+- a page deleted from the index still leaves the graph, as for every collection; retention applies as for any page.
+
+**Switching on** adds the name to the list (unless `*`) and removes it from `inactive`; the collections key changes and the reconcile of the next start (`REASON_COLLECTIONS`) enqueues the pages missing in the graph: the existing backfill.
+
+**Settings route** (`api/KgCollectionSettings`, administrator only, never an agent route): `GET /v1/kg/collections` lists every collection of the catalog (`CollectionCatalog.entries(false)`, never `robot_*`) and every collection the settings or the graph's data name, with `active`, `inactive`, `followedBy`, the vocabulary (`vocabularySetting` read from the key itself: unset, a name, empty), `defaultVocabulary`, `indexDocuments`, `graphDocuments` and `state` (`inactive` added). `PATCH /v1/kg/collections/{collection}` (`active`, `vocabulary`: a name, `""` none, `null` default) writes only that collection's keys, keeping the other names of the lists in their order (`*` stays `*`), under one lock, after checking that no backup, restore or rebuild runs (`409 operation_running`, nothing written). It then applies the settings at once with `KgRuntime.reopen()`: a clean close and a new open in the same environment, the path every start takes (config read, store opened, the start reconcile; a manual pause is stored and stays). While the graph is off the settings only count at its next start (`applied: false`). The answer says `backfill`, `kept`, `reextract` (the extraction identity changed: a followed collection's vocabulary) and the keys written.
+
+**Page:** *Settings* has the table *Collections in the knowledge graph* (On / Off, vocabulary: default, a vocabulary, no vocabulary; documents; state; **Save** per row, with a confirmation for switching off and for a new vocabulary of a followed collection); the overview's collections table shows the state *switched off, data kept*.
+
+**Limits:** the identity rebuild builds the graph from the followed collections, so data of inactive collections do not survive a rebuild; a reopen interrupts a running reconcile, which starts anew; a manual removal from the list without `inactive` still deletes as before.
+
+### 25.3 API, agents and tools
+
+`kg.services.network` (agent: `kg.read`, MCP `scoutro_kg_services_network`, `scoutroctl kg service-network NAME`), `kg.collections` and `kg.collection.update` (administrator only, never grantable; MCP `scoutro_kg_collections`, `scoutro_kg_collection_update`; `scoutroctl kg collections`, `kg collection NAME --on|--off [--vocabulary V|--no-vocabulary|--default-vocabulary]`) are in `openapi.json` and `actions.json` (68 actions).
+
+### 25.4 Tests
+
+- `ServiceContextTest`: every provider around the virtual centre, each line naming its own service with its own prices, sources, hosts and collections; the single-object network unchanged; collection filter (two viewers, an empty one, a category); paging by provider; a service without a provider counted, not drawn.
+- `KnowledgeApiTest`, `AgentKnowledgeTest`, `AgentCatalogTest`: route validation, the agent's own providers only, `collection_not_in_scope`, `kg.read` required, the settings routes absent on the agent path.
+- `SyncServiceTest`: a collection switched off keeps its graph data through the start reconcile, a recrawl, a new page and the daily reconcile (no candidates), a page deleted from the index leaves; switching on again backfills; under `*` only the inactive one is skipped; a page of a followed and an inactive collection keeps both memberships.
+- `KgConfigTest`: semantics of the new key, the scan set, the collections key, the unchanged extraction identity, invalid values.
+- `KgCollectionSettingsTest`: every catalog collection listed and `robot_*` never, a new collection appears by itself, on/off changes only that collection's keys and the productive settings stay, `*` stays `*`, vocabulary set/none/default, invalid requests change nothing, a collection only the settings name, the running graph reopened with its data and the new settings, routes and methods.

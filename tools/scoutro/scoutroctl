@@ -251,11 +251,15 @@ def build_parser():
     sp = kg.add_parser("service-providers", help="the services of one name, each with its own provider, prices and sources")
     sp.add_argument("name", help="the service name (e.g. SAP)")
     sp.add_argument("--category")
-    for k in (bv, nb, cmp_, der, fc, sg, sp):
+    sn = kg.add_parser("service-network", help="all providers of one service name around the name; each line the provider's own service")
+    sn.add_argument("name", help="the service name (e.g. SAP)")
+    sn.add_argument("--category")
+    sn.add_argument("--include-stale", action="store_true", help="also outdated offers")
+    for k in (bv, nb, cmp_, der, fc, sg, sp, sn):
         k.add_argument("--collection", help="only evidence of this collection (agent token: one of the agent's collections)")
-        if k in (nb, cmp_, der, sg, sp):
+        if k in (nb, cmp_, der, sg, sp, sn):
             k.add_argument("--limit", type=int)
-        if k in (nb, der, sg, sp):
+        if k in (nb, der, sg, sp, sn):
             k.add_argument("--offset", type=int)
     exp = kg.add_parser("export", help="one export page, or with --all every record as one JSON line")
     exp.add_argument("--cursor")
@@ -273,6 +277,16 @@ def build_parser():
     dl.add_argument("--evidence", action="store_true")
     dl.add_argument("--collection")
     kg.add_parser("status", help="administrator")
+    kg.add_parser("collections", help="administrator: the knowledge graph settings of each collection (on/off, vocabulary)")
+    kc = kg.add_parser("collection", help="administrator: switch a collection on or off for the graph, set its vocabulary (takes effect at once)")
+    kc.add_argument("name", help="a collection of 'kg collections'")
+    onoff = kc.add_mutually_exclusive_group()
+    onoff.add_argument("--on", action="store_true", help="follow it; the pages it already has in the index are read")
+    onoff.add_argument("--off", action="store_true", help="switch it off; its graph data are kept")
+    voc = kc.add_mutually_exclusive_group()
+    voc.add_argument("--vocabulary", help="a vocabulary of 'kg collections'")
+    voc.add_argument("--no-vocabulary", action="store_true", help="no vocabulary (generic facts only)")
+    voc.add_argument("--default-vocabulary", action="store_true", help="the default of the vocabulary files")
     ctl = kg.add_parser("control", help="administrator")
     ctl.add_argument("action", choices=["pause", "resume", "reconcile", "confirm_reconcile", "llm_retry", "backup",
                                         "rebuild", "rebuild_cancel", "rebuild_confirm", "derive"])
@@ -371,10 +385,25 @@ def main(argv=None):
         k = args.kg_command
         q = lambda path: urllib.parse.quote(path, safe="")
         if k in ("status", "control", "download", "backup", "backups", "backup-download", "restore",
-                 "rebuild", "rebuild-cancel", "rebuild-confirm") and token:
+                 "rebuild", "rebuild-cancel", "rebuild-confirm", "collections", "collection") and token:
             fail("admin_only", "kg %s is an administrator route; it is not available with an agent token" % k, 2)
         if k == "status":
             result = client.call("GET", "/v1/kg/status")
+        elif k == "collections":
+            result = client.call("GET", "/v1/kg/collections")
+        elif k == "collection":
+            body = {}
+            if args.on or args.off:
+                body["active"] = bool(args.on)
+            if args.vocabulary is not None:
+                body["vocabulary"] = args.vocabulary
+            elif args.no_vocabulary:
+                body["vocabulary"] = ""
+            elif args.default_vocabulary:
+                body["vocabulary"] = None
+            if not body:
+                fail("invalid_request", "give --on or --off and/or a vocabulary option", 2)
+            result = client.call("PATCH", "/v1/kg/collections/" + q(args.name), body=body)
         elif k == "control":
             result = client.call("POST", "/v1/kg/control", body={"action": args.action})
         elif k == "backup":
@@ -431,6 +460,10 @@ def main(argv=None):
         elif k == "service-providers":
             result = client.call("GET", v1 + "/kg/services/providers", {"name": args.name, "category": args.category, "limit": args.limit,
                                                                      "offset": args.offset, "collection": args.collection})
+        elif k == "service-network":
+            result = client.call("GET", v1 + "/kg/services/network", {"name": args.name, "category": args.category, "limit": args.limit,
+                                                                   "offset": args.offset, "include": "stale" if args.include_stale else None,
+                                                                   "collection": args.collection})
         else:
             paths = {"entities": "/kg/entities", "entity": "/kg/entities/%s", "statements": "/kg/entities/%s/statements",
                      "statement": "/kg/statements/%s", "evidence": "/kg/statements/%s/evidence",

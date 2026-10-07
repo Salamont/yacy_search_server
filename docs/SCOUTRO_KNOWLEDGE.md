@@ -57,7 +57,7 @@ Scoutro:
 | Key | Value | Why |
 |---|---|---|
 | `scoutro.kg.enabled` | `true` | Turns the graph on |
-| `scoutro.kg.collections` | e.g. `edelsenior-web,bauteamcheck-web`, or `*` for all | The collections the graph follows; nothing outside them is read |
+| `scoutro.kg.collections` | e.g. `edelsenior-web,bauteamcheck-web`, or `*` for all | The collections the graph follows; nothing outside them is read. Also under *Knowledge graph → Settings*, per collection ([5.4](#54-collections-o5)) |
 | `scoutro.kg.jsonld.enabled` | `true` | Captures `<script type="application/ld+json">` while crawling. Without it, tier 1 only has metadata, and only pages crawled after the switch carry JSON-LD |
 | `scoutro.kg.llm.collections` | optional, e.g. `edelsenior-web` | The optional LLM tier ([5.3](#53-the-optional-llm-tier)) |
 | `scoutro.kg.jobs.collections` | optional, e.g. `edelsenior-web,bauteamcheck-web` | Job postings ([4.4](#44-business-facts-vocabulary-2)); off by default |
@@ -287,6 +287,43 @@ A changed vocabulary re-extracts the pages at low priority.
   - Jobs are read only for collections named in
     `scoutro.kg.jobs.collections` (or `*`). A new collection never gets them
     by itself.
+- **Switching collections on and off (package 6.2).** *Knowledge graph →
+  Settings* lists every collection of the collection catalog (a new one by
+  itself; YaCy's internal `robot_*` never) with its pages in the index, *On*
+  or *Off*, its vocabulary and its documents in the graph, and *Save* per
+  row (API: `GET /scoutro/api/v1/kg/collections`,
+  `PATCH /scoutro/api/v1/kg/collections/{collection}`; CLI
+  `scoutroctl kg collections`, `scoutroctl kg collection NAME --on|--off
+  [--vocabulary V|--no-vocabulary|--default-vocabulary]`). Administrator only.
+  - *On* adds the name to `scoutro.kg.collections` (`*` stays `*`) and
+    removes it from `scoutro.kg.collections.inactive`. The pages it already
+    has in the index are read by the reconcile every start of the graph runs
+    (the backfill); its state is *waiting for documents* until they are in.
+  - *Off* removes the name from `scoutro.kg.collections` and adds it to
+    `scoutro.kg.collections.inactive`. **Its graph data are kept:** the
+    reconcile deletes nothing of it, nothing new is read from it (also not
+    JSON-LD), also under `*`, and its data stay readable. A page deleted from
+    the index still leaves the graph; a page that also belongs to a followed
+    collection is still read through that one and keeps its membership of
+    the switched-off one. Before package 6.2, removing a name from the list
+    meant that the next reconcile deleted its data (with the mass-deletion
+    brake); a name removed by hand from the list (and not added to
+    `inactive`) still behaves so.
+  - *Vocabulary*: *Default* (of the vocabulary files; the key is removed), a
+    vocabulary, or *No vocabulary* (empty value). A changed vocabulary of a
+    followed collection changes the extraction identity: the graph reads its
+    pages again in the background (low priority), as with a hand-edited key.
+    Switching a collection off or on changes no vocabulary and so re-extracts
+    nothing.
+  - Only that collection's keys change. A change takes effect at once: the
+    graph is closed cleanly and opened again with the new settings (a manual
+    pause stays; a running reconcile starts anew). While a backup, a restore
+    or an identity rebuild runs nothing is written (409
+    `operation_running`). While the graph is off, the settings are stored and
+    count at its next start.
+  - An identity rebuild ([9.3](#93-re-resolve-identities-rebuild)) builds
+    the graph from the followed collections only; switch a collection on
+    again before a rebuild if its data should stay.
 
 ## 6. Permissions and agent access
 
