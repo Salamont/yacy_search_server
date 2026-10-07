@@ -31,7 +31,7 @@
           <dd><input name="url" id="url" value="" size="75"/></dd>
           <dt></dt>
           <dt class="TableCellDark"><label for="collection">Collection:</label></dt>
-          <dd><input name="collection" id="collection" type="text" value="user" size="75" /></dd>
+          <dd><input data-scoutro-collection-select name="collection" id="collection" type="text" value="user" size="75" /></dd>
           <dd><input name="submit" class="btn btn-primary" type="submit" value="Import Warc File" /></dd>
         </dl>
       </fieldset>
@@ -54,6 +54,9 @@
     </form>
     #(/import)#
     
+    #%env/templates/scoutro/collection-create.template%#
+    <script src="env/scoutro/collections.js"></script>
+    <script src="env/scoutro/collection-select.js"></script>
     #%env/templates/footer.template%#
   </body>
 </html>

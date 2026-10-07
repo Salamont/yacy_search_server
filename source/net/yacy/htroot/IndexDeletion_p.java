@@ -96,6 +96,9 @@ public class IndexDeletion_p {
         String collectiondelete = post == null ? "" : post.get("collectiondelete", "");
         if (post != null && post.containsKey("collectionlist")) {
             collectiondelete_mode_unassigned_checked = false;
+        }
+        // Scoutro (package 6.1): the collection to delete is always chosen from the list of the index, never typed
+        {
             prop.put("collectiondelete-select", 1);
             try {
                 final ScoreMap<String> collectionMap = defaultConnector.getFacets("*:*", 1000, CollectionSchema.collection_sxt.getSolrFieldName()).get(CollectionSchema.collection_sxt.getSolrFieldName());
@@ -109,10 +112,8 @@ public class IndexDeletion_p {
                 }
                 prop.put("collectiondelete-select_list", c );
             } catch (final IOException e1) {
-                prop.put("collectiondelete-select", 0);
+                prop.put("collectiondelete-select_list", 0); // an empty list rather than free text
             }
-        } else {
-            prop.put("collectiondelete-select", 0);
         }
         prop.put("collectiondelete-mode-unassigned-checked", collectiondelete_mode_unassigned_checked ? 1 : 0);
         prop.put("collectiondelete-mode-assigned-checked", collectiondelete_mode_unassigned_checked ? 0 : 1);
