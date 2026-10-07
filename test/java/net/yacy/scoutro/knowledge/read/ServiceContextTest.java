@@ -463,4 +463,146 @@ public class ServiceContextTest {
         }
         assertEquals("only the centre's own price, never another provider's", 1, prices);
     }
+
+    // ------------------------------------------------------ group network (6.2)
+
+    private JSONObject groupNetwork(final String name, final int offset, final int limit, final Viewer v) throws Exception {
+        return new ServiceGroups(this.reader).network(name, null, offset, limit, false, v);
+    }
+
+    /** provider name -> the service ID its line names */
+    private static java.util.Map<String, String> linesByProvider(final JSONObject n) throws Exception {
+        final java.util.Map<String, String> out = new java.util.TreeMap<>();
+        for (final Object o : objects(n.getJSONArray("edges"))) {
+            final JSONObject e = (JSONObject) o;
+            assertEquals(n.getString("center"), e.getString("to"));
+            out.put(node(n, e.getString("from")).getString("label"), e.getJSONObject("service").getString("id"));
+        }
+        return out;
+    }
+
+    @Test
+    public void theNetworkOfAServiceNameShowsEveryProviderAroundAVirtualCentre() throws Exception {
+        final JSONObject n = groupNetwork("SAP", 0, 50, Viewer.ALL);
+        assertTrue(n.getBoolean("aggregated"));
+        assertEquals("service_group:sap", n.getString("center"));
+        final JSONObject centre = node(n, n.getString("center"));
+        assertEquals("service_group", centre.getString("type"));
+        assertTrue(centre.getBoolean("virtual"));
+        assertEquals("SAP", centre.getString("label"));
+        assertEquals(0, centre.getInt("depth"));
+        assertFalse("the centre is no object: no ID, hosts, collections or sources of its own", centre.has("hosts") || centre.has("quality"));
+        assertEquals(3, centre.getInt("providers"));
+        assertEquals(3, n.getInt("neighbours"));
+        assertFalse(n.getBoolean("truncated"));
+        assertEquals(3, n.getJSONObject("group").getInt("providers"));
+        // provider → offers → SAP, one line per provider, each a fact pointing to the centre
+        assertEquals(new TreeSet<>(List.of("Beta IT AG", "CTcon GmbH", "Gamma Systems GmbH")), linesByProvider(n).keySet());
+        for (final Object o : objects(n.getJSONArray("edges"))) {
+            final JSONObject e = (JSONObject) o;
+            assertEquals("offers", e.getString("type"));
+            assertEquals("in", e.getString("direction"));
+            assertTrue(e.getBoolean("fact"));
+            assertTrue(e.getString("id").startsWith("kgs_"));
+            assertEquals("confirmed", e.getString("status"));
+            final JSONObject p = node(n, e.getString("from"));
+            assertEquals("organization", p.getString("type"));
+            assertEquals(1, p.getInt("depth"));
+            assertTrue(p.getString("id").startsWith("kge_"));
+            assertEquals(1, p.getJSONArray("hosts").length());
+        }
+        assertEquals("the centre and three providers", 4, n.getJSONArray("nodes").length());
+        // the name in any case and with spaces is the same group
+        assertEquals(n.getString("center"), groupNetwork("  sap ", 0, 50, Viewer.ALL).getString("center"));
+    }
+
+    @Test
+    public void theLinesOfTheGroupNetworkKeepEachProvidersOwnService() throws Exception {
+        final JSONObject n = groupNetwork("SAP", 0, 50, Viewer.ALL);
+        final java.util.Map<String, String> lines = linesByProvider(n);
+        assertEquals("three separate services, never merged: " + lines, 3, new TreeSet<>(lines.values()).size());
+        assertEquals(sapOf("CTcon GmbH"), lines.get("CTcon GmbH"));
+        assertEquals(sapOf("Beta IT AG"), lines.get("Beta IT AG"));
+        assertEquals(sapOf("Gamma Systems GmbH"), lines.get("Gamma Systems GmbH"));
+        for (final Object o : objects(n.getJSONArray("edges"))) {
+            final JSONObject e = (JSONObject) o;
+            final String provider = node(n, e.getString("from")).getString("label");
+            final JSONObject service = e.getJSONObject("service");
+            assertEquals("SAP", service.getString("name"));
+            // each line carries only its own service's prices, sources and collections
+            assertEquals(provider + ": " + service, "Beta IT AG".equals(provider) ? 0 : 1, service.getJSONObject("prices").getInt("current"));
+            assertEquals(1, service.getInt("sources"));
+            assertEquals("Gamma Systems GmbH".equals(provider) ? List.of("otherportal-web") : List.of("stackfinder-web"),
+                    values(service.getJSONArray("collections")));
+            assertEquals(List.of("www." + ("CTcon GmbH".equals(provider) ? "ctcon.de" : "Beta IT AG".equals(provider) ? "beta-it.de"
+                    : "gamma-systems.de")), values(service.getJSONArray("hosts")));
+            assertEquals(values(service.getJSONArray("hosts")), values(node(n, e.getString("from")).getJSONArray("hosts")));
+        }
+        // no price node, no other service of a provider: CTcon's Cloud-Migration stays in CTcon's own network
+        assertFalse(strings(n.getJSONArray("nodes"), "label").contains("Cloud-Migration"));
+        assertFalse(strings(n.getJSONArray("nodes"), "type").contains("price"));
+        // the single-object network of one provider's SAP is unchanged: only that provider
+        final JSONObject single = new BusinessGraph(this.reader).neighborhood(sapOf("CTcon GmbH"), q(1), Viewer.ALL);
+        assertEquals(sapOf("CTcon GmbH"), single.getString("center"));
+        assertEquals(List.of("CTcon GmbH"), strings(single.getJSONArray("nodes"), "label").subList(1, 2));
+        assertEquals(null, node(single, entity("Beta IT AG")));
+        assertFalse(single.has("aggregated"));
+    }
+
+    @Test
+    public void theGroupNetworkFollowsTheCollectionsOfTheViewer() throws Exception {
+        final JSONObject mine = groupNetwork("SAP", 0, 50, viewer("stackfinder-web"));
+        assertEquals(new TreeSet<>(List.of("Beta IT AG", "CTcon GmbH")), linesByProvider(mine).keySet());
+        assertEquals(2, mine.getJSONObject("group").getInt("providers"));
+        assertFalse("nothing of another collection: " + mine, mine.toString().contains("otherportal-web") || mine.toString().contains("Gamma"));
+        final JSONObject other = groupNetwork("SAP", 0, 50, viewer("otherportal-web"));
+        assertEquals(new TreeSet<>(List.of("Gamma Systems GmbH")), linesByProvider(other).keySet());
+        assertFalse(other.toString().contains("stackfinder-web"));
+        try {
+            groupNetwork("SAP", 0, 50, viewer("bauteamcheck-web"));
+            fail("no visible SAP");
+        } catch (final KgReader.NotFound expected) {
+            // like a missing one
+        }
+        // a category the services do not have
+        try {
+            new ServiceGroups(this.reader).network("SAP", "care/tagespflege", 0, 50, false, Viewer.ALL);
+            fail("no SAP of this category");
+        } catch (final KgReader.NotFound expected) {
+            // like a missing one
+        }
+    }
+
+    @Test
+    public void theGroupNetworkIsPagedByProvider() throws Exception {
+        final Set<String> seen = new TreeSet<>();
+        int offset = 0;
+        for (int page = 0; page < 3; page++) {
+            final JSONObject n = groupNetwork("SAP", offset, 1, Viewer.ALL);
+            assertEquals(3, n.getInt("neighbours"));
+            assertEquals("the centre and one provider", 2, n.getJSONArray("nodes").length());
+            assertEquals(1, n.getJSONArray("edges").length());
+            seen.addAll(linesByProvider(n).keySet());
+            assertEquals(page < 2, n.getBoolean("truncated"));
+            if (page < 2) {
+                assertEquals(offset + 1, n.getInt("next_offset"));
+                offset = n.getInt("next_offset");
+            } else {
+                assertTrue(n.isNull("next_offset"));
+            }
+        }
+        assertEquals(3, seen.size());
+        assertEquals(1, groupNetwork("SAP", 3, 1, Viewer.ALL).getJSONArray("nodes").length());
+    }
+
+    @Test
+    public void aServiceWithoutAVisibleProviderIsCountedNotDrawn() throws Exception {
+        publish(doc("LONESVhost04", "https://www.delta.de/sap", "stackfinder-web"), "{\"@type\":\"Service\",\"name\":\"SAP\"}", null,
+                ctx("software", "stackfinder-web"));
+        final JSONObject n = groupNetwork("SAP", 0, 50, viewer("stackfinder-web"));
+        assertEquals(1, n.getJSONObject("group").getInt("without_provider"));
+        assertEquals(3, n.getJSONObject("group").getInt("services"));
+        assertEquals(2, n.getJSONArray("edges").length());
+        assertEquals(3, n.getJSONArray("nodes").length());
+    }
 }

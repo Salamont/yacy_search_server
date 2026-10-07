@@ -148,6 +148,34 @@ public final class BusinessView {
                 }
             }
         }
+        return facts(c, stats, v, now);
+    }
+
+    /**
+     * The viewer's statements of one predicate whose object is one of these
+     * entities, ordered by subject (package 6.2: the {@code offers} of the
+     * services of a group, each its own statement to its own service).
+     */
+    List<Fact> factsTo(final Connection c, final List<Long> objects, final String predicate, final Viewer v, final long now,
+            final int limit) throws SQLException {
+        if (objects.isEmpty()) {
+            return new ArrayList<>();
+        }
+        final List<KgReader.Stat> stats = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement("SELECT " + KgReader.STMT_COLUMNS + " FROM kg_statement s JOIN kg_vocab v"
+                + " ON v.term_id = s.pred WHERE s.obj_ent IN (" + EntityContexts.in(objects) + ") AND v.name = ? AND "
+                + KgReader.visibleStatement(v, "s") + " ORDER BY s.subj, s.stmt_rowid LIMIT " + limit)) {
+            ps.setString(1, predicate);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    stats.add(KgReader.stat(rs));
+                }
+            }
+        }
+        return facts(c, stats, v, now);
+    }
+
+    private List<Fact> facts(final Connection c, final List<KgReader.Stat> stats, final Viewer v, final long now) throws SQLException {
         this.reader.compute(c, stats, v, now);
         final List<Fact> out = new ArrayList<>();
         final Map<Long, Fact> byRow = new HashMap<>();

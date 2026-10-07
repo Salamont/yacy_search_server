@@ -51,6 +51,8 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * <li>package 6.1: {@code GET services?q&category&offset&limit} (services of the same name across providers, read-only groups)
  * and {@code GET services/providers?name&category&offset&limit} (the services of one name, each with its own provider); the
  * {@code context} of every item of {@code GET entities} (hosts, collections, places, providers)</li>
+ * <li>package 6.2: {@code GET services/network?name&category&offset&limit&include=stale} (all providers of one name around a
+ * virtual centre, one line per provider's own offers statement to its own service)</li>
  * </ul>
  * The caller decides the collections ({@code null} = all, for the
  * administrator without filter); everything is computed over the evidence of
@@ -225,6 +227,15 @@ final class KnowledgeRead {
                         allow(q, "q", "category", "offset", "limit", "collection");
                         out = groups.groups(text(q, "q", 200), code(q, "category", CODE), offset,
                                 intParam(q, "limit", 25, 1, net.yacy.scoutro.knowledge.read.ServiceGroups.MAX_LIMIT), viewer);
+                    } else if ("network".equals(parts.get(1))) {
+                        allow(q, "name", "category", "offset", "limit", "include", "collection");
+                        final String name = text(q, "name", 200);
+                        if (name == null) {
+                            throw ApiException.invalid("name", "The service name is required (e.g. SAP).");
+                        }
+                        out = groups.network(name, code(q, "category", CODE), offset, intParam(q, "limit",
+                                net.yacy.scoutro.knowledge.read.ServiceGroups.NETWORK_LIMIT, 1, BusinessGraph.MAX_NODES),
+                                oneOf(q, "include", Set.of("stale")) != null, viewer);
                     } else {
                         allow(q, "name", "category", "offset", "limit", "collection");
                         final String name = text(q, "name", 200);
@@ -285,7 +296,7 @@ final class KnowledgeRead {
             case "sources":
                 return n == 2;
             case "services":
-                return n == 1 || n == 2 && "providers".equals(p.get(1));
+                return n == 1 || n == 2 && ("providers".equals(p.get(1)) || "network".equals(p.get(1)));
             case "export":
             case "changes":
             case "compare":

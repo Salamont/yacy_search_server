@@ -238,6 +238,15 @@ public class KnowledgeApiTest {
             assertEquals(400, read(api, "GET", "services/providers", "q", "SAP"));
             assertEquals(404, read(api, "GET", "services/providers", "name", "SAP"));
             assertEquals(404, read(api, "GET", "services/other"));
+            // package 6.2: the network of one name
+            assertEquals(400, read(api, "GET", "services/network"));
+            assertEquals(400, read(api, "GET", "services/network", "q", "SAP"));
+            assertEquals(400, read(api, "GET", "services/network", "name", "SAP", "limit", "201"));
+            assertEquals(400, read(api, "GET", "services/network", "name", "SAP", "include", "everything"));
+            assertEquals(400, read(api, "GET", "services/network", "name", "SAP", "depth", "2"));
+            assertEquals(404, read(api, "GET", "services/network", "name", "SAP", "include", "stale", "limit", "200", "offset", "5"));
+            assertEquals(404, read(api, "GET", "services/network/more", "name", "SAP"));
+            assertEquals(405, read(api, "POST", "services/network", "name", "SAP"));
             assertEquals(405, read(api, "POST", "services"));
             assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "prices", "true"));
             assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "prices", "yes"));
