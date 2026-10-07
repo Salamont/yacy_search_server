@@ -1555,7 +1555,7 @@
       "post": {
         "operationId": "kg.control",
         "summary": "Control the knowledge graph",
-        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"} (restore with \"backup\"); unknown fields are refused. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
+        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"|\"delete_backup\"} (restore and delete_backup with \"backup\"); unknown fields are refused. delete_backup: 404 backup_not_found, 409 operation_running, 503 backup_delete_failed. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
         "tags": [
           "knowledge"
         ],
@@ -1757,7 +1757,7 @@
       "patch": {
         "operationId": "kg.collection.update",
         "summary": "Switch a collection on or off for the knowledge graph, set its vocabulary",
-        "description": "Package 6.2, administrator only, never an agent grant. JSON body with active and/or vocabulary; unknown fields are refused. Only this collection's keys change, with their existing meaning: scoutro.kg.collections (the name added or removed, the other names as they are; * stays *), scoutro.kg.collections.inactive (switched off: not followed, also under *; the reconcile deletes nothing of it and nothing new is extracted from it; a page deleted from the index still leaves the graph) and scoutro.kg.vocab.<collection>. A change takes effect at once: the running graph is reopened with the new settings (a manual pause stays), and the reconcile of every start reads the pages a collection switched on already has in the index (the existing backfill). No schema change, no deletion, no new collection. 400 collection_id_invalid, 400 collection_reserved (robot_*), 400 vocabulary_unknown, 400 invalid_request, 404 collection_unknown (neither in the catalog nor named by the graph), 409 operation_running while a backup, restore or rebuild runs (nothing written).",
+        "description": "Package 6.2, administrator only, never an agent grant. JSON body with active, vocabulary and/or llm (package 6.3: the LLM enrichment, scoutro.kg.llm.collections); unknown fields are refused. Only this collection's keys change, with their existing meaning: scoutro.kg.collections (the name added or removed, the other names as they are; * stays *), scoutro.kg.collections.inactive (switched off: not followed, also under *; the reconcile deletes nothing of it and nothing new is extracted from it; a page deleted from the index still leaves the graph) and scoutro.kg.vocab.<collection>. A change takes effect at once: the running graph is reopened with the new settings (a manual pause stays), and the reconcile of every start reads the pages a collection switched on already has in the index (the existing backfill). No schema change, no deletion, no new collection. 400 collection_id_invalid, 400 collection_reserved (robot_*), 400 vocabulary_unknown, 400 invalid_request, 404 collection_unknown (neither in the catalog nor named by the graph), 409 operation_running while a backup, restore or rebuild runs (nothing written), 409 llm_all_collections (nothing written).",
         "tags": [
           "knowledge"
         ],
@@ -16219,7 +16219,7 @@
                   "string",
                   "null"
                 ],
-                "description": "no_llm_collections, no_sync, circuit_breaker, a gate (indexing_queue, load, heap), full_reset, write_refused, or the missing model."
+                "description": "no_llm_collections (no collection switched on for the LLM tier), llm_collections_not_followed (switched on, but off for the graph), no_sync, circuit_breaker, a gate (indexing_queue, load, heap), full_reset, write_refused, or the missing model."
               },
               "model": {
                 "type": [
@@ -16976,7 +16976,7 @@
           "backup": {
             "type": "string",
             "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$",
-            "description": "With action restore only: the backup file."
+            "description": "With action restore or delete_backup only: the backup file, by its name of GET /kg/backups; never a path."
           },
           "action": {
             "type": "string",
@@ -16991,9 +16991,10 @@
               "rebuild",
               "rebuild_cancel",
               "rebuild_confirm",
-              "derive"
+              "derive",
+              "delete_backup"
             ],
-            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false."
+            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false. delete_backup (with backup, package 6.3) deletes one backup and its metadata file: only a name of GET /kg/backups, the file a regular file directly in DATA/SCOUTRO/knowledge/backup (no symbolic link), never the graph's own graph.db, WAL or SHM; the answer is the status with deleted and the backup state after it. 400 for anything but such a name, 404 backup_not_found, 409 operation_running while a backup, restore or rebuild swap holds the backup slot (nothing deleted), 503 backup_delete_failed. Restore and download of the other backups are unchanged."
           }
         }
       },
@@ -17204,6 +17205,37 @@
             },
             "description": "The vocabularies a collection can be given."
           },
+          "llm": {
+            "type": "object",
+            "description": "Package 6.3: the LLM enrichment. Its model is the one of the LLM selection with the usage knowledge; there is no second model setting.",
+            "properties": {
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "service/model of the LLM selection with the usage knowledge; null for none."
+              },
+              "allCollections": {
+                "type": "boolean",
+                "description": "scoutro.kg.llm.collections=*."
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "At least one collection is switched on for it."
+              },
+              "active": {
+                "type": "boolean",
+                "description": "Enabled, with a model, and the graph enabled."
+              }
+            }
+          },
           "collections": {
             "type": "array",
             "items": {
@@ -17297,10 +17329,20 @@
                   ]
                 },
                 "llm": {
-                  "type": [
-                    "boolean",
-                    "null"
+                  "type": "boolean",
+                  "description": "Package 6.3: the LLM enrichment is switched on for the collection (named in scoutro.kg.llm.collections, or *)."
+                },
+                "llmBy": {
+                  "type": "string",
+                  "enum": [
+                    "list",
+                    "all",
+                    "none"
                   ]
+                },
+                "llmActive": {
+                  "type": "boolean",
+                  "description": "In effect: the graph is enabled and follows the collection, it is switched on for the LLM enrichment and the LLM selection has a model with the usage knowledge."
                 },
                 "state": {
                   "type": "string",
@@ -17336,6 +17378,10 @@
               "null"
             ],
             "description": "A vocabulary of GET /kg/collections (vocabularies); \"\" for no vocabulary; null for the default of the vocabulary files (the key is removed)."
+          },
+          "llm": {
+            "type": "boolean",
+            "description": "Package 6.3: the LLM enrichment for the collection on (added to scoutro.kg.llm.collections) or off (removed). 409 llm_all_collections to switch one off while the key is *: it is never rewritten into a list. Never switched on by itself."
           }
         }
       },
@@ -17438,10 +17484,20 @@
                 ]
               },
               "llm": {
-                "type": [
-                  "boolean",
-                  "null"
+                "type": "boolean",
+                "description": "Package 6.3: the LLM enrichment is switched on for the collection (named in scoutro.kg.llm.collections, or *)."
+              },
+              "llmBy": {
+                "type": "string",
+                "enum": [
+                  "list",
+                  "all",
+                  "none"
                 ]
+              },
+              "llmActive": {
+                "type": "boolean",
+                "description": "In effect: the graph is enabled and follows the collection, it is switched on for the LLM enrichment and the LLM selection has a model with the usage knowledge."
               },
               "state": {
                 "type": "string",
@@ -17488,6 +17544,25 @@
               "null"
             ],
             "description": "Why the graph could not be reopened; the settings are stored and count at its next start."
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model of the LLM selection with the usage knowledge."
+          },
+          "llmWarning": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "no_model",
+              "collection_not_active",
+              null
+            ],
+            "description": "no_model: switched on, but no model has the usage knowledge (the enrichment waits; the graph works without it); collection_not_active: the graph does not follow the collection yet."
           }
         }
       },

@@ -186,6 +186,26 @@ A changed vocabulary re-extracts the pages at low priority.
   `scoutro.kg.llm.collections`, and only when a model is selected for the
   usage **knowledge** in *LLM Selection*. It reuses Scoutro's existing LLM
   configuration (O3); no key or host is configured here.
+- **Two switches, one model (package 6.3).** Selecting a model for the usage
+  *knowledge* is not enough: the tier also needs at least one collection
+  switched on for it. The key `scoutro.kg.llm.collections` is empty by
+  default, so a fresh installation with a knowledge model shows
+  `LLM: off · no_llm_collections`. That is the opt-in, not a fault of the LLM
+  selection.
+  - Switch it per collection under *Knowledge graph → Settings*, column
+    *LLM enrichment* (or `PATCH /scoutro/api/v1/kg/collections/{collection}`
+    with `{"llm": true}`, `scoutroctl kg collection NAME --llm|--no-llm`).
+    It asks first and names the model; only that collection's name is added
+    to or removed from the key, and the graph is reopened at once, no
+    restart.
+  - No collection gets it by itself, also not a new one or one switched on
+    for the graph. With `*` in the key every collection has it; that is not
+    rewritten here (409 `llm_all_collections`).
+  - The overview shows the two layers apart: *Knowledge graph (rules and
+    structured data)* active or inactive, *LLM enrichment* active or
+    inactive with the reason, and the model in use, also while the tier is
+    off. `llm_collections_not_followed` says that the collections switched on
+    for it are all off for the graph.
 - **Bounded.** It has its own threads (`llm.parallel`, 1 or 2), a timeout
   (`llm.timeoutSeconds`, 120), retries (`llm.maxAttempts`, 2), a circuit
   breaker (`llm.breakerFailures`, 3; backoff up to
@@ -294,7 +314,8 @@ A changed vocabulary re-extracts the pages at low priority.
   row (API: `GET /scoutro/api/v1/kg/collections`,
   `PATCH /scoutro/api/v1/kg/collections/{collection}`; CLI
   `scoutroctl kg collections`, `scoutroctl kg collection NAME --on|--off
-  [--vocabulary V|--no-vocabulary|--default-vocabulary]`). Administrator only.
+  [--vocabulary V|--no-vocabulary|--default-vocabulary] [--llm|--no-llm]`).
+  Administrator only.
   - *On* adds the name to `scoutro.kg.collections` (`*` stays `*`) and
     removes it from `scoutro.kg.collections.inactive`. The pages it already
     has in the index are read by the reconcile every start of the graph runs
@@ -431,6 +452,22 @@ How big the graph gets for a given number of pages, measured, and whether
   the other checks still apply.
 - **Safety copies** (`…-before-restore.db`, `…-before-rebuild.db`) stay until
   the next regular backup.
+- **Deleting one by hand (package 6.3).** *Delete* in the list,
+  `scoutroctl kg backup-delete <file>`, or
+  `{"action":"delete_backup","backup":"<file>"}`; administrator only, never
+  an agent.
+  - The page asks first and names the file, its type (backup, before a
+    restore, before a rebuild, before an upgrade), its size and its date. A
+    copy before an upgrade is the way back to the previous version; the
+    question says so.
+  - Only a backup file of the backup folder, by its name: anything that is
+    not `graph-<UTC>[-before-restore|-before-rebuild|-before-upgrade].db` is
+    400, an unknown name 404. The file must be a regular file directly in
+    `DATA/SCOUTRO/knowledge/backup` (no link, no directory); the live
+    `graph.db` and its `-wal`/`-shm` are never deleted.
+  - The metadata file goes with it; the list and the space of the backups are
+    updated. While a backup, restore or rebuild runs, nothing is deleted
+    (409). The event log records `backup_deleted`.
 
 ### 9.2 Reconcile
 
@@ -575,8 +612,9 @@ clean, and the next start needs no check.
 
 ## 11. Operation without an LLM
 
-Without a model, or with `scoutro.kg.llm.collections` empty, the graph runs
-tiers 1 and 2 only:
+Without a model, or with `scoutro.kg.llm.collections` empty (no collection
+switched on for the LLM enrichment, the default), the graph runs tiers 1 and
+2 only:
 
 - it has no `uncertain` LLM facts and no relations read from running text;
 - it makes no outgoing calls.

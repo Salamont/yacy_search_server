@@ -30,6 +30,38 @@ A start is a mutation: YaCy reloads the seed URL and indexes into the selected
 collection. Agents retain domain, depth, pages, parallelism, foreign-index and
 ownership checks. Existing agent presets/grants are not automatically expanded.
 
+## Result of a start on the native page (package 6.3)
+
+The page shows the answer of the backend as it is, next to the form
+(`#scc-result`); crawl logic, queues and the API are unchanged.
+
+| Answer | Result of the start attempt | Status shown |
+| --- | --- | --- |
+| 201 | Started (YaCy created the crawl profile) | the profile's state |
+| 200 `idempotentReplay` | Already started, no second start | the profile's state |
+| 4xx (`collection_unknown`, `host_busy`, `crawl_rejected`, `invalid_request`, `idempotency_conflict`, 401/403) | Rejected | Not started, no profile ID |
+| 409/503 `crawl_start_unconfirmed` | Unconfirmed: YaCy may have started it | Unknown |
+| 5xx (`upstream_error`, unavailable), no answer | Failed | Unknown |
+
+The profile's state is `running` (**Running**: the YaCy crawl profile is
+active), `paused` (**Waiting**: YaCy's local crawler is paused; the only
+waiting state there is), `terminated` (**Finished**: YaCy ended the profile)
+or `removed` (**Profile removed**). YaCy creates the profile at once and
+reports no queue position, so the page never says "queued". The panel also
+shows URL, collection, the crawl/profile ID, the time of the attempt and the
+start time recorded by the backend, and an understandable error with the
+backend's code and message. **View crawl status** leads to the crawl's card in
+the list, which marks it as **This start**; the panel follows the card's state
+with every refresh, and `GET /v1/crawls/{id}` when the profile left the list.
+
+Double starts: the button is disabled while a start is on its way, and after a
+start (or a replay) the same request cannot be sent again until a field
+changes. An open outcome (no answer, 5xx, unconfirmed) keeps the
+`Idempotency-Key`, so retrying returns a start that arrived instead of
+repeating it; a definite refusal gets a new key, and `host_busy` still guards
+the host. After a start the page keeps `?crawl=<profile id>` in its address:
+a reload reads that crawl again from `GET /v1/crawls/{id}`.
+
 ## Host → index → analysis
 
 `GET /scoutro/api/v1/hosts/resolve?input=HOST_OR_HTTP(S)_URL&collection=NAME`

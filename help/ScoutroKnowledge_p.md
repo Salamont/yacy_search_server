@@ -222,6 +222,17 @@ confirmation, checks the backup first, keeps the current graph as a backup
 and reconciles with the index. Scheduled every `scoutro.kg.backup.intervalDays`
 (7); the newest `scoutro.kg.backup.keep` (1) stay.
 
+**Delete** (package 6.3, administrator only) removes one backup for good,
+after a question that names its file, type, size and creation date; a copy
+"before an upgrade" adds that it is the way back to the previous version.
+Afterwards the list and the space of the backups (**Backup files**) are
+updated. Only a backup file of the backup folder can be deleted, by its name
+(`graph-<UTC>[-before-restore|-before-rebuild|-before-upgrade].db`): never a
+path, never the live `graph.db` or its `-wal`/`-shm` files, never a link or a
+file outside that folder. Its metadata file goes with it. While a backup,
+restore or rebuild runs, nothing is deleted (409); download and restore of the
+other backups stay as they are.
+
 ## Collections
 
 The overview lists every collection the graph follows, maps or holds
@@ -229,6 +240,14 @@ documents of: followed or not, its vocabulary and where it comes from (a
 setting or a vocabulary file), jobs, the LLM tier, its documents in the graph
 and its state (following, waiting for documents, not followed, vocabulary
 missing).
+
+The overview shows the graph in two layers (package 6.3):
+**Knowledge graph (rules and structured data)** active or inactive,
+**LLM enrichment** active or inactive with its reason, and **Model (usage
+knowledge)**: the model chosen for the usage *knowledge* in the
+[LLM selection](LLMSelection_p.md). There is no second model setting. The
+graph works without the LLM enrichment; it only adds statements (shown as
+uncertain, each with a quote of the page).
 
 - With `scoutro.kg.collections=*` a new collection (for example
   `newportal-web`) is followed at once; with a fixed list only the named ones.
@@ -279,6 +298,28 @@ itself, without a vocabulary, and is followed only under `*`; YaCy's internal
   stays). While a backup, restore or rebuild runs, nothing is saved (409).
 - An identity rebuild builds the graph from the followed collections only:
   switch a collection on again before a rebuild if its data should stay.
+
+### LLM enrichment per collection (Settings)
+
+The column **LLM enrichment** (On, Off) of each row switches the LLM tier for
+that collection; above the table the page shows whether the enrichment is
+active and which model of the LLM selection it uses.
+
+- **On** adds the name to `scoutro.kg.llm.collections` after a question that
+  names the model; **Off** removes it (an empty list removes the key). Only
+  that collection changes; the deterministic graph of the collection stays as
+  it is. Applied at once by reopening the graph, like the other settings.
+- No collection is switched on by itself, also not a new one or one switched
+  on for the knowledge graph. With `scoutro.kg.llm.collections=*` every row
+  shows **On (all collections, \*)**; that setting is not rewritten into a
+  list here (409 `llm_all_collections`), change it in the Advanced
+  Properties.
+- The LLM enrichment of a collection works only while the collection is on
+  for the knowledge graph and a model has the usage knowledge. Otherwise the
+  setting is saved and the row says what it waits for.
+- `LLM: off · no_llm_collections` in the status means that no collection is
+  switched on for the LLM enrichment; it is not an error of the LLM
+  selection. The status names the selected model also then.
 
 ## Vocabulary and upgrade
 
@@ -332,7 +373,7 @@ text; links to crawled pages open in a new tab without a referrer.
 | `/scoutro/api/v1/kg/statements/{id}` / `…/evidence` | GET | One fact and its evidence (≤ 50 per page) |
 | `/scoutro/api/v1/kg/hosts/{host}/entities` | GET | Objects of a host |
 | `/scoutro/api/v1/kg/sources/{docId}` | GET | What the graph holds from one page |
-| `/scoutro/api/v1/kg/control` | POST | `pause`, `resume`, `reconcile`, `confirm_reconcile`, `llm_retry`, `backup`, `restore` (with `backup`), `rebuild`, `rebuild_cancel`, `rebuild_confirm`, `derive` |
+| `/scoutro/api/v1/kg/control` | POST | `pause`, `resume`, `reconcile`, `confirm_reconcile`, `llm_retry`, `backup`, `restore` (with `backup`), `delete_backup` (with `backup`), `rebuild`, `rebuild_cancel`, `rebuild_confirm`, `derive` |
 | `/scoutro/api/v1/kg/backups` | GET | The backup files with their metadata |
 | `/scoutro/api/v1/kg/backups/{file}` | GET | Download one backup (SQLite file) |
 | `/scoutro/api/v1/kg/export` | GET | Export pages (`cursor`, `limit` ≤ 200, `include=evidence`, `collection`) |

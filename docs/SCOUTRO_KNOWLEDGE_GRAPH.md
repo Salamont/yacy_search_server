@@ -2224,3 +2224,47 @@ Package 6.2 starts from `main` after 0.8.1 (`b180200`). It adds no schema change
 - `SyncServiceTest`: a collection switched off keeps its graph data through the start reconcile, a recrawl, a new page and the daily reconcile (no candidates), a page deleted from the index leaves; switching on again backfills; under `*` only the inactive one is skipped; a page of a followed and an inactive collection keeps both memberships.
 - `KgConfigTest`: semantics of the new key, the scan set, the collections key, the unchanged extraction identity, invalid values.
 - `KgCollectionSettingsTest`: every catalog collection listed and `robot_*` never, a new collection appears by itself, on/off changes only that collection's keys and the productive settings stay, `*` stays `*`, vocabulary set/none/default, invalid requests change nothing, a collection only the settings name, the running graph reopened with its data and the new settings, routes and methods.
+
+## 26. Package 6.3: the LLM enrichment per collection, deleting backups and the crawl start result
+
+Package 6.3 continues 6.2 on the same branch. No schema change (schema 4), no new on-disk data, no release, no new setting key.
+
+### 26.1 Why the status said `LLM: off · no_llm_collections`
+
+**Finding: configuration, not a bug.** The model chosen for the usage *knowledge* in the LLM selection was read correctly (`YacyLlmClient` → `LLM.llmFromUsageQuiet(knowledge)`, live from `ai.production_models`). But the tier is a second opt-in: `KgConfig.llmEnabled()` is `followsAny() && (llmAllCollections || !llmCollections.isEmpty())`, and `scoutro.kg.llm.collections` is empty by default. With the key empty `KgRuntime.startSync()` creates no `LlmService`, and the status answered `off · no_llm_collections`. Three things made it look like a fault: the status did not name the selected model while the tier was off, the key could be set only in the Advanced Properties, and it took effect only after a restart.
+
+**Change.**
+
+- `status().llm` names `model` (the model of the LLM selection, or null) also while the tier is off (`KgRuntime.llmModel()`). The reason `no_llm_collections` now means only "no collection switched on"; when collections are switched on but all off for the graph it is `llm_collections_not_followed`.
+- The collection settings (`KgCollectionSettings`, `GET/PATCH /v1/kg/collections`) switch the tier per collection: `llm: true|false` adds or removes the one name in `scoutro.kg.llm.collections` (the other names in their order; an empty list removes the key) and applies at once with `KgRuntime.reopen()`, as the other settings do. No collection gets it by itself: neither a new collection nor `active: true`. `*` in the key is shown (`llmBy: all`) and never rewritten into a list (409 `llm_all_collections`). The rows carry `llm`, `llmBy` and `llmActive`; the list carries `llm.model`, `allCollections`, `collections`, `enabled`, `active`; the answer of a change `llmModel` and `llmWarning` (`no_model`, `collection_not_active`): the setting is stored and waits.
+- There is no second model setting: the model, endpoint, key and `max_tokens` stay those of the LLM selection row with the usage *knowledge*.
+- The page shows three things apart: *Knowledge graph (rules and structured data)* active/inactive, *LLM enrichment* active/inactive with the reason, and *Model (usage knowledge)*. Settings has the column *LLM enrichment* (On/Off, with a question naming the model; *On (all collections, \*)* read-only) and above the table the state and the model with a link to the LLM selection.
+- The graph works without the tier as before; existing collections stay off for it.
+
+### 26.2 Deleting a backup
+
+`POST /v1/kg/control {"action":"delete_backup","backup":"<file>"}` (administrator, same origin, never an agent route; `scoutroctl kg backup-delete FILE`).
+
+- **Name only.** `KnowledgeApi` accepts `backup` only for `restore` and `delete_backup` and only matching `KgBackup.NAME` (`graph-<UTC>[-before-restore|-before-rebuild|-before-upgrade].db`): a path, `graph.db`, `-wal`/`-shm` and any other value are 400 before anything is looked up.
+- **The file.** `KgRuntime.safeBackup` resolves the name with `KgBackup.find` and accepts it only if its real path lies directly in the real backup folder, it is a regular file and no link (`NOFOLLOW_LINKS`), and it is none of the real paths of the live `graph.db`, `-wal` or `-shm`; otherwise 404 `backup_not_found`.
+- **The slot.** It takes the backup slot (`KgBackups.claim()`), so nothing is deleted while a backup, restore or rebuild runs (409 `operation_running`), checks the file again under the slot and deletes it with its metadata file and any `-wal`/`-shm` of that copy (`KgBackup.remove`); 503 `backup_delete_failed` if it stays. The event `backup_deleted` records it, the storage guard re-measures, the answer is the status with `deleted`.
+- **Page.** *Delete* next to *Download* and *Restore* in the backup list; the question names file, type, size and date (and for a copy before an upgrade that it is the way back); afterwards the list and *Backup files* (count and space) are reloaded; busy, gone and failed are said in words.
+
+### 26.3 The result of a crawl start
+
+The native crawl page (`ScoutroCrawls_p.html`, `crawls.js`) shows the answer of `POST /v1/crawls` next to the form instead of replacing the crawl list with it. Crawl logic, queues and the API are unchanged.
+
+- **Result of the attempt:** 201 started, 200 `idempotentReplay` already started (no second start), 4xx rejected, `crawl_start_unconfirmed` unconfirmed, 5xx or no answer failed; with an error text per code (`collection_unknown`, `host_busy`, `crawl_rejected` with YaCy's comment, `invalid_request`, `idempotency_conflict`, `upstream_error`, 401/403, 503, no answer) and the backend's status, code and message.
+- **Status:** the profile's state as the backend reports it: `running`, `paused` (the only waiting state: YaCy's local crawler is paused), `terminated`, `removed`; *Not started* for a refusal, *Unknown* otherwise. YaCy creates the profile at once and reports no queue position, so the page never says "queued".
+- **Facts:** URL, collection, the crawl/profile ID, the time of the attempt and the start time recorded by the backend. The panel follows the card's state with every refresh, and `GET /v1/crawls/{id}` once the profile has left the list.
+- **Findable:** *View crawl status* focuses the crawl's card (marked *This start*); after a start the address carries `?crawl=<id>`, so a reload reads it again with `GET /v1/crawls/{id}` (404: said so and forgotten).
+- **Double starts:** disabled while a start is on its way, and after a start or a replay until a field changes. An open outcome keeps the `Idempotency-Key` (a retry is replayed, never started twice); a definite refusal gets a new key (`host_busy` still guards the host).
+
+### 26.4 Tests
+
+- `KgCollectionSettingsTest`: the LLM tier per collection with the model of the LLM selection, without a model stored and said so, `*` never rewritten into a list.
+- `CollectionsStatusTest`: the model is named while the tier is off; `no_llm_collections` only without an LLM collection; `llm_collections_not_followed`.
+- `KgBackupTest`: a backup deleted by its name with its metadata, the list and the space follow, the other backup still restores; only real backup files of the backup folder (bad names, a link to `graph.db`, a linked folder outside, a directory named like a backup); nothing deleted while the slot is taken.
+- `KnowledgeApiTest`: `delete_backup` takes a name, never a path (400), missing name, extra field, `backup` on other actions, unknown name 404, GET 405, 503 mapping.
+- `knowledge-ui-test.mjs` (live): the three layers and the model at five widths in German and two in English; the LLM column; kgb switched on and off through the page (question with the model, only kgb changed); a backup deleted through the page (question with file, type, size and date; cancel keeps it; list and space follow; the live graph, download and restore of the others unchanged; only names; anonymous 401).
+- `crawl-flow-ui-test.mjs` (mocked writes): started, waiting (paused crawler), rejected (422, 409 `host_busy`, 400), backend error (502), no answer, the replayed retry with the same key, unconfirmed, finished and removed, reload with `?crawl=`, an unknown and an invalid id, a double click and a second submit (one POST), 360 px.

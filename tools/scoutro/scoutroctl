@@ -287,6 +287,9 @@ def build_parser():
     voc.add_argument("--vocabulary", help="a vocabulary of 'kg collections'")
     voc.add_argument("--no-vocabulary", action="store_true", help="no vocabulary (generic facts only)")
     voc.add_argument("--default-vocabulary", action="store_true", help="the default of the vocabulary files")
+    llm = kc.add_mutually_exclusive_group()
+    llm.add_argument("--llm", action="store_true", help="also the LLM enrichment (the model of the LLM selection, usage knowledge)")
+    llm.add_argument("--no-llm", action="store_true", help="no LLM enrichment for this collection")
     ctl = kg.add_parser("control", help="administrator")
     ctl.add_argument("action", choices=["pause", "resume", "reconcile", "confirm_reconcile", "llm_retry", "backup",
                                         "rebuild", "rebuild_cancel", "rebuild_confirm", "derive"])
@@ -296,6 +299,8 @@ def build_parser():
     bd.add_argument("file")
     rs = kg.add_parser("restore", help="administrator: replace the graph with a backup (the current graph is kept as a backup)")
     rs.add_argument("file")
+    bdel = kg.add_parser("backup-delete", help="administrator: delete one backup (by its name of 'kg backups') with its metadata")
+    bdel.add_argument("file")
     kg.add_parser("rebuild", help="administrator: re-resolve every identity in a shadow graph built from Solr (progress in kg status)")
     kg.add_parser("rebuild-cancel", help="administrator: cancel a rebuild before its swap; the graph stays as it is")
     kg.add_parser("rebuild-confirm", help="administrator: swap in a rebuild that the mass-deletion brake stopped")
@@ -385,7 +390,7 @@ def main(argv=None):
         k = args.kg_command
         q = lambda path: urllib.parse.quote(path, safe="")
         if k in ("status", "control", "download", "backup", "backups", "backup-download", "restore",
-                 "rebuild", "rebuild-cancel", "rebuild-confirm", "collections", "collection") and token:
+                 "rebuild", "rebuild-cancel", "rebuild-confirm", "collections", "collection", "backup-delete") and token:
             fail("admin_only", "kg %s is an administrator route; it is not available with an agent token" % k, 2)
         if k == "status":
             result = client.call("GET", "/v1/kg/status")
@@ -401,13 +406,17 @@ def main(argv=None):
                 body["vocabulary"] = ""
             elif args.default_vocabulary:
                 body["vocabulary"] = None
+            if args.llm or args.no_llm:
+                body["llm"] = bool(args.llm)
             if not body:
-                fail("invalid_request", "give --on or --off and/or a vocabulary option", 2)
+                fail("invalid_request", "give --on or --off, a vocabulary option and/or --llm or --no-llm", 2)
             result = client.call("PATCH", "/v1/kg/collections/" + q(args.name), body=body)
         elif k == "control":
             result = client.call("POST", "/v1/kg/control", body={"action": args.action})
         elif k == "backup":
             result = client.call("POST", "/v1/kg/control", body={"action": "backup"})
+        elif k == "backup-delete":
+            result = client.call("POST", "/v1/kg/control", body={"action": "delete_backup", "backup": args.file})
         elif k == "backups":
             result = client.call("GET", "/v1/kg/backups")
         elif k == "backup-download":
