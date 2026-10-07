@@ -16,3 +16,6 @@
 .scc-main [hidden] { display:none!important; }
 #scc-message { white-space:pre-wrap; overflow-wrap:anywhere; }
 @media(max-width:767px) { .scc-main { margin-left:0; padding:18px 12px 36px; } .scc-panel { padding:15px; } .scc-fields,.scc-cards { grid-template-columns:minmax(0,1fr); } }
+.scc-collection-field { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; align-items:end; min-width:0; }
+.scc-collection-field .btn { min-height:44px; white-space:nowrap; }
+@media(max-width:420px) { .scc-collection-field { grid-template-columns:minmax(0,1fr); } }
