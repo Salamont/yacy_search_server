@@ -90,10 +90,11 @@
 
 <section id="skg-network" hidden aria-labelledby="skg-network-title">
 <h2 id="skg-network-title" tabindex="-1">Network</h2>
-<p class="sseo-note">The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.</p>
+<p class="sseo-note" data-skg-group hidden>All providers of one service name, never the whole graph. The centre is the name only, no object: every line is one provider's own offer of its own service, with that service's own prices, sources and collections. Services, prices and facts of different providers are never merged or mixed. Tap a provider or a line for its own service; the list shows each line with that service.</p>
+<p class="sseo-note" data-skg-single>The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.</p>
 <form id="skg-net-form" class="sseo-search skg-net-form">
-<label for="skg-depth">Depth<select class="form-control" id="skg-depth"><option value="1">1: direct neighbours</option><option value="2">2: also their neighbours</option></select></label>
-<fieldset class="skg-net-filters"><legend>Facts</legend>
+<label for="skg-depth" data-skg-single>Depth<select class="form-control" id="skg-depth"><option value="1">1: direct neighbours</option><option value="2">2: also their neighbours</option></select></label>
+<fieldset class="skg-net-filters" data-skg-single><legend>Facts</legend>
 <label><input type="checkbox" id="skg-f-business" /> Relations between companies</label>
 <label><input type="checkbox" id="skg-f-structure" /> Structure and operators</label>
 <label><input type="checkbox" id="skg-f-offers" /> Services and providers</label>
@@ -103,7 +104,7 @@
 <label><input type="checkbox" id="skg-f-jobs" /> Jobs and employers</label>
 <label><input type="checkbox" id="skg-f-prices" /> Prices of services</label>
 </fieldset>
-<fieldset class="skg-net-filters"><legend>Derived, no facts</legend>
+<fieldset class="skg-net-filters" data-skg-single><legend>Derived, no facts</legend>
 <label><input type="checkbox" id="skg-f-derived" /> Same operator</label>
 <label><input type="checkbox" id="skg-f-weak" /> Weak link signals</label>
 <label><input type="checkbox" id="skg-f-suggested" /> Suggested customers and partners</label>
@@ -149,6 +150,7 @@
 </div>
 <div id="skg-svc-rows-box" hidden>
 <p><a id="skg-svc-back" href="ScoutroKnowledge_p.html?view=services">All service names</a></p>
+<p><a class="btn btn-default btn-sm" id="skg-svc-network" href="ScoutroKnowledge_p.html?view=services">Network of all providers</a></p>
 <h3 id="skg-svc-group-title"></h3>
 <dl id="skg-svc-group" class="sseo-stats"></dl>
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-svc-rows"><thead><tr><th>Service</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Prices</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
@@ -167,6 +169,13 @@
 <p class="sseo-note">Settings are stored in Scoutro's configuration (keys <code>scoutro.kg.*</code>, for example in <a href="ConfigProperties_p.html">Advanced Properties</a>) and take effect at the next start. Invalid values are listed here and keep the graph off.</p>
 <dl id="skg-config" class="sseo-stats"></dl>
 <div class="sseo-scroll" id="skg-config-errors"></div>
+<section class="sseo-panel" aria-labelledby="skg-kgc-title">
+<h3 id="skg-kgc-title">Collections in the knowledge graph</h3>
+<p class="sseo-note">Every collection of the catalog is listed here, a new one too; YaCy's internal collections never. Switching a collection off keeps its graph data: nothing is deleted and nothing new is read from it. Switching it on reads the pages it already has in the index. A change concerns only this collection and takes effect at once (the graph is reopened). A new vocabulary of a followed collection makes the graph read its pages again in the background. Settings keys:</p>
+<p class="sseo-note"><code>scoutro.kg.collections</code>, <code>scoutro.kg.collections.inactive</code>, <code>scoutro.kg.vocab.&lt;collection&gt;</code></p>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-kgc" id="skg-kgc"><thead><tr><th>Collection</th><th>Pages in the index</th><th>Knowledge graph</th><th>Vocabulary</th><th>Documents in the graph</th><th>Status</th><th>Save</th></tr></thead><tbody></tbody></table></div>
+<p id="skg-kgc-message" class="sseo-note" role="status" aria-live="polite"></p>
+</section>
 </section>
 
 <div hidden id="skg-labels">
@@ -242,6 +251,7 @@
 <span data-skg-label="done_action">Done.</span>
 <span data-skg-label="enabled">Enabled</span>
 <span data-skg-label="followed">Followed collections</span>
+<span data-skg-label="inactive_collections">Collections switched off (data kept)</span>
 <span data-skg-label="llm_collections">LLM collections</span>
 <span data-skg-label="llm_kinds">Facility kinds for the LLM tier</span>
 <span data-skg-label="chat">Graph facts in the chat</span>
@@ -444,6 +454,15 @@
 <span data-skg-label="show_sources">Sources</span>
 <span data-skg-label="all_providers">All providers</span>
 <span data-skg-label="group_title">%1 · %2 providers</span>
+<span data-skg-label="group_network">Network</span>
+<span data-skg-label="group_network_of">Network of %1 · %2 providers</span>
+<span data-skg-label="service_group">Service name</span>
+<span data-skg-label="n_providers">%1 providers</span>
+<span data-skg-label="legend_node_group">Service name in the centre (no object)</span>
+<span data-skg-label="group_centre_note">The centre is the service name only, no object. Each provider keeps its own service with its own prices and sources.</span>
+<span data-skg-label="group_list">All providers as a list</span>
+<span data-skg-label="own_service">this provider's own service</span>
+<span data-skg-label="open_service_network">Network of this service</span>
 <span data-skg-label="group_hint_note">Services of the same name stay separate objects, each with its own provider, prices and sources.</span>
 <span data-skg-label="services_empty">No visible services match.</span>
 <span data-skg-label="g_services">Services</span>
@@ -471,6 +490,24 @@
 <span data-skg-label="vstate_waiting">waiting for documents</span>
 <span data-skg-label="vstate_not_followed">not followed</span>
 <span data-skg-label="vstate_unknown_vocabulary">vocabulary missing</span>
+<span data-skg-label="vstate_inactive">switched off, data kept</span>
+<span data-skg-label="kgc_on">On</span>
+<span data-skg-label="kgc_off">Off (data kept)</span>
+<span data-skg-label="kgc_default">Default: %1</span>
+<span data-skg-label="kgc_default_none">Default: no vocabulary</span>
+<span data-skg-label="kgc_none">No vocabulary</span>
+<span data-skg-label="kgc_save">Save</span>
+<span data-skg-label="kgc_saved">%1 saved; the knowledge graph was reopened with the new setting.</span>
+<span data-skg-label="kgc_stored">%1 saved; it takes effect when the knowledge graph starts.</span>
+<span data-skg-label="kgc_unchanged">%1: nothing changed.</span>
+<span data-skg-label="kgc_backfill">The pages it already has in the index are read now.</span>
+<span data-skg-label="kgc_reextract">The graph reads its pages again in the background.</span>
+<span data-skg-label="kgc_off_question">Switch %1 off for the knowledge graph? Its graph data are kept, nothing new is read from it.</span>
+<span data-skg-label="kgc_vocab_question">Change the vocabulary of %1? The graph reads its pages again in the background.</span>
+<span data-skg-label="kgc_not_in_catalog">not in the collection catalog</span>
+<span data-skg-label="kgc_empty">No collection yet.</span>
+<span data-skg-label="kgc_label_active">Knowledge graph for %1</span>
+<span data-skg-label="kgc_label_vocabulary">Vocabulary for %1</span>
 <span data-skg-label="jobs_collections">Job collections</span>
 <span data-skg-label="legend_node_organization">organisation</span>
 <span data-skg-label="legend_node_facility">facility or site</span>

@@ -30,11 +30,12 @@ price comparison, and the evidence behind each fact. Operator guide:
 | Overview | `ScoutroKnowledge_p.html` | State, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, the collections (see below), controls, backups, identity rebuild, recent events |
 | Objects | `?view=objects&q=&type=&quality=&host=&industry=&category=&audience=` | Search by name, filter by type, quality, host, industry (NACE code; a section or division finds everything below it), service category and audience; 25 per page. Every hit shows its type, its provider and domain (a service: who offers it; a job: its employer; others: their own domain), its collection, place, quality, sources and last confirmation, with **Open provider**, **Network**, **Sources** and, for a service, **All providers** |
 | Services | `?view=services&q=&category=` · `?view=services&name=SAP` | Services of the same name across providers ("SAP · 133 providers") and, for one name, every provider's service in its own row (see below) |
+| Network of a name | `?view=network&group=SAP&category=&s=current,stale&list=1` | All providers of one service name around the name (see below) |
 | Object | `?view=object&id=kge_…` | Sections with content only: Overview, Industry, Services, Prices, Contacts, Relations, Jobs, Audiences, Suggested matches, Evidence and sources, all facts and relations, relations pointing to it; evidence per fact; link to the network |
 | Network | `?view=network&id=kge_…&depth=2&f=…&list=1` | The neighbourhood of one object as a drawing and as a list (see below) |
 | Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published |
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
-| Settings | `?view=settings` | The effective settings and their problems (read-only) |
+| Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary (see below) |
 
 Every view takes `collection=<name>`. **Every name, value, count, host and
 source is then computed only from documents of that collection**; objects only
@@ -122,6 +123,32 @@ many a current source. **All providers** lists every service of the name in
 its own row with its provider, domain, collection, place, price count,
 quality and sources. Prices are never mixed between providers; each row's
 prices are its own service's.
+
+## Network of all providers of a name
+
+**Network** next to a name in **Services** (and **Network of all providers**
+above the rows of one name, and next to the line above the object list)
+draws every provider of that name: `CTcon GmbH → offers → SAP`. The centre
+is the name only, no object (a dashed card "Service name"): nothing is opened
+or merged there. Every line is one provider's own `offers` fact and names
+that provider's own service, with its own prices, sources and collections;
+the services, prices and facts of different providers are never mixed.
+
+- **Providers** are cards like in any network, with their domain,
+  collections, places, quality and sources; a provider with two services of
+  the name has two lines. A service without a visible provider is counted in
+  the centre's panel (**Services without a provider**), not drawn.
+- **Paging:** the 50 strongest providers first (24 on a phone), **Show more**
+  for the next.
+- **Details:** the centre shows the counts of the name (services, providers,
+  collections, places, current prices and sources) and **All providers as a
+  list**; a provider its lines, each with its own service; a line its
+  status, evidence and the provider's own service with **Open service** and
+  **Network of this service**.
+- **Filters:** status only (current, outdated); depth and the layers of an
+  object's network do not apply. The list below the drawing names each line's
+  own service; **GraphML** and **JSON** carry it too.
+- The network of one object (`?view=network&id=…`) is unchanged.
 
 ## Network
 
@@ -221,6 +248,38 @@ missing).
   `scoutro.kg.jobs.collections` (shown under Settings); a new collection never
   gets them by itself.
 
+### Switching collections on and off (Settings)
+
+**Settings** lists every collection of the collection catalog with its
+pages in the index, **Knowledge graph** (On, Off), **Vocabulary**, its
+documents in the graph and its state, and **Save** per row. A new collection
+(created with **New collection** or with pages in the index) appears by
+itself, without a vocabulary, and is followed only under `*`; YaCy's internal
+`robot_*` collections never appear.
+
+- **On** follows the collection: its name is added to
+  `scoutro.kg.collections` (with `*` the list stays `*`). The pages it already
+  has in the index are read through the reconcile every start of the graph
+  runs (the existing backfill); its state shows **waiting for documents**
+  until they are in.
+- **Off** stops reading the collection but **keeps its graph data**: its
+  name leaves `scoutro.kg.collections` and is added to
+  `scoutro.kg.collections.inactive` (state **switched off, data kept**). The
+  reconcile deletes nothing of it and nothing new is read from it, also under
+  `*`. A page deleted from the index still leaves the graph, as always; a page
+  that also belongs to a followed collection is still read through that one.
+- **Vocabulary:** **Default** (of the vocabulary files, e.g. `care` for
+  `edelsenior-web`, else none), one of the vocabularies, or **No vocabulary**
+  (`scoutro.kg.vocab.<collection>`: unset, a name, empty). A new vocabulary of
+  a followed collection makes the graph read its pages again in the
+  background.
+- Only the keys of that one collection change; the other collections, jobs,
+  the LLM tier and all other settings stay as they are. A change takes effect
+  at once: the graph is closed cleanly and opened again (a manual pause
+  stays). While a backup, restore or rebuild runs, nothing is saved (409).
+- An identity rebuild builds the graph from the followed collections only:
+  switch a collection on again before a rebuild if its data should stay.
+
 ## Vocabulary and upgrade
 
 The overview shows the vocabularies in force (categories per collection, NACE
@@ -262,6 +321,9 @@ text; links to crawled pages open in a new tab without a referrer.
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |
 | `/scoutro/api/v1/kg/services` | GET | Services of the same name across providers, read-only groups (`q`, `category`, `offset`, `limit` ≤ 50) |
 | `/scoutro/api/v1/kg/services/providers` | GET | The services of one name, each with its provider (`name`, `category`, `offset`, `limit`) |
+| `/scoutro/api/v1/kg/services/network` | GET | All providers of one name around a virtual centre (`center` `service_group:<name>`), one line per provider's own `offers` with its own `service` (`name`, `category`, `offset`, `limit` ≤ 200, `include=stale`) |
+| `/scoutro/api/v1/kg/collections` | GET | Administrator: the knowledge graph settings of each collection (`active`, `inactive`, `vocabulary`, `vocabularySetting`, `defaultVocabulary`, documents, `state`) |
+| `/scoutro/api/v1/kg/collections/{collection}` | PATCH | Administrator: `{"active": true|false, "vocabulary": "care"|""|null}`; changes only that collection's keys and reopens the graph (`applied`, `backfill`, `kept`, `reextract`) |
 | `/scoutro/api/v1/kg/compare` | GET | One service category across providers (`category`) |
 | `/scoutro/api/v1/kg/derived` | GET | Derived rows (`kind`, `entity`) |
 | `/scoutro/api/v1/kg/facets` | GET | Industries, categories, audiences and counts of the visible graph |
@@ -281,13 +343,14 @@ The export is not a snapshot: after it, read the changes from its
 `next_changes` cursor. A cursor that is too old or from before a reset answers
 410 with `details.full_sync`; start the export again.
 
-The page and every route need the administrator; backups, restore, rebuild
-and the download are never available to agents.
+The page and every route need the administrator; backups, restore, rebuild,
+the collection settings and the download are never available to agents.
 
 **Agents** get the same reads with the grant `kg.read` and export and changes
 with the separate grant `kg.export` (Agents & Access), on
-`/scoutro/api/agent/v1/kg/…`, always limited to their collections. Status,
-controls and the download are never available to agents.
+`/scoutro/api/agent/v1/kg/…` (also `…/kg/services/network`), always limited
+to their collections. Status, controls, the collection settings and the
+download are never available to agents.
 
 **Chat:** for local and administrator use, the chat adds facts of the graph as
 numbered sources marked "Scoutro knowledge graph", each linking the page it
@@ -297,7 +360,8 @@ date) and incoming relations; suggestions are marked as such. Settings: `scoutro
 (shown under Settings).
 
 Settings are `scoutro.kg.*` configuration keys; they take effect at the next
-start. Invalid values are listed under Settings and keep the graph off.
+start, except the collection settings saved under Settings, which reopen the
+graph at once. Invalid values are listed under Settings and keep the graph off.
 
 ## Related Pages
 

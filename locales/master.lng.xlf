@@ -15320,6 +15320,9 @@
     <trans-unit id="d119f20e" xml:space="preserve" approved="no" translate="yes">
        <source>Network</source>
     </trans-unit>
+    <trans-unit id="fccfc414" xml:space="preserve" approved="no" translate="yes">
+       <source>All providers of one service name, never the whole graph. The centre is the name only, no object: every line is one provider's own offer of its own service, with that service's own prices, sources and collections. Services, prices and facts of different providers are never merged or mixed. Tap a provider or a line for its own service; the list shows each line with that service.</source>
+    </trans-unit>
     <trans-unit id="d56d40fa" xml:space="preserve" approved="no" translate="yes">
        <source>The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.</source>
     </trans-unit>
@@ -15455,6 +15458,9 @@
     <trans-unit id="f66b15be" xml:space="preserve" approved="no" translate="yes">
        <source>All service names</source>
     </trans-unit>
+    <trans-unit id="d000aa2c" xml:space="preserve" approved="no" translate="yes">
+       <source>Network of all providers</source>
+    </trans-unit>
     <trans-unit id="8efb646a" xml:space="preserve" approved="no" translate="yes">
        <source>Prices</source>
     </trans-unit>
@@ -15466,6 +15472,18 @@
     </trans-unit>
     <trans-unit id="595d2043" xml:space="preserve" approved="no" translate="yes">
        <source>Settings</source>
+    </trans-unit>
+    <trans-unit id="44fbd0d" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections in the knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="47df6fb3" xml:space="preserve" approved="no" translate="yes">
+       <source>Every collection of the catalog is listed here, a new one too; YaCy's internal collections never. Switching a collection off keeps its graph data: nothing is deleted and nothing new is read from it. Switching it on reads the pages it already has in the index. A change concerns only this collection and takes effect at once (the graph is reopened). A new vocabulary of a followed collection makes the graph read its pages again in the background. Settings keys:</source>
+    </trans-unit>
+    <trans-unit id="a36f4624" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages in the index</source>
+    </trans-unit>
+    <trans-unit id="27359d" xml:space="preserve" approved="no" translate="yes">
+       <source>Save</source>
     </trans-unit>
     <trans-unit id="cacfc622" xml:space="preserve" approved="no" translate="yes">
        <source>Loading …</source>
@@ -15655,6 +15673,9 @@
     </trans-unit>
     <trans-unit id="b7f78da5" xml:space="preserve" approved="no" translate="yes">
        <source>Followed collections</source>
+    </trans-unit>
+    <trans-unit id="7e38110a" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections switched off (data kept)</source>
     </trans-unit>
     <trans-unit id="dd192cc2" xml:space="preserve" approved="no" translate="yes">
        <source>LLM collections</source>
@@ -16151,6 +16172,27 @@
     <trans-unit id="f0b473ac" xml:space="preserve" approved="no" translate="yes">
        <source>%1 · %2 providers</source>
     </trans-unit>
+    <trans-unit id="455fd075" xml:space="preserve" approved="no" translate="yes">
+       <source>Network of %1 · %2 providers</source>
+    </trans-unit>
+    <trans-unit id="4fdfa2e" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 providers</source>
+    </trans-unit>
+    <trans-unit id="12365bce" xml:space="preserve" approved="no" translate="yes">
+       <source>Service name in the centre (no object)</source>
+    </trans-unit>
+    <trans-unit id="713b523d" xml:space="preserve" approved="no" translate="yes">
+       <source>The centre is the service name only, no object. Each provider keeps its own service with its own prices and sources.</source>
+    </trans-unit>
+    <trans-unit id="76db518e" xml:space="preserve" approved="no" translate="yes">
+       <source>All providers as a list</source>
+    </trans-unit>
+    <trans-unit id="b7a0f1a" xml:space="preserve" approved="no" translate="yes">
+       <source>this provider's own service</source>
+    </trans-unit>
+    <trans-unit id="ac0c3cca" xml:space="preserve" approved="no" translate="yes">
+       <source>Network of this service</source>
+    </trans-unit>
     <trans-unit id="84755ea2" xml:space="preserve" approved="no" translate="yes">
        <source>Services of the same name stay separate objects, each with its own provider, prices and sources.</source>
     </trans-unit>
@@ -16213,6 +16255,57 @@
     </trans-unit>
     <trans-unit id="17c5282c" xml:space="preserve" approved="no" translate="yes">
        <source>vocabulary missing</source>
+    </trans-unit>
+    <trans-unit id="9b96ccbe" xml:space="preserve" approved="no" translate="yes">
+       <source>switched off, data kept</source>
+    </trans-unit>
+    <trans-unit id="9ff" xml:space="preserve" approved="no" translate="yes">
+       <source>On</source>
+    </trans-unit>
+    <trans-unit id="efcadbec" xml:space="preserve" approved="no" translate="yes">
+       <source>Off (data kept)</source>
+    </trans-unit>
+    <trans-unit id="49514ff3" xml:space="preserve" approved="no" translate="yes">
+       <source>Default: %1</source>
+    </trans-unit>
+    <trans-unit id="cf65dafe" xml:space="preserve" approved="no" translate="yes">
+       <source>Default: no vocabulary</source>
+    </trans-unit>
+    <trans-unit id="673e5885" xml:space="preserve" approved="no" translate="yes">
+       <source>No vocabulary</source>
+    </trans-unit>
+    <trans-unit id="2c253535" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 saved; the knowledge graph was reopened with the new setting.</source>
+    </trans-unit>
+    <trans-unit id="2ac58a32" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 saved; it takes effect when the knowledge graph starts.</source>
+    </trans-unit>
+    <trans-unit id="e0710fbf" xml:space="preserve" approved="no" translate="yes">
+       <source>%1: nothing changed.</source>
+    </trans-unit>
+    <trans-unit id="2c90a216" xml:space="preserve" approved="no" translate="yes">
+       <source>The pages it already has in the index are read now.</source>
+    </trans-unit>
+    <trans-unit id="58b74a4e" xml:space="preserve" approved="no" translate="yes">
+       <source>The graph reads its pages again in the background.</source>
+    </trans-unit>
+    <trans-unit id="566d3f10" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch %1 off for the knowledge graph? Its graph data are kept, nothing new is read from it.</source>
+    </trans-unit>
+    <trans-unit id="954d04c9" xml:space="preserve" approved="no" translate="yes">
+       <source>Change the vocabulary of %1? The graph reads its pages again in the background.</source>
+    </trans-unit>
+    <trans-unit id="695c2f4" xml:space="preserve" approved="no" translate="yes">
+       <source>not in the collection catalog</source>
+    </trans-unit>
+    <trans-unit id="4c162249" xml:space="preserve" approved="no" translate="yes">
+       <source>No collection yet.</source>
+    </trans-unit>
+    <trans-unit id="26b052f7" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph for %1</source>
+    </trans-unit>
+    <trans-unit id="dfe977bd" xml:space="preserve" approved="no" translate="yes">
+       <source>Vocabulary for %1</source>
     </trans-unit>
     <trans-unit id="9b747192" xml:space="preserve" approved="no" translate="yes">
        <source>Job collections</source>

@@ -243,6 +243,40 @@ try {
         const svcRows = await page.locator('#skg-svc-rows tbody').textContent();
         check(svcRows.includes('CTcon UI GmbH') && svcRows.includes('Beta IT UI AG') && svcRows.includes(L('1 current of 1', '1 aktuell von 1')), 'each row its own prices' + where);
         check(await noOverflow(page), 'no horizontal overflow (services across providers)' + where);
+        check((await page.locator('#skg-svc-network').getAttribute('href')).includes('group=SAP'), 'the network of all providers from the rows' + where);
+        // package 6.2: the network of all providers of the name; its centre is the name only, each line names its provider's own service
+        await page.locator('#skg-svc-network').click();
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        const gcentre = page.locator('#skg-net-svg .skg-node.skg-center');
+        check(await gcentre.getAttribute('data-type') === 'service_group' && await gcentre.getAttribute('data-node') === 'service_group:sap'
+          && (await gcentre.textContent()).includes('SAP'), 'a virtual centre for the name' + where);
+        check(await page.locator('#skg-net-svg .skg-node:not(.skg-center)').count() === 2
+          && await page.locator(`#skg-net-svg .skg-node[data-node="${ctcon}"]`).count() === 1, 'both providers of kgb, CTcon among them' + where);
+        check(await page.locator('#skg-net-svg .skg-edge[data-type="offers"][data-to="service_group:sap"]').count() === 2, 'provider → offers → SAP, one line each' + where);
+        check(!(await page.locator('#skg-net-svg').textContent()).includes('Gamma'), 'no provider of another collection' + where);
+        check(await page.locator('#skg-depth').isHidden() && await page.locator('#skg-f-offers').isHidden() && await page.locator('#skg-f-current').isVisible(),
+          'only the status filter applies' + where);
+        check((await page.locator('#skg-network-title').textContent()).includes(L('Network of SAP · 2 providers', 'Netz von SAP · 2 Anbieter')), 'title of the name' + where);
+        const gbox = await page.locator('#skg-net-svg').boundingBox();
+        check(gbox.width <= width, 'the drawing fits the width: ' + JSON.stringify(gbox) + where);
+        if (width < 640) check(await page.locator('#skg-net-svg').getAttribute('data-layout') === 'layered', 'layered on a narrow screen (name)' + where);
+        check(await noOverflow(page), 'no horizontal overflow (network of a name)' + where);
+        const gtable = await page.locator('#skg-net-table tbody').textContent();
+        check(gtable.includes(L("this provider's own service", 'eigene Leistung dieses Anbieters')) && gtable.includes('CTcon UI GmbH') && gtable.includes('Beta IT UI AG'),
+          "the list names each line's own service" + where);
+        await page.locator(`#skg-net-svg .skg-edge[data-from="${ctcon}"]`).focus();
+        await page.waitForSelector('#skg-net-detail:not([hidden])');
+        const gline = await page.locator('#skg-net-detail').textContent();
+        check(gline.includes(L("this provider's own service", 'eigene Leistung dieses Anbieters')) && gline.includes(L('1 current of 1', '1 aktuell von 1')),
+          "a line: its provider's own service with its own prices" + where);
+        check((await page.locator('#skg-net-detail .skg-detail-actions a').first().getAttribute('href')).includes('id=' + sap), "a line opens CTcon's own SAP" + where);
+        await gcentre.focus();
+        await page.waitForSelector('#skg-net-detail:not([hidden])');
+        const gdetail = await page.locator('#skg-net-detail').textContent();
+        check(gdetail.includes(L('All providers as a list', 'Alle Anbieter als Liste')) && await page.locator('#skg-net-detail .skg-detail-actions a').count() === 1,
+          'the centre is no object: its counts and the list only' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-sap-group-network-${language}-${width}.png`), fullPage: true });
+        check(await noIdAsName(page), 'no technical ID as a name in the network of a name' + where);
         await page.goto(base + '/ScoutroKnowledge_p.html?view=services&collection=kgb', { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-svc-groups tbody tr');
         check((await page.locator('#skg-svc-groups tbody').textContent()).includes('SAP'), 'the groups of every service name' + where);
@@ -315,6 +349,16 @@ try {
         await page.goto(base + '/ScoutroKnowledge_p.html?view=settings', { waitUntil: 'networkidle' });
         await page.waitForFunction(() => document.querySelector('#skg-config').children.length > 0);
         check((await page.locator('#skg-config').textContent()).includes('kga'), 'settings show the LLM collection' + where);
+        // package 6.2: the knowledge graph settings of every collection of the catalog
+        await page.waitForSelector('#skg-kgc tbody tr[data-collection]');
+        const kgcRows = await page.locator('#skg-kgc tbody tr[data-collection]').evaluateAll(rs => rs.map(r => r.dataset.collection));
+        check(['kga', 'kgb', 'kgc'].every(c => kgcRows.includes(c)) && !kgcRows.some(c => c.startsWith('robot_')), 'every collection, never robot_*: ' + kgcRows + where);
+        const kgaRow = page.locator('#skg-kgc tbody tr[data-collection="kga"]');
+        check(await kgaRow.locator('select').first().inputValue() === 'on' && await kgaRow.locator('select').nth(1).inputValue() === 'care'
+          && await kgaRow.locator('button').isDisabled(), 'kga on, vocabulary care, nothing to save' + where);
+        check(await page.locator('#skg-kgc tbody tr[data-collection="kgc"] select').nth(1).inputValue() === '__default', 'kgc: the default (none)' + where);
+        check(await noOverflow(page), 'no horizontal overflow (settings)' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-settings-${language}-${width}.png`), fullPage: true });
         check(errors.length === 0, 'no JavaScript errors: ' + errors.join(', ') + where);
       } finally { await context.close(); }
     }
@@ -325,6 +369,31 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
+  // package 6.2: switch kgc off and on again through the settings; its graph data stay, switching on reads its pages again
+  {
+    const api = async p => page.evaluate(async u => { const r = await fetch(u, { credentials: 'same-origin', cache: 'no-store' }); return { status: r.status, body: await r.json() }; }, p);
+    await page.goto(base + '/ScoutroKnowledge_p.html?view=settings', { waitUntil: 'networkidle' });
+    const before = (await api('/scoutro/api/v1/kg/entities?collection=kgc&limit=100')).body.total;
+    check(before >= 1, 'kgc has objects: ' + before);
+    page.once('dialog', d => d.accept());
+    const row = () => page.locator('#skg-kgc tbody tr[data-collection="kgc"]');
+    await row().locator('select').first().selectOption('off');
+    await row().locator('button').click();
+    await page.waitForFunction(() => document.querySelector('#skg-kgc-message').textContent.includes('reopened'), null, { timeout: 60000 });
+    check(await row().getAttribute('data-state') === 'inactive', 'kgc switched off through the page');
+    const kept = await api('/scoutro/api/v1/kg/entities?collection=kgc&limit=100');
+    check(kept.status === 200 && kept.body.total === before, 'switched off: its graph data are kept (' + kept.body.total + ')');
+    const settingsOff = (await api('/scoutro/api/v1/kg/collections')).body;
+    const offRow = settingsOff.collections.find(r => r.collection === 'kgc');
+    check(offRow.inactive && !offRow.active && settingsOff.collections.find(r => r.collection === 'kga').active, 'only kgc changed: ' + JSON.stringify(offRow));
+    await row().locator('select').first().selectOption('on');
+    await row().locator('button').click();
+    await page.waitForFunction(() => document.querySelector('#skg-kgc-message').textContent.includes('read now'), null, { timeout: 60000 });
+    check(['following', 'waiting'].includes(await row().getAttribute('data-state')), 'kgc switched on again, its pages read through the start reconcile');
+    const back = await api('/scoutro/api/v1/kg/entities?collection=kgc&limit=100');
+    check(back.status === 200 && back.body.total === before, 'switched on: the same objects (' + back.body.total + ')');
+    await page.waitForFunction(async () => (await (await fetch('/scoutro/api/v1/kg/status', { credentials: 'same-origin', cache: 'no-store' })).json()).state === 'running', null, { timeout: 60000 });
+  }
   await page.goto(base + `/ScoutroSEO_p.html?host=${host}&collection=kga`, { waitUntil: 'networkidle' });
   await page.waitForSelector('#sseo-analysis:not([hidden])');
   await page.locator('#sseo-tab-knowledge').click();
@@ -390,4 +459,4 @@ try {
   check(errors.length === 0, 'no JavaScript errors in the integrations: ' + errors.join(', '));
   await context.close();
 } finally { await browser.close(); }
-console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, business view, network, services across providers, service network, collections, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);
+console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, business view, network, services across providers, service network, network of a name, collections, collection settings on/off, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);

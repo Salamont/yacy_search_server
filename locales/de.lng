@@ -6009,3 +6009,34 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >operator of the website<==>Betreiber der Website<
 >no name recognised<==>kein Name erkannt<
 >Technical ID<==>Technische ID<
+>All providers of one service name, never the whole graph. The centre is the name only, no object: every line is one provider's own offer of its own service, with that service's own prices, sources and collections. Services, prices and facts of different providers are never merged or mixed. Tap a provider or a line for its own service; the list shows each line with that service.<==>Alle Anbieter eines Leistungsnamens, nie der ganze Graph. Die Mitte ist nur der Name, kein Objekt: Jede Linie ist das eigene Angebot eines Anbieters für seine eigene Leistung, mit deren eigenen Preisen, Quellen und Collections. Leistungen, Preise und Fakten verschiedener Anbieter werden nie zusammengeführt oder vermischt. Tippen Sie auf einen Anbieter oder eine Linie für seine eigene Leistung; die Liste zeigt jede Linie mit dieser Leistung.<
+>Network of all providers<==>Netz aller Anbieter<
+>Collections in the knowledge graph<==>Collections im Wissensgraphen<
+>Every collection of the catalog is listed here, a new one too; YaCy's internal collections never. Switching a collection off keeps its graph data: nothing is deleted and nothing new is read from it. Switching it on reads the pages it already has in the index. A change concerns only this collection and takes effect at once (the graph is reopened). A new vocabulary of a followed collection makes the graph read its pages again in the background. Settings keys:<==>Jede Collection des Katalogs steht hier, auch eine neue; die internen Collections von YaCy nie. Abschalten behält die Graphdaten einer Collection: Nichts wird gelöscht und nichts Neues aus ihr gelesen. Einschalten liest die Seiten, die sie schon im Index hat. Eine Änderung betrifft nur diese Collection und wirkt sofort (der Graph wird neu geöffnet). Ein neues Vokabular einer verfolgten Collection lässt den Graphen ihre Seiten im Hintergrund neu lesen. Einstellungsschlüssel:<
+>Pages in the index<==>Seiten im Index<
+>Save<==>Speichern<
+>Collections switched off (data kept)<==>Abgeschaltete Collections (Daten bleiben)<
+>Network of %1 · %2 providers<==>Netz von %1 · %2 Anbieter<
+>%1 providers<==>%1 Anbieter<
+>Service name in the centre (no object)<==>Leistungsname in der Mitte (kein Objekt)<
+>The centre is the service name only, no object. Each provider keeps its own service with its own prices and sources.<==>Die Mitte ist nur der Leistungsname, kein Objekt. Jeder Anbieter behält seine eigene Leistung mit eigenen Preisen und Quellen.<
+>All providers as a list<==>Alle Anbieter als Liste<
+>this provider's own service<==>eigene Leistung dieses Anbieters<
+>Network of this service<==>Netz dieser Leistung<
+>switched off, data kept<==>abgeschaltet, Daten bleiben<
+>On<==>An<
+>Off (data kept)<==>Aus (Daten bleiben)<
+>Default: %1<==>Standard: %1<
+>Default: no vocabulary<==>Standard: kein Vokabular<
+>No vocabulary<==>Kein Vokabular<
+>%1 saved; the knowledge graph was reopened with the new setting.<==>%1 gespeichert; der Wissensgraph wurde mit der neuen Einstellung neu geöffnet.<
+>%1 saved; it takes effect when the knowledge graph starts.<==>%1 gespeichert; die Einstellung wirkt, sobald der Wissensgraph startet.<
+>%1: nothing changed.<==>%1: nichts geändert.<
+>The pages it already has in the index are read now.<==>Die Seiten, die sie schon im Index hat, werden jetzt gelesen.<
+>The graph reads its pages again in the background.<==>Der Graph liest ihre Seiten im Hintergrund neu.<
+>Switch %1 off for the knowledge graph? Its graph data are kept, nothing new is read from it.<==>%1 für den Wissensgraphen abschalten? Ihre Graphdaten bleiben erhalten, Neues wird nicht mehr gelesen.<
+>Change the vocabulary of %1? The graph reads its pages again in the background.<==>Das Vokabular von %1 ändern? Der Graph liest ihre Seiten im Hintergrund neu.<
+>not in the collection catalog<==>nicht im Collection-Katalog<
+>No collection yet.<==>Noch keine Collection.<
+>Knowledge graph for %1<==>Wissensgraph für %1<
+>Vocabulary for %1<==>Vokabular für %1<
