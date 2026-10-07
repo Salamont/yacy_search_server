@@ -129,10 +129,24 @@ def llm_security_checks(base, client, config, stub, chat_stub):
     check(status == 200 and authorizations == ["Bearer sk-typed-probe"], "Typed probe key not used: %s" % authorizations)
     row = {"service": "OLLAMA", "model": "chat-fixture", "hoststub": chat_stub, "api_key": ROW_SECRET, "max_tokens": "256",
            "chat": True, "tldr": False, "logreport": False, "tooling": False}
-    capabilities = {f"OLLAMA|{chat_stub}|chat-fixture": {"thinking": "unsupported", "tooling": "supported", "vision": "unsupported", "format": "unsupported"}}
+    # format_probe 2: a result of the current structured-output probe, so the page probes nothing here
+    capabilities = {f"OLLAMA|{chat_stub}|chat-fixture": {"thinking": "unsupported", "tooling": "supported", "vision": "unsupported",
+                                                          "format": "unsupported", "format_probe": 2}}
     inference = {"service": "OLLAMA", "hoststub": stub, "api_key": ""}
     status, _, _ = call("/LLMSelection_p.html", {"production_models": [row], "inference_system": inference, "model_capabilities": capabilities})
     check(status == 200 and ROW_SECRET in wait_setting("ai.production_models", lambda v: ROW_SECRET in v), "Production row key stored")
+    def stored_entry(caps, model):  # the config file writes the hoststub's slashes escaped
+        return next((v for k, v in caps.items() if k.endswith("|" + model)), None)
+
+    stored_caps = json.loads(wait_setting("ai.model_capabilities", lambda v: "format_probe" in v))
+    check((stored_entry(stored_caps, "chat-fixture") or {}).get("format_probe") == 2, "Format probe version not stored: %s" % stored_caps)
+    # a value of the old mood probe (no format_probe) is kept as stored, with the other capabilities, until a new probe
+    legacy = {"thinking": "unsupported", "tooling": "supported", "vision": "unsupported", "format": "unsupported"}
+    status, _, _ = call("/LLMSelection_p.html", {"model_capabilities": dict(capabilities, **{f"OLLAMA|{chat_stub}|legacy-fixture": legacy})})
+    stored_caps = json.loads(wait_setting("ai.model_capabilities", lambda v: "legacy-fixture" in v))
+    check(status == 200 and stored_entry(stored_caps, "legacy-fixture") == legacy, "Legacy capabilities changed: %s" % stored_caps)
+    status, _, _ = call("/LLMSelection_p.html", {"model_capabilities": capabilities})
+    wait_setting("ai.model_capabilities", lambda v: "legacy-fixture" not in v)
     check(SECRET in settings(config)["ai.inference_system"], "Empty inference api_key deleted the stored key")
     status, _, _ = call("/LLMSelection_p.html", {"production_models": [dict(row, api_key="")], "inference_system": inference})
     time.sleep(1)
@@ -228,7 +242,7 @@ def main():
                 (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
             inference = {"service": "OLLAMA", "hoststub": stub, "api_key": SECRET}
             capabilities = {f"OLLAMA|{stub}|fixture-model:latest":
-                            dict.fromkeys(["thinking", "tooling", "vision", "format"], "unsupported")}
+                            dict(dict.fromkeys(["thinking", "tooling", "vision", "format"], "unsupported"), format_probe=2)}
             config.write_text("\n".join([
                 f"port={port}", "adminAccountForLocalhost=false", "adminAccountAllPages=false",
                 "adminAccountUserName=admin", "adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c",

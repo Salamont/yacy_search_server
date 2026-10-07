@@ -596,8 +596,30 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
   - The model only proposes: no persons, no e-mail addresses, no phone numbers (contact data comes from tiers 1 and 2 only, O7); a known entity of tiers 1 and 2 is referred to by `k1`, `k2`, ...; facility kinds only from the collection's vocabulary (O2).
   - Statements supported only by the LLM tier are `uncertain` ([4.4](#44-quality-and-currency)); a claim the quote states as planned or possible is `hedged`, also when the model says otherwise (a word list).
   - A changed input deletes the document's tier-3 evidence in the tier-1/2 publish and asks again; tiers 1 and 2 never wait for tier 3.
-  - The raw HTTP response is read up to 1 MiB; an endpoint that refuses `response_format` (HTTP 400) is asked again without it and remembered.
+  - The raw HTTP response is read up to 1 MiB; an endpoint that refuses `response_format` (HTTP 400) is asked again without it and remembered (see **Structured output** below).
   - `last_error` is not used: `kg_doc.llm_status` (`done`, `failed`, `skipped`) and `llm_reason` record the outcome per input hash; `POST /kg/control {"action":"llm_retry"}` makes failed documents due again.
+
+**Structured output** (what the endpoint is asked for; `llm.structuredOutput` in `GET /kg/status`):
+
+- Every service type (OLLAMA, OPENAI, LMSTUDIO, OPENROUTER, OTHER) is called through its OpenAI-compatible `POST <hoststub>/v1/chat/completions`; Scoutro has no native Ollama `/api/chat` path, so there is no provider-native schema mode. A request carries one of: `response_format` `{"type":"json_schema","json_schema":{"name":"scoutro_knowledge_extraction","strict":true,"schema":SCHEMA}}` (the `name` is required by the OpenAI protocol; Ollama ignores it), `{"type":"json_object"}`, or none.
+- `scoutro.kg.llm.structuredOutput` (`auto` by default; `json_schema`, `json_object`, `none`) and, with `auto`, the model's "format" capability of the LLM selection (`ai.model_capabilities`, or the row's format flag) decide:
+
+  | Setting / capability | Request | `mode` |
+  | --- | --- | --- |
+  | `auto`, capability `supported` | schema | `schema_enforced` (the provider is reported to enforce it) |
+  | `auto`, capability `unknown` (never probed, or a value of the former mood probe) | schema, as before this negotiation | `schema_unverified` |
+  | `auto`, capability `ignored` (accepted but not followed in the probe) | schema | `schema_unverified` |
+  | `auto`, capability `unsupported` | none | `validator_only` (prompt and validator only) |
+  | `json_schema` | schema | `schema_enforced` if the capability is supported, else `schema_unverified` |
+  | `json_object` | JSON mode | `json_mode` (valid JSON, no schema) |
+  | `none` | none | `validator_only` |
+  | any, after the endpoint answered HTTP 400 to a format | none | `fallback_after_rejection` |
+
+- An HTTP 400 to a request with a format is asked once more without it; if that answer comes, the endpoint and model are remembered (until the restart) and every later request goes without a format. The rejection is counted (`rejections`, `lastRejection` `{code: "http_400", at}`) and shown; a retry that fails too ends the call as a transport failure, nothing loops.
+- The "format" capability is a technical structured-output test of the LLM selection page (help/LLMSelection_p.md, `htroot/env/scoutro/format-probe.js`, version 2): a closed one-field schema whose only value the prompt does not name. `supported` = HTTP 200 and exactly that object; `unsupported` = HTTP 400/422 with the schema while the same request without it is answered; `ignored` = accepted (200) but not followed; anything else (network, timeout, 5xx, 401/403/404/405/429) gives no result and stores nothing. It counts only with `format_probe: 2` (`LLM.formatCapability`); the row's format flag is the displayed result, not a probe of its own.
+- A value of the former mood probe (up to Scoutro 0.8.3, no `format_probe`: an invalid schema type `literal`, and a wrong mood counted as unsupported) is read as `unknown`, so `auto` sends the schema as before (`schema_unverified`) and never turns it off on that value. The stored value stays until the LLM selection page is opened, which tests the model again; no probe runs on its own. Only a current `unsupported` (the endpoint refused the schema) leads `auto` to `validator_only`. The setting overrides the capability either way; a forced `json_schema` is never shown as enforced unless the current capability is `supported`.
+- `llm.structuredOutput`: `setting`, `capability`, `mode`, `request` (`json_schema`, `json_object`, `none`), `reason` (`capability_supported`, `capability_unknown`, `capability_ignored`, `capability_unsupported`, `setting`, `http_400`), `withoutSchema`, `requests` per format (HTTP requests, a fallback retry included), `rejections`, `lastRejection`. In memory since the start, reset by a restart; no answer, host, key or URL.
+- The validator decides in every mode: the same rules, the same quotes, the same counters. The mode is transport only: it is no part of the extractor identity (`NAME`/`VERSION`/`PROMPT_HASH`), of the cache key or of the LLM selection, so a changed setting or capability invalidates no cache entry and re-examines no document.
 
 **Counters** (`llm.processed` in `GET /kg/status`; the LLM tier panel of the overview):
 
@@ -1059,6 +1081,7 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 | `queue.maxItems`, `capture.maxPending` | 200 000, 100 000 | no |
 | `extract.maxStatementsPerDoc`, `extract.maxExcerptChars`, `extract.maxRuleInputChars` (tier 2), `extract.maxInputChars` (LLM, 2b) | 50, 200, 65 536, 12 000 | advanced |
 | `llm.parallel`, `llm.timeoutSeconds`, `llm.maxAttempts`, `llm.breakerFailures`, `llm.breakerMaxBackoffMinutes`, `llm.maxDocsPerHost` | 1, 120, 2, 3, 60, 25 | advanced |
+| `llm.structuredOutput` (`auto`, `json_schema`, `json_object`, `none`) | auto | advanced |
 | `gate.maxIndexingQueue`, `gate.maxLoad`, `gate.minFreeHeapMB` | 20, 2.5, 256 | advanced |
 | `source.*`, `changes.*`, `cache.maxPercent` | [7.2](#72-settings) | advanced |
 | `reconcile.hour`, `reconcile.debounceSeconds`, `reconcile.maxDeleteFraction`, `reconcile.brakeMinDocs` | 3, 300, 0.2, 50 | advanced |

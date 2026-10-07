@@ -84,6 +84,21 @@ public class LlmServiceTest {
             return this.name;
         }
 
+        /** The structured-output setting of the last call. */
+        volatile String structuredOutput;
+
+        @Override
+        public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis,
+                final String setting) throws IOException {
+            this.structuredOutput = setting;
+            return complete(system, user, schema, timeoutMillis);
+        }
+
+        @Override
+        public JSONObject structuredOutput(final String setting) {
+            return net.yacy.scoutro.knowledge.KgJson.obj("setting", setting, "mode", "fake");
+        }
+
         @Override
         public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis)
                 throws IOException {
@@ -374,6 +389,10 @@ public class LlmServiceTest {
         final JSONObject st = this.llm.status();
         assertEquals(1L, st.getJSONObject("processed").getLong("droppedUngrounded"));
         assertEquals(1L, st.getJSONObject("processed").getLong("published"));
+        // the structured-output setting reaches the client; its state is part of the status
+        assertEquals("auto", this.model.structuredOutput);
+        assertEquals("auto", st.getJSONObject("structuredOutput").getString("setting"));
+        assertEquals("fake", st.getJSONObject("structuredOutput").getString("mode"));
         // the items of the answer: the claim about the dropped holding is invalid (its object was not accepted)
         final JSONObject p = st.getJSONObject("processed");
         assertEquals(3L, p.getLong("entitiesAccepted"));
@@ -634,6 +653,16 @@ public class LlmServiceTest {
         assertTrue(ok.llmFollows("edelsenior-web"));
         assertTrue("start vocabulary of the collection", ok.llmKinds(List.of("edelsenior-web")).contains("nursinghome"));
         assertTrue(ok.llmKinds(List.of("c1")).isEmpty());
+        assertEquals("auto", ok.llmStructuredOutput);
+        for (final String v : List.of("auto", "json_schema", "json_object", "none")) {
+            final KgConfig so = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1", KgConfig.LLM_STRUCTURED_OUTPUT, v));
+            assertTrue(so.problems().toString(), so.valid());
+            assertEquals(v, so.llmStructuredOutput);
+        }
+        final KgConfig badSo = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1", KgConfig.LLM_STRUCTURED_OUTPUT, "JSON"));
+        assertFalse(badSo.valid());
+        assertTrue(badSo.problems().toString(), badSo.problems().toString().contains(KgConfig.LLM_STRUCTURED_OUTPUT));
+        assertEquals("auto", badSo.llmStructuredOutput);
         final Map<String, String> s = KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1", KgConfig.LLM_COLLECTIONS, "c1,c9");
         assertEquals("[\"c9\"]", KgTestSupport.config(s).toJson().getJSONArray("llmIgnoredCollections").toString());
     }

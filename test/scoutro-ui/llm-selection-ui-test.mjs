@@ -53,6 +53,22 @@ try {
         check(await page.locator('#availableModelsContainer button[data-action="deploy-model"]').first().isEnabled(), `${language}/${width}: Deploy enabled`);
         check(!await page.locator('#modelDiscoveryStatus').isVisible(), `${language}/${width}: success clears status`);
         check(errors.length === 0, `${language}/${width}: JavaScript errors: ${errors.join(', ')}`);
+        // the format capability: the technical probe of format-probe.js; a value without format_probe (the mood probe) is unknown
+        const formatReading = await page.evaluate(stub => {
+          const fixture = getPersistedCapabilitiesForModel('OLLAMA', stub, 'fixture-model:latest');
+          persistedModelCapabilities['OLLAMA|' + stub + '|legacy'] = { thinking: 'supported', tooling: 'unsupported', vision: 'unsupported', format: 'unsupported' };
+          const legacy = getPersistedCapabilitiesForModel('OLLAMA', stub, 'legacy');
+          setPersistedCapability('OLLAMA', stub, 'legacy', 'format', 'ignored');
+          const probed = getPersistedCapabilitiesForModel('OLLAMA', stub, 'legacy');
+          const entry = persistedModelCapabilities['OLLAMA|' + stub + '|legacy'];
+          delete persistedModelCapabilities['OLLAMA|' + stub + '|legacy'];
+          return { version: typeof ScoutroFormatProbe === 'object' ? ScoutroFormatProbe.VERSION : null, fixture, legacy, probed, entry };
+        }, stub);
+        check(formatReading.version === 2 && formatReading.fixture.format === 'unsupported', `${language}/${width}: current format result read: ${JSON.stringify(formatReading)}`);
+        check(formatReading.legacy.format === 'unknown' && formatReading.legacy.thinking === 'supported' && formatReading.legacy.tooling === 'unsupported',
+          `${language}/${width}: a mood-probe value is unknown, the other capabilities unchanged: ${JSON.stringify(formatReading.legacy)}`);
+        check(formatReading.probed.format === 'ignored' && formatReading.entry.format_probe === 2 && formatReading.entry.thinking === 'supported',
+          `${language}/${width}: a new result is stored with its probe version: ${JSON.stringify(formatReading.entry)}`);
         if (language !== 'de') continue;
         check((await page.locator('h2').textContent()).trim() === 'LLM-Auswahl', `${width}: actual German translation`);
         await page.locator('#availableModelsContainer button[data-action="deploy-model"]').first().click();

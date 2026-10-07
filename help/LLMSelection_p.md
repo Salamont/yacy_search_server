@@ -58,6 +58,31 @@ The production matrix uses the existing Scoutro horizontal scroll container,
 cleared below its card heading so the table remains visible even when the
 capability-test activity block is hidden.
 
+### Format capability (structured output)
+
+The **format** column is a technical test only: does the endpoint and model
+accept and follow a JSON schema (`response_format` `json_schema`)? The page
+asks once with the schema
+`{"type":"object","properties":{"result":{"type":"string","enum":["ok"]}},"required":["result"],"additionalProperties":false}`
+and the prompt "Return the required JSON object." (no task, no answer in the
+prompt; `htroot/env/scoutro/format-probe.js`):
+
+- **yes** (`supported`): HTTP 200 and exactly `{"result":"ok"}`;
+- **no** (`unsupported`): HTTP 400 or 422 with the schema while the same
+  request without it is answered;
+- **ignored**: HTTP 200, but the answer is not that object (extra field,
+  other value, prose): the parameter is accepted, not followed;
+- **?** (`unknown`): no clear answer (network, timeout, 401/403/404/405/429,
+  5xx, or a request that fails without the schema too). Nothing is stored and
+  the next visit asks again.
+
+The result is stored in `ai.model_capabilities` with `format_probe: 2`. A
+format value without it comes from the former mood probe (an invalid schema
+type `literal`, and a wrong mood counted as "no") and is read as **?**: the
+page tests that model again the next time the LLM selection is opened, and
+the knowledge graph treats it as unknown until then. Thinking, tooling and
+vision are not affected. No probe runs without the page open.
+
 ## Automation And API
 
 Page backend: `source/net/yacy/htroot/LLMSelection_p.java`.

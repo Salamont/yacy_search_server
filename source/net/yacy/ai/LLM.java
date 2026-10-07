@@ -81,6 +81,12 @@ public class LLM {
         public String model;
         public boolean tooling;
         public boolean thinking;
+        /**
+         * The "format" capability of the selection, a result of the current structured-output probe only
+         * ({@link #formatCapability(JSONObject)}): {@code supported}, {@code unsupported}, {@code ignored} or
+         * {@code unknown}. Informative for most usages; the knowledge usage negotiates its structured output with it.
+         */
+        public String formatCapability = "unknown";
         public LLMModel(LLM llm, String model, boolean tooling, boolean thinking) {
             this.llm = llm;
             this.model = model;
@@ -158,8 +164,8 @@ public class LLM {
                     final LLMType type = LLMType.valueOf(row.optString("service", "OLLAMA"));
                     boolean tooling = row.optBoolean("tooling", false);
                     boolean thinking = row.optBoolean("thinking", false);
+                    final JSONObject capabilityEntry = model_capabilities.optJSONObject(capabilityKey(type, hoststub, model));
                     if (!tooling || !thinking) {
-                        final JSONObject capabilityEntry = model_capabilities.optJSONObject(capabilityKey(type, hoststub, model));
                         if (capabilityEntry != null) {
                             if (!tooling) tooling = "supported".equals(capabilityEntry.optString("tooling", ""));
                             if (!thinking) thinking = "supported".equals(capabilityEntry.optString("thinking", ""));
@@ -168,6 +174,8 @@ public class LLM {
                     final int num_ctx = serviceNumCtx(sb, hoststub);
                     LLM llm = new LLM(hoststub, api_key, max_tokens, num_ctx, type);
                     LLMModel llmmodel = new LLMModel(llm, model, tooling, thinking);
+                    // the row's format flag is only the displayed probe result of the page: not a result of its own
+                    llmmodel.formatCapability = formatCapability(capabilityEntry);
                     if (logRouting) {
                         log.info(routePrefix(runId, caller) + "event=model-routing phase=select usage=" + llmUsage + " row=" + i + " service=" + type.name() + " model=" + LogRedaction.redact(model) + " backend=" + LogRedaction.redact(llm.hoststub) + " maxTokens=" + llm.max_tokens + " numCtx=" + llm.num_ctx + " tooling=" + tooling + " thinking=" + thinking + " productionRows=" + production_models.length() + " durationMs=" + elapsed(start));
                     }
@@ -242,6 +250,28 @@ public class LLM {
         } catch (JSONException e) {
             return new JSONObject(true);
         }
+    }
+
+    /**
+     * Version of the "format" probe of the LLM selection (htroot/env/scoutro/format-probe.js), stored with its result
+     * as {@code format_probe}. Version 2 is a technical structured-output test; a format value without it comes from
+     * the mood probe up to Scoutro 0.8.3 (an invalid schema type, and a wrong mood counted as unsupported).
+     */
+    public static final int FORMAT_PROBE_VERSION = 2;
+
+    /** A stored capability value as {@code supported}, {@code unsupported}, {@code ignored} or {@code unknown}. */
+    public static String capabilityStatus(final String value) {
+        final String v = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+        return "supported".equals(v) || "unsupported".equals(v) || "ignored".equals(v) ? v : "unknown";
+    }
+
+    /**
+     * The format capability of an entry of {@code ai.model_capabilities}: its value only if it was found by the
+     * current probe version ({@code format_probe}), else {@code unknown}. Thinking, tooling and vision are not affected.
+     */
+    public static String formatCapability(final JSONObject capabilityEntry) {
+        if (capabilityEntry == null || capabilityEntry.optInt("format_probe", 0) != FORMAT_PROBE_VERSION) return "unknown";
+        return capabilityStatus(capabilityEntry.optString("format", ""));
     }
 
     public static boolean isCapabilitySupported(final LLMType type, final String hoststub, final String model, final String capabilityName) {
@@ -432,6 +462,31 @@ public class LLM {
      */
     public String chat(final String model, final Context context, JSONObject schema, final int max_tokens,
             final int readTimeoutMillis, final int maxResponseChars) throws IOException {
+        final JSONObject response_format;
+        try {
+            if (schema != null) {
+                JSONObject json_schema = new JSONObject(true);
+                json_schema.put("strict", true);
+                json_schema.put("schema", schema);
+                response_format = new JSONObject();
+                response_format.put("type", "json_schema");
+                response_format.put("json_schema", json_schema);
+            } else {
+                response_format = null;
+            }
+        } catch (JSONException e) {
+            throw new IOException(e.getMessage());
+        }
+        return chatWithResponseFormat(model, context, response_format, max_tokens, readTimeoutMillis, maxResponseChars);
+    }
+
+    /**
+     * Like {@link #chat(String, Context, JSONObject, int, int, int)}, with the complete OpenAI
+     * {@code response_format} object of the caller ({@code json_schema}, {@code json_object}) sent
+     * as it is, or none for null. The caller decides what the endpoint can be asked for.
+     */
+    public String chatWithResponseFormat(final String model, final Context context, final JSONObject response_format,
+            final int max_tokens, final int readTimeoutMillis, final int maxResponseChars) throws IOException {
         final JSONObject data = new JSONObject();
         
         try {
@@ -449,13 +504,7 @@ public class LLM {
             data.put("stream", false);
             applyNoThinkingParameters(data);
 
-            if (schema != null) {
-                JSONObject json_schema = new JSONObject(true);
-                json_schema.put("strict", true);
-                json_schema.put("schema", schema);
-                JSONObject response_format = new JSONObject();
-                response_format.put("type", "json_schema");
-                response_format.put("json_schema", json_schema);            
+            if (response_format != null) {
                 data.put("response_format", response_format);
             }
             

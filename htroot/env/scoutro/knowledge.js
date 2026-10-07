@@ -216,8 +216,12 @@
       ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
       ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
-    const l = s.llm || {}, lp = l.processed || {};
-    stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')], ['queue', l.queue?.items],
+    const l = s.llm || {}, lp = l.processed || {}, so = l.structuredOutput && typeof l.structuredOutput === 'object' ? l.structuredOutput : null;
+    stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')],
+      ['structured_output', so?.mode ? t('so_mode_' + so.mode) + (so.capability ? ' · ' + t('so_cap_' + so.capability) : '') : null],
+      ['so_requests', so?.requests ? t('so_requests_value').replace('%1', fmt(so.requests.json_schema)).replace('%2', fmt(so.requests.json_object))
+        .replace('%3', fmt(so.requests.none)).replace('%4', fmt(so.rejections)) : null],
+      ['queue', l.queue?.items],
       ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', lp.calls],
       ['llm_accepted', lp.entitiesAccepted == null ? null : [lp.entitiesAccepted, lp.claimsAccepted, lp.valuesAccepted].map(fmt).join(' · ')],
       ['dropped', lp.droppedUngrounded], ['dropped_invalid', lp.droppedInvalid], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);

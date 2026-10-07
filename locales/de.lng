@@ -5654,6 +5654,18 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >only from the LLM tier<==>nur aus der LLM-Stufe<
 >Dropped as not quoted<==>Verworfen, weil nicht zitiert<
 >Dropped as invalid<==>Verworfen, weil ungültig<
+>Structured output<==>Strukturierte Ausgabe<
+>Schema enforced by the provider<==>Schema vom Anbieter erzwungen<
+>Schema sent, enforcement not confirmed<==>Schema gesendet, Erzwingung nicht bestätigt<
+>JSON only, no schema<==>Nur JSON, kein Schema<
+>Validator only, no format sent<==>Nur Prompt und Prüfung, kein Format gesendet<
+>Fallback after rejection (HTTP 400)<==>Ersatzweg nach Ablehnung (HTTP 400)<
+>format capability supported<==>Fähigkeit format unterstützt<
+>format capability unsupported<==>Fähigkeit format nicht unterstützt<
+>format capability unknown<==>Fähigkeit format unbekannt<
+>format capability ignored (schema accepted, not followed)<==>Fähigkeit format ignoriert (Schema angenommen, nicht befolgt)<
+>Requests by format<==>Anfragen nach Format<
+>%1 with schema · %2 JSON only · %3 without format · %4 rejected<==>%1 mit Schema · %2 nur JSON · %3 ohne Format · %4 abgelehnt<
 >Accepted entities · claims · values<==>Übernommene Entitäten · Aussagen · Werte<
 >Calls and items count since the last start of Scoutro; every restart resets them.<==>Aufrufe und Elemente zählen seit dem letzten Start von Scoutro (seit Pod-Start); jeder Neustart setzt sie zurück.<
 >Invalid items by reason (since the last start)<==>Ungültige Elemente nach Grund (seit dem letzten Start)<

@@ -579,7 +579,7 @@ public final class LlmService {
                 this.counters.calls.incrementAndGet();
                 answer = this.client.complete(LlmExtractor.SYSTEM_PROMPT,
                         LlmExtractor.userPrompt(new PromptGuard(), chunk, title, domain, d.language, known, kinds),
-                        LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis);
+                        LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis, this.cfg.llmStructuredOutput);
             } catch (final IOException e) {
                 this.counters.callMillis.addAndGet(Math.max(0L, this.clock.getAsLong() - t0));
                 transportFailure(item, row.inputHash, e);
@@ -769,7 +769,8 @@ public final class LlmService {
                 "documents", KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2]),
                 "cache", KgJson.obj("entries", this.cacheEntries, "bytes", this.cacheBytes < 0L ? null : this.cacheBytes,
                         "maxBytes", this.cfg.cacheMaxBytes()),
-                "breaker", this.breaker.status(), "processed", this.counters.json(), "lastError", this.lastError);
+                "breaker", this.breaker.status(), "processed", this.counters.json(),
+                "structuredOutput", this.client.structuredOutput(this.cfg.llmStructuredOutput), "lastError", this.lastError);
     }
 
     /** True while a call or a step may be running (tests). */

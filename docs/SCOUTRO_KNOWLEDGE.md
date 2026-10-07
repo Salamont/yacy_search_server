@@ -223,6 +223,18 @@ A changed vocabulary re-extracts the pages at low priority.
   it and are diagnostics only, no model answer is stored for them (codes:
   `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, 6.3). `valuesAccepted` counts the
   accepted values (prices, categories, ...).
+- **Structured output.** With `scoutro.kg.llm.structuredOutput=auto` (the
+  default) the model's "format" capability of the LLM selection decides what
+  the endpoint is asked for: supported sends the JSON schema, unsupported
+  (the endpoint refused it in the current technical probe) sends none
+  (prompt and validator only), ignored and unknown send the schema as
+  before. A value of the former mood probe counts as unknown until the LLM
+  selection page tests the model again. `json_schema`, `json_object` (JSON mode) and `none` override it.
+  An endpoint that rejects the format (HTTP 400) is asked again without it;
+  the panel shows **Structured output** (for example *Schema sent,
+  enforcement not confirmed* or *Fallback after rejection*) and the
+  requests by format. The validator checks every answer the same way in
+  every mode; existing cache entries stay valid (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
 - **Kinds per collection (O2).** The facility kinds the model may assign come
   from `scoutro.kg.llm.kinds.<collection>`, a comma-separated list such as
   `nursinghome,assistedliving`. Start lists exist for the four Scoutro

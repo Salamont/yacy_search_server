@@ -37,12 +37,32 @@ public interface LlmClient {
     /**
      * One blocking chat completion with the configured output limit of the model.
      *
-     * @param schema        JSON schema for the answer (sent as {@code response_format}); null for none
+     * @param schema        JSON schema for the answer (sent as {@code response_format} where negotiated); null for none
      * @param timeoutMillis read timeout of the call
      * @return the assistant's content
      * @throws IOException timeout, connection or HTTP error (a transport failure for the circuit breaker)
      */
     String complete(String system, String user, JSONObject schema, long timeoutMillis) throws IOException;
+
+    /**
+     * {@link #complete(String, String, JSONObject, long)} with the setting
+     * {@code scoutro.kg.llm.structuredOutput} ({@code auto}, {@code json_schema},
+     * {@code json_object}, {@code none}): what the endpoint is asked for is
+     * negotiated per model (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3). The answer is
+     * validated the same way in every mode.
+     */
+    default String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis,
+            final String structuredOutput) throws IOException {
+        return complete(system, user, schema, timeoutMillis);
+    }
+
+    /**
+     * The structured-output state of the selected model for the status (capability, mode, counters since the
+     * start; no answer, host or key), or null where the client negotiates nothing.
+     */
+    default JSONObject structuredOutput(final String structuredOutput) {
+        return null;
+    }
 
     /** No model is ever selected (tests, environments without Scoutro's LLM configuration). */
     LlmClient NONE = new LlmClient() {
