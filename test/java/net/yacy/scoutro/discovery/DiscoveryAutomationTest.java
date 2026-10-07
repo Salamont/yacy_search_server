@@ -157,6 +157,126 @@ public class DiscoveryAutomationTest {
         JsonObject root = this.service.store.read(); JobStore.job(root, first).getJSONObject("runtime").put("last_served", 100);
         assertEquals(second, DiscoveryService.choose(root, this.now.get()).getJSONObject("definition").getString("id"));
     }
+    // An empty batch (processed=0, completed cleanly) does not use up the wakeup; the next due job is chosen at once.
+    private final java.util.Map<String, JsonObject> answers = new java.util.HashMap<>();
+    private final java.util.List<String> ran = new java.util.ArrayList<>();
+    /** Answers per job name; a job without one starts a crawl: real work, its run stays open for the crawler. */
+    private void answersByName() {
+        this.runner = (a, b, c, init, h, t) -> {
+            if (!"run".equals(init.getString("operation"))) return new JsonObject();
+            final String name = init.getJSONObject("job").getString("name");
+            this.ran.add(name);
+            final JsonObject answer = this.answers.get(name);
+            if (answer != null) return new JsonObject(answer.toString());
+            try {
+                h.request("crawl", new JsonObject().put("domain", "example.com").put("url", "https://example.com/"));
+                return new JsonObject().put("report", new JsonObject().put("processed", 1));
+            } catch (ApiException e) { return new JsonObject().put("error", e.code()); }
+        };
+    }
+    private static JsonObject processed(int n) { return new JsonObject().put("report", new JsonObject().put("processed", n).put("sources", new JsonObject())); }
+    private String due(String name, long nextDue) throws Exception {
+        final String id = create(name);
+        this.service.store.change(null, root -> JobStore.job(root, id).getJSONObject("runtime").put("next_due", nextDue));
+        return id;
+    }
+    private JsonObject runtime(String id) throws Exception { return JobStore.job(this.service.store.read(), id).getJSONObject("runtime"); }
+    private java.util.List<String> history() {
+        final java.util.List<String> names = new java.util.ArrayList<>();
+        for (Object run : this.service.store.read().getJSONArray("history")) names.add(((JsonObject) run).getString("job_name"));
+        return names;
+    }
+    @Test public void anEmptyBatchLetsTheNextDueJobStartInTheSameWakeup() throws Exception {
+        answersByName(); this.answers.put("Empty", processed(0)); open();
+        final String empty = due("Empty", 1), work = due("Work", 2); enable();
+        this.service.advance();
+        assertEquals(java.util.List.of("Empty", "Work"), this.ran);
+        assertEquals(1, this.backend.starts); assertEquals(work, active().getString("job_id"));
+        // the empty job ran normally: history with its report, last_run, next_due and last_served updated
+        assertEquals(java.util.List.of("Empty"), history());
+        final JsonObject last = this.service.store.read().getJSONArray("history").getJSONObject(0);
+        assertEquals("completed", last.getString("phase")); assertEquals(0, last.getJSONObject("report").getInt("processed"));
+        assertEquals(this.now.get() + 3600000, runtime(empty).getLong("next_due"));
+        assertEquals(this.now.get(), runtime(empty).getLong("last_served"));
+        assertEquals(empty, runtime(empty).getJSONObject("last_run").getString("job_id"));
+        assertEquals(this.now.get() + 3600000, runtime(work).getLong("next_due"));
+    }
+    @Test public void severalEmptyJobsInARowUntilOneHasWork() throws Exception {
+        answersByName(); for (String name : new String[] {"E1", "E2", "E3"}) this.answers.put(name, processed(0)); open();
+        final String e1 = due("E1", 1), e2 = due("E2", 2), e3 = due("E3", 3); due("Work", 4); enable();
+        this.service.advance();
+        assertEquals(java.util.List.of("E1", "E2", "E3", "Work"), this.ran);
+        assertEquals(java.util.List.of("E1", "E2", "E3"), history()); assertEquals(1, this.backend.starts);
+        for (String id : new String[] {e1, e2, e3}) assertEquals(this.now.get() + 3600000, runtime(id).getLong("next_due"));
+    }
+    @Test public void aFixedLimitOfEmptyBatchesPerWakeup() throws Exception {
+        answersByName(); open();
+        final java.util.List<String> ids = new java.util.ArrayList<>();
+        for (int i = 1; i <= DiscoveryService.EMPTY_BATCHES_PER_WAKEUP + 2; i++) { this.answers.put("E" + i, processed(0)); ids.add(due("E" + i, i)); }
+        enable();
+        this.service.advance();
+        assertEquals(DiscoveryService.EMPTY_BATCHES_PER_WAKEUP, this.ran.size());
+        assertEquals(DiscoveryService.EMPTY_BATCHES_PER_WAKEUP, history().size());
+        // the jobs after the limit are still due, unchanged, for the next heartbeat
+        assertEquals(DiscoveryService.EMPTY_BATCHES_PER_WAKEUP + 1, runtime(ids.get(DiscoveryService.EMPTY_BATCHES_PER_WAKEUP)).getLong("next_due"));
+        this.service.advance();
+        assertEquals(DiscoveryService.EMPTY_BATCHES_PER_WAKEUP + 2, this.ran.size());
+        this.service.advance(); // nothing is due any more: no job runs twice
+        assertEquals(DiscoveryService.EMPTY_BATCHES_PER_WAKEUP + 2, this.ran.size());
+    }
+    @Test public void aBatchThatProcessedSomethingEndsTheWakeup() throws Exception {
+        answersByName(); this.answers.put("Checked", processed(2)); this.answers.put("Empty", processed(0)); open();
+        due("Checked", 1); due("Empty", 2); due("Work", 3); enable();
+        this.service.advance(); // processed=2 without a crawl start: completed, but it did work
+        assertEquals(java.util.List.of("Checked"), this.ran); assertTrue(this.service.store.read().isNull("active_run"));
+        this.service.advance(); // Empty, then Work with a crawl that keeps running: the wakeup ends there
+        assertEquals(java.util.List.of("Checked", "Empty", "Work"), this.ran);
+        assertEquals(1, this.backend.starts); assertEquals("waiting_for_crawler", active().getString("phase"));
+        this.service.advance(); // the open run is reconciled; nothing else is chosen
+        assertEquals(3, this.ran.size());
+    }
+    @Test public void errorsWaitingReasonsAndUnknownSubmissionsAreNeverPassedOver() throws Exception {
+        answersByName(); open();
+        this.answers.put("Failing", new JsonObject().put("error", "source_or_protocol_error").put("report", new JsonObject().put("processed", 0)));
+        this.answers.put("Capacity", new JsonObject().put("report", new JsonObject().put("processed", 0).put("waiting_reason", "paused_or_capacity")));
+        this.answers.put("NoReport", new JsonObject());
+        due("Failing", 1); due("Capacity", 2); due("NoReport", 3); due("Lost", 4); due("Work", 5); enable();
+        this.service.advance(); assertEquals(java.util.List.of("Failing"), this.ran);
+        this.service.advance(); assertEquals(java.util.List.of("Failing", "Capacity"), this.ran);
+        this.service.advance(); assertEquals(java.util.List.of("Failing", "Capacity", "NoReport"), this.ran);
+        // an unknown submission: the run needs reconciliation and then review; nothing else is started meanwhile
+        this.backend.loseReply = true; this.backend.retain = false;
+        this.service.advance(); assertEquals(java.util.List.of("Failing", "Capacity", "NoReport", "Lost"), this.ran);
+        assertEquals("needs_reconcile", active().getString("phase"));
+        this.service.advance(); this.service.advance();
+        assertEquals("needs_review", active().getString("phase")); assertEquals(4, this.ran.size()); assertEquals(1, this.backend.starts);
+    }
+    @Test public void pausedAndDisabledJobsStayExcluded() throws Exception {
+        answersByName(); open();
+        for (String name : new String[] {"Empty", "Paused", "Disabled"}) this.answers.put(name, processed(0));
+        due("Empty", 1); final String paused = due("Paused", 2), disabled = due("Disabled", 3); due("Work", 4); enable();
+        this.service.store.change(null, root -> {
+            JobStore.job(root, paused).getJSONObject("definition").put("paused", true);
+            JobStore.job(root, disabled).getJSONObject("definition").put("enabled", false);
+        });
+        this.service.advance();
+        assertEquals(java.util.List.of("Empty", "Work"), this.ran);
+        assertEquals(2, runtime(paused).getLong("next_due")); assertEquals(3, runtime(disabled).getLong("next_due"));
+    }
+    @Test public void aGlobalPauseDuringAnEmptyBatchEndsTheWakeup() throws Exception {
+        answersByName(); this.answers.put("Empty", processed(0));
+        final DiscoveryService.Runner inner = this.runner;
+        this.runner = (a, b, c, init, h, t) -> {
+            final JsonObject answer = inner.run(a, b, c, init, h, t);
+            this.service.store.change(null, root -> root.put("paused", true));
+            return answer;
+        };
+        open(); final String empty = due("Empty", 1), work = due("Work", 2); enable();
+        this.service.advance();
+        assertEquals(java.util.List.of("Empty"), this.ran); assertEquals(java.util.List.of("Empty"), history());
+        assertEquals(this.now.get() + 3600000, runtime(empty).getLong("next_due")); assertEquals(2, runtime(work).getLong("next_due"));
+        assertEquals(0, this.backend.starts);
+    }
     @Test public void acceptedIntentPrecedesEffectAndRecoveryNeverResubmits() throws Exception {
         open(); create("Job"); enable(); this.backend.before = () -> assertEquals("prepared", active().getJSONArray("attempts").getJSONObject(0).getString("state"));
         this.service.advance(); assertEquals(1, this.backend.starts); assertFalse(active().getJSONArray("attempts").getJSONObject(0).getBoolean("state_applied"));
