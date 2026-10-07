@@ -54,7 +54,8 @@ try {
     check((await page.locator('#scc-collection option').evaluateAll(list => list.map(o => o.value))).filter(v => v === id).length === 1, 'a duplicate adds no option' + where);
     await page.locator('#scoutro-collection-cancel').click();
     await page.locator('#scc-start').click();
-    await page.waitForFunction(() => document.querySelector('#scc-crawls').textContent.includes('intercepted') || document.querySelector('#scc-message').textContent.length > 0);
+    // package 6.3: the result of the start is shown next to the form, with the profile id of the answer
+    await page.waitForFunction(() => document.getElementById('scc-result').getAttribute('aria-busy') === 'false' && document.querySelector('#scc-facts').textContent.includes('intercepted'));
     check(crawl && crawl.collection === id, 'the crawl request uses the new collection' + where);
     // the real server: an unknown collection is refused before any crawl is dispatched
     await page.unroute('**/scoutro/api/v1/crawls');
