@@ -5663,6 +5663,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >format capability supported<==>Fähigkeit format unterstützt<
 >format capability unsupported<==>Fähigkeit format nicht unterstützt<
 >format capability unknown<==>Fähigkeit format unbekannt<
+>format capability ignored (schema accepted, not followed)<==>Fähigkeit format ignoriert (Schema angenommen, nicht befolgt)<
 >Requests by format<==>Anfragen nach Format<
 >%1 with schema · %2 JSON only · %3 without format · %4 rejected<==>%1 mit Schema · %2 nur JSON · %3 ohne Format · %4 abgelehnt<
 >Accepted entities · claims · values<==>Übernommene Entitäten · Aussagen · Werte<

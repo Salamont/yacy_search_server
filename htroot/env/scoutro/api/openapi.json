@@ -16359,10 +16359,11 @@
                     "enum": [
                       "supported",
                       "unsupported",
+                      "ignored",
                       "unknown",
                       null
                     ],
-                    "description": "The selected model's format capability of the LLM selection; null without a model."
+                    "description": "The selected model's format capability: a result of the current structured-output probe of the LLM selection (format_probe 2); an older value counts as unknown. null without a model."
                   },
                   "mode": {
                     "type": [
@@ -16399,6 +16400,7 @@
                     "enum": [
                       "capability_supported",
                       "capability_unknown",
+                      "capability_ignored",
                       "capability_unsupported",
                       "setting",
                       "http_400",

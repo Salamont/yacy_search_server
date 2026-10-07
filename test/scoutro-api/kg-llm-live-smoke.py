@@ -14,7 +14,8 @@ the machine, no existing peer or DATA directory is touched.
    breaker counts, while the sync publishes another page at once;
 4. clean stop with a call in flight: the shutdown is still clean;
 5. restart with the model back: llm_retry makes the failed document done.
-6. structured output: the model's format capability "unsupported" sends no
+6. structured output: a format "unsupported" of the former mood probe counts
+   as unknown and keeps the schema; a current one (format_probe 2) sends no
    response_format (prompt and validator only); an endpoint that rejects the
    schema with HTTP 400 is asked once more without it, counted and shown.
 
@@ -299,22 +300,30 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             assert s["llm"]["documents"]["skipped"] >= 1, "the page of the collection without LLM is skipped"
             checks += 4
 
-            # 6. structured output negotiated: format "unsupported" sends no response_format, a 400 falls back visibly
-            stop(process)
+            # 6. structured output negotiated: a format "unsupported" of the former mood probe (no format_probe) is unknown and
+            # keeps the schema; a current one (format_probe 2) sends no response_format; a 400 falls back visibly
             key = f"OLLAMA|http://127.0.0.1:{LLM_PORT}|fixture"
-            write_config(root, settings + ["ai.model_capabilities=" + json.dumps({key: {"thinking": "unknown", "tooling": "unknown",
-                                                                                       "vision": "unknown", "format": "unsupported"}})])
-            process, client = start(root, log)
-            s = wait_status(client, "the LLM tier with format unsupported", lambda x: x["llm"]["state"] in ("idle", "running"))
-            so = s["llm"]["structuredOutput"]
-            assert so["capability"] == "unsupported" and so["mode"] == "validator_only" and so["reason"] == "capability_unsupported", so
-            calls = len(FakeModel.requests)
-            push(client, "https://www.vierte-pflege-llm-smoke.de/impressum", page("www.vierte-pflege-llm-smoke.de"), "kgsmoke")
-            s = wait_status(client, "the page without a schema", lambda x: x["llm"]["documents"]["done"] >= 4, 120)
-            new = FakeModel.requests[calls:]
-            assert new and all("response_format" not in r for r in new), [sorted(r) for r in new]
-            assert s["llm"]["structuredOutput"]["requests"]["none"] == len(new), s["llm"]["structuredOutput"]
-            assert s["llm"]["processed"]["published"] >= 1 and s["llm"]["processed"]["droppedInvalid"] >= 1, s["llm"]["processed"]
+            legacy = {"thinking": "unknown", "tooling": "unknown", "vision": "unknown", "format": "unsupported"}
+            for n, (entry, mode, host) in enumerate([(legacy, "schema_unverified", "www.vierte-pflege-llm-smoke.de"),
+                                                     (dict(legacy, format_probe=2), "validator_only", "www.sechste-pflege-llm-smoke.de")]):
+                stop(process)
+                write_config(root, settings + ["ai.model_capabilities=" + json.dumps({key: entry})])
+                process, client = start(root, log)
+                s = wait_status(client, "the LLM tier with format " + mode, lambda x: x["llm"]["state"] in ("idle", "running"))
+                so = s["llm"]["structuredOutput"]
+                assert so["mode"] == mode and so["capability"] == ("unknown" if mode == "schema_unverified" else "unsupported"), so
+                calls = len(FakeModel.requests)
+                push(client, "https://" + host + "/impressum", page(host), "kgsmoke")
+                s = wait_status(client, "the page in mode " + mode, lambda x: x["llm"]["documents"]["done"] >= 4 + n, 120)
+                new = FakeModel.requests[calls:]
+                if mode == "validator_only":
+                    assert new and all("response_format" not in r for r in new), [sorted(r) for r in new]
+                    assert s["llm"]["structuredOutput"]["requests"]["none"] == len(new), s["llm"]["structuredOutput"]
+                else:
+                    assert new and all(r["response_format"]["json_schema"]["name"] == "scoutro_knowledge_extraction" for r in new), \
+                        [sorted(r) for r in new]
+                    assert s["llm"]["structuredOutput"]["requests"]["json_schema"] == len(new), s["llm"]["structuredOutput"]
+                assert s["llm"]["processed"]["published"] >= 1 and s["llm"]["processed"]["droppedInvalid"] >= 1, s["llm"]["processed"]
             stop(process)
             write_config(root, settings)
             FakeModel.mode = "reject"
@@ -322,14 +331,14 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             s = wait_status(client, "the LLM tier with an endpoint that rejects the schema", lambda x: x["llm"]["state"] in ("idle", "running"))
             calls = len(FakeModel.requests)
             push(client, "https://www.fuenfte-pflege-llm-smoke.de/impressum", page("www.fuenfte-pflege-llm-smoke.de"), "kgsmoke")
-            s = wait_status(client, "the page after the fallback", lambda x: x["llm"]["documents"]["done"] >= 5, 120)
+            s = wait_status(client, "the page after the fallback", lambda x: x["llm"]["documents"]["done"] >= 6, 120)
             new = FakeModel.requests[calls:]
             assert len(new) == 2 and "response_format" in new[0] and "response_format" not in new[1], [sorted(r) for r in new]
             so = s["llm"]["structuredOutput"]
             assert so["mode"] == "fallback_after_rejection" and so["withoutSchema"] is True and so["rejections"] == 1, so
             assert so["lastRejection"]["code"] == "http_400" and s["llm"]["documents"]["failed"] == 0, (so, s["llm"]["documents"])
             FakeModel.mode = "ok"
-            checks += 9
+            checks += 12
             print(f"PASS: {checks} live LLM tier checks", flush=True)
         except BaseException:
             log.flush()

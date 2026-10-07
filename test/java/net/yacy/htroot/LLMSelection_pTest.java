@@ -49,6 +49,38 @@ public class LLMSelection_pTest {
     }
 
     @Test
+    public void theFormatProbeVersionIsKeptAndNothingElseChanges() throws Exception {
+        final JSONObject in = new JSONObject()
+                .put("OLLAMA|http://ollama:11434|llama3.1:8b", new JSONObject().put("thinking", "unsupported").put("tooling", "supported")
+                        .put("vision", "unsupported").put("format", "unsupported")) // the mood probe up to 0.8.3: no version
+                .put("OPENAI|https://api.example.org|m", new JSONObject().put("thinking", true).put("tooling", false)
+                        .put("vision", "unknown").put("format", "ignored").put("format_probe", 2))
+                .put("LMSTUDIO|http://lm:1234|x", new JSONObject().put("format", "supported").put("format_probe", "junk"));
+        final JSONObject out = LLMSelection_p.normalizeModelCapabilities(in);
+        final JSONObject legacy = out.getJSONObject("OLLAMA|http://ollama:11434|llama3.1:8b");
+        assertEquals("the stored legacy value stays until a new probe", "unsupported", legacy.getString("format"));
+        assertFalse(legacy.has("format_probe"));
+        assertEquals("unknown", net.yacy.ai.LLM.formatCapability(legacy));
+        assertEquals("unsupported", legacy.getString("thinking"));
+        assertEquals("supported", legacy.getString("tooling"));
+        assertEquals("unsupported", legacy.getString("vision"));
+        final JSONObject current = out.getJSONObject("OPENAI|https://api.example.org|m");
+        assertEquals(2, current.getInt("format_probe"));
+        assertEquals("ignored", net.yacy.ai.LLM.formatCapability(current));
+        assertEquals("supported", current.getString("thinking"));
+        assertEquals("unsupported", current.getString("tooling"));
+        assertEquals("unknown", current.getString("vision"));
+        final JSONObject junk = out.getJSONObject("LMSTUDIO|http://lm:1234|x");
+        assertFalse(junk.has("format_probe"));
+        assertEquals("unknown", net.yacy.ai.LLM.formatCapability(junk));
+        // the page loads the probe and reads stored format values only through it
+        final String html = new String(Files.readAllBytes(Paths.get("htroot/LLMSelection_p.html")), StandardCharsets.UTF_8);
+        assertTrue(html.contains("<script src=\"env/scoutro/format-probe.js\"></script>"));
+        assertTrue(html.contains("format: ScoutroFormatProbe.stored(entry)"));
+        assertFalse("no mood probe", html.contains("FORMAT_TEST_CASES") || html.contains("\"literal\""));
+    }
+
+    @Test
     public void templateRendersNoKey() throws Exception {
         final String html = new String(Files.readAllBytes(Paths.get("htroot/LLMSelection_p.html")), StandardCharsets.UTF_8);
         final String java = new String(Files.readAllBytes(Paths.get("source/net/yacy/htroot/LLMSelection_p.java")), StandardCharsets.UTF_8);

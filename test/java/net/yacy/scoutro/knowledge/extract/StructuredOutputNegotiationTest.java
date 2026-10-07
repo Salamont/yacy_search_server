@@ -232,6 +232,7 @@ public class StructuredOutputNegotiationTest {
                 {"auto", "supported", "false", "schema_enforced", "json_schema", "capability_supported"},
                 {"auto", "unsupported", "false", "validator_only", "none", "capability_unsupported"},
                 {"auto", "unknown", "false", "schema_unverified", "json_schema", "capability_unknown"},
+                {"auto", "ignored", "false", "schema_unverified", "json_schema", "capability_ignored"},
                 {"auto", null, "false", "schema_unverified", "json_schema", "capability_unknown"},
                 {"auto", "garbage", "false", "schema_unverified", "json_schema", "capability_unknown"},
                 {"auto", "supported", "true", "fallback_after_rejection", "none", "http_400"},
@@ -285,8 +286,84 @@ public class StructuredOutputNegotiationTest {
                 requests(client(LLM.LLMType.OLLAMA, "unknown").structuredOutput("auto"), "json_schema"));
     }
 
+    // the format capability counts only as a result of the current technical probe (format_probe 2)
+
+    private static JSONObject entry(final String format, final Integer probe) throws Exception {
+        final JSONObject e = new JSONObject().put("thinking", "supported").put("tooling", "unsupported").put("vision", "unknown").put("format", format);
+        return probe == null ? e : e.put("format_probe", probe);
+    }
+
     @Test
-    public void capabilityValuesAreThreeStates() throws Exception {
+    public void aLegacyUnsupportedIsUnknownAndAutoKeepsTheSchema() throws Exception {
+        // E) the value of the mood probe up to 0.8.3 (no format_probe), as stored in production for OLLAMA/llama3.1:8b
+        assertEquals("unknown", LLM.formatCapability(entry("unsupported", null)));
+        assertEquals("unknown", LLM.formatCapability(entry("supported", null)));
+        assertEquals("an older probe version", "unknown", LLM.formatCapability(entry("unsupported", 1)));
+        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("unsupported", null)));
+        ask(c, "auto");
+        assertEquals("json_schema", this.requests.get(0).getJSONObject("response_format").getString("type"));
+        final JSONObject so = c.structuredOutput("auto");
+        assertEquals("schema_unverified", so.getString("mode"));
+        assertEquals("capability_unknown", so.getString("reason"));
+        assertEquals("unknown", so.getString("capability"));
+    }
+
+    @Test
+    public void aCurrentUnsupportedSendsNoSchema() throws Exception {
+        // F) refused by the endpoint in the current probe
+        assertEquals("unsupported", LLM.formatCapability(entry("unsupported", LLM.FORMAT_PROBE_VERSION)));
+        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("unsupported", 2)));
+        ask(c, "auto");
+        assertFalse(this.requests.get(0).has("response_format"));
+        assertEquals("validator_only", c.structuredOutput("auto").getString("mode"));
+    }
+
+    @Test
+    public void aCurrentSupportedIsEnforcedAndIgnoredIsNot() throws Exception {
+        // G) supported by the current probe
+        final YacyLlmClient s = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("supported", 2)));
+        ask(s, "auto");
+        assertEquals("json_schema", this.requests.get(0).getJSONObject("response_format").getString("type"));
+        assertEquals("schema_enforced", s.structuredOutput("auto").getString("mode"));
+        // accepted but not followed in the probe: the schema is still sent, never shown as enforced
+        final YacyLlmClient i = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("ignored", 2)));
+        ask(i, "auto");
+        assertTrue(this.requests.get(1).has("response_format"));
+        assertEquals("schema_unverified", i.structuredOutput("auto").getString("mode"));
+        assertEquals("capability_ignored", i.structuredOutput("auto").getString("reason"));
+        assertEquals("ignored", i.structuredOutput("auto").getString("capability"));
+    }
+
+    @Test
+    public void theOverrideSendsTheSchemaWhateverTheCapability() throws Exception {
+        // H) json_schema forced: sent for every capability, enforced only if the current probe says supported
+        final String[][] cases = {{"unsupported", "2", "schema_unverified"}, {"unsupported", null, "schema_unverified"},
+                {"ignored", "2", "schema_unverified"}, {"unknown", "2", "schema_unverified"}, {"supported", "2", "schema_enforced"},
+                {"supported", null, "schema_unverified"}};
+        for (final String[] k : cases) {
+            this.requests.clear();
+            final YacyLlmClient c = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry(k[0], k[1] == null ? null : Integer.valueOf(k[1]))));
+            ask(c, "json_schema");
+            assertTrue(String.join("/", k[0], String.valueOf(k[1])), this.requests.get(0).has("response_format"));
+            assertEquals(String.join("/", k[0], String.valueOf(k[1])), k[2], c.structuredOutput("json_schema").getString("mode"));
+        }
+    }
+
+    @Test
+    public void theFormatCapabilityReadsNothingElse() throws Exception {
+        // I) a pure reading of format and format_probe: thinking, tooling and vision of the entry stay as they are
+        final JSONObject e = entry("supported", 2);
+        final String before = e.toString();
+        assertEquals("supported", LLM.formatCapability(e));
+        assertEquals(before, e.toString());
+        assertEquals("unknown", LLM.formatCapability(null));
+        assertEquals("unknown", LLM.formatCapability(new JSONObject().put("format_probe", 2)));
+        assertEquals("unknown", LLM.formatCapability(entry("garbage", 2)));
+    }
+
+    @Test
+    public void capabilityValuesAreFourStates() throws Exception {
+        assertEquals("ignored", LLM.capabilityStatus("ignored"));
         assertEquals("supported", LLM.capabilityStatus("supported"));
         assertEquals("unsupported", LLM.capabilityStatus(" Unsupported "));
         assertEquals("unknown", LLM.capabilityStatus("unknown"));

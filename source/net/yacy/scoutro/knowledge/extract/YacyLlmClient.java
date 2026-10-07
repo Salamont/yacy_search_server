@@ -39,9 +39,10 @@ import net.yacy.scoutro.knowledge.KgJson;
  * {@code /v1/chat/completions} ({@link LLM#chatWithResponseFormat}), so the
  * request can carry a {@code json_schema} (with the {@code name} that protocol
  * requires), a {@code json_object} or no {@code response_format} at all. With
- * the setting {@code auto} the model's "format" capability decides: supported
- * sends the schema, unsupported sends nothing (prompt and validator only),
- * unknown sends the schema as before. An endpoint that rejects the format
+ * the setting {@code auto} the model's "format" capability (a result of the
+ * current technical probe, {@link LLM#formatCapability}) decides: supported
+ * sends the schema, unsupported (the endpoint refused it) sends nothing
+ * (prompt and validator only), ignored and unknown send the schema as before. An endpoint that rejects the format
  * (HTTP 400) is asked again without it and remembered; that fallback is
  * counted and shown. The answer is validated the same way in every mode.
  */
@@ -138,7 +139,7 @@ public final class YacyLlmClient implements LlmClient {
 
     /**
      * The negotiation: the setting first, then (with {@code auto}) the model's "format" capability; an endpoint that
-     * rejected a format before is asked without one. Unknown keeps the former behaviour (the schema, with the 400
+     * rejected a format before is asked without one. Unknown and ignored keep the former behaviour (the schema, with the 400
      * fallback), but is not shown as enforced.
      */
     static Plan plan(final String setting, final String capability, final boolean rejected, final boolean schema) {
@@ -161,6 +162,9 @@ public final class YacyLlmClient implements LlmClient {
                 return new Plan(SCHEMA_ENFORCED, JSON_SCHEMA, "capability_supported");
             case "unsupported":
                 return new Plan(VALIDATOR_ONLY, NONE, "capability_unsupported");
+            case "ignored":
+                // accepted, but not followed in the probe: sending it costs nothing, it is not shown as enforced
+                return new Plan(SCHEMA_UNVERIFIED, JSON_SCHEMA, "capability_ignored");
             default:
                 return new Plan(SCHEMA_UNVERIFIED, JSON_SCHEMA, "capability_unknown");
         }

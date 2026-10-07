@@ -8,6 +8,7 @@
   <body id="IndexControl" data-llm-service="#[llm_service]#" data-llm-hoststub="#[llm_hoststub]#" data-llm-apikey-set="#[llm_apikey_set]#" data-apikey-set-label="set" data-model-capabilities="#[model_capabilities]#" data-service-num-ctx="#[service_num_ctx_json]#">
     #%env/templates/header.template%#
     #%env/templates/submenuAI.template%#
+    <script src="env/scoutro/format-probe.js"></script>
     <script>
       let availableModels = [];
 
@@ -35,22 +36,6 @@
         visionUserMessage: "what is in the image?", // User prompt for vision capability test
         visionExpectedText: "42", // Expected mention in LLM response when reading the test image
         visionTestImagePath: "env/grafics/llmtest.png", // Image used for the vision capability test
-        formatSystemMessage: "You are a mood classifier. Identify the mood of the request."
-      };
-
-      const FORMAT_TEST_CASES = [
-        { text: "I hate programming", expectedMood: "angry" },
-        { text: "I love programming", expectedMood: "happy" },
-        { text: "Wait, that worked perfectly?", expectedMood: "surprised" }
-      ];
-
-      const FORMAT_TEST_SCHEMA = {
-        title: "Classifier",
-        type: "object",
-        properties: {
-          mood: { type: "literal", enum: ["surprised", "angry", "happy"] }
-        },
-        required: ["mood"]
       };
 
       const PRODUCTION_MODEL_TOTAL_COLUMNS = 19;
@@ -198,7 +183,7 @@
         if (value === true) return "supported";
         if (value === false) return "unsupported";
         const text = typeof value === "string" ? value.trim().toLowerCase() : "";
-        if (text === "supported" || text === "unsupported" || text === "unknown") return text;
+        if (text === "supported" || text === "unsupported" || text === "unknown" || text === "ignored") return text;
         return "unknown";
       }
 
@@ -225,7 +210,8 @@
           thinking: normalizeCapabilityStatus(entry.thinking),
           tooling: normalizeCapabilityStatus(entry.tooling),
           vision: normalizeCapabilityStatus(entry.vision),
-          format: normalizeCapabilityStatus(entry.format)
+          // only a result of the current technical probe counts; an older (mood probe) value is unknown and probed again
+          format: ScoutroFormatProbe.stored(entry)
         };
       }
 
@@ -233,6 +219,7 @@
         const entry = ensureCapabilityEntry(service, hoststub, modelName);
         if (!entry || !capabilityName) return;
         entry[capabilityName] = normalizeCapabilityStatus(status);
+        if (capabilityName === "format") entry.format_probe = ScoutroFormatProbe.VERSION;
       }
 
       function capabilityStatusLabel(status) {
@@ -241,6 +228,8 @@
             return "yes";
           case "unsupported":
             return "no";
+          case "ignored":
+            return "ignored";
           default:
             return "?";
         }
@@ -1903,25 +1892,23 @@
         const activityId = addTestActivity(modelName, "format");
         updateBeforeUnloadGuard();
         runFormatCapabilityTest(service, normalizedHoststub, modelName, apikey)
-          .then(success => {
+          .then(result => {
+            if (result === "unknown") {
+              // no answer, a server error or an unclear refusal: nothing is stored, the next visit asks again
+              console.warn(`Format capability check of model "${modelName}" gave no result.`);
+              return;
+            }
             const rowStillMounted = !!(document && document.body && document.body.contains(row));
-            setPersistedCapability(service, normalizedHoststub, modelName, "format", success ? "supported" : "unsupported");
+            setPersistedCapability(service, normalizedHoststub, modelName, "format", result);
             if (!rowStillMounted) {
               persistProductionModels();
               return;
             }
-            setFormatFlagForRow(row, success ? "supported" : "unsupported");
+            setFormatFlagForRow(row, result);
             persistProductionModels();
             updateAvailableModelCapabilityCells(service, normalizedHoststub, modelName);
           })
           .catch(error => {
-            if (isCapabilityUnsupportedError(error)) {
-              setPersistedCapability(service, normalizedHoststub, modelName, "format", "unsupported");
-              setFormatFlagForRow(row, "unsupported");
-              persistProductionModels();
-              updateAvailableModelCapabilityCells(service, normalizedHoststub, modelName);
-              return;
-            }
             console.warn(`Format capability check failed for model "${modelName}".`, error);
           })
           .finally(() => {
@@ -1931,105 +1918,40 @@
           });
       }
 
+      // The technical structured-output test (env/scoutro/format-probe.js): the schema request and, after a 400/422,
+      // the same request without the schema; supported, unsupported, ignored or unknown.
       async function runFormatCapabilityTest(service, hoststub, modelName, apikey) {
         const endpointBase = hoststub.replace(/\/+$/, "");
         if (!endpointBase) {
-          return false;
+          return "unknown";
         }
-        for (const testCase of FORMAT_TEST_CASES) {
-          const mood = await runSingleFormatCapabilityTest(service, endpointBase, modelName, apikey, testCase.text);
-          if (mood !== testCase.expectedMood) {
-            return false;
-          }
+        const probe = await postFormatProbe(service, endpointBase, modelName, apikey, false);
+        if (probe.status === 400 || probe.status === 422) {
+          probe.controlStatus = (await postFormatProbe(service, endpointBase, modelName, apikey, true)).status;
         }
-        return true;
+        return ScoutroFormatProbe.classify(probe);
       }
 
-      async function runSingleFormatCapabilityTest(service, endpointBase, modelName, apikey, inputText) {
-        const targetUrl = proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath);
+      async function postFormatProbe(service, endpointBase, modelName, apikey, control) {
         const headers = { "Content-Type": "application/json" };
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
-        const payload = buildFormatTestPayload(service, endpointBase, modelName, inputText);
-        const response = await fetch(targetUrl, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) {
-          const error = new Error(`HTTP status ${response.status}`);
-          error.status = response.status;
-          throw error;
-        }
-        const result = await response.json();
-        return extractMoodFromFormatResponse(result);
-      }
-
-      function buildFormatTestPayload(service, hoststub, modelName, inputText) {
-        return maybeApplyNoThinkingParameters(service, hoststub, modelName, {
-          model: modelName,
-          temperature: 0.1,
-          max_tokens: 128,
-          messages: [
-            { role: "system", content: TEST_STRINGS.formatSystemMessage },
-            { role: "user", content: inputText }
-          ],
-          stream: false,
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              strict: true,
-              schema: FORMAT_TEST_SCHEMA
-            }
-          }
-        });
-      }
-
-      function extractMoodFromFormatResponse(response) {
-        const candidates = [];
-        if (response && Array.isArray(response.choices)) {
-          response.choices.forEach(choice => {
-            if (choice && choice.message) {
-              candidates.push(choice.message);
-            }
-          });
-        }
-        if (response && response.message) {
-          candidates.push(response.message);
-        }
-        for (const message of candidates) {
-          const parsedMood = extractMoodFromMessage(message);
-          if (parsedMood) {
-            return parsedMood;
-          }
-        }
-        return "";
-      }
-
-      function extractMoodFromMessage(message) {
-        if (!message) return "";
-        if (message.parsed && typeof message.parsed === "object") {
-          const mood = normalizeMoodValue(message.parsed.mood);
-          if (mood) return mood;
-        }
-        if (message.content && typeof message.content === "object" && !Array.isArray(message.content)) {
-          const mood = normalizeMoodValue(message.content.mood);
-          if (mood) return mood;
-        }
-        const normalizedText = normalizeMessageText(message);
-        if (!normalizedText) return "";
+        const payload = maybeApplyNoThinkingParameters(service, endpointBase, modelName, ScoutroFormatProbe.payload(modelName, control));
         try {
-          const parsed = JSON.parse(normalizedText);
-          return normalizeMoodValue(parsed && parsed.mood);
+          const response = await fetch(proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath), {
+            method: "POST",
+            headers,
+            body: JSON.stringify(payload)
+          });
+          let body = null;
+          if (response.status === 200) {
+            try { body = await response.json(); } catch (error) { body = null; }
+          }
+          return { status: response.status, body };
         } catch (error) {
-          return "";
+          return { status: 0, body: null };
         }
-      }
-
-      function normalizeMoodValue(value) {
-        const mood = typeof value === "string" ? value.trim().toLowerCase() : "";
-        return mood === "angry" || mood === "happy" || mood === "surprised" ? mood : "";
       }
 
       function setFormatFlagForRow(row, status) {

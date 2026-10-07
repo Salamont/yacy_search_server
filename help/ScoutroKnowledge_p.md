@@ -261,7 +261,9 @@ memory; every restart resets them, so they are no long-term statistics.
   setting `none`) or *Fallback after rejection (HTTP 400)*, with the format
   capability. **Requests by format** counts the requests with schema, JSON
   only and without format and the rejections since the last start. In every
-  mode the validator checks each answer the same way.
+  mode the validator checks each answer the same way. The format capability
+  is the technical test of the [LLM selection](LLMSelection_p.md); a value of
+  the former mood probe counts as unknown.
 
 ## Collections
 

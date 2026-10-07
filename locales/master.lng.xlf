@@ -15740,6 +15740,9 @@
     <trans-unit id="4e738c0b" xml:space="preserve" approved="no" translate="yes">
        <source>format capability unknown</source>
     </trans-unit>
+    <trans-unit id="307e8ead" xml:space="preserve" approved="no" translate="yes">
+       <source>format capability ignored (schema accepted, not followed)</source>
+    </trans-unit>
     <trans-unit id="c2f76ea4" xml:space="preserve" approved="no" translate="yes">
        <source>Requests by format</source>
     </trans-unit>

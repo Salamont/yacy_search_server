@@ -122,6 +122,8 @@ try {
               withoutSchema: true, requests: { json_schema: 1, json_object: 0, none: 4 }, rejections: 1, lastRejection: { code: 'http_400', at: 1 } }],
             ['json_mode', { setting: 'json_object', capability: 'unknown', mode: 'json_mode', request: 'json_object', reason: 'setting',
               withoutSchema: false, requests: { json_schema: 0, json_object: 3, none: 0 }, rejections: 0, lastRejection: null }],
+            ['ignored', { setting: 'auto', capability: 'ignored', mode: 'schema_unverified', request: 'json_schema', reason: 'capability_ignored',
+              withoutSchema: false, requests: { json_schema: 2, json_object: 0, none: 0 }, rejections: 0, lastRejection: null }],
             ['older server', undefined], ['null', null]];
           for (const [name, so] of soVariants) {
             await page.route(/\/scoutro\/api\/v1\/kg\/status(\?|$)/, route => route.fulfill({ status: 200, contentType: 'application/json',
