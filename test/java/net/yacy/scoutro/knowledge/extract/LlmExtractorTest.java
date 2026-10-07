@@ -116,6 +116,8 @@ public class LlmExtractorTest {
         assertNull(r.refused);
         assertEquals("no entity is accepted", 0, r.entities);
         assertEquals("a known id redefined, a person, an extra field (an e-mail), three bad claims", 6, r.droppedInvalid);
+        assertEquals(java.util.Map.of("entity_duplicate_id", 1, "entity_unknown_type", 1, "entity_extra_field", 1, "claim_unknown_predicate", 1,
+                "claim_self_reference", 1, "claim_unresolved_object", 1), r.droppedInvalidByReason);
         assertEquals("a quote without the name", 1, r.droppedUngrounded);
         assertEquals(0, r.claims);
     }
@@ -134,6 +136,7 @@ public class LlmExtractorTest {
         final LlmExtractor.Result r = LlmExtractor.validate(a, c, known(), Set.of());
         assertEquals(0, r.entities);
         assertEquals(4, r.droppedInvalid);
+        assertEquals(java.util.Map.of("entity_person_or_contact", 4), r.droppedInvalidByReason);
     }
 
     @Test
@@ -254,6 +257,7 @@ public class LlmExtractorTest {
         assertEquals("the price and the category", 2, r.values);
         assertEquals("the invented price and the quote without an amount", 2, r.droppedUngrounded);
         assertEquals("the value written by the model, the salary of a service", 2, r.droppedInvalid);
+        assertEquals(java.util.Map.of("value_extra_field", 1, "value_subject_type_mismatch", 1), r.droppedInvalidByReason);
         assertEquals(2, r.claims);
         final Extraction ex = new Extraction(100);
         LlmExtractor.apply(r.accepted, known(), ex, new ExtractContext(net.yacy.scoutro.knowledge.vocab.KgVocabularies.get(),

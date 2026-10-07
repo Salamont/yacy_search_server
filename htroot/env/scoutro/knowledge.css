@@ -125,3 +125,7 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 @media (forced-colors: active) {
  .skg-line { stroke: CanvasText; } .skg-node .skg-card { stroke: CanvasText; } .skg-elabel { fill: CanvasText; stroke: Canvas; }
 }
+/* LLM tier: the reasons of droppedInvalid (diagnostics since the start) */
+.skg-llm-invalid { margin: 0.5em 0; }
+.skg-llm-invalid summary { cursor: pointer; }
+.skg-llm-invalid dt { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: break-word; }

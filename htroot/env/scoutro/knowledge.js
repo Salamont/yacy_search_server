@@ -216,10 +216,12 @@
       ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
       ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
-    const l = s.llm || {};
+    const l = s.llm || {}, lp = l.processed || {};
     stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')], ['queue', l.queue?.items],
-      ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', l.processed?.calls],
-      ['dropped', l.processed?.droppedUngrounded], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
+      ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', lp.calls],
+      ['llm_accepted', lp.entitiesAccepted == null ? null : [lp.entitiesAccepted, lp.claimsAccepted, lp.valuesAccepted].map(fmt).join(' · ')],
+      ['dropped', lp.droppedUngrounded], ['dropped_invalid', lp.droppedInvalid], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
+    invalidReasonsInto(lp.droppedInvalidByReason);
     document.querySelector('[data-skg-action="confirm_reconcile"]').hidden = !sy.reconcile?.awaitingConfirmation;
     // vocabulary 2: the vocabularies in force, the derived layer and the upgrade of the last start
     const vo = s.vocabulary || {}, dv = s.derived || {}, up = s.upgrade;
@@ -248,6 +250,21 @@
       events.append(table);
     } else events.append(node('p', t('none')));
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
+  }
+
+  // droppedInvalid by reason (counters since the start): only the reasons that occurred, the most frequent first; the codes as the API names them
+  function invalidReasonsInto(by) {
+    const box = $('llm-invalid'); box.replaceChildren();
+    const rows = Object.entries(by && typeof by === 'object' ? by : {}).filter(([, n]) => typeof n === 'number' && n > 0)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    if (!rows.length) { box.append(node('p', t('none'))); return; }
+    const dl = node('dl', null, 'sseo-stats');
+    for (const [reason, n] of rows) {
+      const dt = node('dt'); // a line may break after an underscore; the text stays the code
+      reason.split('_').forEach((part, i) => { if (i) dt.append('_', document.createElement('wbr')); dt.append(part); });
+      dl.append(dt, node('dd', fmt(n)));
+    }
+    box.append(dl);
   }
 
   // The two layers in words: the deterministic graph (rules, structured data) and the LLM enrichment with its model.

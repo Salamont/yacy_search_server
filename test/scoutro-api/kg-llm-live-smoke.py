@@ -239,6 +239,9 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             p = s["llm"]["processed"]
             assert p["calls"] == 1 and p["claimsAccepted"] == 1 and p["entitiesAccepted"] == 1, p
             assert p["droppedUngrounded"] >= 1 and p["droppedInvalid"] >= 1, p
+            # droppedInvalid by reason: every code, the counts add up; values are counted on their own
+            by = p["droppedInvalidByReason"]
+            assert sum(by.values()) == p["droppedInvalid"] and len(by) >= 46 and p["valuesAccepted"] == 0, p
             req = FakeModel.requests[0]
             assert req["model"] == "fixture" and req["response_format"]["json_schema"]["strict"] is True, req.keys()
             user = req["messages"][1]["content"]

@@ -590,7 +590,7 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
   - the response must match a strict JSON schema; size ≤ 64 KiB; ≤ 40 claims per chunk; strings ≤ 300 characters;
   - only vocabulary types and predicates are accepted;
   - every claim needs a quote ≤ 200 characters that occurs **verbatim** (whitespace-normalised) in the input text. Otherwise it is dropped.
-  - The counts of invalid answers are visible.
+  - The counts of invalid answers are visible (see **Counters** below).
 - **Concurrency:** `llm.parallel` (default 1, maximum 2).
 - **As implemented (2b, see [19](#19-package-2b-implementation)):**
   - The model only proposes: no persons, no e-mail addresses, no phone numbers (contact data comes from tiers 1 and 2 only, O7); a known entity of tiers 1 and 2 is referred to by `k1`, `k2`, ...; facility kinds only from the collection's vocabulary (O2).
@@ -598,6 +598,51 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
   - A changed input deletes the document's tier-3 evidence in the tier-1/2 publish and asks again; tiers 1 and 2 never wait for tier 3.
   - The raw HTTP response is read up to 1 MiB; an endpoint that refuses `response_format` (HTTP 400) is asked again without it and remembered.
   - `last_error` is not used: `kg_doc.llm_status` (`done`, `failed`, `skipped`) and `llm_reason` record the outcome per input hash; `POST /kg/control {"action":"llm_retry"}` makes failed documents due again.
+
+**Counters** (`llm.processed` in `GET /kg/status`; the LLM tier panel of the overview):
+
+- All counters are in memory, per `LlmService` instance, and count since the start of Scoutro (since the pod start). A restart or an upgrade resets them; they are neither persisted nor rebuilt from the graph, so they are no historical statistics. They count the answers of fresh model calls; a cache hit counts nothing.
+- A whole answer that is no JSON object of the schema's shape is refused: `answersRefused` with `refusedBy` (`invalid_json`, `not_an_object`, `unknown_field`, `schema`, `too_many_items`, `too_large`, `empty`). A refused answer counts no items.
+- Of an accepted answer every item counts once: `entitiesAccepted`, `claimsAccepted`, `valuesAccepted`, `droppedUngrounded` (the quote does not occur verbatim, lacks the names, or a price or salary quote holds no amount with a currency) or `droppedInvalid`.
+- `droppedInvalid` counts **single dropped entities, claims and values**, not failed calls and not refused answers: one answer can bring valid items and several invalid ones. `droppedInvalidByReason` splits it by the first rule the item breaks, in the order `LlmExtractor.validate` checks the rules (the counting does not change that order or any rule). Every code is always present (0 if it never occurred); the codes add up to `droppedInvalid`, read together under one lock. They are diagnostic values; no model answer, quote or page text is stored or logged for them.
+
+"Missing" means the field is absent or JSON null (for a name also blank); "malformed" that it is no JSON string or a string over 300 characters (a quote over 300 characters counts as too long).
+
+| Code | Validator condition (in check order per item) |
+| --- | --- |
+| `entity_not_object` | the array element is no JSON object |
+| `entity_extra_field` | a field other than `id`, `type`, `name`, `kind`, `quote` |
+| `entity_missing_id`, `entity_malformed_id` | `id` missing or malformed |
+| `entity_invalid_id` | `id` does not match `^[A-Za-z0-9_-]{1,32}$` (for example a name with spaces as the id) |
+| `entity_duplicate_id` | `id` is a known entity's (`k1`, …) or an entity's accepted earlier in the same answer |
+| `entity_missing_type`, `entity_malformed_type` | `type` missing or malformed |
+| `entity_unknown_type` | `type` is not `organization`, `facility`, `site`, `service`, `job` (exact, so `company`, `Organization`, `person` too) |
+| `entity_missing_name`, `entity_malformed_name` | `name` missing (or blank) or malformed |
+| `entity_name_too_short` | the normalised name has fewer than 2 characters |
+| `entity_person_or_contact` | the name starts with a salutation or title, or contains `@`, a URL or a phone-like run of 6 digits (O7) |
+| `entity_missing_quote`, `entity_malformed_quote` | `quote` missing or no string |
+| `entity_quote_too_long` | `quote` over 200 characters |
+| `claim_not_object` | the array element is no JSON object |
+| `claim_extra_field` | a field other than `subject`, `predicate`, `object`, `hedged`, `quote` (for example `confidence`) |
+| `claim_missing_subject`, `claim_malformed_subject` | `subject` missing or malformed |
+| `claim_missing_object`, `claim_malformed_object` | `object` missing or malformed |
+| `claim_self_reference` | `subject` equals `object` |
+| `claim_missing_predicate`, `claim_malformed_predicate` | `predicate` missing or malformed |
+| `claim_unknown_predicate` | `predicate` is no relation of the vocabulary (exact, so a synonym like `runs` too) |
+| `claim_missing_quote`, `claim_malformed_quote`, `claim_quote_too_long` | as for entities |
+| `claim_invalid_hedged` | `hedged` present but no JSON boolean (for example `"false"`) |
+| `claim_unresolved_subject`, `claim_unresolved_object` | the id is neither a known entity nor an entity accepted in this answer (also an entity dropped before, or a name instead of an id) |
+| `claim_subject_type_mismatch`, `claim_object_type_mismatch` | the subject's or object's type is not allowed for the relation |
+| `value_not_object` | the array element is no JSON object |
+| `value_extra_field` | a field other than `subject`, `predicate`, `quote` (for example a `value` written by the model) |
+| `value_missing_subject`, `value_malformed_subject` | `subject` missing or malformed |
+| `value_unresolved_subject` | the subject id is neither a known entity nor an entity accepted in this answer |
+| `value_missing_predicate`, `value_malformed_predicate` | `predicate` missing or malformed |
+| `value_unknown_predicate` | `predicate` is not one of the value predicates (`price`, `salary`, `category`, …) |
+| `value_missing_quote`, `value_malformed_quote`, `value_quote_too_long` | as for entities |
+| `value_subject_type_mismatch` | the subject's type cannot carry the value (a salary of a service, a price of an organisation) |
+
+The list is `LlmExtractor.INVALID_REASONS`; a new rule gets a new code. Within one item the order is the one above (structure, then fields, then references and types), for example an entity with an extra field and an unknown type counts as `entity_extra_field`, a claim that refers to itself with an unknown predicate as `claim_self_reference`, a claim with a string `hedged` and an unresolved subject as `claim_invalid_hedged`.
 
 ### 6.4 Cache
 

@@ -233,6 +233,27 @@ file outside that folder. Its metadata file goes with it. While a backup,
 restore or rebuild runs, nothing is deleted (409); download and restore of the
 other backups stay as they are.
 
+## LLM tier counters
+
+The **LLM tier** panel of the overview shows the calls, **Accepted entities ·
+claims · values**, **Dropped as not quoted** and **Dropped as invalid**. These
+numbers count since the last start of Scoutro (since the pod start), only in
+memory; every restart resets them, so they are no long-term statistics.
+
+- **Dropped as invalid** counts single entities, claims and values of
+  accepted answers that break a rule (an extra field, an unknown type, an id
+  that refers to nothing, a relation between the wrong types, …). It is not
+  the number of failed calls: one answer can bring valid items and several
+  invalid ones. Answers refused as a whole (`invalid_json`, `unknown_field`,
+  …) are counted separately in the status (`refusedBy`).
+- **Invalid items by reason (since the last start)** (folded) lists the
+  reasons that occurred, the most frequent first, with the codes of the API
+  (`llm.processed.droppedInvalidByReason`). Each item counts once, under the
+  first rule it breaks; the counts add up to **Dropped as invalid**. The
+  codes and their rules: `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 6.3.
+- These are diagnostic counters only; no model answer, quote or page text is
+  stored for them.
+
 ## Collections
 
 The overview lists every collection the graph follows, maps or holds
@@ -356,7 +377,7 @@ text; links to crawled pages open in a new tab without a referrer.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) |
+| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`) |
 | `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
 | `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |

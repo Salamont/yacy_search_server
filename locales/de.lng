@@ -5653,6 +5653,11 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Waiting for confirmation<==>Wartet auf Bestätigung<
 >only from the LLM tier<==>nur aus der LLM-Stufe<
 >Dropped as not quoted<==>Verworfen, weil nicht zitiert<
+>Dropped as invalid<==>Verworfen, weil ungültig<
+>Accepted entities · claims · values<==>Übernommene Entitäten · Aussagen · Werte<
+>Calls and items count since the last start of Scoutro; every restart resets them.<==>Aufrufe und Elemente zählen seit dem letzten Start von Scoutro (seit Pod-Start); jeder Neustart setzt sie zurück.<
+>Invalid items by reason (since the last start)<==>Ungültige Elemente nach Grund (seit dem letzten Start)<
+>Single entities, claims and values the validator dropped, each under the first rule it breaks; not failed calls and not refused answers. Diagnostic counters only; no model answer is stored.<==>Einzelne Entitäten, Aussagen und Werte, die die Prüfung verworfen hat, jeweils unter der ersten verletzten Regel; keine fehlgeschlagenen Aufrufe und keine abgelehnten Antworten. Nur Diagnosezähler; keine Modellantwort wird gespeichert.<
 >Objects in this view<==>Objekte in dieser Ansicht<
 >Followed collections<==>Verfolgte Collections<
 >Published documents<==>Veröffentlichte Dokumente<

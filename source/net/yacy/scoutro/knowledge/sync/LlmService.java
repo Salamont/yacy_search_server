@@ -96,7 +96,10 @@ public final class LlmService {
     private static final long SMALL = 64L * 1024L;
     private static final long PUBLISH_ESTIMATE = 512L * 1024L;
 
-    /** Counters for the status. */
+    /**
+     * Counters for the status: in memory, per instance, since the start (nothing is persisted or rebuilt). The item
+     * counters (entities, claims, values, dropped) count the items of the answers of fresh calls, not cache hits.
+     */
     static final class Counters {
         final AtomicLong calls = new AtomicLong();
         final AtomicLong callFailures = new AtomicLong();
@@ -107,8 +110,11 @@ public final class LlmService {
         final Map<String, AtomicLong> refusedBy = new ConcurrentHashMap<>();
         final AtomicLong entities = new AtomicLong();
         final AtomicLong claims = new AtomicLong();
+        final AtomicLong values = new AtomicLong();
         final AtomicLong droppedUngrounded = new AtomicLong();
+        /** Dropped items, not refused answers; with its reasons, guarded by itself so the reasons always add up to it. */
         final AtomicLong droppedInvalid = new AtomicLong();
+        final Map<String, AtomicLong> droppedInvalidByReason = new ConcurrentHashMap<>();
         final AtomicLong cacheHits = new AtomicLong();
         final AtomicLong cacheMisses = new AtomicLong();
         final AtomicLong cacheWritesRefused = new AtomicLong();
@@ -122,6 +128,27 @@ public final class LlmService {
         final AtomicLong queued = new AtomicLong();
         final AtomicLong growthRefused = new AtomicLong();
 
+        Counters() {
+            for (final String reason : LlmExtractor.INVALID_REASONS) {
+                this.droppedInvalidByReason.put(reason, new AtomicLong());
+            }
+        }
+
+        /** The items of one accepted answer. */
+        void accepted(final LlmExtractor.Result r) {
+            this.answersAccepted.incrementAndGet();
+            this.entities.addAndGet(r.entities);
+            this.claims.addAndGet(r.claims);
+            this.values.addAndGet(r.values);
+            this.droppedUngrounded.addAndGet(r.droppedUngrounded);
+            synchronized (this.droppedInvalid) {
+                this.droppedInvalid.addAndGet(r.droppedInvalid);
+                for (final Map.Entry<String, Integer> e : r.droppedInvalidByReason.entrySet()) {
+                    this.droppedInvalidByReason.computeIfAbsent(e.getKey(), k -> new AtomicLong()).addAndGet(e.getValue());
+                }
+            }
+        }
+
         void refused(final String reason) {
             this.answersRefused.incrementAndGet();
             this.refusedBy.computeIfAbsent(reason, k -> new AtomicLong()).incrementAndGet();
@@ -132,12 +159,21 @@ public final class LlmService {
             for (final Map.Entry<String, AtomicLong> e : this.refusedBy.entrySet()) {
                 KgJson.put(by, e.getKey(), e.getValue().get());
             }
+            final JSONObject invalidBy = new JSONObject();
+            final long invalid;
+            synchronized (this.droppedInvalid) {
+                invalid = this.droppedInvalid.get();
+                for (final Map.Entry<String, AtomicLong> e : this.droppedInvalidByReason.entrySet()) {
+                    KgJson.put(invalidBy, e.getKey(), e.getValue().get());
+                }
+            }
             final long n = this.calls.get();
             return KgJson.obj("calls", n, "callFailures", this.callFailures.get(), "timeouts", this.timeouts.get(),
                     "averageCallMillis", n == 0 ? null : this.callMillis.get() / n,
                     "answersAccepted", this.answersAccepted.get(), "answersRefused", this.answersRefused.get(), "refusedBy", by,
-                    "entitiesAccepted", this.entities.get(), "claimsAccepted", this.claims.get(),
-                    "droppedUngrounded", this.droppedUngrounded.get(), "droppedInvalid", this.droppedInvalid.get(),
+                    "entitiesAccepted", this.entities.get(), "claimsAccepted", this.claims.get(), "valuesAccepted", this.values.get(),
+                    "droppedUngrounded", this.droppedUngrounded.get(), "droppedInvalid", invalid,
+                    "droppedInvalidByReason", invalidBy,
                     "cacheHits", this.cacheHits.get(), "cacheMisses", this.cacheMisses.get(),
                     "cacheWritesRefused", this.cacheWritesRefused.get(), "published", this.published.get(),
                     "statements", this.statements.get(), "abortedChanged", this.changedAborts.get(),
@@ -559,11 +595,7 @@ public final class LlmService {
                 value = KgJson.obj("refused", r.refused);
                 status = ExtractionCache.STATUS_REFUSED;
             } else {
-                this.counters.answersAccepted.incrementAndGet();
-                this.counters.entities.addAndGet(r.entities);
-                this.counters.claims.addAndGet(r.claims);
-                this.counters.droppedUngrounded.addAndGet(r.droppedUngrounded);
-                this.counters.droppedInvalid.addAndGet(r.droppedInvalid);
+                this.counters.accepted(r);
                 value = r.accepted;
                 status = ExtractionCache.STATUS_OK;
                 accepted.add(value);
