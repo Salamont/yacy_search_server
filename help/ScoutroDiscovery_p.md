@@ -14,7 +14,7 @@ Job settings: name, enabled/paused, profile, sources with mode and regions, cand
 
 ## Operation
 
-Explicit Enable installs/enables exactly one WorkTables heartbeat, every 10 minutes. Jobs have separate intervals of at least 10 minutes, oldest due first, then longest not served. Missed periods produce one due execution, not a catch-up storm. WorkTables remains the persistent clock; job definitions/run state are in `DATA/SETTINGS/scoutro-discovery-jobs.json` (schema 1, atomic fsync+rename, numeric revision).
+Explicit Enable installs/enables exactly one WorkTables heartbeat, every 10 minutes. Jobs have separate intervals of at least 10 minutes, oldest due first, then longest not served. Missed periods produce one due execution, not a catch-up storm. A batch that ends at once with nothing to process (`processed=0`, no fresh candidates in its scope) is recorded normally, and the same heartbeat then starts the next due job, up to five empty batches per heartbeat; a batch with work, an error, a review or a capacity/pause stop ends the heartbeat. WorkTables remains the persistent clock; job definitions/run state are in `DATA/SETTINGS/scoutro-discovery-jobs.json` (schema 1, atomic fsync+rename, numeric revision).
 
 Pause/Disable prevents further seeds; accepted YaCy crawls continue. A job Run once requires a unique `request_id`, global automation enabled and resumed, and the job unpaused; it also works for a disabled job. Run once requests use the same serial admission/recovery path and do not bypass backpressure. Run once may be deferred until the existing batch has completed. Reusing its most recent request ID does not enqueue a second execution. The revision changes with background progress too; reload after HTTP 409.
 

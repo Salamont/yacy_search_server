@@ -33,8 +33,10 @@ import net.yacy.scoutro.knowledge.read.KgReader;
  * {@link KnowledgeRead} (filtered by the optional {@code collection}),
  * {@code GET /v1/kg/status} and {@code POST /v1/kg/control} with the actions
  * {@code pause}, {@code resume}, {@code reconcile}, {@code confirm_reconcile} and
- * {@code llm_retry}, and the streamed download {@code GET /v1/kg/export/download}
- * ({@link #download}), which agents never get.
+ * {@code llm_retry}, the streamed download {@code GET /v1/kg/export/download}
+ * ({@link #download}), and (package 6.2) the settings of each collection
+ * {@code GET /v1/kg/collections} and {@code PATCH /v1/kg/collections/{collection}}
+ * ({@link KgCollectionSettings}); agents never get these.
  * The servlet checks the administrator role before calling this class; the
  * control body goes through the servlet's cross-site checks.
  */
@@ -55,12 +57,18 @@ final class KnowledgeApi {
 
     /** Allowed values of {@code action}. */
     static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
-            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm", "derive");
+            "llm_retry", "backup", "restore", "rebuild", "rebuild_cancel", "rebuild_confirm", "derive", "delete_backup");
 
     private final Supplier<KgRuntime> runtime;
+    private final Supplier<KgCollectionSettings> settings;
 
     KnowledgeApi(final Supplier<KgRuntime> runtime) {
+        this(runtime, KgCollectionSettings::current);
+    }
+
+    KnowledgeApi(final Supplier<KgRuntime> runtime, final Supplier<KgCollectionSettings> settings) {
         this.runtime = runtime;
+        this.settings = settings;
     }
 
     JSONObject route(final String method, final String[] parts, final Body body) throws ApiException, IOException {
@@ -74,6 +82,9 @@ final class KnowledgeApi {
                 || parts.length == 4 && KnowledgeRead.single(parts[3])) {
             return new KnowledgeRead(this.runtime).route(method, java.util.Arrays.asList(parts).subList(3, parts.length), query,
                     SeoAnalysis.adminCollections(query));
+        }
+        if ((parts.length == 4 || parts.length == 5) && "collections".equals(parts[3])) {
+            return collections(method, parts, query, body);
         }
         if (parts.length != 4) {
             throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
@@ -94,6 +105,24 @@ final class KnowledgeApi {
             default:
                 throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
+    }
+
+    /** The settings of each collection (package 6.2): GET the list, PATCH one collection. */
+    private JSONObject collections(final String method, final String[] parts, final java.util.Map<String, String> query, final Body body)
+            throws ApiException, IOException {
+        if (parts.length == 4) {
+            allow(method, "GET");
+        } else {
+            allow(method, "PATCH");
+        }
+        if (!query.isEmpty()) {
+            throw ApiException.invalid(query.keySet().iterator().next(), "This route takes no parameters.");
+        }
+        final KgCollectionSettings s = this.settings.get();
+        if (s == null) {
+            throw new ApiException(503, "settings_unavailable", "The settings cannot be read.");
+        }
+        return parts.length == 4 ? s.list() : s.update(parts[4], body.get());
     }
 
     /**
@@ -210,15 +239,17 @@ final class KnowledgeApi {
         final Iterator<?> keys = body.keys();
         while (keys.hasNext()) {
             final String k = String.valueOf(keys.next());
-            if (!"action".equals(k) && !("backup".equals(k) && "restore".equals(action))) {
-                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action" + ("restore".equals(action) ? ", backup." : "."));
+            final boolean named = "restore".equals(action) || "delete_backup".equals(action);
+            if (!"action".equals(k) && !("backup".equals(k) && named)) {
+                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action" + (named ? ", backup." : "."));
             }
         }
         if (!ACTIONS.contains(action)) {
             throw ApiException.invalid("action", "Field 'action' must be one of: " + String.join(", ", ACTIONS) + ".");
         }
         final String backup = body.optString("backup", "");
-        if ("restore".equals(action) && !net.yacy.scoutro.knowledge.store.KgBackup.NAME.matcher(backup).matches()) {
+        // a backup is named, never given as a path: only the names of GET /kg/backups match
+        if (("restore".equals(action) || "delete_backup".equals(action)) && !net.yacy.scoutro.knowledge.store.KgBackup.NAME.matcher(backup).matches()) {
             throw ApiException.invalid("backup", "Field 'backup' must name a backup file of GET /scoutro/api/v1/kg/backups.");
         }
         final KgRuntime r = this.runtime.get();
@@ -240,6 +271,8 @@ final class KnowledgeApi {
                     return r.backup();
                 case "restore":
                     return r.restore(backup);
+                case "delete_backup":
+                    return r.deleteBackup(backup);
                 case "rebuild":
                     return r.rebuild();
                 case "rebuild_cancel":
@@ -274,6 +307,8 @@ final class KnowledgeApi {
             case KgException.RESTORE_FAILED:
                 return new ApiException(503, KgException.RESTORE_FAILED, "The restore failed: " + e.getMessage() + ".",
                         Json.obj("reason", e.reason()));
+            case KgException.BACKUP_DELETE_FAILED:
+                return new ApiException(503, KgException.BACKUP_DELETE_FAILED, "The backup could not be deleted: " + e.getMessage() + ".");
             case KgException.NO_REBUILD:
                 return new ApiException(409, KgException.NO_REBUILD, "No identity rebuild is running or waiting for confirmation.");
             case KgException.INVALID_CURSOR:

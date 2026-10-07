@@ -311,6 +311,25 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             rows = get(c, "/scoutro/api/v1/kg/services/providers?name=SAP&collection=kgb")
             assert rows["total"] == 2 and sorted(r["prices"]["current"] for r in rows["items"]) == [0, 1], rows
             assert "Gamma" not in json.dumps(rows) and "kga" not in json.dumps(rows["items"]), "no other collection in the group"
+            # package 6.2: the network of all providers of the name; each line names its provider's own service, nothing merged
+            gnet = get(c, "/scoutro/api/v1/kg/services/network?name=SAP&collection=kgb")
+            assert gnet["aggregated"] and gnet["center"] == "service_group:sap" and gnet["neighbours"] == 2, gnet
+            assert sorted(e["service"]["id"] for e in gnet["edges"]) == sorted(h["id"] for h in hits), gnet["edges"]
+            assert all(e["to"] == gnet["center"] and e["type"] == "offers" and e["direction"] == "in" for e in gnet["edges"]), gnet["edges"]
+            assert "Gamma" not in json.dumps(gnet) and "kga" not in json.dumps(gnet["edges"]), "no other collection in the network of the name"
+            assert get(c, "/scoutro/api/v1/kg/services/network?name=SAP")["neighbours"] == 3
+            assert status(c, "/scoutro/api/v1/kg/services/network?name=SAP&collection=kgc") == 404
+            # package 6.2: the knowledge graph settings list every collection of the catalog, never robot_*; the catalog reads the
+            # committed index (cached for 10 s), so it lists kgb and kgc once a search sees their pages
+            deadline = time.monotonic() + 120
+            while {"kga", "kgb", "kgc"} - {x["id"] for x in get(c, "/scoutro/api/v1/collections")["collections"]}:
+                assert time.monotonic() < deadline, "the catalog never listed kga, kgb and kgc"
+                time.sleep(2)
+            rows_s = get(c, "/scoutro/api/v1/kg/collections")["collections"]
+            names_s = [r["collection"] for r in rows_s]
+            assert {"kga", "kgb", "kgc"} <= set(names_s) and not any(n.startswith("robot_") for n in names_s), names_s
+            assert all(r["inCatalog"] and r["active"] for r in rows_s if r["collection"] in ("kga", "kgb", "kgc")), rows_s
+            checks += 6
             ctcon = sap["context"]["providers"][0]["id"]
             snet = get(c, f"/scoutro/api/v1/kg/entities/{sap['id']}/neighborhood?collection=kgb&depth=2")
             assert any(e["from"] == ctcon and e["to"] == sap["id"] and e["type"] == "offers" and e["direction"] == "in" for e in snet["edges"]), snet["edges"]

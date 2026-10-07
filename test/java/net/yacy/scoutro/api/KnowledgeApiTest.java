@@ -128,6 +128,28 @@ public class KnowledgeApiTest {
             enumValues.add(published.getString(i));
         }
         assertEquals(enumValues, KnowledgeApi.ACTIONS);
+    }
+
+    /** Package 6.3: a backup is deleted by its name of GET /kg/backups only; a path is refused before anything is looked up. */
+    @Test
+    public void deletingABackupTakesItsNameNeverAPath() throws Exception {
+        final KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            for (final String name : new String[] {"../graph.db", "graph.db", "/etc/passwd", "graph-20300101T000000Z.db/../../graph.db",
+                    "backup/graph-20300101T000000Z.db", "graph-20300101T000000Z.json", "%2e%2e%2fgraph.db", ""}) {
+                assertEquals(name, 400, status(api, "POST", CONTROL, Json.obj("action", "delete_backup", "backup", name).toString()));
+            }
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"delete_backup\"}"));
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"delete_backup\",\"backup\":\"graph-20300101T000000Z.db\",\"path\":\"/tmp\"}"));
+            assertEquals(400, status(api, "POST", CONTROL, "{\"action\":\"pause\",\"backup\":\"graph-20300101T000000Z.db\"}"));
+            assertEquals("a well-formed name that is no backup", 404,
+                    status(api, "POST", CONTROL, "{\"action\":\"delete_backup\",\"backup\":\"graph-20300101T000000Z.db\"}"));
+            assertEquals(405, status(api, "GET", CONTROL, "{\"action\":\"delete_backup\",\"backup\":\"graph-20300101T000000Z.db\"}"));
+        } finally {
+            r.close();
+        }
+        assertEquals(503, KnowledgeApi.toApi(new KgException(KgException.BACKUP_DELETE_FAILED, "x")).status());
         assertTrue(KnowledgeApi.ACTIONS.containsAll(java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile", "llm_retry",
                 "backup", "restore")));
         final ApiException llm = KnowledgeApi.toApi(new KgException(KgException.LLM_UNAVAILABLE, "off"));
@@ -238,6 +260,15 @@ public class KnowledgeApiTest {
             assertEquals(400, read(api, "GET", "services/providers", "q", "SAP"));
             assertEquals(404, read(api, "GET", "services/providers", "name", "SAP"));
             assertEquals(404, read(api, "GET", "services/other"));
+            // package 6.2: the network of one name
+            assertEquals(400, read(api, "GET", "services/network"));
+            assertEquals(400, read(api, "GET", "services/network", "q", "SAP"));
+            assertEquals(400, read(api, "GET", "services/network", "name", "SAP", "limit", "201"));
+            assertEquals(400, read(api, "GET", "services/network", "name", "SAP", "include", "everything"));
+            assertEquals(400, read(api, "GET", "services/network", "name", "SAP", "depth", "2"));
+            assertEquals(404, read(api, "GET", "services/network", "name", "SAP", "include", "stale", "limit", "200", "offset", "5"));
+            assertEquals(404, read(api, "GET", "services/network/more", "name", "SAP"));
+            assertEquals(405, read(api, "POST", "services/network", "name", "SAP"));
             assertEquals(405, read(api, "POST", "services"));
             assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "prices", "true"));
             assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "prices", "yes"));

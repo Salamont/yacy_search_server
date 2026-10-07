@@ -247,4 +247,60 @@ public class CollectionsStatusTest {
         publish(on, "NEWPO5host01", "https://www.neuportal.de/karriere", "newportal-web", ORG, TEXT);
         assertTrue(count(on, "hiring_organization", "newportal-web") > 0);
     }
+
+    /** Package 6.3: the LLM status names the model of the LLM selection, also while the tier has no collection. */
+    @Test
+    public void theLlmStatusNamesTheModelAndNoLlmCollectionsOnlyWithoutOne() throws Exception {
+        final net.yacy.scoutro.knowledge.extract.LlmClient model = new net.yacy.scoutro.knowledge.extract.LlmClient() {
+            @Override
+            public String model() {
+                return "OLLAMA/fixture";
+            }
+
+            @Override
+            public String complete(final String system, final String user, final org.json.JSONObject schema, final long timeoutMillis)
+                    throws java.io.IOException {
+                throw new java.io.IOException("not called");
+            }
+        };
+        final Map<String, String> plain = KgTestSupport.enabled(KgConfig.COLLECTIONS, "kga,kgb");
+        this.runtime = new KgRuntime(KgTestSupport.env(this.tmp.newFolder("a"), plain, new KgTestSupport.Probe()).withLlm(model)
+                .withKeys(() -> new ArrayList<>(plain.keySet())));
+        this.runtime.open();
+        JSONObject llm = this.runtime.status().getJSONObject("llm");
+        assertEquals("off", llm.getString("state"));
+        assertEquals("no_llm_collections", llm.getString("reason"));
+        assertEquals("the model is shown although the tier is off", "OLLAMA/fixture", llm.getString("model"));
+        assertEquals("OLLAMA/fixture", this.runtime.llmModel());
+        assertEquals("running", this.runtime.status().getString("state"));
+        this.runtime.close();
+        // one collection for the LLM tier: the reason is no longer no_llm_collections (here: no Solr to follow)
+        final Map<String, String> one = KgTestSupport.enabled(KgConfig.COLLECTIONS, "kga,kgb", KgConfig.LLM_COLLECTIONS, "kga");
+        this.runtime = new KgRuntime(KgTestSupport.env(this.tmp.newFolder("b"), one, new KgTestSupport.Probe()).withLlm(model)
+                .withKeys(() -> new ArrayList<>(one.keySet())));
+        this.runtime.open();
+        llm = this.runtime.status().getJSONObject("llm");
+        assertTrue(llm.getBoolean("enabled"));
+        assertFalse(llm.toString(), "no_llm_collections".equals(llm.optString("reason")));
+        assertEquals("OLLAMA/fixture", llm.getString("model"));
+        assertTrue(row(this.runtime, "kga").getBoolean("llm"));
+        assertFalse(row(this.runtime, "kgb").getBoolean("llm"));
+        // switched on for the LLM tier, but the collection is off for the graph: said so, not no_llm_collections
+        this.runtime.close();
+        final Map<String, String> off = KgTestSupport.enabled(KgConfig.COLLECTIONS, "kga", KgConfig.INACTIVE_COLLECTIONS, "kga",
+                KgConfig.LLM_COLLECTIONS, "kga");
+        this.runtime = new KgRuntime(KgTestSupport.env(this.tmp.newFolder("d"), off, new KgTestSupport.Probe()).withLlm(model)
+                .withKeys(() -> new ArrayList<>(off.keySet())));
+        this.runtime.open();
+        llm = this.runtime.status().getJSONObject("llm");
+        assertFalse(llm.getBoolean("enabled"));
+        assertEquals("llm_collections_not_followed", llm.getString("reason"));
+        assertEquals("OLLAMA/fixture", llm.getString("model"));
+        // without a model of the LLM selection, nothing is guessed
+        this.runtime.close();
+        this.runtime = new KgRuntime(KgTestSupport.env(this.tmp.newFolder("c"), plain, new KgTestSupport.Probe())
+                .withKeys(() -> new ArrayList<>(plain.keySet())));
+        this.runtime.open();
+        assertTrue(this.runtime.status().getJSONObject("llm").isNull("model"));
+    }
 }

@@ -30,6 +30,17 @@ public final class KgTestSupport {
         return KgConfig.read(settings::get);
     }
 
+    /** Starts the shared runtime ({@link KgRuntime#current()}) in this environment, for tests outside the package. */
+    public static KgRuntime startCurrent(final KgRuntime.Env env) {
+        KgRuntime.start(env);
+        return KgRuntime.current();
+    }
+
+    /** A count over a runtime's graph, for tests outside the package. */
+    public static long count(final KgRuntime r, final String sql) throws KgException {
+        return r.store().read(c -> net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, sql));
+    }
+
     /** Real file sizes, but a free-space value controlled by the test. */
     public static final class Probe implements StorageProbe {
         public final AtomicLong usable = new AtomicLong(100L * GIB);

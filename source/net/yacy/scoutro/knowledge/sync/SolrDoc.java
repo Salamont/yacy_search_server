@@ -185,6 +185,32 @@ public final class SolrDoc {
     }
 
     /**
+     * The collections of this document whose graph data the graph keeps: the followed ones and those switched off
+     * ({@link KgConfig#holds}, package 6.2), sorted.
+     */
+    public List<String> kept(final KgConfig cfg) {
+        final List<String> out = new ArrayList<>();
+        for (final String c : this.collections) {
+            if (cfg.follows(c) || cfg.holds(c)) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    /** True if no collection of this document is followed but one is switched off: its graph data stay as they are. */
+    public boolean heldOnly(final KgConfig cfg) {
+        boolean held = false;
+        for (final String c : this.collections) {
+            if (cfg.follows(c)) {
+                return false;
+            }
+            held |= cfg.holds(c);
+        }
+        return held;
+    }
+
+    /**
      * Document state by the rule of 4.4: {@code failtype_s=excl} or HTTP
      * 404/410 is gone; any other fail document, or another non-200 status, is
      * unavailable; everything else is active.

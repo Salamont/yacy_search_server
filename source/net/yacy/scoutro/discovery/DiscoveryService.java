@@ -264,28 +264,47 @@ public final class DiscoveryService implements AutoCloseable {
         if (failure.getCause() != null && depth < 8) safe.initCause(diagnostic(failure.getCause(), depth + 1));
         return safe;
     }
+    /**
+     * Batches per wakeup that may end empty before the wakeup stops: a clean batch with {@code processed=0} (no fresh candidate
+     * in its scope) does not use up the heartbeat, but at most this many of them run back to back.
+     */
+    static final int EMPTY_BATCHES_PER_WAKEUP = 5;
     /** Public for deterministic tests; production only executes it on the single coordinator. */
     public void advance() throws Exception {
         if (this.store.read().optJSONObject("active_run") != null) {
             reconcile();
             return; // at most one batch per wakeup, including completion/recovery.
         }
+        // One batch per wakeup, unless it completed cleanly with nothing processed: then the next due job is chosen at once,
+        // up to EMPTY_BATCHES_PER_WAKEUP empty batches. Work, an open run, an error or a waiting reason ends the wakeup.
+        final java.util.Set<String> served = new java.util.HashSet<>();
+        for (int empty = 0; dispatch(served); ) {
+            if (++empty >= EMPTY_BATCHES_PER_WAKEUP) {
+                ConcurrentLog.info("ScoutroDiscovery", empty + " empty batches in one wakeup; the next due job waits for the next heartbeat");
+                return;
+            }
+            if (this.closed.get()) return;
+        }
+    }
+    /** Reserves and runs the next due job; true only if that batch completed cleanly with {@code processed=0}. */
+    private boolean dispatch(final java.util.Set<String> served) throws Exception {
         final JsonObject root = this.store.read();
-        if (!root.getBoolean("enabled") || root.getBoolean("paused")) { this.waiting = "paused_or_disabled"; return; }
-        if (!this.heartbeat.status().getBoolean("enabled")) { this.waiting = "heartbeat_disabled_or_duplicate"; return; }
+        if (!root.getBoolean("enabled") || root.getBoolean("paused")) { this.waiting = "paused_or_disabled"; return false; }
+        if (!this.heartbeat.status().getBoolean("enabled")) { this.waiting = "heartbeat_disabled_or_duplicate"; return false; }
         final JsonObject capacity = this.backend.capacity();
-        if (!capacity.getBoolean("allowed")) { this.waiting = capacity.optString("reason", "capacity"); return; }
+        if (!capacity.getBoolean("allowed")) { this.waiting = capacity.optString("reason", "capacity"); return false; }
         final RuntimeCatalog config = catalog();
         final long now = this.clock.getAsLong();
         final JsonObject row = choose(root, now);
-        if (row == null) { this.waiting = "no_due_job"; return; }
+        if (row == null) { this.waiting = "no_due_job"; return false; }
         final JsonObject job = row.getJSONObject("definition");
+        if (!served.add(job.getString("id"))) return false; // never the same job twice in one wakeup
         try { config.validate(job); JobSchema.validate(job, this.limits); }
         catch (final ApiException e) {
             change(null, next -> JobStore.job(next, job.getString("id")).getJSONObject("runtime")
                     .put("error", e.code()).put("next_due", now + job.getJSONObject("schedule").getLong("every_minutes") * 60000)
                     .put("last_served", now).put("requested", false));
-            this.waiting = e.code(); return;
+            this.waiting = e.code(); return false;
         }
         final Path frozen = config.freeze(this.snapshots);
         final JsonObject run = new JsonObject().put("id", UUID.randomUUID().toString()).put("job_id", job.getString("id"))
@@ -311,6 +330,18 @@ public final class DiscoveryService implements AutoCloseable {
         change(null, next -> next.getJSONObject("active_run").put("phase", "running"));
         final JsonObject answer = this.runner.run(this.script, this.stateRoot, frozen, init, (action, params) -> request(run.getString("id"), action, params), this.timeout);
         finishProcess(answer);
+        return completedEmpty(answer);
+    }
+    /**
+     * The batch completed (no open run: nothing was submitted) without an error or a waiting reason, and its report says
+     * {@code processed=0}. Anything else (work, needs_review, an unknown submission, capacity or pause) is never passed over.
+     */
+    private boolean completedEmpty(final JsonObject answer) {
+        if (answer.has("error") || this.store.read().optJSONObject("active_run") != null) return false;
+        final JsonObject report = answer.optJSONObject("report");
+        if (report == null || report.has("waiting_reason")) return false;
+        final Object processed = report.opt("processed");
+        return processed instanceof Number && ((Number) processed).doubleValue() == 0;
     }
     public static JsonObject choose(final JsonObject root, final long now) {
         final java.util.List<JsonObject> due = new java.util.ArrayList<>();

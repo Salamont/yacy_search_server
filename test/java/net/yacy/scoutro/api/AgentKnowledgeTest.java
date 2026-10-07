@@ -1,6 +1,7 @@
 package net.yacy.scoutro.api;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -283,14 +284,28 @@ public class AgentKnowledgeTest {
         final AgentApi.Response net = get(a, "kg/entities/" + sap + "/neighborhood", "depth", "2", "prices", "true");
         assertEquals(net.body.toString(), 200, net.status);
         seen.append(net.body);
+        // package 6.2: the network of the name has the agent's provider only, its line naming its own service
+        final AgentApi.Response group = get(a, "kg/services/network", "name", "SAP");
+        assertEquals(group.body.toString(), 200, group.status);
+        assertEquals(1, group.body.getInt("neighbours"));
+        assertEquals(1, group.body.getJSONArray("edges").length());
+        assertEquals(sap, group.body.getJSONArray("edges").getJSONObject(0).getJSONObject("service").getString("id"));
+        seen.append(group.body);
         assertNothingOfB("services of agent kga", seen.toString());
         assertEquals("collection_not_in_scope", code(get(a, "kg/services", "collection", "kgb")));
         assertEquals("collection_not_in_scope", code(get(a, "kg/services/providers", "name", "SAP", "collection", "kgb")));
+        assertEquals("collection_not_in_scope", code(get(a, "kg/services/network", "name", "SAP", "collection", "kgb")));
         // the administrator-equivalent scope sees both providers, still as two services
         final String all = token(Agent.Kind.EXTERNAL, true, "kg.read");
         final JSONObject both = get(all, "kg/services", "q", "SAP").body.getJSONArray("items").getJSONObject(0);
         assertEquals(2, both.getInt("services"));
         assertEquals(2, both.getInt("providers"));
+        final JSONObject bothNet = get(all, "kg/services/network", "name", "SAP").body;
+        assertEquals(2, bothNet.getInt("neighbours"));
+        assertNotEquals(bothNet.getJSONArray("edges").getJSONObject(0).getJSONObject("service").getString("id"),
+                bothNet.getJSONArray("edges").getJSONObject(1).getJSONObject("service").getString("id"));
+        assertEquals("a read route needs kg.read", 403, get(token(Agent.Kind.EXTERNAL, false, "kg.export"), "kg/services/network",
+                "name", "SAP").status);
         assertEquals("a read route needs kg.read", 403, get(token(Agent.Kind.EXTERNAL, false, "kg.export"), "kg/services").status);
     }
 

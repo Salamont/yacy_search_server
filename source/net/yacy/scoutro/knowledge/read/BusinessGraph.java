@@ -347,7 +347,7 @@ public final class BusinessGraph {
         return DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, ent), "name", name), DisplayNames.known(c, ent, name, v));
     }
 
-    private static double strength(final String status, final double confidence, final int evidence) {
+    static double strength(final String status, final double confidence, final int evidence) {
         final double base;
         switch (status) {
             case "confirmed":
@@ -371,7 +371,7 @@ public final class BusinessGraph {
         return base + confidence + Math.min(10, evidence) * 0.01;
     }
 
-    private static JSONObject node(final Connection c, final long ent, final Viewer v, final int depth) throws SQLException {
+    static JSONObject node(final Connection c, final long ent, final Viewer v, final int depth) throws SQLException {
         String type = null;
         String kind = null;
         try (PreparedStatement ps = c.prepareStatement("SELECT t.name, e.subkind FROM kg_entity e JOIN kg_vocab t ON t.term_id = e.type"

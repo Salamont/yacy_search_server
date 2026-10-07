@@ -109,6 +109,8 @@ public final class SyncService {
         final AtomicLong fullResets = new AtomicLong();
         /** Tier 1 and 2 extractions started (none while growth is refused). */
         final AtomicLong extractions = new AtomicLong();
+        /** Pages of collections switched off only (package 6.2): kept as they are. */
+        final AtomicLong held = new AtomicLong();
 
         JSONObject json() {
             return KgJson.obj("published", this.published.get(), "unchanged", this.unchanged.get(), "lifecycle", this.lifecycle.get(),
@@ -118,7 +120,7 @@ public final class SyncService {
                     "growthRefused", this.growthRefused.get(), "maintenanceRefused", this.maintenanceRefused.get(),
                     "drainRefused", this.drainRefused.get(), "queueDropped", this.queueDropped.get(),
                     "solrErrors", this.solrErrors.get(), "failedDocs", this.failedDocs.get(), "drained", this.drained.get(),
-                    "fullResets", this.fullResets.get(), "extractions", this.extractions.get());
+                    "fullResets", this.fullResets.get(), "extractions", this.extractions.get(), "held", this.held.get());
         }
     }
 
@@ -449,6 +451,11 @@ public final class SyncService {
         }
         final List<String> followed = d.followed(this.cfg);
         if (followed.isEmpty()) {
+            if (d.heldOnly(this.cfg)) {
+                // a collection switched off (package 6.2): its graph data stay as they are, nothing is extracted
+                this.counters.held.incrementAndGet();
+                return complete(item);
+            }
             return remove(item, cur); // out of scope
         }
         final int state = d.state();
@@ -457,7 +464,8 @@ public final class SyncService {
             this.counters.untracked.incrementAndGet();
             return complete(item);
         }
-        final Publisher.Doc doc = toDoc(d, followed, state);
+        // the page keeps its membership in a collection switched off; the extraction reads the followed ones only
+        final Publisher.Doc doc = toDoc(d, d.kept(this.cfg), state);
         final byte[] input = d.inputHash();
         final Action action;
         if (state != Aggregates.STATE_ACTIVE) {

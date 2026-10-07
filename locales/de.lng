@@ -5442,10 +5442,7 @@ aria-label="Views"==aria-label="Ansichten"
 >Refresh<==>Aktualisieren<
 >YaCy Crawler Monitor<==>YaCy Crawl-Monitor<
 >Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.<==>Der Profilstatus belegt keine erfolgreiche Indexierung. Fehlende Werte sind unbekannt; ein Prozentsatz wird nicht geschätzt.<
->Loading<==>Wird geladen<
 >No crawls available.<==>Keine Crawls vorhanden.<
->Crawl accepted.<==>Crawl angenommen.<
->Existing crawl returned. No second start.<==>Bestehender Crawl zurückgegeben. Kein zweiter Start.<
 >Request failed<==>Anfrage fehlgeschlagen<
 >The collection list is unavailable. Reload the page later.<==>Die Collection-Liste ist nicht verfügbar. Laden Sie die Seite später neu.<
 >The collection of the link is not available. Choose one from the list.<==>Die Collection des Links steht nicht zur Verfügung. Wählen Sie eine aus der Liste.<
@@ -5463,6 +5460,45 @@ aria-label="Views"==aria-label="Ansichten"
 >Analyze host<==>Host analysieren<
 >Not yet indexed<==>Noch nicht indexiert<
 >Last error<==>Letzter Fehler<
+>This request has started its crawl. Change the URL or a setting to start another crawl.<==>Diese Anfrage hat ihren Crawl gestartet. Ändern Sie die URL oder eine Einstellung, um einen weiteren Crawl zu starten.<
+>Start result<==>Ergebnis des Starts<
+>View crawl status<==>Crawl-Status ansehen<
+>Starting the crawl …<==>Crawl wird gestartet …<
+>This start<==>Dieser Start<
+>Started: YaCy created the crawl profile.<==>Gestartet: YaCy hat das Crawl-Profil angelegt.<
+>Already started: this request started the crawl before. No second start.<==>Bereits gestartet: Diese Anfrage hat den Crawl schon gestartet. Kein zweiter Start.<
+>Started earlier. The values come from the current crawl status.<==>Früher gestartet. Die Angaben stammen aus dem aktuellen Crawl-Status.<
+>Rejected: the crawl was not started.<==>Abgelehnt: Der Crawl wurde nicht gestartet.<
+>Failed: the start could not be completed.<==>Fehlgeschlagen: Der Start konnte nicht abgeschlossen werden.<
+>Unconfirmed: YaCy may have started the crawl. It is not started a second time.<==>Unbestätigt: YaCy hat den Crawl möglicherweise gestartet. Er wird kein zweites Mal gestartet.<
+>This crawl is no longer known to YaCy or Scoutro.<==>Dieser Crawl ist YaCy und Scoutro nicht mehr bekannt.<
+>Result of the start attempt<==>Ergebnis des Startversuchs<
+>Current status<==>Aktueller Status<
+>Crawl/profile ID<==>Crawl-/Profil-ID<
+>Start attempt<==>Startversuch<
+>Started<==>Gestartet<
+>Already started, no second start<==>Bereits gestartet, kein zweiter Start<
+>Rejected<==>Abgelehnt<
+>Failed<==>Fehlgeschlagen<
+>Unconfirmed<==>Unbestätigt<
+>Running: the YaCy crawl profile is active<==>Läuft: Das YaCy-Crawl-Profil ist aktiv<
+>Waiting: the YaCy crawler is paused<==>Wartet: Der YaCy-Crawler ist pausiert<
+>Finished: YaCy ended the crawl profile<==>Abgeschlossen: YaCy hat das Crawl-Profil beendet<
+>Profile removed: YaCy no longer lists it<==>Profil entfernt: YaCy führt es nicht mehr<
+>Not started<==>Nicht gestartet<
+>Unknown: look for the URL in the crawl status<==>Unbekannt: Suchen Sie die URL im Crawl-Status<
+>None, no crawl profile<==>Keine, kein Crawl-Profil<
+>The collection does not exist. Choose one from the list or create it with New collection.<==>Die Collection existiert nicht. Wählen Sie eine aus der Liste oder legen Sie sie mit „Neue Collection“ an.<
+>Another crawl is active on this host. Wait until it has finished or stop it in the YaCy Crawler Monitor.<==>Auf diesem Host läuft bereits ein Crawl. Warten Sie, bis er beendet ist, oder stoppen Sie ihn im YaCy Crawl-Monitor.<
+>YaCy refused the start. Check the URL (reachable, allowed by robots.txt) and the settings.<==>YaCy hat den Start abgelehnt. Prüfen Sie die URL (erreichbar, von robots.txt erlaubt) und die Einstellungen.<
+>The outcome of this start is not confirmed; YaCy may have started the crawl. Look for the URL in the crawl status. Start crawl again sends the same request key and never starts twice.<==>Das Ergebnis dieses Starts ist nicht bestätigt; YaCy hat den Crawl möglicherweise gestartet. Suchen Sie die URL im Crawl-Status. „Crawl starten“ sendet erneut denselben Anfrageschlüssel und startet nie doppelt.<
+>The request key was already used for a different request. Start crawl again sends a new key.<==>Der Anfrageschlüssel wurde bereits für eine andere Anfrage verwendet. „Crawl starten“ sendet jetzt einen neuen Schlüssel.<
+>YaCy did not confirm the start: no new crawl profile appeared.<==>YaCy hat den Start nicht bestätigt: Es ist kein neues Crawl-Profil erschienen.<
+>The request is invalid. Check the URL, the collection and the numbers.<==>Die Anfrage ist ungültig. Prüfen Sie URL, Collection und Zahlenwerte.<
+>You are not signed in as administrator.<==>Sie sind nicht als Administrator angemeldet.<
+>The crawler or the index is unavailable at the moment. Try again later.<==>Crawler oder Index sind gerade nicht verfügbar. Versuchen Sie es später erneut.<
+>No answer from the server. Start crawl again sends the same request key: a start that already arrived is returned, never repeated.<==>Keine Antwort vom Server. „Crawl starten“ sendet erneut denselben Anfrageschlüssel: Ein bereits angekommener Start wird zurückgegeben, nie wiederholt.<
+>The server could not process the request.<==>Der Server konnte die Anfrage nicht verarbeiten.<
 
 #File: WatchWebStructure_p.html
 # Scoutro responsive layout; existing translations and identifiers retained.
@@ -6009,3 +6045,62 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >operator of the website<==>Betreiber der Website<
 >no name recognised<==>kein Name erkannt<
 >Technical ID<==>Technische ID<
+>All providers of one service name, never the whole graph. The centre is the name only, no object: every line is one provider's own offer of its own service, with that service's own prices, sources and collections. Services, prices and facts of different providers are never merged or mixed. Tap a provider or a line for its own service; the list shows each line with that service.<==>Alle Anbieter eines Leistungsnamens, nie der ganze Graph. Die Mitte ist nur der Name, kein Objekt: Jede Linie ist das eigene Angebot eines Anbieters für seine eigene Leistung, mit deren eigenen Preisen, Quellen und Collections. Leistungen, Preise und Fakten verschiedener Anbieter werden nie zusammengeführt oder vermischt. Tippen Sie auf einen Anbieter oder eine Linie für seine eigene Leistung; die Liste zeigt jede Linie mit dieser Leistung.<
+>Network of all providers<==>Netz aller Anbieter<
+>Collections in the knowledge graph<==>Collections im Wissensgraphen<
+>Every collection of the catalog is listed here, a new one too; YaCy's internal collections never. Switching a collection off keeps its graph data: nothing is deleted and nothing new is read from it. Switching it on reads the pages it already has in the index. A change concerns only this collection and takes effect at once (the graph is reopened). A new vocabulary of a followed collection makes the graph read its pages again in the background. Settings keys:<==>Jede Collection des Katalogs steht hier, auch eine neue; die internen Collections von YaCy nie. Abschalten behält die Graphdaten einer Collection: Nichts wird gelöscht und nichts Neues aus ihr gelesen. Einschalten liest die Seiten, die sie schon im Index hat. Eine Änderung betrifft nur diese Collection und wirkt sofort (der Graph wird neu geöffnet). Ein neues Vokabular einer verfolgten Collection lässt den Graphen ihre Seiten im Hintergrund neu lesen. Einstellungsschlüssel:<
+>Pages in the index<==>Seiten im Index<
+>Save<==>Speichern<
+>Collections switched off (data kept)<==>Abgeschaltete Collections (Daten bleiben)<
+>Network of %1 · %2 providers<==>Netz von %1 · %2 Anbieter<
+>%1 providers<==>%1 Anbieter<
+>Service name in the centre (no object)<==>Leistungsname in der Mitte (kein Objekt)<
+>The centre is the service name only, no object. Each provider keeps its own service with its own prices and sources.<==>Die Mitte ist nur der Leistungsname, kein Objekt. Jeder Anbieter behält seine eigene Leistung mit eigenen Preisen und Quellen.<
+>All providers as a list<==>Alle Anbieter als Liste<
+>this provider's own service<==>eigene Leistung dieses Anbieters<
+>Network of this service<==>Netz dieser Leistung<
+>switched off, data kept<==>abgeschaltet, Daten bleiben<
+>On<==>An<
+>Off (data kept)<==>Aus (Daten bleiben)<
+>Default: %1<==>Standard: %1<
+>Default: no vocabulary<==>Standard: kein Vokabular<
+>No vocabulary<==>Kein Vokabular<
+>%1 saved; the knowledge graph was reopened with the new setting.<==>%1 gespeichert; der Wissensgraph wurde mit der neuen Einstellung neu geöffnet.<
+>%1 saved; it takes effect when the knowledge graph starts.<==>%1 gespeichert; die Einstellung wirkt, sobald der Wissensgraph startet.<
+>%1: nothing changed.<==>%1: nichts geändert.<
+>The pages it already has in the index are read now.<==>Die Seiten, die sie schon im Index hat, werden jetzt gelesen.<
+>The graph reads its pages again in the background.<==>Der Graph liest ihre Seiten im Hintergrund neu.<
+>Switch %1 off for the knowledge graph? Its graph data are kept, nothing new is read from it.<==>%1 für den Wissensgraphen abschalten? Ihre Graphdaten bleiben erhalten, Neues wird nicht mehr gelesen.<
+>Change the vocabulary of %1? The graph reads its pages again in the background.<==>Das Vokabular von %1 ändern? Der Graph liest ihre Seiten im Hintergrund neu.<
+>not in the collection catalog<==>nicht im Collection-Katalog<
+>No collection yet.<==>Noch keine Collection.<
+>Knowledge graph for %1<==>Wissensgraph für %1<
+>Vocabulary for %1<==>Vokabular für %1<
+>The LLM enrichment reads the pages of the collections switched on for it in addition, with the model of the LLM selection that has the usage knowledge; there is no second model setting. It is never switched on by itself, and without it the knowledge graph works as before.<==>Die LLM-Anreicherung liest die Seiten der dafür eingeschalteten Collections zusätzlich, mit dem Modell der LLM-Auswahl, das die Verwendung Wissen hat; eine zweite Modell-Einstellung gibt es nicht. Sie wird nie von selbst eingeschaltet, und ohne sie arbeitet der Wissensgraph wie bisher.<
+>LLM selection<==>LLM-Auswahl<
+>LLM enrichment<==>LLM-Anreicherung<
+>Knowledge graph (rules and structured data)<==>Wissensgraph (Regeln und strukturierte Daten)<
+>Model (usage knowledge)<==>Modell (Verwendung Wissen)<
+>inactive<==>inaktiv<
+>no model with the usage knowledge<==>kein Modell mit der Verwendung Wissen<
+>no collection switched on<==>keine Collection eingeschaltet<
+>no collection switched on for the LLM enrichment<==>keine Collection für die LLM-Anreicherung eingeschaltet<
+>no model with the usage knowledge in the LLM selection<==>kein Modell mit der Verwendung Wissen in der LLM-Auswahl<
+>the collections switched on for it are off for the knowledge graph<==>die dafür eingeschalteten Collections sind für den Wissensgraph ausgeschaltet<
+>Model: %1 (LLM selection, usage knowledge)<==>Modell: %1 (LLM-Auswahl, Verwendung Wissen)<
+>No model has the usage knowledge in the LLM selection: the LLM enrichment waits, the knowledge graph works without it.<==>Kein Modell hat in der LLM-Auswahl die Verwendung Wissen: Die LLM-Anreicherung wartet, der Wissensgraph arbeitet ohne sie.<
+>LLM enrichment for %1<==>LLM-Anreicherung für %1<
+>Off<==>Aus<
+>On (all collections, *)<==>An (alle Collections, *)<
+>takes effect once the collection is on<==>wirkt, sobald die Collection eingeschaltet ist<
+>Switch the LLM enrichment on for %1? The model %2 reads the pages of this collection in addition.<==>LLM-Anreicherung für %1 einschalten? Das Modell %2 liest die Seiten dieser Collection zusätzlich.<
+>Switch the LLM enrichment on for %1? No model has the usage knowledge yet; the enrichment waits until one is chosen in the LLM selection.<==>LLM-Anreicherung für %1 einschalten? Noch hat kein Modell die Verwendung Wissen; die Anreicherung wartet, bis in der LLM-Auswahl eines gewählt ist.<
+>No model has the usage knowledge in the LLM selection: the LLM enrichment waits; the knowledge graph works without it.<==>Kein Modell hat in der LLM-Auswahl die Verwendung Wissen: Die LLM-Anreicherung wartet; der Wissensgraph arbeitet ohne sie.<
+>The collection is off for the knowledge graph; the LLM enrichment takes effect once it is on.<==>Die Collection ist für den Wissensgraph ausgeschaltet; die LLM-Anreicherung wirkt, sobald sie eingeschaltet ist.<
+>Delete<==>Löschen<
+>Delete this backup for good? File: %1 · Type: %2 · Size: %3 · Created: %4. The graph and the other backups stay as they are.<==>Dieses Backup endgültig löschen? Datei: %1 · Art: %2 · Größe: %3 · Erstellt: %4. Der Graph und die anderen Backups bleiben, wie sie sind.<
+>This copy was taken before an upgrade: it is the way back to the previous version.<==>Diese Kopie entstand vor einem Upgrade: Sie ist der Weg zurück zur vorherigen Version.<
+>Backup %1 deleted.<==>Backup %1 gelöscht.<
+>%1 was not deleted: a backup, restore or rebuild is running. Try again when it has ended.<==>%1 wurde nicht gelöscht: Ein Backup, eine Wiederherstellung oder ein Neuaufbau läuft. Versuchen Sie es erneut, wenn der Vorgang beendet ist.<
+>%1 was not deleted: there is no such backup (any more).<==>%1 wurde nicht gelöscht: Dieses Backup gibt es (nicht mehr).<
+>%1 could not be deleted.<==>%1 konnte nicht gelöscht werden.<

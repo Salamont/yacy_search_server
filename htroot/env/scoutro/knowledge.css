@@ -63,6 +63,9 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 .skg-t-organization .skg-card { fill: #eef6fc; stroke: #6aa3cc; } .skg-t-organization .skg-stripe { fill: #197bb5; }
 .skg-t-facility .skg-card { fill: #eef8f1; stroke: #7fbf93; } .skg-t-facility .skg-stripe { fill: #2f8a50; }
 .skg-t-service .skg-card { fill: #fff8e6; stroke: #d9b45a; } .skg-t-service .skg-stripe { fill: #b58300; }
+.skg-kgc select { min-width: 9em; max-width: 100%; }
+.skg-kgc-llm { font-weight: 600; margin-bottom: 2px; }
+.skg-t-group .skg-card { fill: #fff8e6; stroke: #b58300; stroke-dasharray: 6 3; } .skg-t-group .skg-stripe { fill: #b58300; }
 .skg-t-job .skg-card { fill: #f6effb; stroke: #b28fd0; } .skg-t-job .skg-stripe { fill: #7b43a6; }
 .skg-t-place .skg-card { fill: #f4f4f4; stroke: #a0a0a0; } .skg-t-place .skg-stripe { fill: #777; }
 .skg-t-value .skg-card { fill: #f0f1fb; stroke: #8d94d0; stroke-dasharray: 4 3; } .skg-t-value .skg-stripe { fill: #5a64b8; }
@@ -102,6 +105,8 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 @media (max-width: 767px) {
  .skg-toc { gap: 4px 10px; font-size: 14px; }
  .skg-net-form fieldset label { margin-right: 8px; }
+ /* the collection settings as cards: labels such as "Wissensgraph" keep their words */
+ .scoutro-cards.skg-kgc tbody td { grid-template-columns: minmax(104px, 36%) minmax(0, 1fr); }
 }
 /* hits with their provider and domain (package 6.1) */
 .skg-provider { overflow-wrap: anywhere; }

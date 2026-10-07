@@ -21,7 +21,16 @@
 </div>
 <p class="scc-note">Choose an existing collection or create a new one with New collection. There is no default collection.</p>
 <button id="scc-start" class="btn btn-primary" type="submit">Start crawl</button>
+<p id="scc-locked" class="scc-note" hidden>This request has started its crawl. Change the URL or a setting to start another crawl.</p>
 </form>
+<section id="scc-result" class="scc-result" aria-labelledby="scc-result-title" hidden>
+<h3 id="scc-result-title">Start result</h3>
+<p id="scc-outcome" class="scc-outcome" role="status" aria-live="polite"></p>
+<dl id="scc-facts" class="scc-facts"></dl>
+<p id="scc-error" class="scc-error" hidden></p>
+<p id="scc-error-detail" class="scc-note scc-detail" hidden></p>
+<a id="scc-status-link" href="#scc-list-title" hidden>View crawl status</a>
+</section>
 </section>
 <section class="scc-panel" aria-labelledby="scc-list-title">
 <div class="scc-heading"><h2 id="scc-list-title">Crawl status</h2><button class="btn btn-default" id="scc-refresh" type="button">Refresh</button><a href="Crawler_p.html">YaCy Crawler Monitor</a></div>
@@ -29,8 +38,7 @@
 <div id="scc-crawls" class="scc-cards"></div>
 </section>
 <div hidden aria-hidden="true">
-<span data-scc-label="loading">Loading</span><span data-scc-label="empty">No crawls available.</span>
-<span data-scc-label="started">Crawl accepted.</span><span data-scc-label="replayed">Existing crawl returned. No second start.</span>
+<span data-scc-label="empty">No crawls available.</span>
 <span data-scc-label="error">Request failed</span><span data-scc-label="catalog_error">The collection list is unavailable. Reload the page later.</span><span data-scc-label="unknown_collection">The collection of the link is not available. Choose one from the list.</span>
 <span data-scc-label="collection">Collection</span><span data-scc-label="scope">Scope</span><span data-scc-label="pages">Pages loaded</span>
 <span data-scc-label="depth">Crawl depth</span><span data-scc-label="started_at">Start recorded</span><span data-scc-label="unknown">Unknown</span>
@@ -38,6 +46,35 @@
 <span data-scc-label="removed">Profile removed</span><span data-scc-label="stopped">Stopped</span><span data-scc-label="unconfirmed">Start unconfirmed</span>
 <span data-scc-label="domain">Domain</span><span data-scc-label="subpath">Subpath</span><span data-scc-label="wide">Wide</span>
 <span data-scc-label="analyze">Analyze host</span><span data-scc-label="not_indexed">Not yet indexed</span><span data-scc-label="last_error">Last error</span>
+<span data-scc-label="starting">Starting the crawl …</span><span data-scc-label="this_start">This start</span>
+<span data-scc-label="outcome_started">Started: YaCy created the crawl profile.</span>
+<span data-scc-label="outcome_replayed">Already started: this request started the crawl before. No second start.</span>
+<span data-scc-label="outcome_restored">Started earlier. The values come from the current crawl status.</span>
+<span data-scc-label="outcome_rejected">Rejected: the crawl was not started.</span>
+<span data-scc-label="outcome_failed">Failed: the start could not be completed.</span>
+<span data-scc-label="outcome_unconfirmed">Unconfirmed: YaCy may have started the crawl. It is not started a second time.</span>
+<span data-scc-label="outcome_gone">This crawl is no longer known to YaCy or Scoutro.</span>
+<span data-scc-label="fact_url">URL</span><span data-scc-label="fact_result">Result of the start attempt</span><span data-scc-label="fact_status">Current status</span>
+<span data-scc-label="fact_id">Crawl/profile ID</span><span data-scc-label="fact_attempted">Start attempt</span>
+<span data-scc-label="result_started">Started</span><span data-scc-label="result_replayed">Already started, no second start</span><span data-scc-label="result_restored">Started</span>
+<span data-scc-label="result_rejected">Rejected</span><span data-scc-label="result_failed">Failed</span><span data-scc-label="result_unconfirmed">Unconfirmed</span><span data-scc-label="result_gone">Unknown</span>
+<span data-scc-label="status_running">Running: the YaCy crawl profile is active</span>
+<span data-scc-label="status_paused">Waiting: the YaCy crawler is paused</span>
+<span data-scc-label="status_terminated">Finished: YaCy ended the crawl profile</span>
+<span data-scc-label="status_removed">Profile removed: YaCy no longer lists it</span>
+<span data-scc-label="status_not_started">Not started</span><span data-scc-label="status_unknown">Unknown: look for the URL in the crawl status</span>
+<span data-scc-label="no_id">None, no crawl profile</span>
+<span data-scc-label="err_collection_unknown">The collection does not exist. Choose one from the list or create it with New collection.</span>
+<span data-scc-label="err_host_busy">Another crawl is active on this host. Wait until it has finished or stop it in the YaCy Crawler Monitor.</span>
+<span data-scc-label="err_crawl_rejected">YaCy refused the start. Check the URL (reachable, allowed by robots.txt) and the settings.</span>
+<span data-scc-label="err_crawl_start_unconfirmed">The outcome of this start is not confirmed; YaCy may have started the crawl. Look for the URL in the crawl status. Start crawl again sends the same request key and never starts twice.</span>
+<span data-scc-label="err_idempotency_conflict">The request key was already used for a different request. Start crawl again sends a new key.</span>
+<span data-scc-label="err_upstream_error">YaCy did not confirm the start: no new crawl profile appeared.</span>
+<span data-scc-label="err_invalid_request">The request is invalid. Check the URL, the collection and the numbers.</span>
+<span data-scc-label="err_unauthorized">You are not signed in as administrator.</span>
+<span data-scc-label="err_unavailable">The crawler or the index is unavailable at the moment. Try again later.</span>
+<span data-scc-label="err_network">No answer from the server. Start crawl again sends the same request key: a start that already arrived is returned, never repeated.</span>
+<span data-scc-label="err_generic">The server could not process the request.</span>
 </div>
 #%env/templates/scoutro/collection-create.template%#
 </main>

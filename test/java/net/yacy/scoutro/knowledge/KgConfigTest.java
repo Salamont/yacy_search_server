@@ -156,4 +156,51 @@ public class KgConfigTest {
         assertEquals(null, withKeys.vocabularyOf("otherportal-web", java.util.Map.of("edelsenior-web", "care")));
         assertFalse("jobs only when named", withKeys.jobsFor(java.util.List.of("newportal-web")));
     }
+
+    /** Package 6.2: a collection switched off is never followed, also under *, keeps its settings and is part of the collections key. */
+    @Test
+    public void collectionsSwitchedOffAreNotFollowedAndKeepTheirSettings() throws Exception {
+        final Map<String, String> m = KgTestSupport.enabled(KgConfig.COLLECTIONS, "edelsenior-web,newportal-web", KgConfig.INACTIVE_COLLECTIONS,
+                "newportal-web, oldportal-web", KgConfig.VOCAB_PREFIX + "oldportal-web", "software");
+        final KgConfig c = KgConfig.read(m::get, m.keySet());
+        assertTrue(c.problems().toString(), c.valid());
+        assertEquals(new java.util.TreeSet<>(java.util.List.of("newportal-web", "oldportal-web")), c.inactiveCollections);
+        assertTrue(c.follows("edelsenior-web"));
+        assertFalse("switched off wins over the list", c.follows("newportal-web"));
+        assertFalse(c.follows("oldportal-web"));
+        assertTrue(c.holds("oldportal-web") && c.holds("newportal-web") && !c.holds("edelsenior-web"));
+        assertEquals(java.util.Set.of("edelsenior-web"), c.activeCollections());
+        assertEquals(java.util.Set.of("edelsenior-web", "newportal-web", "oldportal-web"), c.scanCollections());
+        assertEquals("edelsenior-web,newportal-web-newportal-web,oldportal-web", c.collectionsKey());
+        assertTrue(c.followsAny());
+        // its vocabulary stays read: switching it off changes no extraction identity
+        assertEquals("software", c.vocabOverrides.get("oldportal-web"));
+        final Map<String, String> on = new HashMap<>(m);
+        on.remove(KgConfig.INACTIVE_COLLECTIONS);
+        on.put(KgConfig.COLLECTIONS, "edelsenior-web,newportal-web,oldportal-web");
+        assertEquals(KgConfig.read(on::get, on.keySet()).extractionKey(), c.extractionKey());
+        // under *, every other collection stays followed
+        final Map<String, String> star = KgTestSupport.enabled(KgConfig.COLLECTIONS, "*", KgConfig.INACTIVE_COLLECTIONS, "oldportal-web");
+        final KgConfig all = KgConfig.read(star::get, star.keySet());
+        assertTrue(all.follows("any-portal") && !all.follows("oldportal-web"));
+        assertEquals(null, all.scanCollections());
+        assertEquals("*-oldportal-web", all.collectionsKey());
+        assertEquals(java.util.List.of("oldportal-web"), objects(all.toJson().getJSONArray("inactiveCollections")));
+        // without any switched off, the key of a running graph is the same as before (no reconcile for nothing)
+        assertEquals("*", KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "*")).collectionsKey());
+        assertEquals("a,b", KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "b,a")).collectionsKey());
+        // only names: * is no collection to switch off
+        assertFalse(KgTestSupport.config(KgTestSupport.enabled(KgConfig.INACTIVE_COLLECTIONS, "*")).valid());
+        assertFalse(KgTestSupport.config(KgTestSupport.enabled(KgConfig.INACTIVE_COLLECTIONS, "bad name!")).valid());
+        // every collection of the list switched off: none followed
+        assertFalse(KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "a", KgConfig.INACTIVE_COLLECTIONS, "a")).followsAny());
+    }
+
+    private static java.util.List<Object> objects(final org.json.JSONArray a) throws Exception {
+        final java.util.List<Object> out = new java.util.ArrayList<>();
+        for (int i = 0; i < a.length(); i++) {
+            out.add(a.get(i));
+        }
+        return out;
+    }
 }

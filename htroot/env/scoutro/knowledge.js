@@ -116,11 +116,33 @@
       const a = node('a', t('download')); a.href = ROOT + 'backups/' + encodeURIComponent(f.file); a.setAttribute('download', f.file);
       const r = node('button', t('restore'), 'btn btn-default btn-xs'); r.type = 'button'; r.dataset.skgRestore = f.file;
       r.addEventListener('click', () => guarded(() => control('restore', { backup: f.file })));
-      actions.append(a, ' ', r);
+      // package 6.3: delete one backup, after a question that names it with its type, size and date
+      const d = node('button', t('delete_backup'), 'btn btn-danger btn-xs'); d.type = 'button'; d.dataset.skgDelete = f.file;
+      d.addEventListener('click', () => guarded(() => deleteBackup(f, d)));
+      actions.append(a, ' ', r, ' ', d);
       const cells = [f.file, t('kind_' + f.kind), bytes(f.bytes), f.created_at ? date(Date.parse(f.created_at)) : t('missing'), actions];
       cells.forEach((v, i) => { const td = row.insertCell(); td.dataset.label = i === 4 ? '' : t(cols[i]); if (v instanceof Node) td.append(v); else td.textContent = v; });
     }
     box.append(table);
+  }
+
+  async function deleteBackup(f, button) {
+    const when = f.created_at ? date(Date.parse(f.created_at)) : t('missing');
+    let question = t('delete_backup_question').replace('%1', f.file).replace('%2', t('kind_' + f.kind)).replace('%3', bytes(f.bytes)).replace('%4', when);
+    if (f.kind === 'before_upgrade') question += '\n\n' + t('delete_backup_upgrade_note');
+    if (!window.confirm(question)) return;
+    button.disabled = true; message(t('loading'));
+    const response = await fetch(ROOT + 'control', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_backup', backup: f.file }) });
+    let body = null; try { body = await response.json(); } catch (_) { /* below */ }
+    if (!response.ok) {
+      button.disabled = false;
+      const code = body?.error?.code || 'error';
+      const text = code === 'operation_running' ? t('delete_backup_busy') : code === 'backup_not_found' ? t('delete_backup_gone') : t('delete_backup_failed');
+      await overview();
+      throw new Error(text.replace('%1', f.file) + ' (HTTP ' + response.status + ', ' + code + ')');
+    }
+    await overview(); message(t('delete_backup_done').replace('%1', f.file));
   }
 
   // The identity rebuild: phase, progress, the check before the swap and the buttons for its phase.
@@ -158,6 +180,11 @@
     const cards = $('cards'); cards.replaceChildren();
     const card = (k, v) => { const dl = node('dl', null, 'sseo-card'); dl.append(node('dt', t(k)), node('dd', fmt(v))); cards.append(dl); };
     card('state', s.state + (s.reason ? ' · ' + s.reason : ''));
+    // package 6.3: the deterministic graph and the LLM enrichment are two layers; the model is the one of the LLM selection
+    const layers = llmLayers(s);
+    card('kg_deterministic', layers.deterministic);
+    card('kg_llm', layers.llm);
+    card('kg_model', layers.model);
     card('objects_count', objects);
     card('lag', s.sync?.lag?.pending);
     const pausedNote = $('paused-note'); if (pausedNote) pausedNote.hidden = !(s.storage?.reasons || []).some(r => r.code === 'manual');
@@ -190,7 +217,7 @@
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
       ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
     const l = s.llm || {};
-    stats('llm', [['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model], ['queue', l.queue?.items],
+    stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')], ['queue', l.queue?.items],
       ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', l.processed?.calls],
       ['dropped', l.processed?.droppedUngrounded], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
     document.querySelector('[data-skg-action="confirm_reconcile"]').hidden = !sy.reconcile?.awaitingConfirmation;
@@ -221,6 +248,19 @@
       events.append(table);
     } else events.append(node('p', t('none')));
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
+  }
+
+  // The two layers in words: the deterministic graph (rules, structured data) and the LLM enrichment with its model.
+  function llmLayers(s) {
+    const running = s.state === 'running', l = s.llm || {}, followed = (s.config?.collections || []).length > 0;
+    const deterministic = running && followed ? t('kg_on') : t('kg_off') + ' · ' + (running ? t('kg_reason_no_collections') : s.state);
+    let llm;
+    if (running && l.enabled && l.model && !['off', 'not_configured'].includes(l.state)) llm = t('kg_on') + (l.state && l.state !== 'running' && l.state !== 'idle' ? ' · ' + l.state + (l.reason ? ' (' + l.reason + ')' : '') : '');
+    else if (l.reason === 'llm_collections_not_followed') llm = t('kg_off') + ' · ' + t('llm_reason_not_followed');
+    else if (!l.enabled || l.reason === 'no_llm_collections') llm = t('kg_off') + ' · ' + t('llm_reason_no_collections');
+    else if (!l.model || l.state === 'not_configured') llm = t('kg_off') + ' · ' + t('llm_reason_no_model');
+    else llm = t('kg_off') + ' · ' + (l.reason || l.state || '');
+    return { deterministic, llm, model: l.model || t('kg_no_model') };
   }
 
   // Every collection the graph follows, maps or holds: vocabulary (or none, said so), jobs, LLM tier, documents, state.
@@ -325,6 +365,7 @@
     for (const x of items) {
       const li = node('li');
       li.append(link(t('group_title').replace('%1', x.name).replace('%2', fmt(x.providers)), { view: 'services', name: x.name }));
+      li.append(' · ', link(t('group_network'), { view: 'network', group: x.name }));
       li.append(' ', node('span', (x.collections || []).map(c => c.name).join(', '), 'sseo-note'));
       ul.append(li);
     }
@@ -726,8 +767,10 @@
   }
 
   async function network(p) {
+    if (p.get('group')) return groupNetwork(p);
     const run = ++generation; message(t('loading'));
     $('net-svg').dataset.state = 'loading';
+    singleControls(true);
     const id = p.get('id') || '';
     // the centre's type decides the default view
     const head = await api('entities/' + encodeURIComponent(id)); if (run !== generation) return;
@@ -750,10 +793,42 @@
     message(visibleEdges(graph).length ? '' : t('net_empty')); $('network-title').focus();
   }
 
+  // The network of a service name (package 6.2): all providers of the name around a centre that is the name only, no object;
+  // every line is one provider's own offer of its own service, which the line names. Paged by provider, fewer at a time on a phone.
+  const groupLimit = () => (($('net-wrap').clientWidth || $('network').clientWidth || 800) < 640 ? 24 : 50);
+  function groupQuery(g, from) {
+    return { name: g.name, category: g.category, offset: from || null, limit: g.limit, include: g.on.has('stale') ? 'stale' : null };
+  }
+  // depth and the layers are those of an object's network; a name's network has its status filter and the list only
+  function singleControls(show) {
+    for (const el of document.querySelectorAll('[data-skg-single]')) el.hidden = !show;
+    for (const el of document.querySelectorAll('[data-skg-group]')) el.hidden = show;
+  }
+  async function groupNetwork(p) {
+    const run = ++generation; message(t('loading'));
+    $('net-svg').dataset.state = 'loading';
+    singleControls(false);
+    const on = networkFilters(p, 'service');
+    for (const f of ['current', 'stale']) $('f-' + f).checked = on.has(f);
+    $('f-list').checked = p.get('list') === '1';
+    $('net-wrap').hidden = $('f-list').checked;
+    const group = { name: p.get('group'), category: p.get('category') || '', limit: groupLimit(), on };
+    $('network-title').textContent = t('group_network_of').replace('%1', group.name).replace('%2', '…');
+    const data = await api('services/network', groupQuery(group, 0)); if (run !== generation) return;
+    group.summary = data.group;
+    $('network-title').textContent = t('group_network_of').replace('%1', data.group.name).replace('%2', fmt(data.group.providers));
+    graph = { center: data.center, centerType: 'service_group', nodes: data.nodes, edges: data.edges, truncated: data.truncated, next: data.next_offset,
+      depth: 1, on, group };
+    selected = null;
+    renderNetwork();
+    message(visibleEdges(graph).length ? '' : t('net_empty')); $('network-title').focus();
+  }
+
   async function networkMore() {
     if (!graph?.truncated || graph.next == null) return;
     const run = generation;
-    const data = await api('entities/' + encodeURIComponent(graph.center) + '/neighborhood', networkQuery(graph.on, graph.depth, graph.next));
+    const data = graph.group ? await api('services/network', groupQuery(graph.group, graph.next))
+      : await api('entities/' + encodeURIComponent(graph.center) + '/neighborhood', networkQuery(graph.on, graph.depth, graph.next));
     if (run !== generation) return;
     const known = new Set(graph.nodes.map(n => n.id)), edges = new Set(graph.edges.map(e => e.id + '|' + e.from + '|' + e.to));
     for (const n of data.nodes) if (!known.has(n.id)) { graph.nodes.push(n); known.add(n.id); }
@@ -766,10 +841,11 @@
   function visibleEdges(g) {
     return g.edges.filter(e => !e.fact || (e.status === 'stale' ? g.on.has('stale') : g.on.has('current')));
   }
-  const nodeKind = n => n.value ? (n.type === 'price' ? 'price' : 'value') : n.type === 'site' ? 'facility' : n.type;
+  const nodeKind = n => n.value ? (n.type === 'price' ? 'price' : 'value') : n.type === 'site' ? 'facility' : n.virtual ? 'group' : n.type;
   const nodeLabel = n => n.type === 'price' ? money(n.price) : n.value ? ((de ? n.label_de : n.label_en) || n.label || n.code) : shown({ ...n, name: n.label }, n.type);
   // the second line of a node: the domain of an organisation, "Service" for a service, the place of a facility
   function subLabel(n) {
+    if (n.virtual) return t('service_group') + ' · ' + t('n_providers').replace('%1', fmt(n.providers));
     if (n.type === 'price') return t('price') + (n.status && n.status !== 'current' ? ' · ' + t('s_' + n.status) : '');
     if (n.type === 'industry') return t('industry') + ' · ' + n.code;
     if (n.type === 'audience') return t('audience');
@@ -1010,8 +1086,8 @@
     function select(id) { selected = id; highlight(id); }
     // legend, counters, paging, exports and the list
     const legend = $('net-legend'); legend.replaceChildren();
-    for (const [kind, key] of [['organization', 'legend_node_organization'], ['facility', 'legend_node_facility'], ['service', 'legend_node_service'], ['job', 'legend_node_job'],
-      ['place', 'legend_node_place'], ['value', 'legend_node_value'], ['price', 'legend_node_price']]) {
+    for (const [kind, key] of [...(g.group ? [['group', 'legend_node_group']] : []), ['organization', 'legend_node_organization'], ['facility', 'legend_node_facility'],
+      ['service', 'legend_node_service'], ['job', 'legend_node_job'], ['place', 'legend_node_place'], ['value', 'legend_node_value'], ['price', 'legend_node_price']]) {
       const li = node('li'); const s = svg('svg', { width: '22', height: '14', 'aria-hidden': 'true', class: 'skg-legend-node skg-t-' + kind });
       s.append(svg('rect', { x: '1', y: '1', width: '20', height: '12', rx: kind === 'value' || kind === 'price' ? '6' : '3', class: 'skg-card' }),
         svg('rect', { x: '1', y: '1', width: '4', height: '12', rx: '2', class: 'skg-stripe' }));
@@ -1023,7 +1099,8 @@
     }
     $('net-count').textContent = t('net_count').replace('%1', fmt(nodes.length)).replace('%2', fmt(edges.length)) + (g.truncated ? ' · ' + t('net_more_hint') : '');
     $('net-more').hidden = !g.truncated;
-    const json = new Blob([JSON.stringify({ schema: 'scoutro.kg.business.v1', center: g.center, collection: collection || null, nodes, edges }, null, 2)], { type: 'application/json' });
+    const json = new Blob([JSON.stringify({ schema: 'scoutro.kg.business.v1', center: g.center, collection: collection || null,
+      ...(g.group ? { aggregated: true, group: g.group.summary || null } : {}), nodes, edges }, null, 2)], { type: 'application/json' });
     const graphml = new Blob([toGraphml({ center: g.center, nodes, edges })], { type: 'application/graphml+xml' });
     for (const [id, blob] of [['net-json', json], ['net-graphml', graphml]]) { const u = URL.createObjectURL(blob); graphUrls.push(u); $(id).href = u; }
     const body = $('net-table').tBodies[0]; body.replaceChildren();
@@ -1037,7 +1114,7 @@
       };
       const ev = node('span'); ev.append(fmt(e.evidence) + ' ');
       if (e.fact && e.id.startsWith('kgs_')) ev.append(...evidenceToggle(e.id)); else ev.append(node('span', t('no_fact'), 'sseo-note'));
-      rowInto(body, heads, [end(e.from), edgeName(e), end(e.to), statusBadge(e.status), pct(e.confidence), ev]);
+      rowInto(body, heads, [end(e.from), edgeName(e), e.service ? ownService(e.service) : end(e.to), statusBadge(e.status), pct(e.confidence), ev]);
     }
     hideDetail();
     box.dataset.state = 'ready';
@@ -1055,13 +1132,39 @@
     li.append(node('div', nodeLabel(from) + ' → ' + edgeShort(e) + ' → ' + nodeLabel(to), 'skg-statement-head'));
     li.append(node('div', t('s_' + e.status) + ' · ' + t('confidence') + ': ' + pct(e.confidence) + ' · ' + t('sources') + ': ' + fmt(e.evidence)
       + (e.fact ? '' : ' · ' + t('no_fact')), 'sseo-note'));
+    if (e.service) li.append(serviceLine(e.service));
     return li;
+  }
+  // a line of a name's network: the provider's own service, with its own prices and collections (never another provider's)
+  function ownService(sv) {
+    const span = node('span'); span.append(nameLink(sv, sv.id, 'service'), ' ', node('span', '(' + t('own_service') + ')', 'sseo-note'));
+    return span;
+  }
+  function serviceLine(sv) {
+    const d = node('div', null, 'sseo-note');
+    d.append(t('own_service') + ': ', nameLink(sv, sv.id, 'service'), ' · ' + t('prices_value').replace('%1', fmt(sv.prices?.current))
+      .replace('%2', fmt(sv.prices?.all)) + ' · ' + t('collections') + ': ' + ((sv.collections || []).join(', ') || t('none')));
+    return d;
   }
   function nodeDetail(n, byId) {
     const box = $('net-detail'); box.replaceChildren(); box.hidden = false;
     box.append(node('h3', nodeLabel(n)));
     box.append(node('p', subLabel(n) + (n.kind ? ' · ' + n.kind : '') + (n.id === graph.center ? ' · ' + t('net_center') : ''), 'sseo-note'));
     { const note = nameNote(n); if (note) box.append(note); }
+    if (n.virtual) {
+      // the centre of a name's network: the counts of the group, and the way to its list; it is no object to open
+      const g = graph.group?.summary || {};
+      box.append(detailStats([['g_services', fmt(g.services)], ['g_providers', fmt(g.providers)], ['g_without_provider', fmt(g.without_provider)],
+        ['collections', (g.collections || []).map(c => c.name + ' (' + fmt(c.services) + ')').join(', ') || t('none')],
+        ['g_places', (g.places || []).map(x => x.name + ' (' + fmt(x.providers) + ')').join(', ') || t('none')],
+        ['g_with_price', fmt(g.with_price)], ['g_with_current', fmt(g.with_current_source)]]));
+      box.append(node('p', t('group_centre_note'), 'sseo-note'));
+      const actions = node('div', null, 'sseo-controls skg-detail-actions');
+      const a = link(t('group_list'), { view: 'services', name: g.name || n.label, ...(graph.group.category ? { category: graph.group.category } : {}) });
+      a.className = 'btn btn-default btn-sm'; actions.append(a); box.append(actions);
+      if (box.getBoundingClientRect().top > window.innerHeight - 80) box.scrollIntoView({ block: 'nearest' });
+      return;
+    }
     if (!n.value) box.append(detailStats([['type', t(n.type)], ['domain', (n.hosts || []).map(domain).join(', ') || t('missing')],
       ['collections', (n.collections || []).join(', ') || t('none')], ['places', (n.places || []).join(', ')],
       ['quality', n.quality ? qualityBadge(n.quality) : null], ['sources', fmt(n.sources)], ['last_confirmed', n.last_confirmed ? date(n.last_confirmed) : null]]));
@@ -1102,6 +1205,14 @@
     box.append(node('p', edgeName(e), 'sseo-note'));
     const meta = node('div', null, 'skg-meta'); meta.append(statusBadge(e.status), node('span', t('confidence') + ': ' + pct(e.confidence) + ' · ' + t('sources') + ': ' + fmt(e.evidence), 'sseo-note'));
     box.append(meta);
+    if (e.service) {
+      box.append(serviceLine(e.service));
+      const actions = node('div', null, 'sseo-controls skg-detail-actions');
+      for (const [key, q] of [['open_service', { view: 'object', id: e.service.id }], ['open_service_network', { view: 'network', id: e.service.id }]]) {
+        const a = link(t(key), q); a.className = 'btn btn-default btn-sm'; actions.append(a);
+      }
+      box.append(actions);
+    }
     if (e.fact && e.id.startsWith('kgs_')) box.append(...evidenceToggle(e.id));
     else box.append(node('p', t('no_fact'), 'sseo-note'));
     if (box.getBoundingClientRect().top > window.innerHeight - 80) box.scrollIntoView({ block: 'nearest' });
@@ -1114,17 +1225,27 @@
       '<key id="hosts" for="node" attr.name="hosts" attr.type="string"/>', '<key id="collections" for="node" attr.name="collections" attr.type="string"/>',
       '<key id="relation" for="edge" attr.name="relation" attr.type="string"/>', '<key id="status" for="edge" attr.name="status" attr.type="string"/>',
       '<key id="confidence" for="edge" attr.name="confidence" attr.type="double"/>', '<key id="evidence" for="edge" attr.name="evidence" attr.type="int"/>',
-      '<key id="fact" for="edge" attr.name="fact" attr.type="boolean"/>', '<graph id="' + x(g.center) + '" edgedefault="directed">'];
+      '<key id="fact" for="edge" attr.name="fact" attr.type="boolean"/>', '<key id="virtual" for="node" attr.name="virtual" attr.type="boolean"/>',
+      '<key id="service" for="edge" attr.name="service" attr.type="string"/>', '<graph id="' + x(g.center) + '" edgedefault="directed">'];
     for (const n of g.nodes) out.push(`<node id="${x(n.id)}"><data key="label">${x(nodeLabel(n))}</data><data key="type">${x(n.type)}</data>`
       + (n.kind ? `<data key="kind">${x(n.kind)}</data>` : '') + `<data key="depth">${n.depth}</data>`
-      + (n.hosts?.length ? `<data key="hosts">${x(n.hosts.join(' '))}</data>` : '') + (n.collections?.length ? `<data key="collections">${x(n.collections.join(' '))}</data>` : '') + '</node>');
+      + (n.hosts?.length ? `<data key="hosts">${x(n.hosts.join(' '))}</data>` : '') + (n.collections?.length ? `<data key="collections">${x(n.collections.join(' '))}</data>` : '')
+      + (n.virtual ? '<data key="virtual">true</data>' : '') + '</node>');
     g.edges.forEach((e, i) => out.push(`<edge id="e${i}" source="${x(e.from)}" target="${x(e.to)}"><data key="relation">${x(e.type)}</data><data key="status">${x(e.status)}</data>`
-      + `<data key="confidence">${e.confidence ?? 0}</data><data key="evidence">${e.evidence ?? 0}</data><data key="fact">${e.fact ? 'true' : 'false'}</data></edge>`));
+      + `<data key="confidence">${e.confidence ?? 0}</data><data key="evidence">${e.evidence ?? 0}</data><data key="fact">${e.fact ? 'true' : 'false'}</data>`
+      + (e.service ? `<data key="service">${x(e.service.id)}</data>` : '') + '</edge>'));
     out.push('</graph>', '</graphml>');
     return out.join('\n') + '\n';
   }
   function networkParams() {
     const p = new URLSearchParams(location.search);
+    if (graph?.group) {
+      const q = { view: 'network', group: graph.group.name, ...(graph.group.category ? { category: graph.group.category } : {}) };
+      const status = ['current', 'stale'].filter(f => $('f-' + f).checked);
+      if (status.join(',') !== 'current') q.s = status.join(',') || 'none';
+      if ($('f-list').checked) q.list = '1';
+      return q;
+    }
     const q = { view: 'network', id: p.get('id') || graph?.center || '' };
     const type = graph?.centerType;
     if ($('depth').value !== String(defaultDepth(type))) q.depth = $('depth').value;
@@ -1167,6 +1288,9 @@
       }
       const back = $('svc-back'); const bp = new URLSearchParams({ view: 'services' }); if (collection) bp.set('collection', collection);
       back.href = 'ScoutroKnowledge_p.html?' + bp;
+      const np = { view: 'network', group: g.name, ...(category ? { category } : {}) };
+      const net = $('svc-network'); const nq = new URLSearchParams(np); if (collection) nq.set('collection', collection);
+      net.href = 'ScoutroKnowledge_p.html?' + nq; net.dataset.query = JSON.stringify(np);
       $('svc-group-title').tabIndex = -1;
     } else {
       data = await api('services', { q: $('svc-q').value.trim(), category, offset, limit: LIMIT }); if (run !== generation) return;
@@ -1174,6 +1298,7 @@
       const heads = [...$('svc-groups').tHead.rows[0].cells].map(c => c.textContent);
       for (const g of data.items) {
         const title = node('span'); title.append(link(g.name, { view: 'services', name: g.name, ...(category ? { category } : {}) }));
+        title.append(' · ', link(t('group_network'), { view: 'network', group: g.name, ...(category ? { category } : {}) }));
         if (g.without_provider) title.append(' ', node('span', t('g_without_provider') + ': ' + fmt(g.without_provider), 'sseo-note'));
         rowInto(body, heads, [title, fmt(g.providers), g.collections.map(c => c.name + ' (' + fmt(c.services) + ')').join(', ') || t('none'),
           g.places.slice(0, 5).map(x => x.name).join(', ') || t('missing'), fmt(g.with_price), fmt(g.with_current_source)]);
@@ -1244,11 +1369,14 @@
     const c = s.config || {};
     const kinds = Object.entries(c.llmKinds || {}).map(([k, v]) => k + ': ' + (v.length ? v.join(', ') : t('none'))).join('\n');
     stats('config', [['enabled', t(s.enabled ? 'yes' : 'no')], ['valid', c.valid == null ? null : t(c.valid ? 'yes' : 'no')],
-      ['followed', (c.collections || []).join(', ') || t('none')], ['llm_collections', (c.llmCollections || []).join(', ') || t('none')],
+      ['followed', (c.collections || []).join(', ') || t('none')], ['inactive_collections', (c.inactiveCollections || []).join(', ') || t('none')],
+      ['llm_collections', (c.llmCollections || []).join(', ') || t('none')],
       ['jobs_collections', (c.jobsCollections || []).join(', ') || t('none')],
       ['llm_kinds', kinds || t('none')], ['budget', bytes(s.storage?.budgetBytes)], ['model', s.llm?.model],
       ['chat', c.chat == null ? null : !c.chat.enabled ? t('no') : t('chat_detail').replace('%1', fmt(c.chat.maxFacts))
         .replace('%2', fmt(c.chat.maxChars)).replace('%3', fmt(c.chat.timeoutMs)).replace('%4', t(c.chat.allowGuests ? 'yes' : 'no'))]]);
+    await kgCollections(run);
+    if (run !== generation) return;
     const errors = $('config-errors'); errors.replaceChildren();
     if (c.errors?.length) {
       const table = node('table', null, 'table table-striped scoutro-cards'); const head = table.createTHead().insertRow();
@@ -1258,6 +1386,77 @@
       errors.append(table);
     }
     message(s.enabled ? '' : t('disabled'));
+  }
+
+  // The knowledge graph settings of each collection (package 6.2): on or off (off keeps its graph data), and its vocabulary.
+  async function kgCollections(run) {
+    const r = await fetch(ROOT + 'collections', { credentials: 'same-origin', cache: 'no-store' });
+    let data = null; try { data = await r.json(); } catch (_) { /* below */ }
+    if (run !== generation) return;
+    if (!r.ok || !data) throw new Error(t('error') + ' (HTTP ' + r.status + ', ' + (data?.error?.code || 'error') + ')');
+    const body = $('kgc').tBodies[0]; body.replaceChildren();
+    const heads = [...$('kgc').tHead.rows[0].cells].map(c => c.textContent);
+    // the model of the LLM enrichment is the one of the LLM selection (usage knowledge); there is no second setting
+    const lm = data.llm || {};
+    $('kgc-model').textContent = lm.model ? t('kgc_model').replace('%1', lm.model) : t('kgc_no_model');
+    $('kgc-llm-state').textContent = t('kg_llm') + ': ' + (lm.active ? t('kg_on') : t('kg_off') + ' · '
+      + t(!lm.model ? 'llm_reason_no_model' : 'llm_reason_no_collections'));
+    for (const c of data.collections) {
+      const name = node('span'); name.append(node('strong', c.name));
+      if (c.name !== c.collection) name.append(' ', node('code', c.collection));
+      if (!c.inCatalog) name.append(' ', node('span', '(' + t('kgc_not_in_catalog') + ')', 'sseo-note'));
+      const active = node('select', null, 'form-control'); active.setAttribute('aria-label', t('kgc_label_active').replace('%1', c.name));
+      for (const [v, k] of [['on', 'kgc_on'], ['off', 'kgc_off']]) { const o = node('option', t(k)); o.value = v; active.append(o); }
+      active.value = c.active ? 'on' : 'off';
+      const vocab = node('select', null, 'form-control'); vocab.setAttribute('aria-label', t('kgc_label_vocabulary').replace('%1', c.name));
+      const dflt = node('option', c.defaultVocabulary ? t('kgc_default').replace('%1', c.defaultVocabulary) : t('kgc_default_none')); dflt.value = '__default';
+      const none = node('option', t('kgc_none')); none.value = '__none';
+      vocab.append(dflt);
+      for (const v of data.vocabularies) { const o = node('option', v); o.value = v; vocab.append(o); }
+      if (c.vocabularySetting && !data.vocabularies.includes(c.vocabularySetting)) { const o = node('option', c.vocabularySetting + ' (' + t('vocab_unknown') + ')'); o.value = c.vocabularySetting; vocab.append(o); }
+      vocab.append(none);
+      vocab.value = c.vocabularySetting == null ? '__default' : c.vocabularySetting === '' ? '__none' : c.vocabularySetting;
+      // the LLM enrichment of this collection: never on by itself; with * for every collection it is shown, not changed here
+      const llm = node('select', null, 'form-control'); llm.setAttribute('aria-label', t('kgc_label_llm').replace('%1', c.name));
+      for (const [v, k] of [['off', 'kgc_llm_off'], ['on', 'kgc_llm_on']]) { const o = node('option', t(k)); o.value = v; llm.append(o); }
+      llm.value = c.llm ? 'on' : 'off';
+      if (c.llmBy === 'all') { llm.disabled = true; llm.title = t('kgc_llm_all'); llm.options[1].textContent = t('kgc_llm_all'); }
+      const llmCell = node('span'); llmCell.append(llm);
+      if (c.llm && !c.llmActive) llmCell.append(' ', node('span', '(' + t(!lm.model ? 'llm_reason_no_model' : 'kgc_llm_waits') + ')', 'sseo-note'));
+      const save = node('button', t('kgc_save'), 'btn btn-default btn-sm'); save.type = 'button'; save.disabled = true;
+      const initial = [active.value, vocab.value, llm.value];
+      const changed = () => { save.disabled = active.value === initial[0] && vocab.value === initial[1] && llm.value === initial[2]; };
+      active.addEventListener('change', changed); vocab.addEventListener('change', changed); llm.addEventListener('change', changed);
+      save.addEventListener('click', () => guarded(() => saveKgCollection(c, active, vocab, initial, llm, lm.model)));
+      const row = rowInto(body, heads, [name, c.indexDocuments == null ? t('missing') : fmt(c.indexDocuments), active, vocab, llmCell,
+        c.graphDocuments == null ? t('missing') : fmt(c.graphDocuments), t('vstate_' + c.state), save]);
+      row.dataset.collection = c.collection; row.dataset.state = c.state;
+    }
+    if (!data.collections.length) { const row = body.insertRow(); const td = row.insertCell(); td.colSpan = heads.length; td.textContent = t('kgc_empty'); }
+  }
+  async function saveKgCollection(c, active, vocab, initial, llm, model) {
+    const change = {};
+    if (active.value !== initial[0]) change.active = active.value === 'on';
+    if (vocab.value !== initial[1]) change.vocabulary = vocab.value === '__default' ? null : vocab.value === '__none' ? '' : vocab.value;
+    if (llm.value !== initial[2]) change.llm = llm.value === 'on';
+    if (!Object.keys(change).length) return;
+    if (change.active === false && !window.confirm(t('kgc_off_question').replace('%1', c.name))) return;
+    if ('vocabulary' in change && (change.active ?? c.active) && !window.confirm(t('kgc_vocab_question').replace('%1', c.name))) return;
+    if (change.llm === true && !window.confirm((model ? t('kgc_llm_question').replace('%2', model) : t('kgc_llm_question_no_model')).replace('%1', c.name))) return;
+    $('kgc-message').textContent = t('loading');
+    const response = await fetch(ROOT + 'collections/' + encodeURIComponent(c.collection), { method: 'PATCH', credentials: 'same-origin', cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(change) });
+    let body = null; try { body = await response.json(); } catch (_) { /* below */ }
+    if (!response.ok) {
+      $('kgc-message').textContent = '';
+      throw new Error(t('error') + ' (HTTP ' + response.status + ', ' + (body?.error?.code || 'error') + ')');
+    }
+    const done = !body.changed ? t('kgc_unchanged') : body.applied ? t('kgc_saved') : t('kgc_stored');
+    const text = [done.replace('%1', c.name), body.backfill ? t('kgc_backfill') : '', body.reextract ? t('kgc_reextract') : '',
+      body.llmWarning === 'no_model' ? t('kgc_llm_warn_no_model') : body.llmWarning === 'collection_not_active' ? t('kgc_llm_warn_not_active') : '']
+      .filter(Boolean).join(' ');
+    await settings();
+    $('kgc-message').textContent = text;
   }
 
   // ---------------------------------------------------------------------- views
@@ -1275,7 +1474,7 @@
     offset = Math.max(0, parseInt(p.get('offset') || '0', 10) || 0);
     $('collection').value = collection;
     for (const v of VIEWS) $(v).hidden = v !== view;
-    const nav = view === 'object' || view === 'source' || view === 'network' ? 'objects' : view;
+    const nav = view === 'network' && p.get('group') ? 'services' : view === 'object' || view === 'source' || view === 'network' ? 'objects' : view;
     for (const a of document.querySelectorAll('[data-skg-view]')) {
       if (a.dataset.skgView === nav) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
       const q = new URLSearchParams(a.dataset.skgView === 'overview' ? {} : { view: a.dataset.skgView }); if (collection) q.set('collection', collection);
@@ -1307,8 +1506,16 @@
     if (!$('f-list').checked && graph) renderNetwork(); // drawn for the width it has now
   });
   $('net-more').addEventListener('click', () => guarded(networkMore));
-  $('net-reset').addEventListener('click', () => { const q = { view: 'network', id: new URLSearchParams(location.search).get('id') || graph?.center || '' }; navigate(q); });
+  $('net-reset').addEventListener('click', () => {
+    const p = new URLSearchParams(location.search);
+    navigate(p.get('group') ? { view: 'network', group: p.get('group'), ...(p.get('category') ? { category: p.get('category') } : {}) }
+      : { view: 'network', id: p.get('id') || graph?.center || '' });
+  });
   $('svc-back').addEventListener('click', e => { if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); navigate({ view: 'services' }); });
+  $('svc-network').addEventListener('click', e => {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || !e.currentTarget.dataset.query) return; e.preventDefault();
+    navigate(JSON.parse(e.currentTarget.dataset.query));
+  });
   // the layout follows the width: draw again after a resize (rotation of a phone, a narrower window)
   let resizeTimer = 0;
   window.addEventListener('resize', () => {

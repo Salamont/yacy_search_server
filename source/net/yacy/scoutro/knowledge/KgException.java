@@ -66,6 +66,8 @@ public class KgException extends Exception {
     public static final String BACKUP_FAILED = "backup_failed";
     /** No such backup in the backup directory. */
     public static final String BACKUP_NOT_FOUND = "backup_not_found";
+    /** A backup could not be deleted (package 6.3); nothing else was touched. */
+    public static final String BACKUP_DELETE_FAILED = "backup_delete_failed";
     /** The backup is not a usable graph database (quick_check, schema, checksum); nothing was changed. */
     public static final String BACKUP_INVALID = "backup_invalid";
     /** The restore failed; the previous graph was put back. */

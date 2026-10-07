@@ -102,7 +102,7 @@ returns those of the calling agent. The list mirrors
 | `index.status.global` | `GET /agent/v1/index?global=true` | admin | **no** | – | `index status --global` |
 | `system.status` | `GET /agent/v1/system` | admin | **no** | – | `system` |
 | `config.get` / `config.set` | `GET`/`PATCH /agent/v1/config` | admin | **no** | – | `config get`, `config set KEY VALUE` |
-| `kg.read` | `GET /agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `GET /agent/v1/kg/{compare,derived,facets,services}`, `GET /agent/v1/kg/services/providers` | read | yes (evidence of the granted collections only) | – | `kg entities [--industry C] [--category C] [--audience A]`, `kg entity ID`, `kg statements ID`, `kg statement ID`, `kg evidence ID`, `kg host HOST`, `kg source DOC_ID`, `kg business ID`, `kg neighborhood ID [--prices]`, `kg compare CATEGORY`, `kg derived`, `kg facets`, `kg services [--q TEXT]`, `kg service-providers NAME` |
+| `kg.read` | `GET /agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `GET /agent/v1/kg/{compare,derived,facets,services}`, `GET /agent/v1/kg/services/providers`, `GET /agent/v1/kg/services/network` | read | yes (evidence of the granted collections only) | – | `kg entities [--industry C] [--category C] [--audience A]`, `kg entity ID`, `kg statements ID`, `kg statement ID`, `kg evidence ID`, `kg host HOST`, `kg source DOC_ID`, `kg business ID`, `kg neighborhood ID [--prices]`, `kg compare CATEGORY`, `kg derived`, `kg facets`, `kg services [--q TEXT]`, `kg service-providers NAME`, `kg service-network NAME` |
 | `kg.export` | `GET /agent/v1/kg/export`, `GET /agent/v1/kg/changes` | read | yes (evidence of the granted collections only) | – | `kg export [--all] [--evidence]`, `kg changes [--cursor C] [--expand]` |
 
 Always available with a valid token: `agent.capabilities`
@@ -118,9 +118,11 @@ Names, values, counts, quality and the evidence of every answer come only from
 documents of those collections; an object without evidence there is 404 like
 an unknown one. Evidence names the extractor (`llm/1`) but not the configured
 model, and the agent answers carry no graph-wide backlog (`lag`). The
-administrator routes `kg/status`, `kg/control` (including backup, restore and
-the identity rebuild), `kg/backups` and the download `kg/export/download` do
-not exist on the agent path (404). The MCP adapter
+administrator routes `kg/status`, `kg/control` (including backup, restore,
+deleting a backup and the identity rebuild), `kg/backups`, the collection
+settings `kg/collections` (package 6.2, with the LLM enrichment per collection
+since 6.3) and the download `kg/export/download` do not exist on the agent
+path (404). The MCP adapter
 offers the read tools with `kg.read` and `scoutro_kg_export` /
 `scoutro_kg_changes` with `kg.export`.
 

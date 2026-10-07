@@ -325,6 +325,50 @@ public final class KgRuntime {
         }
     }
 
+    /**
+     * Applies changed settings at once (package 6.2: a collection switched on or off, its vocabulary): closes the graph cleanly and
+     * opens it again with the settings as they are now, in the same environment. The sync then runs the reconcile of every start,
+     * which enqueues the pages a collection switched on already has in the index (the backfill) and keeps those of a collection
+     * switched off; a manual pause stays. Refused, before anything is closed, while a backup, a restore or a rebuild runs.
+     *
+     * @return true if a running graph was reopened, false if there was none (the settings count at its next start)
+     */
+    public static synchronized boolean reopen() throws KgException {
+        final KgRuntime r = current;
+        if (r == null) {
+            return false;
+        }
+        r.requireQuiet();
+        final Env env = r.env;
+        stop();
+        start(env);
+        return true;
+    }
+
+    /**
+     * The model of Scoutro's LLM selection with the usage {@code knowledge} ({@code service/model}), read at once; null if none
+     * is selected or it cannot be read. It is the only model configuration of the LLM tier (package 6.3).
+     */
+    public String llmModel() {
+        try {
+            return this.env.llm == null ? null : this.env.llm.model();
+        } catch (final RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** No backup, restore or rebuild in progress (read without the instance lock: called under the class lock). */
+    public void requireQuiet() throws KgException {
+        final KgRebuild rb = this.rebuild;
+        if (rb != null && rb.active()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a rebuild is running");
+        }
+        final KgBackups b = this.backups;
+        if (b != null && b.busy()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup or restore is running");
+        }
+    }
+
     /** {@link #start()} with a given environment (tests). */
     static synchronized void start(final Env env) {
         if (current != null) {
@@ -1059,9 +1103,9 @@ public final class KgRuntime {
                 this.guard == null ? 0L : diskUsable(this.guard.status()));
         if (st == JsonLdCapturePolicy.State.ACTIVE) {
             JsonLdCapture.activate(this.config.jsonldMaxBlocksPerDoc, (int) Math.min(Integer.MAX_VALUE, this.config.jsonldMaxBytesPerDoc),
-                    this.config.allCollections, this.config.collections);
+                    this.config.allCollections, this.config.collections, this.config.inactiveCollections);
         } else if (st == JsonLdCapturePolicy.State.PAUSED) {
-            JsonLdCapture.pause(this.config.allCollections, this.config.collections);
+            JsonLdCapture.pause(this.config.allCollections, this.config.collections, this.config.inactiveCollections);
         } else {
             JsonLdCapture.off();
         }
@@ -1148,9 +1192,13 @@ public final class KgRuntime {
             KgJson.put(o, "sync", sy != null ? sy.status()
                     : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped"));
             final LlmService ll = this.llm;
+            // the model of the LLM selection (usage knowledge) is shown also while the tier is off (package 6.3)
+            // no_llm_collections only while no collection is switched on for it; switched on but all off for the graph is said so
+            final boolean llmNamed = this.config.llmAllCollections || !this.config.llmCollections.isEmpty();
             KgJson.put(o, "llm", ll != null ? ll.status()
-                    : KgJson.obj("state", "off", "reason", !this.config.llmEnabled() ? "no_llm_collections"
-                            : sy == null ? "no_sync" : "stopped", "enabled", this.config.llmEnabled()));
+                    : KgJson.obj("state", "off", "reason", !this.config.llmEnabled()
+                            ? (llmNamed ? "llm_collections_not_followed" : "no_llm_collections")
+                            : sy == null ? "no_sync" : "stopped", "enabled", this.config.llmEnabled(), "model", llmModel()));
             final KgBackups b = this.backups;
             if (b != null) {
                 KgJson.put(o, "backup", b.status());
@@ -1266,6 +1314,7 @@ public final class KgRuntime {
         final net.yacy.scoutro.knowledge.vocab.KgVocabularies.Snapshot v = net.yacy.scoutro.knowledge.vocab.KgVocabularies.get();
         final java.util.Map<String, Long> docs = withDocuments && this.store != null ? documentsByCollection() : java.util.Map.of();
         final java.util.Set<String> names = new java.util.TreeSet<>(this.config.collections);
+        names.addAll(this.config.inactiveCollections);
         names.addAll(v.categories.collections.keySet());
         names.addAll(this.config.vocabOverrides.keySet());
         names.addAll(this.config.jobsCollections);
@@ -1274,14 +1323,16 @@ public final class KgRuntime {
         final JSONArray out = new JSONArray();
         for (final String c : names) {
             final boolean followed = this.config.follows(c);
+            final boolean inactive = this.config.holds(c);
             final String setting = this.config.vocabOverrides.get(c);
             final String vocabulary = this.config.vocabularyOf(c, v.categories.collections);
             final boolean known = vocabulary == null || v.categories.vocabularies.containsKey(vocabulary);
             final Long documents = withDocuments && this.store != null ? docs.getOrDefault(c, 0L) : null;
-            final String state = !followed ? "not_followed" : !known ? "unknown_vocabulary" : documents != null && documents == 0L ? "waiting"
-                    : "following";
-            out.put(KgJson.obj("collection", c, "followed", followed, "vocabulary", vocabulary, "vocabularySource", setting != null ? "setting"
-                    : v.categories.collections.containsKey(c) ? "vocabulary_files" : "none", "vocabularyKnown", known,
+            // switched off (package 6.2): not followed, its graph data kept
+            final String state = inactive ? "inactive" : !followed ? "not_followed" : !known ? "unknown_vocabulary"
+                    : documents != null && documents == 0L ? "waiting" : "following";
+            out.put(KgJson.obj("collection", c, "followed", followed, "inactive", inactive, "vocabulary", vocabulary, "vocabularySource",
+                    setting != null ? "setting" : v.categories.collections.containsKey(c) ? "vocabulary_files" : "none", "vocabularyKnown", known,
                     "jobs", followed && this.config.jobsShown(c), "llm", this.config.llmFollows(c), "documents", documents, "state", state));
         }
         return out;
@@ -1452,6 +1503,64 @@ public final class KgRuntime {
     public synchronized File backupFile(final String name) throws KgException {
         requireRunning();
         return KgBackup.find(this.paths.backup, name);
+    }
+
+    /**
+     * Deletes one backup (package 6.3), administrator only: a name of {@link KgBackup#NAME}, never a path; the file must be a regular
+     * file directly in {@code backup/} (no symbolic link, nothing outside it) and is never the graph's own database, WAL or SHM. Its
+     * metadata file goes with it. Refused while a backup, a restore or a rebuild swap holds the backup slot, which it holds itself
+     * while it deletes. Restore and download of the other backups are unchanged.
+     *
+     * @return the status, with {@code deleted} (the name) and the backup state after the deletion
+     */
+    public synchronized JSONObject deleteBackup(final String name) throws KgException {
+        requireRunning();
+        final File f = safeBackup(name);
+        final KgBackups b = this.backups;
+        if (b == null || !b.claim()) {
+            throw new KgException(KgException.OPERATION_RUNNING, "a backup, restore or rebuild is running");
+        }
+        final long bytes = f.length();
+        try {
+            safeBackup(name); // again under the slot: a restore or rebuild cannot have replaced it meanwhile
+            if (!KgBackup.remove(f)) {
+                throw new KgException(KgException.BACKUP_DELETE_FAILED, "the file " + name + " could not be deleted");
+            }
+        } finally {
+            b.release();
+        }
+        recordEvent(1, "backup_deleted", name + " (" + bytes + " bytes)", false);
+        this.guard.refresh();
+        final JSONObject o = status();
+        KgJson.put(o, "deleted", name);
+        return o;
+    }
+
+    /** The backup {@code name}, checked to be a real backup file of {@code backup/}; else {@link KgException#BACKUP_NOT_FOUND}. */
+    private File safeBackup(final String name) throws KgException {
+        final File f = KgBackup.find(this.paths.backup, name);
+        final KgException none = new KgException(KgException.BACKUP_NOT_FOUND, "no backup " + name + " in " + KgPaths.RELATIVE_DIR + "/backup");
+        if (f == null) {
+            throw none;
+        }
+        try {
+            final java.nio.file.Path p = f.toPath();
+            final java.nio.file.Path dir = this.paths.backup.toPath().toRealPath();
+            final java.nio.file.Path real = p.toRealPath();
+            final java.util.Set<java.nio.file.Path> live = new java.util.HashSet<>();
+            for (final File g : new File[] {this.paths.db, this.paths.wal, this.paths.shm}) {
+                if (g.exists()) {
+                    live.add(g.toPath().toRealPath());
+                }
+            }
+            if (java.nio.file.Files.isSymbolicLink(p) || !java.nio.file.Files.isRegularFile(real, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                    || !dir.equals(real.getParent()) || live.contains(real)) {
+                throw none;
+            }
+        } catch (final java.io.IOException e) {
+            throw none;
+        }
+        return f;
     }
 
     /**

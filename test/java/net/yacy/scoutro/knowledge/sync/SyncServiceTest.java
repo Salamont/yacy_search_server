@@ -178,6 +178,12 @@ public class SyncServiceTest {
         return d;
     }
 
+    private SolrInputDocument doc(final String id, final String url, final List<String> collections, final String ldJson) {
+        final SolrInputDocument d = doc(id, url, collections.get(0), ldJson);
+        d.setField("collection_sxt", collections);
+        return d;
+    }
+
     private void add(final String id, final String url, final String ldJson) throws Exception {
         client().add(doc(id, url, "c1", ldJson));
     }
@@ -865,5 +871,108 @@ public class SyncServiceTest {
         this.sync.requestReconcile(Reconciler.REASON_ADMIN);
         settle();
         assertFalse(tracked("AAAAAAhost01"));
+    }
+
+    // ------------------------------------------- collections switched off (6.2)
+
+    /** Restarts the runtime with these settings (the settings page reopens the graph the same way). */
+    private void restartWith(final String... settings) throws Exception {
+        stop(true);
+        configure(KgTestSupport.enabled(settings));
+        start(1000, false);
+    }
+
+    private List<String> scopes(final String docId) throws Exception {
+        return strings("SELECT k.name FROM kg_doc d JOIN kg_doc_collection dc ON dc.doc_rowid = d.doc_rowid JOIN kg_collection k"
+                + " ON k.coll_id = dc.coll_id WHERE d.doc_id = '" + docId + "' ORDER BY 1");
+    }
+
+    @Test
+    public void aCollectionSwitchedOffKeepsItsGraphDataAndIsNotUpdated() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1,c2", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        client().add(doc("BBBBBBhost02", "https://other.example/", "c2", org("B GmbH", "040 1111111")));
+        commit();
+        settle();
+        assertTrue(tracked("BBBBBBhost02"));
+        final List<String> before = strings("SELECT public_id FROM kg_statement ORDER BY 1");
+        // switched off: no longer in the list, named as switched off
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.INACTIVE_COLLECTIONS, "c2", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        settle();
+        assertTrue("the start reconcile keeps the pages of a collection switched off", tracked("BBBBBBhost02"));
+        assertEquals(before, strings("SELECT public_id FROM kg_statement ORDER BY 1"));
+        assertEquals(Reconciler.REASON_COLLECTIONS, strings("SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1").get(0));
+        assertEquals(List.of("+49301111111", "+49401111111"), phones());
+        // a recrawl of its page is not extracted: the graph keeps what it had
+        client().add(doc("BBBBBBhost02", "https://other.example/", "c2", org("B GmbH", "040 2222222")));
+        settle();
+        assertEquals(List.of("+49301111111", "+49401111111"), phones());
+        assertTrue(this.sync.counters.held.get() >= 1L);
+        // a new page of it is not taken in, the other collection still is
+        client().add(doc("CCCCCChost03", "https://third.example/", "c2", org("C GmbH", "050 1111111")));
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 3333333"));
+        settle();
+        assertFalse(tracked("CCCCCChost03"));
+        assertEquals(List.of("+49303333333", "+49401111111"), phones());
+        // the daily reconcile deletes nothing of it either
+        this.sync.requestReconcile(Reconciler.REASON_ADMIN);
+        settle();
+        assertTrue(tracked("BBBBBBhost02"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_scan_candidate"));
+        // a page deleted from the index still leaves the graph
+        client().deleteById("BBBBBBhost02");
+        commit();
+        settle();
+        assertFalse(tracked("BBBBBBhost02"));
+    }
+
+    @Test
+    public void switchingACollectionOnPicksUpItsPagesThroughTheStartReconcile() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.INACTIVE_COLLECTIONS, "c2");
+        withoutCapture(() -> {
+            client().add(doc("CCCCCChost03", "https://third.example/", "c2", org("C GmbH", "050 1111111")));
+            commit();
+        });
+        settle();
+        assertFalse(tracked("CCCCCChost03"));
+        // switched on: in the list again, no longer switched off; the pages it already has in the index come in
+        restartWith(KgConfig.COLLECTIONS, "c1,c2");
+        settle();
+        assertTrue("the backfill of the start reconcile", tracked("CCCCCChost03"));
+        assertEquals(List.of("+49501111111"), phones());
+        assertEquals(List.of("c2"), scopes("CCCCCChost03"));
+    }
+
+    @Test
+    public void underEveryCollectionASwitchedOffOneIsKeptButNotFollowed() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "*", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        client().add(doc("BBBBBBhost02", "https://other.example/", "c2", org("B GmbH", "040 1111111")));
+        commit();
+        settle();
+        assertTrue(tracked("BBBBBBhost02"));
+        restartWith(KgConfig.COLLECTIONS, "*", KgConfig.INACTIVE_COLLECTIONS, "c2", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        assertFalse(this.cfg.follows("c2"));
+        assertTrue(this.cfg.follows("c1") && this.cfg.follows("any-new-collection"));
+        settle();
+        assertTrue(tracked("BBBBBBhost02"));
+        client().add(doc("CCCCCChost03", "https://third.example/", "c2", org("C GmbH", "050 1111111")));
+        client().add(doc("DDDDDDhost04", "https://fourth.example/", "c4", org("D GmbH", "060 1111111")));
+        settle();
+        assertFalse("a page of the collection switched off", tracked("CCCCCChost03"));
+        assertTrue("a page of any other collection", tracked("DDDDDDhost04"));
+    }
+
+    @Test
+    public void aPageAlsoInAFollowedCollectionKeepsItsMembershipOfOneSwitchedOff() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1,c2");
+        client().add(doc("AAAAAAhost01", "https://www.muster.de/", List.of("c1", "c2"), org("A GmbH", "030 1111111")));
+        settle();
+        assertEquals(List.of("c1", "c2"), scopes("AAAAAAhost01"));
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.INACTIVE_COLLECTIONS, "c2");
+        client().add(doc("AAAAAAhost01", "https://www.muster.de/", List.of("c1", "c2"), org("A GmbH", "030 2222222")));
+        settle();
+        assertEquals("followed through c1, still seen in c2", List.of("c1", "c2"), scopes("AAAAAAhost01"));
+        assertEquals(List.of("+49302222222"), phones());
     }
 }

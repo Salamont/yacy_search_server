@@ -1555,7 +1555,7 @@
       "post": {
         "operationId": "kg.control",
         "summary": "Control the knowledge graph",
-        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"} (restore with \"backup\"); unknown fields are refused. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
+        "description": "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"|\"delete_backup\"} (restore and delete_backup with \"backup\"); unknown fields are refused. delete_backup: 404 backup_not_found, 409 operation_running, 503 backup_delete_failed. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.",
         "tags": [
           "knowledge"
         ],
@@ -1655,6 +1655,210 @@
           },
           "422": {
             "description": "YaCy refused the request (e.g. crawl rejected; message contains YaCy's reason).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/kg/collections": {
+      "get": {
+        "operationId": "kg.collections",
+        "summary": "Knowledge graph settings of each collection",
+        "description": "Package 6.2, administrator only, never an agent grant: every collection of the collection catalog (a new one by itself; YaCy's internal robot_* never) and every collection the graph's settings or data name, each with whether the graph follows it (or it is switched off, its data kept), its vocabulary (set, default of the vocabulary files, or none; never guessed from the name), its pages in the index and documents in the graph, and its state. Takes no parameters.",
+        "tags": [
+          "knowledge"
+        ],
+        "responses": {
+          "200": {
+            "description": "Collections.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgCollectionSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/kg/collections/{collection}": {
+      "patch": {
+        "operationId": "kg.collection.update",
+        "summary": "Switch a collection on or off for the knowledge graph, set its vocabulary",
+        "description": "Package 6.2, administrator only, never an agent grant. JSON body with active, vocabulary and/or llm (package 6.3: the LLM enrichment, scoutro.kg.llm.collections); unknown fields are refused. Only this collection's keys change, with their existing meaning: scoutro.kg.collections (the name added or removed, the other names as they are; * stays *), scoutro.kg.collections.inactive (switched off: not followed, also under *; the reconcile deletes nothing of it and nothing new is extracted from it; a page deleted from the index still leaves the graph) and scoutro.kg.vocab.<collection>. A change takes effect at once: the running graph is reopened with the new settings (a manual pause stays), and the reconcile of every start reads the pages a collection switched on already has in the index (the existing backfill). No schema change, no deletion, no new collection. 400 collection_id_invalid, 400 collection_reserved (robot_*), 400 vocabulary_unknown, 400 invalid_request, 404 collection_unknown (neither in the catalog nor named by the graph), 409 operation_running while a backup, restore or rebuild runs (nothing written), 409 llm_all_collections (nothing written).",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "collection",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            },
+            "description": "A collection of GET /kg/collections."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KgCollectionChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The collection after the change.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgCollectionChanged"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "403": {
+            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3596,6 +3800,156 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/KgServiceProviders"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/kg/services/network": {
+      "get": {
+        "operationId": "kg.services.network",
+        "summary": "Network of all providers of one service name",
+        "description": "Package 6.2: all visible providers of one service name (SAP) around a virtual centre that is the name only, no object: one node per provider with its context, one line per provider's own offers statement to its own service, which the line names (field service, with its own prices, sources and collections). Services, prices, sources and facts of different providers are never merged or mixed. Paged by provider, the strongest line first; outdated offers only with include=stale. Services without a visible provider are counted in group.without_provider, not drawn. The network of one object (GET entities/{id}/neighborhood) is unchanged. 404 not_found when no visible service has the name. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "The service name; compared in lower case without surrounding spaces.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "Only services of this category.",
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First item.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Providers per page (strongest line first).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "description": "Also outdated offers.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stale"
+              ]
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Network of the name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgServiceNetwork"
                 }
               }
             }
@@ -10523,6 +10877,187 @@
         ]
       }
     },
+    "/agent/v1/kg/services/network": {
+      "get": {
+        "operationId": "agent.kg.services.network",
+        "summary": "Network of all providers of one service name (scoped)",
+        "description": "Package 6.2: all visible providers of one service name (SAP) around a virtual centre that is the name only, no object: one node per provider with its context, one line per provider's own offers statement to its own service, which the line names (field service, with its own prices, sources and collections). Services, prices, sources and facts of different providers are never merged or mixed. Paged by provider, the strongest line first; outdated offers only with include=stale. Services without a visible provider are counted in group.without_provider, not drawn. The network of one object (GET entities/{id}/neighborhood) is unchanged. 404 not_found when no visible service has the name. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "tags": [
+          "agent",
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": true,
+            "description": "The service name; compared in lower case without surrounding spaces.",
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "description": "Only services of this category.",
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First item.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Providers per page (strongest line first).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            }
+          },
+          {
+            "name": "include",
+            "in": "query",
+            "required": false,
+            "description": "Also outdated offers.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "stale"
+              ]
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Network of the name.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgServiceNetwork"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; for crawls also every crawl this agent did not start (crawl_not_found).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "kg.read"
+        ]
+      }
+    },
     "/agent/v1/kg/facets": {
       "get": {
         "operationId": "agent.kg.facets",
@@ -15684,7 +16219,7 @@
                   "string",
                   "null"
                 ],
-                "description": "no_llm_collections, no_sync, circuit_breaker, a gate (indexing_queue, load, heap), full_reset, write_refused, or the missing model."
+                "description": "no_llm_collections (no collection switched on for the LLM tier), llm_collections_not_followed (switched on, but off for the graph), no_sync, circuit_breaker, a gate (indexing_queue, load, heap), full_reset, write_refused, or the missing model."
               },
               "model": {
                 "type": [
@@ -16441,7 +16976,7 @@
           "backup": {
             "type": "string",
             "pattern": "^graph-[0-9]{8}T[0-9]{6}Z(-before-restore|-before-rebuild|-before-upgrade)?\\.db$",
-            "description": "With action restore only: the backup file."
+            "description": "With action restore or delete_backup only: the backup file, by its name of GET /kg/backups; never a path."
           },
           "action": {
             "type": "string",
@@ -16456,9 +16991,10 @@
               "rebuild",
               "rebuild_cancel",
               "rebuild_confirm",
-              "derive"
+              "derive",
+              "delete_backup"
             ],
-            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false."
+            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false. delete_backup (with backup, package 6.3) deletes one backup and its metadata file: only a name of GET /kg/backups, the file a regular file directly in DATA/SCOUTRO/knowledge/backup (no symbolic link), never the graph's own graph.db, WAL or SHM; the answer is the status with deleted and the backup state after it. 400 for anything but such a name, 404 backup_not_found, 409 operation_running while a backup, restore or rebuild swap holds the backup slot (nothing deleted), 503 backup_delete_failed. Restore and download of the other backups are unchanged."
           }
         }
       },
@@ -16639,6 +17175,394 @@
                 }
               }
             }
+          }
+        }
+      },
+      "KgCollectionSettings": {
+        "type": "object",
+        "required": [
+          "collections",
+          "vocabularies"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "followAll": {
+            "type": "boolean",
+            "description": "scoutro.kg.collections=*."
+          },
+          "vocabularies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The vocabularies a collection can be given."
+          },
+          "llm": {
+            "type": "object",
+            "description": "Package 6.3: the LLM enrichment. Its model is the one of the LLM selection with the usage knowledge; there is no second model setting.",
+            "properties": {
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "service/model of the LLM selection with the usage knowledge; null for none."
+              },
+              "allCollections": {
+                "type": "boolean",
+                "description": "scoutro.kg.llm.collections=*."
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "enabled": {
+                "type": "boolean",
+                "description": "At least one collection is switched on for it."
+              },
+              "active": {
+                "type": "boolean",
+                "description": "Enabled, with a model, and the graph enabled."
+              }
+            }
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "collection",
+                "active",
+                "inactive",
+                "state"
+              ],
+              "properties": {
+                "collection": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string",
+                  "description": "The catalog's display name (else the ID)."
+                },
+                "inCatalog": {
+                  "type": "boolean",
+                  "description": "False for a collection only the graph's settings or data name."
+                },
+                "indexDocuments": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Pages of the collection in the index (the catalog's count)."
+                },
+                "active": {
+                  "type": "boolean",
+                  "description": "The graph follows the collection."
+                },
+                "inactive": {
+                  "type": "boolean",
+                  "description": "Switched off (scoutro.kg.collections.inactive): not followed, its graph data kept."
+                },
+                "followedBy": {
+                  "type": "string",
+                  "enum": [
+                    "list",
+                    "all",
+                    "inactive",
+                    "none"
+                  ],
+                  "description": "Why: named in scoutro.kg.collections, * (every collection), switched off, or neither."
+                },
+                "vocabulary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The vocabulary in force; null for none."
+                },
+                "vocabularySetting": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "scoutro.kg.vocab.<collection>: a name, \"\" for no vocabulary, null when not set (the default)."
+                },
+                "defaultVocabulary": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The default of the vocabulary files (categories.json); never guessed from the name."
+                },
+                "vocabularySource": {
+                  "type": "string",
+                  "enum": [
+                    "setting",
+                    "vocabulary_files",
+                    "none"
+                  ]
+                },
+                "vocabularyKnown": {
+                  "type": "boolean"
+                },
+                "graphDocuments": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Documents of the collection in the graph; null while the graph is not running."
+                },
+                "jobs": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ]
+                },
+                "llm": {
+                  "type": "boolean",
+                  "description": "Package 6.3: the LLM enrichment is switched on for the collection (named in scoutro.kg.llm.collections, or *)."
+                },
+                "llmBy": {
+                  "type": "string",
+                  "enum": [
+                    "list",
+                    "all",
+                    "none"
+                  ]
+                },
+                "llmActive": {
+                  "type": "boolean",
+                  "description": "In effect: the graph is enabled and follows the collection, it is switched on for the LLM enrichment and the LLM selection has a model with the usage knowledge."
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "following",
+                    "waiting",
+                    "inactive",
+                    "not_followed",
+                    "unknown_vocabulary"
+                  ]
+                }
+              }
+            },
+            "description": "Every collection of the catalog (never robot_*) and every collection the graph's settings or data name."
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "KgCollectionChange": {
+        "type": "object",
+        "minProperties": 1,
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean",
+            "description": "true: followed (added to scoutro.kg.collections unless it is *, removed from the collections switched off); false: switched off (removed from the list, added to scoutro.kg.collections.inactive), its graph data kept."
+          },
+          "vocabulary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A vocabulary of GET /kg/collections (vocabularies); \"\" for no vocabulary; null for the default of the vocabulary files (the key is removed)."
+          },
+          "llm": {
+            "type": "boolean",
+            "description": "Package 6.3: the LLM enrichment for the collection on (added to scoutro.kg.llm.collections) or off (removed). 409 llm_all_collections to switch one off while the key is *: it is never rewritten into a list. Never switched on by itself."
+          }
+        }
+      },
+      "KgCollectionChanged": {
+        "type": "object",
+        "required": [
+          "collection",
+          "changed",
+          "applied"
+        ],
+        "properties": {
+          "collection": {
+            "type": "object",
+            "required": [
+              "collection",
+              "active",
+              "inactive",
+              "state"
+            ],
+            "properties": {
+              "collection": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string",
+                "description": "The catalog's display name (else the ID)."
+              },
+              "inCatalog": {
+                "type": "boolean",
+                "description": "False for a collection only the graph's settings or data name."
+              },
+              "indexDocuments": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Pages of the collection in the index (the catalog's count)."
+              },
+              "active": {
+                "type": "boolean",
+                "description": "The graph follows the collection."
+              },
+              "inactive": {
+                "type": "boolean",
+                "description": "Switched off (scoutro.kg.collections.inactive): not followed, its graph data kept."
+              },
+              "followedBy": {
+                "type": "string",
+                "enum": [
+                  "list",
+                  "all",
+                  "inactive",
+                  "none"
+                ],
+                "description": "Why: named in scoutro.kg.collections, * (every collection), switched off, or neither."
+              },
+              "vocabulary": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The vocabulary in force; null for none."
+              },
+              "vocabularySetting": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "scoutro.kg.vocab.<collection>: a name, \"\" for no vocabulary, null when not set (the default)."
+              },
+              "defaultVocabulary": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The default of the vocabulary files (categories.json); never guessed from the name."
+              },
+              "vocabularySource": {
+                "type": "string",
+                "enum": [
+                  "setting",
+                  "vocabulary_files",
+                  "none"
+                ]
+              },
+              "vocabularyKnown": {
+                "type": "boolean"
+              },
+              "graphDocuments": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Documents of the collection in the graph; null while the graph is not running."
+              },
+              "jobs": {
+                "type": [
+                  "boolean",
+                  "null"
+                ]
+              },
+              "llm": {
+                "type": "boolean",
+                "description": "Package 6.3: the LLM enrichment is switched on for the collection (named in scoutro.kg.llm.collections, or *)."
+              },
+              "llmBy": {
+                "type": "string",
+                "enum": [
+                  "list",
+                  "all",
+                  "none"
+                ]
+              },
+              "llmActive": {
+                "type": "boolean",
+                "description": "In effect: the graph is enabled and follows the collection, it is switched on for the LLM enrichment and the LLM selection has a model with the usage knowledge."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "following",
+                  "waiting",
+                  "inactive",
+                  "not_followed",
+                  "unknown_vocabulary"
+                ]
+              }
+            }
+          },
+          "changed": {
+            "type": "boolean",
+            "description": "False when the settings already were so (nothing written, nothing reopened)."
+          },
+          "applied": {
+            "type": "boolean",
+            "description": "The running graph was reopened with the new settings; false while it is off (they count at its next start)."
+          },
+          "backfill": {
+            "type": "boolean",
+            "description": "Switched on: the start reconcile reads the pages the collection already has in the index."
+          },
+          "kept": {
+            "type": "boolean",
+            "description": "Switched off: its graph data are kept."
+          },
+          "reextract": {
+            "type": "boolean",
+            "description": "The extraction identity changed (a followed collection's vocabulary): the graph reads its pages again in the background."
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The settings keys written or removed."
+          },
+          "applyError": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the graph could not be reopened; the settings are stored and count at its next start."
+          },
+          "llmModel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The model of the LLM selection with the usage knowledge."
+          },
+          "llmWarning": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "no_model",
+              "collection_not_active",
+              null
+            ],
+            "description": "no_model: switched on, but no model has the usage knowledge (the enrichment waits; the graph works without it); collection_not_active: the graph does not follow the collection yet."
           }
         }
       },
@@ -20219,6 +21143,411 @@
                 }
               }
             }
+          },
+          "note": {
+            "type": "string"
+          },
+          "lag": {
+            "type": "object",
+            "description": "How far the graph lags behind Solr (absent without the sync).",
+            "properties": {
+              "pending": {
+                "type": "integer"
+              },
+              "oldest_pending_age_s": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reconcile_pending": {
+                "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "KgServiceNetwork": {
+        "type": "object",
+        "required": [
+          "schema",
+          "aggregated",
+          "center",
+          "group",
+          "nodes",
+          "edges"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "scoutro.kg.business.v1"
+            ]
+          },
+          "aggregated": {
+            "type": "boolean",
+            "description": "Always true: the network of a name, not of an object."
+          },
+          "center": {
+            "type": "string",
+            "description": "service_group:<key>: the virtual centre, the name only; never an entity ID, never an object to open."
+          },
+          "group": {
+            "type": "object",
+            "description": "Services of one name for reading only: counts of separate services, never a merged object.",
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "The name in lower case without surrounding spaces."
+              },
+              "name": {
+                "type": "string",
+                "description": "The name as most of the viewer's pages write it."
+              },
+              "services": {
+                "type": "integer"
+              },
+              "providers": {
+                "type": "integer",
+                "description": "Distinct visible providers (offers)."
+              },
+              "without_provider": {
+                "type": "integer"
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "services": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "description": "The viewer's collections only."
+              },
+              "places": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "providers": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "description": "Places of the providers (locality, else the places they are in), at most 10."
+              },
+              "with_price": {
+                "type": "integer",
+                "description": "Services with a current published price."
+              },
+              "with_current_source": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "More than 5000 services: the counts cover the first 5000."
+              }
+            }
+          },
+          "depth": {
+            "type": "integer",
+            "enum": [
+              1
+            ]
+          },
+          "nodes": {
+            "type": "array",
+            "description": "The centre (type service_group, virtual true, with the counts services, providers, without_provider) and one node per provider of the page, as in the neighbourhood (KgNeighborhood nodes, depth 1, with their context).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "kind": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "display_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                },
+                "display_name_source": {
+                  "type": "string",
+                  "enum": [
+                    "fact",
+                    "legal",
+                    "operator",
+                    "domain",
+                    "fallback"
+                  ]
+                },
+                "display_host": {
+                  "type": "string",
+                  "description": "With display_name_source domain: the host the name is derived from."
+                },
+                "depth": {
+                  "type": "integer"
+                },
+                "value": {
+                  "type": "boolean"
+                },
+                "virtual": {
+                  "type": "boolean",
+                  "description": "The centre only."
+                },
+                "services": {
+                  "type": "integer"
+                },
+                "providers": {
+                  "type": "integer"
+                },
+                "without_provider": {
+                  "type": "integer"
+                },
+                "hosts": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+                },
+                "collections": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "The viewer's collections that hold it."
+                },
+                "places": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Its stated locality, else the names of the places it is in (at most 3)."
+                },
+                "quality": {
+                  "type": "string",
+                  "enum": [
+                    "supported",
+                    "uncertain",
+                    "stale"
+                  ],
+                  "description": "Over the viewer's evidence (the rule of the quality filter)."
+                },
+                "sources": {
+                  "type": "integer",
+                  "description": "Current visible source pages."
+                },
+                "last_confirmed": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                }
+              }
+            }
+          },
+          "edges": {
+            "type": "array",
+            "description": "One line per visible offers statement of a provider of the page: from the provider to the centre, naming the provider's own service.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "The offers statement (kgs_)."
+                },
+                "from": {
+                  "type": "string"
+                },
+                "to": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "offers"
+                  ]
+                },
+                "business": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "confirmed",
+                    "uncertain",
+                    "stale"
+                  ]
+                },
+                "confidence": {
+                  "type": "number"
+                },
+                "evidence": {
+                  "type": "integer"
+                },
+                "fact": {
+                  "type": "boolean"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "in"
+                  ]
+                },
+                "service": {
+                  "type": "object",
+                  "description": "The provider's own service: its own ID, name, prices, sources and collections, never another provider's.",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "display_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                    },
+                    "display_name_source": {
+                      "type": "string",
+                      "enum": [
+                        "fact",
+                        "legal",
+                        "operator",
+                        "domain",
+                        "fallback"
+                      ]
+                    },
+                    "display_host": {
+                      "type": "string",
+                      "description": "With display_name_source domain: the host the name is derived from."
+                    },
+                    "quality": {
+                      "type": "string",
+                      "enum": [
+                        "supported",
+                        "uncertain",
+                        "stale"
+                      ],
+                      "description": "Over the viewer's evidence (the rule of the quality filter)."
+                    },
+                    "sources": {
+                      "type": "integer"
+                    },
+                    "last_confirmed": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "hosts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+                    },
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "The viewer's collections that hold it."
+                    },
+                    "prices": {
+                      "type": "object",
+                      "properties": {
+                        "current": {
+                          "type": "integer"
+                        },
+                        "all": {
+                          "type": "integer"
+                        }
+                      },
+                      "description": "Visible price statements of this service."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "neighbours": {
+            "type": "integer",
+            "description": "Providers before paging."
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "note": {
             "type": "string"

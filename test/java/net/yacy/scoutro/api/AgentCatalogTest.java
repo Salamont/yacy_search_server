@@ -82,7 +82,7 @@ public class AgentCatalogTest {
             {"GET", "crawls/{id}"}, {"POST", "crawls/{id}/stop"}, {"GET", "system"}, {"GET", "config"}, {"PATCH", "config"},
             {"GET", "kg/entities"}, {"GET", "kg/entities/{id}"}, {"GET", "kg/entities/{id}/statements"}, {"GET", "kg/statements/{id}"},
             {"GET", "kg/statements/{id}/evidence"}, {"GET", "kg/hosts/{host}/entities"}, {"GET", "kg/sources/{docId}"},
-            {"GET", "kg/export"}, {"GET", "kg/changes"}};
+            {"GET", "kg/export"}, {"GET", "kg/changes"}, {"GET", "kg/services/network"}};
         for (final String[] r : routes) {
             final List<String> segs = new ArrayList<>();
             for (final String s : r[1].split("/")) {
@@ -95,7 +95,7 @@ public class AgentCatalogTest {
         }
         Assert.assertNotNull(openapi.getJSONObject("components").getJSONObject("securitySchemes").optJSONObject("agentBearer"));
         // the administrator routes of the knowledge graph are neither routed nor described on the agent path
-        for (final String admin : new String[] {"kg/status", "kg/control", "kg/export/download"}) {
+        for (final String admin : new String[] {"kg/status", "kg/control", "kg/export/download", "kg/collections", "kg/collections/c1"}) {
             Assert.assertNull(admin, AgentApi.route("GET", java.util.Arrays.asList(admin.split("/"))).action);
             Assert.assertNull(admin, paths.optJSONObject("/agent/v1/" + admin));
         }
@@ -118,7 +118,9 @@ public class AgentCatalogTest {
                     // vocabulary 2 (package 6)
                     "kg.entity.business", "kg.entity.neighborhood", "kg.compare", "kg.derived", "kg.facets",
                     // services of the same name across providers (package 6.1)
-                    "kg.services", "kg.services.providers");
+                    "kg.services", "kg.services.providers",
+                    // the network of a service name (package 6.2)
+                    "kg.services.network");
             if (!reads.contains(name) && !name.equals("kg.export") && !name.equals("kg.changes")) {
                 // status, control, the download, backups and every later administrator route: never an agent grant
                 Assert.assertFalse(name, agent.getBoolean("grantable"));
@@ -133,7 +135,7 @@ public class AgentCatalogTest {
             Assert.assertEquals(name, grant, AgentApi.route("GET", segs).action);
             if (grant.equals("kg.read")) read++; else export++;
         }
-        Assert.assertEquals(14, read);
+        Assert.assertEquals(15, read);
         Assert.assertEquals(2, export);
     }
 }

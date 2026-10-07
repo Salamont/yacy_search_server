@@ -13860,6 +13860,15 @@
     <trans-unit id="9c3792c9" xml:space="preserve" approved="no" translate="yes">
        <source>Start crawl</source>
     </trans-unit>
+    <trans-unit id="98911c2" xml:space="preserve" approved="no" translate="yes">
+       <source>This request has started its crawl. Change the URL or a setting to start another crawl.</source>
+    </trans-unit>
+    <trans-unit id="3a46dbb" xml:space="preserve" approved="no" translate="yes">
+       <source>Start result</source>
+    </trans-unit>
+    <trans-unit id="ddb13386" xml:space="preserve" approved="no" translate="yes">
+       <source>View crawl status</source>
+    </trans-unit>
     <trans-unit id="78d7e2b" xml:space="preserve" approved="no" translate="yes">
        <source>Crawl status</source>
     </trans-unit>
@@ -13872,17 +13881,8 @@
     <trans-unit id="10d7995b" xml:space="preserve" approved="no" translate="yes">
        <source>Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.</source>
     </trans-unit>
-    <trans-unit id="7749791c" xml:space="preserve" approved="no" translate="yes">
-       <source>Loading</source>
-    </trans-unit>
     <trans-unit id="65e7c97a" xml:space="preserve" approved="no" translate="yes">
        <source>No crawls available.</source>
-    </trans-unit>
-    <trans-unit id="e7d8d08e" xml:space="preserve" approved="no" translate="yes">
-       <source>Crawl accepted.</source>
-    </trans-unit>
-    <trans-unit id="396e668" xml:space="preserve" approved="no" translate="yes">
-       <source>Existing crawl returned. No second start.</source>
     </trans-unit>
     <trans-unit id="42c9a70e" xml:space="preserve" approved="no" translate="yes">
        <source>Request failed</source>
@@ -13934,6 +13934,114 @@
     </trans-unit>
     <trans-unit id="92958c1e" xml:space="preserve" approved="no" translate="yes">
        <source>Last error</source>
+    </trans-unit>
+    <trans-unit id="2aa4d5fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Starting the crawl …</source>
+    </trans-unit>
+    <trans-unit id="ffd41480" xml:space="preserve" approved="no" translate="yes">
+       <source>This start</source>
+    </trans-unit>
+    <trans-unit id="48e5aec0" xml:space="preserve" approved="no" translate="yes">
+       <source>Started: YaCy created the crawl profile.</source>
+    </trans-unit>
+    <trans-unit id="e27fbea5" xml:space="preserve" approved="no" translate="yes">
+       <source>Already started: this request started the crawl before. No second start.</source>
+    </trans-unit>
+    <trans-unit id="ad704c37" xml:space="preserve" approved="no" translate="yes">
+       <source>Started earlier. The values come from the current crawl status.</source>
+    </trans-unit>
+    <trans-unit id="ddcd54fd" xml:space="preserve" approved="no" translate="yes">
+       <source>Rejected: the crawl was not started.</source>
+    </trans-unit>
+    <trans-unit id="46dc204" xml:space="preserve" approved="no" translate="yes">
+       <source>Failed: the start could not be completed.</source>
+    </trans-unit>
+    <trans-unit id="b87df3e5" xml:space="preserve" approved="no" translate="yes">
+       <source>Unconfirmed: YaCy may have started the crawl. It is not started a second time.</source>
+    </trans-unit>
+    <trans-unit id="bda17863" xml:space="preserve" approved="no" translate="yes">
+       <source>This crawl is no longer known to YaCy or Scoutro.</source>
+    </trans-unit>
+    <trans-unit id="2431a99a" xml:space="preserve" approved="no" translate="yes">
+       <source>Result of the start attempt</source>
+    </trans-unit>
+    <trans-unit id="69dfdc99" xml:space="preserve" approved="no" translate="yes">
+       <source>Current status</source>
+    </trans-unit>
+    <trans-unit id="d4088dfa" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl/profile ID</source>
+    </trans-unit>
+    <trans-unit id="73ee0ef" xml:space="preserve" approved="no" translate="yes">
+       <source>Start attempt</source>
+    </trans-unit>
+    <trans-unit id="f223d861" xml:space="preserve" approved="no" translate="yes">
+       <source>Started</source>
+    </trans-unit>
+    <trans-unit id="3d2ff648" xml:space="preserve" approved="no" translate="yes">
+       <source>Already started, no second start</source>
+    </trans-unit>
+    <trans-unit id="df95789e" xml:space="preserve" approved="no" translate="yes">
+       <source>Rejected</source>
+    </trans-unit>
+    <trans-unit id="7cfb805d" xml:space="preserve" approved="no" translate="yes">
+       <source>Failed</source>
+    </trans-unit>
+    <trans-unit id="379038c6" xml:space="preserve" approved="no" translate="yes">
+       <source>Unconfirmed</source>
+    </trans-unit>
+    <trans-unit id="bd31833e" xml:space="preserve" approved="no" translate="yes">
+       <source>Running: the YaCy crawl profile is active</source>
+    </trans-unit>
+    <trans-unit id="dec71dd8" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting: the YaCy crawler is paused</source>
+    </trans-unit>
+    <trans-unit id="c4d99831" xml:space="preserve" approved="no" translate="yes">
+       <source>Finished: YaCy ended the crawl profile</source>
+    </trans-unit>
+    <trans-unit id="3ec11e61" xml:space="preserve" approved="no" translate="yes">
+       <source>Profile removed: YaCy no longer lists it</source>
+    </trans-unit>
+    <trans-unit id="399ac14" xml:space="preserve" approved="no" translate="yes">
+       <source>Not started</source>
+    </trans-unit>
+    <trans-unit id="a71c546d" xml:space="preserve" approved="no" translate="yes">
+       <source>Unknown: look for the URL in the crawl status</source>
+    </trans-unit>
+    <trans-unit id="34d1a95d" xml:space="preserve" approved="no" translate="yes">
+       <source>None, no crawl profile</source>
+    </trans-unit>
+    <trans-unit id="3d30c1ec" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection does not exist. Choose one from the list or create it with New collection.</source>
+    </trans-unit>
+    <trans-unit id="61e507c1" xml:space="preserve" approved="no" translate="yes">
+       <source>Another crawl is active on this host. Wait until it has finished or stop it in the YaCy Crawler Monitor.</source>
+    </trans-unit>
+    <trans-unit id="8dc8b404" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy refused the start. Check the URL (reachable, allowed by robots.txt) and the settings.</source>
+    </trans-unit>
+    <trans-unit id="cc614731" xml:space="preserve" approved="no" translate="yes">
+       <source>The outcome of this start is not confirmed; YaCy may have started the crawl. Look for the URL in the crawl status. Start crawl again sends the same request key and never starts twice.</source>
+    </trans-unit>
+    <trans-unit id="32c7af1b" xml:space="preserve" approved="no" translate="yes">
+       <source>The request key was already used for a different request. Start crawl again sends a new key.</source>
+    </trans-unit>
+    <trans-unit id="84521e54" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy did not confirm the start: no new crawl profile appeared.</source>
+    </trans-unit>
+    <trans-unit id="64d75e66" xml:space="preserve" approved="no" translate="yes">
+       <source>The request is invalid. Check the URL, the collection and the numbers.</source>
+    </trans-unit>
+    <trans-unit id="49f88bbe" xml:space="preserve" approved="no" translate="yes">
+       <source>You are not signed in as administrator.</source>
+    </trans-unit>
+    <trans-unit id="ef95776e" xml:space="preserve" approved="no" translate="yes">
+       <source>The crawler or the index is unavailable at the moment. Try again later.</source>
+    </trans-unit>
+    <trans-unit id="8eb14cf2" xml:space="preserve" approved="no" translate="yes">
+       <source>No answer from the server. Start crawl again sends the same request key: a start that already arrived is returned, never repeated.</source>
+    </trans-unit>
+    <trans-unit id="d425f9" xml:space="preserve" approved="no" translate="yes">
+       <source>The server could not process the request.</source>
     </trans-unit>
   </body>
 </file>
@@ -15320,6 +15428,9 @@
     <trans-unit id="d119f20e" xml:space="preserve" approved="no" translate="yes">
        <source>Network</source>
     </trans-unit>
+    <trans-unit id="fccfc414" xml:space="preserve" approved="no" translate="yes">
+       <source>All providers of one service name, never the whole graph. The centre is the name only, no object: every line is one provider's own offer of its own service, with that service's own prices, sources and collections. Services, prices and facts of different providers are never merged or mixed. Tap a provider or a line for its own service; the list shows each line with that service.</source>
+    </trans-unit>
     <trans-unit id="d56d40fa" xml:space="preserve" approved="no" translate="yes">
        <source>The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.</source>
     </trans-unit>
@@ -15455,6 +15566,9 @@
     <trans-unit id="f66b15be" xml:space="preserve" approved="no" translate="yes">
        <source>All service names</source>
     </trans-unit>
+    <trans-unit id="d000aa2c" xml:space="preserve" approved="no" translate="yes">
+       <source>Network of all providers</source>
+    </trans-unit>
     <trans-unit id="8efb646a" xml:space="preserve" approved="no" translate="yes">
        <source>Prices</source>
     </trans-unit>
@@ -15466,6 +15580,27 @@
     </trans-unit>
     <trans-unit id="595d2043" xml:space="preserve" approved="no" translate="yes">
        <source>Settings</source>
+    </trans-unit>
+    <trans-unit id="44fbd0d" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections in the knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="47df6fb3" xml:space="preserve" approved="no" translate="yes">
+       <source>Every collection of the catalog is listed here, a new one too; YaCy's internal collections never. Switching a collection off keeps its graph data: nothing is deleted and nothing new is read from it. Switching it on reads the pages it already has in the index. A change concerns only this collection and takes effect at once (the graph is reopened). A new vocabulary of a followed collection makes the graph read its pages again in the background. Settings keys:</source>
+    </trans-unit>
+    <trans-unit id="b62aafbf" xml:space="preserve" approved="no" translate="yes">
+       <source>The LLM enrichment reads the pages of the collections switched on for it in addition, with the model of the LLM selection that has the usage knowledge; there is no second model setting. It is never switched on by itself, and without it the knowledge graph works as before.</source>
+    </trans-unit>
+    <trans-unit id="3535ff9" xml:space="preserve" approved="no" translate="yes">
+       <source>LLM selection</source>
+    </trans-unit>
+    <trans-unit id="a36f4624" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages in the index</source>
+    </trans-unit>
+    <trans-unit id="83b4e316" xml:space="preserve" approved="no" translate="yes">
+       <source>LLM enrichment</source>
+    </trans-unit>
+    <trans-unit id="27359d" xml:space="preserve" approved="no" translate="yes">
+       <source>Save</source>
     </trans-unit>
     <trans-unit id="cacfc622" xml:space="preserve" approved="no" translate="yes">
        <source>Loading …</source>
@@ -15655,6 +15790,9 @@
     </trans-unit>
     <trans-unit id="b7f78da5" xml:space="preserve" approved="no" translate="yes">
        <source>Followed collections</source>
+    </trans-unit>
+    <trans-unit id="7e38110a" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections switched off (data kept)</source>
     </trans-unit>
     <trans-unit id="dd192cc2" xml:space="preserve" approved="no" translate="yes">
        <source>LLM collections</source>
@@ -16151,6 +16289,27 @@
     <trans-unit id="f0b473ac" xml:space="preserve" approved="no" translate="yes">
        <source>%1 · %2 providers</source>
     </trans-unit>
+    <trans-unit id="455fd075" xml:space="preserve" approved="no" translate="yes">
+       <source>Network of %1 · %2 providers</source>
+    </trans-unit>
+    <trans-unit id="4fdfa2e" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 providers</source>
+    </trans-unit>
+    <trans-unit id="12365bce" xml:space="preserve" approved="no" translate="yes">
+       <source>Service name in the centre (no object)</source>
+    </trans-unit>
+    <trans-unit id="713b523d" xml:space="preserve" approved="no" translate="yes">
+       <source>The centre is the service name only, no object. Each provider keeps its own service with its own prices and sources.</source>
+    </trans-unit>
+    <trans-unit id="76db518e" xml:space="preserve" approved="no" translate="yes">
+       <source>All providers as a list</source>
+    </trans-unit>
+    <trans-unit id="b7a0f1a" xml:space="preserve" approved="no" translate="yes">
+       <source>this provider's own service</source>
+    </trans-unit>
+    <trans-unit id="ac0c3cca" xml:space="preserve" approved="no" translate="yes">
+       <source>Network of this service</source>
+    </trans-unit>
     <trans-unit id="84755ea2" xml:space="preserve" approved="no" translate="yes">
        <source>Services of the same name stay separate objects, each with its own provider, prices and sources.</source>
     </trans-unit>
@@ -16213,6 +16372,132 @@
     </trans-unit>
     <trans-unit id="17c5282c" xml:space="preserve" approved="no" translate="yes">
        <source>vocabulary missing</source>
+    </trans-unit>
+    <trans-unit id="9b96ccbe" xml:space="preserve" approved="no" translate="yes">
+       <source>switched off, data kept</source>
+    </trans-unit>
+    <trans-unit id="9ff" xml:space="preserve" approved="no" translate="yes">
+       <source>On</source>
+    </trans-unit>
+    <trans-unit id="efcadbec" xml:space="preserve" approved="no" translate="yes">
+       <source>Off (data kept)</source>
+    </trans-unit>
+    <trans-unit id="49514ff3" xml:space="preserve" approved="no" translate="yes">
+       <source>Default: %1</source>
+    </trans-unit>
+    <trans-unit id="cf65dafe" xml:space="preserve" approved="no" translate="yes">
+       <source>Default: no vocabulary</source>
+    </trans-unit>
+    <trans-unit id="673e5885" xml:space="preserve" approved="no" translate="yes">
+       <source>No vocabulary</source>
+    </trans-unit>
+    <trans-unit id="2c253535" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 saved; the knowledge graph was reopened with the new setting.</source>
+    </trans-unit>
+    <trans-unit id="2ac58a32" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 saved; it takes effect when the knowledge graph starts.</source>
+    </trans-unit>
+    <trans-unit id="e0710fbf" xml:space="preserve" approved="no" translate="yes">
+       <source>%1: nothing changed.</source>
+    </trans-unit>
+    <trans-unit id="2c90a216" xml:space="preserve" approved="no" translate="yes">
+       <source>The pages it already has in the index are read now.</source>
+    </trans-unit>
+    <trans-unit id="58b74a4e" xml:space="preserve" approved="no" translate="yes">
+       <source>The graph reads its pages again in the background.</source>
+    </trans-unit>
+    <trans-unit id="566d3f10" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch %1 off for the knowledge graph? Its graph data are kept, nothing new is read from it.</source>
+    </trans-unit>
+    <trans-unit id="954d04c9" xml:space="preserve" approved="no" translate="yes">
+       <source>Change the vocabulary of %1? The graph reads its pages again in the background.</source>
+    </trans-unit>
+    <trans-unit id="695c2f4" xml:space="preserve" approved="no" translate="yes">
+       <source>not in the collection catalog</source>
+    </trans-unit>
+    <trans-unit id="4c162249" xml:space="preserve" approved="no" translate="yes">
+       <source>No collection yet.</source>
+    </trans-unit>
+    <trans-unit id="26b052f7" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph for %1</source>
+    </trans-unit>
+    <trans-unit id="dfe977bd" xml:space="preserve" approved="no" translate="yes">
+       <source>Vocabulary for %1</source>
+    </trans-unit>
+    <trans-unit id="7ad53ff6" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph (rules and structured data)</source>
+    </trans-unit>
+    <trans-unit id="ba9d121b" xml:space="preserve" approved="no" translate="yes">
+       <source>Model (usage knowledge)</source>
+    </trans-unit>
+    <trans-unit id="1785c6b" xml:space="preserve" approved="no" translate="yes">
+       <source>inactive</source>
+    </trans-unit>
+    <trans-unit id="3bcee40c" xml:space="preserve" approved="no" translate="yes">
+       <source>no model with the usage knowledge</source>
+    </trans-unit>
+    <trans-unit id="10c7909" xml:space="preserve" approved="no" translate="yes">
+       <source>no collection switched on</source>
+    </trans-unit>
+    <trans-unit id="f0006c53" xml:space="preserve" approved="no" translate="yes">
+       <source>no collection switched on for the LLM enrichment</source>
+    </trans-unit>
+    <trans-unit id="bce11e39" xml:space="preserve" approved="no" translate="yes">
+       <source>the collections switched on for it are off for the knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="a23677e3" xml:space="preserve" approved="no" translate="yes">
+       <source>no model with the usage knowledge in the LLM selection</source>
+    </trans-unit>
+    <trans-unit id="13fdbdf4" xml:space="preserve" approved="no" translate="yes">
+       <source>Model: %1 (LLM selection, usage knowledge)</source>
+    </trans-unit>
+    <trans-unit id="a37e7f2" xml:space="preserve" approved="no" translate="yes">
+       <source>No model has the usage knowledge in the LLM selection: the LLM enrichment waits, the knowledge graph works without it.</source>
+    </trans-unit>
+    <trans-unit id="9315cfad" xml:space="preserve" approved="no" translate="yes">
+       <source>LLM enrichment for %1</source>
+    </trans-unit>
+    <trans-unit id="1354f" xml:space="preserve" approved="no" translate="yes">
+       <source>Off</source>
+    </trans-unit>
+    <trans-unit id="cc5a4ea2" xml:space="preserve" approved="no" translate="yes">
+       <source>On (all collections, *)</source>
+    </trans-unit>
+    <trans-unit id="2d77b7a6" xml:space="preserve" approved="no" translate="yes">
+       <source>takes effect once the collection is on</source>
+    </trans-unit>
+    <trans-unit id="c6f0a5fb" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch the LLM enrichment on for %1? The model %2 reads the pages of this collection in addition.</source>
+    </trans-unit>
+    <trans-unit id="cbc8c9d2" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch the LLM enrichment on for %1? No model has the usage knowledge yet; the enrichment waits until one is chosen in the LLM selection.</source>
+    </trans-unit>
+    <trans-unit id="d14664c1" xml:space="preserve" approved="no" translate="yes">
+       <source>No model has the usage knowledge in the LLM selection: the LLM enrichment waits; the knowledge graph works without it.</source>
+    </trans-unit>
+    <trans-unit id="79cb71cb" xml:space="preserve" approved="no" translate="yes">
+       <source>Delete</source>
+    </trans-unit>
+    <trans-unit id="3a723871" xml:space="preserve" approved="no" translate="yes">
+       <source>Delete this backup for good? File: %1 · Type: %2 · Size: %3 · Created: %4. The graph and the other backups stay as they are.</source>
+    </trans-unit>
+    <trans-unit id="600c6ccc" xml:space="preserve" approved="no" translate="yes">
+       <source>This copy was taken before an upgrade: it is the way back to the previous version.</source>
+    </trans-unit>
+    <trans-unit id="92827aeb" xml:space="preserve" approved="no" translate="yes">
+       <source>Backup %1 deleted.</source>
+    </trans-unit>
+    <trans-unit id="956a7f9d" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 was not deleted: a backup, restore or rebuild is running. Try again when it has ended.</source>
+    </trans-unit>
+    <trans-unit id="badddfe5" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 was not deleted: there is no such backup (any more).</source>
+    </trans-unit>
+    <trans-unit id="eb82ed2" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 could not be deleted.</source>
+    </trans-unit>
+    <trans-unit id="12773846" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection is off for the knowledge graph; the LLM enrichment takes effect once it is on.</source>
     </trans-unit>
     <trans-unit id="9b747192" xml:space="preserve" approved="no" translate="yes">
        <source>Job collections</source>
