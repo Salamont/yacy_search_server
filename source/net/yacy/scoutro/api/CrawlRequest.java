@@ -29,8 +29,9 @@ final class CrawlRequest {
         final String url = ScoutroActions.validateHttpUrl((String) body.opt("url"), "url");
         final String scope = ScoutroActions.enumField(body, "scope", "domain", "domain", "subpath", "wide");
         final int depth = ScoutroActions.intField(body, "depth", defaultDepth, 0, ScoutroActions.MAX_DEPTH);
+        // boxed on both branches: an omitted maxPages without a default stays null (no unboxing)
         final Integer pages = body.has("maxPages")
-                ? ScoutroActions.intField(body, "maxPages", defaultPages == null ? 0 : defaultPages, 1, ScoutroActions.MAX_PAGES)
+                ? Integer.valueOf(ScoutroActions.intField(body, "maxPages", defaultPages == null ? 0 : defaultPages, 1, ScoutroActions.MAX_PAGES))
                 : defaultPages;
         if (body.has("maxPages") && body.isNull("maxPages")) throw ApiException.invalid("maxPages", "Use a positive integer or omit maxPages.");
         return new CrawlRequest(url, collection, scope, depth, pages);
