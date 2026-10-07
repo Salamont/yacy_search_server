@@ -6939,6 +6939,118 @@
               "additionalProperties": true,
               "description": "Counters: calls, callFailures, timeouts, averageCallMillis, answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored."
             },
+            "structuredOutput": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "What the endpoint is asked for, negotiated per model; in memory since the start, no answer, host or key.",
+              "properties": {
+                "setting": {
+                  "type": "string",
+                  "enum": [
+                    "auto",
+                    "json_schema",
+                    "json_object",
+                    "none"
+                  ],
+                  "description": "scoutro.kg.llm.structuredOutput."
+                },
+                "capability": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "supported",
+                    "unsupported",
+                    "unknown",
+                    null
+                  ],
+                  "description": "The selected model's format capability of the LLM selection; null without a model."
+                },
+                "mode": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "schema_enforced",
+                    "schema_unverified",
+                    "json_mode",
+                    "validator_only",
+                    "fallback_after_rejection",
+                    null
+                  ]
+                },
+                "request": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "json_schema",
+                    "json_object",
+                    "none",
+                    null
+                  ],
+                  "description": "The response_format of the next request."
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "capability_supported",
+                    "capability_unknown",
+                    "capability_unsupported",
+                    "setting",
+                    "http_400",
+                    "no_schema",
+                    null
+                  ]
+                },
+                "withoutSchema": {
+                  "type": "boolean",
+                  "description": "True after the endpoint rejected a format with HTTP 400 (until the restart)."
+                },
+                "requests": {
+                  "type": "object",
+                  "properties": {
+                    "json_schema": {
+                      "type": "integer"
+                    },
+                    "json_object": {
+                      "type": "integer"
+                    },
+                    "none": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "rejections": {
+                  "type": "integer"
+                },
+                "lastRejection": {
+                  "type": [
+                    "object",
+                    "null"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "http_400"
+                      ]
+                    },
+                    "at": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            },
             "lastError": {
               "type": [
                 "string",

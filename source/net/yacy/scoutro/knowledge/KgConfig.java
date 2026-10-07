@@ -92,6 +92,8 @@ public final class KgConfig {
     public static final String LLM_BREAKER_FAILURES = "scoutro.kg.llm.breakerFailures";
     public static final String LLM_BREAKER_MAX_BACKOFF_MINUTES = "scoutro.kg.llm.breakerMaxBackoffMinutes";
     public static final String LLM_MAX_DOCS_PER_HOST = "scoutro.kg.llm.maxDocsPerHost";
+    /** What the LLM tier asks the endpoint for: auto (by the model's format capability), json_schema, json_object, none. */
+    public static final String LLM_STRUCTURED_OUTPUT = "scoutro.kg.llm.structuredOutput";
     public static final String EXTRACT_MAX_INPUT_CHARS = "scoutro.kg.extract.maxInputChars";
     public static final String CACHE_MAX_PERCENT = "scoutro.kg.cache.maxPercent";
     public static final String BACKUP_KEEP = "scoutro.kg.backup.keep";
@@ -200,6 +202,8 @@ public final class KgConfig {
     public final int llmBreakerFailures;
     public final long llmBreakerMaxBackoffMillis;
     public final int llmMaxDocsPerHost;
+    /** {@link #LLM_STRUCTURED_OUTPUT}; transport only, no part of the extractor identity or of the selection. */
+    public final String llmStructuredOutput;
     public final int extractMaxInputChars;
     public final int cacheMaxPercent;
     /** Backups kept in {@code backup/} (at least one); scheduled backups every {@link #backupIntervalMillis}, 0 = only on request. */
@@ -303,6 +307,7 @@ public final class KgConfig {
         this.llmBreakerFailures = (int) p.longValue(LLM_BREAKER_FAILURES, 3, 1, 100);
         this.llmBreakerMaxBackoffMillis = 60_000L * p.longValue(LLM_BREAKER_MAX_BACKOFF_MINUTES, 60, 5, 1440);
         this.llmMaxDocsPerHost = (int) p.longValue(LLM_MAX_DOCS_PER_HOST, 25, 1, 10_000);
+        this.llmStructuredOutput = p.choice(LLM_STRUCTURED_OUTPUT, "auto", List.of("auto", "json_schema", "json_object", "none"));
         this.extractMaxInputChars = (int) p.longValue(EXTRACT_MAX_INPUT_CHARS, 12_000, 1_000, 100_000);
         this.cacheMaxPercent = (int) p.longValue(CACHE_MAX_PERCENT, 20, 0, 50);
         this.backupKeep = (int) p.longValue(BACKUP_KEEP, 1, 1, 20);
@@ -754,6 +759,19 @@ public final class KgConfig {
                 problem(key, "must be a number, not '" + clip(v) + "'");
                 return dflt;
             }
+        }
+
+        /** One of {@code allowed} (exact, lower case); the default if the key is not set. */
+        String choice(final String key, final String dflt, final List<String> allowed) {
+            final String v = raw(key);
+            if (v == null || v.isEmpty()) {
+                return dflt;
+            }
+            if (allowed.contains(v)) {
+                return v;
+            }
+            problem(key, "must be one of " + String.join(", ", allowed) + ", not '" + clip(v) + "'");
+            return dflt;
         }
 
         /** Comma- or space-separated collection names, or {@code *}. */

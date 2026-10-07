@@ -253,6 +253,15 @@ memory; every restart resets them, so they are no long-term statistics.
   codes and their rules: `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 6.3.
 - These are diagnostic counters only; no model answer, quote or page text is
   stored for them.
+- **Structured output** shows what the endpoint is asked for: *Schema
+  enforced by the provider* (the model's format capability is supported),
+  *Schema sent, enforcement not confirmed* (capability unknown, or the
+  schema forced by `scoutro.kg.llm.structuredOutput`), *JSON only, no
+  schema*, *Validator only, no format sent* (capability unsupported or the
+  setting `none`) or *Fallback after rejection (HTTP 400)*, with the format
+  capability. **Requests by format** counts the requests with schema, JSON
+  only and without format and the rejections since the last start. In every
+  mode the validator checks each answer the same way.
 
 ## Collections
 
@@ -377,7 +386,7 @@ text; links to crawled pages open in a new tab without a referrer.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`) |
+| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`) |
 | `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
 | `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |

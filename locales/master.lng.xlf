@@ -15713,6 +15713,39 @@
     <trans-unit id="64de9c89" xml:space="preserve" approved="no" translate="yes">
        <source>Dropped as invalid</source>
     </trans-unit>
+    <trans-unit id="9d705290" xml:space="preserve" approved="no" translate="yes">
+       <source>Structured output</source>
+    </trans-unit>
+    <trans-unit id="64fb1c0a" xml:space="preserve" approved="no" translate="yes">
+       <source>Schema enforced by the provider</source>
+    </trans-unit>
+    <trans-unit id="fc934e87" xml:space="preserve" approved="no" translate="yes">
+       <source>Schema sent, enforcement not confirmed</source>
+    </trans-unit>
+    <trans-unit id="9ee50f88" xml:space="preserve" approved="no" translate="yes">
+       <source>JSON only, no schema</source>
+    </trans-unit>
+    <trans-unit id="4049d490" xml:space="preserve" approved="no" translate="yes">
+       <source>Validator only, no format sent</source>
+    </trans-unit>
+    <trans-unit id="79e892fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Fallback after rejection (HTTP 400)</source>
+    </trans-unit>
+    <trans-unit id="3a46c82f" xml:space="preserve" approved="no" translate="yes">
+       <source>format capability supported</source>
+    </trans-unit>
+    <trans-unit id="34ec3976" xml:space="preserve" approved="no" translate="yes">
+       <source>format capability unsupported</source>
+    </trans-unit>
+    <trans-unit id="4e738c0b" xml:space="preserve" approved="no" translate="yes">
+       <source>format capability unknown</source>
+    </trans-unit>
+    <trans-unit id="c2f76ea4" xml:space="preserve" approved="no" translate="yes">
+       <source>Requests by format</source>
+    </trans-unit>
+    <trans-unit id="ff6d6e31" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 with schema · %2 JSON only · %3 without format · %4 rejected</source>
+    </trans-unit>
     <trans-unit id="85d332e5" xml:space="preserve" approved="no" translate="yes">
        <source>Accepted entities · claims · values</source>
     </trans-unit>

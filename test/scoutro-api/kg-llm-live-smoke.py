@@ -14,6 +14,9 @@ the machine, no existing peer or DATA directory is touched.
    breaker counts, while the sync publishes another page at once;
 4. clean stop with a call in flight: the shutdown is still clean;
 5. restart with the model back: llm_retry makes the failed document done.
+6. structured output: the model's format capability "unsupported" sends no
+   response_format (prompt and validator only); an endpoint that rejects the
+   schema with HTTP 400 is asked once more without it, counted and shown.
 
 Run after `ant compile`:  python3 test/scoutro-api/kg-llm-live-smoke.py
 GPL-2.0-or-later.
@@ -70,6 +73,11 @@ class FakeModel(http.server.BaseHTTPRequestHandler):
         FakeModel.requests.append(body)
         if FakeModel.mode == "hang":
             time.sleep(40)
+        if FakeModel.mode == "reject" and "response_format" in body:
+            self.send_response(400)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         content = json.dumps(ANSWER)
         out = json.dumps({"choices": [{"message": {"content": content}, "finish_reason": "stop"}]}).encode()
         try:
@@ -89,7 +97,8 @@ def write_config(root, extra):
     for friends in ("export_roar_ROAR_ListFriends.xml", "ListFriends.xml"):
         (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
     lines = [line for line in (config.read_text().splitlines() if config.exists() else [])
-             if not line.startswith("scoutro.kg.") and not line.startswith("ai.production_models=")]
+             if not line.startswith("scoutro.kg.") and not line.startswith("ai.production_models=")
+             and not line.startswith("ai.model_capabilities=")]
     if not lines:
         lines = [f"port={PORT}", "adminAccountForLocalhost=false", "adminAccountAllPages=false",
                  "adminAccountUserName=admin", "adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c",
@@ -244,6 +253,10 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             assert sum(by.values()) == p["droppedInvalid"] and len(by) >= 46 and p["valuesAccepted"] == 0, p
             req = FakeModel.requests[0]
             assert req["model"] == "fixture" and req["response_format"]["json_schema"]["strict"] is True, req.keys()
+            # a model never probed: the schema as before, with the name of the OpenAI contract, not shown as enforced
+            assert req["response_format"]["json_schema"]["name"] == "scoutro_knowledge_extraction", req["response_format"].keys()
+            so = s["llm"]["structuredOutput"]
+            assert so["capability"] == "unknown" and so["mode"] == "schema_unverified" and so["requests"]["json_schema"] == 1, so
             user = req["messages"][1]["content"]
             assert "DATA-" in user and "Haus Lindenhof" in user and "nursinghome" in user, user[:500]
             assert "tools" not in req, req.keys()
@@ -285,6 +298,38 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
                             and x["llm"]["documents"]["done"] >= 3, 120)
             assert s["llm"]["documents"]["skipped"] >= 1, "the page of the collection without LLM is skipped"
             checks += 4
+
+            # 6. structured output negotiated: format "unsupported" sends no response_format, a 400 falls back visibly
+            stop(process)
+            key = f"OLLAMA|http://127.0.0.1:{LLM_PORT}|fixture"
+            write_config(root, settings + ["ai.model_capabilities=" + json.dumps({key: {"thinking": "unknown", "tooling": "unknown",
+                                                                                       "vision": "unknown", "format": "unsupported"}})])
+            process, client = start(root, log)
+            s = wait_status(client, "the LLM tier with format unsupported", lambda x: x["llm"]["state"] in ("idle", "running"))
+            so = s["llm"]["structuredOutput"]
+            assert so["capability"] == "unsupported" and so["mode"] == "validator_only" and so["reason"] == "capability_unsupported", so
+            calls = len(FakeModel.requests)
+            push(client, "https://www.vierte-pflege-llm-smoke.de/impressum", page("www.vierte-pflege-llm-smoke.de"), "kgsmoke")
+            s = wait_status(client, "the page without a schema", lambda x: x["llm"]["documents"]["done"] >= 4, 120)
+            new = FakeModel.requests[calls:]
+            assert new and all("response_format" not in r for r in new), [sorted(r) for r in new]
+            assert s["llm"]["structuredOutput"]["requests"]["none"] == len(new), s["llm"]["structuredOutput"]
+            assert s["llm"]["processed"]["published"] >= 1 and s["llm"]["processed"]["droppedInvalid"] >= 1, s["llm"]["processed"]
+            stop(process)
+            write_config(root, settings)
+            FakeModel.mode = "reject"
+            process, client = start(root, log)
+            s = wait_status(client, "the LLM tier with an endpoint that rejects the schema", lambda x: x["llm"]["state"] in ("idle", "running"))
+            calls = len(FakeModel.requests)
+            push(client, "https://www.fuenfte-pflege-llm-smoke.de/impressum", page("www.fuenfte-pflege-llm-smoke.de"), "kgsmoke")
+            s = wait_status(client, "the page after the fallback", lambda x: x["llm"]["documents"]["done"] >= 5, 120)
+            new = FakeModel.requests[calls:]
+            assert len(new) == 2 and "response_format" in new[0] and "response_format" not in new[1], [sorted(r) for r in new]
+            so = s["llm"]["structuredOutput"]
+            assert so["mode"] == "fallback_after_rejection" and so["withoutSchema"] is True and so["rejections"] == 1, so
+            assert so["lastRejection"]["code"] == "http_400" and s["llm"]["documents"]["failed"] == 0, (so, s["llm"]["documents"])
+            FakeModel.mode = "ok"
+            checks += 9
             print(f"PASS: {checks} live LLM tier checks", flush=True)
         except BaseException:
             log.flush()

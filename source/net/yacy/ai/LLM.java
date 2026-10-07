@@ -81,6 +81,12 @@ public class LLM {
         public String model;
         public boolean tooling;
         public boolean thinking;
+        /**
+         * The "format" capability of the selection: {@code supported} (the row's format flag or a passed format
+         * probe), {@code unsupported} (a failed probe) or {@code unknown} (never probed). Informative for most
+         * usages; the knowledge usage negotiates its structured output with it.
+         */
+        public String formatCapability = "unknown";
         public LLMModel(LLM llm, String model, boolean tooling, boolean thinking) {
             this.llm = llm;
             this.model = model;
@@ -158,8 +164,8 @@ public class LLM {
                     final LLMType type = LLMType.valueOf(row.optString("service", "OLLAMA"));
                     boolean tooling = row.optBoolean("tooling", false);
                     boolean thinking = row.optBoolean("thinking", false);
+                    final JSONObject capabilityEntry = model_capabilities.optJSONObject(capabilityKey(type, hoststub, model));
                     if (!tooling || !thinking) {
-                        final JSONObject capabilityEntry = model_capabilities.optJSONObject(capabilityKey(type, hoststub, model));
                         if (capabilityEntry != null) {
                             if (!tooling) tooling = "supported".equals(capabilityEntry.optString("tooling", ""));
                             if (!thinking) thinking = "supported".equals(capabilityEntry.optString("thinking", ""));
@@ -168,6 +174,8 @@ public class LLM {
                     final int num_ctx = serviceNumCtx(sb, hoststub);
                     LLM llm = new LLM(hoststub, api_key, max_tokens, num_ctx, type);
                     LLMModel llmmodel = new LLMModel(llm, model, tooling, thinking);
+                    llmmodel.formatCapability = row.optBoolean("format", false) ? "supported"
+                            : capabilityStatus(capabilityEntry == null ? null : capabilityEntry.optString("format", ""));
                     if (logRouting) {
                         log.info(routePrefix(runId, caller) + "event=model-routing phase=select usage=" + llmUsage + " row=" + i + " service=" + type.name() + " model=" + LogRedaction.redact(model) + " backend=" + LogRedaction.redact(llm.hoststub) + " maxTokens=" + llm.max_tokens + " numCtx=" + llm.num_ctx + " tooling=" + tooling + " thinking=" + thinking + " productionRows=" + production_models.length() + " durationMs=" + elapsed(start));
                     }
@@ -242,6 +250,12 @@ public class LLM {
         } catch (JSONException e) {
             return new JSONObject(true);
         }
+    }
+
+    /** A stored capability value as {@code supported}, {@code unsupported} or {@code unknown}. */
+    public static String capabilityStatus(final String value) {
+        final String v = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
+        return "supported".equals(v) || "unsupported".equals(v) ? v : "unknown";
     }
 
     public static boolean isCapabilitySupported(final LLMType type, final String hoststub, final String model, final String capabilityName) {
@@ -432,6 +446,31 @@ public class LLM {
      */
     public String chat(final String model, final Context context, JSONObject schema, final int max_tokens,
             final int readTimeoutMillis, final int maxResponseChars) throws IOException {
+        final JSONObject response_format;
+        try {
+            if (schema != null) {
+                JSONObject json_schema = new JSONObject(true);
+                json_schema.put("strict", true);
+                json_schema.put("schema", schema);
+                response_format = new JSONObject();
+                response_format.put("type", "json_schema");
+                response_format.put("json_schema", json_schema);
+            } else {
+                response_format = null;
+            }
+        } catch (JSONException e) {
+            throw new IOException(e.getMessage());
+        }
+        return chatWithResponseFormat(model, context, response_format, max_tokens, readTimeoutMillis, maxResponseChars);
+    }
+
+    /**
+     * Like {@link #chat(String, Context, JSONObject, int, int, int)}, with the complete OpenAI
+     * {@code response_format} object of the caller ({@code json_schema}, {@code json_object}) sent
+     * as it is, or none for null. The caller decides what the endpoint can be asked for.
+     */
+    public String chatWithResponseFormat(final String model, final Context context, final JSONObject response_format,
+            final int max_tokens, final int readTimeoutMillis, final int maxResponseChars) throws IOException {
         final JSONObject data = new JSONObject();
         
         try {
@@ -449,13 +488,7 @@ public class LLM {
             data.put("stream", false);
             applyNoThinkingParameters(data);
 
-            if (schema != null) {
-                JSONObject json_schema = new JSONObject(true);
-                json_schema.put("strict", true);
-                json_schema.put("schema", schema);
-                JSONObject response_format = new JSONObject();
-                response_format.put("type", "json_schema");
-                response_format.put("json_schema", json_schema);            
+            if (response_format != null) {
                 data.put("response_format", response_format);
             }
             
