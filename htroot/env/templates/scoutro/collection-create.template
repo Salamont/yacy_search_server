@@ -1,0 +1,26 @@
+<dialog class="scoutro-collection-dialog" id="scoutro-collection-dialog" aria-labelledby="scoutro-collection-title" data-scoutro-admin="#(authorized)#0::1#(/authorized)#">
+<form id="scoutro-collection-form" novalidate>
+<h2 id="scoutro-collection-title">New collection</h2>
+<p class="scoutro-collection-intro">A collection groups the pages of one portal or project. Once created, it can be chosen everywhere: for crawls, filters, the chat and agent grants.</p>
+<label for="scoutro-collection-name">Display name<input id="scoutro-collection-name" class="form-control" type="text" required maxlength="80" autocomplete="off" /></label>
+<label for="scoutro-collection-id">Collection ID<input id="scoutro-collection-id" class="form-control" type="text" required minlength="2" maxlength="64" pattern="[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,63}" autocomplete="off" spellcheck="false" aria-describedby="scoutro-collection-id-hint" /></label>
+<p class="scoutro-collection-hint" id="scoutro-collection-id-hint">Suggested from the display name; check it before saving. Lower-case letters, digits and single hyphens. It cannot be changed later.</p>
+<label for="scoutro-collection-description">Description (optional)<textarea id="scoutro-collection-description" class="form-control" maxlength="500" rows="2"></textarea></label>
+<p class="scoutro-collection-error" id="scoutro-collection-error" role="alert" hidden></p>
+<div class="scoutro-collection-actions"><button type="submit" class="btn btn-primary" id="scoutro-collection-save">Create collection</button> <button type="button" class="btn btn-default" id="scoutro-collection-cancel">Cancel</button></div>
+</form>
+<div hidden aria-hidden="true">
+<span data-scoutro-collection-label="collection_exists">A collection with this ID exists already. Choose it from the list or use another ID.</span>
+<span data-scoutro-collection-label="collection_id_invalid">The ID needs 2 to 64 lower-case letters, digits and single hyphens, starting and ending with a letter or digit.</span>
+<span data-scoutro-collection-label="collection_reserved">This ID is reserved for Scoutro or YaCy. Choose another ID.</span>
+<span data-scoutro-collection-label="name_required">Enter a display name.</span>
+<span data-scoutro-collection-label="invalid_request">Check the display name and the description.</span>
+<span data-scoutro-collection-label="index_unavailable">The index cannot be read, so duplicates cannot be checked. Try again later.</span>
+<span data-scoutro-collection-label="collection_store_unavailable">The collection list cannot be written. Nothing was created.</span>
+<span data-scoutro-collection-label="unauthorized">Only the administrator can create collections.</span>
+<span data-scoutro-collection-label="error">The collection could not be created.</span>
+<span data-scoutro-collection-label="created">Collection created and selected:</span>
+<span data-scoutro-collection-label="choose">Choose a collection</span>
+<span data-scoutro-collection-label="new">New collection</span>
+</div>
+</dialog>

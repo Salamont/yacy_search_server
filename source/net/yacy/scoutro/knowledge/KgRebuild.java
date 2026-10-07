@@ -165,7 +165,7 @@ final class KgRebuild {
                 return null; // the smallest share that holds WAL and temp files of the smaller budget
             }
             return lookup.apply(key);
-        });
+        }, mainCfg.perCollectionKeys);
         if (!cfg.valid()) {
             throw new KgException(KgException.CONFIG_INVALID, "rebuild settings invalid: " + cfg.problems());
         }

@@ -613,3 +613,16 @@ body#index form.search div.yacysearch label {
   background: var(--scoutro-primary, #1673ff);
   color: #fff;
 }
+
+/* Package 6.1: the "New collection" dialog (env/templates/scoutro/collection-create.template), shared by every page that may create one. */
+.scoutro-collection-dialog { width:min(560px, calc(100vw - 32px)); max-width:calc(100vw - 32px); border:1px solid #dce6ef; border-radius:14px; padding:20px; box-sizing:border-box; }
+.scoutro-collection-dialog::backdrop { background:rgba(15, 30, 50, .45); }
+.scoutro-collection-dialog form { display:grid; gap:12px; margin:0; }
+.scoutro-collection-dialog h2 { margin:0; font-size:20px; }
+.scoutro-collection-dialog label { display:grid; gap:6px; font-weight:600; min-width:0; }
+.scoutro-collection-dialog input, .scoutro-collection-dialog textarea { width:100%; min-width:0; min-height:44px; box-sizing:border-box; }
+.scoutro-collection-intro, .scoutro-collection-hint { margin:0; color:#61718a; font-weight:normal; }
+.scoutro-collection-error { margin:0; padding:8px 12px; border-radius:8px; background:#fdecea; color:#8a1f11; overflow-wrap:anywhere; }
+.scoutro-collection-error[hidden] { display:none; }
+.scoutro-collection-actions { display:flex; flex-wrap:wrap; gap:8px; }
+.scoutro-collection-actions .btn { min-height:44px; }

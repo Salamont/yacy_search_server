@@ -20,7 +20,12 @@
 
 package net.yacy.htroot;
 
+import java.util.List;
+
+import net.yacy.ai.rag.ChatCollections;
 import net.yacy.cora.protocol.RequestHeader;
+import net.yacy.http.servlets.LLMAccess;
+import net.yacy.scoutro.api.CollectionCatalog;
 import net.yacy.search.Switchboard;
 import net.yacy.search.SwitchboardConstants;
 import net.yacy.server.serverObjects;
@@ -60,6 +65,24 @@ public class yacychat {
                 sb.getConfigBool(net.yacy.search.SwitchboardConstants.INDEX_RECEIVE_ALLOW_SEARCH, true) ||
                 (sb.isRobinsonMode() && sb.getConfig(net.yacy.search.SwitchboardConstants.CLUSTER_MODE, "").equals(net.yacy.search.SwitchboardConstants.CLUSTER_MODE_PUBLIC_CLUSTER));
         prop.put("p2p_mode", indexReceiveGranted ? 1 : 0);
+
+        // the collections this client may choose as the search scope (package 6.1), the same rule as the chat endpoint:
+        // local and administrator access all of the index, anyone else only the released ones; sorted alphabetically
+        final boolean privileged = ChatCollections.privileged(LLMAccess.client(header), header);
+        final List<String> collections = ChatCollections.allowed(privileged,
+                () -> CollectionCatalog.current().selectable(), sb.getConfig(ChatCollections.GUEST_SETTING, ""));
+        final java.util.Map<String, String> names = new java.util.HashMap<>();
+        try {
+            for (final CollectionCatalog.Entry e : CollectionCatalog.current().entries(false)) names.put(e.id, e.name);
+        } catch (final net.yacy.scoutro.api.ApiException e) {
+            // entries(false) does not fail for the index
+        }
+        for (int i = 0; i < collections.size(); i++) {
+            final String id = collections.get(i), name = names.get(id);
+            prop.putHTML("collections_" + i + "_id", id);
+            prop.putHTML("collections_" + i + "_label", name == null || name.equals(id) ? id : name + " · " + id);
+        }
+        prop.put("collections", collections.size());
 
         // return rewrite properties
         return prop;

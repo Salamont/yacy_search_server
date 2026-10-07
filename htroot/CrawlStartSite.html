@@ -78,7 +78,7 @@
         </dd>
         <dt><label>Collection</label></dt>
         <dd>
-          <input name="collection" id="collection" type="text" size="60" maxlength="100" value="#[collection]#" #(collectionEnabled)#disabled="disabled"::#(/collectionEnabled)# />
+          <input data-scoutro-collection-select name="collection" id="collection" type="text" size="60" maxlength="100" value="#[collection]#" #(collectionEnabled)#disabled="disabled"::#(/collectionEnabled)# />
         </dd>
         <dt><label>Start</label></dt>
         <dd>
@@ -112,6 +112,9 @@
     This can be done using the <a href="CrawlStartExpert.html">Expert Crawl Start</a> servlet.</li>
     <li><h4>Scheduler Steering</h4> The scheduler on crawls can be changed or removed using <a href="Automation_p.html">Automation</a>.</li>
     </ul>
+    #%env/templates/scoutro/collection-create.template%#
+    <script src="env/scoutro/collections.js"></script>
+    <script src="env/scoutro/collection-select.js"></script>
     #%env/templates/footer.template%#
   </body>
 </html>

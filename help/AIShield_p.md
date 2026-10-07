@@ -97,6 +97,16 @@ chat answers 401 `admin_required`, cross-site requests and agent tokens 403
 `ai_shield_blocked`, rate limits 429 `ai_shield_rate_limited`. Details:
 `docs/SCOUTRO_LLM_SECURITY.md`.
 
+**Collections guests may choose in the chat:** tick the collections an AI
+Shield guest may pick in the chat's *Collection* list
+(`ai.shield.guest-collections`, none by default). Guests still search the whole
+index; they never see the names of collections that are not ticked, and the
+chat refuses any other collection (403 `collection_not_allowed`). Local and
+administrator access may choose every collection. The boxes list the
+collection catalog (the index, the collections created with **New collection**
+and those of the Discovery profiles; internal `robot_*` collections are not
+offered), plus released collections that no longer exist, so a save keeps them.
+
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.

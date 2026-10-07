@@ -277,7 +277,7 @@ paths["/v1/index/evidence"] = {"get": op("index.evidence", "Indexed text of a do
     q("maxChars", {"type": "integer", "minimum": 100, "maximum": 4000, "default": 1500}, "Maximum excerpt length per document.")])}
 paths["/v1/crawls"] = {
     "get": op("crawl.list", "List crawls", "Running, paused and terminated crawls.", ["crawls"], {**ok("Crawl list.", "CrawlList"), **errs("401", "502", "503")}),
-    "post": op("crawl.start", "Start a crawl", "Requires an explicit collection. Refuses a second active crawl on the same host. Durable start intent is saved before dispatch; use Idempotency-Key for safe retries. Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).", ["crawls"], {**ok("Crawl started.", "Crawl", "201"), **ok("Existing crawl for this key.", "Crawl"), **errs("400", "401", "403", "409", "413", "415", "422", "502", "503")}, params=[{"name": "Idempotency-Key", "in": "header", "required": False, "schema": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,100}$"}, "description": "Use the same key and request for safe retries; conflicting parameters or an unconfirmed start return 409."}], body="CrawlStart", mutating=True)}
+    "post": op("crawl.start", "Start a crawl", "Requires an explicit, existing collection: one of the catalog (index, created, Discovery profiles; never YaCy's internal ones), else 400 collection_unknown; a new collection is created first (POST /v1/collections). Refuses a second active crawl on the same host. Durable start intent is saved before dispatch; use Idempotency-Key for safe retries. Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).", ["crawls"], {**ok("Crawl started.", "Crawl", "201"), **ok("Existing crawl for this key.", "Crawl"), **errs("400", "401", "403", "409", "413", "415", "422", "502", "503")}, params=[{"name": "Idempotency-Key", "in": "header", "required": False, "schema": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,100}$"}, "description": "Use the same key and request for safe retries; conflicting parameters or an unconfirmed start return 409."}], body="CrawlStart", mutating=True)}
 paths["/v1/crawls/{id}"] = {"get": op("crawl.status", "Crawl status", "State of one crawl.", ["crawls"], {**ok("Crawl.", "Crawl"), **errs("400", "401", "404", "502", "503")}, params=[idp])}
 paths["/v1/crawls/{id}/stop"] = {"post": op("crawl.stop", "Stop a crawl", "Terminates a running or paused crawl. YaCy removes the crawl profile; afterwards recorded Scoutro crawl.status answers removed; unrecorded legacy profiles answer 404. Send an empty JSON object as body.", ["crawls"], {**ok("Crawl stopped.", "CrawlStopped"), **errs("400", "401", "403", "404", "409", "415", "502", "503")}, params=[idp], mutating=True)}
 paths["/v1/config"] = {
@@ -327,6 +327,7 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
     "config": {"type": ["object", "null"], "properties": {"valid": {"type": "boolean"}, "errors": {"type": "array", "items": {"type": "object", "properties": {"key": {"type": "string"}, "message": {"type": "string"}}}},
         "collections": {"type": "array", "items": {"type": "string"}}, "llmCollections": {"type": "array", "items": {"type": "string"}, "description": "scoutro.kg.llm.collections; * for every followed collection."},
         "llmIgnoredCollections": {"type": "array", "items": {"type": "string"}, "description": "LLM collections that are not followed and therefore ignored."},
+        "jobsCollections": {"type": "array", "items": {"type": "string"}, "description": "scoutro.kg.jobs.collections (* for every followed collection); jobs are read for no other collection, a new collection never gets them by itself."},
         "llmKinds": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}, "description": "Facility kinds the LLM tier may assign per collection: the start vocabulary or scoutro.kg.llm.kinds.<collection>."}}},
     "paths": {"type": "object", "properties": {"dir": {"type": "string", "examples": ["DATA/SCOUTRO/knowledge"]}}},
     "storage": {"type": "object", "description": "Application budget over every file of the graph directory (not a filesystem quota).", "properties": {
@@ -427,6 +428,13 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "files": {"type": "array", "items": {"type": "string"}, "description": "defaults/scoutro/knowledge and overrides in DATA/SCOUTRO/knowledge/vocabulary."},
         "problems": {"type": "array", "items": {"type": "string"}},
         "collections": {"type": "object", "additionalProperties": {"type": "object", "properties": {"vocabulary": {"type": ["string", "null"]}, "jobs": {"type": "boolean"}, "priceStaleDays": {"type": "integer"}}}}}},
+    "collections": {"type": "array", "description": "Package 6.1: every collection the graph follows, maps or holds documents of. A collection without a vocabulary is listed with vocabulary null (generic facts only, no service categories); no vocabulary is ever guessed from a collection's name.", "items": {"type": "object", "properties": {
+        "collection": {"type": "string"}, "followed": {"type": "boolean", "description": "scoutro.kg.collections names it or is *."},
+        "vocabulary": {"type": ["string", "null"], "description": "The vocabulary in force: scoutro.kg.vocab.<collection> (also under *), else the mapping of the vocabulary files; null for none."},
+        "vocabularySource": {"type": "string", "enum": ["setting", "vocabulary_files", "none"]}, "vocabularyKnown": {"type": "boolean", "description": "false: the named vocabulary does not exist (state unknown_vocabulary)."},
+        "jobs": {"type": "boolean", "description": "Followed and named in scoutro.kg.jobs.collections."}, "llm": {"type": "boolean", "description": "The LLM tier reads it (scoutro.kg.llm.collections)."},
+        "documents": {"type": ["integer", "null"], "description": "Documents of the collection in the graph, at most 10 s old; null while the graph is not running."},
+        "state": {"type": "string", "enum": ["following", "waiting", "not_followed", "unknown_vocabulary"], "description": "waiting: followed, no document yet."}}}},
     "upgrade": {"type": ["object", "null"], "description": "The last schema migration of this graph (package 6: 3 -> 4); null if it was never upgraded. Before it: PRAGMA quick_check (a failed or unfinished check keeps the graph off, state unavailable, reason upgrade_blocked, file unchanged) and a verified copy graph-<UTC>-before-upgrade.db. Without room for the copy the additive migration still runs, but the re-extraction with vocabulary 2 waits (waiting) until a verified backup exists.", "properties": {
         "from": {"type": "integer"}, "to": {"type": "integer"}, "at": {"type": "integer"}, "quickCheck": {"type": "string", "enum": ["ok"]},
         "backup": {"type": ["string", "null"]}, "bytes": {"type": "integer"}, "hold": {"type": ["string", "null"]}, "waiting": {"type": "boolean"}}},
@@ -448,6 +456,9 @@ schemas["KgBackupFile"] = {"type": "string", "format": "binary", "description": 
 
 # knowledge graph read routes (package 3): shared by /v1/kg/... (administrator) and later /agent/v1/kg/... (kg.read)
 KG_DT = {"type": ["string", "null"], "format": "date-time"}
+KG_DISPLAY = {"display_name": {"type": ["string", "null"], "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."},
+    "display_name_source": {"type": "string", "enum": ["fact", "legal", "operator", "domain", "fallback"]},
+    "display_host": {"type": "string", "description": "With display_name_source domain: the host the name is derived from."}}
 KG_QUALITY = {"type": "string", "enum": ["supported", "uncertain", "conflicting", "stale"]}
 KG_AS_OF = {"type": "object", "description": "Dataset epoch and the latest change sequence when the answer was read.", "properties": {"epoch": {"type": "string"}, "seq": {"type": "integer"}}}
 KG_LAG = {"type": "object", "description": "How far the graph lags behind Solr (absent without the sync).", "properties": {"pending": {"type": "integer"}, "oldest_pending_age_s": {"type": ["integer", "null"]}, "reconcile_pending": {"type": "boolean"}, "byType": {"type": ["object", "null"], "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.", "properties": {"new": {"type": "integer"}, "update": {"type": "integer"}, "delete": {"type": "integer"}, "reconcile": {"type": "integer"}, "captured": {"type": "integer"}}}}}
@@ -455,17 +466,29 @@ schemas["KgEntity"] = {"type": "object", "description": "An entity as one viewer
     "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"},
     "type": {"type": "string", "enum": ["organization", "facility", "site", "place", "service", "job"]},
     "kind": {"type": ["string", "null"], "description": "Facility kind (lower-case schema.org type or a collection vocabulary term); different kinds never merge."},
-    "name": {"type": ["string", "null"]}, "aliases": {"type": "array", "items": {"type": "string"}},
+    "name": {"type": ["string", "null"], "description": "The stated name over the viewer's evidence; null when the viewer sees none (see display_name)."}, **KG_DISPLAY, "aliases": {"type": "array", "items": {"type": "string"}},
     "identifiers": {"type": "array", "items": {"type": "object", "properties": {"scheme": {"type": "string"}, "value": {"type": "string"}, "quality": KG_QUALITY}}},
     "quality": KG_QUALITY, "first_seen": KG_DT, "last_confirmed": KG_DT,
     "counts": {"type": "object", "properties": {"statements": {"type": "integer"}, "sources": {"type": "integer"}, "truncated": {"type": "boolean", "description": "More than 2000 statements: the counts cover the first 2000."}}},
     "hosts": {"type": "array", "items": {"type": "string"}, "description": "Hosts of the viewer's documents with evidence (at most 20; detail only)."},
     "possible_duplicates": {"type": "array", "items": {"type": "string"}, "description": "Visible entities of the same type with the same name (at most 5); never merged automatically."},
+    "context": ref("KgEntityContext"),
     "as_of": KG_AS_OF, "lag": KG_LAG, "redirect": {"type": "string", "description": "Instead of the entity: the visible survivor of a merge."}}}
+KG_CTX = {"hosts": {"type": "array", "items": {"type": "string"}, "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."},
+    "collections": {"type": "array", "items": {"type": "string"}, "description": "The viewer's collections that hold it."},
+    "places": {"type": "array", "items": {"type": "string"}, "description": "Its stated locality, else the names of the places it is in (at most 3)."},
+    "quality": {"type": "string", "enum": ["supported", "uncertain", "stale"], "description": "Over the viewer's evidence (the rule of the quality filter)."},
+    "sources": {"type": "integer", "description": "Current visible source pages."}, "last_confirmed": KG_DT}
+KG_PROVIDER = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "type": {"type": ["string", "null"]},
+    "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"], "places": KG_CTX["places"], "quality": KG_CTX["quality"]}}
+schemas["KgEntityContext"] = {"type": "object", "description": "Package 6.1, items of the entity list only: the context of a hit, computed for the whole page in a few batched queries over the viewer's evidence. For a service its providers (the visible subjects of a visible offers fact), for a job its employer (hiring_organization); every provider's service stays its own entity, nothing is merged.", "properties": {
+    **KG_CTX, "relation": {"type": "string", "enum": ["offers", "hiring_organization"]},
+    "providers": {"type": "array", "description": "Services and jobs only; empty when no provider is visible (provider_count 0, shown as such).", "items": KG_PROVIDER},
+    "provider_count": {"type": "integer", "description": "All visible providers (the list shows at most 5)."}}}
 schemas["KgStatement"] = {"type": "object", "required": ["id", "subject", "predicate", "object", "quality"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "id": {"type": ["string", "null"], "pattern": "^kgs_[a-z2-7]{20}$"},
-    "subject": {"type": "string"}, "subject_name": {"type": ["string", "null"]}, "predicate": {"type": "string"},
-    "object": {"type": "object", "description": "A relation ({entity, name}) or a literal ({value, datatype}).", "properties": {"entity": {"type": "string"}, "name": {"type": ["string", "null"]}, "value": {"type": "string"}, "datatype": {"type": "string", "enum": ["string", "phone", "email", "url", "address", "geo", "json", "date", "code"], "description": "json: a canonical JSON value (price, salary, contact_point, service_area); date: yyyy-mm-dd or yyyy-mm; code: a vocabulary code (NACE, service category, customer type, segment, size, employment type)."}}},
+    "subject": {"type": "string"}, "subject_name": {"type": ["string", "null"]}, **{"subject_" + k: v for k, v in KG_DISPLAY.items()}, "predicate": {"type": "string"},
+    "object": {"type": "object", "description": "A relation ({entity, name, display_name, ...}) or a literal ({value, datatype}).", "properties": {"entity": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "value": {"type": "string"}, "datatype": {"type": "string", "enum": ["string", "phone", "email", "url", "address", "geo", "json", "date", "code"], "description": "json: a canonical JSON value (price, salary, contact_point, service_area); date: yyyy-mm-dd or yyyy-mm; code: a vocabulary code (NACE, service category, customer type, segment, size, employment type)."}}},
     "quality": KG_QUALITY, "certainty": {"type": "string", "enum": ["stated", "hedged"]},
     "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}, "description": "Kinds of the visible evidence; [\"llm\"] alone marks a fact only the LLM tier read (then uncertain)."},
     "first_seen": KG_DT, "last_confirmed": KG_DT, "sources": {"type": "integer", "description": "Current visible source documents."},
@@ -522,7 +545,7 @@ KG_FACT = {"statement": {"type": "string", "pattern": "^kgs_[a-z2-7]{20}$"}, "st
     "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Best visible evidence: extractor kind default (jsonld 0.9, metadata 0.8, rule 0.7, llm 0.5) or the extractor's own value, halved when hedged."},
     "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}}, "last_confirmed": KG_DT,
     "sources": {"type": "integer"}, "source_docs": {"type": "array", "items": {"type": "object", "properties": {"doc_id": {"type": "string"}, "url": {"type": ["string", "null"]}}}, "description": "Up to 3 visible source pages."}}
-KG_REF = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, "type": {"type": ["string", "null"]}}}
+KG_REF = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "type": {"type": ["string", "null"]}}}
 schemas["KgLiteral"] = {"type": "object", "description": "A visible literal of the entity with its labels and status.", "properties": {**KG_FACT,
     "value": {"description": "The stored value; a JSON value (contact point, service area, price, salary) as an object."},
     "label": {"type": ["string", "null"], "description": "NACE: the official English title."}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]},
@@ -574,17 +597,20 @@ schemas["KgBusinessView"] = {"type": "object", "description": "The object view: 
     "as_of": KG_AS_OF, "lag": KG_LAG}}
 schemas["KgNeighborhood"] = {"type": "object", "required": ["schema", "center", "nodes", "edges"], "properties": {"schema": KG_BUSINESS_SCHEMA, "center": {"type": "string"},
     "depth": {"type": "integer", "minimum": 1, "maximum": 2}, "redirect": {"type": "string"},
-    "nodes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string", "description": "An entity ID, or a value node nace:<code>, segment:<code>, customer_type:<code>."},
-        "type": {"type": ["string", "null"]}, "kind": {"type": ["string", "null"]}, "label": {"type": ["string", "null"]}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]},
-        "code": {"type": "string"}, "depth": {"type": "integer"}, "value": {"type": "boolean"}}}},
+    "nodes": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string", "description": "An entity ID, or a value node nace:<code>, segment:<code>, customer_type:<code>, price:<statement>."},
+        "type": {"type": ["string", "null"], "description": "organization, facility, site, place, service, job; the value nodes industry, audience, price."}, "kind": {"type": ["string", "null"]}, "label": {"type": ["string", "null"], "description": "Entity nodes: the stated name (null without one; see display_name)."}, **KG_DISPLAY, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]},
+        "code": {"type": "string"}, "depth": {"type": "integer"}, "value": {"type": "boolean"}, **KG_CTX,
+        "price": {"description": "Price nodes (prices=true): the price exactly as published (KgPriceValue)."}, "status": KG_STATUS, "as_of": {"type": ["string", "null"]},
+        "service": {"type": "string", "description": "Price nodes: the service the price belongs to (never another provider's)."}}}},
     "edges": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string", "description": "Statement (kgs_) or derived row (kgd_) ID."}, "from": {"type": "string"}, "to": {"type": "string"},
         "type": {"type": "string"}, "business": {"type": "boolean"}, "status": {"type": "string", "enum": ["confirmed", "uncertain", "stale", "weak", "derived", "suggested"]},
-        "confidence": {"type": "number"}, "evidence": {"type": "integer", "description": "Visible source pages (0 for derived rows)."}, "fact": {"type": "boolean"}}}},
+        "confidence": {"type": "number"}, "evidence": {"type": "integer", "description": "Visible source pages (0 for derived rows)."}, "fact": {"type": "boolean"},
+        "direction": {"type": "string", "enum": ["in", "out"], "description": "Edges of the centre: in when it points to the centre (a provider offers the service in the centre), out when the centre points away."}}}},
     "offset": {"type": "integer"}, "limit": {"type": "integer"}, "neighbours": {"type": "integer", "description": "Direct neighbours before paging."},
     "truncated": {"type": "boolean"}, "next_offset": {"type": ["integer", "null"], "description": "offset for \"mehr anzeigen\"."}, "lag": KG_LAG}}
 schemas["KgCompare"] = {"type": "object", "properties": {"schema": KG_BUSINESS_SCHEMA,
     "category": {"type": "object", "properties": {"code": {"type": "string"}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]}, "nace": {"type": ["string", "null"]}}},
-    "rows": {"type": "array", "items": {"type": "object", "properties": {"service": KG_REF, "providers": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, "locality": {"type": ["string", "null"]}}}},
+    "rows": {"type": "array", "items": {"type": "object", "properties": {"service": KG_REF, "providers": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "locality": {"type": ["string", "null"]}, "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"]}}},
         "prices": {"type": "array", "items": ref("KgPrice")}}}}, "truncated": {"type": "boolean"}, "note": {"type": "string"}, "lag": KG_LAG}}
 schemas["KgDerivedPage"] = {"type": "object", "required": ["schema", "offset", "limit", "total", "items"], "properties": {"schema": KG_BUSINESS_SCHEMA, "offset": {"type": "integer"}, "limit": {"type": "integer"},
     "total": {"type": "integer"}, "items": {"type": "array", "items": ref("KgDerived")}, "note": {"type": "string"}, "lag": KG_LAG}}
@@ -595,18 +621,42 @@ schemas["KgFacets"] = {"type": "object", "properties": {"schema": KG_BUSINESS_SC
 KG_BOOL = lambda name, default, text: q(name, {"type": "boolean", "default": default}, text)
 paths["/v1/kg/entities/{id}/business"] = {"get": op("kg.entity.business", "Business view of an entity", "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections." + KG_READ_NOTE, ["knowledge"], {**ok("Business view.", "KgBusinessView"), **KG_ERRS}, params=[KG_EID,
     q("include", {"type": "string", "enum": ["hidden_jobs"]}, "Also ended jobs past the visibility window."), KG_COLLECTION])}
-paths["/v1/kg/entities/{id}/neighborhood"] = {"get": op("kg.entity.neighborhood", "Network around an entity", "The neighbourhood of one entity for the network view: nodes (entities, industry and audience values) and typed, directed edges with status, confidence and evidence count. Depth 2 continues only from organisations and facilities; there is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of." + KG_READ_NOTE, ["knowledge"], {**ok("Neighbourhood.", "KgNeighborhood"), **KG_ERRS}, params=[KG_EID,
+paths["/v1/kg/entities/{id}/neighborhood"] = {"get": op("kg.entity.neighborhood", "Network around an entity", "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of." + KG_READ_NOTE, ["knowledge"], {**ok("Neighbourhood.", "KgNeighborhood"), **KG_ERRS}, params=[KG_EID,
     q("depth", {"type": "integer", "minimum": 1, "maximum": 2, "default": 1}, "1: direct neighbours; 2: also their neighbours."),
     q("limit", {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}, "Direct neighbours per page (strongest first)."), KG_OFFSET,
     q("types", {"type": "string", "maxLength": 2000}, "Comma-separated edge types: relation predicates, industry, target_industry, customer_type, audience_segment and the derived kinds."),
     KG_BOOL("weak", False, "Include linked_to (weak, never upgraded)."), KG_BOOL("derived", True, "Include same_operator."),
     KG_BOOL("suggested", False, "Include suggested_customer and suggested_partner."), KG_BOOL("values", True, "Include industry and audience value nodes."),
+    KG_BOOL("prices", False, "Add the published prices of the services in the centre and at depth 1 as price nodes, each on its own service."),
     q("include", {"type": "string", "enum": ["stale"]}, "Also stale edges."), KG_COLLECTION])}
 paths["/v1/kg/compare"] = {"get": op("kg.compare", "Compare services and prices across providers", "All visible services of one Scoutro category with their providers and prices as published (amount, currency, unit, kind, conditions, VAT, date, status, sources); never converted, normalised or averaged; conflicts stay visible." + KG_READ_NOTE, ["knowledge"], {**ok("Comparison.", "KgCompare"), **KG_ERRS}, params=[
     q("category", {"type": "string", "maxLength": 80, "pattern": KG_CODE_PATTERN}, "Service category (care/kurzzeitpflege).", True), KG_LIMIT(50, 100), KG_COLLECTION])}
 paths["/v1/kg/derived"] = {"get": op("kg.derived", "Derived relations and suggested matches", "Derived rows the viewer may see (both collections): linked_to (weak), same_operator, suggested_customer, suggested_partner; never facts, each with its reason and the facts of both sides." + KG_READ_NOTE, ["knowledge"], {**ok("Derived rows.", "KgDerivedPage"), **KG_ERRS}, params=[
     q("kind", {"type": "string", "enum": ["linked_to", "same_operator", "suggested_customer", "suggested_partner"]}, "One kind."),
     q("entity", {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "Only rows of this entity (either side)."), KG_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
+KG_GROUP = {"type": "object", "description": "Services of one name for reading only: counts of separate services, never a merged object.", "properties": {
+    "key": {"type": "string", "description": "The name in lower case without surrounding spaces."}, "name": {"type": "string", "description": "The name as most of the viewer's pages write it."},
+    "services": {"type": "integer"}, "providers": {"type": "integer", "description": "Distinct visible providers (offers)."}, "without_provider": {"type": "integer"},
+    "collections": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "services": {"type": "integer"}}}, "description": "The viewer's collections only."},
+    "places": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "providers": {"type": "integer"}}}, "description": "Places of the providers (locality, else the places they are in), at most 10."},
+    "with_price": {"type": "integer", "description": "Services with a current published price."}, "with_current_source": {"type": "integer"},
+    "truncated": {"type": "boolean", "description": "More than 5000 services: the counts cover the first 5000."}}}
+schemas["KgServiceGroupPage"] = {"type": "object", "required": ["schema", "offset", "limit", "total", "items"], "properties": {"schema": KG_BUSINESS_SCHEMA,
+    "offset": {"type": "integer"}, "limit": {"type": "integer"}, "total": {"type": "integer", "description": "Service names (groups) the viewer sees."}, "items": {"type": "array", "items": KG_GROUP}, "note": {"type": "string"}, "lag": KG_LAG}}
+schemas["KgServiceProviders"] = {"type": "object", "required": ["schema", "group", "items"], "properties": {"schema": KG_BUSINESS_SCHEMA, "group": KG_GROUP,
+    "offset": {"type": "integer"}, "limit": {"type": "integer"}, "total": {"type": "integer"},
+    "items": {"type": "array", "items": {"type": "object", "description": "One service with its own provider; its prices and sources are its own.", "properties": {
+        "service": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "quality": KG_CTX["quality"], "sources": {"type": "integer"},
+            "last_confirmed": KG_DT, "hosts": KG_CTX["hosts"], "collections": KG_CTX["collections"]}},
+        "providers": {"type": "array", "items": KG_PROVIDER, "description": "The provider of this service (at most 5); empty when none is visible."},
+        "provider_count": {"type": "integer"}, "prices": {"type": "object", "properties": {"current": {"type": "integer"}, "all": {"type": "integer"}}, "description": "Visible price statements of this service."}}}},
+    "note": {"type": "string"}, "lag": KG_LAG}}
+paths["/v1/kg/services"] = {"get": op("kg.services", "Services of the same name across providers", "Package 6.1: read-only groups of the visible services by name (SAP · 133 providers), the largest first: providers, services without a provider, the viewer's collections, the providers' places, how many with a current price and with a current source. Every provider's service stays its own entity with its own provider, prices and sources; no entity, ID, price or evidence changes, nothing is merged or averaged." + KG_READ_NOTE, ["knowledge"], {**ok("Groups.", "KgServiceGroupPage"), **KG_ERRS}, params=[
+    q("q", {"type": "string", "maxLength": 200}, "Name words (all words, the last as a prefix)."), q("category", {"type": "string", "maxLength": 80, "pattern": KG_CODE_PATTERN}, "Only services of this category."),
+    KG_OFFSET, KG_LIMIT(25, 50), KG_COLLECTION])}
+paths["/v1/kg/services/providers"] = {"get": op("kg.services.providers", "The services of one name, each with its provider", "Package 6.1: the group of one service name and its services, one row per service with its own provider (name, hosts, collections, places), quality, sources and price counts. 404 not_found when no visible service has the name." + KG_READ_NOTE, ["knowledge"], {**ok("Services of the name.", "KgServiceProviders"), **KG_ERRS}, params=[
+    q("name", {"type": "string", "maxLength": 200}, "The service name; compared in lower case without surrounding spaces.", True), q("category", {"type": "string", "maxLength": 80, "pattern": KG_CODE_PATTERN}, "Only services of this category."),
+    KG_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
 paths["/v1/kg/facets"] = {"get": op("kg.facets", "Filter values of the knowledge graph", "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows." + KG_READ_NOTE, ["knowledge"], {**ok("Facets.", "KgFacets"), **KG_ERRS}, params=[KG_COLLECTION])}
 
 # knowledge graph export, change feed and download (package 4)
@@ -1032,9 +1082,25 @@ schemas["HostResolution"] = {"type": "object", "required": ["host", "url", "inde
     "indexed": {"type": "boolean"}, "analysisAvailable": {"type": "boolean"}, "visibleRecords": {"type": "integer"},
     "crawl": {"type": "object", "properties": {"collectionRequired": {"const": True}, "canRequest": {"type": "boolean"}, "blockedReason": {"type": ["string", "null"]}}},
     "links": {"type": "object", "additionalProperties": {"type": ["string", "null"]}}}}
+schemas["CollectionEntry"] = {"type": "object", "required": ["id"], "description": "Package 6.1: one collection of the catalog (the index, the created collections, the Discovery profiles). A scoped agent's granted collections carry id and documents only.", "properties": {
+    "id": {"type": "string"}, "name": {"type": "string", "description": "Display name (the given name of a created collection, else the id)."},
+    "description": {"type": "string"}, "documents": {"type": ["integer", "null"], "description": "Pages of it in the index (0 for a created collection without pages; null: unknown)."},
+    "internal": {"type": "boolean", "description": "YaCy's own collection (robot_…): never selectable."},
+    "selectable": {"type": "boolean", "description": "Offered in every collection choice. Equal to chat, knowledgeGraph and crawlTarget: one definition for all uses."},
+    "chat": {"type": "boolean"}, "knowledgeGraph": {"type": "boolean"}, "crawlTarget": {"type": "boolean"},
+    "sources": {"type": "array", "items": {"enum": ["index", "created", "profile"]}}, "createdAt": {"type": ["string", "null"], "format": "date-time"},
+    "graph": {"type": ["object", "null"], "description": "Administrator only: the knowledge graph's view of the collection (as in kg/status.collections); null when the graph does not know it or is off.",
+              "properties": {"followed": {"type": "boolean"}, "vocabulary": {"type": ["string", "null"]}, "vocabularySource": {"type": ["string", "null"]},
+                             "jobs": {"type": "boolean"}, "llm": {"type": "boolean"}, "state": {"type": ["string", "null"]}}}}}
 schemas["Collections"] = {"type": "object", "properties": {
-    "collections": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "documents": {"type": ["integer", "null"]}}}},
-    "allowNew": {"type": "boolean"}, "limit": {"type": "integer"}}}
+    "collections": {"type": "array", "items": ref("CollectionEntry")},
+    "allowNew": {"const": False, "description": "No collection name is ever entered freely; new collections are created explicitly."},
+    "canCreate": {"type": "boolean", "description": "Whether this caller may create a collection (administrator only; never an agent)."},
+    "limit": {"type": "integer"}}}
+schemas["CollectionCreate"] = {"type": "object", "required": ["name"], "additionalProperties": False, "properties": {
+    "id": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,63}$", "description": "2–64 lower-case letters, digits and single hyphens; without it the id is derived from the name. Never an existing collection (also not one differing only in case), never robot_… or one of all, none, default, user, any, new."},
+    "name": {"type": "string", "minLength": 1, "maxLength": 80}, "description": {"type": "string", "maxLength": 500}}}
+schemas["CollectionCreated"] = {"type": "object", "properties": {"collection": ref("CollectionEntry"), "created": {"const": True}}}
 schemas["DiscoveryBatch"] = {"type": ["object", "null"], "properties": {
     **{k: {"type": ["string", "null"]} for k in ["id", "job_id", "job_name", "collection", "error"]},
     "phase": {"enum": ["reserved", "running", "waiting_for_crawler", "needs_reconcile", "needs_review", "completed"]},
@@ -1050,11 +1116,13 @@ schemas["DiscoveryStatus"] = {"type": "object", "required": ["automation_status"
 inputp = q("input", {"type": "string", "maxLength": 2048}, "DNS hostname or complete HTTP/HTTPS URL. No credentials, IP literals, other schemes, or network lookup.", True)
 flow_specs = [
     ("/hosts/resolve", "host.resolve", "HostResolution", [inputp, seo_collection], "Normalize a host or URL and look up indexed records within the requested scope. Unknown hosts return indexed=false, HTTP 200. Index failures remain errors. canRequest is permission information, not proof that crawl preflight will pass. Collection is required on the subsequent crawl start."),
-    ("/collections", "collections.list", "Collections", [], "Collection suggestions. Admin: up to 500 indexed names (new names may be entered). Scoped agent: granted collection names, including empty ones; document counts are unknown. No runtime taxonomy edits."),
+    ("/collections", "collections.list", "Collections", [], "The collection catalog (package 6.1). Admin: every collection of the index (up to 500), the created ones and those of the Discovery profiles, with name, documents, sources, use flags (YaCy's internal robot_… collections are listed as internal, never selectable), the knowledge graph's view and canCreate=true; no name is entered freely (allowNew=false). Scoped agent: granted collection names, including empty ones, canCreate=false; document counts are unknown."),
     ("/discovery/status", "discovery.status", "DiscoveryStatus", [], "Read-only automation and batch projection. worker_busy alone is not running. enabled/paused are independent of an existing batch. Global metadata requires an explicit global discovery.status grant, absent from presets; no discovery mutation grant is added.")]
 for suffix, operation, result_schema, parameters, note in flow_specs:
     paths["/v1" + suffix] = {"get": op(operation, operation, note, ["crawls"], {**ok("Status.", result_schema), **errs("400", "401", "502", "503")}, params=parameters)}
     paths["/agent/v1" + suffix] = {"get": aop("agent." + operation, operation, note, ["agent"], {**ok("Scoped status.", result_schema), **aerrs("400", "401", "403", "429", "502", "503")}, params=parameters, grants=[operation])}
+
+paths["/v1/collections"]["post"] = op("collections.create", "Create a collection", "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Creates an empty collection that every collection choice (crawl start, filters, chat, agent grants) offers at once; a crawl can then write into it. 400 collection_id_invalid, 400 collection_reserved (robot_… or a reserved word), 400 invalid_request (name missing or too long, unknown field), 409 collection_exists (also for a name differing only in case), 503 index_unavailable (duplicates cannot be checked), 503 collection_store_unavailable. Agents cannot create collections.", ["crawls"], {**ok("Created.", "CollectionCreated", "201"), **errs("400", "401", "403", "409", "413", "415", "503")}, body="CollectionCreate", mutating=True)
 
 openapi = O()
 openapi["openapi"] = "3.1.0"
@@ -1080,15 +1148,17 @@ cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "sea
        "crawl.list": "scoutroctl crawl list", "crawl.start": "scoutroctl crawl start URL [--depth N] [--scope domain|subpath|wide] [--max-pages N] --collection NAME [--idempotency-key KEY]",
        "crawl.status": "scoutroctl crawl status ID", "crawl.stop": "scoutroctl crawl stop ID", "config.get": "scoutroctl config get",
        "config.set": "scoutroctl config set KEY VALUE", "ui.routes": "scoutroctl ui routes", "ui.route": "scoutroctl ui route NAME"}
-mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
-cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
+mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'collections.create': 'scoutro_collections_create', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
+cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
 mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entity', 'kg.entity.statements': 'scoutro_kg_entity_statements', 'kg.statement': 'scoutro_kg_statement', 'kg.statement.evidence': 'scoutro_kg_statement_evidence', 'kg.host.entities': 'scoutro_kg_host_entities', 'kg.source': 'scoutro_kg_source'})
 cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
 mcp.update({'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
-            'kg.derived': 'scoutro_kg_derived', 'kg.facets': 'scoutro_kg_facets'})
-cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--types T,T]',
-            'kg.compare': 'scoutroctl kg compare CATEGORY', 'kg.derived': 'scoutroctl kg derived [--kind K] [--entity ID]', 'kg.facets': 'scoutroctl kg facets'})
+            'kg.derived': 'scoutro_kg_derived', 'kg.facets': 'scoutro_kg_facets', 'kg.services': 'scoutro_kg_services',
+            'kg.services.providers': 'scoutro_kg_services_providers'})
+cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]',
+            'kg.compare': 'scoutroctl kg compare CATEGORY', 'kg.derived': 'scoutroctl kg derived [--kind K] [--entity ID]', 'kg.facets': 'scoutroctl kg facets',
+            'kg.services': 'scoutroctl kg services [--q TEXT] [--category C]', 'kg.services.providers': 'scoutroctl kg service-providers NAME [--category C]'})
 mcp.update({'kg.export': 'scoutro_kg_export', 'kg.changes': 'scoutro_kg_changes', 'kg.download': 'scoutro_kg_download',
             'kg.backups': 'scoutro_kg_backups', 'kg.backup.download': 'scoutro_kg_backup_download'})
 cli.update({'kg.backups': 'scoutroctl kg backups (administrator)', 'kg.backup.download': 'scoutroctl kg backup-download FILE > graph.db (administrator)'})
@@ -1314,7 +1384,7 @@ actions.extend([{'name': 'discovery.catalog',
 # agent view of every action: may it be granted, and where does an agent call it
 FAMILIES = {"seo.": "seo.read", "report.": "report.read",  # several admin operations behind one grant
             "kg.entit": "kg.read", "kg.statement": "kg.read", "kg.host.": "kg.read", "kg.source": "kg.read",
-            "kg.compare": "kg.read", "kg.derived": "kg.read", "kg.facets": "kg.read",
+            "kg.compare": "kg.read", "kg.derived": "kg.read", "kg.facets": "kg.read", "kg.services": "kg.read",
             "kg.export": "kg.export", "kg.changes": "kg.export"}  # never plain "kg.": status, control and download stay admin-only
 for a in actions:
     family = next((grant for prefix, grant in FAMILIES.items() if a["name"].startswith(prefix)), None)

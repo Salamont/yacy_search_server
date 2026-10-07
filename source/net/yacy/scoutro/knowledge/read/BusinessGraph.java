@@ -48,8 +48,17 @@ import net.yacy.scoutro.knowledge.vocab.Nace;
  * {@code uncertain}, {@code stale}, {@code weak} ({@code linked_to}),
  * {@code derived} ({@code same_operator}), {@code suggested} (a match).
  * Node types: organisation, facility, site, place, service, job, and the
- * value nodes industry (a NACE code) and audience (a segment or customer
- * type).
+ * value nodes industry (a NACE code), audience (a segment or customer type)
+ * and, on request, price (a published price of a service, attached to that
+ * service only). Every entity node carries its context for the viewer
+ * (hosts, collections, places, quality, sources, last confirmation); an edge
+ * of the centre says whether it points to it ({@code in}) or away
+ * ({@code out}).
+ * <p>
+ * A service (or a job) in the centre shows who offers it (the incoming
+ * {@code offers}; the employer of a job) and, at depth 2, the relations of
+ * those providers, but not their other services and jobs: those are in the
+ * provider's own network (package 6.1).
  */
 public final class BusinessGraph {
 
@@ -79,7 +88,12 @@ public final class BusinessGraph {
         public boolean suggested;
         public boolean values = true;
         public boolean stale;
+        /** The published prices of the services in the centre and at depth 1, as value nodes (package 6.1). */
+        public boolean prices;
     }
+
+    /** Prices shown per service in the network. */
+    static final int MAX_PRICES_PER_SERVICE = 5;
 
     private static final class Edge {
         final JSONObject json;
@@ -110,6 +124,9 @@ public final class BusinessGraph {
             final String center = KgReader.publicId(c, ent[0]);
             nodes.put(center, node(c, ent[0], v, 0));
             rows.put(center, ent[0]);
+            final String centerType = nodes.get(center).optString("type");
+            // a service or job in the centre: its providers' other services and jobs are no neighbours of it
+            final boolean leafCenter = Vocabulary.SERVICE.equals(centerType) || Vocabulary.JOB.equals(centerType);
             // depth 1: the center's edges, strongest first, paged by neighbour
             final List<Edge> first = edgesOf(c, ent[0], center, q, v, now, true);
             first.sort((a, b) -> Double.compare(b.strength, a.strength));
@@ -124,12 +141,14 @@ public final class BusinessGraph {
             final Map<String, Long> pageRows = new LinkedHashMap<>();
             for (final Edge e : first) {
                 if (page.contains(e.to)) {
+                    KgJson.put(e.json, "direction", center.equals(e.json.optString("to")) ? "in" : "out");
                     edges.add(e.json);
                     if (!nodes.containsKey(e.to)) {
                         final Long row = e.json.has("_row") ? e.json.optLong("_row") : null;
                         nodes.put(e.to, row != null ? node(c, row, v, 1) : valueNode(e.to, 1));
                         if (row != null) {
                             pageRows.put(e.to, row);
+                            rows.put(e.to, row);
                         }
                     }
                 }
@@ -147,9 +166,16 @@ public final class BusinessGraph {
                     for (final Edge e : second) {
                         if (nodes.containsKey(e.to)) {
                             if (!containsEdge(edges, e.json)) {
+                                if (center.equals(e.json.optString("from")) || center.equals(e.json.optString("to"))) {
+                                    KgJson.put(e.json, "direction", center.equals(e.json.optString("to")) ? "in" : "out");
+                                }
                                 edges.add(e.json); // an edge between two shown nodes is always shown
                             }
                             continue;
+                        }
+                        final String edgeType = e.json.optString("type");
+                        if (leafCenter && (Vocabulary.OFFERS.equals(edgeType) || Vocabulary.HIRING_ORGANIZATION.equals(edgeType))) {
+                            continue; // another service or job of the provider
                         }
                         if (nodes.size() >= limit + 1) {
                             truncated = true;
@@ -157,8 +183,22 @@ public final class BusinessGraph {
                         }
                         final Long row = e.json.has("_row") ? e.json.optLong("_row") : null;
                         nodes.put(e.to, row != null ? node(c, row, v, 2) : valueNode(e.to, 2));
+                        if (row != null) {
+                            rows.put(e.to, row);
+                        }
                         edges.add(e.json);
                     }
+                }
+            }
+            if (q.prices) {
+                truncated |= prices(c, nodes, rows, edges, v, now, limit);
+            }
+            // the context of every entity node, in a few queries for the whole network
+            final Map<Long, EntityContexts.Ctx> ctx = EntityContexts.of(c, rows.values(), v, this.reader, now);
+            for (final Map.Entry<String, Long> n : rows.entrySet()) {
+                final JSONObject cj = EntityContexts.ctxJson(ctx.get(n.getValue()));
+                for (final String k : cj.keySet()) {
+                    KgJson.put(nodes.get(n.getKey()), k, cj.opt(k));
                 }
             }
             final JSONArray edgeArray = new JSONArray();
@@ -174,6 +214,42 @@ public final class BusinessGraph {
             throw new KgReader.NotFound("entity " + id);
         }
         return (JSONObject) r;
+    }
+
+    /**
+     * Price nodes of the services in the centre and at depth 1: each price
+     * hangs on its own service only, with its status (current, uncertain,
+     * stale, expired, conflicting); true if the node limit cut some off.
+     */
+    private boolean prices(final Connection c, final Map<String, JSONObject> nodes, final Map<String, Long> rows, final List<JSONObject> edges,
+            final Viewer v, final long now, final int limit) throws SQLException {
+        final List<Map.Entry<String, Long>> services = new ArrayList<>();
+        for (final Map.Entry<String, Long> n : rows.entrySet()) {
+            final JSONObject node = nodes.get(n.getKey());
+            if (Vocabulary.SERVICE.equals(node.optString("type")) && node.optInt("depth") <= 1) {
+                services.add(n);
+            }
+        }
+        for (final Map.Entry<String, Long> s : services) {
+            final List<BusinessView.Fact> facts = this.view.facts(c, s.getValue(), false, List.of(Vocabulary.PRICE), v, now, 50);
+            final JSONArray items = this.view.priceItems(facts, s.getKey(), nodes.get(s.getKey()).optString("label", null), null, now,
+                    new java.util.LinkedHashSet<>());
+            BusinessView.markConflicts(items);
+            for (int i = 0; i < items.length() && i < MAX_PRICES_PER_SERVICE; i++) {
+                if (nodes.size() >= limit + 1) {
+                    return true;
+                }
+                final JSONObject p = items.optJSONObject(i);
+                final String id = "price:" + p.optString("statement");
+                final String status = p.optString("status");
+                nodes.put(id, KgJson.obj("id", id, "type", "price", "price", p.opt("value"), "status", status, "as_of", p.opt("as_of"),
+                        "service", s.getKey(), "depth", nodes.get(s.getKey()).optInt("depth") + 1, "value", true));
+                edges.add(KgJson.obj("id", p.optString("statement"), "from", s.getKey(), "to", id, "type", Vocabulary.PRICE, "business", false,
+                        "status", "current".equals(status) ? "confirmed" : "uncertain".equals(status) || "conflicting".equals(status) ? "uncertain"
+                                : "stale", "confidence", p.opt("confidence"), "evidence", p.optInt("sources"), "fact", true));
+            }
+        }
+        return false;
     }
 
     private static boolean containsEdge(final List<JSONObject> edges, final JSONObject e) {
@@ -265,6 +341,12 @@ public final class BusinessGraph {
         return out;
     }
 
+    /** The subject of a derived row: ID, stated name and the name to show. */
+    private static JSONObject subjectRef(final Connection c, final long ent, final Viewer v) throws SQLException {
+        final String name = KgReader.visibleName(c, ent, v);
+        return DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, ent), "name", name), DisplayNames.known(c, ent, name, v));
+    }
+
     private static double strength(final String status, final double confidence, final int evidence) {
         final double base;
         switch (status) {
@@ -302,8 +384,10 @@ public final class BusinessGraph {
                 }
             }
         }
-        return KgJson.obj("id", KgReader.publicId(c, ent), "type", type, "kind", kind, "label", KgReader.visibleName(c, ent, v), "depth", depth,
-                "value", false);
+        final String name = KgReader.visibleName(c, ent, v);
+        // label: the stated name; display_name: what to show, never the ID (package 6.1)
+        return DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, ent), "type", type, "kind", kind, "label", name, "depth", depth,
+                "value", false), name != null ? DisplayNames.known(c, ent, name, v) : DisplayNames.of(c, ent, type, null, null, v));
     }
 
     private static JSONObject valueNode(final String id, final int depth) {
@@ -341,6 +425,7 @@ public final class BusinessGraph {
                 }
             }
             final boolean truncated = services.size() > limit;
+            final java.util.Set<Long> providerRows = new java.util.LinkedHashSet<>();
             for (final long s : services.subList(0, Math.min(limit, services.size()))) {
                 final List<BusinessView.Fact> facts = this.view.facts(c, s, false, List.of(Vocabulary.NAME, Vocabulary.PRICE), v, now, 200);
                 String name = null;
@@ -358,12 +443,27 @@ public final class BusinessGraph {
                 final JSONArray providers = new JSONArray();
                 for (final BusinessView.Fact f : this.view.facts(c, s, true, List.of(Vocabulary.OFFERS), v, now, 20)) {
                     if (BusinessView.visible(c, f.stat.subj, v)) {
-                        final JSONObject p = KgJson.obj("id", KgReader.publicId(c, f.stat.subj), "name", KgReader.visibleName(c, f.stat.subj, v),
-                                "locality", locality(c, f.stat.subj, v));
+                        final String pname = KgReader.visibleName(c, f.stat.subj, v);
+                        final JSONObject p = DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, f.stat.subj), "name", pname,
+                                "locality", locality(c, f.stat.subj, v), "_row", f.stat.subj), DisplayNames.known(c, f.stat.subj, pname, v));
                         providers.put(p);
+                        providerRows.add(f.stat.subj);
                     }
                 }
-                rows.put(KgJson.obj("service", KgJson.obj("id", sid, "name", name), "providers", providers, "prices", items));
+                rows.put(KgJson.obj("service", DisplayNames.put(KgJson.obj("id", sid, "name", name), DisplayNames.known(c, s, name, v)),
+                        "providers", providers, "prices", items));
+            }
+            // each provider with the hosts and collections of the viewer's pages (package 6.1), batched
+            final Map<Long, EntityContexts.Ctx> ctx = EntityContexts.of(c, providerRows, v, this.reader, now);
+            for (int i = 0; i < rows.length(); i++) {
+                final JSONArray providers = rows.optJSONObject(i).optJSONArray("providers");
+                for (int j = 0; j < providers.length(); j++) {
+                    final JSONObject p = providers.optJSONObject(j);
+                    final EntityContexts.Ctx x = ctx.get(p.optLong("_row"));
+                    p.remove("_row");
+                    KgJson.put(p, "hosts", new JSONArray(x.hosts));
+                    KgJson.put(p, "collections", new JSONArray(x.collections));
+                }
             }
             return KgJson.obj("schema", BusinessView.SCHEMA, "category", KgJson.obj("code", category, "label_de", entry == null ? null : entry.de,
                     "label_en", entry == null ? null : entry.en, "nace", entry == null ? null : entry.nace), "rows", rows, "truncated", truncated,
@@ -411,7 +511,7 @@ public final class BusinessGraph {
                             continue;
                         }
                         final JSONObject o = BusinessView.derivedJson(rs, rs.getLong(4), true, c, v);
-                        KgJson.put(o, "subject", KgJson.obj("id", KgReader.publicId(c, rs.getLong(3)), "name", KgReader.visibleName(c, rs.getLong(3), v)));
+                        KgJson.put(o, "subject", subjectRef(c, rs.getLong(3), v));
                         items.put(o);
                     }
                 }
@@ -436,7 +536,7 @@ public final class BusinessGraph {
                     return null;
                 }
                 final JSONObject o = BusinessView.derivedJson(rs, rs.getLong(4), true, c, v);
-                KgJson.put(o, "subject", KgJson.obj("id", KgReader.publicId(c, rs.getLong(3)), "name", KgReader.visibleName(c, rs.getLong(3), v)));
+                KgJson.put(o, "subject", subjectRef(c, rs.getLong(3), v));
                 return o;
             }
         }

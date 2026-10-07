@@ -13,7 +13,7 @@
   const de = String(lang || '').toLowerCase().startsWith('de');
   const pct = v => v == null ? t('missing') : Math.round(v * 100) + ' %';
   const ROOT = '/scoutro/api/v1/kg/';
-  const VIEWS = ['overview', 'objects', 'object', 'network', 'compare', 'source', 'settings'];
+  const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'source', 'settings'];
   const params = new URLSearchParams(location.search);
   let view = VIEWS.includes(params.get('view')) ? params.get('view') : 'overview';
   let collection = params.get('collection') || '';
@@ -23,7 +23,7 @@
 
   function message(text = '') { $('message').textContent = text; }
   function guarded(task) { const promise = task(), run = generation; promise.catch(e => { if (run === generation) message(e.message); }); }
-  function validCollection(name) { return name === '' || /^[A-Za-z0-9_-]{1,64}$/.test(name); }
+  let allowed = []; // the collections of the select: nothing else is ever used as the scope
 
   async function api(path, query = {}) {
     const p = new URLSearchParams();
@@ -39,11 +39,11 @@
     return body;
   }
 
-  function link(text, query) {
+  function link(text, query, hash) {
     const a = node('a', text);
     const p = new URLSearchParams(query); if (collection) p.set('collection', collection);
-    a.href = 'ScoutroKnowledge_p.html?' + p;
-    a.addEventListener('click', e => { if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); navigate(query); });
+    a.href = 'ScoutroKnowledge_p.html?' + p + (hash ? '#' + hash : '');
+    a.addEventListener('click', e => { if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); navigate(query, hash); });
     return a;
   }
   function external(url) {
@@ -57,10 +57,30 @@
     for (const [k, v] of rows) { dl.append(node('dt', t(k))); const dd = node('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = fmt(v); dl.append(dd); }
   }
   function predicate(p) { return labels['p_' + p] || p; }
+  // The name to show (package 6.1): the stated name, else what the read API derived for display (a legal name, the site's
+  // operator, the domain), else a typed "unnamed …". A technical ID (kge_…, kgs_…) is never shown as a name.
+  const UNNAMED = { organization: 'unnamed_organization', facility: 'unnamed_facility', site: 'unnamed_site', place: 'unnamed_place',
+    service: 'unnamed_service', job: 'unnamed_job' };
+  function shown(x, type, prefix = '') {
+    const name = x?.[prefix + 'display_name'] || x?.[prefix ? prefix + 'name' : 'name'];
+    return name && !/^kg[es]_[a-z2-7]{20}$/.test(name) ? name : t(UNNAMED[type || x?.type] || 'unnamed');
+  }
+  function shownSource(x, prefix = '') { const src = x?.[prefix + 'display_name_source']; return src && src !== 'fact' ? src : null; }
+  // a link to an object under its shown name; a name that is not stated by the sources is marked as such
+  function nameLink(x, id, type, prefix = '') {
+    const a = link(shown(x, type, prefix), { view: 'object', id });
+    const src = shownSource(x, prefix);
+    if (src) { a.classList.add('skg-name-' + src); a.title = t('name_src_' + src); }
+    return a;
+  }
+  function nameNote(x, prefix = '') {
+    const src = shownSource(x, prefix);
+    return src ? node('span', t('name_src_' + src) + (x?.[prefix + 'display_host'] && src === 'domain' ? ' · ' + x[prefix + 'display_host'] : ''), 'sseo-note skg-name-note') : null;
+  }
 
-  function navigate(query) {
+  function navigate(query, hash) {
     const p = new URLSearchParams(query); if (collection) p.set('collection', collection);
-    history.pushState(null, '', 'ScoutroKnowledge_p.html' + (p.toString() ? '?' + p : ''));
+    history.pushState(null, '', 'ScoutroKnowledge_p.html' + (p.toString() ? '?' + p : '') + (hash ? '#' + hash : ''));
     load();
   }
 
@@ -186,6 +206,7 @@
       ['upgrade', up ? t('upgrade_value').replace('%1', fmt(up.from)).replace('%2', fmt(up.to)).replace('%3', up.waiting
         ? t('upgrade_waiting').replace('%1', up.hold) : up.backup ? t('upgrade_copy').replace('%1', up.backup) : date(up.at)) : t('none')]]);
     $('upgrade-note').hidden = !up?.waiting;
+    collectionsInto(s.collections);
     await backupsInto(s.backup, run);
     if (run !== generation) return;
     // while a rebuild runs, the overview refreshes itself
@@ -202,6 +223,27 @@
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
   }
 
+  // Every collection the graph follows, maps or holds: vocabulary (or none, said so), jobs, LLM tier, documents, state.
+  function collectionsInto(rows) {
+    const body = $('collections').tBodies[0]; body.replaceChildren();
+    const heads = [...$('collections').tHead.rows[0].cells].map(c => c.textContent);
+    for (const c of rows || []) {
+      const vocab = node('span');
+      if (c.vocabulary) {
+        vocab.append(c.vocabulary);
+        vocab.append(' ', node('span', '(' + t(c.vocabularySource === 'setting' ? 'vocab_from_setting' : 'vocab_from_files')
+          + (c.vocabularyKnown ? '' : ', ' + t('vocab_unknown')) + ')', 'sseo-note'));
+      } else {
+        vocab.append(node('span', t('no_vocabulary'), 'skg-novocab'));
+        if (c.vocabularySource === 'setting') vocab.append(' ', node('span', '(' + t('vocab_from_setting') + ')', 'sseo-note'));
+      }
+      const row = rowInto(body, heads, [c.collection, t(c.followed ? 'yes' : 'no'), vocab, t(c.jobs ? 'yes' : 'no'), t(c.llm ? 'yes' : 'no'),
+        c.documents == null ? t('missing') : fmt(c.documents), t('vstate_' + c.state)]);
+      row.dataset.collection = c.collection; row.dataset.state = c.state;
+    }
+    if (!rows?.length) { const row = body.insertRow(); const td = row.insertCell(); td.colSpan = heads.length; td.textContent = t('none'); }
+  }
+
   async function control(action, extra) {
     if (action === 'confirm_reconcile' && !window.confirm(labels.confirm_question || action)) return;
     if (action === 'restore' && !window.confirm(t('restore_question').replace('%1', extra.backup))) return;
@@ -216,6 +258,40 @@
   }
 
   // ------------------------------------------------------------------- objects
+  // The context of a hit comes with the list (one projection for the page): hosts, collections, places, providers.
+  const domain = h => String(h || '').replace(/^www\./i, '');
+  function actionLinks(items) {
+    const box = node('span', null, 'skg-actions');
+    items.filter(Boolean).forEach(([text, query, hash], i) => { if (i) box.append(' · '); box.append(link(text, query, hash)); });
+    return box;
+  }
+  // "CTcon GmbH · ctcon.de" for a service or job; the entity's own domains for the others; a missing provider is said, not hidden
+  function providerCell(e, ctx) {
+    const box = node('span', null, 'skg-provider');
+    if (ctx.providers) {
+      const p = ctx.providers[0];
+      if (!p) { box.append(node('span', t(e.type === 'job' ? 'no_employer' : 'no_provider'), 'skg-noprov')); return box; }
+      box.append(nameLink(p, p.id, p.type));
+      if (p.hosts?.length) box.append(' · ', node('span', domain(p.hosts[0]), 'skg-domain'));
+      if ((ctx.provider_count || 0) > 1) box.append(' ', node('span', t('more_providers').replace('%1', fmt(ctx.provider_count - 1)), 'sseo-note'));
+      return box;
+    }
+    box.append(node('span', (ctx.hosts || []).map(domain).join(', ') || t('missing'), 'skg-domain'));
+    return box;
+  }
+  function placeOf(ctx) { return (ctx.places || [])[0] || (ctx.providers?.[0]?.places || [])[0] || t('missing'); }
+  function hitActions(e, ctx) {
+    const p = ctx.providers?.[0];
+    return actionLinks([p ? [t(e.type === 'job' ? 'open_employer' : 'open_provider'), { view: 'object', id: p.id }] : null,
+      ['service', 'job'].includes(e.type) ? [t(e.type === 'job' ? 'open_object' : 'open_service'), { view: 'object', id: e.id }] : null,
+      [t('show_network'), { view: 'network', id: e.id }], [t('show_sources'), { view: 'object', id: e.id }, 'skg-sec-sources'],
+      e.type === 'service' && e.name ? [t('all_providers'), { view: 'services', name: e.name }] : null]);
+  }
+  function rowInto(body, heads, cells) {
+    const row = body.insertRow();
+    cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = heads[i]; if (c instanceof Node) td.append(c); else td.textContent = c; });
+    return row;
+  }
   async function objects() {
     const run = ++generation; message(t('loading'));
     await facetsInto(run);
@@ -226,13 +302,33 @@
     const body = $('entities').tBodies[0]; body.replaceChildren();
     const heads = [...$('entities').tHead.rows[0].cells].map(c => c.textContent);
     for (const e of data.items) {
-      const row = body.insertRow();
-      const cells = [link(e.name || e.id, { view: 'object', id: e.id }), t(e.type) + (e.kind ? ' · ' + e.kind : ''), qualityBadge(e.quality), fmt(e.counts?.sources), date(e.last_confirmed)];
-      cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = heads[i]; if (c instanceof Node) td.append(c); else td.textContent = c; });
+      const ctx = e.context || {};
+      const name = node('span', null, 'skg-hit-name'); name.append(nameLink(e, e.id, e.type));
+      const note = nameNote(e); if (note) name.append(' ', note);
+      rowInto(body, heads, [name, t(e.type) + (e.kind ? ' · ' + e.kind : ''), providerCell(e, ctx), (ctx.collections || []).join(', ') || t('none'),
+        placeOf(ctx), qualityBadge(e.quality), fmt(e.counts?.sources), date(e.last_confirmed), hitActions(e, ctx)]).dataset.type = e.type;
     }
     $('range').textContent = data.total ? t('range').replace('%1', fmt(offset + 1)).replace('%2', fmt(offset + data.items.length)).replace('%3', fmt(data.total)) : '';
     $('prev').disabled = offset === 0; $('next').disabled = offset + LIMIT >= data.total;
     message(data.total ? '' : t('empty'));
+    await groupsHint(q, run);
+  }
+  // Searching a service name: the same name across providers, as read-only groups ("SAP · 133 providers")
+  async function groupsHint(q, run) {
+    const box = $('groups'); box.replaceChildren(); box.hidden = true;
+    if (!q.q || (q.type && q.type !== 'service')) return;
+    let g = null; try { g = await api('services', { q: q.q, category: q.category, limit: 5 }); } catch (_) { g = null; }
+    if (run !== generation || !g) return;
+    const items = g.items.filter(x => x.services > 1);
+    if (!items.length) return;
+    const ul = node('ul', null, 'skg-group-list');
+    for (const x of items) {
+      const li = node('li');
+      li.append(link(t('group_title').replace('%1', x.name).replace('%2', fmt(x.providers)), { view: 'services', name: x.name }));
+      li.append(' ', node('span', (x.collections || []).map(c => c.name).join(', '), 'sseo-note'));
+      ul.append(li);
+    }
+    box.append(ul, node('p', t('group_hint_note'), 'sseo-note')); box.hidden = false;
   }
   function objectQuery() {
     const p = { view: 'objects' };
@@ -272,24 +368,31 @@
   // -------------------------------------------------------------------- object
   async function object(id) {
     const run = ++generation; message(t('loading'));
+    // nothing of the previous object stays visible while this one loads
+    $('object-name').textContent = ''; for (const k of ['business', 'out', 'in', 'toc', 'object-facts']) $(k).replaceChildren();
     const [e, b] = await Promise.all([api('entities/' + encodeURIComponent(id)), api('entities/' + encodeURIComponent(id) + '/business')]);
     if (run !== generation) return;
     if (e.redirect) { navigate({ view: 'object', id: e.redirect }); return; }
-    $('object-name').textContent = e.name || e.id;
+    $('object-name').textContent = shown(e);
     const net = $('object-network'); const np = new URLSearchParams({ view: 'network', id: e.id }); if (collection) np.set('collection', collection);
     net.href = 'ScoutroKnowledge_p.html?' + np; net.textContent = t('network_open');
     net.onclick = ev => { if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey) return; ev.preventDefault(); navigate({ view: 'network', id: e.id }); };
     const ids = node('span'); (e.identifiers || []).forEach((i, n) => { if (n) ids.append(', '); ids.append(i.scheme + ': ' + i.value + ' '); ids.append(qualityBadge(i.quality)); });
     const hosts = node('span'); (e.hosts || []).forEach((h, n) => { if (n) hosts.append(', '); hosts.append(link(h, { view: 'objects', host: h })); });
     const dups = node('span'); (e.possible_duplicates || []).forEach((d, n) => { if (n) dups.append(', '); dups.append(link(d, { view: 'object', id: d })); });
+    { const note = nameNote(e); if (note) $('object-name').append(' ', note); }
     stats('object-facts', [['type', t(e.type) + (e.kind ? ' · ' + e.kind : '')], ['quality', qualityBadge(e.quality)], ['aliases', (e.aliases || []).join(', ') || t('none')],
       ['identifiers', ids.childNodes.length ? ids : t('none')], ['hosts', hosts.childNodes.length ? hosts : t('none')],
       ['duplicates', dups.childNodes.length ? dups : t('none')], ['first_seen', date(e.first_seen)], ['last_confirmed', date(e.last_confirmed)],
-      ['statements', fmt(e.counts?.statements)], ['sources', fmt(e.counts?.sources)]]);
+      ['statements', fmt(e.counts?.statements)], ['sources', fmt(e.counts?.sources)], ['technical_id', e.id]]);
     businessInto(b);
     await statements(e.id, 'out', $('out'), 0, run);
     await statements(e.id, 'in', $('in'), 0, run);
-    message(); $('object-name').focus();
+    message();
+    // "Sources" of a hit or a network node jumps to the evidence section
+    const anchor = location.hash ? document.getElementById(location.hash.slice(1)) : null;
+    if (anchor) { anchor.scrollIntoView({ block: 'start' }); const h = anchor.querySelector('h3'); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); } }
+    else $('object-name').focus();
   }
 
   async function statements(id, direction, target, from, run) {
@@ -310,9 +413,9 @@
   function statementItem(s, direction) {
     const li = node('li', null, 'skg-statement');
     const head = node('div', null, 'skg-statement-head');
-    if (direction === 'in') { head.append(link(s.subject_name || s.subject, { view: 'object', id: s.subject }), ' '); }
+    if (direction === 'in') { head.append(nameLink(s, s.subject, null, 'subject_'), ' '); }
     head.append(node('span', predicate(s.predicate), 'skg-predicate'), ' ');
-    if (s.object.entity) head.append(link(s.object.name || s.object.entity, { view: 'object', id: s.object.entity }));
+    if (s.object.entity) head.append(nameLink(s.object, s.object.entity));
     else head.append(node('span', s.object.value, 'skg-value'));
     li.append(head);
     const meta = node('div', null, 'skg-meta');
@@ -410,7 +513,7 @@
     const h = node('h3', t('sec_' + key)); h.id = 'skg-sec-' + key + '-title'; sec.setAttribute('aria-labelledby', h.id);
     sec.append(h, ...children.filter(Boolean)); return sec;
   }
-  function entityLink(ref) { return ref ? link(ref.name || ref.id, { view: 'object', id: ref.id }) : node('span', t('missing')); }
+  function entityLink(ref) { return ref ? nameLink(ref, ref.id, ref.type) : node('span', t('missing')); }
   function relationItem(r) {
     const head = node('div', null, 'skg-statement-head');
     if (r.direction === 'in') head.append(entityLink(r.other), ' ', node('span', predicate(r.predicate), 'skg-predicate'), ' ', node('span', $('object-name').textContent));
@@ -446,7 +549,7 @@
       if (p.stale_since) status.append(node('span', t('stale_since').replace('%1', p.stale_since).replace('%2', fmt(p.stale_after_days)), 'sseo-note'));
       if (p.conflicts_with?.length) status.append(node('span', t('conflicts_with'), 'sseo-note'));
       const ev = node('span'); ev.append(fmt(p.sources) + ' ', ...evidenceToggle(p.statement));
-      const service = p.service ? link(p.service_name || p.service, { view: 'object', id: p.service }) : node('span', t('general_price'));
+      const service = p.service ? link(p.service_name || t('unnamed_service'), { view: 'object', id: p.service }) : node('span', t('general_price'));
       const cells = [service, money(p.value), conditions(p.value) || t('none'), asOfText(p), status, ev];
       cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = t(cols[i]); if (c instanceof Node) td.append(c); else td.textContent = c; });
     }
@@ -455,7 +558,7 @@
   function jobItem(j) {
     const li = node('li', null, 'skg-statement skg-job');
     const head = node('div', null, 'skg-statement-head');
-    head.append(link(j.title || j.id, { view: 'object', id: j.id }), ' ', badge(t('job_' + j.status), 'j-' + j.status));
+    head.append(link(j.title || t('unnamed_job'), { view: 'object', id: j.id }), ' ', badge(t('job_' + j.status), 'j-' + j.status));
     li.append(head);
     const dl = node('dl', null, 'sseo-stats');
     const add = (k, v) => { if (v == null || v === '' || (Array.isArray(v) && !v.length)) return; dl.append(node('dt', t(k))); const dd = node('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = Array.isArray(v) ? v.join(', ') : v; dl.append(dd); };
@@ -488,7 +591,7 @@
     }
     if (b.categories?.length) box.append(section('services', list(b.categories, i => literalItem('category', i))));
     if (b.services?.length) box.append(section('services', list(b.services, sv => {
-      const head = node('div', null, 'skg-statement-head'); head.append(link(sv.name || sv.id, { view: 'object', id: sv.id }));
+      const head = node('div', null, 'skg-statement-head'); head.append(link(sv.name || t('unnamed_service'), { view: 'object', id: sv.id }));
       const li = factItem(head, sv);
       if (sv.categories?.length) li.insertBefore(node('p', sv.categories.map(c => codeLabel(c) || c.value).join(' · '), 'skg-value'), li.children[1]);
       if (sv.description) li.insertBefore(node('p', sv.description, 'skg-value'), li.children[1]);
@@ -574,28 +677,50 @@
   const GROUPS = {
     business: ['parent_of', 'subsidiary_of', 'carrier_of', 'member_of', 'association_member', 'partner_of', 'cooperation_with', 'customer_of',
       'reference_for', 'supplier_of', 'service_provider_for', 'brand_of', 'certified_by', 'funded_by', 'sponsored_by'],
-    structure: ['operates', 'part_of', 'located_at', 'in_place', 'serves_place', 'job_location'],
-    offers: ['offers', 'hiring_organization'],
-    values: ['industry', 'target_industry', 'audience_segment', 'customer_type'],
+    structure: ['operates', 'part_of', 'located_at'],
+    offers: ['offers'],
+    places: ['in_place', 'serves_place'],
+    industry: ['industry', 'target_industry'],
+    audiences: ['audience_segment', 'customer_type'],
+    jobs: ['hiring_organization', 'job_location'],
   };
-  const FILTERS = ['business', 'structure', 'offers', 'values', 'derived', 'weak', 'suggested', 'stale'];
-  const FILTER_DEFAULTS = ['business', 'structure', 'offers', 'values', 'derived'];
-  let graph = null, graphUrls = [];
+  const FACTS = ['business', 'structure', 'offers', 'places', 'industry', 'audiences', 'jobs', 'prices'];
+  const FILTERS = [...FACTS, 'derived', 'weak', 'suggested', 'current', 'stale'];
+  // the default view follows the centre: around a service its providers and their structure and relations, around a job its employer
+  const DEFAULTS = {
+    organization: ['business', 'structure', 'offers', 'places', 'industry', 'audiences', 'jobs', 'derived', 'current'],
+    service: ['business', 'structure', 'offers', 'current'],
+    job: ['business', 'structure', 'jobs', 'current'],
+  };
+  const defaultsFor = type => DEFAULTS[type] || DEFAULTS.organization;
+  const defaultDepth = type => type === 'service' || type === 'job' ? 2 : 1;
+  let graph = null, graphUrls = [], selected = null, drawnWidth = 0;
 
-  function networkFilters(p) {
-    const f = p.get('f'); const on = new Set(f == null ? FILTER_DEFAULTS : f.split(',').filter(x => FILTERS.includes(x)));
+  // f: the layers (facts and derived rows), s: the status (current, stale); both only in the URL when they differ from the default
+  function networkFilters(p, type) {
+    const f = p.get('f'), st = p.get('s');
+    const on = new Set(f == null ? defaultsFor(type).filter(x => !['current', 'stale'].includes(x)) : []);
+    for (const x of (f || '').split(',')) {
+      if (x === 'values') { on.add('industry'); on.add('audiences'); } // links of package 6
+      else if (FILTERS.includes(x) && x !== 'current') on.add(x); // "stale" in f: a link of package 6 that added outdated facts
+    }
+    if (st == null) on.add('current');
+    else { on.delete('stale'); for (const x of st.split(',')) if (x === 'current' || x === 'stale') on.add(x); }
     return on;
   }
   function networkQuery(on, depth, from) {
     const q = { depth, limit: 50, offset: from, weak: on.has('weak') ? 'true' : null, derived: on.has('derived') ? null : 'false',
-      suggested: on.has('suggested') ? 'true' : null, values: on.has('values') ? null : 'false', include: on.has('stale') ? 'stale' : null };
-    if (!['business', 'structure', 'offers'].every(g => on.has(g))) {
+      suggested: on.has('suggested') ? 'true' : null, values: on.has('industry') || on.has('audiences') ? null : 'false',
+      prices: on.has('prices') ? 'true' : null, include: on.has('stale') ? 'stale' : null };
+    const groups = Object.keys(GROUPS);
+    if (!groups.every(g => on.has(g))) {
       const types = [];
-      for (const g of ['business', 'structure', 'offers', 'values']) if (on.has(g)) types.push(...GROUPS[g]);
+      for (const g of groups) if (on.has(g)) types.push(...GROUPS[g]);
       if (on.has('derived')) types.push('same_operator');
       if (on.has('weak')) types.push('linked_to');
       if (on.has('suggested')) types.push('suggested_customer', 'suggested_partner');
-      q.types = types.join(',') || 'none';
+      // only prices: a type no fact has (weak links are off), so that the prices of the centre stay alone
+      q.types = types.join(',') || (on.has('prices') ? 'linked_to' : 'none');
     }
     return q;
   }
@@ -604,21 +729,25 @@
     const run = ++generation; message(t('loading'));
     $('net-svg').dataset.state = 'loading';
     const id = p.get('id') || '';
-    const depth = p.get('depth') === '2' ? 2 : 1;
-    const on = networkFilters(p);
+    // the centre's type decides the default view
+    const head = await api('entities/' + encodeURIComponent(id)); if (run !== generation) return;
+    if (head.redirect) { navigate({ ...Object.fromEntries(p), view: 'network', id: head.redirect }); return; }
+    const type = head.type;
+    const depth = p.get('depth') === '2' ? 2 : p.get('depth') === '1' ? 1 : defaultDepth(type);
+    const on = networkFilters(p, type);
     $('depth').value = String(depth);
     for (const f of FILTERS) $('f-' + f).checked = on.has(f);
     $('f-list').checked = p.get('list') === '1';
     $('net-wrap').hidden = $('f-list').checked;
+    $('network-title').textContent = t('network_of').replace('%1', shown(head));
     const q = networkQuery(on, depth, 0);
-    if (q.types === 'none') { graph = { center: id, nodes: [], edges: [], truncated: false }; renderNetwork(); message(t('net_empty')); return; }
+    if (q.types === 'none') { graph = { center: head.id, centerType: type, nodes: [], edges: [], truncated: false, depth, on }; renderNetwork(); message(t('net_empty')); return; }
     const data = await api('entities/' + encodeURIComponent(id) + '/neighborhood', q); if (run !== generation) return;
     if (data.redirect) { navigate({ ...Object.fromEntries(p), view: 'network', id: data.redirect }); return; }
-    graph = { center: data.center, nodes: data.nodes, edges: data.edges, truncated: data.truncated, next: data.next_offset, depth, on };
-    const center = data.nodes.find(n => n.id === data.center);
-    $('network-title').textContent = t('network_of').replace('%1', center?.label || data.center);
+    graph = { center: data.center, centerType: type, nodes: data.nodes, edges: data.edges, truncated: data.truncated, next: data.next_offset, depth, on };
+    selected = null;
     renderNetwork();
-    message(data.edges.length ? '' : t('net_empty')); $('network-title').focus();
+    message(visibleEdges(graph).length ? '' : t('net_empty')); $('network-title').focus();
   }
 
   async function networkMore() {
@@ -633,18 +762,96 @@
     renderNetwork();
   }
 
-  const nodeLabel = n => n.value ? ((de ? n.label_de : n.label_en) || n.label || n.code) : (n.label || n.id);
-  const shortLabel = text => text.length > 24 ? text.slice(0, 23) + '…' : text;
-  function nodeGroup(n) { return n.value ? 3 : n.type === 'organization' ? 0 : n.type === 'facility' || n.type === 'site' || n.type === 'place' ? 1 : 2; }
+  // the status filter keeps current or outdated facts; derived rows, weak signals and suggestions follow their own switches
+  function visibleEdges(g) {
+    return g.edges.filter(e => !e.fact || (e.status === 'stale' ? g.on.has('stale') : g.on.has('current')));
+  }
+  const nodeKind = n => n.value ? (n.type === 'price' ? 'price' : 'value') : n.type === 'site' ? 'facility' : n.type;
+  const nodeLabel = n => n.type === 'price' ? money(n.price) : n.value ? ((de ? n.label_de : n.label_en) || n.label || n.code) : shown({ ...n, name: n.label }, n.type);
+  // the second line of a node: the domain of an organisation, "Service" for a service, the place of a facility
+  function subLabel(n) {
+    if (n.type === 'price') return t('price') + (n.status && n.status !== 'current' ? ' · ' + t('s_' + n.status) : '');
+    if (n.type === 'industry') return t('industry') + ' · ' + n.code;
+    if (n.type === 'audience') return t('audience');
+    if (n.type === 'organization') return n.display_host || (n.hosts?.length ? domain(n.hosts[0]) : t('organization'));
+    if (n.type === 'facility' || n.type === 'site') return t(n.type) + (n.places?.length ? ' · ' + n.places[0] : '');
+    return t(n.type);
+  }
+  const clip = (text, max) => text.length > max ? text.slice(0, Math.max(1, max - 1)) + '…' : text;
   function edgeName(e) { return labels['p_' + e.type] || e.type; }
+  function edgeShort(e) { return labels['e_' + e.type] || edgeName(e); }
+  const groupOrder = n => ({ organization: 0, facility: 1, site: 1, service: 2, job: 3, place: 4 })[n.type] ?? (n.type === 'price' ? 5 : 6);
 
-  function layout(nodes, edges, center) {
-    const pos = new Map(); pos.set(center, { x: 0, y: 0, a: 0 });
-    const first = nodes.filter(n => n.depth === 1).sort((a, b) => nodeGroup(a) - nodeGroup(b) || nodeLabel(a).localeCompare(nodeLabel(b)));
-    const second = nodes.filter(n => n.depth === 2);
-    const r1 = Math.max(150, Math.min(260, 26 * first.length / Math.PI)), r2 = r1 + 140;
-    first.forEach((n, i) => { const a = -Math.PI / 2 + 2 * Math.PI * i / Math.max(1, first.length); pos.set(n.id, { x: r1 * Math.cos(a), y: r1 * Math.sin(a), a }); });
-    // depth 2 sits on an outer ring next to the neighbour it hangs on
+  // Layered: what points to the centre above it (providers, customers, members), what it points to below; depth 2 beyond its neighbour.
+  // Each layer wraps into rows that fit the width, so the drawing is as high as its content and never wider than the page. A layer of
+  // several rows sits on an even grid of slots, so that the lines run in the gaps between rows (channels) and columns (gutters).
+  function layered(nodes, edges, center, width, cw, ch) {
+    const side = new Map([[center, 0]]), anchor = new Map();
+    const touching = id => edges.find(x => (x.from === id && x.to === center) || (x.to === id && x.from === center));
+    for (const n of nodes) if (n.id !== center && n.depth === 1) { const e = touching(n.id); side.set(n.id, e && e.to === center ? -1 : 1); anchor.set(n.id, center); }
+    for (const n of nodes) if (!side.has(n.id)) {
+      const e = edges.find(x => (x.to === n.id && side.has(x.from) && side.get(x.from) !== 0) || (x.from === n.id && side.has(x.to) && side.get(x.to) !== 0));
+      const parent = e ? (e.to === n.id ? e.from : e.to) : null;
+      side.set(n.id, parent ? 2 * Math.sign(side.get(parent)) : 2);
+      if (parent) anchor.set(n.id, parent);
+    }
+    const gap = 14, rowGap = 32, margin = 8;
+    let perRow = Math.max(1, Math.floor((width - 2 * margin + gap) / (cw + gap)));
+    if (perRow > 1 && perRow % 2) perRow--; // an even grid: the centre line is a gutter
+    const gridLeft = (width - (perRow * cw + (perRow - 1) * gap)) / 2;
+    const gutters = []; for (let k = 0; k <= perRow; k++) gutters.push(gridLeft + k * (cw + gap) - gap / 2);
+    const pos = new Map(), rows = []; let y = margin, centerRow = 0;
+    for (const layer of [-2, -1, 0, 1, 2]) {
+      const items = nodes.filter(n => side.get(n.id) === layer).sort((a, b) => groupOrder(a) - groupOrder(b) || nodeLabel(a).localeCompare(nodeLabel(b)));
+      if (!items.length) continue;
+      const chunks = []; for (let r = 0; r * perRow < items.length; r++) chunks.push(items.slice(r * perRow, (r + 1) * perRow));
+      if (layer < 0) chunks.reverse(); // the first row is the one next to the centre
+      for (const row of chunks) {
+        if (rows.length) y += rowGap;
+        const h = layer === 0 ? ch + 8 : ch;
+        if (layer === 0) centerRow = rows.length;
+        row.forEach((n, i) => {
+          let x;
+          if (layer === 0) x = width / 2;
+          else if (chunks.length === 1) { const rw = row.length * cw + (row.length - 1) * gap; x = (width - rw) / 2 + i * (cw + gap) + cw / 2; }
+          else x = gridLeft + (i + Math.floor((perRow - row.length) / 2)) * (cw + gap) + cw / 2;
+          pos.set(n.id, { x, y: y + h / 2, row: rows.length, layer });
+        });
+        rows.push({ top: y, bottom: y + h, layer, ids: row.map(n => n.id) });
+        y += h;
+      }
+    }
+    return { pos, rows, gutters, anchor, centerRow, margin, box: { x: 0, y: 0, w: width, h: y + margin + 14 } };
+  }
+  // An orthogonal route from a to b through the channels and gutters of the layered drawing; points from a to b.
+  function orthoRoute(L, a, b, half, center) {
+    const A = L.pos.get(a), B = L.pos.get(b);
+    if (A.row > B.row) return orthoRoute(L, b, a, half, center).reverse();
+    const port = (id, p) => id === center ? p.x : p.x - half(id).hw + 18;
+    // a channel per gap: near the centre-side end of the gap; captions sit at the other end, next to their cards
+    const channel = g => g < L.centerRow ? L.rows[g + 1].top - 9 : L.rows[g].bottom + 9;
+    const ra = L.rows[A.row], rb = L.rows[B.row], xa = port(a, A), xb = port(b, B);
+    if (A.row === B.row) {
+      const below = A.row >= L.centerRow, yA = below ? ra.bottom : ra.top;
+      const yc = below ? (A.row + 1 < L.rows.length ? channel(A.row) : ra.bottom + 10) : (A.row > 0 ? channel(A.row - 1) : ra.top - 10);
+      return [[xa, yA], [xa, yc], [xb, yc], [xb, yA]];
+    }
+    const ya = channel(A.row), yb = channel(B.row - 1);
+    if (A.row + 1 === B.row) return [[xa, ra.bottom], [xa, ya], [xb, ya], [xb, rb.top]];
+    // rows in between: down a gutter that no card of those rows covers, the one nearest to b
+    const blocked = x => L.rows.slice(A.row + 1, B.row).some(r => r.ids.some(id => Math.abs(L.pos.get(id).x - x) < half(id).hw + 3));
+    const free = L.gutters.filter(x => !blocked(x)).sort((u, v) => Math.abs(u - xb) - Math.abs(v - xb));
+    const gx = free.length ? free[0] : L.margin / 2;
+    return [[xa, ra.bottom], [xa, ya], [gx, ya], [gx, yb], [xb, yb], [xb, rb.top]];
+  }
+  // Radial for a few neighbours on a wide screen: an ellipse around the centre, depth 2 outside next to its neighbour.
+  function radial(nodes, edges, center, cw, ch, centreWidth) {
+    const pos = new Map([[center, { x: 0, y: 0, a: 0 }]]);
+    const first = nodes.filter(n => n.id !== center && n.depth === 1).sort((a, b) => groupOrder(a) - groupOrder(b) || nodeLabel(a).localeCompare(nodeLabel(b)));
+    const second = nodes.filter(n => n.id !== center && n.depth !== 1);
+    const r1 = Math.max(170, (centreWidth + cw) / 2 / 1.35 + 40, first.length * (cw + 24) / (2 * Math.PI) / 1.2), r2 = r1 + ch + 90;
+    const at = (r, a) => ({ x: 1.35 * r * Math.cos(a), y: 0.8 * r * Math.sin(a), a });
+    first.forEach((n, i) => pos.set(n.id, at(r1, -Math.PI / 2 + 2 * Math.PI * i / Math.max(1, first.length))));
     const byParent = new Map();
     for (const n of second) {
       const e = edges.find(x => (x.to === n.id && pos.has(x.from) && x.from !== center) || (x.from === n.id && pos.has(x.to) && x.to !== center));
@@ -653,128 +860,264 @@
     }
     const slot = 2 * Math.PI / Math.max(1, first.length);
     for (const [parent, kids] of byParent) {
-      const base = pos.get(parent)?.a ?? 0, spread = Math.min(slot * 0.9, 0.22 * kids.length);
-      kids.forEach((n, i) => { const a = base + (kids.length === 1 ? 0 : -spread / 2 + spread * i / (kids.length - 1)); pos.set(n.id, { x: r2 * Math.cos(a), y: r2 * Math.sin(a), a }); });
+      const base = pos.get(parent)?.a ?? 0, spread = Math.min(slot * 0.9, 0.3 * kids.length);
+      kids.forEach((n, i) => pos.set(n.id, at(r2, base + (kids.length === 1 ? 0 : -spread / 2 + spread * i / (kids.length - 1)))));
     }
-    return { pos, radius: second.length ? r2 : r1 };
+    let minX = 0, maxX = 0, minY = 0, maxY = 0;
+    for (const p of pos.values()) { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+    const m = 16;
+    return { pos, box: { x: minX - cw / 2 - m, y: minY - ch / 2 - m, w: maxX - minX + cw + 2 * m, h: maxY - minY + ch + 2 * m } };
+  }
+  // where the line from a card's centre towards (tx, ty) leaves the card
+  function rim(p, tx, ty, hw, hh) {
+    const dx = tx - p.x, dy = ty - p.y;
+    if (!dx && !dy) return { x: p.x, y: p.y };
+    const k = Math.min(dx ? hw / Math.abs(dx) : Infinity, dy ? hh / Math.abs(dy) : Infinity);
+    return { x: p.x + dx * k, y: p.y + dy * k };
   }
 
   function renderNetwork() {
-    const g = graph, box = $('net-svg'); box.replaceChildren();
+    const g = graph, box = $('net-svg'), wrap = $('net-wrap'); box.replaceChildren();
     for (const u of graphUrls) URL.revokeObjectURL(u); graphUrls = [];
+    const edges = visibleEdges(g);
+    const used = new Set([g.center]); for (const e of edges) { used.add(e.from); used.add(e.to); }
+    const nodes = g.nodes.filter(n => used.has(n.id));
     const byId = new Map(g.nodes.map(n => [n.id, n]));
-    const { pos, radius } = layout(g.nodes, g.edges, g.center);
-    const half = radius + 110;
-    box.setAttribute('viewBox', `${-half} ${-half} ${2 * half} ${2 * half}`);
+    const width = Math.max(280, Math.floor(wrap.clientWidth || $('network').clientWidth || 800));
+    drawnWidth = width;
+    const narrow = width < 640;
+    const ring = nodes.filter(n => n.depth === 1).length, outer = nodes.filter(n => n.depth > 1).length;
+    const vertical = narrow || ring > 12 || outer > 0 || nodes.length <= 3;
+    // layered: two columns on a phone, as many 190 px cards as fit (an even number) on a wider screen
+    const cw = vertical ? Math.min(190, Math.floor((width - 2 * 8 - 14) / 2)) : 150;
+    const ch = 44, centreWidth = Math.min(width - 16, Math.round(cw * (vertical ? 1.5 : 1.4)));
+    const half = id => id === g.center ? { hw: centreWidth / 2, hh: (ch + 8) / 2 } : { hw: cw / 2, hh: ch / 2 };
+    const lay = vertical ? layered(nodes, edges, g.center, width, cw, ch) : radial(nodes, edges, g.center, cw, ch, centreWidth);
+    const { pos, box: vb } = lay;
+    box.setAttribute('viewBox', `${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`);
+    box.style.aspectRatio = vb.w.toFixed(1) + ' / ' + vb.h.toFixed(1);
+    box.style.maxWidth = vertical ? '' : Math.ceil(vb.w) + 'px';
+    box.dataset.layout = vertical ? 'layered' : 'radial';
     box.setAttribute('aria-label', $('network-title').textContent);
     const defs = svg('defs');
-    for (const st of ['confirmed', 'uncertain', 'stale', 'weak', 'derived', 'suggested']) {
-      const m = svg('marker', { id: 'skg-arrow-' + st, viewBox: '0 0 10 10', refX: '10', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' });
+    for (const st of ['confirmed', 'uncertain', 'stale', 'weak', 'derived', 'suggested', 'hl']) {
+      const m = svg('marker', { id: 'skg-arrow-' + st, viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' });
       m.append(svg('path', { d: 'M 0 0 L 10 5 L 0 10 z', class: 'skg-arrow skg-e-' + st })); defs.append(m);
     }
     box.append(defs);
-    const edgeLayer = svg('g', { class: 'skg-edges' }), nodeLayer = svg('g', { class: 'skg-nodes' });
-    box.append(edgeLayer, nodeLayer);
-    const pairs = new Map();
-    const edgeEls = [];
-    for (const e of g.edges) {
+    const edgeLayer = svg('g', { class: 'skg-edges' }), labelLayer = svg('g', { class: 'skg-elabels' }), nodeLayer = svg('g', { class: 'skg-nodes' });
+    box.append(edgeLayer, nodeLayer, labelLayer);
+    const layout = vertical ? lay : null;
+    // layered: the relation to the anchor (the centre, or the neighbour a depth-2 node hangs on) is the card's caption;
+    // the other lines get a label on their middle stretch while there are few of them. Radial: labels on the lines.
+    const anchorEdge = e => layout && (layout.anchor.get(e.from) === e.to || layout.anchor.get(e.to) === e.from);
+    const others = edges.filter(e => !anchorEdge(e));
+    const showLabels = layout ? others.length <= 6 : edges.length <= (narrow ? 12 : 24);
+    box.classList.toggle('skg-labels-hover', !showLabels);
+    const pairs = new Map(), edgeEls = [];
+    // labels never cover each other: every caption and label takes a box; a label that finds no free place shows on highlight only
+    const textWidth = text => text.length * 6.2 + 6;
+    // boxes {x1, y1, x2, y2}: the cards, then every caption and label placed
+    const taken = nodes.filter(n => pos.has(n.id)).map(n => { const p = pos.get(n.id), h = half(n.id); return { x1: p.x - h.hw - 2, y1: p.y - h.hh - 2, x2: p.x + h.hw + 2, y2: p.y + h.hh + 2 }; });
+    const boxOf = (x, y, w, at) => { const x1 = at === 'start' ? x : at === 'end' ? x - w : x - w / 2; return { x1, y1: y - 10, x2: x1 + w, y2: y + 3 }; };
+    const free = b => b.x1 >= vb.x && b.x2 <= vb.x + vb.w && !taken.some(o => b.x1 < o.x2 && b.x2 > o.x1 && b.y1 < o.y2 && b.y2 > o.y1);
+    // captions: what the card is to its anchor ("offers", "operates"), beside the line that enters it, on the anchor's side
+    if (layout) for (const n of nodes) {
+      const anc = layout.anchor.get(n.id), p = pos.get(n.id); if (!anc || !p) continue;
+      const names = [...new Set(edges.filter(e => (e.from === n.id && e.to === anc) || (e.to === n.id && e.from === anc)).map(edgeShort))];
+      if (!names.length) continue;
+      const { hw, hh } = half(n.id), towardsCentre = layout.pos.get(anc).y > p.y;
+      const x = p.x - hw + 26, y = towardsCentre ? p.y + hh + 14 : p.y - hh - 6;
+      const cap = svg('text', { x: x.toFixed(1), y: y.toFixed(1), class: 'skg-caption', 'data-node': n.id });
+      cap.textContent = clip(names.join(' · '), Math.floor((2 * hw - 26) / 6.2));
+      labelLayer.append(cap); taken.push(boxOf(x, y, textWidth(cap.textContent), 'start'));
+    }
+    const labelled = new Set();
+    for (const e of edges) {
       const a = pos.get(e.from), b = pos.get(e.to); if (!a || !b) continue;
       const key = [e.from, e.to].sort().join('|'); const k = pairs.get(key) || 0; pairs.set(key, k + 1);
-      // parallel edges between the same two nodes bend apart; arrows stop at the node's rim
-      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
-      const bend = k === 0 ? 0 : (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 26;
-      const rimA = e.from === g.center ? 22 : 15, rimB = e.to === g.center ? 22 : 15;
-      const sx = a.x + dx / len * rimA, sy = a.y + dy / len * rimA, tx = b.x - dx / len * (rimB + 2), ty = b.y - dy / len * (rimB + 2);
-      const cx = (sx + tx) / 2 + nx * bend, cy = (sy + ty) / 2 + ny * bend;
-      const d = `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${tx.toFixed(1)} ${ty.toFixed(1)}`;
-      const wrap = svg('g', { class: 'skg-edge skg-e-' + e.status, tabindex: '0', role: 'button', 'data-edge': e.id, 'data-from': e.from, 'data-to': e.to });
-      wrap.setAttribute('aria-label', (nodeLabel(byId.get(e.from) || { id: e.from })) + ' ' + edgeName(e) + ' ' + (nodeLabel(byId.get(e.to) || { id: e.to })) + ', ' + t('s_' + e.status));
-      wrap.append(svg('path', { d, class: 'skg-hit' }), svg('path', { d, class: 'skg-line', 'marker-end': 'url(#skg-arrow-' + e.status + ')',
-        'stroke-width': (1 + 2 * Math.min(1, e.confidence || 0)).toFixed(1) }));
-      const title = svg('title'); title.textContent = wrap.getAttribute('aria-label'); wrap.append(title);
-      const show = () => edgeDetail(e, byId); wrap.addEventListener('mouseenter', show); wrap.addEventListener('focus', show); wrap.addEventListener('click', show);
-      wrap.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); show(); } else if (ev.key === 'Escape') hideDetail(); });
-      edgeLayer.append(wrap); edgeEls.push(wrap);
+      let d, spots = [];
+      if (layout) {
+        const pts = orthoRoute(layout, e.from, e.to, half, g.center).map(([x, y]) => [x + (k ? 4 * k : 0), y]);
+        d = 'M ' + pts.map(([x, y]) => x.toFixed(1) + ' ' + y.toFixed(1)).join(' L ');
+        // places for the label of a non-anchor line: along its horizontal stretches, the longest first, then beside its vertical ones
+        const segs = [];
+        for (let i = 1; i < pts.length; i++) segs.push([pts[i - 1], pts[i]]);
+        segs.sort((u, v) => Math.hypot(v[1][0] - v[0][0], v[1][1] - v[0][1]) - Math.hypot(u[1][0] - u[0][0], u[1][1] - u[0][1]));
+        for (const [[x0, y0], [x1, y1]] of segs) for (const f of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+          if (y0 === y1) spots.push([x0 + (x1 - x0) * f, y0 - 3], [x0 + (x1 - x0) * f, y0 + 12]);
+          else spots.push([x0 + 4, y0 + (y1 - y0) * f + 4, 'start'], [x0 - 4, y0 + (y1 - y0) * f + 4, 'end']);
+        }
+      } else {
+        // parallel lines between the same two cards bend apart; arrows stop at the card's edge
+        const bend = k === 0 ? 0 : (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 22;
+        const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+        const mx = (a.x + b.x) / 2 + nx * bend, my = (a.y + b.y) / 2 + ny * bend;
+        const ha = half(e.from), hb = half(e.to);
+        const s0 = rim(a, mx, my, ha.hw, ha.hh), t0 = rim(b, mx, my, hb.hw + 2, hb.hh + 2);
+        d = `M ${s0.x.toFixed(1)} ${s0.y.toFixed(1)} Q ${mx.toFixed(1)} ${my.toFixed(1)} ${t0.x.toFixed(1)} ${t0.y.toFixed(1)}`;
+        // points on the curve (t = 0.5, then nearer the ends)
+        for (const tt of [0.5, 0.35, 0.65]) spots.push([(1 - tt) * (1 - tt) * s0.x + 2 * tt * (1 - tt) * mx + tt * tt * t0.x,
+          (1 - tt) * (1 - tt) * s0.y + 2 * tt * (1 - tt) * my + tt * tt * t0.y + 4]);
+      }
+      const wrapEl = svg('g', { class: 'skg-edge skg-e-' + e.status, tabindex: '0', role: 'button', 'data-edge': e.id, 'data-from': e.from, 'data-to': e.to, 'data-type': e.type });
+      const text = nodeLabel(byId.get(e.from) || { id: e.from }) + ' → ' + edgeShort(e) + ' → ' + nodeLabel(byId.get(e.to) || { id: e.to }) + ', ' + t('s_' + e.status);
+      wrapEl.setAttribute('aria-label', text);
+      wrapEl.append(svg('path', { d, class: 'skg-hit' }), svg('path', { d, class: 'skg-line', 'marker-end': 'url(#skg-arrow-' + e.status + ')',
+        'stroke-width': (1 + 1.5 * Math.min(1, e.confidence || 0)).toFixed(1) }));
+      const title = svg('title'); title.textContent = text; wrapEl.append(title);
+      if (!anchorEdge(e)) {
+        const textLabel = clip(edgeShort(e), 22), w = textWidth(textLabel), once = key + '|' + textLabel;
+        const spot = labelled.has(once) ? null : spots.find(([x, y, at]) => free(boxOf(x, y, w, at)));
+        const [lx, ly, anchorAt] = spot || spots[0] || [0, 0];
+        const label = svg('text', { x: lx.toFixed(1), y: ly.toFixed(1), 'text-anchor': anchorAt || 'middle',
+          class: 'skg-elabel skg-e-' + e.status + (spot ? '' : ' skg-crowded'), 'data-edge': e.id });
+        label.textContent = textLabel; labelLayer.append(label);
+        if (spot) { taken.push(boxOf(lx, ly, w, anchorAt)); labelled.add(once); }
+      }
+      const show = () => { select(null); edgeDetail(e, byId); highlight(e.from, e.to, e.id); };
+      wrapEl.addEventListener('click', show); wrapEl.addEventListener('focus', show);
+      wrapEl.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); show(); } else if (ev.key === 'Escape') hideDetail(); });
+      wrapEl.addEventListener('mouseenter', () => highlight(e.from, e.to, e.id)); wrapEl.addEventListener('mouseleave', () => highlight(selected));
+      edgeLayer.append(wrapEl); edgeEls.push(wrapEl);
     }
-    const many = g.nodes.length > 30;
-    const ordered = [...g.nodes].sort((a, b) => a.depth - b.depth);
+    const ordered = [...nodes].sort((a, b) => (a.id === g.center) - (b.id === g.center) || a.depth - b.depth);
     for (const n of ordered) {
       const p = pos.get(n.id); if (!p) continue;
-      const cls = 'skg-node skg-t-' + (n.value ? 'value' : n.type) + (n.id === g.center ? ' skg-center' : '') + (n.depth === 2 && many ? ' skg-quiet' : '');
-      const el = svg('g', { class: cls, tabindex: '0', role: n.value ? 'img' : 'link', transform: `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`, 'data-node': n.id });
-      el.setAttribute('aria-label', nodeLabel(n) + ' (' + (n.value ? t(n.type) : t(n.type) + (n.kind ? ' · ' + n.kind : '')) + (n.id === g.center ? ', ' + t('net_center') : '') + ')');
-      const r = n.id === g.center ? 20 : 13;
-      el.append(n.value ? svg('rect', { x: -r, y: -r * 0.75, width: 2 * r, height: 1.5 * r, rx: 4 }) : svg('circle', { r }));
-      const text = svg('text', { y: r + 14, 'text-anchor': 'middle' }); text.textContent = shortLabel(nodeLabel(n)); el.append(text);
-      const title = svg('title'); title.textContent = nodeLabel(n); el.append(title);
-      const show = () => { nodeDetail(n, byId); for (const w of edgeEls) w.classList.toggle('skg-hl', w.dataset.from === n.id || w.dataset.to === n.id); };
-      el.addEventListener('mouseenter', show); el.addEventListener('focus', show);
-      const open = () => { if (!n.value && n.id !== g.center) navigate({ view: 'object', id: n.id }); else show(); };
-      el.addEventListener('click', open);
-      el.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); open(); } else if (ev.key === 'Escape') hideDetail(); });
+      const center = n.id === g.center, { hw, hh } = half(n.id);
+      const cls = 'skg-node skg-t-' + nodeKind(n) + (center ? ' skg-center' : '') + (n.status ? ' skg-ns-' + n.status : '');
+      const el = svg('g', { class: cls, tabindex: '0', role: 'button', transform: `translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})`, 'data-node': n.id, 'data-type': n.type });
+      el.setAttribute('aria-label', nodeLabel(n) + ', ' + subLabel(n) + (center ? ', ' + t('net_center') : ''));
+      el.append(svg('rect', { class: 'skg-card', x: -hw, y: -hh, width: 2 * hw, height: 2 * hh, rx: n.value ? 14 : 7 }));
+      el.append(svg('rect', { class: 'skg-stripe', x: -hw, y: -hh, width: 6, height: 2 * hh, rx: 3 }));
+      const chars = Math.max(6, Math.floor((2 * hw - 22) / 7.2));
+      const t1 = svg('text', { x: -hw + 13, y: -2, class: 'skg-n1' }); t1.textContent = clip(nodeLabel(n), chars);
+      const t2 = svg('text', { x: -hw + 13, y: 14, class: 'skg-n2' }); t2.textContent = clip(subLabel(n), Math.floor(chars * 1.15));
+      el.append(t1, t2);
+      const title = svg('title'); title.textContent = nodeLabel(n) + ' · ' + subLabel(n); el.append(title);
+      const open = () => { select(n.id); nodeDetail(n, byId); };
+      el.addEventListener('click', open); el.addEventListener('focus', open);
+      el.addEventListener('mouseenter', () => highlight(n.id)); el.addEventListener('mouseleave', () => highlight(selected));
+      el.addEventListener('keydown', ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } else if (ev.key === 'Escape') hideDetail(); });
       nodeLayer.append(el);
     }
+    function highlight(id, other, edgeId) {
+      for (const w of edgeEls) w.classList.toggle('skg-hl', edgeId ? w.dataset.edge === edgeId && w.dataset.from === id : !!id && (w.dataset.from === id || w.dataset.to === id));
+      for (const l of labelLayer.children) l.classList.toggle('skg-hl', l.dataset.edge ? edgeEls.some(w => w.classList.contains('skg-hl') && w.dataset.edge === l.dataset.edge)
+        : !!id && (l.dataset.node === id || l.dataset.node === other));
+      for (const c of nodeLayer.children) c.classList.toggle('skg-hl', !!id && (c.dataset.node === id || c.dataset.node === other));
+    }
+    function select(id) { selected = id; highlight(id); }
     // legend, counters, paging, exports and the list
     const legend = $('net-legend'); legend.replaceChildren();
+    for (const [kind, key] of [['organization', 'legend_node_organization'], ['facility', 'legend_node_facility'], ['service', 'legend_node_service'], ['job', 'legend_node_job'],
+      ['place', 'legend_node_place'], ['value', 'legend_node_value'], ['price', 'legend_node_price']]) {
+      const li = node('li'); const s = svg('svg', { width: '22', height: '14', 'aria-hidden': 'true', class: 'skg-legend-node skg-t-' + kind });
+      s.append(svg('rect', { x: '1', y: '1', width: '20', height: '12', rx: kind === 'value' || kind === 'price' ? '6' : '3', class: 'skg-card' }),
+        svg('rect', { x: '1', y: '1', width: '4', height: '12', rx: '2', class: 'skg-stripe' }));
+      li.append(s, ' ', t(key)); legend.append(li);
+    }
     for (const [st, key] of [['confirmed', 'legend_fact'], ['uncertain', 'legend_uncertain'], ['derived', 'legend_derived'], ['weak', 'legend_weak'], ['suggested', 'legend_suggested']]) {
       const li = node('li'); const s = svg('svg', { width: '36', height: '10', 'aria-hidden': 'true' });
       s.append(svg('line', { x1: '0', y1: '5', x2: '36', y2: '5', class: 'skg-line skg-e-' + st })); li.append(s, ' ', t(key)); legend.append(li);
     }
-    { const li = node('li'); const s = svg('svg', { width: '14', height: '12', 'aria-hidden': 'true' }); s.append(svg('rect', { x: '1', y: '1', width: '12', height: '10', rx: '2', class: 'skg-legend-value' })); li.append(s, ' ', t('legend_value')); legend.append(li); }
-    $('net-count').textContent = t('net_count').replace('%1', fmt(g.nodes.length)).replace('%2', fmt(g.edges.length)) + (g.truncated ? ' · ' + t('net_more_hint') : '');
+    $('net-count').textContent = t('net_count').replace('%1', fmt(nodes.length)).replace('%2', fmt(edges.length)) + (g.truncated ? ' · ' + t('net_more_hint') : '');
     $('net-more').hidden = !g.truncated;
-    const json = new Blob([JSON.stringify({ schema: 'scoutro.kg.business.v1', center: g.center, collection: collection || null, nodes: g.nodes, edges: g.edges }, null, 2)], { type: 'application/json' });
-    const graphml = new Blob([toGraphml(g)], { type: 'application/graphml+xml' });
+    const json = new Blob([JSON.stringify({ schema: 'scoutro.kg.business.v1', center: g.center, collection: collection || null, nodes, edges }, null, 2)], { type: 'application/json' });
+    const graphml = new Blob([toGraphml({ center: g.center, nodes, edges })], { type: 'application/graphml+xml' });
     for (const [id, blob] of [['net-json', json], ['net-graphml', graphml]]) { const u = URL.createObjectURL(blob); graphUrls.push(u); $(id).href = u; }
     const body = $('net-table').tBodies[0]; body.replaceChildren();
     const heads = [...$('net-table').tHead.rows[0].cells].map(c => c.textContent);
-    for (const e of g.edges) {
-      const row = body.insertRow();
-      const end = id => { const n = byId.get(id) || { id }; return n.value || id === g.center ? node('span', nodeLabel(n)) : link(nodeLabel(n), { view: 'object', id }); };
+    for (const e of edges) {
+      const end = id => {
+        const n = byId.get(id) || { id }, span = node('span');
+        span.append(n.value || id === g.center ? node('span', nodeLabel(n)) : link(nodeLabel(n), { view: 'object', id }));
+        span.append(' ', node('span', '(' + subLabel(n) + ')', 'sseo-note'));
+        return span;
+      };
       const ev = node('span'); ev.append(fmt(e.evidence) + ' ');
       if (e.fact && e.id.startsWith('kgs_')) ev.append(...evidenceToggle(e.id)); else ev.append(node('span', t('no_fact'), 'sseo-note'));
-      [end(e.from), edgeName(e), end(e.to), statusBadge(e.status), pct(e.confidence), ev].forEach((c, i) => { const td = row.insertCell(); td.dataset.label = heads[i]; if (c instanceof Node) td.append(c); else td.textContent = c; });
+      rowInto(body, heads, [end(e.from), edgeName(e), end(e.to), statusBadge(e.status), pct(e.confidence), ev]);
     }
     hideDetail();
     box.dataset.state = 'ready';
-    // on a narrow screen the drawing is wider than the page: start with its centre in view
-    const wrap = $('net-wrap'); requestAnimationFrame(() => { wrap.scrollLeft = Math.max(0, (wrap.scrollWidth - wrap.clientWidth) / 2); });
   }
 
   function hideDetail() { $('net-detail').hidden = true; $('net-detail').replaceChildren(); }
+  function detailStats(rows) {
+    const dl = node('dl', null, 'sseo-stats');
+    for (const [k, v] of rows) { if (v == null || v === '') continue; dl.append(node('dt', t(k))); const dd = node('dd'); if (v instanceof Node) dd.append(v); else dd.textContent = v; dl.append(dd); }
+    return dl;
+  }
+  function relationLine(e, byId) {
+    const from = byId.get(e.from) || { id: e.from }, to = byId.get(e.to) || { id: e.to };
+    const li = node('li', null, 'skg-statement');
+    li.append(node('div', nodeLabel(from) + ' → ' + edgeShort(e) + ' → ' + nodeLabel(to), 'skg-statement-head'));
+    li.append(node('div', t('s_' + e.status) + ' · ' + t('confidence') + ': ' + pct(e.confidence) + ' · ' + t('sources') + ': ' + fmt(e.evidence)
+      + (e.fact ? '' : ' · ' + t('no_fact')), 'sseo-note'));
+    return li;
+  }
   function nodeDetail(n, byId) {
     const box = $('net-detail'); box.replaceChildren(); box.hidden = false;
     box.append(node('h3', nodeLabel(n)));
-    box.append(node('p', n.value ? t(n.type) + ' · ' + n.code : t(n.type) + (n.kind ? ' · ' + n.kind : ''), 'sseo-note'));
+    box.append(node('p', subLabel(n) + (n.kind ? ' · ' + n.kind : '') + (n.id === graph.center ? ' · ' + t('net_center') : ''), 'sseo-note'));
+    { const note = nameNote(n); if (note) box.append(note); }
+    if (!n.value) box.append(detailStats([['type', t(n.type)], ['domain', (n.hosts || []).map(domain).join(', ') || t('missing')],
+      ['collections', (n.collections || []).join(', ') || t('none')], ['places', (n.places || []).join(', ')],
+      ['quality', n.quality ? qualityBadge(n.quality) : null], ['sources', fmt(n.sources)], ['last_confirmed', n.last_confirmed ? date(n.last_confirmed) : null]]));
+    // the relation to the centre first; a node at depth 2 is reached through its neighbour
     const mine = graph.edges.filter(e => e.from === n.id || e.to === n.id);
-    box.append(list(mine.slice(0, 12), e => {
-      const other = byId.get(e.from === n.id ? e.to : e.from) || { id: e.from === n.id ? e.to : e.from };
-      const li = node('li', null, 'skg-statement');
-      li.append(node('div', (e.from === n.id ? edgeName(e) + ' → ' : '← ' + edgeName(e) + ' · ') + nodeLabel(other), 'skg-statement-head'));
-      li.append(node('div', t('s_' + e.status) + ' · ' + t('confidence') + ': ' + pct(e.confidence) + ' · ' + t('sources') + ': ' + fmt(e.evidence), 'sseo-note'));
-      return li;
-    }));
-    if (!n.value && n.id !== graph.center) { const a = link(t('open_object'), { view: 'object', id: n.id }); a.className = 'btn btn-default btn-sm'; box.append(a); }
+    const direct = mine.filter(e => e.from === graph.center || e.to === graph.center);
+    if (n.id !== graph.center) {
+      box.append(node('h4', t('relation_to_centre')));
+      if (direct.length) box.append(list(direct, e => relationLine(e, byId)));
+      else {
+        const via = mine.map(e => byId.get(e.from === n.id ? e.to : e.from)).find(o => o && graph.edges.some(x => (x.from === o.id && x.to === graph.center) || (x.to === o.id && x.from === graph.center)));
+        box.append(node('p', via ? t('via').replace('%1', nodeLabel(via)) : t('none'), 'sseo-note'));
+      }
+    }
+    const rest = mine.filter(e => !direct.includes(e));
+    if (rest.length) { box.append(node('h4', t(n.id === graph.center ? 'sec_relations' : 'other_relations'))); box.append(list(rest.slice(0, 12), e => relationLine(e, byId))); }
+    const actions = node('div', null, 'sseo-controls skg-detail-actions');
+    const button = (text, query, hash) => { const a = link(text, query, hash); a.className = 'btn btn-default btn-sm'; return a; };
+    if (!n.value) {
+      actions.append(button(t('open_object'), { view: 'object', id: n.id }));
+      if (n.id !== graph.center) actions.append(button(t('open_network'), { view: 'network', id: n.id }));
+      actions.append(button(t('open_sources'), { view: 'object', id: n.id }, 'skg-sec-sources'));
+    } else if (n.type === 'industry') actions.append(button(t('objects_industry'), { view: 'objects', industry: n.code }));
+    else if (n.type === 'audience') actions.append(button(t('objects_audience'), { view: 'objects', audience: n.code }));
+    else if (n.type === 'price') {
+      const svc = byId.get(n.service);
+      if (svc) actions.append(button(t('open_service'), { view: 'object', id: svc.id }));
+      const e = graph.edges.find(x => x.to === n.id);
+      if (e) actions.append(...evidenceToggle(e.id));
+    }
+    box.append(actions);
+    if (box.getBoundingClientRect().top > window.innerHeight - 80) box.scrollIntoView({ block: 'nearest' });
   }
   function edgeDetail(e, byId) {
     const box = $('net-detail'); box.replaceChildren(); box.hidden = false;
     const from = byId.get(e.from) || { id: e.from }, to = byId.get(e.to) || { id: e.to };
-    box.append(node('h3', nodeLabel(from) + ' · ' + edgeName(e) + ' · ' + nodeLabel(to)));
+    box.append(node('h3', nodeLabel(from) + ' → ' + edgeShort(e) + ' → ' + nodeLabel(to)));
+    box.append(node('p', edgeName(e), 'sseo-note'));
     const meta = node('div', null, 'skg-meta'); meta.append(statusBadge(e.status), node('span', t('confidence') + ': ' + pct(e.confidence) + ' · ' + t('sources') + ': ' + fmt(e.evidence), 'sseo-note'));
     box.append(meta);
     if (e.fact && e.id.startsWith('kgs_')) box.append(...evidenceToggle(e.id));
     else box.append(node('p', t('no_fact'), 'sseo-note'));
+    if (box.getBoundingClientRect().top > window.innerHeight - 80) box.scrollIntoView({ block: 'nearest' });
   }
   function toGraphml(g) {
     const x = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const out = ['<?xml version="1.0" encoding="UTF-8"?>', '<graphml xmlns="http://graphml.graphdrawing.org/xmlns">',
       '<key id="label" for="node" attr.name="label" attr.type="string"/>', '<key id="type" for="node" attr.name="type" attr.type="string"/>',
       '<key id="kind" for="node" attr.name="kind" attr.type="string"/>', '<key id="depth" for="node" attr.name="depth" attr.type="int"/>',
+      '<key id="hosts" for="node" attr.name="hosts" attr.type="string"/>', '<key id="collections" for="node" attr.name="collections" attr.type="string"/>',
       '<key id="relation" for="edge" attr.name="relation" attr.type="string"/>', '<key id="status" for="edge" attr.name="status" attr.type="string"/>',
       '<key id="confidence" for="edge" attr.name="confidence" attr.type="double"/>', '<key id="evidence" for="edge" attr.name="evidence" attr.type="int"/>',
       '<key id="fact" for="edge" attr.name="fact" attr.type="boolean"/>', '<graph id="' + x(g.center) + '" edgedefault="directed">'];
-    for (const n of g.nodes) out.push(`<node id="${x(n.id)}"><data key="label">${x(nodeLabel(n))}</data><data key="type">${x(n.value ? n.type : n.type)}</data>`
-      + (n.kind ? `<data key="kind">${x(n.kind)}</data>` : '') + `<data key="depth">${n.depth}</data></node>`);
+    for (const n of g.nodes) out.push(`<node id="${x(n.id)}"><data key="label">${x(nodeLabel(n))}</data><data key="type">${x(n.type)}</data>`
+      + (n.kind ? `<data key="kind">${x(n.kind)}</data>` : '') + `<data key="depth">${n.depth}</data>`
+      + (n.hosts?.length ? `<data key="hosts">${x(n.hosts.join(' '))}</data>` : '') + (n.collections?.length ? `<data key="collections">${x(n.collections.join(' '))}</data>` : '') + '</node>');
     g.edges.forEach((e, i) => out.push(`<edge id="e${i}" source="${x(e.from)}" target="${x(e.to)}"><data key="relation">${x(e.type)}</data><data key="status">${x(e.status)}</data>`
       + `<data key="confidence">${e.confidence ?? 0}</data><data key="evidence">${e.evidence ?? 0}</data><data key="fact">${e.fact ? 'true' : 'false'}</data></edge>`));
     out.push('</graph>', '</graphml>');
@@ -783,10 +1126,69 @@
   function networkParams() {
     const p = new URLSearchParams(location.search);
     const q = { view: 'network', id: p.get('id') || graph?.center || '' };
-    if ($('depth').value === '2') q.depth = '2';
-    const on = FILTERS.filter(f => $('f-' + f).checked);
-    if (on.join(',') !== FILTER_DEFAULTS.join(',')) q.f = on.join(',');
+    const type = graph?.centerType;
+    if ($('depth').value !== String(defaultDepth(type))) q.depth = $('depth').value;
+    const layers = FILTERS.filter(f => f !== 'current' && f !== 'stale');
+    const on = layers.filter(f => $('f-' + f).checked);
+    if (on.join(',') !== layers.filter(f => defaultsFor(type).includes(f)).join(',')) q.f = on.join(',');
+    const status = ['current', 'stale'].filter(f => $('f-' + f).checked);
+    if (status.join(',') !== 'current') q.s = status.join(',') || 'none';
     if ($('f-list').checked) q.list = '1';
+    return q;
+  }
+
+  // ------------------------------------------------------------------ services
+  // Services of the same name across providers: read-only groups, then the services of one name, each with its own provider.
+  async function servicesView(p) {
+    const run = ++generation; message(t('loading'));
+    let f = null; try { f = await loadFacets(); } catch (_) { f = null; }
+    if (run !== generation) return;
+    const name = p.get('name') || '', category = p.get('category') || '';
+    fillSelect($('svc-category'), [[t('categories'), f?.categories || [], false]], category);
+    $('svc-q').value = p.get('q') || '';
+    $('svc-groups-box').hidden = !!name; $('svc-rows-box').hidden = !name;
+    let data;
+    if (name) {
+      data = await api('services/providers', { name, category, offset, limit: LIMIT }); if (run !== generation) return;
+      const g = data.group;
+      $('svc-group-title').textContent = t('group_title').replace('%1', g.name).replace('%2', fmt(g.providers));
+      stats('svc-group', [['g_services', fmt(g.services)], ['g_providers', fmt(g.providers)], ['g_without_provider', fmt(g.without_provider)],
+        ['collections', g.collections.map(c => c.name + ' (' + fmt(c.services) + ')').join(', ') || t('none')],
+        ['g_places', g.places.map(x => x.name + ' (' + fmt(x.providers) + ')').join(', ') || t('none')],
+        ['g_with_price', fmt(g.with_price)], ['g_with_current', fmt(g.with_current_source)]]);
+      const body = $('svc-rows').tBodies[0]; body.replaceChildren();
+      const heads = [...$('svc-rows').tHead.rows[0].cells].map(c => c.textContent);
+      for (const r of data.items) {
+        const sv = r.service, ctx = { providers: r.providers || [], provider_count: r.provider_count, places: [] };
+        const e = { id: sv.id, name: sv.name, type: 'service' };
+        rowInto(body, heads, [nameLink(sv, sv.id, 'service'), providerCell(e, ctx), (sv.collections || []).join(', ') || t('none'),
+          placeOf(ctx), t('prices_value').replace('%1', fmt(r.prices?.current)).replace('%2', fmt(r.prices?.all)), qualityBadge(sv.quality),
+          fmt(sv.sources), date(sv.last_confirmed), hitActions(e, ctx)]);
+      }
+      const back = $('svc-back'); const bp = new URLSearchParams({ view: 'services' }); if (collection) bp.set('collection', collection);
+      back.href = 'ScoutroKnowledge_p.html?' + bp;
+      $('svc-group-title').tabIndex = -1;
+    } else {
+      data = await api('services', { q: $('svc-q').value.trim(), category, offset, limit: LIMIT }); if (run !== generation) return;
+      const body = $('svc-groups').tBodies[0]; body.replaceChildren();
+      const heads = [...$('svc-groups').tHead.rows[0].cells].map(c => c.textContent);
+      for (const g of data.items) {
+        const title = node('span'); title.append(link(g.name, { view: 'services', name: g.name, ...(category ? { category } : {}) }));
+        if (g.without_provider) title.append(' ', node('span', t('g_without_provider') + ': ' + fmt(g.without_provider), 'sseo-note'));
+        rowInto(body, heads, [title, fmt(g.providers), g.collections.map(c => c.name + ' (' + fmt(c.services) + ')').join(', ') || t('none'),
+          g.places.slice(0, 5).map(x => x.name).join(', ') || t('missing'), fmt(g.with_price), fmt(g.with_current_source)]);
+      }
+    }
+    const total = data.total;
+    $('svc-range').textContent = total ? t('range').replace('%1', fmt(offset + 1)).replace('%2', fmt(offset + data.items.length)).replace('%3', fmt(total)) : '';
+    $('svc-prev').disabled = offset === 0; $('svc-next').disabled = offset + LIMIT >= total;
+    message(total ? '' : t('services_empty'));
+    if (name) $('svc-group-title').focus(); else $('services-title').focus();
+  }
+  function servicesQuery(from) {
+    const p = new URLSearchParams(location.search), q = { view: 'services' };
+    for (const k of ['name', 'q', 'category']) if (p.get(k)) q[k] = p.get(k);
+    if (from) q.offset = from;
     return q;
   }
 
@@ -801,8 +1203,8 @@
     const data = await api('compare', { category }); if (run !== generation) return;
     const heads = [...$('compare-table').tHead.rows[0].cells].map(c => c.textContent);
     for (const r of data.rows) {
-      const providers = () => { const box = node('span'); r.providers.forEach((pv, i) => { if (i) box.append(', '); box.append(link(pv.name || pv.id, { view: 'object', id: pv.id })); if (pv.locality) box.append(' · ' + pv.locality); }); return box; };
-      const service = () => link(r.service.name || r.service.id, { view: 'object', id: r.service.id });
+      const providers = () => { const box = node('span'); r.providers.forEach((pv, i) => { if (i) box.append(', '); box.append(nameLink(pv, pv.id, 'organization')); if (pv.locality) box.append(' · ' + pv.locality); }); return box; };
+      const service = () => nameLink(r.service, r.service.id, 'service');
       const prices = r.prices.length ? r.prices : [null];
       for (const p of prices) {
         const row = body.insertRow(); if (p) row.dataset.status = p.status;
@@ -827,7 +1229,7 @@
     const list = node('ul', null, 'skg-statements');
     for (const item of data.items) {
       const li = statementItem(item, 'out');
-      li.querySelector('.skg-statement-head').prepend(link(item.subject_name || item.subject, { view: 'object', id: item.subject }), ' ');
+      li.querySelector('.skg-statement-head').prepend(nameLink(item, item.subject, null, 'subject_'), ' ');
       list.append(li);
     }
     $('source-items').replaceChildren(data.items.length ? list : node('p', t('none')));
@@ -843,6 +1245,7 @@
     const kinds = Object.entries(c.llmKinds || {}).map(([k, v]) => k + ': ' + (v.length ? v.join(', ') : t('none'))).join('\n');
     stats('config', [['enabled', t(s.enabled ? 'yes' : 'no')], ['valid', c.valid == null ? null : t(c.valid ? 'yes' : 'no')],
       ['followed', (c.collections || []).join(', ') || t('none')], ['llm_collections', (c.llmCollections || []).join(', ') || t('none')],
+      ['jobs_collections', (c.jobsCollections || []).join(', ') || t('none')],
       ['llm_kinds', kinds || t('none')], ['budget', bytes(s.storage?.budgetBytes)], ['model', s.llm?.model],
       ['chat', c.chat == null ? null : !c.chat.enabled ? t('no') : t('chat_detail').replace('%1', fmt(c.chat.maxFacts))
         .replace('%2', fmt(c.chat.maxChars)).replace('%3', fmt(c.chat.timeoutMs)).replace('%4', t(c.chat.allowGuests ? 'yes' : 'no'))]]);
@@ -862,6 +1265,13 @@
     const p = new URLSearchParams(location.search);
     view = VIEWS.includes(p.get('view')) ? p.get('view') : 'overview';
     collection = p.get('collection') || '';
+    // a collection of the link (or of history) counts only if it is one of the listed ones; else all collections
+    const unknown = collection !== '' && !allowed.includes(collection);
+    if (unknown) {
+      collection = ''; p.delete('collection');
+      history.replaceState(null, '', 'ScoutroKnowledge_p.html' + (p.toString() ? '?' + p : '') + location.hash);
+    }
+    $('scope-unknown').hidden = !unknown;
     offset = Math.max(0, parseInt(p.get('offset') || '0', 10) || 0);
     $('collection').value = collection;
     for (const v of VIEWS) $(v).hidden = v !== view;
@@ -871,31 +1281,51 @@
       const q = new URLSearchParams(a.dataset.skgView === 'overview' ? {} : { view: a.dataset.skgView }); if (collection) q.set('collection', collection);
       a.href = 'ScoutroKnowledge_p.html' + (q.toString() ? '?' + q : '');
     }
-    if (!validCollection(collection)) { message(t('invalid_collection')); return; }
     if (view === 'overview') guarded(overview);
     else if (view === 'objects') {
       for (const k of OBJECT_FILTERS) { const el = $(k); el.value = p.get(k) || ''; if (p.get(k) && el.value !== p.get(k)) { const o = node('option', p.get(k)); o.value = p.get(k); el.append(o); el.value = p.get(k); } }
       guarded(objects);
     } else if (view === 'object') guarded(() => object(p.get('id') || ''));
     else if (view === 'network') guarded(() => network(p));
+    else if (view === 'services') guarded(() => servicesView(p));
     else if (view === 'compare') guarded(() => compare(p.get('category') || ''));
     else if (view === 'source') guarded(() => source(p.get('doc') || ''));
     else guarded(settings);
   }
 
-  $('scope').addEventListener('submit', e => {
-    e.preventDefault();
-    const name = $('collection').value.trim();
-    if (!validCollection(name)) { message(t('invalid_collection')); return; }
-    collection = name;
+  $('scope').addEventListener('submit', e => e.preventDefault());
+  $('collection').addEventListener('change', () => {
+    collection = $('collection').value;
     const p = Object.fromEntries(new URLSearchParams(location.search)); delete p.collection; delete p.offset;
     navigate(p);
   });
   $('search').addEventListener('submit', e => { e.preventDefault(); navigate(objectQuery()); });
   $('net-form').addEventListener('submit', e => { e.preventDefault(); navigate(networkParams()); });
-  $('f-list').addEventListener('change', () => { $('net-wrap').hidden = $('f-list').checked; history.replaceState(null, '', 'ScoutroKnowledge_p.html?' + new URLSearchParams({ ...networkParams(), ...(collection ? { collection } : {}) })); });
+  $('f-list').addEventListener('change', () => {
+    $('net-wrap').hidden = $('f-list').checked;
+    history.replaceState(null, '', 'ScoutroKnowledge_p.html?' + new URLSearchParams({ ...networkParams(), ...(collection ? { collection } : {}) }));
+    if (!$('f-list').checked && graph) renderNetwork(); // drawn for the width it has now
+  });
   $('net-more').addEventListener('click', () => guarded(networkMore));
+  $('net-reset').addEventListener('click', () => { const q = { view: 'network', id: new URLSearchParams(location.search).get('id') || graph?.center || '' }; navigate(q); });
+  $('svc-back').addEventListener('click', e => { if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); navigate({ view: 'services' }); });
+  // the layout follows the width: draw again after a resize (rotation of a phone, a narrower window)
+  let resizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const w = $('net-wrap').clientWidth;
+      if (view === 'network' && graph && !$('net-wrap').hidden && Math.abs(w - drawnWidth) > 40) { drawnWidth = w; renderNetwork(); }
+    }, 200);
+  });
   $('compare-form').addEventListener('submit', e => { e.preventDefault(); navigate({ view: 'compare', category: $('compare-category').value }); });
+  $('svc-form').addEventListener('submit', e => {
+    e.preventDefault(); const q = { view: 'services' };
+    if ($('svc-q').value.trim()) q.q = $('svc-q').value.trim(); if ($('svc-category').value) q.category = $('svc-category').value;
+    navigate(q);
+  });
+  $('svc-prev').addEventListener('click', () => navigate(servicesQuery(Math.max(0, offset - LIMIT))));
+  $('svc-next').addEventListener('click', () => navigate(servicesQuery(offset + LIMIT)));
   $('prev').addEventListener('click', () => navigate({ ...objectQuery(), offset: Math.max(0, offset - LIMIT) }));
   $('next').addEventListener('click', () => navigate({ ...objectQuery(), offset: offset + LIMIT }));
   for (const b of document.querySelectorAll('[data-skg-action]')) b.addEventListener('click', () => guarded(() => control(b.dataset.skgAction)));
@@ -904,8 +1334,6 @@
     navigate(a.dataset.skgView === 'overview' ? {} : { view: a.dataset.skgView });
   });
   window.addEventListener('popstate', load);
-  fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
-    for (const item of data?.collections || []) { const o = document.createElement('option'); o.value = item.id; $('collection-list').append(o); }
-  }).catch(() => {});
-  load();
+  // the views start once the list of collections is there, so a collection of the link can be checked against it
+  ScoutroCollections.load().then(ids => { allowed = ids; ScoutroCollections.fill($('collection'), ids, ''); load(); });
 })();

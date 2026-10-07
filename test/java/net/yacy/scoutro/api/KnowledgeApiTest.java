@@ -228,6 +228,19 @@ public class KnowledgeApiTest {
             assertEquals(400, read(api, "GET", "derived", "entity", "not-an-id"));
             assertEquals(200, read(api, "GET", "facets"));
             assertEquals(400, read(api, "GET", "facets", "limit", "5"));
+            // package 6.1: services of the same name, read-only groups and their rows; prices as a network layer
+            assertEquals(200, read(api, "GET", "services"));
+            assertEquals(200, read(api, "GET", "services", "q", "SAP", "category", "software/erp", "limit", "50", "offset", "10"));
+            assertEquals(400, read(api, "GET", "services", "limit", "51"));
+            assertEquals(400, read(api, "GET", "services", "name", "SAP"));
+            assertEquals(400, read(api, "GET", "services", "category", "Software ERP"));
+            assertEquals(400, read(api, "GET", "services/providers"));
+            assertEquals(400, read(api, "GET", "services/providers", "q", "SAP"));
+            assertEquals(404, read(api, "GET", "services/providers", "name", "SAP"));
+            assertEquals(404, read(api, "GET", "services/other"));
+            assertEquals(405, read(api, "POST", "services"));
+            assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "prices", "true"));
+            assertEquals(400, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/neighborhood", "prices", "yes"));
             assertEquals(200, read(api, "GET", "entities", "industry", "87.10", "category", "care/tagespflege", "audience", "b2b"));
             assertEquals(400, read(api, "GET", "entities", "industry", "8710"));
             assertEquals(404, read(api, "GET", "entities/kge_" + "a".repeat(20) + "/nothing"));

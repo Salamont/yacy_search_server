@@ -5,6 +5,9 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.function.BooleanSupplier;
 
@@ -18,6 +21,7 @@ import org.json.JSONObject;
 
 import net.yacy.cora.document.id.MultiProtocolURL;
 import net.yacy.cora.protocol.Domains;
+import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.http.ClientAddress;
 import net.yacy.search.Switchboard;
 import net.yacy.search.SwitchboardConstants;
@@ -38,6 +42,8 @@ public final class LLMAccess {
     public static final String ADMIN_REQUIRED = "admin_required";
     public static final String AI_SHIELD_BLOCKED = "ai_shield_blocked";
     public static final String AI_SHIELD_RATE_LIMITED = "ai_shield_rate_limited";
+    /** the chat scope names a collection this client may not choose (package 6.1) */
+    public static final String COLLECTION_NOT_ALLOWED = "collection_not_allowed";
     public static final String NO_CHAT_MODEL = "no_chat_model";
     public static final String LLM_UNREACHABLE = "llm_unreachable";
     public static final String LLM_AUTH_FAILED = "llm_auth_failed";
@@ -74,11 +80,23 @@ public final class LLMAccess {
     }
 
     public static ClientAddress client(final HttpServletRequest request) {
+        return ClientAddress.of(request, trustedProxies());
+    }
+
+    /** The client of a page request, resolved like {@link #client(HttpServletRequest)} from its socket peer. */
+    public static ClientAddress client(final RequestHeader header) {
+        return ClientAddress.resolve(header.getRemoteSocketAddr(), name -> {
+            final List<String> values = new ArrayList<>();
+            if (header.getHeaders(name) != null) values.addAll(Collections.list(header.getHeaders(name)));
+            return values;
+        }, trustedProxies());
+    }
+
+    private static String trustedProxies() {
         final Switchboard sb = Switchboard.getSwitchboard();
-        final String trusted = sb == null ? SwitchboardConstants.SERVER_REVERSE_PROXY_TRUSTED_DEFAULT
+        return sb == null ? SwitchboardConstants.SERVER_REVERSE_PROXY_TRUSTED_DEFAULT
                 : sb.getConfig(SwitchboardConstants.SERVER_REVERSE_PROXY_TRUSTED,
                         SwitchboardConstants.SERVER_REVERSE_PROXY_TRUSTED_DEFAULT);
-        return ClientAddress.of(request, trusted);
     }
 
     /**

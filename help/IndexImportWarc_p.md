@@ -30,7 +30,7 @@ Import and export pages translate external data formats into YaCy documents or m
 | --- | --- | --- |
 | `file` | Selected or uploaded file. | Text value; use the page label and surrounding context to choose the exact content. |
 | `url` | URL to inspect, crawl, import, or act on. | URL or URL-derived value; use the exact format shown by the page. |
-| `collection` | Collection name used to group indexed documents. | `user` |
+| `collection` | Collection name used to group indexed documents. In Scoutro the field is a list of existing collections; **New collection** creates one first. Without JavaScript, or while the catalog cannot be read (not yet signed in as administrator, index unavailable), YaCy's original text field stays. | `user` |
 | `submit` | Submits the form. | `Import Warc File` |
 | `abort` | File. | `Stop` |
 

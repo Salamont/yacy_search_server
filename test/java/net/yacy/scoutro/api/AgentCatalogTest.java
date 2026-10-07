@@ -116,7 +116,9 @@ public class AgentCatalogTest {
             final java.util.Set<String> reads = java.util.Set.of("kg.entities", "kg.entity", "kg.entity.statements", "kg.statement",
                     "kg.statement.evidence", "kg.host.entities", "kg.source",
                     // vocabulary 2 (package 6)
-                    "kg.entity.business", "kg.entity.neighborhood", "kg.compare", "kg.derived", "kg.facets");
+                    "kg.entity.business", "kg.entity.neighborhood", "kg.compare", "kg.derived", "kg.facets",
+                    // services of the same name across providers (package 6.1)
+                    "kg.services", "kg.services.providers");
             if (!reads.contains(name) && !name.equals("kg.export") && !name.equals("kg.changes")) {
                 // status, control, the download, backups and every later administrator route: never an agent grant
                 Assert.assertFalse(name, agent.getBoolean("grantable"));
@@ -131,7 +133,7 @@ public class AgentCatalogTest {
             Assert.assertEquals(name, grant, AgentApi.route("GET", segs).action);
             if (grant.equals("kg.read")) read++; else export++;
         }
-        Assert.assertEquals(12, read);
+        Assert.assertEquals(14, read);
         Assert.assertEquals(2, export);
     }
 }

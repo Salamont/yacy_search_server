@@ -92,10 +92,11 @@ class ScopedActions {
                 return ok(host);
             }
             case "collections.list": {
-                if (agent.scope.allCollections) return ok(this.actions.collections());
+                // an agent never creates collections; it lists its grants (all selectable ones with the complete index)
+                if (agent.scope.allCollections) return ok(this.actions.collections(false));
                 final JSONArray choices = new JSONArray();
                 for (final String idValue : agent.scope.collections) choices.put(Json.obj("id", idValue, "documents", null));
-                return ok(Json.obj("collections", choices, "allowNew", false, "limit", choices.length()));
+                return ok(Json.obj("collections", choices, "allowNew", false, "canCreate", false, "limit", choices.length()));
             }
             case "discovery.status":
                 return ok(net.yacy.scoutro.discovery.DiscoveryService.get().status());

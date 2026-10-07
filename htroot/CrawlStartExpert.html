@@ -284,7 +284,7 @@
             These tags can be selected with the <a href="gsa/search?q=www&site=#[collection]#">GSA interface</a> using the 'site' operator.
             To use this option, the 'collection_sxt'-field must be switched on in the <a href="IndexFederated_p.html">Solr Schema</a>
             </span></span>
-            <input name="collection" id="collection" type="text" size="60" maxlength="100" value="#[collection]#" #(collectionEnabled)#disabled="disabled"::#(/collectionEnabled)# /><br>Do not use underline '_' in collection name, use '-' instead. When useful, add a language code to the collection name, e.g. 'top-100-en'.
+            <input data-scoutro-collection-select name="collection" id="collection" type="text" size="60" maxlength="100" value="#[collection]#" #(collectionEnabled)#disabled="disabled"::#(/collectionEnabled)# /><br>Do not use underline '_' in collection name, use '-' instead. When useful, add a language code to the collection name, e.g. 'top-100-en'.
           </dd>
 
           <dt><label for="collection">Time Zone Offset</label></dt>
@@ -712,6 +712,9 @@
       </fieldset>
     </form>
 
+    #%env/templates/scoutro/collection-create.template%#
+    <script src="env/scoutro/collections.js"></script>
+    <script src="env/scoutro/collection-select.js"></script>
     #%env/templates/footer.template%#
   </body>
 </html>

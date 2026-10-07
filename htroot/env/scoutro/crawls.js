@@ -42,7 +42,7 @@
   $('form').addEventListener('submit', async event => {
     event.preventDefault(); if (busy || !$('form').reportValidity()) return;
     busy = true; epoch++; controller?.abort(); $('start').disabled = true; message(t('loading'));
-    const request = {url:$('url').value.trim(),collection:$('collection').value.trim(),scope:$('scope').value, maxPages:Number($('pages').value),depth:Number($('depth').value)};
+    const request = {url:$('url').value.trim(),collection:$('collection').value,scope:$('scope').value, maxPages:Number($('pages').value),depth:Number($('depth').value)};
     try {
       const result = await api('crawls', {method:'POST',headers:{'Content-Type':'application/json','Idempotency-Key':submissionKey},body:JSON.stringify(request)});
       message(t(result.idempotentReplay ? 'replayed' : 'started')); render([result]);
@@ -53,9 +53,18 @@
   $('refresh').addEventListener('click',refresh);
   const initial = new URLSearchParams(location.search);
   if (initial.has('url')) $('url').value = initial.get('url');
-  if (initial.has('collection')) $('collection').value = initial.get('collection');
-  api('collections').then(result => { for (const collection of result.collections) { const option = node('option'); option.value = collection.id; $('collections').append(option); } })
-    .catch(() => message(t('catalog_error')));
+  // package 6.1: the collection is chosen from the catalog, never typed; a new one is created explicitly and then selected
+  const wanted = initial.get('collection') || '';
+  ScoutroCollections.catalog().then(catalog => {
+    if (!catalog.available) message(t('catalog_error'));
+    if (ScoutroCollections.fill($('collection'), catalog.ids, wanted) !== wanted && wanted) message(t('unknown_collection'));
+  });
+  ScoutroCollections.offerCreate($('collection-new'), (entry, created) => ScoutroCollections.reload().then(ids => {
+    ScoutroCollections.fill($('collection'), ids, entry.id);
+    submissionKey = key(); // a changed request is a new start
+    message(created + ' ' + (entry.name && entry.name !== entry.id ? entry.name + ' · ' : '') + entry.id);
+    $('collection').focus();
+  }));
   refresh(); const timer = setInterval(refresh,15000);
   window.addEventListener('pagehide', () => { epoch++; controller?.abort(); clearInterval(timer); });
 })();

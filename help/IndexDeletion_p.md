@@ -38,7 +38,7 @@ Index pages expose stored documents through URL, host, path, Solr field, or queu
 | `simulate-timedelete` | Deletion or termination action. Use only with explicit intent. | `Simulate Deletion` |
 | `engage-timedelete` | Deletion or termination action. Use only with explicit intent. | `Engage Deletion` |
 | `collectiondelete-mode` | Choice value. Options: `unassigned`, `assigned`. | `unassigned`, `assigned` |
-| `collectiondelete` | Deletion or termination action. Use only with explicit intent. | Text value; use the page label and surrounding context to choose the exact content. |
+| `collectiondelete` | Deletion or termination action. Use only with explicit intent. In Scoutro the collection is always chosen from the list of the collections in the index (the page reads the index facet); nothing is typed. | One collection of the list. |
 | `simulate-collectiondelete` | Deletion or termination action. Use only with explicit intent. | `Simulate Deletion` |
 | `engage-collectiondelete` | Deletion or termination action. Use only with explicit intent. | `Engage Deletion` |
 | `querydelete` | Deletion or termination action. Use only with explicit intent. | Text value; use the page label and surrounding context to choose the exact content. |

@@ -47,10 +47,12 @@
         <dl class="userConfig">
           <dt>Collections</dt>
           <dd>
-            #{cols}#<label class="scoutro-check"><input type="checkbox" name="col_#[name]#"#(checked)#:: checked="checked"#(/checked)#/> <code>#[name]#</code>#(indexed)# (no documents yet)::#(/indexed)#</label><br/>#{/cols}#
+            <div class="scoutro-collection-choices" data-scoutro-collection-choices>
+            #{cols}#<label class="scoutro-check"><input type="checkbox" name="col_#[name]#"#(checked)#:: checked="checked"#(/checked)#/> <code>#[name]#</code>#(named)#:: #[title]##(/named)##(indexed)# (no documents yet)::#(/indexed)#</label><br/>#{/cols}#
+            </div>
+            <button type="button" class="btn btn-default btn-sm" data-scoutro-collection-new hidden>New collection</button>
+            <p class="help-block">Collections are chosen from the list. A new collection is created with New collection and then ticked.</p>
           </dd>
-          <dt><label for="extraCollections">Further collections</label></dt>
-          <dd><input type="text" name="extraCollections" id="extraCollections" value="" size="40" placeholder="collection-a, collection-b"/></dd>
           <dt>Complete index</dt>
           <dd>
             <label><input type="checkbox" name="allCollections"#(all)#:: checked="checked"#(/all)#/> Grant the complete local index</label><br/>
@@ -182,6 +184,9 @@
       </fieldset>
 #(/step)#
     </form>
+#%env/templates/scoutro/collection-create.template%#
+<script src="env/scoutro/collections.js"></script>
+<script src="env/scoutro/collection-choices.js"></script>
 
 #%env/templates/footer.template%#
 </body>

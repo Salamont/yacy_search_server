@@ -4,6 +4,7 @@
   <title>Scoutro: Index Browser</title>
   #%env/templates/metas.template%#
   <link rel="stylesheet" href="env/scoutro/index-browser.css" />
+  <script defer src="env/scoutro/collections.js"></script>
   <script defer src="env/scoutro/index-browser.js"></script>
 </head>
 <body id="IndexControl" class="scoutro-visualization">
@@ -17,9 +18,8 @@
   </nav>
   <form id="scoutro-index-form" action="IndexBrowser_p.html" method="get" class="scoutro-dash-card scoutro-index-filters" role="search">
     <label for="scoutro-index-query"><span id="scoutro-index-query-label">Domain or host</span><input name="q" id="scoutro-index-query" type="search" maxlength="250" value="#[browserQuery]#" class="form-control" autocomplete="off"/></label>
-    <label for="scoutro-index-collection">Collection<input name="collection" id="scoutro-index-collection" list="scoutro-index-choices" maxlength="64" value="#[browserCollection]#" class="form-control" autocomplete="off"/></label>
+    <label for="scoutro-index-collection">Collection<select name="collection" id="scoutro-index-collection" class="form-control" data-initial="#[browserCollection]#" disabled="disabled" aria-busy="true"><option value="">All collections</option></select></label>
     <label for="scoutro-index-sort" id="scoutro-index-sort-field">Sort by<select id="scoutro-index-sort" name="sort" class="form-control"><option value="host">Domain (A&ndash;Z)</option><option value="pages">Most indexed pages</option></select></label>
-    <datalist id="scoutro-index-choices"></datalist>
     <div class="scoutro-index-actions">
       <button class="btn btn-primary" type="submit">Apply filters</button>
       <button class="btn btn-default" id="scoutro-index-reset" type="button">Reset filters</button>
@@ -45,6 +45,7 @@
   <p id="scoutro-domain-empty" hidden>No indexed domains match these filters.</p>
   <p id="scoutro-index-unavailable" hidden>Index data unavailable or access denied. Sign in as administrator and retry.</p>
   <p id="scoutro-index-invalid" hidden>Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.</p>
+  <p id="scoutro-index-unknown" hidden>The collection of the link is not available; all collections are shown.</p>
   <p id="scoutro-index-invalid-host" hidden>Enter a host name, part of a host name or a URL.</p>
   <section id="scoutro-domain-view" class="scoutro-domain-view" aria-labelledby="scoutro-domain-caption">
     <p id="scoutro-domain-caption" class="scoutro-domain-caption"><span id="scoutro-domain-total">0</span> <span>domain entries</span></p>

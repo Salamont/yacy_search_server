@@ -1339,6 +1339,8 @@ Not certain: taken from the page metadata or a page title, not from a name with 
 Operator and contact as found on the indexed pages==Betreiber und Kontakt laut den indexierten Seiten
 Index data unavailable or access denied. Sign in as administrator and retry.==Indexdaten nicht verfügbar oder Zugriff verweigert. Als Administrator anmelden und erneut versuchen.
 Invalid collection. Use letters, numbers, underscores or hyphens, up to 64 characters.==Ungültige Collection. Bis zu 64 Buchstaben, Ziffern, Unterstriche oder Bindestriche verwenden.
+>The collection of the link is not available; all collections are shown.<==>Die Collection des Links steht nicht zur Verfügung; alle Collections werden gezeigt.<
+>All collections<==>Alle Collections<
 Enter a host name, part of a host name or a URL.==Geben Sie einen Hostnamen, einen Teil davon oder eine URL ein.
 The number of entries is shown in the file.==Die Anzahl der Einträge steht in der Datei.
 No indexed domains match these filters.==Keine indexierten Domains entsprechen diesen Filtern.
@@ -4089,6 +4091,9 @@ Allow non-localhost clients to access the chat interface==Nicht-localhost-Client
 Show a link to yacychat.html on the search front page==Einen Link zu yacychat.html auf der Suchstartseite anzeigen
 Limit for all requests, including localhost==Grenze für alle Anfragen, einschließlich localhost
 Guest Access Control & Rate Limits==Gastzugriffssteuerung & Ratenbegrenzung
+Collections guests may choose in the chat==Collections, die Gäste im Chat wählen dürfen
+Guests search the whole index. Only the collections ticked here appear in their collection list and may be chosen as the search scope; no other collection name is shown to them. Local and administrator access may choose every collection.==Gäste durchsuchen den ganzen Index. Nur die hier angehakten Collections erscheinen in ihrer Collection-Liste und können als Suchbereich gewählt werden; andere Collection-Namen sehen sie nicht. Lokaler Zugriff und Administratoren können jede Collection wählen.
+The index has no collections yet.==Der Index enthält noch keine Collections.
 Wire RAG Retrieval Shield==RAG-Retrieval-Schutzschild verdrahten
 Overall Load Protection==Gesamter Überlastschutz
 Save Shield Settings==Schutzschild-Einstellungen speichern
@@ -4650,7 +4655,8 @@ Log in==Anmelden
 #---------------------------
 AI search in your Scoutro index. Answers name their sources as [1], [2] … – check important facts on the linked pages.==KI-Suche in Ihrem Scoutro-Index. Antworten nennen ihre Quellen als [1], [2] … – prüfen Sie wichtige Angaben auf den verlinkten Seiten.
 This chat is private. Scoutro keeps no history – only your browser remembers the current conversation.==Dieser Chat ist privat. Scoutro speichert keinen Verlauf – nur Ihr Browser merkt sich das aktuelle Gespräch.
-Empty: whole index. Enter or choose a collection to search only its pages.==Leer: ganzer Index. Geben Sie eine Collection ein oder wählen Sie eine aus, um nur deren Seiten zu durchsuchen.
+All collections: the whole index. Choose a collection to search only its pages.==Alle Collections: der ganze Index. Wählen Sie eine Collection, um nur deren Seiten zu durchsuchen.
+>All collections<==>Alle Collections<
 System data requires an authorized administrator or agent token. No web answer is substituted.==Systemdaten benötigen einen berechtigten Administrator oder Agent-Token. Es wird keine Webantwort als Ersatz verwendet.
 No YaCy administrator permission: the AI Shield admits this address only after the YaCy administrator login.==Keine YaCy-Administratorberechtigung: Das AI Shield lässt diese Adresse erst nach der YaCy-Administratoranmeldung zu.
 Blocked by the AI Shield: guest access is off, or the request came from another site or with an agent token.==Vom AI Shield blockiert: Der Gastzugang ist aus, oder die Anfrage kam von einer anderen Website oder mit einem Agent-Token.
@@ -4659,6 +4665,7 @@ No chat model is configured: assign a model to the chat role in LLM Selection.==
 The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.==Der LLM-Endpunkt ist vom Scoutro-Server aus nicht erreichbar: Prüfen Sie den hoststub in der LLM-Auswahl.
 The LLM endpoint rejected the credentials: check the API key in LLM Selection.==Der LLM-Endpunkt hat die Zugangsdaten abgelehnt: Prüfen Sie den API-Key in der LLM-Auswahl.
 The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.==Der LLM-Endpunkt hat mit einem Fehler geantwortet: Den HTTP-Status zeigt das Scoutro-Log.
+This collection is not available here: choose one of the listed collections or all collections.==Diese Collection steht hier nicht zur Verfügung: Wählen Sie eine der aufgeführten Collections oder alle Collections.
 The Scoutro server cannot be reached. Check the network connection and try again.==Der Scoutro-Server ist nicht erreichbar. Prüfen Sie die Netzwerkverbindung und versuchen Sie es erneut.
 The connection broke off before the answer was complete. Please ask again.==Die Verbindung ist abgebrochen, bevor die Antwort vollständig war. Bitte stellen Sie die Frage erneut.
 The server could not create an answer. Please try again later; the Scoutro log has the details.==Der Server konnte keine Antwort erstellen. Bitte versuchen Sie es später erneut; Details stehen im Scoutro-Log.
@@ -4853,7 +4860,8 @@ The Scoutro research worker receives research tasks from Clustro and uses only t
 Scoutro research agent (Clustro worker)==Scoutro-Rechercheagent (Clustro-Worker)
 The agent can only read and crawl in the selected collections. Searches, text evidence, lookups and crawls outside them are refused.==Der Agent kann nur in den ausgewählten Collections lesen und crawlen. Suchen, Textbelege, Abfragen und Crawls außerhalb davon werden abgelehnt.
 (no documents yet)==(noch keine Dokumente)
-Further collections==Weitere Collections
+Collections are chosen from the list. A new collection is created with New collection and then ticked.==Collections werden aus der Liste gewählt. Eine neue Collection wird mit „Neue Collection“ angelegt und dann angehakt.
+>New collection<==>Neue Collection<
 Grant the complete local index==Gesamten lokalen Index freigeben
 I confirm that this agent may read all collections of this Scoutro instance.==Ich bestätige, dass dieser Agent alle Collections dieser Scoutro-Instanz lesen darf.
 Network search of other peers is never part of a data scope; it is a separate action.==Die Netzwerksuche bei anderen Peers ist nie Teil eines Datenbereichs; sie ist eine eigene Action.
@@ -4919,6 +4927,9 @@ Data scope==Datenbereich
 
 #File: ScoutroAgents_p.html
 #---------------------------
+Collections are chosen from the list. A new collection is created with New collection and then ticked.==Collections werden aus der Liste gewählt. Eine neue Collection wird mit „Neue Collection“ angelegt und dann angehakt.
+>New collection<==>Neue Collection<
+(not in the collection list)==(nicht in der Collection-Liste)
 These crawl starts were recorded, but no crawl profile carries their start marker (for example after a crash between the start and storing its id, when the crawl has meanwhile finished and YaCy removed its profile). Scoutro never repeats them automatically. Check the Crawler monitor and the index; if the start should be repeated, mark it as not started.==Diese Crawlstarts wurden protokolliert, aber kein Crawl-Profil trägt ihren Start-Marker (zum Beispiel nach einem Absturz zwischen Start und Speichern der ID, wenn der Crawl inzwischen beendet ist und YaCy sein Profil entfernt hat). Scoutro wiederholt sie nie automatisch. Prüfen Sie Crawler-Monitor und Index; soll der Start wiederholt werden, markieren Sie ihn als nicht gestartet.
 Unconfirmed crawl starts==Unbestätigte Crawlstarts
 Mark as not started==Als nicht gestartet markieren
@@ -5229,7 +5240,8 @@ Organisations, facilities, sites and services the knowledge graph found on this 
 >SEO / Host Analysis<==>SEO / Host-Analyse<
 >Read indexed content, crawl metadata and locally observed references.<==>Indexierte Inhalte, Crawl-Metadaten und lokal beobachtete Referenzen analysieren.<
 >Domain or host<==>Domain oder Host<
->Collection (optional)<==>Collection (optional)<
+>All collections<==>Alle Collections<
+>Choose a collection<==>Collection wählen<
 >Analyze<==>Analysieren<
 >Find hosts<==>Hosts suchen<
 >More hosts<==>Weitere Hosts<
@@ -5404,6 +5416,10 @@ aria-label="Views"==aria-label="Ansichten"
 >Not enabled in the index schema:<==>Im Indexschema nicht aktiviert:<
 >Enable these fields in the index schema; they are filled for pages crawled afterwards.<==>Aktivieren Sie diese Felder im Indexschema; sie werden für danach gecrawlte Seiten gefüllt.<
 >Open index schema<==>Indexschema öffnen<
+>Name not recognised<==>Name nicht erkannt<
+>derived from the domain<==>aus Domain abgeleitet<
+>legal name<==>legaler Name<
+>operator of the website<==>Betreiber der Website<
 
 #File: ScoutroCrawls_p.html
 
@@ -5418,7 +5434,9 @@ aria-label="Views"==aria-label="Ansichten"
 >Subpath<==>Unterpfad<
 >Maximum pages per domain<==>Maximale Seiten pro Domain<
 >Crawl depth<==>Crawl-Tiefe<
->Choose an existing collection or enter a new name. There is no default collection.<==>Eine bestehende Collection wählen oder einen neuen Namen eingeben. Es gibt keine Standard-Collection.<
+>Choose an existing collection or create a new one with New collection. There is no default collection.<==>Eine bestehende Collection wählen oder mit „Neue Collection“ eine neue anlegen. Es gibt keine Standard-Collection.<
+>Choose a collection<==>Collection wählen<
+>New collection<==>Neue Collection<
 >Start crawl<==>Crawl starten<
 >Crawl status<==>Crawl-Status<
 >Refresh<==>Aktualisieren<
@@ -5429,7 +5447,8 @@ aria-label="Views"==aria-label="Ansichten"
 >Crawl accepted.<==>Crawl angenommen.<
 >Existing crawl returned. No second start.<==>Bestehender Crawl zurückgegeben. Kein zweiter Start.<
 >Request failed<==>Anfrage fehlgeschlagen<
->Collection suggestions unavailable. Enter a collection explicitly.<==>Collection-Vorschläge nicht verfügbar. Eine Collection ausdrücklich eingeben.<
+>The collection list is unavailable. Reload the page later.<==>Die Collection-Liste ist nicht verfügbar. Laden Sie die Seite später neu.<
+>The collection of the link is not available. Choose one from the list.<==>Die Collection des Links steht nicht zur Verfügung. Wählen Sie eine aus der Liste.<
 >Collection<==>Collection<
 >Pages loaded<==>Geladene Seiten<
 >Start recorded<==>Start registriert<
@@ -5482,6 +5501,29 @@ Administration and technical details:==Administration und technische Details:
 >License<==>Lizenz<
 #-----------------------------
 
+#File: env/templates/scoutro/collection-create.template
+#---------------------------
+>New collection<==>Neue Collection<
+A collection groups the pages of one portal or project. Once created, it can be chosen everywhere: for crawls, filters, the chat and agent grants.==Eine Collection fasst die Seiten eines Portals oder Projekts zusammen. Nach dem Anlegen ist sie überall wählbar: für Crawls, Filter, den Chat und Agent-Freigaben.
+>Display name<==>Anzeigename<
+>Collection ID<==>Collection-ID<
+Suggested from the display name; check it before saving. Lower-case letters, digits and single hyphens. It cannot be changed later.==Aus dem Anzeigenamen vorgeschlagen; vor dem Speichern prüfen. Kleinbuchstaben, Ziffern und einzelne Bindestriche. Sie kann später nicht geändert werden.
+>Description (optional)<==>Beschreibung (optional)<
+>Create collection<==>Collection anlegen<
+>Cancel<==>Abbrechen<
+A collection with this ID exists already. Choose it from the list or use another ID.==Eine Collection mit dieser ID gibt es schon. Wählen Sie sie aus der Liste oder verwenden Sie eine andere ID.
+The ID needs 2 to 64 lower-case letters, digits and single hyphens, starting and ending with a letter or digit.==Die ID braucht 2 bis 64 Kleinbuchstaben, Ziffern und einzelne Bindestriche und beginnt und endet mit einem Buchstaben oder einer Ziffer.
+This ID is reserved for Scoutro or YaCy. Choose another ID.==Diese ID ist für Scoutro oder YaCy reserviert. Wählen Sie eine andere ID.
+Enter a display name.==Geben Sie einen Anzeigenamen ein.
+Check the display name and the description.==Prüfen Sie Anzeigename und Beschreibung.
+The index cannot be read, so duplicates cannot be checked. Try again later.==Der Index kann nicht gelesen werden, daher lassen sich Dubletten nicht prüfen. Versuchen Sie es später erneut.
+The collection list cannot be written. Nothing was created.==Die Collection-Liste kann nicht geschrieben werden. Es wurde nichts angelegt.
+Only the administrator can create collections.==Nur der Administrator kann Collections anlegen.
+The collection could not be created.==Die Collection konnte nicht angelegt werden.
+Collection created and selected:==Collection angelegt und gewählt:
+>Choose a collection<==>Collection wählen<
+#-----------------------------
+
 #File: env/templates/scoutro/tagline.template
 #---------------------------
 Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
@@ -5496,7 +5538,8 @@ Pausing stops new enrichment (extraction, the LLM tier and a rebuild); deletions
 ) and take effect at the next start. Invalid values are listed here and keep the graph off.==) und wirken ab dem nächsten Start. Ungültige Werte werden hier aufgeführt und halten den Graphen aus.
 >Delete the documents this reconcile confirmed as absent from Solr?<==>Die Dokumente löschen, die dieser Abgleich als in Solr fehlend bestätigt hat?<
 >The knowledge graph is disabled (scoutro.kg.enabled=false).<==>Der Wissensgraph ist deaktiviert (scoutro.kg.enabled=false).<
->Invalid collection name (letters, digits, - and _).<==>Ungültiger Collection-Name (Buchstaben, Ziffern, - und _).<
+>All collections<==>Alle Collections<
+>The collection of the link is not available; all collections are shown.<==>Die Collection des Links steht nicht zur Verfügung; alle Collections werden gezeigt.<
 Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen in der Scoutro-Konfiguration (Schlüssel
 >The knowledge graph could not be read<==>Der Wissensgraph konnte nicht gelesen werden<
 >Not found in the visible collections.<==>In den sichtbaren Collections nicht gefunden.<
@@ -5581,7 +5624,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Possible duplicates<==>Mögliche Dubletten<
 >Confirm deletions<==>Löschungen bestätigen<
 >No objects match.<==>Keine passenden Objekte.<
->Apply collection<==>Collection anwenden<
 (usage knowledge).==(Verwendung knowledge).
 >Pending changes<==>Ausstehende Änderungen<
 >Pending by type<==>Ausstehend nach Typ<
@@ -5692,14 +5734,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >all<==>alle<
 >no<==>nein<
 #-----------------------------
-> Facilities, sites and places<==> Einrichtungen, Standorte und Orte<
-> Industries and audiences<==> Branchen und Zielgruppen<
 > List only<==> Nur als Liste<
-> Relations between organisations<==> Beziehungen zwischen Organisationen<
-> Same operator (derived)<==> Gleicher Träger (abgeleitet)<
-> Services and jobs<==> Leistungen und Jobs<
-> Stale<==> Veraltet<
-> Suggestions<==> Vorschläge<
 > Weak link signals<==> Schwache Link-Signale<
 >%1 ended jobs older than the visibility window are hidden.<==>%1 beendete Jobs, älter als das Sichtbarkeitsfenster, sind ausgeblendet.<
 >%1 objects, %2 lines<==>%1 Objekte, %2 Linien<
@@ -5770,7 +5805,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Status<==>Status<
 >Suggested matches<==>Vorgeschlagene Matches<
 >Suggestions are no facts: they combine what A offers with what B seeks. A suggested customer is a possible customer, never a customer relation.<==>Vorschläge sind keine Fakten: Sie verbinden, was A anbietet, mit dem, was B sucht. Ein vorgeschlagener Kunde ist ein möglicher Kunde, nie eine Kundenbeziehung.<
->The neighbourhood of one object, never the whole graph. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Select a node or a line to see its evidence; open a node to go to its object.<==>Die Nachbarschaft eines Objekts, nie der ganze Graph. Durchgezogene Linien sind Fakten mit Beleg, gestrichelte unsichere Fakten, gepunktete abgeleitete Einträge, die keine Fakten sind: ein gemeinsamer Träger, ein schwaches Link-Signal oder ein Vorschlag. Wählen Sie einen Knoten oder eine Linie, um die Belege zu sehen; öffnen Sie einen Knoten, um zu seinem Objekt zu gelangen.<
 >To<==>Nach<
 >VAT-exempt<==>umsatzsteuerfrei<
 >apply until<==>bewerben bis<
@@ -5878,3 +5912,100 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >copy before the upgrade: %1<==>Kopie vor dem Upgrade: %1<
 >waiting for a verified backup (%1)<==>wartet auf ein geprüftes Backup (%1)<
 >jobs<==>Jobs<
+>Followed<==>Verfolgt<
+>Vocabulary<==>Vokabular<
+>Documents in the graph<==>Dokumente im Graph<
+>With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Jobs are read only for the collections named in scoutro.kg.jobs.collections.<==>Mit scoutro.kg.collections=* wird eine neue Collection sofort verfolgt; mit einer festen Liste nur die genannten. Eine Collection ohne Vokabular erhält nur allgemeine Fakten (Namen, Adressen, Kontakte, Beziehungen), keine Leistungskategorien; ihr Vokabular wird nie aus ihrem Namen erraten. Ein vorhandenes Vokabular weisen Sie mit scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; zu, ein neues mit einer Datei in DATA/SCOUTRO/knowledge/vocabulary. Jobs werden nur für die Collections gelesen, die in scoutro.kg.jobs.collections genannt sind.<
+>Provider and domain<==>Anbieter und Domain<
+>Actions<==>Aktionen<
+>The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.<==>Die Nachbarschaft eines Objekts, nie der ganze Graph. Pfeile zeigen in die Richtung, die die Quelle angibt: Ein Anbieter bietet eine Leistung an, ein Unternehmen ist Partner eines anderen. Durchgezogene Linien sind Fakten mit Belegen, gestrichelte unsichere Fakten, gepunktete abgeleitete Zeilen, die keine Fakten sind: ein gemeinsamer Träger, ein schwaches Link-Signal oder ein Vorschlag. Tippen Sie auf einen Knoten oder eine Linie für Details, die Beziehung zum Zentrum und die Quellen; um eine Leistung herum werden ihre Anbieter gezeigt, um einen Job sein Arbeitgeber.<
+>Facts<==>Fakten<
+> Relations between companies<==> Unternehmensbeziehungen<
+> Structure and operators<==> Struktur und Betreiber<
+> Services and providers<==> Leistungen und Anbieter<
+> Places<==> Orte<
+> Industry<==> Branche<
+> Audiences<==> Zielgruppen<
+> Jobs and employers<==> Jobs und Arbeitgeber<
+> Prices of services<==> Preise der Leistungen<
+> Same operator<==> Gleicher Träger<
+> Suggested customers and partners<==> Vorgeschlagene Kunden und Partner<
+> Current<==> Aktuell<
+> Outdated<==> Veraltet<
+>Default view<==>Standardansicht<
+>Services across providers<==>Leistungen über Anbieter hinweg<
+>Services of the same name, counted across their providers. Every provider's service stays its own object with its own provider, prices and sources; this view only counts them, it merges, averages and mixes nothing.<==>Gleichnamige Leistungen, über ihre Anbieter hinweg gezählt. Die Leistung jedes Anbieters bleibt ein eigenes Objekt mit eigenem Anbieter, eigenen Preisen und Quellen; diese Ansicht zählt nur, sie führt nichts zusammen, bildet keine Mittelwerte und vermischt nichts.<
+>Service name<==>Name der Leistung<
+>Providers<==>Anbieter<
+>Places<==>Orte<
+>With a current price<==>Mit aktuellem Preis<
+>With a current source<==>Mit aktueller Quelle<
+>All service names<==>Alle Leistungsnamen<
+>No provider assigned<==>Kein Anbieter zugeordnet<
+>No employer assigned<==>Kein Arbeitgeber zugeordnet<
+>+%1 more<==>+%1 weitere<
+>Open provider<==>Anbieter öffnen<
+>Open service<==>Leistung öffnen<
+>Open employer<==>Arbeitgeber öffnen<
+>All providers<==>Alle Anbieter<
+>%1 · %2 providers<==>%1 · %2 Anbieter<
+>Services of the same name stay separate objects, each with its own provider, prices and sources.<==>Gleichnamige Leistungen bleiben getrennte Objekte, jede mit eigenem Anbieter, eigenen Preisen und Quellen.<
+>No visible services match.<==>Keine sichtbaren Leistungen gefunden.<
+>Without a provider<==>Ohne Anbieter<
+>Places of the providers<==>Orte der Anbieter<
+>%1 current of %2<==>%1 aktuell von %2<
+>Domain<==>Domain<
+>Relation to the centre<==>Beziehung zum Zentrum<
+>Further relations<==>Weitere Beziehungen<
+>Network of this object<==>Netz dieses Objekts<
+>Open sources<==>Quellen öffnen<
+>Objects of this industry<==>Objekte dieser Branche<
+>Objects of this audience<==>Objekte dieser Zielgruppe<
+>via %1<==>über %1<
+>No vocabulary assigned<==>Kein Vokabular zugeordnet<
+>by setting<==>per Einstellung<
+>vocabulary file<==>Vokabulardatei<
+>unknown vocabulary<==>unbekanntes Vokabular<
+>following<==>wird verfolgt<
+>waiting for documents<==>wartet auf Dokumente<
+>not followed<==>nicht verfolgt<
+>vocabulary missing<==>Vokabular fehlt<
+>Job collections<==>Job-Collections<
+>organisation<==>Organisation<
+>facility or site<==>Einrichtung oder Standort<
+>service<==>Leistung<
+>job<==>Job<
+>place<==>Ort<
+>partner of<==>Partner von<
+>customer of<==>Kunde von<
+>same carrier<==>gleicher Träger<
+>belongs to<==>gehört zu<
+>site<==>Standort<
+>location<==>Standort<
+>weak link signal<==>schwaches Link-Signal<
+>suggested customer<==>vorgeschlagener Kunde<
+>suggested partner<==>vorgeschlagener Partner<
+>parent of<==>Mutter von<
+>subsidiary of<==>Tochter von<
+>carrier of<==>Träger von<
+>member of<==>Mitglied von<
+>association member<==>Verbandsmitglied<
+>reference for<==>Referenz für<
+>service provider for<==>Dienstleister für<
+>brand of<==>Marke von<
+>certified by<==>zertifiziert durch<
+>funded by<==>gefördert von<
+>sponsored by<==>gesponsert von<
+>job at<==>Job bei<
+>Unnamed organisation<==>Unbenannte Organisation<
+>Unnamed facility<==>Unbenannte Einrichtung<
+>Unnamed site<==>Unbenannter Standort<
+>Unnamed place<==>Unbenannter Ort<
+>Unnamed service<==>Unbenannte Leistung<
+>Unnamed job posting<==>Unbenannte Stellenanzeige<
+>Name not recognised<==>Name nicht erkannt<
+>derived from the domain<==>aus Domain abgeleitet<
+>legal name<==>legaler Name<
+>operator of the website<==>Betreiber der Website<
+>no name recognised<==>kein Name erkannt<
+>Technical ID<==>Technische ID<

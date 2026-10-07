@@ -631,8 +631,7 @@ public final class BusinessView {
                 }
                 case Vocabulary.JOB_LOCATION:
                     if (f.stat.objEnt != null && visible(c, f.stat.objEnt, v)) {
-                        KgJson.put(o, "location", KgJson.obj("id", KgReader.publicId(c, f.stat.objEnt), "name",
-                                KgReader.visibleName(c, f.stat.objEnt, v)));
+                        KgJson.put(o, "location", entityRef(c, f.stat.objEnt, v));
                     }
                     break;
                 default:
@@ -687,7 +686,9 @@ public final class BusinessView {
                 }
             }
         }
-        return KgJson.obj("id", KgReader.publicId(c, ent), "name", KgReader.visibleName(c, ent, v), "type", type);
+        final String name = KgReader.visibleName(c, ent, v);
+        return DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, ent), "name", name, "type", type),
+                name != null ? DisplayNames.known(c, ent, name, v) : DisplayNames.of(c, ent, type, null, null, v));
     }
 
     static boolean visible(final Connection c, final long ent, final Viewer v) throws SQLException {

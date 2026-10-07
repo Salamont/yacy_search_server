@@ -251,7 +251,7 @@
     } catch (failed) { failure(current, failed.message); }
   }
   function load() {
-    var name = collection.value.trim();
+    var name = collection.value;
     active.hidden = !name;
     active.querySelector('span').textContent = name;
     pageUrl();
@@ -286,13 +286,11 @@
   });
   document.querySelectorAll('input[name="scoutro-export-format"]').forEach(function (input) { input.addEventListener('change', updateExport); });
   [query, collection].forEach(function (input) { input.addEventListener('input', function () { exportTotal = null; updateExport(); }); });
-  fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' }).then(function (response) {
-    if (!response.ok) return null; return response.json();
-  }).then(function (data) {
-    if (!data) return;
-    var choices = $('scoutro-index-choices');
-    data.collections.forEach(function (item) { var option = document.createElement('option'); option.value = item.id; choices.appendChild(option); });
-  }).catch(function () { /* Suggestions are optional; filter errors remain visible. */ });
-  setView();
-  load();
+  // The list of collections first: a collection of the link counts only if it is listed, else all collections.
+  window.ScoutroCollections.load().then(function (ids) {
+    var wanted = collection.dataset.initial || '';
+    $('scoutro-index-unknown').hidden = window.ScoutroCollections.fill(collection, ids, wanted) === wanted;
+    setView();
+    load();
+  });
 })();

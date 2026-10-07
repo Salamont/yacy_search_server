@@ -63,6 +63,8 @@ public class ScoutroApiServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
     private static final ConcurrentLog LOG = new ConcurrentLog("SCOUTRO-API");
     private static final int MAX_BODY_BYTES = 16 * 1024;
+    /** A new collection is an ID, a display name and a short description. */
+    private static final int MAX_COLLECTION_BODY_BYTES = 4 * 1024;
     private static final String AGENT_PREFIX = "/agent/v1/";
 
     private final transient ScoutroActions actions = new ScoutroActions();
@@ -186,7 +188,13 @@ public class ScoutroApiServlet extends HttpServlet {
                 break;
             case "collections":
                 requireAdmin(request);
-                expect(method, parts, 3, "GET");
+                if (parts.length == 3 && "POST".equals(method)) {
+                    // small JSON body, same origin (jsonBody); validated and stored by the catalog
+                    final JSONObject created = this.actions.collectionCreate(jsonBody(request, MAX_COLLECTION_BODY_BYTES));
+                    response.setStatus(201);
+                    return created;
+                }
+                expect(method, parts, 3, "GET", "POST");
                 return this.actions.collections();
             case "search":
                 requireAdmin(request);
@@ -382,6 +390,10 @@ public class ScoutroApiServlet extends HttpServlet {
      * match the request host.
      */
     private static JSONObject jsonBody(final HttpServletRequest request) throws ApiException, IOException {
+        return jsonBody(request, MAX_BODY_BYTES);
+    }
+
+    private static JSONObject jsonBody(final HttpServletRequest request, final int maxBytes) throws ApiException, IOException {
         final String contentType = request.getContentType() == null ? "" : request.getContentType().toLowerCase(Locale.ROOT);
         if (!contentType.startsWith("application/json")) {
             throw new ApiException(415, "unsupported_media_type", "Send the request body as application/json.");
@@ -390,7 +402,7 @@ public class ScoutroApiServlet extends HttpServlet {
         if (origin != null && !origin.isEmpty() && !"null".equals(origin) && !sameOrigin(origin, request)) {
             throw new ApiException(403, "cross_origin_forbidden", "Cross-origin requests are not allowed.");
         }
-        final byte[] body = readLimited(request.getInputStream());
+        final byte[] body = readLimited(request.getInputStream(), maxBytes);
         final String text = new String(body, StandardCharsets.UTF_8).trim();
         return text.isEmpty() ? new JSONObject() : Json.parseObject(text);
     }
@@ -405,14 +417,14 @@ public class ScoutroApiServlet extends HttpServlet {
         }
     }
 
-    private static byte[] readLimited(final InputStream in) throws ApiException, IOException {
+    private static byte[] readLimited(final InputStream in, final int maxBytes) throws ApiException, IOException {
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
         final byte[] buffer = new byte[4096];
         int n;
         while ((n = in.read(buffer)) >= 0) {
             out.write(buffer, 0, n);
-            if (out.size() > MAX_BODY_BYTES) {
-                throw new ApiException(413, "payload_too_large", "The request body must not exceed " + MAX_BODY_BYTES + " bytes.");
+            if (out.size() > maxBytes) {
+                throw new ApiException(413, "payload_too_large", "The request body must not exceed " + maxBytes + " bytes.");
             }
         }
         return out.toByteArray();

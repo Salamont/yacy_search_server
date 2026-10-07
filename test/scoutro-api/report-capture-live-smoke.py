@@ -124,6 +124,9 @@ def main():
                             raise RuntimeError((root / "peer.log").read_text()[-4000:])
                         time.sleep(0.5)
                 time.sleep(12)  # two capture intervals: the ErrorCache baseline exists before the crawl starts
+                # package 6.1: a crawl writes into an existing collection; the administrator creates it first
+                status, created = api("POST", "/collections", {"id": "report", "name": "Report"})
+                assert status == 201 and created["collection"]["id"] == "report", created
                 status, started = api("POST", "/crawls", {"url": f"http://{HOST}:{site_port}/", "collection": "report",
                                                           "depth": 2, "maxPages": 15, "scope": "domain"},
                                       {"Idempotency-Key": "report-capture-smoke"})

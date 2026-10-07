@@ -184,7 +184,10 @@
     const keys = ['kg_name', 'kg_type', 'kg_quality', 'kg_sources', 'kg_last_confirmed'];
     for (const k of keys) head.append(node('th', t(k)));
     for (const e of data.items) {
-      const row = body.insertRow(), a = node('a', e.name || e.id);
+      // the shown name (package 6.1): stated, else derived for display (marked), never the technical ID
+      const name = e.display_name || e.name;
+      const row = body.insertRow(), a = node('a', name && !/^kg[es]_[a-z2-7]{20}$/.test(name) ? name : t('kg_unnamed'));
+      if (e.display_name_source && e.display_name_source !== 'fact') a.title = t('kg_name_' + e.display_name_source);
       const q = new URLSearchParams({ view: 'object', id: e.id }); if (collection) q.set('collection', collection); a.href = 'ScoutroKnowledge_p.html?' + q;
       const cells = [a, t('kg_' + e.type) + (e.kind ? ' · ' + e.kind : ''), t('kg_' + e.quality), fmt(e.counts?.sources), e.last_confirmed ? date(e.last_confirmed) : t('missing')];
       cells.forEach((c, i) => { const td = row.insertCell(); td.dataset.label = t(keys[i]); if (c instanceof Node) td.append(c); else td.textContent = c; });
@@ -248,10 +251,11 @@
   const initial = new URLSearchParams(location.search), reportView = initial.get('view') === 'report';
   $('host-view').hidden = reportView; $('report-view').hidden = !reportView;
   for (const [id, active] of [['view-host', !reportView], ['view-report', reportView]]) { if (active) $(id).setAttribute('aria-current', 'page'); else $(id).removeAttribute('aria-current'); }
-  fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.ok ? r.json() : null).then(data => {
-    for (const item of data?.collections || []) { const option = document.createElement('option'); option.value = item.id; $('collection-list').append(option); }
-  }).catch(() => {});
-  if (reportView) return;
-  if (initial.has('collection')) $('collection').value = initial.get('collection');
-  if (initial.has('host')) { $('host').value = initial.get('host'); guarded(() => analyze(initial.get('host'))); }
+  // the collection lists: a collection of the link counts only if it is listed, else all collections
+  ScoutroCollections.load().then(ids => {
+    ScoutroCollections.fill($('cs-collection'), ids, '');
+    ScoutroCollections.fill($('collection'), ids, reportView ? '' : initial.get('collection') || '');
+    if (reportView) return;
+    if (initial.has('host')) { $('host').value = initial.get('host'); guarded(() => analyze(initial.get('host'))); }
+  });
 })();

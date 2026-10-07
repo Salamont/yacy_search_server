@@ -140,7 +140,12 @@ def build_parser():
     sub.add_parser("discovery",
                    help="profile discovery (status|start|pause|resume|classify|search|export|migrate-state|selftest); delegates to scoutro-discovery")
 
-    sub.add_parser("collections", help="indexed/admin or granted/agent collection suggestions")
+    cols = sub.add_parser("collections", help="the collection catalog (admin) or the granted collections (agent); create one (admin)")
+    cols_sub = cols.add_subparsers(dest="collections_command")
+    create = cols_sub.add_parser("create", help="administrator: create an empty collection that crawls and filters can choose")
+    create.add_argument("name", help="display name, e.g. 'Mein neues Portal'")
+    create.add_argument("--id", help="collection id (2-64 lower-case letters, digits, single hyphens); default: derived from the name")
+    create.add_argument("--description", help="optional description")
     host = sub.add_parser("host", help="normalize a host or URL and check the index").add_subparsers(dest="host_command", required=True)
     resolve = host.add_parser("resolve")
     resolve.add_argument("input")
@@ -233,17 +238,24 @@ def build_parser():
     nb.add_argument("--suggested", action="store_true", help="include suggested matches")
     nb.add_argument("--no-values", dest="no_values", action="store_true", help="without industry and audience value nodes")
     nb.add_argument("--include-stale", dest="include_stale", action="store_true")
+    nb.add_argument("--prices", action="store_true", help="the published prices of the services in the centre and at depth 1")
     cmp_ = kg.add_parser("compare", help="one service category across providers, prices as published")
     cmp_.add_argument("category")
     der = kg.add_parser("derived", help="derived rows: linked_to, same_operator, suggested_customer, suggested_partner (never facts)")
     der.add_argument("--kind", choices=["linked_to", "same_operator", "suggested_customer", "suggested_partner"])
     der.add_argument("--entity")
     fc = kg.add_parser("facets", help="industries, categories and audiences the visible graph holds")
-    for k in (bv, nb, cmp_, der, fc):
+    sg = kg.add_parser("services", help="services of the same name across providers, read-only groups (never merged)")
+    sg.add_argument("--q", help="name words")
+    sg.add_argument("--category")
+    sp = kg.add_parser("service-providers", help="the services of one name, each with its own provider, prices and sources")
+    sp.add_argument("name", help="the service name (e.g. SAP)")
+    sp.add_argument("--category")
+    for k in (bv, nb, cmp_, der, fc, sg, sp):
         k.add_argument("--collection", help="only evidence of this collection (agent token: one of the agent's collections)")
-        if k in (nb, cmp_, der):
+        if k in (nb, cmp_, der, sg, sp):
             k.add_argument("--limit", type=int)
-        if k in (nb, der):
+        if k in (nb, der, sg, sp):
             k.add_argument("--offset", type=int)
     exp = kg.add_parser("export", help="one export page, or with --all every record as one JSON line")
     exp.add_argument("--cursor")
@@ -310,7 +322,15 @@ def main(argv=None):
     elif c == "openapi":
         result = client.call("GET", "/openapi.json")
     elif c == "collections":
-        result = client.call("GET", v1 + "/collections")
+        if getattr(args, "collections_command", None) == "create":
+            body = {"name": args.name}
+            if args.id:
+                body["id"] = args.id
+            if args.description:
+                body["description"] = args.description
+            result = client.call("POST", v1 + "/collections", body=body)
+        else:
+            result = client.call("GET", v1 + "/collections")
     elif c == "host":
         result = client.call("GET", v1 + "/hosts/resolve", {"input": args.input, "collection": args.collection})
     elif c == "automation":
@@ -397,7 +417,7 @@ def main(argv=None):
                 "depth": args.depth, "types": args.types, "weak": "true" if args.weak else None,
                 "derived": "false" if args.no_derived else None, "suggested": "true" if args.suggested else None,
                 "values": "false" if args.no_values else None, "include": "stale" if args.include_stale else None,
-                "limit": args.limit, "offset": args.offset, "collection": args.collection})
+                "prices": "true" if args.prices else None, "limit": args.limit, "offset": args.offset, "collection": args.collection})
         elif k == "compare":
             result = client.call("GET", v1 + "/kg/compare", {"category": args.category, "limit": args.limit, "collection": args.collection})
         elif k == "derived":
@@ -405,6 +425,12 @@ def main(argv=None):
                                                           "offset": args.offset, "collection": args.collection})
         elif k == "facets":
             result = client.call("GET", v1 + "/kg/facets", {"collection": args.collection})
+        elif k == "services":
+            result = client.call("GET", v1 + "/kg/services", {"q": args.q, "category": args.category, "limit": args.limit,
+                                                           "offset": args.offset, "collection": args.collection})
+        elif k == "service-providers":
+            result = client.call("GET", v1 + "/kg/services/providers", {"name": args.name, "category": args.category, "limit": args.limit,
+                                                                     "offset": args.offset, "collection": args.collection})
         else:
             paths = {"entities": "/kg/entities", "entity": "/kg/entities/%s", "statements": "/kg/entities/%s/statements",
                      "statement": "/kg/statements/%s", "evidence": "/kg/statements/%s/evidence",

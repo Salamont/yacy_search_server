@@ -39,7 +39,7 @@ This page is a simplified front end for `Crawler_p.html`. It prepares a normal c
 | `range` | Crawl boundary. `domain` allows the crawl to stay within the same domain; `subpath` limits it to URLs below the start path. | `domain`, `subpath` |
 | `crawlingDomMaxCheck` | Enables the page-count limit. Use it for first crawls and for sites where the full size is unknown. | checkbox |
 | `crawlingDomMaxPages` | Maximum number of pages allowed when `crawlingDomMaxCheck` is enabled. | Integer page limit. |
-| `collection` | Collection name. Use it to group crawled or imported documents and to search or manage that group later. | Collection name such as `user`, `docs`, or a project-specific name. |
+| `collection` | Collection name. Use it to group crawled or imported documents and to search or manage that group later. In Scoutro the field is a list of existing collections; **New collection** creates one first. Without JavaScript, or while the catalog cannot be read (not yet signed in as administrator, index unavailable), YaCy's original text field stays. | Collection name such as `user`, `docs`, or a project-specific name. |
 | `crawlingstart` | Submit action that creates the crawl job. | `Start New Crawl` |
 
 ## Correct Use

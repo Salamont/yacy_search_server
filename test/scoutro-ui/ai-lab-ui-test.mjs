@@ -12,10 +12,10 @@ let checks = 0;
 function check(value, label) { assert(value, label); checks++; }
 const TOOLS = ['datetime','date_math','calculator','number_parser','unit_converter','http_json','table_ops','update_plan','self_reflect','chitchat','prompt_to_mermaid','mermaid_to_ascii','search','wikipedia_link_creator','webfetch'];
 const TEXT = {
-  en: {lab: 'AI Lab', overview: 'AI Lab overview', tools: 'Chat tools', all: 'all collections', datetime: 'Date & time', webfetch: 'Fetch web page', http_json: 'Query JSON API',
+  en: {lab: 'AI Lab', overview: 'AI Lab overview', tools: 'Chat tools', all: 'all collections', allOption: 'All collections', datetime: 'Date & time', webfetch: 'Fetch web page', http_json: 'Query JSON API',
        limit: 'Maximum calls per answer', unreleased: 'Not released', released: 'Released for the chat', disabled: 'Deactivated', admin: 'No YaCy administrator permission',
        server: 'The server could not create an answer', offline: 'The Scoutro server cannot be reached', failed: 'The answer could not be created:'},
-  de: {lab: 'KI-Labor', overview: 'KI-Labor-Übersicht', tools: 'Chat-Werkzeuge', all: 'alle Collections', datetime: 'Datum & Uhrzeit', webfetch: 'Webseite abrufen', http_json: 'JSON-API abfragen',
+  de: {lab: 'KI-Labor', overview: 'KI-Labor-Übersicht', tools: 'Chat-Werkzeuge', all: 'alle Collections', allOption: 'Alle Collections', datetime: 'Datum & Uhrzeit', webfetch: 'Webseite abrufen', http_json: 'JSON-API abfragen',
        limit: 'Maximale Aufrufe pro Antwort', unreleased: 'Nicht freigegeben', released: 'Für Chat freigegeben', disabled: 'Deaktiviert', admin: 'Keine YaCy-Administratorberechtigung',
        server: 'Der Server konnte keine Antwort erstellen', offline: 'Der Scoutro-Server ist nicht erreichbar', failed: 'Die Antwort konnte nicht erstellt werden:'},
 };
@@ -28,6 +28,37 @@ try {
   check(remote.status() === 401 && (await remote.json()).error.code === 'admin_required', 'Remote chat without login refused by the AI Shield: ' + remote.status());
   const publicPage = await anonymous.request.get(base + '/index.html');
   check(!(await publicPage.text()).includes('id="header_chat"'), 'Public search page keeps the front page link setting (off)');
+  // a guest (a remote client without administrator login) sees only released collections, none by default
+  const guestNames = async () => {
+    const guest = await browser.newContext({extraHTTPHeaders: {'X-Forwarded-For': '198.51.100.24'}});
+    const guestPage = await guest.newPage();
+    await guestPage.goto(base + '/yacychat.html?collection=secret');
+    const names = await guestPage.locator('#collectionSelect option').evaluateAll(list => list.map(o => o.value));
+    const value = await guestPage.locator('#collectionSelect').inputValue(), html = await guestPage.content();
+    await guest.close();
+    return {names, value, html};
+  };
+  let seen = await guestNames();
+  check(JSON.stringify(seen.names) === JSON.stringify(['']) && seen.value === '' && !/<option value="(secret|visible)"/.test(seen.html),
+    'Guest: only all collections, no collection name in the page: ' + JSON.stringify(seen.names));
+  // the AI Shield page releases collections for guests by ticking them, never as free text
+  const admin = await browser.newContext({httpCredentials: {username: 'admin', password: 'yacy'}, extraHTTPHeaders: {'Accept-Language': 'en'}});
+  const shield = await admin.newPage();
+  await shield.goto(base + '/AIShield_p.html');
+  const boxes = await shield.locator('#guestCollections input').evaluateAll(list => list.map(i => [i.type, i.name, i.checked]));
+  const catalogIds = await shield.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  check(catalogIds.includes('secret') && catalogIds.includes('visible') && JSON.stringify(boxes) === JSON.stringify(catalogIds.map(id => ['checkbox', 'guest-collection.' + id, false])),
+    'AI Shield lists every collection of the catalog as an unticked box: ' + JSON.stringify(boxes));
+  await shield.locator('input[name="guest-collection.visible"]').check();
+  await Promise.all([shield.waitForNavigation(), shield.locator('#shieldForm button[type="submit"]').click()]);
+  check(await shield.locator('input[name="guest-collection.visible"]').isChecked() && !(await shield.locator('input[name="guest-collection.secret"]').isChecked()), 'Released collection stored');
+  seen = await guestNames();
+  check(JSON.stringify(seen.names) === JSON.stringify(['', 'visible']) && seen.value === '' && !/<option value="secret"/.test(seen.html),
+    'Guest: the released collection only, never another one, also not from the link: ' + JSON.stringify(seen.names));
+  await shield.locator('input[name="guest-collection.visible"]').uncheck();
+  await Promise.all([shield.waitForNavigation(), shield.locator('#shieldForm button[type="submit"]').click()]);
+  check(JSON.stringify((await guestNames()).names) === JSON.stringify(['']), 'Release withdrawn');
+  await admin.close();
   await anonymous.close();
 
   for (const language of ['en','de']) for (const width of [390, 1280]) {
@@ -48,21 +79,43 @@ try {
     check(await page.locator('#header_chat').count() === 1, 'Chat button in the admin bar' + where);
     if (mobile) await page.keyboard.press('Escape');
 
-    // chat surface: title, scope, collection suggestions, mobile composer
+    // chat surface: title, scope, collection list, mobile composer
     await page.goto(base + '/yacychat.html');
     check((await page.locator('.scoutro-chat-header h1').textContent()) === 'Scoutro Chat', 'Chat title' + where);
-    check((await page.locator('#collectionCurrentValue').textContent()) === T.all, 'Current scope: whole index' + where);
-    await page.waitForFunction(() => [...document.querySelectorAll('#collectionChoices option')].some(o => o.value === 'visible'));
-    check(true, 'Collections suggested to the administrator' + where);
-    await page.locator('#collectionInput').fill('visible');
-    await page.locator('#collectionInput').dispatchEvent('change');
-    check((await page.locator('#collectionCurrentValue').textContent()) === 'visible', 'Scope follows the collection field' + where);
-    await page.locator('#collectionInput').fill('kein gültiger Name');
-    await page.locator('#collectionInput').dispatchEvent('change');
-    check((await page.locator('#collectionCurrentValue').textContent()) === 'visible', 'Invalid collection keeps the last valid scope' + where);
-    await page.locator('#collectionInput').fill('');
-    await page.locator('#collectionInput').dispatchEvent('change');
-    check((await page.locator('#collectionCurrentValue').textContent()) === T.all, 'Empty field: whole index again' + where);
+    const current = () => page.locator('#collectionCurrentValue').textContent();
+    const select = page.locator('#collectionSelect');
+    check(await current() === T.all, 'Current scope: whole index' + where);
+    // package 6.1: a real select of the collections the client may use, no free text, no suggestion list
+    check(await select.evaluate(e => e.tagName) === 'SELECT' && await page.locator('#collectionInput, .collection-control input, datalist').count() === 0,
+      'Collection as a real select, no text field' + where);
+    const options = await select.locator('option').evaluateAll(list => list.map(o => [o.value, o.textContent.trim()]));
+    check(options[0][0] === '' && options[0][1] === T.allOption && await select.inputValue() === '', 'First option: all collections, chosen' + where);
+    const catalog = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+    check(catalog.includes('secret') && catalog.includes('visible') && JSON.stringify(options.slice(1).map(o => o[0])) === JSON.stringify(catalog),
+      'The administrator gets every collection of the catalog, sorted: ' + JSON.stringify(options) + where);
+    await select.selectOption('visible');
+    check(await current() === 'visible', 'Scope follows the selection' + where);
+    check(await page.evaluate(() => localStorage.getItem('scoutro.chat.collection')) === 'visible', 'Choice remembered' + where);
+    await page.reload();
+    check(await select.inputValue() === 'visible' && await current() === 'visible', 'Remembered choice applied' + where);
+    await page.evaluate(() => localStorage.setItem('scoutro.chat.collection', 'gone-web'));
+    await page.reload();
+    check(await select.inputValue() === '' && await current() === T.all && await page.evaluate(() => localStorage.getItem('scoutro.chat.collection')) === null,
+      'A remembered collection that is not listed: all collections, forgotten' + where);
+    await page.goto(base + '/yacychat.html?collection=unknown-web');
+    check(await select.inputValue() === '' && await current() === T.all, 'Unknown collection of the link: all collections' + where);
+    await page.goto(base + '/yacychat.html?collection=secret');
+    check(await select.inputValue() === 'secret' && await current() === 'secret', 'Listed collection of the link chosen' + where);
+    let sent = null;
+    await page.route('**/v1/chat/completions', route => { sent = route.request().postDataJSON(); route.fulfill({status: 503, contentType: 'application/json', body: JSON.stringify({error: {code: 'no_chat_model', message: 'x'}})}); });
+    await page.locator('#userInput').fill('Welche Seiten?');
+    await page.locator('#sendButton').click();
+    await page.waitForFunction(() => document.querySelectorAll('#chatMessages .chat-turn.system').length > 0);
+    await page.unroute('**/v1/chat/completions');
+    check(sent && sent.collection === 'secret', 'The question is asked in the chosen collection' + where);
+    await select.selectOption('');
+    check(await current() === T.all && await page.evaluate(() => localStorage.getItem('scoutro.chat.collection')) === null, 'All collections again' + where);
+    await page.goto(base + '/yacychat.html');
     if (mobile) check(await page.locator('#chatForm').evaluate(form => getComputedStyle(form).position === 'sticky'), 'Question field stays reachable on mobile' + where);
     check(await fits(page), 'Chat fits the viewport' + where);
 

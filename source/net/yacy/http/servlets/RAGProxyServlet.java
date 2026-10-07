@@ -48,6 +48,7 @@ import net.yacy.ai.LLM;
 import net.yacy.ai.PromptGuard;
 import net.yacy.ai.RAGAugmentor;
 import net.yacy.ai.ToolCallProtocol;
+import net.yacy.ai.rag.ChatCollections;
 import net.yacy.ai.rag.GraphFacts;
 import net.yacy.ai.rag.RagCitations;
 import net.yacy.ai.rag.RagContext;
@@ -226,6 +227,16 @@ public class RAGProxyServlet extends HttpServlet {
                 }
             }
             bodyObject.remove("collection");
+            // the scope a client may choose (package 6.1): local and administrator access every collection, an AI Shield
+            // guest only the released ones; the chat page lists exactly these, a name outside them is refused and never echoed
+            final String releasedCollections = sb.getConfig(ChatCollections.GUEST_SETTING, "");
+            final boolean allCollections = shield.privileged || ChatCollections.privileged(client, hrequest);
+            if (!ChatCollections.permits(allCollections, collection, releasedCollections)) {
+                ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=collection-not-allowed shield=" + shield + " durationMs=" + elapsed(requestStart));
+                LLMAccess.error(hresponse, HttpServletResponse.SC_FORBIDDEN, LLMAccess.COLLECTION_NOT_ALLOWED,
+                        "This collection is not available for this chat; choose one of the listed collections or the whole index.");
+                return;
+            }
 
             // server base system prompt first; client system messages become lower-priority preferences
             final PromptGuard guard = new PromptGuard();
@@ -306,7 +317,9 @@ public class RAGProxyServlet extends HttpServlet {
             if (fresh) {
                 final long searchStart = System.currentTimeMillis();
                 RagQuery query = RagQuery.prepare(question);
-                final String scope = collection != null ? collection : query.questionCollection;
+                // a collection: modifier of the question counts only within the client's collections, else the whole index
+                final String scope = collection != null ? collection
+                        : ChatCollections.permits(allCollections, query.questionCollection, releasedCollections) ? query.questionCollection : null;
                 final boolean global = "global".equals(ragMode) && scope == null;
                 final RagRetriever retriever = new RagRetriever((q, c, n, g) -> RAGAugmentor.searchCandidates(q, c, n, g, runId));
                 RagRetriever.Result result = retriever.retrieve(query, scope, global, ragSettings.maxSources);

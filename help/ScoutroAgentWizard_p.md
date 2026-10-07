@@ -32,7 +32,7 @@ All steps are one POST form. The fields of earlier steps travel in the hidden fi
 | Control | Step | Meaning |
 | --- | --- | --- |
 | `name`, `description`, `kind` | 1 | `kind` is `external` or `research_worker`. |
-| `scopeForm`, `col_<collection>`, `extraCollections`, `allCollections`, `confirmAllCollections` | 2 | Collection names match `[A-Za-z0-9_-]{1,64}`. |
+| `scopeForm`, `col_<collection>`, `allCollections`, `confirmAllCollections` | 2 | One checkbox per collection of the catalog; a collection outside it is refused, so a new one is created first (New collection). `extraCollections` (free text) is no longer accepted. |
 | `actionsForm`, `preset`, `act_<action>` | 3 | `preset` is `research`, `research_crawl` or `custom`. |
 | `limitsForm`, `domains`, `maxDepth`, `maxPages`, `maxParallelCrawls`, `requestsPerMinute`, `maxTaskSeconds`, `modelAllowed` | 4 | Same ranges as on the management page. |
 | `expiresInDays`, `clustroBaseUrl`, `clustroWorkspaceId`, `clustroConnectionId`, `clustroAgentKey` | 5 | The Clustro fields only for a research worker; the key has the form `ak_` + 64 hex characters. |
@@ -62,7 +62,7 @@ The wizard is meant for people. Scripts that need an agent should use the wizard
 
 ## Crawl and status grants
 
-Crawl start requires an explicit granted Collection. Optional `host.resolve`/`collections.list` reads are scoped. Global `discovery.status` is admin-risk and absent from presets. No Discovery write permission is introduced.
+Crawl start requires an explicit granted Collection. In step 2 the collections are ticked in a list of existing collections; **New collection** creates one (display name, ID, optional description) and ticks it. No collection name is typed, and the server refuses a collection outside the list. Optional `host.resolve`/`collections.list` reads are scoped. Global `discovery.status` is admin-risk and absent from presets. No Discovery write permission is introduced.
 
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
 

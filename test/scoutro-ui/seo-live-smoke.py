@@ -113,6 +113,10 @@ with tempfile.TemporaryDirectory(prefix="scoutro-seo-") as temporary:
             subprocess.run(["node", str(REPO / "test/scoutro-ui/ai-lab-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
             assert not (root / "DATA/SCOUTRO/crawls.ndjson").exists(), "Invalid/API/UI GETs must not create a crawl ledger"
             subprocess.run(["node", str(REPO / "test/scoutro-ui/crawl-flow-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
+            # package 6.1: create a collection against the real backend and use it everywhere (crawl start intercepted)
+            subprocess.run(["node", str(REPO / "test/scoutro-ui/collection-create-ui-test.mjs")], cwd=REPO, env={**env,"SCOUTRO_SCREENSHOTS":shots}, check=True)
+            assert (root / "DATA/SCOUTRO/collections.json").exists(), "created collections are kept in DATA/SCOUTRO"
+            assert not (root / "DATA/SCOUTRO/crawls.ndjson").exists() or "nirgends-web" not in (root / "DATA/SCOUTRO/crawls.ndjson").read_text(), "no crawl into an unknown collection"
         finally:
             if process is not None and process.poll() is None:
                 process.terminate()

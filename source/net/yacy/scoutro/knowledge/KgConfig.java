@@ -222,6 +222,12 @@ public final class KgConfig {
     public final Map<String, Set<String>> llmKinds;
     /** LLM collections that are not followed (ignored, shown in the status). */
     public final Set<String> llmIgnored;
+    /**
+     * The per-collection keys found among the set keys ({@code scoutro.kg.vocab.<c>},
+     * {@code scoutro.kg.prices.staleDays.<c>}) for collections beyond the named ones, read with {@code *}
+     * (package 6.1): a new collection gets its vocabulary from its key.
+     */
+    public final List<String> perCollectionKeys;
     /** YaCy's own free-space thresholds for the DATA filesystem, in bytes. */
     public final long yacySteadyStateBytes;
     public final long yacyUndershotBytes;
@@ -296,6 +302,21 @@ public final class KgConfig {
         this.chatTimeoutMillis = p.longValue(CHAT_TIMEOUT_MS, 300, 50, 5000);
         final Set<String> perCollection = new TreeSet<>(this.collections);
         perCollection.addAll(SCOUTRO_COLLECTIONS);
+        // with *, every collection is followed: its per-collection keys count too, also for a collection named nowhere else
+        final List<String> keyed = new ArrayList<>();
+        if (this.allCollections) {
+            for (final String k : p.keys) {
+                for (final String prefix : new String[] {VOCAB_PREFIX, PRICES_STALE_DAYS + "."}) {
+                    final String c = k.startsWith(prefix) ? k.substring(prefix.length()) : null;
+                    if (c != null && COLLECTION_NAME.matcher(c).matches() && !keyed.contains(k)) {
+                        keyed.add(k);
+                        perCollection.add(c);
+                    }
+                }
+            }
+        }
+        java.util.Collections.sort(keyed);
+        this.perCollectionKeys = Collections.unmodifiableList(keyed);
         final Map<String, String> vocab = new TreeMap<>();
         final Map<String, Long> stale = new TreeMap<>();
         for (final String c : perCollection) {
@@ -367,7 +388,16 @@ public final class KgConfig {
 
     /** Reads all settings; {@code lookup} returns null for keys that are not set. */
     public static KgConfig read(final Function<String, String> lookup) {
-        return new KgConfig(new Parser(lookup));
+        return read(lookup, List.of());
+    }
+
+    /**
+     * Reads all settings; {@code keys} are the keys that are set (or some of
+     * them), from which the per-collection keys of collections named nowhere
+     * else are taken when every collection is followed.
+     */
+    public static KgConfig read(final Function<String, String> lookup, final Iterable<String> keys) {
+        return new KgConfig(new Parser(lookup, keys == null ? List.of() : keys));
     }
 
     public boolean valid() {
@@ -590,7 +620,14 @@ public final class KgConfig {
         for (final Map.Entry<String, Set<String>> e : this.llmKinds.entrySet()) {
             KgJson.put(kinds, e.getKey(), new JSONArray(e.getValue()));
         }
-        return KgJson.obj("valid", valid(), "errors", errors, "collections", colls, "llmCollections", llm,
+        final JSONArray jobs = new JSONArray();
+        if (this.jobsAllCollections) {
+            jobs.put(ALL_COLLECTIONS);
+        }
+        for (final String c : this.jobsCollections) {
+            jobs.put(c);
+        }
+        return KgJson.obj("valid", valid(), "errors", errors, "collections", colls, "llmCollections", llm, "jobsCollections", jobs,
                 "llmIgnoredCollections", new JSONArray(this.llmIgnored), "llmKinds", kinds,
                 "chat", KgJson.obj("enabled", this.chatEnabled, "allowGuests", this.chatAllowGuests, "maxFacts", this.chatMaxFacts,
                         "maxChars", this.chatMaxChars, "timeoutMs", this.chatTimeoutMillis));
@@ -598,10 +635,12 @@ public final class KgConfig {
 
     private static final class Parser {
         private final Function<String, String> lookup;
+        private final Iterable<String> keys;
         private final List<Problem> problems = new ArrayList<>();
 
-        Parser(final Function<String, String> lookup) {
+        Parser(final Function<String, String> lookup, final Iterable<String> keys) {
             this.lookup = lookup;
+            this.keys = keys;
         }
 
         private String raw(final String key) {

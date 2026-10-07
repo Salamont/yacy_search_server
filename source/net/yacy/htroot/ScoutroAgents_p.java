@@ -276,13 +276,19 @@ public class ScoutroAgents_p {
         final String e = p + "editable_";
         prop.putHTML(e + "name", a.name);
         prop.putHTML(e + "description", a.description);
+        // package 6.1: the catalog's selectable collections (and the agent's own, also if no longer listed), never typed
         int i = 0;
-        final java.util.Set<String> known = new java.util.LinkedHashSet<>(AgentAdmin.profileCollections());
-        known.addAll(AgentAdmin.indexCollections());
+        final java.util.Map<String, String> names = new java.util.LinkedHashMap<>();
+        for (final net.yacy.scoutro.api.CollectionCatalog.Entry c : AgentAdmin.collectionChoices()) names.put(c.id, c.name);
+        final java.util.Set<String> known = new java.util.LinkedHashSet<>(names.keySet());
         known.addAll(a.scope.collections);
         for (final String c : known) {
             prop.putHTML(e + "cols_" + i + "_name", c);
             prop.put(e + "cols_" + i + "_checked", a.scope.collections.contains(c) ? 1 : 0);
+            final String title = names.get(c);
+            prop.put(e + "cols_" + i + "_named", title != null && !title.equals(c) ? 1 : 0);
+            prop.putHTML(e + "cols_" + i + "_named_title", title == null ? "" : title);
+            prop.put(e + "cols_" + i + "_missing", names.containsKey(c) ? 0 : 1);
             i++;
         }
         prop.put(e + "cols", i);

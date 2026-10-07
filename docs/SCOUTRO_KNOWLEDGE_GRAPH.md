@@ -2095,3 +2095,82 @@ New per run: the derive pass, and read latencies of the object view, the depth-2
 3. Choose `jobs.collections`; check the vocabularies of the collections (`scoutro.kg.vocab.<collection>`).
 4. After the start, watch `status.upgrade`, the re-extraction (pending work by type) and the first derive pass.
 5. Run the A/B benchmark on the real collections, with Claude as tester and judge of the instance's own model ([test/scoutro-kg-benchmark/README.md](../test/scoutro-kg-benchmark/README.md#limits)).
+
+## 24. Package 6.1: service context, network view and new collections
+
+Package 6.1 makes the business graph easier to read without changing its model. It starts from `main` after the 0.8.0 release (`cf4adfc`), adds no schema change and no new on-disk data, and touches no installation.
+
+### 24.1 Services of the same name
+
+Services stay what vocabulary 2 makes them: one entity per provider, keyed `service_name` within the provider's registrable domain ([23.3](#233-services-and-prices-c)). "SAP" of CTcon GmbH and "SAP" of another company are two entities with their own provider, prices and evidence; nothing in this package merges them, changes an ID or moves a price.
+
+- **Context of a hit** (`read/EntityContexts`): every item of `GET entities` (and `hosts/{host}/entities`) carries `context`, computed for the whole page in a few batched queries over the viewer's evidence: `hosts` (the most-used first), `collections`, `places` (stated locality, else the places it is in), `quality`, `sources`, `last_confirmed`; for a service its `providers` (the visible subjects of a visible `offers` fact, each with hosts, collections, places and quality) and `provider_count`, for a job its employer (`hiring_organization`). A service without a visible provider has `provider_count: 0`, which the page says ("No provider assigned").
+- **Groups** (`read/ServiceGroups`, `GET services`, `GET services/providers`): the visible name statements of visible services, grouped by the name in lower case without surrounding spaces, for reading only. A group counts separate services: providers, services without a provider, the viewer's collections, the providers' places, services with a current price and with a current source. `services/providers?name=` lists the services of one name, each with its own provider and price counts. Other collections never enter a group; an invisible name is `404`.
+- **Comparison:** each provider now also names the hosts and collections of the viewer's pages.
+
+### 24.2 The network around a service
+
+`BusinessGraph.neighborhood` already read the incoming facts; 6.1 makes the service centre useful:
+
+- every entity node carries the same context as a hit (hosts, collections, places, quality, sources, last confirmation), so the drawing can show `CTcon GmbH` / `ctcon.de` and the detail panel needs no further request;
+- edges of the centre carry `direction` (`in`: `CTcon GmbH → offers → SAP` with SAP in the centre);
+- with a service or job in the centre, depth 2 shows the providers' relations and structure but not their other services and jobs (those would turn a provider with fifty services into a hub; its own network shows them);
+- `prices=true` adds the published prices of the services in the centre and at depth 1 as value nodes, each attached to its own service only.
+
+### 24.3 Network view
+
+Still an SVG drawn by `knowledge.js`, no library, no CDN.
+
+- **Nodes** are cards by type (organisation, facility or site, service, job, place, industry or audience, price) with a second line: the domain of an organisation, "Service" for a service, the place of a facility. The centre is framed.
+- **Layout:** on a narrow screen, for many neighbours and at depth 2 the drawing is *layered*: what points to the centre above it (providers, customers, members), what it points to below, depth 2 beyond its neighbour, every layer wrapped into rows that fit the width (two columns on a phone). Lines run orthogonally through the gaps between rows and the gutters between columns, so they never cross a card. A few neighbours on a wide screen are drawn *radially*. The drawing is as high as its content; the page never scrolls sideways.
+- **Labels:** in the layered drawing the relation to the anchor (centre or neighbour) is the card's caption next to the line that enters it; other lines get a label where it covers neither a card nor another label, else on highlight. Arrows show the direction the source states.
+- **Detail panel:** a tap, click or Enter on a node shows name, type, domain, collections, quality, sources, last confirmation and the relation to the centre, with *Open object*, *Network of this object* and *Open sources* (the object view at its evidence section). Value nodes link to the objects of that industry or audience; a price node to its service and its evidence.
+- **Filters**, grouped: facts (relations between companies, structure and operators, services and providers, places, industry, audiences, jobs and employers, prices), derived (same operator, weak link signals, suggestions), status (current, outdated). The defaults follow the centre's type: around a service its providers, structure and business relations at depth 2; around a job its employer; around an organisation the defaults of package 6. Links of package 6 (`f=…,values,…`) keep working.
+- The list below holds the same edges, each end with its type or domain; GraphML also carries hosts and collections. Zoom and pan were left out: the layout fits the width instead.
+
+### 24.4 New collections
+
+- **Following:** unchanged. `scoutro.kg.collections=*` follows a new collection at once; a fixed list only the named ones.
+- **Fix:** under `*`, `scoutro.kg.vocab.<collection>` and `scoutro.kg.prices.staleDays.<collection>` were read only for the four Scoutro collections and the named ones, so an existing vocabulary could not be assigned to a new collection. The runtime now passes the set `scoutro.kg.*` keys to `KgConfig` (the rebuild the same per-collection keys); the keys found are part of the extraction identity as before, so assigning a vocabulary re-extracts that collection's pages. Such a key with an invalid value now counts like one of a named collection: it is listed under Settings and keeps the graph off. A fixed list behaves as before.
+- **Vocabulary:** a collection without a mapping has none; it gets generic facts and no service categories. No vocabulary is ever guessed from a collection's name. Override files in `DATA/SCOUTRO/knowledge/vocabulary/` can add a vocabulary and a mapping without a schema change.
+- **Status:** `status.collections` lists every collection the graph follows, maps or holds: `followed`, `vocabulary` (null for none), `vocabularySource` (`setting`, `vocabulary_files`, `none`), `vocabularyKnown`, `jobs`, `llm`, `documents` (counted from `kg_doc_collection` at most every 10 seconds) and `state` (`following`, `waiting`, `not_followed`, `unknown_vocabulary`); `config.jobsCollections` shows `scoutro.kg.jobs.collections`. The overview shows them as the *Collections* table with "No vocabulary assigned".
+- **Jobs:** only for collections named in `scoutro.kg.jobs.collections` (or `*`); a new collection never gets them by itself.
+
+### 24.5 Display names, never an ID
+
+**Cause.** The read API projected `name` only from a visible `name` statement. An entity without one — the unnamed operator of a services or careers page (the `domain_operator` placeholder of `BusinessRules`) before a page declares the operator, an organisation known only from links, a service whose name another collection holds — had `name: null`, and the object list, object view, network, comparison, matches, relations, provider lists, the SEO tab and the chat fell back to the ID (`kge_…`).
+
+**Fix** (`read/DisplayNames`). Every entity, reference, node, statement subject and object, provider, compared provider and service row now also carries `display_name` and `display_name_source`, computed for the viewer at each read:
+
+1. `fact`: the visible stated name;
+2. `legal`: a visible alias that is a legal name (`… GmbH`, `… AG`);
+3. `operator`: for the unnamed operator of a site, the visible name of the *one* declared operator of the same domain (`site_operator` key in the placeholder's `domain_operator` scope); with several, none;
+4. `domain`: for an organisation, a name from the host of most of the viewer's pages (`www.zimmerei-boehmer.de` → "Zimmerei Boehmer", with `display_host`; the host itself when no readable label is left: an address, punycode, digits); the page adds "derived from the domain";
+5. `fallback`: `display_name: null`; the page shows "Unnamed organisation", "Unnamed service", "Unnamed facility", "Unnamed site", "Unnamed place", "Unnamed job posting".
+
+Only `fact` is a name the sources state. The others are presentation: never stored, never an entity key, never used to merge, never given to the chat as a fact (the chat says "an unnamed organisation"). `name` stays the stated name or null. A stated name that turns up later replaces the fallback at the next read, without a migration. The ID stays the link target and appears only in the object view's *Technical ID* field.
+
+### 24.6 Collection choice, never free text
+
+No collection name has to be typed or known anywhere. Every visible collection filter is a `select`: the chat, the knowledge graph page (objects, object, network, services, compare, sources, settings), the SEO host analysis with its crawl status tab, the crawl report and the Index Browser. The crawl start, the agent grants and YaCy's own crawl and import forms choose the collection from the same list too, and **New collection** creates one (§24.6.1).
+
+- **Options:** "All collections" (the empty scope) first; where a view needs exactly one collection (crawl status, crawl report, crawl start) "Choose a collection". Then the collections alphabetically regardless of case, labelled with their display name. Nothing is hard-coded: the admin pages read `GET /scoutro/api/v1/collections` (administrator only, the collection catalog; the report adds the Discovery jobs' collections), so a created collection appears at once and an indexed one as soon as the index has pages of it. While the list loads the select is disabled and `aria-busy`, and the views wait for it.
+- **Link and stored values** (`?collection=`, the chat's `localStorage`) count only if the name is in the list; otherwise "All collections" applies, the admin pages say so without repeating the name, and the chat forgets a stored name that is no longer listed.
+- **Chat:** `yacychat.java` renders the list with the rule of the endpoint (`ai/rag/ChatCollections`): local and administrator access every selectable collection of the catalog, an AI Shield guest only those released on the AI Shield page (`ai.shield.guest-collections`, none by default; the catalog reads the index at most every 10 s). `/v1/chat/completions` refuses any other name with `403 collection_not_allowed` for existing and unknown names alike and never echoes it; a guest's `collection:` modifier outside the list is ignored. The backend stays authoritative; the select only shows what it accepts.
+- **Agents** keep their granted collections (`GET /scoutro/api/agent/v1/collections`, `403 collection_not_in_scope` elsewhere); they never use the chat endpoint.
+- **Crawl start** (`ScoutroCrawls_p.html`): the collection a crawl writes to is a required `select` with **New collection** beside it; `POST /scoutro/api/v1/crawls` refuses a collection outside the catalog with `400 collection_unknown` before anything is dispatched, so a crawl never invents a collection.
+- **Agent grants** (Agents & Access, agent wizard): the collections are a list of checkboxes of the catalog (plus the collections the agent already holds, marked when the catalog no longer lists them); the free-text field "Further collections" is gone and the server refuses a collection outside the list. **New collection** in the form creates one and ticks it.
+- **YaCy's forms** (expert and site crawl start, RSS, WARC and ZIM import): the collection field becomes the same `select` with **New collection** (progressive enhancement: without JavaScript, or while the catalog cannot be read — not yet signed in as administrator, index unavailable — YaCy's original field stays, so the form and its login keep working; YaCy's `Crawler_p` and import servlets themselves still accept the parameter as before). The index deletion page always lists the collections of the index (it deletes what the index holds, including internal ones) instead of a text field.
+
+#### 24.6.1 The collection catalog and New collection
+
+- **One definition** (`scoutro/api/CollectionCatalog`): a collection is known when the index has documents of it (facet `collection_sxt`, cached 10 s), when it was created (`DATA/SCOUTRO/collections.json`, schema `scoutro.collections.v1`, reloaded when the file changes) or when a Discovery profile names it as its collection. `robot_*` is internal: listed with `internal: true`, never selectable. `selectable`, `chat`, `knowledgeGraph` and `crawlTarget` are all "not internal"; the chat narrows guests further (AI Shield), the graph follows by `scoutro.kg.collections` as before. Every list (chat, filters, crawl start, agent grants, AI Shield, YaCy's forms) takes the catalog; there are no ad-hoc filters.
+- **List:** `GET /scoutro/api/v1/collections` returns `collections`, one entry each (`id`, display `name`, `description`, `documents`, `internal`, `selectable`, `chat`, `knowledgeGraph`, `crawlTarget`, `sources`, `createdAt`, and `graph`: `followed`, `vocabulary`, `vocabularySource`, `jobs`, `llm`, `state` from the graph's collection status), `allowNew: false`, `canCreate` (administrator) and `limit` (500). Agents (`collections.list`) see only their collections and `canCreate: false`.
+- **Create:** **New collection** opens a dialog: display name (required, at most 80 characters), collection ID suggested from it ("Mein neues Portal" → `mein-neues-portal`; umlauts as `ae`/`oe`/`ue`/`ss`, editable) and an optional description (at most 500). `POST /scoutro/api/v1/collections` (administrator, same-origin JSON, at most 4 KiB; without `id` it is derived from the name) checks on the server: `400 collection_id_invalid` (format), `400 collection_reserved` (`robot_*`, `all`, `none`, `default`, `user`, `any`, `new`), `409 collection_exists` (any collection of the catalog, regardless of case; nothing is overwritten), `400 invalid_request` (name, description, unknown field), `503 index_unavailable` (the index cannot be read, so duplicates cannot be checked) and `503 collection_store_unavailable` (a damaged list is never overwritten). The dialog shows the message and adds nothing; after `201` the list is reloaded, the new collection selected (or ticked) and the work goes on.
+- **Rights:** only the administrator sees **New collection** (`canCreate`) and only the administrator may call the route; anonymous calls are `401`, cross-origin `403`, agents have no such grant (`405` on the agent path). A created collection has no documents until a crawl writes into it; it gets no vocabulary and no jobs by itself (§24.4).
+
+### 24.7 API, agents and tools
+
+The collection catalog (`GET /v1/collections` with its entries, `POST /v1/collections`, `collection_unknown` of the crawl start) is in `openapi.json` and `actions.json` (65 actions) as `collections.list` and `collections.create`, with `scoutroctl collections` and `scoutroctl collections create NAME [--id ID] [--description TEXT]`.
+
+`GET services`, `GET services/providers`, the `prices` parameter of the neighbourhood, `context` in the entity list, the display-name fields, the node and edge fields of the neighbourhood, `hosts`/`collections` of the compared providers and `status.collections` are in `openapi.json` and `actions.json`, for agents behind `kg.read` (the viewer is the agent's collections; foreign collections are `403 collection_not_in_scope`), as MCP tools `scoutro_kg_services` and `scoutro_kg_services_providers` and as `scoutroctl kg services`, `kg service-providers NAME` and `kg neighborhood --prices`.

@@ -86,8 +86,14 @@ try {
       check(content.includes('Websites in the index') && content.includes('28 indexed pages') && content.includes('SEO analysis'), 'English texts' + where);
     }
 
-    // collection filter and the domain card of a.example/visible
-    await page.locator('#scoutro-index-collection').fill('visible');
+    // collection filter and the domain card of a.example/visible; package 6.1: a real select, sorted, no free text
+    const choice = page.locator('#scoutro-index-collection');
+    check(await choice.evaluate(e => e.tagName) === 'SELECT' && await page.locator('#scoutro-index-form datalist, #scoutro-index-form input[list]').count() === 0, 'Collection as a real select' + where);
+    await page.waitForFunction(() => !document.getElementById('scoutro-index-collection').disabled);
+    const names = await choice.locator('option').evaluateAll(list => list.map(o => o.value));
+    const catalog = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+    check(catalog.includes('secret') && catalog.includes('visible') && JSON.stringify(names) === JSON.stringify(['', ...catalog]), 'All collections first, then the catalog sorted: ' + JSON.stringify(names) + where);
+    await choice.selectOption('visible');
     await page.locator('#scoutro-index-form button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#scoutro-domain-total').textContent === '1');
     check(new URL(page.url()).searchParams.get('collection') === 'visible', 'Filter kept in the page URL' + where);
@@ -110,7 +116,7 @@ try {
     check(download.status === 200 && download.body.split('\r\n').length === 3, 'Download link returns the filtered CSV' + where);
 
     // host search, invalid input
-    await page.locator('#scoutro-index-collection').fill('');
+    await page.locator('#scoutro-index-collection').selectOption('');
     await page.locator('#scoutro-index-query').fill('b.example');
     await page.locator('#scoutro-index-form button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#scoutro-domain-total').textContent === '1' && document.querySelector('.scoutro-domain-host')?.textContent === 'b.example');
@@ -122,7 +128,7 @@ try {
 
     // SEO analysis keeps host and collection
     await page.locator('#scoutro-index-query').fill('a.example');
-    await page.locator('#scoutro-index-collection').fill('secret');
+    await page.locator('#scoutro-index-collection').selectOption('secret');
     await page.locator('#scoutro-index-form button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#scoutro-domain-total').textContent === '1');
     const seo = page.locator('#scoutro-domain-list .scoutro-domain-actions a').first();
@@ -175,10 +181,15 @@ try {
     check(await page.locator('#scoutro-index-view-urls').getAttribute('aria-current') === 'page', 'URL view selected' + where);
     check(!(await page.locator('#scoutro-index-table tbody').textContent()).includes('secret'), 'Other memberships redacted by selected collection' + where);
     if (width < 992) check(await page.locator('#scoutro-index-table tbody tr').first().evaluate(row => getComputedStyle(row).display === 'grid'), 'Table row displayed as card' + where);
-    await page.locator('#scoutro-index-collection').fill('bad OR *:*');
-    await page.locator('#scoutro-index-form button[type=submit]').click();
-    await page.locator('#scoutro-index-error').waitFor({state:'visible'});
-    check(await page.locator('#scoutro-index-table tbody tr').count() === 0, 'Malformed filter never falls back to whole index' + where);
+    // a collection of the link that is not listed: all collections, with a note; the API still refuses a malformed one
+    await page.goto(base+'/IndexBrowser_p.html?view=urls&collection=' + encodeURIComponent('bad OR *:*'));
+    await page.waitForFunction(() => document.querySelector('#scoutro-index-total').textContent === '30');
+    check(await page.locator('#scoutro-index-unknown').isVisible() && await page.locator('#scoutro-index-collection').inputValue() === ''
+      && !new URL(page.url()).searchParams.has('collection'), 'Unknown collection of the link: all collections, said so' + where);
+    check((await get(page, '/scoutro/api/v1/index/browse?collection=' + encodeURIComponent('bad OR *:*'))).status === 400, 'The API refuses a malformed collection' + where);
+    await page.goto(base+'/IndexBrowser_p.html?view=urls&collection=visible&q=a.example');
+    await page.waitForFunction(() => document.querySelector('#scoutro-index-total').textContent === '28');
+    check(!(await page.locator('#scoutro-index-unknown').isVisible()) && await page.locator('#scoutro-index-collection').inputValue() === 'visible', 'Listed collection of the link chosen' + where);
     await page.locator('#scoutro-index-reset').click();
     await page.waitForFunction(() => document.querySelector('#scoutro-index-total').textContent === '30');
     check(await page.locator('#scoutro-index-collection').inputValue() === '', 'Reset clears filter' + where);

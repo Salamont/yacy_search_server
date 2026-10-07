@@ -222,6 +222,29 @@ public final class GraphFacts {
         }
     }
 
+    /** The words for an entity without a stated name. */
+    static String unnamed(final String type) {
+        if (type == null) {
+            return "an unnamed entry";
+        }
+        switch (type) {
+            case "organization":
+                return "an unnamed organisation";
+            case "facility":
+                return "an unnamed facility";
+            case "site":
+                return "an unnamed site";
+            case "place":
+                return "an unnamed place";
+            case "service":
+                return "an unnamed service";
+            case "job":
+                return "an unnamed job posting";
+            default:
+                return "an unnamed entry";
+        }
+    }
+
     /** Numbers the entries from {@code firstId}, within the character budget of the selection. */
     public static Built format(final Selected sel, final int firstId) {
         final List<RagContext.Source> sources = new ArrayList<>();
@@ -230,7 +253,8 @@ public final class GraphFacts {
         final java.util.Set<String> entities = new java.util.LinkedHashSet<>();
         for (final ChatFacts.Entry e : sel.entries) {
             final int id = firstId + sources.size();
-            final String name = RagContext.clean(e.name == null ? e.entity : e.name, RagContext.MAX_TITLE_CHARS - TITLE.length());
+            // an entity without a stated name is worded by its type, never by its technical ID (package 6.1)
+            final String name = RagContext.clean(e.name == null ? unnamed(e.type) : e.name, RagContext.MAX_TITLE_CHARS - TITLE.length());
             final StringBuilder header = new StringBuilder();
             header.append('[').append(id).append("] ").append(TITLE).append(name).append('\n');
             header.append("URL: ").append(e.url).append('\n');

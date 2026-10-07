@@ -45,9 +45,12 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * <li>{@code GET sources/{docId}?offset&limit}</li>
  * <li>{@code GET export?cursor&limit&include=evidence} and {@code GET changes?cursor&limit&expand} (8.3)</li>
  * <li>vocabulary 2 (package 6): {@code GET entities/{id}/business?include=hidden_jobs} (the business view),
- * {@code GET entities/{id}/neighborhood?depth&limit&offset&types&weak&derived&suggested&values&include=stale},
+ * {@code GET entities/{id}/neighborhood?depth&limit&offset&types&weak&derived&suggested&values&prices&include=stale},
  * {@code GET compare?category&limit}, {@code GET derived?kind&entity&offset&limit}, {@code GET facets}; and the
  * filters {@code industry}, {@code category}, {@code audience} of {@code GET entities}</li>
+ * <li>package 6.1: {@code GET services?q&category&offset&limit} (services of the same name across providers, read-only groups)
+ * and {@code GET services/providers?name&category&offset&limit} (the services of one name, each with its own provider); the
+ * {@code context} of every item of {@code GET entities} (hosts, collections, places, providers)</li>
  * </ul>
  * The caller decides the collections ({@code null} = all, for the
  * administrator without filter); everything is computed over the evidence of
@@ -79,13 +82,13 @@ final class KnowledgeRead {
     static boolean handles(final String resource) {
         return "entities".equals(resource) || "statements".equals(resource) || "hosts".equals(resource) || "sources".equals(resource)
                 || "export".equals(resource) || "changes".equals(resource) || "compare".equals(resource) || "derived".equals(resource)
-                || "facets".equals(resource);
+                || "facets".equals(resource) || "services".equals(resource);
     }
 
     /** Resources without a sub path (for the administrator router). */
     static boolean single(final String resource) {
         return "entities".equals(resource) || "export".equals(resource) || "changes".equals(resource) || "compare".equals(resource)
-                || "derived".equals(resource) || "facets".equals(resource);
+                || "derived".equals(resource) || "facets".equals(resource) || "services".equals(resource);
     }
 
     /**
@@ -134,7 +137,7 @@ final class KnowledgeRead {
                         out = new BusinessView(reader).entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer,
                                 oneOf(q, "include", Set.of("hidden_jobs")) != null);
                     } else if (parts.size() == 3 && "neighborhood".equals(parts.get(2))) {
-                        allow(q, "depth", "limit", "offset", "types", "weak", "derived", "suggested", "values", "include", "collection");
+                        allow(q, "depth", "limit", "offset", "types", "weak", "derived", "suggested", "values", "prices", "include", "collection");
                         final BusinessGraph.Query nq = new BusinessGraph.Query();
                         nq.depth = intParam(q, "depth", 1, 1, BusinessGraph.MAX_DEPTH);
                         nq.limit = intParam(q, "limit", 50, 1, BusinessGraph.MAX_NODES);
@@ -144,6 +147,7 @@ final class KnowledgeRead {
                         nq.derived = bool(q, "derived", true);
                         nq.suggested = bool(q, "suggested", false);
                         nq.values = bool(q, "values", true);
+                        nq.prices = bool(q, "prices", false);
                         nq.stale = oneOf(q, "include", Set.of("stale")) != null;
                         out = new BusinessGraph(reader).neighborhood(id(parts.get(1), KgReader.ENTITY_ID, "entity"), nq, viewer);
                     } else if (parts.size() == 3 && "statements".equals(parts.get(2))) {
@@ -214,6 +218,23 @@ final class KnowledgeRead {
                     allow(q, "collection");
                     out = new BusinessGraph(reader).facets(viewer);
                     break;
+                case "services": {
+                    final net.yacy.scoutro.knowledge.read.ServiceGroups groups = new net.yacy.scoutro.knowledge.read.ServiceGroups(reader);
+                    final int offset = intParam(q, "offset", 0, 0, KgReader.MAX_OFFSET);
+                    if (parts.size() == 1) {
+                        allow(q, "q", "category", "offset", "limit", "collection");
+                        out = groups.groups(text(q, "q", 200), code(q, "category", CODE), offset,
+                                intParam(q, "limit", 25, 1, net.yacy.scoutro.knowledge.read.ServiceGroups.MAX_LIMIT), viewer);
+                    } else {
+                        allow(q, "name", "category", "offset", "limit", "collection");
+                        final String name = text(q, "name", 200);
+                        if (name == null) {
+                            throw ApiException.invalid("name", "The service name is required (e.g. SAP).");
+                        }
+                        out = groups.providers(name, code(q, "category", CODE), offset, intParam(q, "limit", 25, 1, KgReader.MAX_LIMIT), viewer);
+                    }
+                    break;
+                }
                 case "changes": {
                     if (parts.size() != 1) {
                         throw notFound();
@@ -263,6 +284,8 @@ final class KnowledgeRead {
                 return n == 3 && "entities".equals(p.get(2));
             case "sources":
                 return n == 2;
+            case "services":
+                return n == 1 || n == 2 && "providers".equals(p.get(1));
             case "export":
             case "changes":
             case "compare":

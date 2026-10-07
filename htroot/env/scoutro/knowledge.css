@@ -48,26 +48,31 @@
 .skg-bsec h4 { margin: 14px 0 6px; font-size: 15px; }
 .skg-prices td { vertical-align: top; }
 tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
-.skg-net-form fieldset { border: 1px solid #dce6ef; border-radius: 6px; padding: 6px 10px; margin: 0; min-width: 0; }
+.skg-net-form fieldset { border: 1px solid #dce6ef; border-radius: 6px; padding: 6px 10px; margin: 0 0 6px; min-width: 0; max-width: 100%; }
 .skg-net-form fieldset label { display: inline-flex; align-items: center; gap: 4px; margin: 2px 12px 2px 0; font-weight: normal; }
 .skg-net-form legend { font-size: 14px; margin: 0; padding: 0 4px; width: auto; border: 0; }
 .skg-net-listonly { display: inline-flex; align-items: center; gap: 4px; font-weight: normal; }
-.skg-net-wrap { width: 100%; overflow: auto; border: 1px solid #e6edf3; border-radius: 6px; background: #fbfdff; margin: 8px 0; max-height: 80vh; }
-.skg-net-svg { display: block; width: 100%; min-width: 560px; height: auto; aspect-ratio: 1 / 1; max-height: 78vh; }
+.skg-net-wrap { width: 100%; overflow-x: hidden; overflow-y: auto; border: 1px solid #e6edf3; border-radius: 6px; background: #fbfdff; margin: 8px 0; max-height: 85vh; }
+/* the drawing is as large as its content: width of the page, height from the layout (aspect-ratio set per drawing) */
+.skg-net-svg { display: block; width: 100%; height: auto; margin: 0 auto; }
 .skg-node { cursor: pointer; }
-.skg-node circle, .skg-node rect { fill: #fff; stroke: #197bb5; stroke-width: 2; }
-.skg-node.skg-t-organization circle { fill: #e3f0fa; }
-.skg-node.skg-t-facility circle, .skg-node.skg-t-site circle { fill: #e7f5ec; stroke: #2f8a50; }
-.skg-node.skg-t-place circle { fill: #f4f4f4; stroke: #777; }
-.skg-node.skg-t-service circle { fill: #fff6e0; stroke: #b58300; }
-.skg-node.skg-t-job circle { fill: #f3eafa; stroke: #7b43a6; }
-.skg-node.skg-t-value rect, .skg-legend-value { fill: #eef0fb; stroke: #5a64b8; stroke-width: 1.5; }
-.skg-node.skg-center circle { stroke-width: 4; fill: #197bb5; }
-.skg-node text { font-size: 12px; fill: #22324a; paint-order: stroke; stroke: #fbfdff; stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
-.skg-node.skg-quiet text { display: none; }
-.skg-node:hover text, .skg-node:focus text { display: inline; font-weight: bold; }
+.skg-node .skg-card { fill: #fff; stroke: #9fb3c8; stroke-width: 1.5; }
+.skg-node .skg-stripe { fill: #61718a; stroke: none; }
+.skg-node .skg-n1 { font-size: 12.5px; font-weight: 600; fill: #18263a; pointer-events: none; }
+.skg-node .skg-n2 { font-size: 11px; fill: #51617a; pointer-events: none; }
+.skg-t-organization .skg-card { fill: #eef6fc; stroke: #6aa3cc; } .skg-t-organization .skg-stripe { fill: #197bb5; }
+.skg-t-facility .skg-card { fill: #eef8f1; stroke: #7fbf93; } .skg-t-facility .skg-stripe { fill: #2f8a50; }
+.skg-t-service .skg-card { fill: #fff8e6; stroke: #d9b45a; } .skg-t-service .skg-stripe { fill: #b58300; }
+.skg-t-job .skg-card { fill: #f6effb; stroke: #b28fd0; } .skg-t-job .skg-stripe { fill: #7b43a6; }
+.skg-t-place .skg-card { fill: #f4f4f4; stroke: #a0a0a0; } .skg-t-place .skg-stripe { fill: #777; }
+.skg-t-value .skg-card { fill: #f0f1fb; stroke: #8d94d0; stroke-dasharray: 4 3; } .skg-t-value .skg-stripe { fill: #5a64b8; }
+.skg-t-price .skg-card { fill: #fffdf3; stroke: #c9a227; stroke-dasharray: 4 3; } .skg-t-price .skg-stripe { fill: #a68414; }
+.skg-node.skg-ns-stale .skg-card, .skg-node.skg-ns-expired .skg-card { opacity: 0.6; }
+.skg-node.skg-center .skg-card { stroke: #0d4f7a; stroke-width: 3.5; }
+.skg-node.skg-center .skg-n1 { font-size: 13.5px; }
 .skg-node:focus { outline: none; }
-.skg-node:focus circle, .skg-node:focus rect, .skg-node:hover circle, .skg-node:hover rect { stroke: #b3261e; stroke-width: 4; }
+.skg-node:focus .skg-card, .skg-node:hover .skg-card, .skg-node.skg-hl .skg-card { stroke: #b3261e; stroke-width: 3; }
+.skg-legend-node .skg-card { stroke-width: 1.2; }
 .skg-edge { cursor: pointer; }
 .skg-edge .skg-hit { fill: none; stroke: transparent; stroke-width: 14; }
 .skg-line { fill: none; stroke: #61718a; }
@@ -81,15 +86,37 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 .skg-arrow { fill: #61718a; stroke: none; }
 .skg-arrow.skg-e-confirmed { fill: #2f6f9f; } .skg-arrow.skg-e-uncertain { fill: #c98a00; } .skg-arrow.skg-e-derived { fill: #5a64b8; }
 .skg-arrow.skg-e-suggested { fill: #d2691e; } .skg-arrow.skg-e-weak, .skg-arrow.skg-e-stale { fill: #9aa7b8; }
-.skg-edge.skg-hl .skg-line, .skg-edge:hover .skg-line, .skg-edge:focus .skg-line { stroke: #b3261e; stroke-width: 4; }
+.skg-edge.skg-hl .skg-line, .skg-edge:hover .skg-line, .skg-edge:focus .skg-line { stroke: #b3261e; stroke-width: 3.5; }
 .skg-edge:focus { outline: none; }
+/* edge labels: on the line, with a halo; on a crowded drawing only for the lines of the selected node */
+.skg-elabel { font-size: 11px; fill: #2f4a66; paint-order: stroke; stroke: #fbfdff; stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.skg-elabel.skg-e-derived, .skg-elabel.skg-e-weak, .skg-elabel.skg-e-suggested { font-style: italic; fill: #4a4f80; }
+/* layered drawing: the relation to the anchor as the card's caption, beside the line that enters the card */
+.skg-caption { font-size: 11px; fill: #2f4a66; paint-order: stroke; stroke: #fbfdff; stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+.skg-caption.skg-hl { font-weight: 600; fill: #8a1f17; }
+.skg-labels-hover .skg-elabel, .skg-elabel.skg-crowded { display: none; }
+.skg-labels-hover .skg-elabel.skg-hl, .skg-elabel.skg-hl { display: inline; font-weight: 600; fill: #8a1f17; }
 .skg-legend { list-style: none; padding: 0; margin: 8px 0; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; }
 .skg-legend li { display: inline-flex; align-items: center; gap: 4px; }
 .skg-net-detail h3 { margin-top: 0; font-size: 16px; overflow-wrap: anywhere; }
 @media (max-width: 767px) {
- .skg-net-svg { min-width: 520px; }
  .skg-toc { gap: 4px 10px; font-size: 14px; }
+ .skg-net-form fieldset label { margin-right: 8px; }
 }
+/* hits with their provider and domain (package 6.1) */
+.skg-provider { overflow-wrap: anywhere; }
+.skg-domain { color: #44546a; }
+.skg-noprov, .skg-novocab { color: #8a1f17; font-style: italic; }
+/* a name the sources do not state (derived for display from a legal name, the operator or the domain) */
+.skg-name-domain, .skg-name-legal, .skg-name-operator, .skg-name-fallback { font-style: italic; }
+.skg-name-note { font-weight: normal; font-size: 13px; margin-left: 4px; }
+.skg-actions { font-size: 13px; }
+.skg-actions a { white-space: nowrap; }
+.skg-groups { margin: 8px 0 12px; padding: 8px 12px; border-left: 4px solid #b58300; background: #fff8e6; }
+.skg-group-list { list-style: none; padding: 0; margin: 0 0 4px; }
+.skg-group-list li { margin: 2px 0; }
+.skg-detail-actions { flex-wrap: wrap; gap: 6px; }
+.skg-net-detail h4 { margin: 12px 0 4px; font-size: 14px; }
 @media (forced-colors: active) {
- .skg-line { stroke: CanvasText; } .skg-node circle, .skg-node rect { stroke: CanvasText; }
+ .skg-line { stroke: CanvasText; } .skg-node .skg-card { stroke: CanvasText; } .skg-elabel { fill: CanvasText; stroke: Canvas; }
 }

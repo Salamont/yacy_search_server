@@ -108,7 +108,7 @@ def create_agent(name, kind="external", collections=(COLLECTION,), preset="resea
                  domains="", max_pages="20", all_collections=False):
     w = Wizard()
     w.post(1, {"name": name, "description": "end-to-end test", "kind": kind})
-    scope = {"scopeForm": "1", "extraCollections": ",".join(collections)}
+    scope = dict({"scopeForm": "1"}, **{"col_" + c: "on" for c in collections})  # existing collections only (package 6.1)
     if all_collections:
         scope.update({"allCollections": "on", "confirmAllCollections": "on"})
     w.post(2, scope)
@@ -219,7 +219,7 @@ class Lifecycle(unittest.TestCase):
         self.assertEqual(agent_call(new, "GET", "/capabilities")[0], 200)
 
         # grant change applies to the next call
-        self.manage(agent_id, "update", name="e2e lifecycle " + RUN, extraCollections=COLLECTION,
+        self.manage(agent_id, "update", name="e2e lifecycle " + RUN, **{"col_" + COLLECTION: "on"},
                     act_search="on", domains="", maxDepth="1", maxPages="20", maxParallelCrawls="1",
                     requestsPerMinute="120", maxTaskSeconds="300")
         status, data, _ = agent_call(new, "GET", "/index/evidence", {"domain": "example.com"})

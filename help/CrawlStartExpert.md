@@ -34,7 +34,7 @@ Crawler pages separate three decisions: the source to load, the rules that decid
 | `expandSiteListBtn` | Add Crawl result to collection (important for Index Pack generation). | Text value; use the page label and surrounding context to choose the exact content. |
 | `sitemapURL` | Sitemap URL used as the crawl source. It should point to a valid XML sitemap or sitemap index. | Absolute URL to an XML sitemap. |
 | `crawlingFile` | Uploaded file name or submitted URL-list source for multi-URL crawls. | Text value; use the page label and surrounding context to choose the exact content. |
-| `collection` | Collection name. Use it to group crawled or imported documents and to search or manage that group later. | Collection name such as `user`, `docs`, or a project-specific name. |
+| `collection` | Collection name. Use it to group crawled or imported documents and to search or manage that group later. In Scoutro the field is a list of existing collections; **New collection** creates one first. Without JavaScript, or while the catalog cannot be read (not yet signed in as administrator, index unavailable), YaCy's original text field stays. | Collection name such as `user`, `docs`, or a project-specific name. |
 | `timezoneOffset` | Client timezone offset in minutes. YaCy uses it for date display or schedule calculations. | Text value; use the page label and surrounding context to choose the exact content. |
 | `indexText` | Index extracted text. | index text |
 | `indexMedia` | Index media resources. | index media |

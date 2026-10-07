@@ -55,7 +55,7 @@
               </select> automatically.
 			</dd>
             <dt>collection</dt>
-            <dd><input name="collection" id="collection" type="text" size="60" maxlength="100" value="#[collection]#" #(collectionEnabled)#disabled="disabled"::#(/collectionEnabled)# /></dd>
+            <dd><input data-scoutro-collection-select name="collection" id="collection" type="text" size="60" maxlength="100" value="#[collection]#" #(collectionEnabled)#disabled="disabled"::#(/collectionEnabled)# /></dd>
           </dl>
           <input type="submit" name="indexAllItemContent" class="btn btn-primary" value="Add All Items to Index (full content of url)" />
           #(/showload)#</dd>
@@ -173,6 +173,9 @@
     </fieldset></form>
 	#(/showitems)#
 
+    #%env/templates/scoutro/collection-create.template%#
+    <script src="env/scoutro/collections.js"></script>
+    <script src="env/scoutro/collection-select.js"></script>
     #%env/templates/footer.template%#
   </body>
 </html>

@@ -154,12 +154,33 @@ to public addresses.
 | `admin_required` | 401 | no YaCy administrator permission (login missing or wrong) |
 | `ai_shield_blocked` | 403 | blocked by the AI Shield (guests off and cross-site or agent token) |
 | `ai_shield_rate_limited` | 429 | AI Shield rate limit |
+| `collection_not_allowed` | 403 | the request names a collection this client may not choose (guests: only `ai.shield.guest-collections`) |
 | `no_chat_model` | 503 | no model assigned to the chat role |
 | `llm_unreachable` | 502 | LLM endpoint not reachable from the server |
 | `llm_auth_failed` | 502 | LLM endpoint answered 401/403 (API key) |
 | `llm_error` | 502 | other error status of the LLM endpoint |
 
 The chat page shows a translated message per code.
+
+## 6a. Collections in the chat (package 6.1)
+
+- **Local and administrator access** (a direct loopback connection, or the
+  YaCy administrator login) may scope a question to every selectable
+  collection of the collection catalog (the index, the created collections and
+  the Discovery profiles; YaCy's internal `robot_*` collections are not listed;
+  see `docs/API.md`, "Collections").
+- **AI Shield guests** may choose only the collections released on the AI
+  Shield page (ticked boxes, stored as `ai.shield.guest-collections`,
+  comma-separated; default empty). They still search the whole index without
+  a collection; the release only decides which names they see and may choose.
+- The chat page renders exactly this list into its *Collection* select
+  ("All collections" first, then alphabetically); no other collection name
+  reaches a guest's page. The endpoint applies the same rule and refuses any
+  other name with `403 collection_not_allowed` without echoing it, for an
+  existing and an unknown collection alike. A `collection:` modifier in a
+  guest's question outside the list is ignored (whole index).
+- Agents never use the chat endpoint (`ai_shield_blocked`); their collections
+  come from their grants (`GET /scoutro/api/agent/v1/collections`).
 
 ## 7. Effect on an existing configuration
 

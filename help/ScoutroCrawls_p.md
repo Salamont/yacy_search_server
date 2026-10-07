@@ -1,12 +1,19 @@
 # Scoutro Crawls
 
 Administrator-only native responsive page. URL and **Collection** are required.
-Choose Domain or Subpath, maximum pages per domain and depth. Collection
-suggestions come from the index; administrators can type a new valid name.
-There is no `user` fallback. Page load and polling are read-only; a start
+Choose Domain or Subpath, maximum pages per domain and depth. The Collection
+is chosen from a list (the collection catalog: collections of the index, the
+collections created here and those of the Discovery profiles; internal
+`robot_*` collections are not offered); no name is typed. **New collection**
+opens a dialog with the display name, the collection ID suggested from it
+(for example "Mein neues Portal" becomes `mein-neues-portal`, editable before
+saving) and an optional description. The server checks the ID (format,
+reserved names, duplicates regardless of case) and refuses with a message
+instead of overwriting; after creation the list is reloaded and the new
+collection selected. There is no `user` fallback. Page load and polling are read-only; a start
 requires explicit form submission. YaCy handles robots, queues and indexing.
 
-The page uses `/scoutro/api/v1/collections`, GET `/scoutro/api/v1/crawls` and
+The page uses GET and POST `/scoutro/api/v1/collections`, GET `/scoutro/api/v1/crawls` and
 POST `/scoutro/api/v1/crawls` with administrator Digest authentication and
 same-origin JSON protection. POST fields are `url`, `collection`, `scope`,
 `maxPages`, `depth`; native defaults are Domain, 15 pages and depth 2.
@@ -17,8 +24,9 @@ crawl blocks a new start rather than dropping its queue.
 
 Native starts send `Idempotency-Key`: safe repeat returns the existing start;
 changed parameters or unconfirmed outcomes return 409 without a second start.
-Missing/invalid Collection returns 400 before a YaCy call; foreign agent
-Collection returns 403. Storage/index availability errors remain visible.
+Missing/invalid Collection returns 400 before a YaCy call, a collection
+outside the catalog `400 collection_unknown`; foreign agent Collection returns
+403. Storage/index availability errors remain visible.
 
 Cards expose recorded URL, Collection, Scope, start time, YaCy status and known
 loaded-page counter. Missing legacy metadata, end time and percentage stay

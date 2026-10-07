@@ -273,7 +273,7 @@ curl --digest -u admin -X POST -H 'Content-Type: application/json' \
 | `depth` | integer 0–10 | 2 | link depth |
 | `scope` | `domain` \| `subpath` \| `wide` | `domain` | stay on the host / below the start path / follow other hosts |
 | `maxPages` | integer 1–1000000 | unlimited | pages per domain |
-| `collection` | `[A-Za-z0-9_-]{1,64}` | required | Explicit target; no fallback |
+| `collection` | `[A-Za-z0-9_-]{1,64}` | required | Explicit target; no fallback; must be in the collection catalog (below), otherwise `400 collection_unknown` before anything is dispatched |
 
 Unknown fields are rejected (`400`), so typos in agent calls do not go
 unnoticed. Answer `201` with a `Location` header:
@@ -299,6 +299,44 @@ network), the answer is `422 crawl_rejected` with YaCy's reason.
 
 `state` = `paused` means that YaCy's local crawler queue is paused as a whole
 (YaCy has no per-crawl pause).
+
+### Collections
+
+Collections are chosen from a list everywhere in Scoutro and never typed. The
+list is the **collection catalog** (`CollectionCatalog`): the collections of the
+index (facet `collection_sxt`, read at most every 10 seconds), the collections
+created with `POST /v1/collections` (`DATA/SCOUTRO/collections.json`, schema
+`scoutro.collections.v1`) and the collections of the Discovery profiles. A
+collection beginning with `robot_` is internal: listed with `internal:true`,
+never offered as a choice, never a crawl target. The chat, the knowledge graph
+filters, crawl starts and agent grants all take their choices from it.
+
+- `GET /v1/collections` (administrator): `collections`, one entry per
+  collection, alphabetically regardless of case: `id`, `name` (display
+  name), `description`, `documents`, `internal`, `selectable`, `chat`,
+  `knowledgeGraph`, `crawlTarget`, `sources` (`index`, `created`, `profile`),
+  `createdAt`, and `graph` with `followed`, `vocabulary`, `vocabularySource`,
+  `jobs`, `llm` and `state` of the knowledge graph; then `allowNew:false` (no
+  free names), `canCreate` and `limit` (500).
+- `POST /v1/collections` (administrator, same-origin JSON, at most 4 KiB):
+
+  ```sh
+  curl --digest -u admin -X POST -H 'Content-Type: application/json' \
+    -d '{"id":"mein-neues-portal","name":"Mein neues Portal","description":"optional"}' \
+    http://scoutro:8090/scoutro/api/v1/collections
+  ```
+
+  `201 {"collection":{...entry...},"created":true}`. `id` (derived from the
+  name when it is left out): 2 to 64 lower-case letters, digits and single hyphens, starting and ending with a letter or digit
+  (`400 collection_id_invalid`); not reserved (`robot_*`, `all`, `none`,
+  `default`, `user`, `any`, `new`: `400 collection_reserved`); not in the
+  catalog in any case (`409 collection_exists`, nothing is overwritten). `name`
+  (required, at most 80 characters, no control characters) and `description`
+  (at most 500) otherwise `400 invalid_request`, as is any other field. `503
+  index_unavailable` when the index cannot be read (duplicates cannot be
+  checked) and `503 collection_store_unavailable` when the list cannot be
+  written or is damaged; in both cases nothing is created. Agents have no
+  create grant (`405` on the agent path).
 
 ### Index
 
@@ -429,6 +467,9 @@ Scoutro is packaged as `scoutro-olares`:
 - The chat accepts an optional `collection` (`[A-Za-z0-9_-]{1,64}`) that restricts
   RAG to that collection, and streams the sources and the citation check of each
   answer (`scoutro-sources`, `scoutro-citations`; see `docs/SCOUTRO_RAG_QUALITY.md`).
+  Local and administrator access may name every collection, an AI Shield guest
+  only one released in `ai.shield.guest-collections` (none by default); any other
+  name is `403 collection_not_allowed`, without echoing it (package 6.1).
 
 ## Tests
 
@@ -562,26 +603,38 @@ is ever written to Solr.
 
 | Route | Access | Purpose |
 |---|---|---|
-| `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable |
+| `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable. `collections`: every collection the graph follows, maps or holds, with `followed`, `vocabulary` (null: none, generic facts only; never guessed from the name), `vocabularySource` (`setting`, `vocabulary_files`, `none`), `vocabularyKnown`, `jobs`, `llm`, `documents` (at most 10 s old) and `state`; `config.jobsCollections` |
 | `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"`, `"llm_retry"`, `"backup"`, `"restore"` (with `"backup": "<file>"`), `"rebuild"`, `"rebuild_cancel"`, `"rebuild_confirm"` or `"derive"` (recompute the derived layer now; 409 `derived_unavailable` while it is off) |
 | `GET /scoutro/api/v1/kg/backups` | administrator (Digest) | The backup files with their metadata (`scoutro.kg.backup.v1`), newest first |
 | `GET /scoutro/api/v1/kg/backups/{file}` | administrator only, never an agent | One backup as a SQLite file (`application/vnd.sqlite3`), to keep it outside the app |
-| `GET /scoutro/api/v1/kg/entities?q&type&host&quality&industry&category&audience&offset&limit&collection` | administrator (Digest) | Entities, newest first (`scoutro.kg.v1`); `industry` a NACE Rev. 2.1 / WZ 2025 code or prefix (`43`, `43.22`), `category` a service category or group, `audience` a customer type, segment or company size; `type` also `job` |
+| `GET /scoutro/api/v1/kg/entities?q&type&host&quality&industry&category&audience&offset&limit&collection` | administrator (Digest) | Entities, newest first (`scoutro.kg.v1`); `industry` a NACE Rev. 2.1 / WZ 2025 code or prefix (`43`, `43.22`), `category` a service category or group, `audience` a customer type, segment or company size; `type` also `job`. Every item carries `context` for the viewer, batched for the page: `hosts`, `collections`, `places`, `quality`, `sources`, `last_confirmed`, and for a service its `providers` (visible subjects of a visible `offers`, with their hosts, collections and places) and `provider_count`, for a job its employer; `provider_count: 0` when none is visible |
 | `GET /scoutro/api/v1/kg/entities/{id}` | administrator | One entity, or `{"redirect": id}` after a merge |
 | `GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out\|in&predicate&include=stale&offset&limit&collection` | administrator | Facts and relations |
 | `GET /scoutro/api/v1/kg/statements/{id}` and `.../evidence?offset&limit&collection` | administrator | One statement and its evidence (≤ 50 per page) |
 | `GET /scoutro/api/v1/kg/hosts/{host}/entities?offset&limit&collection` | administrator | Entities of a host (SEO tab, Index Browser) |
 | `GET /scoutro/api/v1/kg/sources/{docId}?offset&limit&collection` | administrator | What the graph holds from one page |
 | `GET /scoutro/api/v1/kg/entities/{id}/business?include=hidden_jobs&collection` | administrator | The object view in sections: industry (main, secondary, categories), services, prices with as-of, staleness, validity and conflicts, contacts, relations both ways, jobs (ended ones visible for `jobs.endedVisibleDays`), the audience layers declared/observed/suggested, suggested matches, sources |
-| `GET /scoutro/api/v1/kg/entities/{id}/neighborhood?depth&limit&offset&types&weak&derived&suggested&values&include&collection` | administrator | Nodes and typed, directed edges with status, confidence and evidence count, depth 1 or 2, paged for "more"; weak (`linked_to`) and suggested edges only on request. There is no route for the whole graph |
+| `GET /scoutro/api/v1/kg/entities/{id}/neighborhood?depth&limit&offset&types&weak&derived&suggested&values&prices&include&collection` | administrator | Nodes (entities with hosts, collections, places, quality, sources; industry, audience and with `prices=true` price values) and typed, directed edges with status, confidence, evidence count and, at the centre, `direction` `in`/`out`; depth 1 or 2, paged for "more"; weak (`linked_to`) and suggested edges only on request. A service in the centre shows its providers through the incoming `offers` and at depth 2 their relations, not their other services. There is no route for the whole graph |
+| `GET /scoutro/api/v1/kg/services?q&category&offset&limit&collection` | administrator | Services of the same name across providers as read-only groups (`limit` ≤ 50): `services`, `providers`, `without_provider`, the viewer's `collections`, the providers' `places`, `with_price`, `with_current_source`. Nothing is merged; IDs, prices and evidence stay per service |
+| `GET /scoutro/api/v1/kg/services/providers?name&category&offset&limit&collection` | administrator | The services of one name (`group` plus one row per service with its own provider, hosts, collections, places, quality, sources and price counts); 404 when no visible service has the name |
 | `GET /scoutro/api/v1/kg/compare?category&limit&collection` | administrator | One service category across providers: every price as published with conditions, date and sources, never averaged |
 | `GET /scoutro/api/v1/kg/derived?kind&entity&offset&limit&collection` | administrator | Derived rows (`linked_to`, `same_operator`, `suggested_customer`, `suggested_partner`), never facts; a row only with both of its collections |
 | `GET /scoutro/api/v1/kg/facets?collection` | administrator | The industries, categories and audiences of the visible graph, for the entity filters |
 | `GET /scoutro/api/v1/kg/export?cursor&limit&include=evidence&collection` | administrator | Export pages: entities, then statements (`limit` 1–200) |
 | `GET /scoutro/api/v1/kg/changes?cursor&limit&expand&collection` | administrator | Change feed with delete notices (`limit` 1–1000, 1–100 with `expand=true`) |
 | `GET /scoutro/api/v1/kg/export/download?format=ndjson\|json&include=evidence&collection` | administrator only, never an agent | The whole export as one streamed download |
-| `GET /scoutro/api/agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `…/kg/compare`, `…/kg/derived`, `…/kg/facets` | agent with `kg.read` | The read routes for the agent's collections; derived rows only with both of their collections |
+| `GET /scoutro/api/agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `…/kg/compare`, `…/kg/derived`, `…/kg/facets`, `…/kg/services`, `…/kg/services/providers` | agent with `kg.read` | The read routes for the agent's collections; derived rows only with both of their collections |
 | `GET /scoutro/api/agent/v1/kg/export`, `…/kg/changes` | agent with `kg.export` | Export pages and change feed for the agent's collections |
+
+**Display names (package 6.1).** Entities, references, nodes, statement
+subjects and objects, providers and service rows carry `display_name` and
+`display_name_source` next to `name`: `fact` (the stated name), `legal` (a
+legal-name alias), `operator` (for the unnamed operator of a site, the one
+declared operator of its domain), `domain` (an organisation's name derived
+from the host of the viewer's pages, with `display_host`) or `fallback`
+(`display_name: null`). Only `fact` is stated by the sources; the others are
+presentation, never stored, never used to merge, and `name` stays the stated
+name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
 
 - **Switch:** `scoutro.kg.enabled` (default `false`). While false, nothing
   is created on disk, no thread runs and the SQLite native library is not

@@ -51,6 +51,8 @@ public class AgentKnowledgeTest {
     private KgRuntime runtime;
     private ScoutroAgents agents;
     private AgentApi api;
+    private KgStore store;
+    private Publisher publisher;
     private long version = 1000L;
     private int agentNumber;
 
@@ -62,7 +64,7 @@ public class AgentKnowledgeTest {
             + "\"telephone\":\"089 7777777\"}";
     /** Values only B's documents carry. */
     private static final String[] ONLY_IN_B = {"Geheime Holding", "DE123456789", "+49409999999", "Nur Bee", "nur-bee", "\"kgb\"",
-            "BBBBBBhost01", "CCCCCChost02", "impressum"};
+            "BBBBBBhost01", "CCCCCChost02", "impressum", "EEEEEEhost04"};
 
     @Before
     public void setUp() throws Exception {
@@ -79,6 +81,8 @@ public class AgentKnowledgeTest {
         publish(store, publisher, "AAAAAAhost01", "https://www.muster.de/", "kga", ORG_A);
         publish(store, publisher, "BBBBBBhost01", "https://www.muster.de/impressum", "kgb", ORG_B);
         publish(store, publisher, "CCCCCChost02", "https://www.nur-bee.de/", "kgb", ONLY_B);
+        this.store = store;
+        this.publisher = publisher;
         this.agents = ScoutroAgents.createForTest(this.tmp.newFolder("SETTINGS"), this.now::get);
         this.api = new AgentApi(this.agents, new ScopedActions(null, null, () -> this.runtime));
     }
@@ -249,6 +253,45 @@ public class AgentKnowledgeTest {
         assertTrue(seen.toString().contains("+49301234567"));
         // the administrator-equivalent scope sees B
         assertTrue(get(all, "kg/entities/" + muster).body.toString().contains("Geheime Holding"));
+    }
+
+    /** Services of the same name (package 6.1): an agent sees the providers of its own collections only, in the list and the groups. */
+    @Test
+    public void anAgentSeesOnlyTheProvidersOfItsCollections() throws Exception {
+        final String offer = "\"makesOffer\":{\"@type\":\"Offer\",\"itemOffered\":{\"@type\":\"Service\",\"name\":\"SAP\"}}";
+        publish(this.store, this.publisher, "DDDDDDhost03", "https://www.alpha-it.de/", "kga",
+                "{\"@type\":\"Organization\",\"name\":\"Alpha IT GmbH\",\"url\":\"https://www.alpha-it.de/\"," + offer + "}");
+        publish(this.store, this.publisher, "EEEEEEhost04", "https://www.nur-bee.de/sap", "kgb",
+                "{\"@type\":\"Organization\",\"name\":\"Nur Bee GmbH\",\"url\":\"https://www.nur-bee.de/\"," + offer + "}");
+        final String a = token(Agent.Kind.EXTERNAL, false, "kg.read");
+        final StringBuilder seen = new StringBuilder();
+        final AgentApi.Response hits = get(a, "kg/entities", "q", "SAP", "type", "service");
+        assertEquals(hits.body.toString(), 1, hits.body.getLong("total"));
+        final JSONObject ctx = hits.body.getJSONArray("items").getJSONObject(0).getJSONObject("context");
+        assertEquals("Alpha IT GmbH", ctx.getJSONArray("providers").getJSONObject(0).getString("name"));
+        assertEquals("www.alpha-it.de", ctx.getJSONArray("providers").getJSONObject(0).getJSONArray("hosts").getString(0));
+        seen.append(hits.body);
+        final AgentApi.Response groups = get(a, "kg/services", "q", "SAP");
+        assertEquals(groups.body.toString(), 200, groups.status);
+        assertEquals(1, groups.body.getJSONArray("items").getJSONObject(0).getInt("providers"));
+        seen.append(groups.body);
+        final AgentApi.Response rows = get(a, "kg/services/providers", "name", "SAP");
+        assertEquals(rows.body.toString(), 200, rows.status);
+        assertEquals(1, rows.body.getInt("total"));
+        seen.append(rows.body);
+        final String sap = hits.body.getJSONArray("items").getJSONObject(0).getString("id");
+        final AgentApi.Response net = get(a, "kg/entities/" + sap + "/neighborhood", "depth", "2", "prices", "true");
+        assertEquals(net.body.toString(), 200, net.status);
+        seen.append(net.body);
+        assertNothingOfB("services of agent kga", seen.toString());
+        assertEquals("collection_not_in_scope", code(get(a, "kg/services", "collection", "kgb")));
+        assertEquals("collection_not_in_scope", code(get(a, "kg/services/providers", "name", "SAP", "collection", "kgb")));
+        // the administrator-equivalent scope sees both providers, still as two services
+        final String all = token(Agent.Kind.EXTERNAL, true, "kg.read");
+        final JSONObject both = get(all, "kg/services", "q", "SAP").body.getJSONArray("items").getJSONObject(0);
+        assertEquals(2, both.getInt("services"));
+        assertEquals(2, both.getInt("providers"));
+        assertEquals("a read route needs kg.read", 403, get(token(Agent.Kind.EXTERNAL, false, "kg.export"), "kg/services").status);
     }
 
     @Test

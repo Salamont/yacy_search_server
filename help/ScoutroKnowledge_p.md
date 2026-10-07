@@ -27,8 +27,9 @@ price comparison, and the evidence behind each fact. Operator guide:
 
 | View | URL | Content |
 | --- | --- | --- |
-| Overview | `ScoutroKnowledge_p.html` | State, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, controls, backups, identity rebuild, recent events |
-| Objects | `?view=objects&q=&type=&quality=&host=&industry=&category=&audience=` | Search by name, filter by type, quality, host, industry (NACE code; a section or division finds everything below it), service category and audience; 25 per page |
+| Overview | `ScoutroKnowledge_p.html` | State, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, the collections (see below), controls, backups, identity rebuild, recent events |
+| Objects | `?view=objects&q=&type=&quality=&host=&industry=&category=&audience=` | Search by name, filter by type, quality, host, industry (NACE code; a section or division finds everything below it), service category and audience; 25 per page. Every hit shows its type, its provider and domain (a service: who offers it; a job: its employer; others: their own domain), its collection, place, quality, sources and last confirmation, with **Open provider**, **Network**, **Sources** and, for a service, **All providers** |
+| Services | `?view=services&q=&category=` · `?view=services&name=SAP` | Services of the same name across providers ("SAP · 133 providers") and, for one name, every provider's service in its own row (see below) |
 | Object | `?view=object&id=kge_…` | Sections with content only: Overview, Industry, Services, Prices, Contacts, Relations, Jobs, Audiences, Suggested matches, Evidence and sources, all facts and relations, relations pointing to it; evidence per fact; link to the network |
 | Network | `?view=network&id=kge_…&depth=2&f=…&list=1` | The neighbourhood of one object as a drawing and as a list (see below) |
 | Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published |
@@ -40,6 +41,12 @@ source is then computed only from documents of that collection**; objects only
 other collections know are "not found". Without a collection the administrator
 sees all followed collections. Status, storage and events on the overview
 describe the whole graph.
+
+The collection is chosen from a list at the top (a `select`, no free text):
+"All collections" first, then the collections of the index alphabetically; a
+new collection appears as soon as the index has pages of it. Choosing applies
+it at once. A `collection=` of a link that is not in the list falls back to
+all collections and the page says so.
 
 ## Reading the facts
 
@@ -55,6 +62,13 @@ describe the whole graph.
   version) and the excerpt; links to the source view and the Index Browser.
 - **Possible duplicates** are objects of the same type with the same name.
   They are never merged automatically.
+- **Names:** an object is shown with its stated name. Without one the page
+  uses a legal name, the declared operator of the site, or for an
+  organisation a name from its domain, marked "derived from the domain"
+  (`zimmerei-boehmer.de` → "Zimmerei Boehmer"); otherwise "Unnamed
+  organisation", "Unnamed service" and so on. These names are only for
+  display: they are not stored, not used to merge objects and not given to
+  the chat as facts. The ID appears only as *Technical ID* in the object view.
 
 ## Business view (vocabulary 2)
 
@@ -91,21 +105,66 @@ describe the whole graph.
   suggestion or possible customer, never as a customer relation, and only
   shown to a viewer of both collections.
 
+## Services of the same name
+
+A service belongs to its provider: "SAP" of CTcon GmbH (ctcon.de) and "SAP"
+of another company are two objects, each with its own provider, prices and
+sources; nothing is merged, and the IDs stay as they are. The object list
+therefore shows each service with its provider and domain
+(`SAP` · `CTcon GmbH · ctcon.de · stackfinder-web`); a service whose provider
+the selected collection does not show says **No provider assigned**.
+
+Searching a name that several providers use adds a line above the list
+("SAP · 133 providers"); it opens **Services**, which counts the services of
+one name for reading only: providers, services without a provider, the
+collections, the providers' places, how many have a current price and how
+many a current source. **All providers** lists every service of the name in
+its own row with its provider, domain, collection, place, price count,
+quality and sources. Prices are never mixed between providers; each row's
+prices are its own service's.
+
 ## Network
 
 The network shows the neighbourhood of one object, never the whole graph:
 depth 1 (direct neighbours) or 2 (also the neighbours of organisations and
 facilities), the 50 strongest neighbours first and **Show more** for the
-next. Solid lines are facts with evidence, dashed lines uncertain facts,
-dotted lines derived rows (same operator, weak link signals, suggestions).
-Filters: relations between organisations, facilities and places, services
-and jobs, industries and audiences, same operator, weak link signals,
-suggestions, stale. Select a node or a line with the mouse or the keyboard
-(Tab) to see its lines and evidence; Enter or a click opens the object. The
-same data is always listed as a table below (**List only** hides the
+next.
+
+- **Nodes** are cards by type (organisation, facility or site, service, job,
+  place, industry or audience, price): the name and a second line, the domain
+  of an organisation (`CTcon GmbH` / `ctcon.de`), "Service" for a service, the
+  place of a facility. The centre is framed in dark blue.
+- **Lines** point in the direction the source states and carry their
+  relation: offers, partner of, customer of, same carrier, belongs to,
+  location, audience, weak link signal, suggested customer or partner. Solid
+  lines are facts with evidence, dashed lines uncertain facts, dotted lines
+  derived rows, which are no facts. On a crowded drawing the labels appear
+  for the lines of the node you point at or select.
+- **Around a service** its providers are shown above it (the incoming
+  `offers`: `CTcon GmbH → offers → SAP`), with their facilities and, at depth
+  2, their relations to other companies, but not their other services (open a
+  provider's own network for those). Around a job its employer. Industry,
+  audiences, places, prices, jobs, weak signals and suggestions can be added.
+  Around an organisation the default shows its relations, structure,
+  services, places, industry, audiences, jobs and the same-operator rows.
+- **Filters**, grouped: facts (relations between companies, structure and
+  operators, services and providers, places, industry, audiences, jobs and
+  employers, prices of services), derived (same operator, weak link signals,
+  suggested customers and partners), status (current, outdated).
+  **Default view** returns to the defaults of the centre's type.
+- **Details:** a tap, a click or the keyboard (Tab, Enter) on a node opens
+  its panel: name, type, domain, collections, quality, sources, last
+  confirmation and its relation to the centre, with **Open object**,
+  **Network of this object** and **Open sources**. A line shows its status
+  and evidence.
+- **Layout:** on a narrow screen (and for many nodes) the drawing is layered:
+  what points to the centre above it, what it points to below, wrapped to the
+  width, as high as its content; for a few neighbours on a wide screen it is
+  radial. The page never scrolls sideways.
+
+The same data is always listed as a table below (**List only** hides the
 drawing). **GraphML** (for Gephi or Cytoscape) and **JSON** download what is
-shown. On a narrow screen the drawing scrolls inside its frame. No external
-library is loaded.
+shown. No external library is loaded.
 
 ## Storage levels
 
@@ -135,6 +194,32 @@ confirmation, checks the backup first, keeps the current graph as a backup
 ("before a restore"), starts a new dataset epoch (export consumers sync again)
 and reconciles with the index. Scheduled every `scoutro.kg.backup.intervalDays`
 (7); the newest `scoutro.kg.backup.keep` (1) stay.
+
+## Collections
+
+The overview lists every collection the graph follows, maps or holds
+documents of: followed or not, its vocabulary and where it comes from (a
+setting or a vocabulary file), jobs, the LLM tier, its documents in the graph
+and its state (following, waiting for documents, not followed, vocabulary
+missing).
+
+- With `scoutro.kg.collections=*` a new collection (for example
+  `newportal-web`) is followed at once; with a fixed list only the named ones.
+- A collection without a vocabulary is shown as **No vocabulary assigned**:
+  it gets generic facts (names, addresses, contacts, relations, the industry
+  of a declared business type) but no service categories. Its vocabulary is
+  never guessed from its name. The defaults are `edelsenior-web` care,
+  `checkthecoach-web` coaching, `stackfinder-web` software and
+  `bauteamcheck-web` construction.
+- Assign an existing vocabulary with `scoutro.kg.vocab.<collection>=<vocabulary>`
+  (for example `scoutro.kg.vocab.newportal-web=software`, also under `*`);
+  an empty value switches a default off. A new vocabulary, or a mapping, is a
+  JSON file in `DATA/SCOUTRO/knowledge/vocabulary/` in the format of
+  `defaults/scoutro/knowledge/categories.json`, without a schema change. Both
+  take effect at the next start and re-extract the pages concerned.
+- Jobs are read only for the collections named in
+  `scoutro.kg.jobs.collections` (shown under Settings); a new collection never
+  gets them by itself.
 
 ## Vocabulary and upgrade
 
@@ -171,10 +256,12 @@ text; links to crawled pages open in a new tab without a referrer.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/scoutro/api/v1/kg/status` | GET | Status |
-| `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`) |
+| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) |
+| `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
 | `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
-| `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes and edges (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `include=stale`) |
+| `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |
+| `/scoutro/api/v1/kg/services` | GET | Services of the same name across providers, read-only groups (`q`, `category`, `offset`, `limit` ≤ 50) |
+| `/scoutro/api/v1/kg/services/providers` | GET | The services of one name, each with its provider (`name`, `category`, `offset`, `limit`) |
 | `/scoutro/api/v1/kg/compare` | GET | One service category across providers (`category`) |
 | `/scoutro/api/v1/kg/derived` | GET | Derived rows (`kind`, `entity`) |
 | `/scoutro/api/v1/kg/facets` | GET | Industries, categories, audiences and counts of the visible graph |

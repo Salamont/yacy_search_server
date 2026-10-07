@@ -13,7 +13,9 @@ const base = process.env.SCOUTRO_URL;
 const entity = process.env.SCOUTRO_KG_ENTITY, host = process.env.SCOUTRO_KG_HOST, onlyB = process.env.SCOUTRO_KG_ONLY_B;
 // vocabulary 2: the operator (kga) and the software firm (kgb) that suggests it as a possible customer
 const operator = process.env.SCOUTRO_KG_OPERATOR, soft = process.env.SCOUTRO_KG_SOFT;
-assert(base && new URL(base).hostname === '127.0.0.1' && entity && host && onlyB && operator && soft, 'Use knowledge-live-smoke.py; no production instance');
+// package 6.1: CTcon's "SAP" (kgb), one of three providers of the name, and CTcon itself
+const sap = process.env.SCOUTRO_KG_SAP, ctcon = process.env.SCOUTRO_KG_CTCON, unnamedOrg = process.env.SCOUTRO_KG_UNNAMED;
+assert(base && new URL(base).hostname === '127.0.0.1' && entity && host && onlyB && operator && soft && sap && ctcon, 'Use knowledge-live-smoke.py; no production instance');
 const shots = process.env.SCOUTRO_SCREENSHOTS;
 if (shots) fs.mkdirSync(shots, { recursive: true });
 let checks = 0;
@@ -23,6 +25,9 @@ const browser = await chromium.launch({
   args: ['--no-proxy-server'],
 });
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
+// package 6.1: no technical ID in any visible name (links, headings, network cards); the technical ID field is no name
+const noIdAsName = page => page.evaluate(() => ![...document.querySelectorAll('#skg-main a, main a, main h2, main h3, #skg-net-svg text, #skg-net-svg title')]
+  .filter(n => n.offsetParent !== null || n.closest('svg')).some(n => /kg[es]_[a-z2-7]{20}/.test(n.textContent)));
 try {
   const anonymous = await browser.newContext();
   for (const p of ['/ScoutroKnowledge_p.html', '/scoutro/api/v1/kg/entities', '/scoutro/api/v1/kg/entities/' + entity, '/scoutro/api/v1/kg/sources/AAAAAAAAAAAA',
@@ -52,6 +57,12 @@ try {
         const vocab = await page.locator('#skg-vocab').textContent();
         check(vocab.includes('kga: care') && vocab.includes('kgb: software') && /1[.,]?047/.test(vocab), 'vocabularies per collection and NACE codes' + where);
         check(await page.locator('#skg-upgrade-note').isHidden(), 'no upgrade waiting on a new graph' + where);
+        // package 6.1: every followed collection with its vocabulary; none is said, not hidden
+        const de0 = language === 'de';
+        const kgc = page.locator('#skg-collections tbody tr[data-collection="kgc"]');
+        check((await kgc.textContent()).includes(de0 ? 'Kein Vokabular zugeordnet' : 'No vocabulary assigned'), 'a collection without a vocabulary says so' + where);
+        check(await page.locator('#skg-collections tbody tr[data-collection="kga"]').textContent().then(x => x.includes('care')), 'kga with care' + where);
+        check(await kgc.getAttribute('data-state') === 'following', 'kgc followed' + where);
         check(await noOverflow(page), 'no horizontal overflow (overview)' + where);
         if (shots) await page.screenshot({ path: path.join(shots, `kg-overview-${language}-${width}.png`), fullPage: true });
 
@@ -65,6 +76,37 @@ try {
         const a = await page.locator('#skg-entities tbody').textContent();
         check(a.includes('Muster Pflege gGmbH') && !a.includes('Nur Bee GmbH'), 'collection filter hides the other collection' + where);
         check(await page.locator('#skg-collection').inputValue() === 'kga', 'collection kept in the form' + where);
+        // package 6.1: the collection is a real select of the collections of the index, sorted, all collections first
+        const scope = page.locator('#skg-collection');
+        check(await scope.evaluate(e => e.tagName) === 'SELECT' && await page.locator('#skg-scope input, datalist').count() === 0, 'collection as a real select, no text field' + where);
+        const scopeOptions = await scope.locator('option').evaluateAll(list => list.map(o => [o.value, o.textContent.trim()]));
+        const indexNames = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+        check(scopeOptions[0][0] === '' && scopeOptions[0][1] === (language === 'de' ? 'Alle Collections' : 'All collections')
+          && JSON.stringify(scopeOptions.slice(1).map(o => o[0])) === JSON.stringify(indexNames) && ['kga', 'kgb', 'kgc'].every(c => indexNames.includes(c)),
+          'all collections first, then every collection of the index sorted, the new kgc included: ' + JSON.stringify(scopeOptions) + where);
+        await scope.selectOption('kgb');
+        await page.waitForFunction(() => new URLSearchParams(location.search).get('collection') === 'kgb'
+          && (document.querySelector('#skg-entities tbody')?.textContent || '').includes('Nur Bee GmbH'));
+        check(await scope.inputValue() === 'kgb' && (await page.locator('#skg-entities tbody').textContent()).includes('Nur Bee GmbH'),
+          'choosing a collection applies it at once' + where);
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&collection=unknown-web', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
+        check(await scope.inputValue() === '' && await page.locator('#skg-scope-unknown').isVisible() && !new URL(page.url()).searchParams.has('collection')
+          && (await page.locator('#skg-entities tbody').textContent()).includes('Nur Bee GmbH'), 'an unknown collection of the link: all collections, said so' + where);
+        if (width === 360) {
+          // while the list loads, the select waits (disabled, busy) and the page asks nothing with a collection of the link
+          await page.route('**/scoutro/api/v1/collections', async route => { await new Promise(r => setTimeout(r, 800)); await route.continue(); });
+          const asked = [];
+          page.on('request', r => { if (r.url().includes('/scoutro/api/v1/kg/entities')) asked.push(r.url()); });
+          await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&collection=kga');
+          check(await scope.isDisabled() && await scope.getAttribute('aria-busy') === 'true' && asked.length === 0, 'loading: the select waits' + where);
+          await page.waitForFunction(() => !document.getElementById('skg-collection').disabled);
+          await page.waitForSelector('#skg-entities tbody tr');
+          check(await scope.inputValue() === 'kga' && asked.every(u => u.includes('collection=kga')), 'loaded: the listed collection of the link applied' + where);
+          await page.unroute('**/scoutro/api/v1/collections');
+        }
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&collection=kga', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
         if (width < 768) check(await page.locator('#skg-entities tbody tr').first().evaluate(r => getComputedStyle(r).display !== 'table-row'), 'rows as cards on narrow screens' + where);
         await page.locator('#skg-q').fill('Nur');
         await page.locator('#skg-search button[type=submit]').click();
@@ -72,6 +114,7 @@ try {
           && !document.querySelector('#skg-message').textContent.includes('…'));
         check(await page.locator('#skg-entities tbody tr').count() === 0, 'search within kga finds no kgb name' + where);
         check(await noOverflow(page), 'no horizontal overflow (objects)' + where);
+        check(await noIdAsName(page), 'no technical ID as a name (objects)' + where);
 
         // object view in kga: own facts, the LLM relation, no kgb data; evidence with source link
         await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${entity}&collection=kga`, { waitUntil: 'networkidle' });
@@ -157,20 +200,98 @@ try {
         await page.waitForFunction(() => new URLSearchParams(location.search).get('depth') === '2' && document.querySelector('#skg-net-svg').dataset.state === 'ready');
         await page.waitForSelector('#skg-net-svg .skg-edge.skg-e-derived');
         check((await page.locator('#skg-net-table').textContent()).includes(L('same operator (derived)', 'gleicher Träger (abgeleitet)')), 'same operator at depth 2, also in the list' + where);
-        await page.locator('#skg-f-values').uncheck();
+        await page.locator('#skg-f-industry').uncheck();
+        await page.locator('#skg-f-audiences').uncheck();
         await page.locator('#skg-net-form button[type=submit]').click();
         await page.waitForFunction(() => new URLSearchParams(location.search).get('f') !== null && document.querySelector('#skg-net-svg').dataset.state === 'ready');
         check(await page.locator('#skg-net-svg .skg-t-value').count() === 0, 'filter: no industry or audience nodes' + where);
         await page.locator('#skg-f-list').check();
         check(await page.locator('#skg-net-wrap').isHidden() && await page.locator('#skg-net-table').isVisible(), 'list only' + where);
         await page.locator('#skg-f-list').uncheck();
-        await birke.press('Enter');
-        await page.waitForSelector('#skg-object:not([hidden]) #skg-out .skg-statement');
-        check((await page.locator('#skg-object-name').textContent()).includes('Haus Birke'), 'Enter on a node opens its object' + where);
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        await page.locator('#skg-net-svg .skg-node', { hasText: 'Haus Birke' }).first().press('Enter');
+        await page.waitForSelector('#skg-net-detail:not([hidden]) .skg-detail-actions a');
+        await page.locator('#skg-net-detail .skg-detail-actions a').first().click();
+        await page.waitForFunction(() => !document.querySelector('#skg-object').hidden && document.querySelector('#skg-object-name').textContent.includes('Haus Birke')
+          && document.querySelector('#skg-out .skg-statement') !== null, null, { timeout: 15000 }).catch(() => {});
+        check((await page.locator('#skg-object-name').textContent()).includes('Haus Birke'), 'Enter on a node shows its details, the panel opens its object' + where);
         // the administrator without a filter sees the suggestions on request
         await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${operator}&f=business,structure,offers,values,derived,suggested`, { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
         check(await page.locator('#skg-net-svg .skg-edge.skg-e-suggested').count() >= 1, 'suggestions shown on request, dotted' + where);
+
+        // package 6.1: services of the same name across providers, with provider and domain; the network around a service
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&q=SAP&type=service&collection=kgb', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
+        const hits = page.locator('#skg-entities tbody tr');
+        check(await hits.count() === 2, 'two services named SAP in kgb, never merged' + where);
+        const hitText = await page.locator('#skg-entities tbody').textContent();
+        check(hitText.includes('CTcon UI GmbH') && hitText.includes('ctcon-ui.de') && hitText.includes('Beta IT UI AG') && hitText.includes('beta-it-ui.de'),
+          'each SAP with its provider and domain' + where);
+        check(!hitText.includes('Gamma') && hitText.includes('kgb') && !hitText.includes('kga'), 'only the providers of kgb' + where);
+        const actions = await hits.first().locator('.skg-actions').textContent();
+        check(actions.includes(L('Open provider', 'Anbieter öffnen')) && actions.includes(L('Open service', 'Leistung öffnen')) && !/[a-z]_[a-z]/.test(actions),
+          'provider, service, network, sources and all providers from the hit, every action labelled: ' + actions + where);
+        await page.waitForSelector('#skg-groups:not([hidden])');
+        check((await page.locator('#skg-groups').textContent()).includes(L('SAP · 2 providers', 'SAP · 2 Anbieter')), 'the group of the name, of kgb only' + where);
+        check(await noOverflow(page), 'no horizontal overflow (service hits)' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-sap-hits-${language}-${width}.png`), fullPage: true });
+        await page.locator('#skg-groups a').first().click();
+        await page.waitForSelector('#skg-svc-rows tbody tr');
+        check(await page.locator('#skg-svc-rows tbody tr').count() === 2 && (await page.locator('#skg-svc-group-title').textContent()).includes('SAP'),
+          'all providers of SAP, one row each' + where);
+        const svcRows = await page.locator('#skg-svc-rows tbody').textContent();
+        check(svcRows.includes('CTcon UI GmbH') && svcRows.includes('Beta IT UI AG') && svcRows.includes(L('1 current of 1', '1 aktuell von 1')), 'each row its own prices' + where);
+        check(await noOverflow(page), 'no horizontal overflow (services across providers)' + where);
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=services&collection=kgb', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-svc-groups tbody tr');
+        check((await page.locator('#skg-svc-groups tbody').textContent()).includes('SAP'), 'the groups of every service name' + where);
+        // an organisation without a stated name: its domain, marked, never its ID; in the list, the object view and the network
+        await page.goto(base + '/ScoutroKnowledge_p.html?view=objects&type=organization&collection=kgb', { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-entities tbody tr');
+        const orgRows = await page.locator('#skg-entities tbody').textContent();
+        check(orgRows.includes('Zimmerei Boehmer Ui') && orgRows.includes(L('derived from the domain', 'aus Domain abgeleitet')), 'a nameless organisation by its domain, marked' + where);
+        check(await noIdAsName(page), 'no technical ID as a name in the list' + where);
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${unnamedOrg}&collection=kgb`, { waitUntil: 'networkidle' });
+        await page.waitForFunction(() => document.querySelector('#skg-object-name').textContent.length > 0);
+        check((await page.locator('#skg-object-name').textContent()).includes('Zimmerei Boehmer Ui'), 'object title from the domain' + where);
+        check((await page.locator('#skg-object-facts').textContent()).includes(unnamedOrg), 'the ID only in its technical field' + where);
+        check(await noIdAsName(page), 'no technical ID as a name in the object view' + where);
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${unnamedOrg}&collection=kgb`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        check((await page.locator('#skg-net-svg .skg-center').textContent()).includes('Zimmerei Boehmer Ui'), 'network centre from the domain' + where);
+        check(await noIdAsName(page), 'no technical ID as a name in the network' + where);
+        // the network of CTcon's SAP: the provider above it through the incoming offer, its parent company at depth 2
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${sap}&collection=kgb`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-net-svg[data-state="ready"] .skg-node');
+        check(await page.locator('#skg-depth').inputValue() === '2' && await page.locator('#skg-f-offers').isChecked() && !(await page.locator('#skg-f-industry').isChecked()),
+          'a service in the centre: providers, depth 2, no industry by default' + where);
+        const provider = page.locator(`#skg-net-svg .skg-node[data-node="${ctcon}"]`);
+        check(await provider.count() === 1 && (await provider.textContent()).includes('ctcon-ui.de'), 'provider node with its domain' + where);
+        const centre = page.locator('#skg-net-svg .skg-node.skg-center');
+        check((await centre.textContent()).includes('SAP') && (await centre.textContent()).includes(L('Service', 'Leistung')), 'the service in the centre, marked as a service' + where);
+        check(await page.locator(`#skg-net-svg .skg-edge[data-from="${ctcon}"][data-to="${sap}"][data-type="offers"]`).count() === 1, 'CTcon → offers → SAP' + where);
+        check((await page.locator('#skg-net-svg .skg-elabel, #skg-net-svg .skg-caption').allTextContents()).includes(L('offers', 'bietet an')), 'the line says what it is' + where);
+        check((await page.locator('#skg-net-svg').textContent()).includes('CT Holding UI AG') && !(await page.locator('#skg-net-svg').textContent()).includes('Cloud-Migration'),
+          "the provider's parent, not its other services" + where);
+        const box = await page.locator('#skg-net-svg').boundingBox();
+        check(box.width <= width && box.height < 700, 'the drawing fits its content: ' + JSON.stringify(box) + where);
+        if (width < 640) check(await page.locator('#skg-net-svg').getAttribute('data-layout') === 'layered', 'layered on a narrow screen' + where);
+        check(await noOverflow(page), 'no horizontal overflow (service network)' + where);
+        await provider.click();
+        await page.waitForSelector('#skg-net-detail:not([hidden])');
+        const detail = await page.locator('#skg-net-detail').textContent();
+        check(detail.includes('CTcon UI GmbH') && detail.includes('ctcon-ui.de') && detail.includes('kgb') && detail.includes(L('offers', 'bietet an')),
+          'detail: name, domain, collection and the relation to the centre' + where);
+        check(await page.locator('#skg-net-detail .skg-detail-actions a').count() === 3, 'detail: open object, its network, its sources' + where);
+        if (shots) await page.screenshot({ path: path.join(shots, `kg-sap-network-${language}-${width}.png`), fullPage: true });
+        await page.locator('#skg-net-detail .skg-detail-actions a').nth(1).click();
+        await page.waitForFunction(id => new URLSearchParams(location.search).get('id') === id && document.querySelector('#skg-net-svg').dataset.state === 'ready', ctcon);
+        check(await page.locator('#skg-depth').inputValue() === '1' && (await page.locator('#skg-net-svg').textContent()).includes('Cloud-Migration'),
+          "the provider's own network with all its services" + where);
+        await page.goto(base + `/ScoutroKnowledge_p.html?view=network&id=${sap}&collection=kgb&list=1`, { waitUntil: 'networkidle' });
+        await page.waitForSelector('#skg-net-table tbody tr');
+        check(await page.locator('#skg-net-wrap').isHidden() && (await page.locator('#skg-net-table').textContent()).includes('CTcon UI GmbH'), 'the list instead of the drawing' + where);
 
         // comparison: one category across providers, prices exactly as published
         await page.goto(base + '/ScoutroKnowledge_p.html?view=compare', { waitUntil: 'networkidle' });
@@ -269,4 +390,4 @@ try {
   check(errors.length === 0, 'no JavaScript errors in the integrations: ' + errors.join(', '));
   await context.close();
 } finally { await browser.close(); }
-console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, business view, network, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);
+console.log(`PASS: ${checks} knowledge graph UI checks (English and German, five widths, collection isolation, business view, network, services across providers, service network, collections, comparison, filters, SEO tab, Index Browser, dashboard, controls, backup, restore, rebuild)`);

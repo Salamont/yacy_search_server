@@ -710,17 +710,16 @@
         margin: 8px 0 12px;
       }
 
-      .collection-control input {
+      .collection-control select {
         min-height: 40px;
         width: 18em;
         max-width: 100%;
         padding: 6px 10px;
         border: 1px solid #ccc;
         border-radius: 4px;
-      }
-
-      .collection-control input:invalid {
-        border-color: #c0392b;
+        background: #fff;
+        color: inherit;
+        font: inherit;
       }
 
       .collection-hint {
@@ -914,10 +913,13 @@
              </div>
           </div>
           <div class="collection-control">
-            <label for="collectionInput">Collection:</label>
-            <input type="text" id="collectionInput" list="collectionChoices" maxlength="64" pattern="[A-Za-z0-9_\-]{1,64}" placeholder="all collections" autocomplete="off" spellcheck="false" aria-describedby="collectionHint collectionCurrent"/>
-            <datalist id="collectionChoices"></datalist>
-            <span class="collection-hint" id="collectionHint">Empty: whole index. Enter or choose a collection to search only its pages.</span>
+            <label for="collectionSelect">Collection:</label>
+            <select id="collectionSelect" aria-describedby="collectionHint collectionCurrent">
+              <option value="">All collections</option>
+              #{collections}#<option value="#[id]#">#[label]#</option>
+              #{/collections}#
+            </select>
+            <span class="collection-hint" id="collectionHint">All collections: the whole index. Choose a collection to search only its pages.</span>
           </div>
           <p class="scoutro-chat-current" id="collectionCurrent" aria-live="polite"><span id="collectionCurrentLabel">Current search scope:</span> <strong id="collectionCurrentValue">all collections</strong></p>
           </section>
@@ -976,8 +978,6 @@
     const SYSTEM_PROMPT = '#[system_prompt]#';
     const defaultApiHost = '';
     const P2P_MODE = #[p2p_mode]# === 1;
-    // Administrator page view (template flag of the lock symbols); only then the collections are suggested.
-    const ADMIN_VIEW = #(authorized)#false::true#(/authorized)#;
 
     // Messages for the error codes of /v1/chat/completions (see LLMAccess.java).
     const CHAT_ERRORS = {
@@ -987,7 +987,8 @@
         no_chat_model: 'No chat model is configured: assign a model to the chat role in LLM Selection.',
         llm_unreachable: 'The LLM endpoint is not reachable from the Scoutro server: check the hoststub in LLM Selection.',
         llm_auth_failed: 'The LLM endpoint rejected the credentials: check the API key in LLM Selection.',
-        llm_error: 'The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.'
+        llm_error: 'The LLM endpoint answered with an error: see the Scoutro log for the HTTP status.',
+        collection_not_allowed: 'This collection is not available here: choose one of the listed collections or all collections.'
     };
 
     // Sources of an answer (scoutro-sources) and the citation check (scoutro-citations), see RAGProxyServlet.
@@ -1016,7 +1017,6 @@
     };
     // An error whose message is meant for the reader; any other error is shown as CHAT_TEXT.unexpected.
     class ChatError extends Error {}
-    const COLLECTION_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
     const COLLECTION_STORAGE_KEY = 'scoutro.chat.collection';
     const SEARCH_FILE_PREFIXES = ['scoutro-sources', 'search_result_'];
 
@@ -1066,8 +1066,7 @@
         searchDefaultNone: document.getElementById('searchDefaultNone'),
         searchDefaultLocal: document.getElementById('searchDefaultLocal'),
         searchDefaultGlobal: document.getElementById('searchDefaultGlobal'),
-        collectionInput: document.getElementById('collectionInput'),
-        collectionChoices: document.getElementById('collectionChoices'),
+        collectionSelect: document.getElementById('collectionSelect'),
         collectionCurrentValue: document.getElementById('collectionCurrentValue')
     };
 
@@ -1521,27 +1520,45 @@
             && SEARCH_FILE_PREFIXES.some(prefix => String(part.filename || '').startsWith(prefix)));
     }
 
+    // The collections this client may choose, as the server listed them (sorted; local and administrator
+    // access all of the index, guests only the released ones). Nothing else is ever used as the scope.
+    function allowedCollections() {
+        if (!dom.collectionSelect) return [];
+        return Array.from(dom.collectionSelect.options).map(option => option.value).filter(value => value !== '');
+    }
+
+    // The scope of the link (?collection=) or of the last visit, only if it is one of the listed collections;
+    // anything else falls back to all collections, and a stored value that is no longer listed is forgotten.
     function readCollectionSetting() {
-        let value = '';
+        const allowed = allowedCollections();
+        let wanted = '';
         try {
-            value = new URLSearchParams(window.location.search).get('collection') || '';
+            wanted = new URLSearchParams(window.location.search).get('collection') || '';
         } catch (err) {
-            value = '';
+            wanted = '';
         }
-        if (!value) {
+        if (wanted) return allowed.includes(wanted) ? wanted : '';
+        let stored = '';
+        try {
+            stored = window.localStorage.getItem(COLLECTION_STORAGE_KEY) || '';
+        } catch (err) {
+            stored = '';
+        }
+        if (stored && !allowed.includes(stored)) {
             try {
-                value = window.localStorage.getItem(COLLECTION_STORAGE_KEY) || '';
+                window.localStorage.removeItem(COLLECTION_STORAGE_KEY);
             } catch (err) {
-                value = '';
+                // nothing stored that could be removed
             }
+            return '';
         }
-        return COLLECTION_PATTERN.test(value) ? value : '';
+        return stored;
     }
 
     function applyCollectionSetting(value, persist) {
-        const clean = (value || '').trim();
-        if (clean && !COLLECTION_PATTERN.test(clean)) return false;
+        const clean = allowedCollections().includes(value) ? value : '';
         state.config.collection = clean;
+        if (dom.collectionSelect) dom.collectionSelect.value = clean;
         showCollectionScope();
         if (persist) {
             try {
@@ -1551,39 +1568,16 @@
                 // the setting then lasts for this page view only
             }
         }
-        return true;
+        return clean === value;
     }
 
-    // The search scope of the next question, next to the collection field.
+    // The search scope of the next question, next to the collection list.
     function showCollectionScope() {
         if (dom.collectionCurrentValue) dom.collectionCurrentValue.textContent = state.config.collection || CHAT_TEXT.allCollections;
     }
 
-    // Suggestions for the collection field. Only administrators may list collections: for anyone else
-    // the API answers with a login challenge, so the list is not requested and the field stays plain text.
-    async function loadCollectionChoices() {
-        if (!dom.collectionChoices || !ADMIN_VIEW) return;
-        try {
-            const response = await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-            if (!response.ok) return;
-            const data = await response.json();
-            const items = Array.isArray(data?.collections) ? data.collections : [];
-            for (const item of items) {
-                const id = String(item?.id || '');
-                if (!COLLECTION_PATTERN.test(id)) continue;
-                const option = document.createElement('option');
-                option.value = id;
-                dom.collectionChoices.appendChild(option);
-            }
-        } catch (err) {
-            // suggestions are optional
-        }
-    }
-
-    if (dom.collectionInput) {
-        dom.collectionInput.addEventListener('change', () => {
-            if (!applyCollectionSetting(dom.collectionInput.value, true)) dom.collectionInput.reportValidity();
-        });
+    if (dom.collectionSelect) {
+        dom.collectionSelect.addEventListener('change', () => applyCollectionSetting(dom.collectionSelect.value, true));
     }
 
     function scrollToBottom(smooth = true) {
@@ -3287,8 +3281,6 @@
 
     async function initializeChat() {
         applyCollectionSetting(readCollectionSetting(), false);
-        if (dom.collectionInput) dom.collectionInput.value = state.config.collection;
-        loadCollectionChoices();
         await loadSearchDefault();
         await hydrateConversation();
         updateSystemToggleButton();

@@ -1049,7 +1049,7 @@
     },
     {
       "name": "crawl.start",
-      "description": "Requires an explicit collection. Refuses a second active crawl on the same host. Durable start intent is saved before dispatch; use Idempotency-Key for safe retries. Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).",
+      "description": "Requires an explicit, existing collection: one of the catalog (index, created, Discovery profiles; never YaCy's internal ones), else 400 collection_unknown; a new collection is created first (POST /v1/collections). Refuses a second active crawl on the same host. Durable start intent is saved before dispatch; use Idempotency-Key for safe retries. Starts a crawl like the YaCy site crawl start. As in the web interface, YaCy removes the start URL from the index and loads it again, and drops queued URLs of the same host from other crawls; other documents of the site are kept (the API never sets deleteold).",
       "mutating": true,
       "auth": "admin",
       "http": {
@@ -2123,7 +2123,7 @@
     },
     {
       "name": "kg.entity.neighborhood",
-      "description": "The neighbourhood of one entity for the network view: nodes (entities, industry and audience values) and typed, directed edges with status, confidence and evidence count. Depth 2 continues only from organisations and facilities; there is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -2201,6 +2201,13 @@
           "required": false,
           "description": "Include industry and audience value nodes."
         },
+        "prices": {
+          "type": "boolean",
+          "default": false,
+          "in": "query",
+          "required": false,
+          "description": "Add the published prices of the services in the centre and at depth 1 as price nodes, each on its own service."
+        },
         "include": {
           "type": "string",
           "enum": [
@@ -2227,7 +2234,7 @@
         409,
         503
       ],
-      "cli": "scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--types T,T]",
+      "cli": "scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]",
       "mcpTool": "scoutro_kg_entity_neighborhood",
       "agent": {
         "grantable": true,
@@ -2390,6 +2397,166 @@
         "http": {
           "method": "GET",
           "path": "/scoutro/api/agent/v1/kg/derived"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
+      "name": "kg.services",
+      "description": "Package 6.1: read-only groups of the visible services by name (SAP · 133 providers), the largest first: providers, services without a provider, the viewer's collections, the providers' places, how many with a current price and with a current source. Every provider's service stays its own entity with its own provider, prices and sources; no entity, ID, price or evidence changes, nothing is merged or averaged. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/services",
+        "successStatus": 200
+      },
+      "parameters": {
+        "q": {
+          "type": "string",
+          "maxLength": 200,
+          "in": "query",
+          "required": false,
+          "description": "Name words (all words, the last as a prefix)."
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$",
+          "in": "query",
+          "required": false,
+          "description": "Only services of this category."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0,
+          "in": "query",
+          "required": false,
+          "description": "First item."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 25,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgServiceGroupPage",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg services [--q TEXT] [--category C]",
+      "mcpTool": "scoutro_kg_services",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/services"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
+      "name": "kg.services.providers",
+      "description": "Package 6.1: the group of one service name and its services, one row per service with its own provider (name, hosts, collections, places), quality, sources and price counts. 404 not_found when no visible service has the name. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/services/providers",
+        "successStatus": 200
+      },
+      "parameters": {
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "in": "query",
+          "required": true,
+          "description": "The service name; compared in lower case without surrounding spaces."
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^[a-z][a-z0-9_]{0,31}(?:[/.][a-z][a-z0-9_]{0,47})?$",
+          "in": "query",
+          "required": false,
+          "description": "Only services of this category."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10000,
+          "default": 0,
+          "in": "query",
+          "required": false,
+          "description": "First item."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+        }
+      },
+      "returns": "KgServiceProviders",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "scoutroctl kg service-providers NAME [--category C]",
+      "mcpTool": "scoutro_kg_services_providers",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/services/providers"
         },
         "grant": "kg.read"
       }
@@ -3259,7 +3426,7 @@
     },
     {
       "name": "collections.list",
-      "description": "Collection suggestions. Admin: up to 500 indexed names (new names may be entered). Scoped agent: granted collection names, including empty ones; document counts are unknown. No runtime taxonomy edits.",
+      "description": "The collection catalog (package 6.1). Admin: every collection of the index (up to 500), the created ones and those of the Discovery profiles, with name, documents, sources, use flags (YaCy's internal robot_… collections are listed as internal, never selectable), the knowledge graph's view and canCreate=true; no name is entered freely (allowNew=false). Scoped agent: granted collection names, including empty ones, canCreate=false; document counts are unknown.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -3291,6 +3458,54 @@
           "method": "GET",
           "path": "/scoutro/api/agent/v1/collections"
         }
+      }
+    },
+    {
+      "name": "collections.create",
+      "description": "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Creates an empty collection that every collection choice (crawl start, filters, chat, agent grants) offers at once; a crawl can then write into it. 400 collection_id_invalid, 400 collection_reserved (robot_… or a reserved word), 400 invalid_request (name missing or too long, unknown field), 409 collection_exists (also for a name differing only in case), 503 index_unavailable (duplicates cannot be checked), 503 collection_store_unavailable. Agents cannot create collections.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections",
+        "successStatus": 201
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,63}$",
+          "description": "2–64 lower-case letters, digits and single hyphens; without it the id is derived from the name. Never an existing collection (also not one differing only in case), never robot_… or one of all, none, default, user, any, new.",
+          "in": "body",
+          "required": false
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "in": "body",
+          "required": true
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionCreated",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)",
+      "mcpTool": "scoutro_collections_create",
+      "agent": {
+        "grantable": false
       }
     },
     {
@@ -5704,6 +5919,13 @@
               },
               "description": "LLM collections that are not followed and therefore ignored."
             },
+            "jobsCollections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "scoutro.kg.jobs.collections (* for every followed collection); jobs are read for no other collection, a new collection never gets them by itself."
+            },
             "llmKinds": {
               "type": "object",
               "additionalProperties": {
@@ -7044,6 +7266,66 @@
             }
           }
         },
+        "collections": {
+          "type": "array",
+          "description": "Package 6.1: every collection the graph follows, maps or holds documents of. A collection without a vocabulary is listed with vocabulary null (generic facts only, no service categories); no vocabulary is ever guessed from a collection's name.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "collection": {
+                "type": "string"
+              },
+              "followed": {
+                "type": "boolean",
+                "description": "scoutro.kg.collections names it or is *."
+              },
+              "vocabulary": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "The vocabulary in force: scoutro.kg.vocab.<collection> (also under *), else the mapping of the vocabulary files; null for none."
+              },
+              "vocabularySource": {
+                "type": "string",
+                "enum": [
+                  "setting",
+                  "vocabulary_files",
+                  "none"
+                ]
+              },
+              "vocabularyKnown": {
+                "type": "boolean",
+                "description": "false: the named vocabulary does not exist (state unknown_vocabulary)."
+              },
+              "jobs": {
+                "type": "boolean",
+                "description": "Followed and named in scoutro.kg.jobs.collections."
+              },
+              "llm": {
+                "type": "boolean",
+                "description": "The LLM tier reads it (scoutro.kg.llm.collections)."
+              },
+              "documents": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "description": "Documents of the collection in the graph, at most 10 s old; null while the graph is not running."
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "following",
+                  "waiting",
+                  "not_followed",
+                  "unknown_vocabulary"
+                ],
+                "description": "waiting: followed, no document yet."
+              }
+            }
+          }
+        },
         "upgrade": {
           "type": [
             "object",
@@ -7373,7 +7655,29 @@
           "type": [
             "string",
             "null"
+          ],
+          "description": "The stated name over the viewer's evidence; null when the viewer sees none (see display_name)."
+        },
+        "display_name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+        },
+        "display_name_source": {
+          "type": "string",
+          "enum": [
+            "fact",
+            "legal",
+            "operator",
+            "domain",
+            "fallback"
           ]
+        },
+        "display_host": {
+          "type": "string",
+          "description": "With display_name_source domain: the host the name is derived from."
         },
         "aliases": {
           "type": "array",
@@ -7456,6 +7760,9 @@
           },
           "description": "Visible entities of the same type with the same name (at most 5); never merged automatically."
         },
+        "context": {
+          "$ref": "#/components/schemas/KgEntityContext"
+        },
         "as_of": {
           "type": "object",
           "description": "Dataset epoch and the latest change sequence when the answer was read.",
@@ -7516,6 +7823,140 @@
         }
       }
     },
+    "KgEntityContext": {
+      "type": "object",
+      "description": "Package 6.1, items of the entity list only: the context of a hit, computed for the whole page in a few batched queries over the viewer's evidence. For a service its providers (the visible subjects of a visible offers fact), for a job its employer (hiring_organization); every provider's service stays its own entity, nothing is merged.",
+      "properties": {
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "The viewer's collections that hold it."
+        },
+        "places": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Its stated locality, else the names of the places it is in (at most 3)."
+        },
+        "quality": {
+          "type": "string",
+          "enum": [
+            "supported",
+            "uncertain",
+            "stale"
+          ],
+          "description": "Over the viewer's evidence (the rule of the quality filter)."
+        },
+        "sources": {
+          "type": "integer",
+          "description": "Current visible source pages."
+        },
+        "last_confirmed": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "relation": {
+          "type": "string",
+          "enum": [
+            "offers",
+            "hiring_organization"
+          ]
+        },
+        "providers": {
+          "type": "array",
+          "description": "Services and jobs only; empty when no provider is visible (provider_count 0, shown as such).",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^kge_[a-z2-7]{20}$"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
+                ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
+              },
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The viewer's collections that hold it."
+              },
+              "places": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Its stated locality, else the names of the places it is in (at most 3)."
+              },
+              "quality": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "uncertain",
+                  "stale"
+                ],
+                "description": "Over the viewer's evidence (the rule of the quality filter)."
+              }
+            }
+          }
+        },
+        "provider_count": {
+          "type": "integer",
+          "description": "All visible providers (the list shows at most 5)."
+        }
+      }
+    },
     "KgStatement": {
       "type": "object",
       "required": [
@@ -7548,12 +7989,33 @@
             "null"
           ]
         },
+        "subject_display_name": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+        },
+        "subject_display_name_source": {
+          "type": "string",
+          "enum": [
+            "fact",
+            "legal",
+            "operator",
+            "domain",
+            "fallback"
+          ]
+        },
+        "subject_display_host": {
+          "type": "string",
+          "description": "With display_name_source domain: the host the name is derived from."
+        },
         "predicate": {
           "type": "string"
         },
         "object": {
           "type": "object",
-          "description": "A relation ({entity, name}) or a literal ({value, datatype}).",
+          "description": "A relation ({entity, name, display_name, ...}) or a literal ({value, datatype}).",
           "properties": {
             "entity": {
               "type": "string"
@@ -7563,6 +8025,27 @@
                 "string",
                 "null"
               ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
             },
             "value": {
               "type": "string"
@@ -8589,6 +9072,27 @@
                 "null"
               ]
             },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
+            },
             "type": {
               "type": [
                 "string",
@@ -8609,6 +9113,27 @@
                 "string",
                 "null"
               ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
             },
             "type": {
               "type": [
@@ -8802,6 +9327,27 @@
                 "string",
                 "null"
               ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
             },
             "type": {
               "type": [
@@ -9081,6 +9627,27 @@
                           "null"
                         ]
                       },
+                      "display_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                      },
+                      "display_name_source": {
+                        "type": "string",
+                        "enum": [
+                          "fact",
+                          "legal",
+                          "operator",
+                          "domain",
+                          "fallback"
+                        ]
+                      },
+                      "display_host": {
+                        "type": "string",
+                        "description": "With display_name_source domain: the host the name is derived from."
+                      },
                       "type": {
                         "type": [
                           "string",
@@ -9240,6 +9807,27 @@
                           "string",
                           "null"
                         ]
+                      },
+                      "display_name": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                      },
+                      "display_name_source": {
+                        "type": "string",
+                        "enum": [
+                          "fact",
+                          "legal",
+                          "operator",
+                          "domain",
+                          "fallback"
+                        ]
+                      },
+                      "display_host": {
+                        "type": "string",
+                        "description": "With display_name_source domain: the host the name is derived from."
                       },
                       "type": {
                         "type": [
@@ -9411,13 +9999,14 @@
             "properties": {
               "id": {
                 "type": "string",
-                "description": "An entity ID, or a value node nace:<code>, segment:<code>, customer_type:<code>."
+                "description": "An entity ID, or a value node nace:<code>, segment:<code>, customer_type:<code>, price:<statement>."
               },
               "type": {
                 "type": [
                   "string",
                   "null"
-                ]
+                ],
+                "description": "organization, facility, site, place, service, job; the value nodes industry, audience, price."
               },
               "kind": {
                 "type": [
@@ -9429,7 +10018,29 @@
                 "type": [
                   "string",
                   "null"
+                ],
+                "description": "Entity nodes: the stated name (null without one; see display_name)."
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
                 ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
               },
               "label_de": {
                 "type": [
@@ -9451,6 +10062,71 @@
               },
               "value": {
                 "type": "boolean"
+              },
+              "hosts": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "The viewer's collections that hold it."
+              },
+              "places": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Its stated locality, else the names of the places it is in (at most 3)."
+              },
+              "quality": {
+                "type": "string",
+                "enum": [
+                  "supported",
+                  "uncertain",
+                  "stale"
+                ],
+                "description": "Over the viewer's evidence (the rule of the quality filter)."
+              },
+              "sources": {
+                "type": "integer",
+                "description": "Current visible source pages."
+              },
+              "last_confirmed": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "price": {
+                "description": "Price nodes (prices=true): the price exactly as published (KgPriceValue)."
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "current",
+                  "uncertain",
+                  "conflicting",
+                  "stale",
+                  "expired"
+                ],
+                "description": "current: supported (several sources or jsonld/metadata) with confidence >= 0.6; uncertain: weaker or only the LLM tier; conflicting: a different value from another source for the same thing; stale: no current source or older than the staleness window; expired: the source's own validity date has passed."
+              },
+              "as_of": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "service": {
+                "type": "string",
+                "description": "Price nodes: the service the price belongs to (never another provider's)."
               }
             }
           }
@@ -9496,6 +10172,14 @@
               },
               "fact": {
                 "type": "boolean"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "in",
+                  "out"
+                ],
+                "description": "Edges of the centre: in when it points to the centre (a provider offers the service in the centre), out when the centre points away."
               }
             }
           }
@@ -9617,6 +10301,27 @@
                       "null"
                     ]
                   },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
                   "type": {
                     "type": [
                       "string",
@@ -9639,11 +10344,46 @@
                         "null"
                       ]
                     },
+                    "display_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                    },
+                    "display_name_source": {
+                      "type": "string",
+                      "enum": [
+                        "fact",
+                        "legal",
+                        "operator",
+                        "domain",
+                        "fallback"
+                      ]
+                    },
+                    "display_host": {
+                      "type": "string",
+                      "description": "With display_name_source domain: the host the name is derived from."
+                    },
                     "locality": {
                       "type": [
                         "string",
                         "null"
                       ]
+                    },
+                    "hosts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+                    },
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "The viewer's collections that hold it."
                     }
                   }
                 }
@@ -10005,6 +10745,450 @@
               }
             }
           }
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgServiceGroupPage": {
+      "type": "object",
+      "required": [
+        "schema",
+        "offset",
+        "limit",
+        "total",
+        "items"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer",
+          "description": "Service names (groups) the viewer sees."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "Services of one name for reading only: counts of separate services, never a merged object.",
+            "properties": {
+              "key": {
+                "type": "string",
+                "description": "The name in lower case without surrounding spaces."
+              },
+              "name": {
+                "type": "string",
+                "description": "The name as most of the viewer's pages write it."
+              },
+              "services": {
+                "type": "integer"
+              },
+              "providers": {
+                "type": "integer",
+                "description": "Distinct visible providers (offers)."
+              },
+              "without_provider": {
+                "type": "integer"
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "services": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "description": "The viewer's collections only."
+              },
+              "places": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "providers": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "description": "Places of the providers (locality, else the places they are in), at most 10."
+              },
+              "with_price": {
+                "type": "integer",
+                "description": "Services with a current published price."
+              },
+              "with_current_source": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean",
+                "description": "More than 5000 services: the counts cover the first 5000."
+              }
+            }
+          }
+        },
+        "note": {
+          "type": "string"
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgServiceProviders": {
+      "type": "object",
+      "required": [
+        "schema",
+        "group",
+        "items"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "group": {
+          "type": "object",
+          "description": "Services of one name for reading only: counts of separate services, never a merged object.",
+          "properties": {
+            "key": {
+              "type": "string",
+              "description": "The name in lower case without surrounding spaces."
+            },
+            "name": {
+              "type": "string",
+              "description": "The name as most of the viewer's pages write it."
+            },
+            "services": {
+              "type": "integer"
+            },
+            "providers": {
+              "type": "integer",
+              "description": "Distinct visible providers (offers)."
+            },
+            "without_provider": {
+              "type": "integer"
+            },
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "services": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "description": "The viewer's collections only."
+            },
+            "places": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "providers": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "description": "Places of the providers (locality, else the places they are in), at most 10."
+            },
+            "with_price": {
+              "type": "integer",
+              "description": "Services with a current published price."
+            },
+            "with_current_source": {
+              "type": "integer"
+            },
+            "truncated": {
+              "type": "boolean",
+              "description": "More than 5000 services: the counts cover the first 5000."
+            }
+          }
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "description": "One service with its own provider; its prices and sources are its own.",
+            "properties": {
+              "service": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "quality": {
+                    "type": "string",
+                    "enum": [
+                      "supported",
+                      "uncertain",
+                      "stale"
+                    ],
+                    "description": "Over the viewer's evidence (the rule of the quality filter)."
+                  },
+                  "sources": {
+                    "type": "integer"
+                  },
+                  "last_confirmed": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "format": "date-time"
+                  },
+                  "hosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "The viewer's collections that hold it."
+                  }
+                }
+              },
+              "providers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "pattern": "^kge_[a-z2-7]{20}$"
+                    },
+                    "name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "display_name": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                    },
+                    "display_name_source": {
+                      "type": "string",
+                      "enum": [
+                        "fact",
+                        "legal",
+                        "operator",
+                        "domain",
+                        "fallback"
+                      ]
+                    },
+                    "display_host": {
+                      "type": "string",
+                      "description": "With display_name_source domain: the host the name is derived from."
+                    },
+                    "type": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "hosts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Hosts of the viewer's pages behind it, the most-used first (at most 5)."
+                    },
+                    "collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "The viewer's collections that hold it."
+                    },
+                    "places": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Its stated locality, else the names of the places it is in (at most 3)."
+                    },
+                    "quality": {
+                      "type": "string",
+                      "enum": [
+                        "supported",
+                        "uncertain",
+                        "stale"
+                      ],
+                      "description": "Over the viewer's evidence (the rule of the quality filter)."
+                    }
+                  }
+                },
+                "description": "The provider of this service (at most 5); empty when none is visible."
+              },
+              "provider_count": {
+                "type": "integer"
+              },
+              "prices": {
+                "type": "object",
+                "properties": {
+                  "current": {
+                    "type": "integer"
+                  },
+                  "all": {
+                    "type": "integer"
+                  }
+                },
+                "description": "Visible price statements of this service."
+              }
+            }
+          }
+        },
+        "note": {
+          "type": "string"
         },
         "lag": {
           "type": "object",
@@ -11874,31 +13058,155 @@
         }
       }
     },
+    "CollectionEntry": {
+      "type": "object",
+      "required": [
+        "id"
+      ],
+      "description": "Package 6.1: one collection of the catalog (the index, the created collections, the Discovery profiles). A scoped agent's granted collections carry id and documents only.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name (the given name of a created collection, else the id)."
+        },
+        "description": {
+          "type": "string"
+        },
+        "documents": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "Pages of it in the index (0 for a created collection without pages; null: unknown)."
+        },
+        "internal": {
+          "type": "boolean",
+          "description": "YaCy's own collection (robot_…): never selectable."
+        },
+        "selectable": {
+          "type": "boolean",
+          "description": "Offered in every collection choice. Equal to chat, knowledgeGraph and crawlTarget: one definition for all uses."
+        },
+        "chat": {
+          "type": "boolean"
+        },
+        "knowledgeGraph": {
+          "type": "boolean"
+        },
+        "crawlTarget": {
+          "type": "boolean"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "index",
+              "created",
+              "profile"
+            ]
+          }
+        },
+        "createdAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "graph": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "Administrator only: the knowledge graph's view of the collection (as in kg/status.collections); null when the graph does not know it or is off.",
+          "properties": {
+            "followed": {
+              "type": "boolean"
+            },
+            "vocabulary": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "vocabularySource": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "jobs": {
+              "type": "boolean"
+            },
+            "llm": {
+              "type": "boolean"
+            },
+            "state": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      }
+    },
     "Collections": {
       "type": "object",
       "properties": {
         "collections": {
           "type": "array",
           "items": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string"
-              },
-              "documents": {
-                "type": [
-                  "integer",
-                  "null"
-                ]
-              }
-            }
+            "$ref": "#/components/schemas/CollectionEntry"
           }
         },
         "allowNew": {
-          "type": "boolean"
+          "const": false,
+          "description": "No collection name is ever entered freely; new collections are created explicitly."
+        },
+        "canCreate": {
+          "type": "boolean",
+          "description": "Whether this caller may create a collection (administrator only; never an agent)."
         },
         "limit": {
           "type": "integer"
+        }
+      }
+    },
+    "CollectionCreate": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,63}$",
+          "description": "2–64 lower-case letters, digits and single hyphens; without it the id is derived from the name. Never an existing collection (also not one differing only in case), never robot_… or one of all, none, default, user, any, new."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "CollectionCreated": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "$ref": "#/components/schemas/CollectionEntry"
+        },
+        "created": {
+          "const": true
         }
       }
     },
