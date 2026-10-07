@@ -362,7 +362,16 @@ class Peer:
         return s.get("state") == "running" and sy.get("initialized") and lag.get("pending") == 0 and not lag.get("reconcile_pending") \
             and rec.get("current") is None
 
+    def ensure_collections(self, collections):
+        # package 6.1: crawls and grants use existing collections only; a missing one is created first, as the administrator would
+        have = {x["id"] for x in self.get("/scoutro/api/v1/collections")["collections"]}
+        for c in collections:
+            if c not in have:
+                status, _, raw = self.call("POST", "/scoutro/api/v1/collections", {"id": c, "name": c})
+                assert status == 201, (c, status, raw[:300])
+
     def crawl(self, url, collection, depth=2, max_pages=60, wait=True):
+        self.ensure_collections([collection])
         status, _, raw = self.call("POST", "/scoutro/api/v1/crawls", {"url": url, "collection": collection, "depth": depth,
                                                                         "maxPages": max_pages, "scope": "domain"},
                                    {"Idempotency-Key": f"e2e-{time.time_ns()}", "Content-Type": "application/json"})
@@ -426,12 +435,7 @@ class Peer:
         return raw.decode(errors="replace")
 
     def create_agent(self, name, actions, collections):
-        # package 6.1: a grant chooses existing collections only; a missing one is created first
-        have = {x["id"] for x in self.get("/scoutro/api/v1/collections")["collections"]}
-        for c in collections:
-            if c not in have:
-                status, _, raw = self.call("POST", "/scoutro/api/v1/collections", {"id": c, "name": c})
-                assert status == 201, (c, status, raw[:300])
+        self.ensure_collections(collections)
         status, headers, _ = self.call("GET", "/ScoutroAgentWizard_p.html")
         token, draft = headers.get("X-YaCy-Transaction-Token"), ""
 
