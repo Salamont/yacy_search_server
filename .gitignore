@@ -44,3 +44,5 @@ grafic_examples
 /ir/mediawiki/.venv/
 /ir/mediawiki/_markdown/
 /ir/mediawiki/_statistics/
+/test/scoutro-api/__pycache__/
+/test/scoutro-ui/__pycache__/
