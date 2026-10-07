@@ -184,10 +184,20 @@ class Wizard:
         return text
 
 
+def ensure_collections(c, names):
+    """Package 6.1: a grant chooses existing collections only; a missing one is created first, as the administrator would."""
+    have = {x["id"] for x in get(c, "/scoutro/api/v1/collections")["collections"]}
+    for name in names:
+        if name not in have:
+            status, _, raw = call(c, "POST", "/scoutro/api/v1/collections", {"id": name, "name": name})
+            assert status == 201, (name, status, raw[:300])
+
+
 def create_agent(c, name, actions, kind="external", collections=("kga",)):
+    ensure_collections(c, collections)
     w = Wizard(c)
     w.post(1, {"name": name, "description": "package 4 smoke", "kind": kind})
-    w.post(2, {"scopeForm": "1", "extraCollections": ",".join(collections)})
+    w.post(2, dict({"scopeForm": "1"}, **{"col_" + x: "on" for x in collections}))
     step3 = w.post(3, dict({"actionsForm": "1", "preset": "custom"}, **{"act_" + a: "on" for a in actions}))
     w.post(4, {"limitsForm": "1", "domains": "", "maxDepth": "1", "maxPages": "20", "maxParallelCrawls": "1",
                "requestsPerMinute": "600", "maxTaskSeconds": "300"})
@@ -402,6 +412,32 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-agents-") as temporary:
             assert "Geheime Holding" in prompt and "Haus Lindenhof" not in prompt.split("Scoutro knowledge graph", 1)[-1], prompt[-2000:]
             meta, prompt = chat("Was betreibt die Muster Pflege gGmbH?", "kga", {"X-Forwarded-For": "198.51.100.23"})
             assert meta.get("scoutro-graph", {}).get("reason") == "access" and "Scoutro knowledge graph" not in prompt, (meta, prompt[-1000:])
+            # package 6.1: collections are created explicitly; listed at once, kept in DATA, and a crawl needs an existing one
+            status, _, raw = call(c, "POST", "/scoutro/api/v1/collections", {"id": "neues-portal-web", "name": "Neues Portal", "description": "Smoke"})
+            assert status == 201 and json.loads(raw)["collection"]["id"] == "neues-portal-web", (status, raw[:300])
+            listed = {x["id"]: x for x in get(c, "/scoutro/api/v1/collections")["collections"]}
+            entry = listed.get("neues-portal-web", {})
+            assert entry.get("name") == "Neues Portal" and entry.get("selectable") and "created" in entry.get("sources", []) and entry.get("documents") == 0, entry
+            assert get(c, "/scoutro/api/v1/collections")["canCreate"] is True and (root / "DATA/SCOUTRO/collections.json").exists()
+            for body, expected in [({"id": "neues-portal-web", "name": "x"}, (409, "collection_exists")),
+                                   ({"id": "Neues Portal", "name": "x"}, (400, "collection_id_invalid")),
+                                   ({"id": "robot_x", "name": "x"}, (400, "collection_reserved")),
+                                   ({"id": "user", "name": "x"}, (400, "collection_reserved")),
+                                   ({"id": "ok-web"}, (400, "invalid_request"))]:
+                # a fresh client per expected error: urllib's Digest handler resets its retry count only after a success
+                status, _, raw = call(admin(), "POST", "/scoutro/api/v1/collections", body)
+                assert (status, json.loads(raw)["error"]["code"]) == expected, (body, status, raw[:200])
+            assert call(ANON, "POST", "/scoutro/api/v1/collections", {"id": "anon-web", "name": "x"})[0] == 401
+            assert call(admin(), "POST", "/scoutro/api/v1/collections", {"id": "cross-web", "name": "x"}, {"Origin": "https://evil.example"})[0] == 403
+            status, _, raw = call(admin(), "POST", "/scoutro/api/v1/collections", {"id": "big-web", "name": "x", "description": "y" * 5000})
+            assert status == 413 and json.loads(raw)["error"]["code"] == "payload_too_large", ("a new collection is a small body", status, raw[:200])
+            status, _, raw = call(ANON, "POST", "/scoutro/api/agent/v1/collections", {"id": "agent-web", "name": "x"}, {"Authorization": "Bearer " + everything})
+            assert status in (403, 405), (status, raw[:200])
+            ids = {x["id"] for x in get(c, "/scoutro/api/v1/collections")["collections"]}
+            assert not ids & {"anon-web", "cross-web", "agent-web", "ok-web", "big-web"}, ids
+            status, _, raw = call(admin(), "POST", "/scoutro/api/v1/crawls", {"url": "https://neues-portal.invalid/", "collection": "nirgends-web"}, {"Idempotency-Key": "p61-unknown"})
+            assert status == 400 and json.loads(raw)["error"]["code"] == "collection_unknown", (status, raw[:300])
+            checks += 13
             # package 6.1: a guest may choose only the released kga; kgb and an unknown name get the same refusal, no name echoed
             for name in ("kgb", "nirgends-web"):
                 body = {"model": "chat", "stream": True, "collection": name, "messages": [{"role": "user", "content": "Hallo", "search": "local"}]}
@@ -419,8 +455,8 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-agents-") as temporary:
             guest_names = choices(call(ANON, "GET", "/yacychat.html", None, {"X-Forwarded-For": "198.51.100.25"})[2].decode())
             assert guest_names == ["", "kga"], guest_names
             local_names = choices(call(ANON, "GET", "/yacychat.html")[2].decode())
-            # local access: every collection of the index (the administrator's list without YaCy's robot_ collections), sorted
-            index_names = sorted((x["id"] for x in get(c, "/scoutro/api/v1/collections")["collections"] if not x["id"].startswith("robot_")),
+            # local access: every selectable collection of the catalog (never YaCy's robot_ ones), sorted
+            index_names = sorted((x["id"] for x in get(c, "/scoutro/api/v1/collections")["collections"] if x.get("selectable") and not x.get("internal")),
                                  key=lambda name: (name.lower(), name))
             assert "kga" in index_names and local_names == [""] + index_names, (local_names, index_names)
             checks += 10

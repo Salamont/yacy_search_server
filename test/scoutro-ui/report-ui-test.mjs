@@ -32,7 +32,8 @@ try {
   check(await page.locator('#sseo-r-collection').evaluate(e => e.tagName) === 'SELECT' && await page.locator('#sseo-r-form input[list], datalist').count() === 0, 'Report collection as a real select' + where);
   await page.waitForFunction(() => !document.getElementById('sseo-r-collection').disabled);
   const reportNames = await page.locator('#sseo-r-collection option').evaluateAll(list => list.map(o => o.value));
-  check(JSON.stringify(reportNames) === JSON.stringify(['', 'secret', 'visible']), 'Choose first, then the collections sorted: ' + JSON.stringify(reportNames) + where);
+  const catalog = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  check(catalog.includes('secret') && catalog.includes('visible') && JSON.stringify(reportNames) === JSON.stringify(['', ...catalog]), 'Choose first, then the catalog sorted: ' + JSON.stringify(reportNames) + where);
   await page.locator('#sseo-r-collection').selectOption('visible'); await page.locator('#sseo-r-form button[type="submit"]').click();
   await page.waitForSelector('#sseo-r-hosts tbody tr');
   check(new URL(page.url()).search === '?view=report&collection=visible', 'Scope kept in the URL' + where);

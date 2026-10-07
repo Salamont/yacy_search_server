@@ -91,7 +91,8 @@ try {
     check(await choice.evaluate(e => e.tagName) === 'SELECT' && await page.locator('#scoutro-index-form datalist, #scoutro-index-form input[list]').count() === 0, 'Collection as a real select' + where);
     await page.waitForFunction(() => !document.getElementById('scoutro-index-collection').disabled);
     const names = await choice.locator('option').evaluateAll(list => list.map(o => o.value));
-    check(JSON.stringify(names) === JSON.stringify(['', 'secret', 'visible']), 'All collections first, then the collections sorted: ' + JSON.stringify(names) + where);
+    const catalog = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+    check(catalog.includes('secret') && catalog.includes('visible') && JSON.stringify(names) === JSON.stringify(['', ...catalog]), 'All collections first, then the catalog sorted: ' + JSON.stringify(names) + where);
     await choice.selectOption('visible');
     await page.locator('#scoutro-index-form button[type=submit]').click();
     await page.waitForFunction(() => document.querySelector('#scoutro-domain-total').textContent === '1');

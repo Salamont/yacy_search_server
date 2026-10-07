@@ -80,8 +80,7 @@ try {
         const scope = page.locator('#skg-collection');
         check(await scope.evaluate(e => e.tagName) === 'SELECT' && await page.locator('#skg-scope input, datalist').count() === 0, 'collection as a real select, no text field' + where);
         const scopeOptions = await scope.locator('option').evaluateAll(list => list.map(o => [o.value, o.textContent.trim()]));
-        const indexNames = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.map(c => c.id)
-          .sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+        const indexNames = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
         check(scopeOptions[0][0] === '' && scopeOptions[0][1] === (language === 'de' ? 'Alle Collections' : 'All collections')
           && JSON.stringify(scopeOptions.slice(1).map(o => o[0])) === JSON.stringify(indexNames) && ['kga', 'kgb', 'kgc'].every(c => indexNames.includes(c)),
           'all collections first, then every collection of the index sorted, the new kgc included: ' + JSON.stringify(scopeOptions) + where);

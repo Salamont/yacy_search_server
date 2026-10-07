@@ -426,6 +426,12 @@ class Peer:
         return raw.decode(errors="replace")
 
     def create_agent(self, name, actions, collections):
+        # package 6.1: a grant chooses existing collections only; a missing one is created first
+        have = {x["id"] for x in self.get("/scoutro/api/v1/collections")["collections"]}
+        for c in collections:
+            if c not in have:
+                status, _, raw = self.call("POST", "/scoutro/api/v1/collections", {"id": c, "name": c})
+                assert status == 201, (c, status, raw[:300])
         status, headers, _ = self.call("GET", "/ScoutroAgentWizard_p.html")
         token, draft = headers.get("X-YaCy-Transaction-Token"), ""
 
@@ -442,7 +448,7 @@ class Peer:
             return text
 
         post(1, {"name": name, "description": "e2e", "kind": "external"})
-        post(2, {"scopeForm": "1", "extraCollections": ",".join(collections)})
+        post(2, dict({"scopeForm": "1"}, **{"col_" + c: "on" for c in collections}))
         post(3, dict({"actionsForm": "1", "preset": "custom"}, **{"act_" + a: "on" for a in actions}))
         post(4, {"limitsForm": "1", "domains": "", "maxDepth": "1", "maxPages": "20", "maxParallelCrawls": "1",
                  "requestsPerMinute": "600", "maxTaskSeconds": "300"})

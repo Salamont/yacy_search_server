@@ -31,9 +31,7 @@ try {
       check((await page.goto(base + '/yacychat.html?collection=kga', { waitUntil: 'networkidle' })).status() === 200, 'chat page' + where);
       // package 6.1: the collection comes from a list of the collections this client may use
       const names = await page.locator('#collectionSelect option').evaluateAll(list => list.map(o => o.value));
-      const index = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections
-        .map(c => c.id).filter(id => !id.startsWith('robot_'))
-        .sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+      const index = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
       check(await page.locator('#collectionSelect').inputValue() === 'kga' && JSON.stringify(names) === JSON.stringify(['', ...index]) && index.includes('kga')
         && await page.locator('#collectionInput, datalist').count() === 0, 'every collection of the index, sorted, the one of the link chosen: ' + JSON.stringify(names) + where);
       await page.locator('#userInput').fill('Was betreibt die Muster Pflege gGmbH?');

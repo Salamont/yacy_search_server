@@ -98,7 +98,7 @@ def main():
     # --- Scoutro: research worker via the wizard ---------------------------------------
     w = scoutro.Wizard()
     w.post(1, {"name": "e2e worker " + scoutro.RUN, "kind": "research_worker"})
-    w.post(2, {"scopeForm": "1", "extraCollections": COLLECTION})
+    w.post(2, {"scopeForm": "1", "col_" + COLLECTION: "on"})  # an existing collection, ticked (package 6.1)
     w.post(3, {"actionsForm": "1", "preset": "research"})
     w.post(4, {"limitsForm": "1", "domains": "", "maxDepth": "1", "maxPages": "20", "maxParallelCrawls": "1",
                "requestsPerMinute": "120", "maxTaskSeconds": "120"})

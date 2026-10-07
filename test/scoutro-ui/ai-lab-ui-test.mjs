@@ -46,8 +46,9 @@ try {
   const shield = await admin.newPage();
   await shield.goto(base + '/AIShield_p.html');
   const boxes = await shield.locator('#guestCollections input').evaluateAll(list => list.map(i => [i.type, i.name, i.checked]));
-  check(JSON.stringify(boxes) === JSON.stringify([['checkbox', 'guest-collection.secret', false], ['checkbox', 'guest-collection.visible', false]]),
-    'AI Shield lists every collection as an unticked box: ' + JSON.stringify(boxes));
+  const catalogIds = await shield.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+  check(catalogIds.includes('secret') && catalogIds.includes('visible') && JSON.stringify(boxes) === JSON.stringify(catalogIds.map(id => ['checkbox', 'guest-collection.' + id, false])),
+    'AI Shield lists every collection of the catalog as an unticked box: ' + JSON.stringify(boxes));
   await shield.locator('input[name="guest-collection.visible"]').check();
   await Promise.all([shield.waitForNavigation(), shield.locator('#shieldForm button[type="submit"]').click()]);
   check(await shield.locator('input[name="guest-collection.visible"]').isChecked() && !(await shield.locator('input[name="guest-collection.secret"]').isChecked()), 'Released collection stored');
@@ -89,7 +90,9 @@ try {
       'Collection as a real select, no text field' + where);
     const options = await select.locator('option').evaluateAll(list => list.map(o => [o.value, o.textContent.trim()]));
     check(options[0][0] === '' && options[0][1] === T.allOption && await select.inputValue() === '', 'First option: all collections, chosen' + where);
-    check(JSON.stringify(options.slice(1).map(o => o[0])) === JSON.stringify(['secret', 'visible']), 'The administrator gets every collection, sorted: ' + JSON.stringify(options) + where);
+    const catalog = await page.evaluate(async () => (await (await fetch('/scoutro/api/v1/collections', { credentials: 'same-origin' })).json()).collections.filter(c => c.selectable && !c.internal).map(c => c.id).sort((a, b) => a.toLowerCase() < b.toLowerCase() ? -1 : a.toLowerCase() > b.toLowerCase() ? 1 : a < b ? -1 : a > b ? 1 : 0));
+    check(catalog.includes('secret') && catalog.includes('visible') && JSON.stringify(options.slice(1).map(o => o[0])) === JSON.stringify(catalog),
+      'The administrator gets every collection of the catalog, sorted: ' + JSON.stringify(options) + where);
     await select.selectOption('visible');
     check(await current() === 'visible', 'Scope follows the selection' + where);
     check(await page.evaluate(() => localStorage.getItem('scoutro.chat.collection')) === 'visible', 'Choice remembered' + where);
