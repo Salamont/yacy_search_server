@@ -27,6 +27,10 @@ the machine, no existing peer or DATA directory is touched.
    with the production state of the former /v1 thinking test ("unsupported",
    no thinking_probe): that value is unknown, the request says think: false and
    the page is extracted.
+9. the knowledge prompt through the administrator API: validate, activate
+   (used from the next call on, no re-examination of done documents), a
+   stale revision and an invalid text refused, no access without the login,
+   reset to the default.
 
 Run after `ant compile`:  python3 test/scoutro-api/kg-llm-live-smoke.py
 GPL-2.0-or-later.
@@ -197,6 +201,17 @@ def control(client, action):
     except urllib.error.HTTPError as e:
         body = e.read()
         return e.code, (json.loads(body) if body.startswith(b"{") else None)
+
+
+def prompt_api(client, method, body=None):
+    request = urllib.request.Request(BASE + "/scoutro/api/v1/kg/prompt", data=None if body is None else json.dumps(body).encode(),
+                                     headers={"Content-Type": "application/json"} if body is not None else {}, method=method)
+    try:
+        with client.open(request, timeout=15) as response:
+            return response.status, json.loads(response.read())
+    except urllib.error.HTTPError as e:
+        data = e.read()
+        return e.code, (json.loads(data) if data.startswith(b"{") else None)
 
 
 def wait_status(client, what, predicate, timeout=120):
@@ -407,8 +422,41 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             p = s["llm"]["processed"]
             assert p["published"] > before["published"] and p["answersRefused"] == before["answersRefused"], (before, p)
             FakeModel.mode = "ok"
+            # 9. the knowledge prompt (6.3): read and changed by the administrator API, used from the next call on without a
+            # restart, no re-examination of done documents, a stale revision refused, no access without the login, reset
+            code, p = prompt_api(client, "GET")
+            assert code == 200 and p["source"] == "default" and p["activeVersion"] == 0 and p["differsFromDefault"] is False, p
+            assert s["llm"]["prompt"]["activeHash"] == p["activeHash"] == p["default"]["hash"], (s["llm"]["prompt"], p)
+            custom = p["text"].replace("for a knowledge graph", "for a knowledge graph of care providers")
+            code, v = prompt_api(client, "POST", {"action": "validate", "text": custom})
+            assert code == 200 and v["valid"] is True and v["differsFromActive"] is True, v
+            code, v = prompt_api(client, "POST", {"action": "validate", "text": custom + " api_key=abcdef123456"})
+            assert code == 200 and v["valid"] is False and v["reason"] == "prompt_secret_like", v
+            done, calls = s["llm"]["documents"]["done"], len(FakeModel.requests)
+            code, a = prompt_api(client, "POST", {"action": "activate", "text": custom, "expectedRevision": 0})
+            assert code == 200 and a["activeVersion"] == 1 and a["source"] == "custom" and a["changed"] is True, (code, a)
+            assert a["activeHash"] != p["activeHash"] and a["differsFromDefault"] is True and len(a["history"]) == 1, a
+            code, e = prompt_api(client, "POST", {"action": "activate", "text": custom + " Answer briefly.", "expectedRevision": 0})
+            assert code == 409 and e["error"]["code"] == "prompt_revision_conflict", (code, e)
+            code, e = prompt_api(client, "POST", {"action": "activate", "text": "too short"})
+            assert code == 422 and e["error"]["code"] == "prompt_invalid" and e["error"]["details"]["reason"] == "prompt_too_short", (code, e)
+            anonymous = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            for method, body in (("GET", None), ("POST", {"action": "reset"})):
+                code, _ = prompt_api(anonymous, method, body)
+                assert code == 401, (method, code)
+            time.sleep(3)
+            s = status(client)
+            assert s["llm"]["documents"]["done"] == done and len(FakeModel.requests) == calls, "a new prompt re-examined documents"
+            assert s["llm"]["prompt"]["activeHash"] == a["activeHash"] and s["llm"]["prompt"]["source"] == "custom", s["llm"]["prompt"]
+            push(client, "https://www.neunte-pflege-llm-smoke.de/impressum", page("www.neunte-pflege-llm-smoke.de"), "kgsmoke")
+            s = wait_status(client, "the page with the new prompt", lambda x: x["llm"]["documents"]["done"] >= done + 1, 120)
+            new = FakeModel.requests[calls:]
+            assert new and all(r["messages"][0]["role"] == "system" and r["messages"][0]["content"] == custom for r in new), \
+                [r["messages"][0]["content"][:80] for r in new]
+            code, r = prompt_api(client, "POST", {"action": "reset", "expectedRevision": 1})
+            assert code == 200 and r["source"] == "default" and r["activeVersion"] == 2 and r["activeHash"] == p["activeHash"], r
             assert set(FakeModel.paths) == {"/api/chat"}, sorted(set(FakeModel.paths))
-            checks += 21
+            checks += 36
             print(f"PASS: {checks} live LLM tier checks", flush=True)
         except BaseException:
             log.flush()

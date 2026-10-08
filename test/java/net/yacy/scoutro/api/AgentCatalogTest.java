@@ -95,7 +95,7 @@ public class AgentCatalogTest {
         }
         Assert.assertNotNull(openapi.getJSONObject("components").getJSONObject("securitySchemes").optJSONObject("agentBearer"));
         // the administrator routes of the knowledge graph are neither routed nor described on the agent path
-        for (final String admin : new String[] {"kg/status", "kg/control", "kg/export/download", "kg/collections", "kg/collections/c1"}) {
+        for (final String admin : new String[] {"kg/status", "kg/control", "kg/prompt", "kg/export/download", "kg/collections", "kg/collections/c1"}) {
             Assert.assertNull(admin, AgentApi.route("GET", java.util.Arrays.asList(admin.split("/"))).action);
             Assert.assertNull(admin, paths.optJSONObject("/agent/v1/" + admin));
         }

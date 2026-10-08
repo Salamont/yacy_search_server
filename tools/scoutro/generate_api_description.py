@@ -404,6 +404,9 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "breaker": {"type": "object", "properties": {"open": {"type": "boolean"}, "consecutiveFailures": {"type": "integer"}, "failuresToOpen": {"type": "integer"},
             "openUntil": {"type": ["integer", "null"]}, "backoffMillis": {"type": "integer"}, "timesOpened": {"type": "integer"}, "lastFailure": {"type": ["string", "null"]}}},
         "processed": {"type": "object", "additionalProperties": True, "description": "Counters: calls, callFailures, timeouts, averageCallMillis, answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored."},
+        "prompt": {"type": "object", "description": "The knowledge prompt the tier asks with (GET /kg/prompt has its text): revision, hash, source, time; no text.", "properties": {
+            "activeVersion": {"type": "integer"}, "activeHash": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
+            "source": {"type": "string", "enum": ["default", "custom"]}, "modifiedAt": {"type": ["integer", "null"]}, "differsFromDefault": {"type": "boolean"}}},
         "structuredOutput": {"type": ["object", "null"], "description": "What the endpoint is asked for, negotiated per model; in memory since the start, no answer, host or key.", "properties": {
             "setting": {"type": "string", "enum": ["auto", "json_schema", "json_object", "none"], "description": "scoutro.kg.llm.structuredOutput."},
             "api": {"type": ["string", "null"], "enum": ["ollama_native", "openai_compatible", None], "description": "ollama_native: an OLLAMA model on Ollama's /api/chat with format; openai_compatible: every other service on /v1/chat/completions with response_format."},
@@ -458,6 +461,39 @@ schemas["KgControl"] = {"type": "object", "required": ["action"], "additionalPro
 KG_NOTE = "Knowledge graph status: store, storage budget, JSON-LD capture, the synchronisation with the embedded Solr core and the optional LLM tier. The answer is 200 also when the graph is disabled (state disabled) or unavailable (state unavailable with reason). Nothing is ever written to Solr."
 paths["/v1/kg/status"] = {"get": op("kg.status", "Knowledge graph status", KG_NOTE, ["knowledge"], {**ok("Status of the knowledge graph.", "KgStatus"), **errs("401", "404", "405")})}
 paths["/v1/kg/control"] = {"post": op("kg.control", "Control the knowledge graph", "Administrator only. JSON body {\"action\":\"pause\"|\"resume\"|\"reconcile\"|\"confirm_reconcile\"|\"llm_retry\"|\"backup\"|\"restore\"|\"rebuild\"|\"rebuild_cancel\"|\"rebuild_confirm\"|\"derive\"|\"delete_backup\"} (restore and delete_backup with \"backup\"); unknown fields are refused. delete_backup: 404 backup_not_found, 409 operation_running, 503 backup_delete_failed. 404 backup_not_found, 422 backup_invalid, 409 operation_running, 503 restore_failed for backup and restore; 409 operation_running, 409 no_rebuild, 503 kg_write_refused (rebuild_space) for the rebuild actions. 409 kg_disabled while scoutro.kg.enabled=false, 409 nothing_to_confirm for confirm_reconcile without a stopped run, 409 llm_unavailable for llm_retry while the LLM tier is off, 409 derived_unavailable for derive while the derived layer is off, 503 kg_unavailable (details.reason) when the graph cannot run, 503 sync_unavailable without the embedded Solr core. A pause takes effect at once; if the storage guard refuses to store it, store.manualPauseSaved is false and it is stored later.", ["knowledge"], {**ok("Status after the change.", "KgStatus"), **errs("400", "401", "403", "404", "405", "409", "413", "415", "422", "503")}, body="KgControl", mutating=True)}
+KG_PROMPT_META = {
+    "activeVersion": {"type": "integer", "minimum": 0, "description": "Revision of the active version; 0 for the compiled-in default never changed. Every activation and reset counts on."},
+    "activeHash": {"type": "string", "pattern": "^[0-9a-f]{16}$", "description": "Prompt hash of the active text with the schema and the extractor version: part of the extractor identity and of the cache key."},
+    "source": {"type": "string", "enum": ["default", "custom"], "description": "default: the compiled-in prompt of the running release; custom: a text an administrator activated."},
+    "modifiedAt": {"type": ["integer", "null"], "description": "When the active version was activated (ms); null for the default never changed."},
+    "differsFromDefault": {"type": "boolean"}}
+schemas["KgPrompt"] = {"type": "object", "properties": {**KG_PROMPT_META,
+    "text": {"type": "string", "description": "The active prompt text, as the LLM tier sends it."},
+    "default": {"type": "object", "properties": {"hash": {"type": "string"}, "text": {"type": "string"}}, "description": "The compiled-in default of the running release."},
+    "limits": {"type": "object", "properties": {"minChars": {"type": "integer"}, "maxChars": {"type": "integer"}}},
+    "history": {"type": "array", "description": "The last 50 activations, the newest last; no texts.", "items": {"type": "object", "properties": {
+        "revision": {"type": "integer"}, "hash": {"type": "string"}, "source": {"type": "string", "enum": ["default", "custom"]}, "activatedAt": {"type": "integer"}}}},
+    "reexamination": {"type": "string", "enum": ["manual"], "description": "A new prompt applies to new and changed pages; done documents are not read again by it."},
+    "changed": {"type": "boolean", "description": "activate and reset only: false when the text was already active (no new revision)."},
+    "valid": {"type": "boolean", "description": "validate only."}, "reason": {"type": ["string", "null"], "description": "validate only: why the draft cannot be activated.",
+        "enum": ["prompt_missing", "prompt_too_short", "prompt_too_long", "prompt_control_characters", "prompt_secret_like", None]},
+    "chars": {"type": "integer", "description": "validate only."}, "hash": {"type": ["string", "null"], "description": "validate only: the hash the draft would have."},
+    "differsFromActive": {"type": ["boolean", "null"], "description": "validate only."}}}
+schemas["KgPromptAction"] = {"type": "object", "required": ["action"], "additionalProperties": False, "properties": {
+    "action": {"type": "string", "enum": ["validate", "activate", "reset"], "description": "validate checks a draft and stores nothing; activate makes text the active prompt; reset makes the compiled-in default active again."},
+    "text": {"type": "string", "minLength": 200, "maxLength": 8000, "description": "validate and activate only: the prompt text. Tab and line breaks besides printable text; nothing that looks like a key, token or password."},
+    "expectedRevision": {"type": "integer", "minimum": 0, "description": "activate and reset only: the activeVersion read before; another active revision is 409 prompt_revision_conflict."}}}
+KG_PROMPT_NOTE = (" The knowledge prompt is the system prompt of the LLM tier; the schema stays compiled in. Scoutro stores the active version in the graph (kg_meta, in backups, kept by a rebuild)"
+    " with a history of revisions, hashes, sources and times (no texts). The active text decides the prompt hash, so another prompt is never answered from the cache of this one;"
+    " an activation reads no done document again and deletes nothing (new and changed pages are asked with it). 409 kg_disabled while scoutro.kg.enabled=false, 503 kg_unavailable when the graph cannot run.")
+paths["/v1/kg/prompt"] = {
+    "get": op("kg.prompt", "Read the knowledge prompt", "Administrator only. The active version (revision, hash, source, time, text), the compiled-in default and the history." + KG_PROMPT_NOTE,
+        ["knowledge"], {**ok("The knowledge prompt.", "KgPrompt"), **errs("400", "401", "405", "409", "503")}),
+    "post": op("kg.prompt.change", "Validate, activate or reset the knowledge prompt", "Administrator only; body up to 64 KiB. validate: 200 with valid and reason, nothing stored."
+        " activate and reset: a new revision used from the next LLM call on (no new revision for the active text); 422 prompt_invalid (details.reason), 409 prompt_revision_conflict"
+        " (details.activeVersion) for a stale expectedRevision; unknown fields are refused." + KG_PROMPT_NOTE,
+        ["knowledge"], {**ok("The knowledge prompt after the action (validate: the check).", "KgPrompt"), **errs("400", "401", "403", "405", "409", "413", "415", "422", "503")},
+        body="KgPromptAction", mutating=True)}
 schemas["KgBackupList"] = {"type": "object", "properties": {**KG_BACKUP_STATUS["properties"], "schema": {"type": "string", "enum": ["scoutro.kg.backup.v1"]},
     "items": {"type": "array", "items": {"type": "object", "properties": {"file": {"type": "string"}, "kind": {"type": "string", "enum": ["backup", "before_restore", "before_rebuild", "before_upgrade"], "description": "before_upgrade: the copy of the old graph before a schema migration (package 6); the newest one survives the retention as the way back to the previous version."},
         "bytes": {"type": "integer"}, "created_at": KG_DT_OR_NULL, "sha256": {"type": ["string", "null"]}, "metadata": {"type": "boolean", "description": "false for a file copied in by hand: a restore then relies on quick_check and the schema check alone"},
@@ -967,9 +1003,9 @@ for suffix, operation, result_schema, parameters in report_endpoints:
     paths["/v1" + suffix] = {"get": op(operation, "Crawl report", REPORT_NOTE, ["reports"], {**ok("Crawl report.", result_schema), **errs("400", "401", "404", "405", "503")}, params=parameters)}
     paths["/agent/v1" + suffix] = {"get": aop("agent." + operation, "Crawl report (scoped)", REPORT_NOTE + " Requires explicit report.read, absent from presets; foreign collections are refused (403), jobs with a collection outside the scope are not visible (404).", ["agent", "reports"], {**ok("Scoped crawl report.", result_schema), **aerrs("400", "401", "403", "404", "405", "429", "503")}, params=parameters, grants=["report.read"])}
 
-# Knowledge graph on the agent path: the read routes (kg.read) and export/changes (kg.export), never status, control or the download.
+# Knowledge graph on the agent path: the read routes (kg.read) and export/changes (kg.export), never status, control, the prompt or the download.
 KG_AGENT_NOTE = " On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field."
-for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/export/download",
+for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/prompt", "/v1/kg/export/download",
         "/v1/kg/collections", "/v1/kg/collections/{collection}")]:
     o = paths[path]["get"]
     grant = "kg.export" if o["operationId"] in ("kg.export", "kg.changes") else "kg.read"
@@ -1231,6 +1267,7 @@ cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "sea
 mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'collections.create': 'scoutro_collections_create', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
+mcp.update({'kg.prompt': 'scoutro_kg_prompt', 'kg.prompt.change': 'scoutro_kg_prompt_change'})  # administrator only: never an agent tool
 mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entity', 'kg.entity.statements': 'scoutro_kg_entity_statements', 'kg.statement': 'scoutro_kg_statement', 'kg.statement.evidence': 'scoutro_kg_statement_evidence', 'kg.host.entities': 'scoutro_kg_host_entities', 'kg.source': 'scoutro_kg_source'})
 cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
 mcp.update({'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
@@ -1245,6 +1282,8 @@ cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-j
             'kg.collection.update': 'scoutroctl kg collection NAME [--on|--off] [--vocabulary V|--no-vocabulary|--default-vocabulary] [--llm|--no-llm] (administrator)'})
 mcp.update({'kg.export': 'scoutro_kg_export', 'kg.changes': 'scoutro_kg_changes', 'kg.download': 'scoutro_kg_download',
             'kg.backups': 'scoutro_kg_backups', 'kg.backup.download': 'scoutro_kg_backup_download'})
+cli.update({'kg.prompt': 'no scoutroctl command: GET /scoutro/api/v1/kg/prompt (administrator)',
+            'kg.prompt.change': 'no scoutroctl command: POST /scoutro/api/v1/kg/prompt (administrator)'})
 cli.update({'kg.backups': 'scoutroctl kg backups (administrator)', 'kg.backup.download': 'scoutroctl kg backup-download FILE > graph.db (administrator)'})
 cli.update({'kg.entities': 'scoutroctl kg entities [--q TEXT] [--type T] [--host H] [--quality Q] [--industry CODE] [--category C] [--audience A] [--collection NAME]', 'kg.entity': 'scoutroctl kg entity ID',
             'kg.entity.statements': 'scoutroctl kg statements ID [--direction out|in] [--predicate P] [--include-stale]', 'kg.statement': 'scoutroctl kg statement ID',

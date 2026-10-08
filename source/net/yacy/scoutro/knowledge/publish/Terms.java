@@ -152,13 +152,18 @@ public final class Terms {
      * model or prompt is a new extractor; its evidence names it.
      */
     public int llmExtractor(final Connection tx, final String model) throws SQLException {
+        return llmExtractor(tx, model, LlmExtractor.PROMPT_HASH);
+    }
+
+    /** {@link #llmExtractor(Connection, String)} for the prompt with this hash (the active one, KnowledgePrompt). */
+    public int llmExtractor(final Connection tx, final String model, final String promptHash) throws SQLException {
         // not cached: the row may come from a transaction that is rolled back
         try (PreparedStatement ps = tx.prepareStatement("INSERT OR IGNORE INTO kg_extractor (tier, name, version, model, prompt_hash)"
                 + " VALUES (3, ?, ?, ?, ?)")) {
             ps.setString(1, LlmExtractor.NAME);
             ps.setString(2, LlmExtractor.VERSION);
             ps.setString(3, model);
-            ps.setString(4, LlmExtractor.PROMPT_HASH);
+            ps.setString(4, promptHash);
             ps.executeUpdate();
         }
         try (PreparedStatement ps = tx.prepareStatement("SELECT ext_id FROM kg_extractor WHERE tier = 3 AND name = ? AND version = ?"
@@ -166,7 +171,7 @@ public final class Terms {
             ps.setString(1, LlmExtractor.NAME);
             ps.setString(2, LlmExtractor.VERSION);
             ps.setString(3, model);
-            ps.setString(4, LlmExtractor.PROMPT_HASH);
+            ps.setString(4, promptHash);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     throw new SQLException("extractor row missing");
