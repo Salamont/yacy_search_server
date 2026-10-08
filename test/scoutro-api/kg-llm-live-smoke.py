@@ -393,7 +393,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             custom = p["text"].replace("for a knowledge graph", "for a knowledge graph of care providers")
             code, v = prompt_api(client, "POST", {"action": "validate", "text": custom})
             assert code == 200 and v["valid"] is True and v["differsFromActive"] is True, v
-            code, v = prompt_api(client, "POST", {"action": "validate", "text": custom + " token: abcdefghij"})
+            code, v = prompt_api(client, "POST", {"action": "validate", "text": custom + " api_key=abcdef123456"})
             assert code == 200 and v["valid"] is False and v["reason"] == "prompt_secret_like", v
             done, calls = s["llm"]["documents"]["done"], len(FakeModel.requests)
             code, a = prompt_api(client, "POST", {"action": "activate", "text": custom, "expectedRevision": 0})
