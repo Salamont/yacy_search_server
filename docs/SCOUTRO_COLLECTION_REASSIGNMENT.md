@@ -129,8 +129,12 @@ numbers move anyway.
      `source.processed_at` and `total`.
    - two control domains, one of `stackfinder-web` and one of `checkthecoach-web`: the same two lists for their pages.
    - a knowledge graph backup: `POST /scoutro/api/v1/kg/control {"action":"backup"}`.
-1. **Pause:**
-   - Discovery: `POST /scoutro/api/v1/discovery/pause`.
+1. **Pause** (for a release with PR #36, before the rollout: [rollout 0.8.7](SCOUTRO_ROLLOUT_0.8.7.md)):
+   - Discovery automation: read `revision` from `GET /scoutro/api/v1/discovery/status`, then
+     `POST /scoutro/api/v1/discovery/pause` with the body `{}` and the header `If-Match: <revision>` (`428` without
+     it; `409 revision_conflict` for an old revision: read the status again). Accepted crawls continue.
+   - Manual Discovery runs: `scoutro-discovery --workdir <state root> pause`. `start` and `classify` refuse while it is
+     set, and the automation does not start a batch either; `exclude` and `include` still work.
    - If PR #36 is in the same release: before the rollout, also pause the graph's growth
      (`POST /scoutro/api/v1/kg/control {"action":"pause"}`, kept over the restart). The re-extraction then reaches
      yowea.com only after the move.
@@ -170,12 +174,15 @@ numbers move anyway.
        re-scoped.
      - With PR #36: `total` may differ, because tiers 1 and 2 were extracted again with the coaching vocabulary; the
        tier 3 (LLM) evidence is kept as it was.
-   - **visibility:** `GET /scoutro/api/v1/kg/hosts/yowea.com/entities?collection=checkthecoach-web` lists the
-     domain's organisation; `…&collection=stackfinder-web` lists none of the domain's entities.
+   - **visibility,** for each host of the preview's `hosts` (the route matches the exact host name, so
+     `kg/hosts/yowea.com` does not show the entities of `www.yowea.com`):
+     `GET /scoutro/api/v1/kg/hosts/<host>/entities?collection=checkthecoach-web` lists the domain's organisation on
+     at least one of them; `…?collection=stackfinder-web` lists none of the domain's entities on any of them.
    - **controls:** the control domains' IDs have the same `collections` in the index and the same
      `source.collections` in the graph as in step 0.
    - **nothing more to move:** a new preview answers `documents: 0`.
-8. **Resume Discovery:** `POST /scoutro/api/v1/discovery/resume`. Optionally run `scoutro-discovery classify --profile stackfinder`;
+8. **Resume Discovery:** `scoutro-discovery --workdir <state root> resume`, then `POST /scoutro/api/v1/discovery/resume`
+   with `{}` and `If-Match: <revision>` of a fresh status. Optionally run `scoutro-discovery classify --profile stackfinder`;
    with the new `criteria_version` it re-classifies the old StackFinder results (verdicts only).
 9. **Rollback** (only if a check fails):
    - the same request with `add`/`remove` swapped (preview, then apply);
