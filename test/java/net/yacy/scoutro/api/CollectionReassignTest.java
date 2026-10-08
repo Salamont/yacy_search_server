@@ -77,7 +77,28 @@ public class CollectionReassignTest {
         Capture.activate(this.dirty);
         this.sync = new SyncService(cfg, this.store, this.dirty, new EmbeddedSolrSource(() -> this.solr.getDefaultServer()),
                 new Gates(cfg, Gates.IDLE), this.clock::get, false);
-        this.reassign = new CollectionReassign(new CollectionReassign.Index() {
+        this.reassign = reassign(Set.of(), CollectionReassign.MAX_DOCUMENTS);
+
+        page("AAAAAAyowea1", "https://yowea.com/", List.of("stackfinder-web"), ORG);
+        page("BBBBBByowea2", "https://www.yowea.com/coaching", List.of("stackfinder-web"), null);
+        page("CCCCCCyowea3", "https://blog.yowea.com/eintrag", List.of("stackfinder-web", "partner-web"), null);
+        page("DDDDDDyowea4", "https://yowea.com/bau", List.of("bauteamcheck-web"), null);
+        page("EEEEEEnoyowe", "https://notyowea.com/", List.of("stackfinder-web"),
+                "{\"@type\":\"Organization\",\"name\":\"Notyowea GmbH\",\"url\":\"https://notyowea.com/\"}");
+        page("GGGGGGyowede", "https://www.yowea.de/", List.of("stackfinder-web"), null);
+        page("FFFFFFotherx", "https://it-firma.de/", List.of("stackfinder-web"),
+                "{\"@type\":\"Organization\",\"name\":\"IT Firma GmbH\",\"url\":\"https://it-firma.de/\"}");
+        edge("edge-yowea-1", "AAAAAAyowea1", List.of("stackfinder-web"));
+        edge("edge-yowea-2", "BBBBBByowea2", List.of("stackfinder-web"));
+        edge("edge-other-1", "FFFFFFotherx", List.of("stackfinder-web"));
+        client().commit();
+        this.solr.getServer("webgraph").commit();
+        settle();
+    }
+
+    /** The action over the embedded cores; {@code failing} pages are refused like a page that changed meanwhile. */
+    private CollectionReassign reassign(final Set<String> failing, final int maxDocuments) {
+        return new CollectionReassign(new CollectionReassign.Index() {
             @Override
             public SolrDocumentList select(final String core, final ModifiableSolrParams params) throws IOException {
                 try {
@@ -88,7 +109,22 @@ public class CollectionReassignTest {
             }
 
             @Override
+            public Map<String, Long> facet(final String core, final ModifiableSolrParams params, final String field) throws IOException {
+                try {
+                    final Map<String, Long> out = new TreeMap<>();
+                    for (final org.apache.solr.client.solrj.response.FacetField.Count c : CollectionReassignTest.this.solr.getServer(core)
+                            .query(params).getFacetField(field).getValues()) {
+                        out.put(c.getName(), c.getCount());
+                    }
+                    return out;
+                } catch (final Exception e) {
+                    throw new IOException(e);
+                }
+            }
+
+            @Override
             public void setCollections(final String core, final String id, final long version, final List<String> collections) throws IOException {
+                if (failing.contains(id)) throw new IOException("version conflict for " + id);
                 CollectionReassign.atomicSet(CollectionReassignTest.this.solr.getServer(core), id, version, collections);
             }
 
@@ -105,22 +141,7 @@ public class CollectionReassignTest {
             public boolean has(final String core) {
                 return true;
             }
-        }, KNOWN::contains);
-
-        page("AAAAAAyowea1", "https://yowea.com/", List.of("stackfinder-web"), ORG);
-        page("BBBBBByowea2", "https://www.yowea.com/coaching", List.of("stackfinder-web"), null);
-        page("CCCCCCyowea3", "https://blog.yowea.com/eintrag", List.of("stackfinder-web", "partner-web"), null);
-        page("DDDDDDyowea4", "https://yowea.com/bau", List.of("bauteamcheck-web"), null);
-        page("EEEEEEnoyowe", "https://notyowea.com/", List.of("stackfinder-web"),
-                "{\"@type\":\"Organization\",\"name\":\"Notyowea GmbH\",\"url\":\"https://notyowea.com/\"}");
-        page("GGGGGGyowede", "https://www.yowea.de/", List.of("stackfinder-web"), null);
-        page("FFFFFFotherx", "https://it-firma.de/", List.of("stackfinder-web"),
-                "{\"@type\":\"Organization\",\"name\":\"IT Firma GmbH\",\"url\":\"https://it-firma.de/\"}");
-        edge("edge-yowea-1", "yowea.com", List.of("stackfinder-web"));
-        edge("edge-other-1", "it-firma.de", List.of("stackfinder-web"));
-        client().commit();
-        this.solr.getServer("webgraph").commit();
-        settle();
+        }, KNOWN::contains, maxDocuments);
     }
 
     @After
@@ -141,9 +162,9 @@ public class CollectionReassignTest {
         d.setField("sku", url);
         final String host = java.net.URI.create(url).getHost();
         d.setField("host_s", host);
-        // as YaCy writes it: the organisation of the host ("yowea" for blog.yowea.com)
+        // as YaCy writes it: the organisation of the host ("yowea"); a page indexed without the field has none (blog.)
         final String[] labels = host.split("\\.");
-        d.setField("host_organization_s", labels[labels.length - 2]);
+        if (!host.startsWith("blog.")) d.setField("host_organization_s", labels[labels.length - 2]);
         d.setField("host_id_s", id.substring(6));
         d.setField("httpstatus_i", 200);
         d.setField("collection_sxt", collections);
@@ -155,10 +176,10 @@ public class CollectionReassignTest {
         client().add(d);
     }
 
-    private void edge(final String id, final String host, final List<String> collections) throws Exception {
+    private void edge(final String id, final String page, final List<String> collections) throws Exception {
         final SolrInputDocument d = new SolrInputDocument();
         d.setField("id", id);
-        d.setField("source_host_s", host);
+        d.setField("source_id_s", page);
         d.setField("collection_sxt", collections);
         this.solr.getServer("webgraph").add(d);
     }
@@ -239,7 +260,7 @@ public class CollectionReassignTest {
         assertEquals(3, preview.getJSONObject("after").getInt("checkthecoach-web"));
         assertEquals(1, preview.getJSONObject("after").getInt("partner-web"));
         assertEquals(List.of("partner-web"), list(preview.getJSONArray("kept")));
-        assertEquals(1, preview.getJSONObject("webgraph").getInt("edges"));
+        assertEquals(2, preview.getJSONObject("webgraph").getInt("edges"));
         assertEquals(3, preview.getJSONArray("sample").length());
         assertEquals(16, preview.getString("token").length());
         assertEquals("a preview writes nothing", before, snapshot());
@@ -255,13 +276,14 @@ public class CollectionReassignTest {
         final JSONObject applied = this.reassign.run(request("yowea.com", COACH, STACK, token), h -> false);
         assertTrue(applied.getBoolean("applied"));
         assertEquals(3, applied.getInt("updated"));
-        assertEquals(1, applied.getInt("webgraphUpdated"));
+        assertEquals(2, applied.getInt("webgraphUpdated"));
         assertEquals(0, applied.getJSONArray("failed").length());
 
         // the index: only the three pages and the edge changed, and only their collections
         final Map<String, String> after = snapshot();
         for (final String key : before.keySet()) {
-            final boolean moved = List.of("collection1:AAAAAAyowea1", "collection1:BBBBBByowea2", "collection1:CCCCCCyowea3", "webgraph:edge-yowea-1")
+            final boolean moved = List.of("collection1:AAAAAAyowea1", "collection1:BBBBBByowea2", "collection1:CCCCCCyowea3", "webgraph:edge-yowea-1",
+                    "webgraph:edge-yowea-2")
                     .contains(key);
             assertEquals(key, !moved, before.get(key).equals(after.get(key)));
         }
@@ -362,6 +384,71 @@ public class CollectionReassignTest {
         // a domain without pages: an empty preview
         assertEquals(0, this.reassign.run(request("leer.de", COACH, STACK, null), h -> false).getInt("documents"));
         assertEquals(before, snapshot());
+    }
+
+    @Test
+    public void manyPagesOfADomainOfTheSameNameDoNotCountAndSubdomainsNeedNoExtraField() throws Exception {
+        // yowea.de has more pages than the limit; yowea.com has four (one in bauteamcheck-web), blog.yowea.com no host_organization_s
+        for (int i = 0; i < 6; i++) page(String.format("YDE%03dyowede", i), "https://www.yowea.de/seite-" + i, List.of("stackfinder-web"), null);
+        client().commit();
+        final CollectionReassign small = reassign(Set.of(), 4);
+        final JSONObject preview = small.run(request("yowea.com", COACH, STACK, null), h -> false);
+        assertEquals(List.of("blog.yowea.com", "www.yowea.com", "yowea.com"), list(preview.getJSONArray("hosts")));
+        assertEquals(3, preview.getInt("documents"));
+        try {
+            small.run(request("yowea.de", COACH, STACK, null), h -> false);
+            fail("yowea.de itself has more pages than the limit");
+        } catch (final ApiException e) {
+            assertEquals("reassign_too_large", e.code());
+        }
+    }
+
+    @Test
+    public void anEdgeFollowsOnlyItsOwnPage() throws Exception {
+        final Map<String, String> before = snapshot();
+        // the page of www.yowea.com changed meanwhile: its update is refused, its edge must keep its collections too
+        final CollectionReassign failing = reassign(Set.of("BBBBBByowea2"), CollectionReassign.MAX_DOCUMENTS);
+        final String token = failing.run(request("yowea.com", COACH, STACK, null), h -> false).getString("token");
+        final JSONObject applied = failing.run(request("yowea.com", COACH, STACK, token), h -> false);
+        assertEquals(2, applied.getInt("updated"));
+        assertEquals(1, applied.getInt("webgraphUpdated"));
+        assertEquals(1, applied.getInt("webgraphKept"));
+        assertEquals(1, applied.getJSONArray("failed").length());
+        final Map<String, String> after = snapshot();
+        assertEquals("the failed page", before.get("collection1:BBBBBByowea2"), after.get("collection1:BBBBBByowea2"));
+        assertEquals("and its edge stay as they were", before.get("webgraph:edge-yowea-2"), after.get("webgraph:edge-yowea-2"));
+        assertTrue(after.get("webgraph:edge-yowea-1").startsWith("[checkthecoach-web]@"));
+        assertTrue(after.get("collection1:AAAAAAyowea1").startsWith("[checkthecoach-web]@"));
+        // every page and its edges agree: no edge in another collection than its page
+        assertEdgesFollowPages();
+        // the next run moves the page left behind and its edge
+        final String again = this.reassign.run(request("yowea.com", COACH, STACK, null), h -> false).getString("token");
+        final JSONObject second = this.reassign.run(request("yowea.com", COACH, STACK, again), h -> false);
+        assertEquals(1, second.getInt("updated"));
+        assertEquals(1, second.getInt("webgraphUpdated"));
+        assertTrue(snapshot().get("webgraph:edge-yowea-2").startsWith("[checkthecoach-web]@"));
+        assertEdgesFollowPages();
+    }
+
+    @Test
+    public void anEdgeLeftBehindByAnEarlierRunFollowsItsPage() throws Exception {
+        // the page moved before, its edge did not (its update failed back then)
+        CollectionReassign.atomicSet(client(), "AAAAAAyowea1", ((Number) get("AAAAAAyowea1").getFirstValue("_version_")).longValue(), COACH);
+        client().commit();
+        final JSONObject preview = this.reassign.run(request("yowea.com", COACH, STACK, null), h -> false);
+        assertEquals("the two pages still in stackfinder-web", 2, preview.getInt("documents"));
+        assertEquals("their two edges and the one left behind", 2, preview.getJSONObject("webgraph").getInt("edges"));
+        this.reassign.run(request("yowea.com", COACH, STACK, preview.getString("token")), h -> false);
+        assertEdgesFollowPages();
+    }
+
+    /** Every edge of the domain's pages has exactly its page's collections. */
+    private void assertEdgesFollowPages() throws Exception {
+        for (final SolrDocument e : this.solr.getServer("webgraph").query(new SolrQuery("*:*").setRows(100)).getResults()) {
+            final SolrDocument page = get(String.valueOf(e.getFirstValue("source_id_s")));
+            assertEquals(String.valueOf(e.getFirstValue("id")), new java.util.TreeSet<>(page.getFieldValues("collection_sxt")),
+                    new java.util.TreeSet<>(e.getFieldValues("collection_sxt")));
+        }
     }
 
     private static List<String> list(final JSONArray a) {

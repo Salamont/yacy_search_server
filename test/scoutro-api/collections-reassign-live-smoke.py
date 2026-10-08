@@ -126,13 +126,26 @@ def push(url, html, collection):
 def page(name, body):
     return (f"<html><head><title>{name}</title><script type=\"application/ld+json\">"
             f"{{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"{name}\"}}</script></head>"
-            f"<body><h1>{name}</h1><p>{body}</p></body></html>")
+            f"<body><h1>{name}</h1><p>{body}</p><p><a href=\"https://partner-{len(name)}.example/\">Partner</a> "
+            f"<a href=\"/kontakt\">Kontakt</a></p></body></html>")
 
 
 def solr(host):
     q = urllib.parse.urlencode({"q": "host_s:" + host, "fl": "sku,collection_sxt,text_t,ld_json_txt", "wt": "json", "rows": 20})
     with admin().open(BASE + "/solr/select?" + q, timeout=30) as response:
         return json.loads(response.read())["response"]["docs"]
+
+
+def edges(page_id):
+    q = urllib.parse.urlencode({"q": "source_id_s:" + page_id, "fl": "id,collection_sxt", "wt": "json", "rows": 50})
+    with admin().open(BASE + "/solr/webgraph/select?" + q, timeout=30) as response:
+        return json.loads(response.read())["response"]["docs"]
+
+
+def page_ids(host):
+    q = urllib.parse.urlencode({"q": "host_s:" + host, "fl": "id", "wt": "json", "rows": 50})
+    with admin().open(BASE + "/solr/select?" + q, timeout=30) as response:
+        return [d["id"] for d in json.loads(response.read())["response"]["docs"]]
 
 
 def kg_status():
@@ -162,7 +175,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-reassign-") as temporary:
     with (root / "peer.log").open("w") as log:
         try:
             write_config(root, ["scoutro.kg.enabled=true", "scoutro.kg.collections=stackfinder-web,checkthecoach-web",
-                                "scoutro.kg.jsonld.enabled=true"])
+                                "scoutro.kg.jsonld.enabled=true", "core.service.webgraph.tmp=true"])
             process = start(root, log)
             wait("the start backfill", lambda: not kg_status()["sync"]["reconcile"].get("pending", True))
             push("https://yowea.com/", page("Yowea Coaching", "Business Coaching und Consulting für Führungskräfte."), "stackfinder-web")
@@ -197,6 +210,9 @@ with tempfile.TemporaryDirectory(prefix="scoutro-reassign-") as temporary:
             assert preview["hosts"] == ["www.yowea.com", "yowea.com"] and preview["documents"] == 2 and preview["changes"] == 2, preview
             assert preview["before"] == {"stackfinder-web": 2} and preview["after"] == {"checkthecoach-web": 2}, preview
             assert preview["crawlRunning"] is False and len(preview["token"]) == 16, preview
+            webgraph_live = preview["webgraph"]["written"]
+            if webgraph_live:
+                assert preview["webgraph"]["edges"] >= 2, preview["webgraph"]
             assert {h: solr(h) for h in before} == before, "a preview writes nothing"
             checks += 4
 
@@ -217,6 +233,15 @@ with tempfile.TemporaryDirectory(prefix="scoutro-reassign-") as temporary:
                     assert old.get("ld_json_txt") and old.get("text_t"), old
             assert solr("notyowea.com") == before["notyowea.com"] and solr("coach-anna.de") == before["coach-anna.de"]
             checks += 4
+            if webgraph_live:
+                # every edge of the domain's pages has its page's collection, the other domain's edges keep theirs
+                assert applied["webgraphUpdated"] == preview["webgraph"]["edges"] and applied["webgraphKept"] == 0, applied
+                for host in ("yowea.com", "www.yowea.com"):
+                    for pid in page_ids(host):
+                        assert edges(pid) and all(e["collection_sxt"] == ["checkthecoach-web"] for e in edges(pid)), (pid, edges(pid))
+                for pid in page_ids("notyowea.com"):
+                    assert all(e["collection_sxt"] == ["stackfinder-web"] for e in edges(pid)), (pid, edges(pid))
+                checks += 2
 
             # 5. the knowledge graph follows through its capture, without a new extraction
             wait("the domain in checkthecoach-web", lambda: visible("yowea.com", "checkthecoach-web") and not visible("yowea.com", "stackfinder-web"))

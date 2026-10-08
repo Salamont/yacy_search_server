@@ -3799,7 +3799,7 @@
     },
     {
       "name": "collections.reassign",
-      "description": "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Without confirm a preview: the hosts of the domain, how many pages, the collections before and after, a sample and a token; nothing changes. With confirm set to that token it changes collection_sxt of exactly those pages (and their webgraph edges) by a Solr atomic update with the version of the preview: text, JSON-LD and every other field stay, nothing is crawled, deleted or re-indexed, and the knowledge graph re-scopes the pages through its sync. A page whose version changed since (a new crawl) is never overwritten. Only the domain's pages in a removed collection move (without remove: every page of the domain); other collections stay. 400 invalid_request (domain not one registrable domain, add and remove both empty or overlapping, unknown field), 400 collection_unknown, 409 reassign_preview_stale (the pages changed since the preview; details hold the new preview), 409 host_busy (a crawl of the domain runs), 422 reassign_would_empty (a page would keep no collection), 422 reassign_too_large (more than 5000 pages or 100000 webgraph edges), 503 index_unavailable. A later crawl of the domain writes the collection of that crawl again; Discovery refuses such a crawl while the domain has pages in another collection (collection_conflict), and 'scoutro-discovery exclude' takes the domain out of the wrong profile. Agents cannot use it.",
+      "description": "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Without confirm a preview: the hosts of the domain, how many pages, the collections before and after, a sample and a token; nothing changes. With confirm set to that token it changes collection_sxt of exactly those pages (and their webgraph edges) by a Solr atomic update with the version of the preview: text, JSON-LD and every other field stay, nothing is crawled, deleted or re-indexed, and the knowledge graph takes the new collections over through its sync (re-scoped; tiers 1 and 2 extracted again only if the extractors changed; LLM evidence is neither asked again nor corrected). A page whose version changed since (a new crawl) is never overwritten; a webgraph edge gets its page's collections only once the page has them (webgraphKept counts the others). Only the domain's pages in a removed collection move (without remove: every page of the domain); other collections stay. 400 invalid_request (domain not one registrable domain, add and remove both empty or overlapping, unknown field), 400 collection_unknown, 409 reassign_preview_stale (the pages changed since the preview; details hold the new preview), 409 host_busy (a crawl of the domain runs), 422 reassign_would_empty (a page would keep no collection), 422 reassign_too_large (more than 5000 pages or 100000 webgraph edges), 503 index_unavailable. A later crawl of the domain writes the collection of that crawl again; Discovery refuses such a crawl while the domain has pages in another collection (collection_conflict), and 'scoutro-discovery exclude' takes the domain out of the wrong profile. Agents cannot use it.",
       "mutating": true,
       "auth": "admin",
       "http": {
@@ -3811,7 +3811,7 @@
         "domain": {
           "type": "string",
           "maxLength": 253,
-          "description": "Exactly one registrable domain such as example.com (no scheme, path, subdomain or wildcard); its subdomains' pages are included, never another domain's.",
+          "description": "Exactly one registrable domain such as example.com (no scheme, path, subdomain or wildcard); its subdomains' pages are included, never another domain's (also not one of the same name such as example.de, whose pages do not count towards the limit).",
           "in": "body",
           "required": true
         },
@@ -14669,7 +14669,7 @@
         "domain": {
           "type": "string",
           "maxLength": 253,
-          "description": "Exactly one registrable domain such as example.com (no scheme, path, subdomain or wildcard); its subdomains' pages are included, never another domain's."
+          "description": "Exactly one registrable domain such as example.com (no scheme, path, subdomain or wildcard); its subdomains' pages are included, never another domain's (also not one of the same name such as example.de, whose pages do not count towards the limit)."
         },
         "add": {
           "type": "array",
@@ -14799,6 +14799,9 @@
           "type": "integer"
         },
         "webgraphUpdated": {
+          "type": "integer"
+        },
+        "webgraphKept": {
           "type": "integer"
         },
         "failed": {

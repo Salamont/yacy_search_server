@@ -359,11 +359,15 @@ filters, crawl starts and agent grants all take their choices from it.
   `unchanged`, `before`/`after` (pages per collection), `kept` (other
   collections that stay), `sample` (≤ 20 URLs with their collections before
   and after), `webgraph` (`written`, `edges`), `crawlRunning`, `token`,
-  `applied`; after an apply also `updated`, `webgraphUpdated` and `failed`.
-  Only `collection_sxt` changes, as a Solr atomic update with the version of
-  the preview (text, JSON-LD and every other field stay; a page changed since
-  is never overwritten and is listed in `failed`); the knowledge graph
-  re-scopes the pages through its sync. `400 invalid_request` (not exactly one
+  `applied`; after an apply also `updated`, `webgraphUpdated`, `webgraphKept`
+  and `failed`. Only `collection_sxt` changes, as a Solr atomic update with the
+  version of the preview (text, JSON-LD and every other field stay; a page
+  changed since is never overwritten and is listed in `failed`); a webgraph
+  edge gets its page's collections only once the page has them
+  (`webgraphKept`: edges of pages that failed). The knowledge graph takes the
+  new collections over through its sync: it re-scopes the pages, extracts
+  tiers 1 and 2 again only if the extractors changed since, and never asks
+  the LLM tier again or corrects its evidence. `400 invalid_request` (not exactly one
   registrable domain, `add` and `remove` empty or overlapping, unknown field),
   `400 collection_unknown`, `409 reassign_preview_stale` (the pages changed
   since the preview; `details` hold the new one), `409 host_busy` (a crawl of
