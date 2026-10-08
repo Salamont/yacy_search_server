@@ -10,11 +10,12 @@
  *   ignored     - HTTP 200, but the answer is no JSON object of the schema (the parameter is accepted, not followed);
  *   unknown     - anything else (network, timeout, 401/403/404/405/429, 5xx, a control request that fails too): not stored.
  * A format value without the service's version counts as unknown: the mood probe up to Scoutro 0.8.3, and for OLLAMA
- * also a version 2 value (measured on /v1/chat/completions, which says nothing about /api/chat). */
+ * also a version 2 value (measured on /v1/chat/completions, which says nothing about /api/chat) and a version 3 value
+ * (sent without think: false to a thinking model whose answer budget could go to thinking alone, see thinking-probe.js). */
 (function (root) {
   'use strict';
   const VERSION = 2;
-  const VERSION_OLLAMA = 3;
+  const VERSION_OLLAMA = 4;
   const SCHEMA_NAME = 'scoutro_format_probe';
   const SCHEMA = {
     type: 'object',
@@ -34,7 +35,7 @@
 
   /**
    * The probe request (with the schema) or, with control, the same request without it: for OLLAMA natively
-   * (format, options, think false for a thinking model), else OpenAI-compatible (response_format json_schema).
+   * (format, options, think false unless the model is known not to think), else OpenAI-compatible (response_format json_schema).
    */
   function payload(model, control, service, noThinking) {
     if (native(service)) {

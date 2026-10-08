@@ -693,7 +693,9 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     restart; no model answer is stored. `structuredOutput`: what the
     endpoint is asked for (`setting`, `api` `ollama_native` (Ollama's
     `/api/chat` with `format`) or `openai_compatible`, the model's format `capability`
-    of the current probe, an older value counts as `unknown`,
+    of the current probe, an older value counts as `unknown`, for
+    `ollama_native` the model's `thinking` capability of the native probe
+    and `think` (`false` when the request says `think: false`, else `null`),
     `mode` `schema_enforced`, `schema_unverified`, `json_mode`,
     `validator_only` or `fallback_after_rejection`, `request`, `reason`,
     `withoutSchema`, `requests` per format, `rejections`, `lastRejection`;

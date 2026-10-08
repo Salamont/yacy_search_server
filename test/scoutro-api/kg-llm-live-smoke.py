@@ -18,9 +18,15 @@ the machine, no existing peer or DATA directory is touched.
    to Ollama's native /api/chat with the schema as "format" (the answer under
    message.content), never to /v1/chat/completions. A format "unsupported" of
    the former mood probe counts as unknown and keeps the schema; a current one
-   of the native probe (format_probe 3) sends no format (prompt and validator
+   of the native probe (format_probe 4) sends no format (prompt and validator
    only); an endpoint that rejects the format with HTTP 400 is asked once more
-   natively without it, counted and shown.
+   natively without it, counted and shown. The native request says think: false
+   unless the native thinking probe (thinking_probe 2) found the model does not think.
+7. a non-conforming answer is still dropped by the unchanged validator.
+8. a Qwen-like model that thinks by default (the whole budget, empty content)
+   with the production state of the former /v1 thinking test ("unsupported",
+   no thinking_probe): that value is unknown, the request says think: false and
+   the page is extracted.
 
 Run after `ant compile`:  python3 test/scoutro-api/kg-llm-live-smoke.py
 GPL-2.0-or-later.
@@ -91,6 +97,16 @@ class FakeModel(http.server.BaseHTTPRequestHandler):
         FakeModel.requests.append(body)
         if FakeModel.mode == "hang":
             time.sleep(40)
+        if FakeModel.mode == "thinks" and body.get("think") is not False:
+            # a thinking model without think: false spends the whole budget on thinking
+            out = json.dumps({"model": body.get("model"), "done": True, "done_reason": "length",
+                              "message": {"role": "assistant", "content": "", "thinking": "Okay, let me think about the page"}}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+            return
         if FakeModel.mode == "reject" and "format" in body:
             self.send_response(400)
             self.send_header("Content-Length", "0")
@@ -323,11 +339,13 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             checks += 4
 
             # 6. structured output negotiated: a format "unsupported" of the former mood probe (no format_probe) is unknown and
-            # keeps the schema; a current one of the native probe (format_probe 3) sends no format; a 400 falls back visibly
+            # keeps the schema; a current one of the native probe (format_probe 4) sends no format; a 400 falls back visibly.
+            # think: false while the thinking capability is unknown; none for a model the native probe found not to think
             key = f"OLLAMA|http://127.0.0.1:{LLM_PORT}|fixture"
             legacy = {"thinking": "unknown", "tooling": "unknown", "vision": "unknown", "format": "unsupported"}
             for n, (entry, mode, host) in enumerate([(legacy, "schema_unverified", "www.vierte-pflege-llm-smoke.de"),
-                                                     (dict(legacy, format_probe=3), "validator_only", "www.sechste-pflege-llm-smoke.de")]):
+                                                     (dict(legacy, format_probe=4, thinking="unsupported", thinking_probe=2), "validator_only",
+                                                      "www.sechste-pflege-llm-smoke.de")]):
                 stop(process)
                 write_config(root, settings + ["ai.model_capabilities=" + json.dumps({key: entry})])
                 process, client = start(root, log)
@@ -340,11 +358,13 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
                 new = FakeModel.requests[calls:]
                 if mode == "validator_only":
                     assert new and all("format" not in r and "response_format" not in r for r in new), [sorted(r) for r in new]
+                    assert all("think" not in r for r in new) and so["thinking"] == "unsupported" and so["think"] is None, (so, new)
                     assert s["llm"]["structuredOutput"]["requests"]["none"] == len(new), s["llm"]["structuredOutput"]
                 else:
                     assert new and all(isinstance(r.get("format"), dict) and "response_format" not in r for r in new), \
                         [sorted(r) for r in new]
                     assert s["llm"]["structuredOutput"]["requests"]["json_schema"] == len(new), s["llm"]["structuredOutput"]
+                    assert all(r.get("think") is False for r in new) and so["thinking"] == "unknown" and so["think"] is False, (so, new)
                 assert s["llm"]["processed"]["published"] >= 1 and s["llm"]["processed"]["droppedInvalid"] >= 1, s["llm"]["processed"]
             stop(process)
             write_config(root, settings)
@@ -368,9 +388,27 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             by, was = p["droppedInvalidByReason"], before["droppedInvalidByReason"]
             assert by["entity_extra_field"] == was["entity_extra_field"] + 1 and by["claim_missing_quote"] == was["claim_missing_quote"] + 1, by
             assert p["entitiesAccepted"] == before["entitiesAccepted"] and p["claimsAccepted"] == before["claimsAccepted"], p
+            # 8. a Qwen-like model with the production state of the former /v1 thinking test: unknown -> think: false -> extracted
+            stop(process)
+            write_config(root, settings + ["ai.model_capabilities=" + json.dumps({key: {"thinking": "unsupported", "tooling": "supported",
+                                                                                         "vision": "unsupported", "format": "ignored", "format_probe": 3}})])
+            FakeModel.mode = "thinks"
+            process, client = start(root, log)
+            s = wait_status(client, "the LLM tier with a thinking model", lambda x: x["llm"]["state"] in ("idle", "running"))
+            so = s["llm"]["structuredOutput"]
+            assert so["api"] == "ollama_native" and so["thinking"] == "unknown" and so["think"] is False, so
+            assert so["capability"] == "unknown" and so["mode"] == "schema_unverified", so
+            before = s["llm"]["processed"]
+            calls = len(FakeModel.requests)
+            push(client, "https://www.achte-pflege-llm-smoke.de/impressum", page("www.achte-pflege-llm-smoke.de"), "kgsmoke")
+            s = wait_status(client, "the page of the thinking model", lambda x: x["llm"]["documents"]["done"] >= 8, 120)
+            new = FakeModel.requests[calls:]
+            assert new and all(r.get("think") is False and isinstance(r.get("format"), dict) for r in new), [sorted(r) for r in new]
+            p = s["llm"]["processed"]
+            assert p["published"] > before["published"] and p["answersRefused"] == before["answersRefused"], (before, p)
             FakeModel.mode = "ok"
             assert set(FakeModel.paths) == {"/api/chat"}, sorted(set(FakeModel.paths))
-            checks += 15
+            checks += 21
             print(f"PASS: {checks} live LLM tier checks", flush=True)
         except BaseException:
             log.flush()
