@@ -63,6 +63,8 @@ public class ScoutroApiServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
     private static final ConcurrentLog LOG = new ConcurrentLog("SCOUTRO-API");
     private static final int MAX_BODY_BYTES = 16 * 1024;
+    /** Body limit of POST /v1/kg/prompt (a prompt text of KnowledgePrompt.MAX_CHARS characters). */
+    private static final int PROMPT_BODY_BYTES = 64 * 1024;
     /** A new collection is an ID, a display name and a short description. */
     private static final int MAX_COLLECTION_BODY_BYTES = 4 * 1024;
     private static final String AGENT_PREFIX = "/agent/v1/";
@@ -262,7 +264,9 @@ public class ScoutroApiServlet extends HttpServlet {
                     sendBackup(new KnowledgeApi(KgRuntime::current).backupFile(parts[4]), response);
                     return null;
                 }
-                return new KnowledgeApi(KgRuntime::current).route(method, parts, queryParams(request), () -> jsonBody(request));
+                // a knowledge prompt of up to 8000 characters needs more room than the other bodies (UTF-8, JSON escapes)
+                final int maxBody = parts.length == 4 && "prompt".equals(parts[3]) ? PROMPT_BODY_BYTES : MAX_BODY_BYTES;
+                return new KnowledgeApi(KgRuntime::current).route(method, parts, queryParams(request), () -> jsonBody(request, maxBody));
             case "crawls":
                 requireAdmin(request);
                 if (parts.length == 3) {

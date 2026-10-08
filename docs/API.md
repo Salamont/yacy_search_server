@@ -605,6 +605,8 @@ is ever written to Solr.
 |---|---|---|
 | `GET /scoutro/api/v1/kg/status` | administrator (Digest) | Status `scoutro.kg.status.v1`; 200 also when disabled or unavailable. `collections`: every collection the graph follows, maps or holds, with `followed`, `vocabulary` (null: none, generic facts only; never guessed from the name), `vocabularySource` (`setting`, `vocabulary_files`, `none`), `vocabularyKnown`, `jobs`, `llm`, `documents` (at most 10 s old) and `state`; `config.jobsCollections` |
 | `POST /scoutro/api/v1/kg/control` | administrator (Digest), JSON body, same origin | `{"action":"pause"}`, `"resume"`, `"reconcile"`, `"confirm_reconcile"`, `"llm_retry"`, `"backup"`, `"restore"` (with `"backup": "<file>"`), `"delete_backup"` (with `"backup": "<file>"`, package 6.3), `"rebuild"`, `"rebuild_cancel"`, `"rebuild_confirm"` or `"derive"` (recompute the derived layer now; 409 `derived_unavailable` while it is off) |
+| `GET /scoutro/api/v1/kg/prompt` | administrator (Digest) | the knowledge prompt: `activeVersion`, `activeHash`, `source` (`default`, `custom`), `modifiedAt`, `differsFromDefault`, the active `text`, the compiled-in `default`, `limits`, `history` (no texts) |
+| `POST /scoutro/api/v1/kg/prompt` | administrator (Digest), JSON body (≤ 64 KiB), same origin | `{"action":"validate","text":…}` (stores nothing), `{"action":"activate","text":…,"expectedRevision":n}`, `{"action":"reset","expectedRevision":n}`; a new prompt changes the prompt hash and the cache key but reads no done document again (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3); 422 `prompt_invalid`, 409 `prompt_revision_conflict` |
 | `GET /scoutro/api/v1/kg/backups` | administrator (Digest) | The backup files with their metadata (`scoutro.kg.backup.v1`), newest first |
 | `GET /scoutro/api/v1/kg/backups/{file}` | administrator only, never an agent | One backup as a SQLite file (`application/vnd.sqlite3`), to keep it outside the app |
 | `GET /scoutro/api/v1/kg/collections` | administrator only, never an agent | Package 6.2: the knowledge graph settings of each collection: every collection of the collection catalog (a new one by itself, never `robot_*`) and every collection the graph's settings or data name, with `active`, `inactive`, `followedBy` (`list`, `all`, `inactive`, `none`), `vocabulary`, `vocabularySetting` (unset `null`, a name, `""` for none), `defaultVocabulary`, `vocabularySource`, `indexDocuments`, `graphDocuments`, `state` (`following`, `waiting`, `inactive`, `not_followed`, `unknown_vocabulary`); `vocabularies` lists the vocabularies a collection can be given. Package 6.3: each row also has `llm` (switched on for the LLM tier), `llmBy` (`list`, `all`, `none`) and `llmActive` (graph on, collection followed and switched on, and a model of the LLM selection); `llm` at the top names `model` (the model of the usage *knowledge*, null without one), `allCollections`, `collections`, `enabled` and `active` |
@@ -862,8 +864,8 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
   - Agent answers: evidence names the extractor (`llm/1`) without the
     configured model; no `lag` (it counts every collection);
     `full_sync` points to `/scoutro/api/agent/v1/kg/export`.
-  - `kg/status`, `kg/control` and `kg/export/download` do not exist on the
-    agent path (404).
+  - `kg/status`, `kg/control`, `kg/prompt` and `kg/export/download` do not
+    exist on the agent path (404).
 - **Chat (package 4):** see [chat](#graph-facts-in-the-chat) below.
 - **Control:**
   - `pause` takes effect at once and survives a restart.

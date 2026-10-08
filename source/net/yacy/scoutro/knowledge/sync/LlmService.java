@@ -39,6 +39,7 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.extract.Extraction;
+import net.yacy.scoutro.knowledge.extract.KnowledgePrompt;
 import net.yacy.scoutro.knowledge.extract.LlmBreaker;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.LlmExtractor;
@@ -201,6 +202,8 @@ public final class LlmService {
     private volatile String reason;
     private volatile String lastError;
     private volatile String model;
+    /** The active knowledge prompt (kg_meta, else the compiled-in default); a document is asked with one version throughout. */
+    private volatile KnowledgePrompt prompt = KnowledgePrompt.defaults();
     private final Object scanLock = new Object();
     private long scanCursor;
     private long scanPausedUntil;
@@ -258,6 +261,7 @@ public final class LlmService {
                 }
             }
             KgStore.putMeta(tx, KgSchema.META_LLM_SELECTION, key);
+            this.prompt = KnowledgePrompt.fromMeta(KgStore.getMeta(tx, KnowledgePrompt.META_ACTIVE));
             if (KgStore.getMeta(tx, KgSchema.META_UPGRADE_HOLD) == null) {
                 reexamineIfChanged(tx);
             } // an upgrade without its copy: the documents are examined again once the hold is released
@@ -267,22 +271,41 @@ public final class LlmService {
     }
 
     /**
-     * A new prompt or version (vocabulary 2) reads every document again; the
+     * A new extractor version (vocabulary 2) reads every document again; the
      * old evidence stays until replaced. A graph upgraded from a version
-     * without this record (Scoutro 0.7) counts as changed.
+     * without this record (Scoutro 0.7) counts as changed. A new prompt (a
+     * new compiled-in default or an activated one, {@link KnowledgePrompt})
+     * changes the prompt hash, the extractor identity and the cache key, but
+     * reads no document again: new and changed pages are asked with it.
      */
     private void reexamineIfChanged(final java.sql.Connection tx) throws java.sql.SQLException {
-        final String extractor = LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/" + LlmExtractor.PROMPT_HASH;
+        final String version = LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/";
+        final String extractor = version + this.prompt.hash;
         final String lastExtractor = KgStore.getMeta(tx, KgSchema.META_LLM_EXTRACTOR);
         final boolean upgraded = lastExtractor == null && KgStore.getMeta(tx, KgSchema.META_UPGRADE) != null;
-        if (upgraded || lastExtractor != null && !lastExtractor.equals(extractor)) {
+        if (upgraded || lastExtractor != null && !lastExtractor.startsWith(version)) {
             final int n = LlmQueue.reexamine(tx, LlmQueue.STATUS_DONE) + LlmQueue.reexamine(tx, LlmQueue.STATUS_FAILED);
             if (n > 0) {
                 KgStore.event(tx, 1, "llm_extractor_changed", n + " documents are examined again by " + extractor,
                         this.clock.getAsLong());
             }
+        } else if (lastExtractor != null && !lastExtractor.equals(extractor)) {
+            KgStore.event(tx, 1, "llm_prompt_changed", "new and changed pages are asked by " + extractor
+                    + "; documents already done are not read again", this.clock.getAsLong());
         }
         KgStore.putMeta(tx, KgSchema.META_LLM_EXTRACTOR, extractor);
+    }
+
+    /** Uses an activated prompt from the next document on (KgRuntime.promptActivate has stored it). */
+    public void usePrompt(final KnowledgePrompt p) {
+        if (p != null) {
+            this.prompt = p;
+        }
+    }
+
+    /** The prompt the tier asks with. */
+    public KnowledgePrompt prompt() {
+        return this.prompt;
     }
 
     /** After the upgrade hold was released: the re-examination it held back. */
@@ -502,6 +525,7 @@ public final class LlmService {
 
     private void process(final LlmQueue.Item item, final String m) throws KgException {
         final long now = this.clock.getAsLong();
+        final KnowledgePrompt p = this.prompt; // one version for the whole document: text, cache key and extractor
         final DocRow row = row(item.docId);
         if (row == null || row.state != 1 || row.inputHash == null || row.llmStatus != null || !selected(row.collections)) {
             complete(item); // removed, unavailable, already marked or out of the selection: nothing to do
@@ -558,7 +582,7 @@ public final class LlmService {
                 release(item, now, false);
                 return;
             }
-            final byte[] key = LlmExtractor.cacheKey(m, chunk, title, domain, d.language, known, kinds);
+            final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, known, kinds);
             keys.add(key);
             final ExtractionCache.Entry cached = this.store.read(c -> ExtractionCache.get(c, key));
             if (cached != null) {
@@ -577,7 +601,7 @@ public final class LlmService {
             final long t0 = this.clock.getAsLong();
             try {
                 this.counters.calls.incrementAndGet();
-                answer = this.client.complete(LlmExtractor.SYSTEM_PROMPT,
+                answer = this.client.complete(p.text,
                         LlmExtractor.userPrompt(new PromptGuard(), chunk, title, domain, d.language, known, kinds),
                         LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis, this.cfg.llmStructuredOutput);
             } catch (final IOException e) {
@@ -600,7 +624,7 @@ public final class LlmService {
                 status = ExtractionCache.STATUS_OK;
                 accepted.add(value);
             }
-            cachePut(key, m, status, value);
+            cachePut(key, m, p.hash, status, value);
         }
         final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
         final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d);
@@ -608,7 +632,7 @@ public final class LlmService {
             LlmExtractor.apply(a, known, ex, ctx);
         }
         ex.ranTier(LlmExtractor.TIER);
-        publish(item, d, row, ex, keys, m);
+        publish(item, d, row, ex, keys, m, p.hash);
     }
 
     private void transportFailure(final LlmQueue.Item item, final byte[] inputHash, final IOException e) throws KgException {
@@ -627,14 +651,14 @@ public final class LlmService {
         }
     }
 
-    private void cachePut(final byte[] key, final String m, final int status, final JSONObject value) {
+    private void cachePut(final byte[] key, final String m, final String promptHash, final int status, final JSONObject value) {
         if (this.cfg.cacheMaxBytes() <= 0L) {
             return;
         }
         final long now = this.clock.getAsLong();
         try {
             this.store.write(WriteClass.GROWTH, SMALL, tx -> {
-                ExtractionCache.put(tx, key, this.terms.llmExtractor(tx, m), status, value, now);
+                ExtractionCache.put(tx, key, this.terms.llmExtractor(tx, m, promptHash), status, value, now);
                 if (now >= this.evictAt) {
                     this.evictAt = now + EVICT_MILLIS;
                     this.cacheBytes = ExtractionCache.evict(tx, this.cfg.cacheMaxBytes(), 50);
@@ -647,7 +671,7 @@ public final class LlmService {
     }
 
     private void publish(final LlmQueue.Item item, final SolrDoc d, final DocRow row, final Extraction ex, final List<byte[]> keys,
-            final String m) throws KgException {
+            final String m, final String promptHash) throws KgException {
         final long now = this.clock.getAsLong();
         if (this.stopping) {
             release(item, now, false);
@@ -666,7 +690,7 @@ public final class LlmService {
                     LlmQueue.release(tx, item.docId, now + GATE_MILLIS, false);
                     return null;
                 }
-                result[0] = this.publisher.applyLlm(tx, doc, row.inputHash, ex, this.terms.llmExtractor(tx, m), now);
+                result[0] = this.publisher.applyLlm(tx, doc, row.inputHash, ex, this.terms.llmExtractor(tx, m, promptHash), now);
                 ExtractionCache.touch(tx, keys, now);
                 LlmQueue.complete(tx, item.docId);
                 return null;
@@ -770,7 +794,8 @@ public final class LlmService {
                 "cache", KgJson.obj("entries", this.cacheEntries, "bytes", this.cacheBytes < 0L ? null : this.cacheBytes,
                         "maxBytes", this.cfg.cacheMaxBytes()),
                 "breaker", this.breaker.status(), "processed", this.counters.json(),
-                "structuredOutput", this.client.structuredOutput(this.cfg.llmStructuredOutput), "lastError", this.lastError);
+                "structuredOutput", this.client.structuredOutput(this.cfg.llmStructuredOutput),
+                "prompt", this.prompt.json(), "lastError", this.lastError);
     }
 
     /** True while a call or a step may be running (tests). */

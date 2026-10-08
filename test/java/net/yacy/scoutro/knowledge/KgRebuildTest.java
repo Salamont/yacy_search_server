@@ -289,6 +289,24 @@ public class KgRebuildTest {
         assertEquals("0", string(r, "SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_MANUAL_PAUSE + "'"));
     }
 
+    /** The knowledge prompt belongs to the graph (6.3): a rebuild keeps the active version and its history. */
+    @Test
+    public void aRebuildKeepsTheKnowledgePrompt() throws Exception {
+        final KgRuntime r = start();
+        index(r, 2);
+        final String custom = net.yacy.scoutro.knowledge.extract.LlmExtractor.SYSTEM_PROMPT.replace("for a knowledge graph",
+                "for a knowledge graph of care providers");
+        final JSONObject active = r.promptActivate(custom, 0);
+        r.rebuild();
+        drive(r, () -> "done".equals(phase(r)));
+        final JSONObject after = r.prompt();
+        assertEquals(1, after.getInt("activeVersion"));
+        assertEquals("custom", after.getString("source"));
+        assertEquals(active.getString("activeHash"), after.getString("activeHash"));
+        assertEquals(custom, after.getString("text"));
+        assertEquals(1, after.getJSONArray("history").length());
+    }
+
     @Test
     public void cancelDeletesTheShadowAndTheGraphStaysAsItIs() throws Exception {
         final KgRuntime r = start();

@@ -36,7 +36,9 @@ import net.yacy.scoutro.knowledge.read.KgReader;
  * {@code llm_retry}, the streamed download {@code GET /v1/kg/export/download}
  * ({@link #download}), and (package 6.2) the settings of each collection
  * {@code GET /v1/kg/collections} and {@code PATCH /v1/kg/collections/{collection}}
- * ({@link KgCollectionSettings}); agents never get these.
+ * ({@link KgCollectionSettings}), and the knowledge prompt {@code GET /v1/kg/prompt}
+ * and {@code POST /v1/kg/prompt} with the actions {@code validate},
+ * {@code activate} and {@code reset} ({@link #prompt}); agents never get these.
  * The servlet checks the administrator role before calling this class; the
  * control body goes through the servlet's cross-site checks.
  */
@@ -54,6 +56,9 @@ final class KnowledgeApi {
 
     /** Records per read lease of the download. */
     static final int DOWNLOAD_PAGE = 200;
+
+    /** Allowed values of {@code action} of {@code POST /v1/kg/prompt}. */
+    static final java.util.List<String> PROMPT_ACTIONS = java.util.List.of("validate", "activate", "reset");
 
     /** Allowed values of {@code action}. */
     static final java.util.List<String> ACTIONS = java.util.List.of("pause", "resume", "reconcile", "confirm_reconcile",
@@ -102,6 +107,15 @@ final class KnowledgeApi {
             case "control":
                 allow(method, "POST");
                 return control(body.get());
+            case "prompt":
+                if ("GET".equals(method)) {
+                    if (!query.isEmpty()) {
+                        throw ApiException.invalid(query.keySet().iterator().next(), "This route takes no parameters.");
+                    }
+                    return prompt(null);
+                }
+                allow(method, "POST");
+                return prompt(body.get());
             default:
                 throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
@@ -234,6 +248,68 @@ final class KnowledgeApi {
         return r.status();
     }
 
+    /**
+     * The knowledge prompt: GET (body null) reads the active version and the default; POST validates a draft
+     * ({@code text}), activates it ({@code text}, optional {@code expectedRevision}) or resets to the compiled-in
+     * default (optional {@code expectedRevision}). An activation changes the prompt hash and the cache key but starts
+     * no re-extraction and deletes nothing.
+     */
+    private JSONObject prompt(final JSONObject body) throws ApiException {
+        String action = null;
+        String text = null;
+        Integer expected = null;
+        if (body != null) {
+            action = body.optString("action", "");
+            if (!PROMPT_ACTIONS.contains(action)) {
+                throw ApiException.invalid("action", "Field 'action' must be one of: " + String.join(", ", PROMPT_ACTIONS) + ".");
+            }
+            final boolean withText = !"reset".equals(action);
+            final boolean withRevision = !"validate".equals(action);
+            final Iterator<?> keys = body.keys();
+            while (keys.hasNext()) {
+                final String k = String.valueOf(keys.next());
+                if (!"action".equals(k) && !("text".equals(k) && withText) && !("expectedRevision".equals(k) && withRevision)) {
+                    throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: action" + (withText ? ", text" : "")
+                            + (withRevision ? ", expectedRevision" : "") + ".");
+                }
+            }
+            if (withText) {
+                final Object t = body.opt("text");
+                if (!(t instanceof String)) {
+                    throw ApiException.invalid("text", "Field 'text' must be the prompt text (a string).");
+                }
+                text = (String) t;
+            }
+            if (body.has("expectedRevision")) {
+                final Object r = body.opt("expectedRevision");
+                if (!(r instanceof Integer) || (Integer) r < 0) {
+                    throw ApiException.invalid("expectedRevision", "Field 'expectedRevision' must be the activeVersion read before (an integer >= 0).");
+                }
+                expected = (Integer) r;
+            }
+        }
+        final KgRuntime r = this.runtime.get();
+        if (r == null) {
+            throw new ApiException(409, KgException.DISABLED,
+                    "The knowledge graph is disabled. Set " + KgConfig.ENABLED + "=true and restart Scoutro.");
+        }
+        try {
+            if (action == null) {
+                return r.prompt();
+            }
+            switch (action) {
+                case "validate":
+                    return r.promptValidate(text);
+                case "activate":
+                    return r.promptActivate(text, expected);
+                default:
+                    return r.promptActivate(null, expected);
+            }
+        } catch (final KgException e) {
+            throw toApi(e);
+        }
+    }
+
     private JSONObject control(final JSONObject body) throws ApiException {
         final String action = body.optString("action", "");
         final Iterator<?> keys = body.keys();
@@ -309,6 +385,12 @@ final class KnowledgeApi {
                         Json.obj("reason", e.reason()));
             case KgException.BACKUP_DELETE_FAILED:
                 return new ApiException(503, KgException.BACKUP_DELETE_FAILED, "The backup could not be deleted: " + e.getMessage() + ".");
+            case KgException.PROMPT_INVALID:
+                return new ApiException(422, KgException.PROMPT_INVALID, "The prompt cannot be activated (" + e.reason()
+                        + "); POST {\"action\":\"validate\"} names the rule. Nothing was changed.", Json.obj("reason", e.reason()));
+            case KgException.PROMPT_REVISION_CONFLICT:
+                return new ApiException(409, KgException.PROMPT_REVISION_CONFLICT, "The active prompt changed in the meantime; read"
+                        + " GET /scoutro/api/v1/kg/prompt again. Nothing was changed.", Json.obj("activeVersion", Integer.parseInt(e.reason())));
             case KgException.NO_REBUILD:
                 return new ApiException(409, KgException.NO_REBUILD, "No identity rebuild is running or waiting for confirmation.");
             case KgException.INVALID_CURSOR:

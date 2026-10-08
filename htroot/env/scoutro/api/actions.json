@@ -1451,6 +1451,87 @@
       }
     },
     {
+      "name": "kg.prompt",
+      "description": "Administrator only. The active version (revision, hash, source, time, text), the compiled-in default and the history. The knowledge prompt is the system prompt of the LLM tier; the schema stays compiled in. Scoutro stores the active version in the graph (kg_meta, in backups, kept by a rebuild) with a history of revisions, hashes, sources and times (no texts). The active text decides the prompt hash, so another prompt is never answered from the cache of this one; an activation reads no done document again and deletes nothing (new and changed pages are asked with it). 409 kg_disabled while scoutro.kg.enabled=false, 503 kg_unavailable when the graph cannot run.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/prompt",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "KgPrompt",
+      "errors": [
+        400,
+        401,
+        405,
+        409,
+        503
+      ],
+      "cli": "no scoutroctl command: GET /scoutro/api/v1/kg/prompt (administrator)",
+      "mcpTool": "scoutro_kg_prompt",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "kg.prompt.change",
+      "description": "Administrator only; body up to 64 KiB. validate: 200 with valid and reason, nothing stored. activate and reset: a new revision used from the next LLM call on (no new revision for the active text); 422 prompt_invalid (details.reason), 409 prompt_revision_conflict (details.activeVersion) for a stale expectedRevision; unknown fields are refused. The knowledge prompt is the system prompt of the LLM tier; the schema stays compiled in. Scoutro stores the active version in the graph (kg_meta, in backups, kept by a rebuild) with a history of revisions, hashes, sources and times (no texts). The active text decides the prompt hash, so another prompt is never answered from the cache of this one; an activation reads no done document again and deletes nothing (new and changed pages are asked with it). 409 kg_disabled while scoutro.kg.enabled=false, 503 kg_unavailable when the graph cannot run.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/kg/prompt",
+        "successStatus": 200
+      },
+      "parameters": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "validate",
+            "activate",
+            "reset"
+          ],
+          "description": "validate checks a draft and stores nothing; activate makes text the active prompt; reset makes the compiled-in default active again.",
+          "in": "body",
+          "required": true
+        },
+        "text": {
+          "type": "string",
+          "minLength": 200,
+          "maxLength": 8000,
+          "description": "validate and activate only: the prompt text. Tab and line breaks besides printable text; nothing that looks like a key, token or password.",
+          "in": "body",
+          "required": false
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "activate and reset only: the activeVersion read before; another active revision is 409 prompt_revision_conflict.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "KgPrompt",
+      "errors": [
+        400,
+        401,
+        403,
+        405,
+        409,
+        413,
+        415,
+        422,
+        503
+      ],
+      "cli": "no scoutroctl command: POST /scoutro/api/v1/kg/prompt (administrator)",
+      "mcpTool": "scoutro_kg_prompt_change",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
       "name": "kg.collections",
       "description": "Package 6.2, administrator only, never an agent grant: every collection of the collection catalog (a new one by itself; YaCy's internal robot_* never) and every collection the graph's settings or data name, each with whether the graph follows it (or it is switched off, its data kept), its vocabulary (set, default of the vocabulary files, or none; never guessed from the name), its pages in the index and documents in the graph, and its state. Takes no parameters.",
       "mutating": false,
@@ -6939,6 +7020,35 @@
               "additionalProperties": true,
               "description": "Counters: calls, callFailures, timeouts, averageCallMillis, answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored."
             },
+            "prompt": {
+              "type": "object",
+              "description": "The knowledge prompt the tier asks with (GET /kg/prompt has its text): revision, hash, source, time; no text.",
+              "properties": {
+                "activeVersion": {
+                  "type": "integer"
+                },
+                "activeHash": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{16}$"
+                },
+                "source": {
+                  "type": "string",
+                  "enum": [
+                    "default",
+                    "custom"
+                  ]
+                },
+                "modifiedAt": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "differsFromDefault": {
+                  "type": "boolean"
+                }
+              }
+            },
             "structuredOutput": {
               "type": [
                 "object",
@@ -7726,6 +7836,168 @@
             "delete_backup"
           ],
           "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false. delete_backup (with backup, package 6.3) deletes one backup and its metadata file: only a name of GET /kg/backups, the file a regular file directly in DATA/SCOUTRO/knowledge/backup (no symbolic link), never the graph's own graph.db, WAL or SHM; the answer is the status with deleted and the backup state after it. 400 for anything but such a name, 404 backup_not_found, 409 operation_running while a backup, restore or rebuild swap holds the backup slot (nothing deleted), 503 backup_delete_failed. Restore and download of the other backups are unchanged."
+        }
+      }
+    },
+    "KgPrompt": {
+      "type": "object",
+      "properties": {
+        "activeVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Revision of the active version; 0 for the compiled-in default never changed. Every activation and reset counts on."
+        },
+        "activeHash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$",
+          "description": "Prompt hash of the active text with the schema and the extractor version: part of the extractor identity and of the cache key."
+        },
+        "source": {
+          "type": "string",
+          "enum": [
+            "default",
+            "custom"
+          ],
+          "description": "default: the compiled-in prompt of the running release; custom: a text an administrator activated."
+        },
+        "modifiedAt": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "description": "When the active version was activated (ms); null for the default never changed."
+        },
+        "differsFromDefault": {
+          "type": "boolean"
+        },
+        "text": {
+          "type": "string",
+          "description": "The active prompt text, as the LLM tier sends it."
+        },
+        "default": {
+          "type": "object",
+          "properties": {
+            "hash": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "description": "The compiled-in default of the running release."
+        },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "minChars": {
+              "type": "integer"
+            },
+            "maxChars": {
+              "type": "integer"
+            }
+          }
+        },
+        "history": {
+          "type": "array",
+          "description": "The last 50 activations, the newest last; no texts.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "revision": {
+                "type": "integer"
+              },
+              "hash": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "custom"
+                ]
+              },
+              "activatedAt": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "reexamination": {
+          "type": "string",
+          "enum": [
+            "manual"
+          ],
+          "description": "A new prompt applies to new and changed pages; done documents are not read again by it."
+        },
+        "changed": {
+          "type": "boolean",
+          "description": "activate and reset only: false when the text was already active (no new revision)."
+        },
+        "valid": {
+          "type": "boolean",
+          "description": "validate only."
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "validate only: why the draft cannot be activated.",
+          "enum": [
+            "prompt_missing",
+            "prompt_too_short",
+            "prompt_too_long",
+            "prompt_control_characters",
+            "prompt_secret_like",
+            null
+          ]
+        },
+        "chars": {
+          "type": "integer",
+          "description": "validate only."
+        },
+        "hash": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "validate only: the hash the draft would have."
+        },
+        "differsFromActive": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "validate only."
+        }
+      }
+    },
+    "KgPromptAction": {
+      "type": "object",
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "validate",
+            "activate",
+            "reset"
+          ],
+          "description": "validate checks a draft and stores nothing; activate makes text the active prompt; reset makes the compiled-in default active again."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 200,
+          "maxLength": 8000,
+          "description": "validate and activate only: the prompt text. Tab and line breaks besides printable text; nothing that looks like a key, token or password."
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "activate and reset only: the activeVersion read before; another active revision is 409 prompt_revision_conflict."
         }
       }
     },

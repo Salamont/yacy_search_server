@@ -44,7 +44,9 @@ import net.yacy.scoutro.knowledge.budget.JsonLdCapturePolicy;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.budget.StorageProbe;
+import net.yacy.scoutro.knowledge.extract.KnowledgePrompt;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
+import net.yacy.scoutro.knowledge.extract.LlmExtractor;
 import net.yacy.scoutro.knowledge.extract.YacyLlmClient;
 import net.yacy.scoutro.knowledge.read.KgReader;
 import net.yacy.scoutro.knowledge.store.KgBackup;
@@ -1037,6 +1039,101 @@ public final class KgRuntime {
         final int n = l.retryFailed();
         final JSONObject o = status();
         KgJson.put(o, "reopened", n);
+        return o;
+    }
+
+    // ------------------------------------------------------------ knowledge prompt
+
+    /**
+     * The knowledge prompt ({@code GET /kg/prompt}): the active version (metadata and text), the compiled-in default
+     * (text and hash), the bounds of a draft and the history of activations (no texts).
+     */
+    public JSONObject prompt() throws KgException {
+        requireRunning();
+        final String[] meta = this.store.read(c -> new String[] {KgStore.getMeta(c, KnowledgePrompt.META_ACTIVE),
+            KgStore.getMeta(c, KnowledgePrompt.META_HISTORY)});
+        final KnowledgePrompt active = KnowledgePrompt.fromMeta(meta[0]);
+        final JSONObject o = active.json();
+        KgJson.put(o, "text", active.text);
+        KgJson.put(o, "default", KgJson.obj("hash", LlmExtractor.PROMPT_HASH, "text", LlmExtractor.SYSTEM_PROMPT));
+        KgJson.put(o, "limits", KgJson.obj("minChars", KnowledgePrompt.MIN_CHARS, "maxChars", KnowledgePrompt.MAX_CHARS));
+        JSONArray history;
+        try {
+            history = meta[1] == null ? new JSONArray() : new JSONArray(meta[1]);
+        } catch (final org.json.JSONException e) {
+            history = new JSONArray();
+        }
+        KgJson.put(o, "history", history);
+        // a new prompt applies to new and changed pages; documents already done are not read again by it
+        KgJson.put(o, "reexamination", "manual");
+        return o;
+    }
+
+    /** Checks a draft without storing anything ({@code POST /kg/prompt {"action":"validate"}}). */
+    public JSONObject promptValidate(final String text) throws KgException {
+        requireRunning();
+        final KnowledgePrompt active = this.store.read(c -> KnowledgePrompt.fromMeta(KgStore.getMeta(c, KnowledgePrompt.META_ACTIVE)));
+        final String invalid = KnowledgePrompt.invalid(text);
+        final String hash = invalid == null ? LlmExtractor.promptHash(text) : null;
+        return KgJson.obj("valid", invalid == null, "reason", invalid, "chars", text == null ? 0 : text.length(), "hash", hash,
+                "differsFromActive", hash == null ? null : !hash.equals(active.hash),
+                "differsFromDefault", hash == null ? null : !hash.equals(LlmExtractor.PROMPT_HASH),
+                "activeVersion", active.revision);
+    }
+
+    /**
+     * Activates a prompt text ({@code POST /kg/prompt {"action":"activate"}}), or the compiled-in default
+     * ({@code "reset"}, text null): a new revision in kg_meta and the history, used from the next LLM call on. It
+     * changes the prompt hash (extractor identity, cache key) but reads no document again and deletes no cache entry
+     * and no evidence. The same text as the active one changes nothing.
+     *
+     * @param expectedRevision the revision the caller saw, or null; another one is a conflict
+     */
+    public synchronized JSONObject promptActivate(final String text, final Integer expectedRevision) throws KgException {
+        requireRunning();
+        final String draft = text == null ? LlmExtractor.SYSTEM_PROMPT : text;
+        final String invalid = KnowledgePrompt.invalid(draft);
+        if (invalid != null) {
+            throw new KgException(KgException.PROMPT_INVALID, invalid, "the prompt cannot be activated: " + invalid, null);
+        }
+        final long now = this.env.clock.getAsLong();
+        final KnowledgePrompt[] result = new KnowledgePrompt[2]; // {before, after}
+        this.store.write(WriteClass.SYSTEM, SMALL_WRITE_BYTES + 2L * draft.length(), tx -> {
+            final String history = KgStore.getMeta(tx, KnowledgePrompt.META_HISTORY);
+            final KnowledgePrompt before = KnowledgePrompt.fromMeta(KgStore.getMeta(tx, KnowledgePrompt.META_ACTIVE));
+            result[0] = before;
+            if (expectedRevision != null && expectedRevision.intValue() != before.revision) {
+                return null;
+            }
+            final boolean toDefault = LlmExtractor.SYSTEM_PROMPT.equals(draft);
+            if (before.text.equals(draft) && (toDefault ? KnowledgePrompt.SOURCE_DEFAULT : KnowledgePrompt.SOURCE_CUSTOM).equals(before.source)) {
+                result[1] = before; // unchanged: no new revision
+                return null;
+            }
+            final KnowledgePrompt after = KnowledgePrompt.next(draft, KnowledgePrompt.lastRevision(before, history) + 1, now);
+            KgStore.putMeta(tx, KnowledgePrompt.META_ACTIVE, after.toMeta());
+            KgStore.putMeta(tx, KnowledgePrompt.META_HISTORY, after.historyWith(history));
+            // the next start finds the same prompt: no prompt_changed event for a change already recorded here
+            final String extractor = KgStore.getMeta(tx, KgSchema.META_LLM_EXTRACTOR);
+            final String prefix = LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/";
+            if (extractor != null && extractor.startsWith(prefix)) {
+                KgStore.putMeta(tx, KgSchema.META_LLM_EXTRACTOR, prefix + after.hash);
+            }
+            KgStore.event(tx, 1, "llm_prompt_activated", "revision " + after.revision + " (" + after.source + ", " + after.hash
+                    + ") is used for new and changed pages; done documents are not read again", now);
+            result[1] = after;
+            return null;
+        });
+        if (result[1] == null) {
+            throw new KgException(KgException.PROMPT_REVISION_CONFLICT, String.valueOf(result[0].revision),
+                    "the active prompt is revision " + result[0].revision + ", not " + expectedRevision, null);
+        }
+        final LlmService l = this.llm;
+        if (l != null) {
+            l.usePrompt(result[1]);
+        }
+        final JSONObject o = prompt();
+        KgJson.put(o, "changed", result[1] != result[0]);
         return o;
     }
 

@@ -230,6 +230,13 @@ A changed vocabulary re-extracts the pages at low priority.
   is no switching between the two. The validator checks every answer as
   before, existing results and cache entries stay, and only new or changed
   pages are asked on the new path (no re-extraction).
+- **Knowledge prompt.** The system prompt of the LLM tier can be read and
+  changed without a new image through the administrator API
+  `GET`/`POST /scoutro/api/v1/kg/prompt` (validate, activate, reset to the
+  compiled-in default; no page and no agent access yet). Scoutro stores the
+  active version in the graph with revision, hash, source and time. A new
+  prompt is used for new and changed pages and never answered from the
+  cache of another one; done documents are not read again by it.
 - **Structured output.** With `scoutro.kg.llm.structuredOutput=auto` (the
   default) the model's "format" capability of the LLM selection decides what
   the endpoint is asked for: supported sends the JSON schema, unsupported
@@ -571,8 +578,8 @@ upgrade happens at the first start of the new version:
    IDs and the change feed with its sequence stay.
 4. **The re-extraction.** Every page is read again with the new vocabulary,
    at low priority behind the usual gates. The LLM tier, where configured,
-   reads its pages again with the new prompt. Old LLM evidence stays until
-   it is replaced.
+   reads its pages again with the new extractor version. Old LLM evidence
+   stays until it is replaced.
 5. **Without room for the copy** (budget or disk), the migration still
    runs, but the re-extraction and the LLM re-examination wait
    (`status.upgrade.hold`, `sync.upgradeHold`). Free space and make a backup
