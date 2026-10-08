@@ -6956,6 +6956,18 @@
                   ],
                   "description": "scoutro.kg.llm.structuredOutput."
                 },
+                "api": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "ollama_native",
+                    "openai_compatible",
+                    null
+                  ],
+                  "description": "ollama_native: an OLLAMA model on Ollama's /api/chat with format; openai_compatible: every other service on /v1/chat/completions with response_format."
+                },
                 "capability": {
                   "type": [
                     "string",

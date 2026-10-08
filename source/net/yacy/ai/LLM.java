@@ -175,7 +175,7 @@ public class LLM {
                     LLM llm = new LLM(hoststub, api_key, max_tokens, num_ctx, type);
                     LLMModel llmmodel = new LLMModel(llm, model, tooling, thinking);
                     // the row's format flag is only the displayed probe result of the page: not a result of its own
-                    llmmodel.formatCapability = formatCapability(capabilityEntry);
+                    llmmodel.formatCapability = formatCapability(capabilityEntry, type);
                     if (logRouting) {
                         log.info(routePrefix(runId, caller) + "event=model-routing phase=select usage=" + llmUsage + " row=" + i + " service=" + type.name() + " model=" + LogRedaction.redact(model) + " backend=" + LogRedaction.redact(llm.hoststub) + " maxTokens=" + llm.max_tokens + " numCtx=" + llm.num_ctx + " tooling=" + tooling + " thinking=" + thinking + " productionRows=" + production_models.length() + " durationMs=" + elapsed(start));
                     }
@@ -254,10 +254,22 @@ public class LLM {
 
     /**
      * Version of the "format" probe of the LLM selection (htroot/env/scoutro/format-probe.js), stored with its result
-     * as {@code format_probe}. Version 2 is a technical structured-output test; a format value without it comes from
-     * the mood probe up to Scoutro 0.8.3 (an invalid schema type, and a wrong mood counted as unsupported).
+     * as {@code format_probe}. Version 2 is a technical structured-output test of the OpenAI-compatible
+     * {@code /v1/chat/completions}; a format value without it comes from the mood probe up to Scoutro 0.8.3 (an
+     * invalid schema type, and a wrong mood counted as unsupported).
      */
     public static final int FORMAT_PROBE_VERSION = 2;
+    /**
+     * Version of the format probe for {@link LLMType#OLLAMA}: the same test on the native {@code /api/chat} with
+     * {@code format}, the path the knowledge usage takes for Ollama. A version 2 value of an Ollama model was measured
+     * on {@code /v1/chat/completions}, which says nothing about the native path, and counts as unknown.
+     */
+    public static final int FORMAT_PROBE_VERSION_OLLAMA = 3;
+
+    /** The format probe version whose result counts for a service ({@code OLLAMA}, {@code OPENAI}, ...). */
+    public static int formatProbeVersion(final String service) {
+        return LLMType.OLLAMA.name().equals(service == null ? "" : service.trim()) ? FORMAT_PROBE_VERSION_OLLAMA : FORMAT_PROBE_VERSION;
+    }
 
     /** A stored capability value as {@code supported}, {@code unsupported}, {@code ignored} or {@code unknown}. */
     public static String capabilityStatus(final String value) {
@@ -270,7 +282,18 @@ public class LLM {
      * current probe version ({@code format_probe}), else {@code unknown}. Thinking, tooling and vision are not affected.
      */
     public static String formatCapability(final JSONObject capabilityEntry) {
-        if (capabilityEntry == null || capabilityEntry.optInt("format_probe", 0) != FORMAT_PROBE_VERSION) return "unknown";
+        return formatCapability(capabilityEntry, (String) null);
+    }
+
+    /** {@link #formatCapability(JSONObject)} for a service: an Ollama model needs the native probe version. */
+    public static String formatCapability(final JSONObject capabilityEntry, final LLMType type) {
+        return formatCapability(capabilityEntry, type == null ? null : type.name());
+    }
+
+    /** {@link #formatCapability(JSONObject, LLMType)} for the service name of a production row. */
+    public static String formatCapability(final JSONObject capabilityEntry, final String service) {
+        final int version = formatProbeVersion(service);
+        if (capabilityEntry == null || capabilityEntry.optInt("format_probe", 0) != version) return "unknown";
         return capabilityStatus(capabilityEntry.optString("format", ""));
     }
 
@@ -519,6 +542,50 @@ public class LLM {
             // make the cause visible because the caller only sees a fragment.
             final String finishReason = choice.optString("finish_reason", "");
             if ("length".equals(finishReason)) {
+                log.warn("chat response was truncated by the max_tokens limit (" + max_tokens
+                        + "), model=" + LogRedaction.redact(model)
+                        + ", contentChars=" + content.length()
+                        + ". Configure a higher max_tokens for this model if complete outputs are required.");
+            }
+            return stripThinkBlocks(content);
+        } catch (JSONException | URISyntaxException e) {
+            throw new IOException(e.getMessage());
+        }
+    }
+
+    /**
+     * Native Ollama chat ({@code POST <hoststub>/api/chat}, not streamed), used by the knowledge usage for
+     * {@link LLMType#OLLAMA} because Ollama enforces structured output on this path ({@code format}), while its
+     * OpenAI-compatible {@code /v1/chat/completions} may ignore a {@code response_format}. No other usage calls it.
+     * <p>
+     * The options mirror what Ollama derives from {@link #chatWithResponseFormat}'s request: {@code temperature} 0.1,
+     * {@code num_predict} = max_tokens and the stop tokens. {@code num_ctx} is not sent (the OpenAI-compatible path
+     * ignores it too, so the server's own context length applies as before); {@code think: false} only for a model
+     * known to think (the other path sends reasoning_effort none).
+     *
+     * @param format a JSON schema (JSONObject), the string {@code "json"} (JSON mode), or null for none
+     * @param noThinking send {@code think: false}
+     * @return {@code message.content} of the answer, think blocks removed
+     */
+    public String chatOllamaNative(final String model, final Context context, final Object format, final int max_tokens,
+            final boolean noThinking, final int readTimeoutMillis, final int maxResponseChars) throws IOException {
+        try {
+            final JSONObject options = new JSONObject(true);
+            options.put("temperature", 0.1);
+            options.put("num_predict", max_tokens);
+            options.put("stop", new JSONArray(STOPTOKENS));
+            final JSONObject data = new JSONObject(true);
+            data.put("model", model);
+            data.put("messages", context);
+            data.put("stream", false);
+            data.put("options", options);
+            if (noThinking) data.put("think", false);
+            if (format != null) data.put("format", format);
+            final String response = sendPostRequest(this.hoststub + "/api/chat", data, this.api_key, readTimeoutMillis, maxResponseChars);
+            final JSONObject responseObject = new JSONObject(response);
+            final JSONObject message = responseObject.getJSONObject("message");
+            final String content = message.optString("content", "");
+            if ("length".equals(responseObject.optString("done_reason", ""))) {
                 log.warn("chat response was truncated by the max_tokens limit (" + max_tokens
                         + "), model=" + LogRedaction.redact(model)
                         + ", contentChars=" + content.length()

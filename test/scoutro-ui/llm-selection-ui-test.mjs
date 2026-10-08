@@ -53,22 +53,34 @@ try {
         check(await page.locator('#availableModelsContainer button[data-action="deploy-model"]').first().isEnabled(), `${language}/${width}: Deploy enabled`);
         check(!await page.locator('#modelDiscoveryStatus').isVisible(), `${language}/${width}: success clears status`);
         check(errors.length === 0, `${language}/${width}: JavaScript errors: ${errors.join(', ')}`);
-        // the format capability: the technical probe of format-probe.js; a value without format_probe (the mood probe) is unknown
+        // the format capability: the technical probe of format-probe.js, natively (/api/chat, version 3) for an OLLAMA model and
+        // OpenAI-compatible (version 2) for the others; a value of an older probe is unknown
         const formatReading = await page.evaluate(stub => {
           const fixture = getPersistedCapabilitiesForModel('OLLAMA', stub, 'fixture-model:latest');
           persistedModelCapabilities['OLLAMA|' + stub + '|legacy'] = { thinking: 'supported', tooling: 'unsupported', vision: 'unsupported', format: 'unsupported' };
           const legacy = getPersistedCapabilitiesForModel('OLLAMA', stub, 'legacy');
+          persistedModelCapabilities['OLLAMA|' + stub + '|v2'] = { format: 'ignored', format_probe: 2 };
+          persistedModelCapabilities['OPENAI|' + stub + '|v2'] = { format: 'ignored', format_probe: 2 };
+          const ollamaV2 = getPersistedCapabilitiesForModel('OLLAMA', stub, 'v2').format;
+          const openaiV2 = getPersistedCapabilitiesForModel('OPENAI', stub, 'v2').format;
           setPersistedCapability('OLLAMA', stub, 'legacy', 'format', 'ignored');
           const probed = getPersistedCapabilitiesForModel('OLLAMA', stub, 'legacy');
           const entry = persistedModelCapabilities['OLLAMA|' + stub + '|legacy'];
-          delete persistedModelCapabilities['OLLAMA|' + stub + '|legacy'];
-          return { version: typeof ScoutroFormatProbe === 'object' ? ScoutroFormatProbe.VERSION : null, fixture, legacy, probed, entry };
+          setPersistedCapability('OPENAI', stub, 'v2', 'format', 'supported');
+          const openaiEntry = persistedModelCapabilities['OPENAI|' + stub + '|v2'];
+          for (const k of ['legacy']) delete persistedModelCapabilities['OLLAMA|' + stub + '|' + k];
+          delete persistedModelCapabilities['OLLAMA|' + stub + '|v2'];
+          delete persistedModelCapabilities['OPENAI|' + stub + '|v2'];
+          return { version: typeof ScoutroFormatProbe === 'object' ? ScoutroFormatProbe.VERSION : null, ollamaVersion: ScoutroFormatProbe.VERSION_OLLAMA,
+            paths: [ScoutroFormatProbe.path('OLLAMA'), ScoutroFormatProbe.path('OPENAI')], fixture, legacy, ollamaV2, openaiV2, probed, entry, openaiEntry };
         }, stub);
-        check(formatReading.version === 2 && formatReading.fixture.format === 'unsupported', `${language}/${width}: current format result read: ${JSON.stringify(formatReading)}`);
+        check(formatReading.version === 2 && formatReading.ollamaVersion === 3 && formatReading.fixture.format === 'unsupported'
+          && JSON.stringify(formatReading.paths) === JSON.stringify(['/api/chat', '/v1/chat/completions']), `${language}/${width}: current format result read: ${JSON.stringify(formatReading)}`);
         check(formatReading.legacy.format === 'unknown' && formatReading.legacy.thinking === 'supported' && formatReading.legacy.tooling === 'unsupported',
           `${language}/${width}: a mood-probe value is unknown, the other capabilities unchanged: ${JSON.stringify(formatReading.legacy)}`);
-        check(formatReading.probed.format === 'ignored' && formatReading.entry.format_probe === 2 && formatReading.entry.thinking === 'supported',
-          `${language}/${width}: a new result is stored with its probe version: ${JSON.stringify(formatReading.entry)}`);
+        check(formatReading.ollamaV2 === 'unknown' && formatReading.openaiV2 === 'ignored', `${language}/${width}: a /v1 result counts for OpenAI, not for Ollama`);
+        check(formatReading.probed.format === 'ignored' && formatReading.entry.format_probe === 3 && formatReading.entry.thinking === 'supported'
+          && formatReading.openaiEntry.format_probe === 2, `${language}/${width}: a new result is stored with its service's probe version: ${JSON.stringify(formatReading.entry)}`);
         if (language !== 'de') continue;
         check((await page.locator('h2').textContent()).trim() === 'LLM-Auswahl', `${width}: actual German translation`);
         await page.locator('#availableModelsContainer button[data-action="deploy-model"]').first().click();

@@ -91,7 +91,7 @@ public class StructuredOutputNegotiationTest {
 
     @Test
     public void aSupportedFormatSendsTheCompleteJsonSchema() throws Exception {
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, "supported");
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, "supported");
         ask(c, "auto");
         assertEquals(1, this.requests.size());
         final JSONObject rf = this.requests.get(0).getJSONObject("response_format");
@@ -114,7 +114,7 @@ public class StructuredOutputNegotiationTest {
 
     @Test
     public void anUnsupportedFormatSendsNoResponseFormat() throws Exception {
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, "unsupported");
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, "unsupported");
         ask(c, "auto");
         ask(c, "auto");
         assertEquals(2, this.requests.size());
@@ -134,7 +134,7 @@ public class StructuredOutputNegotiationTest {
 
     @Test
     public void jsonModeSendsOnlyJsonObject() throws Exception {
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, "unsupported");
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, "unsupported");
         ask(c, "json_object");
         final JSONObject rf = this.requests.get(0).getJSONObject("response_format");
         assertEquals("json_object", rf.getString("type"));
@@ -151,7 +151,7 @@ public class StructuredOutputNegotiationTest {
     @Test
     public void aRejectedSchemaFallsBackOnceVisiblyAndIsRemembered() throws Exception {
         this.endpoint.set("reject");
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, "supported");
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, "supported");
         final long before = System.currentTimeMillis();
         ask(c, "auto");
         assertEquals("the call and one retry", 2, this.requests.size());
@@ -176,7 +176,7 @@ public class StructuredOutputNegotiationTest {
     @Test
     public void aRetryThatFailsTooEndsTheCallWithoutALoop() throws Exception {
         this.endpoint.set("always400");
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, "unknown");
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, "unknown");
         try {
             ask(c, "auto");
             fail("400 without the format too");
@@ -194,7 +194,7 @@ public class StructuredOutputNegotiationTest {
 
     @Test
     public void anUnknownCapabilityKeepsTheSchemaButDoesNotClaimEnforcement() throws Exception {
-        for (final LLM.LLMType type : List.of(LLM.LLMType.OPENAI, LLM.LLMType.OPENROUTER, LLM.LLMType.LMSTUDIO, LLM.LLMType.OLLAMA,
+        for (final LLM.LLMType type : List.of(LLM.LLMType.OPENAI, LLM.LLMType.OPENROUTER, LLM.LLMType.LMSTUDIO,
                 LLM.LLMType.OTHER)) {
             this.requests.clear();
             final YacyLlmClient c = client(type, "unknown");
@@ -210,12 +210,12 @@ public class StructuredOutputNegotiationTest {
 
     @Test
     public void theSettingOverridesTheCapabilityButNotTheTruth() throws Exception {
-        final YacyLlmClient unsupported = client(LLM.LLMType.OLLAMA, "unsupported");
+        final YacyLlmClient unsupported = client(LLM.LLMType.OPENAI, "unsupported");
         ask(unsupported, "json_schema");
         assertTrue(this.requests.get(0).has("response_format"));
         assertEquals("asked for, but not reported as enforced", "schema_unverified", unsupported.structuredOutput("json_schema").getString("mode"));
         assertEquals("setting", unsupported.structuredOutput("json_schema").getString("reason"));
-        final YacyLlmClient supported = client(LLM.LLMType.OLLAMA, "supported");
+        final YacyLlmClient supported = client(LLM.LLMType.OPENAI, "supported");
         ask(supported, "none");
         assertFalse(this.requests.get(1).has("response_format"));
         assertEquals("validator_only", supported.structuredOutput("none").getString("mode"));
@@ -257,7 +257,7 @@ public class StructuredOutputNegotiationTest {
     public void withoutASchemaTheValidatorStillDropsWhatBreaksTheRules() throws Exception {
         this.content.set("{\"entities\":[{\"id\":\"e1\",\"type\":\"company\",\"name\":\"Haus Lindenhof\",\"quote\":\"betreibt das Haus Lindenhof\","
                 + "\"confidence\":0.9}],\"claims\":[{\"subject\":\"Haus Lindenhof\",\"predicate\":\"operates\",\"object\":\"k1\"}],\"values\":[]}");
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, "unsupported");
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, "unsupported");
         final String answer = ask(c, "auto");
         assertFalse(this.requests.get(0).has("response_format"));
         final LlmExtractor.Result r = LlmExtractor.validate(answer, LlmExtractorTest.chunk(), LlmExtractorTest.known(), Set.of());
@@ -283,7 +283,7 @@ public class StructuredOutputNegotiationTest {
         llm.chat("m", "sys", "user", 200);
         assertFalse(this.requests.get(1).has("response_format"));
         assertEquals("the knowledge client's counters see no other usage", 0L,
-                requests(client(LLM.LLMType.OLLAMA, "unknown").structuredOutput("auto"), "json_schema"));
+                requests(client(LLM.LLMType.OPENAI, "unknown").structuredOutput("auto"), "json_schema"));
     }
 
     // the format capability counts only as a result of the current technical probe (format_probe 2)
@@ -299,7 +299,7 @@ public class StructuredOutputNegotiationTest {
         assertEquals("unknown", LLM.formatCapability(entry("unsupported", null)));
         assertEquals("unknown", LLM.formatCapability(entry("supported", null)));
         assertEquals("an older probe version", "unknown", LLM.formatCapability(entry("unsupported", 1)));
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("unsupported", null)));
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, LLM.formatCapability(entry("unsupported", null)));
         ask(c, "auto");
         assertEquals("json_schema", this.requests.get(0).getJSONObject("response_format").getString("type"));
         final JSONObject so = c.structuredOutput("auto");
@@ -312,7 +312,7 @@ public class StructuredOutputNegotiationTest {
     public void aCurrentUnsupportedSendsNoSchema() throws Exception {
         // F) refused by the endpoint in the current probe
         assertEquals("unsupported", LLM.formatCapability(entry("unsupported", LLM.FORMAT_PROBE_VERSION)));
-        final YacyLlmClient c = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("unsupported", 2)));
+        final YacyLlmClient c = client(LLM.LLMType.OPENAI, LLM.formatCapability(entry("unsupported", 2)));
         ask(c, "auto");
         assertFalse(this.requests.get(0).has("response_format"));
         assertEquals("validator_only", c.structuredOutput("auto").getString("mode"));
@@ -321,12 +321,12 @@ public class StructuredOutputNegotiationTest {
     @Test
     public void aCurrentSupportedIsEnforcedAndIgnoredIsNot() throws Exception {
         // G) supported by the current probe
-        final YacyLlmClient s = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("supported", 2)));
+        final YacyLlmClient s = client(LLM.LLMType.OPENAI, LLM.formatCapability(entry("supported", 2)));
         ask(s, "auto");
         assertEquals("json_schema", this.requests.get(0).getJSONObject("response_format").getString("type"));
         assertEquals("schema_enforced", s.structuredOutput("auto").getString("mode"));
         // accepted but not followed in the probe: the schema is still sent, never shown as enforced
-        final YacyLlmClient i = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry("ignored", 2)));
+        final YacyLlmClient i = client(LLM.LLMType.OPENAI, LLM.formatCapability(entry("ignored", 2)));
         ask(i, "auto");
         assertTrue(this.requests.get(1).has("response_format"));
         assertEquals("schema_unverified", i.structuredOutput("auto").getString("mode"));
@@ -342,7 +342,7 @@ public class StructuredOutputNegotiationTest {
                 {"supported", null, "schema_unverified"}};
         for (final String[] k : cases) {
             this.requests.clear();
-            final YacyLlmClient c = client(LLM.LLMType.OLLAMA, LLM.formatCapability(entry(k[0], k[1] == null ? null : Integer.valueOf(k[1]))));
+            final YacyLlmClient c = client(LLM.LLMType.OPENAI, LLM.formatCapability(entry(k[0], k[1] == null ? null : Integer.valueOf(k[1]))));
             ask(c, "json_schema");
             assertTrue(String.join("/", k[0], String.valueOf(k[1])), this.requests.get(0).has("response_format"));
             assertEquals(String.join("/", k[0], String.valueOf(k[1])), k[2], c.structuredOutput("json_schema").getString("mode"));

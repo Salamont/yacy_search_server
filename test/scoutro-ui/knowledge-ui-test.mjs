@@ -114,9 +114,10 @@ try {
           }
           // the structured-output mode: the live one of the fixture (a model never probed: schema sent, not confirmed), then mocked modes
           check(liveStatus.llm.structuredOutput?.mode === 'schema_unverified' && liveStatus.llm.structuredOutput?.capability === 'unknown'
+            && liveStatus.llm.structuredOutput?.api === 'ollama_native'
             && typeof liveStatus.llm.structuredOutput?.requests?.json_schema === 'number', 'status: structured output of the fixture model ' + JSON.stringify(liveStatus.llm.structuredOutput) + where);
           const soVariants = [
-            ['validator_only', { setting: 'auto', capability: 'unsupported', mode: 'validator_only', request: 'none', reason: 'capability_unsupported',
+            ['validator_only', { setting: 'auto', api: 'ollama_native', capability: 'unsupported', mode: 'validator_only', request: 'none', reason: 'capability_unsupported',
               withoutSchema: false, requests: { json_schema: 0, json_object: 0, none: 5 }, rejections: 0, lastRejection: null }],
             ['fallback_after_rejection', { setting: 'auto', capability: 'supported', mode: 'fallback_after_rejection', request: 'none', reason: 'http_400',
               withoutSchema: true, requests: { json_schema: 1, json_object: 0, none: 4 }, rejections: 1, lastRejection: { code: 'http_400', at: 1 } }],
@@ -132,7 +133,8 @@ try {
             await page.waitForFunction(() => document.querySelector('#skg-llm').children.length > 0);
             const llmRow = async key => page.evaluate(l => [...document.querySelectorAll('#skg-llm dt')].find(d => d.textContent === l)?.nextElementSibling?.textContent, await lbl(key));
             if (so) {
-              check(await llmRow('structured_output') === await lbl('so_mode_' + so.mode) + ' · ' + await lbl('so_cap_' + so.capability), 'structured output shown: ' + name + where);
+              check(await llmRow('structured_output') === await lbl('so_mode_' + so.mode) + ' · ' + await lbl('so_cap_' + so.capability)
+                + (so.api ? ' · ' + await lbl('so_api_' + so.api) : ''), 'structured output shown: ' + name + where);
               check((await llmRow('so_requests')).startsWith(String(so.requests.json_schema) + ' ') && (await llmRow('so_requests')).includes(String(so.rejections)), 'requests by format: ' + name + where);
               check(!(await page.locator('#skg-llm').textContent()).includes('{'), 'no raw object shown: ' + name + where);
             } else check(await llmRow('structured_output') === await lbl('missing') && await llmRow('so_requests') === await lbl('missing'), 'no structured output: ' + name + where);

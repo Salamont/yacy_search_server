@@ -220,7 +220,11 @@ class FakeModel(http.server.BaseHTTPRequestHandler):
                 answer["entities"].append({"id": "s1", "type": "service", "name": o.group(2), "quote": f"bietet {o.group(2)} an"})
                 answer["claims"].append({"subject": "e1", "predicate": "offers", "object": "s1",
                                          "quote": f"Das {o.group(1)} bietet {o.group(2)} an"})
-        out = json.dumps({"choices": [{"message": {"content": json.dumps(answer)}, "finish_reason": "stop"}]}).encode()
+        if self.path == "/api/chat":  # an OLLAMA model's knowledge extraction: Ollama's native answer
+            out = json.dumps({"model": body.get("model"), "done": True, "done_reason": "stop",
+                              "message": {"role": "assistant", "content": json.dumps(answer)}}).encode()
+        else:
+            out = json.dumps({"choices": [{"message": {"content": json.dumps(answer)}, "finish_reason": "stop"}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(out)))

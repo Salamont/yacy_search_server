@@ -691,7 +691,8 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3) and adds up to `droppedInvalid`.
     All `processed` counters are in memory since the start and reset by a
     restart; no model answer is stored. `structuredOutput`: what the
-    endpoint is asked for (`setting`, the model's format `capability`
+    endpoint is asked for (`setting`, `api` `ollama_native` (Ollama's
+    `/api/chat` with `format`) or `openai_compatible`, the model's format `capability`
     of the current probe, an older value counts as `unknown`,
     `mode` `schema_enforced`, `schema_unverified`, `json_mode`,
     `validator_only` or `fallback_after_rejection`, `request`, `reason`,

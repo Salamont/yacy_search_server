@@ -77,4 +77,34 @@ check(probe.stored({ format: 'ignored', format_probe: '2' }) === 'ignored', 'cur
 check(probe.stored({ format: 'unknown', format_probe: 2 }) === 'unknown' && probe.stored({ format: 'yes', format_probe: 2 }) === 'unknown', 'other values: unknown');
 check(probe.stored(null) === 'unknown' && probe.stored(undefined) === 'unknown', 'no entry: unknown');
 
+// Ollama: the native /api/chat with format (probe version 3); every other service unchanged (version 2)
+check(probe.path('OLLAMA') === '/api/chat' && probe.version('OLLAMA') === 3, 'OLLAMA: native path, version 3');
+for (const service of ['OPENAI', 'OPENROUTER', 'LMSTUDIO', 'OTHER', '', undefined]) {
+  check(probe.path(service) === '/v1/chat/completions' && probe.version(service) === 2, String(service) + ': OpenAI-compatible, version 2');
+  check(JSON.stringify(probe.payload('m', false, service)) === JSON.stringify(probe.payload('m', false)), String(service) + ': the former request');
+}
+const n = probe.payload('llama3.1:8b', false, 'OLLAMA', false);
+check(n.format === probe.SCHEMA && !('response_format' in n) && n.stream === false && n.options.temperature === 0 && n.options.num_predict === 64
+  && !('max_tokens' in n) && !('temperature' in n) && !('think' in n) && n.messages.length === 2, 'native request: format is the schema, options, no OpenAI field');
+check(probe.payload('m', false, 'OLLAMA', true).think === false, 'native: think false for a thinking model');
+const nc = probe.payload('llama3.1:8b', true, 'OLLAMA', false);
+check(!('format' in nc) && JSON.stringify({ ...n, format: undefined }) === JSON.stringify(nc), 'native control: the same without format');
+const native = (content, done_reason = 'stop') => ({ status: 200, body: { model: 'llama3.1:8b', message: { role: 'assistant', content }, done: true, done_reason } });
+// A) compliant -> supported
+check(probe.classify(native('{"result":"ok"}')) === 'supported', 'native compliant: supported');
+// B) schema ignored -> ignored
+check(probe.classify(native('Here is the JSON: {"result":"ok"}')) === 'ignored' && probe.classify(native('{"result":"ok","why":"x"}')) === 'ignored'
+  && probe.classify(native('{"status":"ok"}')) === 'ignored', 'native not followed: ignored');
+// C) format refused while the request without it is answered -> unsupported
+check(probe.classify({ status: 400, controlStatus: 200 }) === 'unsupported', 'native 400 + control 200: unsupported');
+// D) timeout, 5xx, a missing model (404), a refused control -> unknown
+for (const status of [0, 404, 500, 503]) check(probe.classify({ status }) === 'unknown', 'native ' + status + ': unknown');
+check(probe.classify({ status: 400, controlStatus: 404 }) === 'unknown', 'native 400 + control 404: unknown');
+// F) stored values: an Ollama value needs version 3; a version 2 value (measured on /v1) is unknown for Ollama only
+check(probe.stored({ format: 'ignored', format_probe: 2 }, 'OLLAMA') === 'unknown', 'Ollama v2 (from /v1): unknown');
+check(probe.stored({ format: 'supported', format_probe: 3 }, 'OLLAMA') === 'supported', 'Ollama v3: supported');
+check(probe.stored({ format: 'unsupported' }, 'OLLAMA') === 'unknown', 'Ollama legacy: unknown');
+check(probe.stored({ format: 'ignored', format_probe: 2 }, 'OPENAI') === 'ignored' && probe.stored({ format: 'supported', format_probe: 3 }, 'OPENAI') === 'unknown',
+  'OpenAI: version 2 counts, version 3 does not');
+
 console.log(`PASS: ${checks} format probe checks`);

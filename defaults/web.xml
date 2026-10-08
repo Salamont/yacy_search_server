@@ -130,6 +130,7 @@
         <url-pattern>/api/pull</url-pattern>
         <url-pattern>/api/delete</url-pattern>
         <url-pattern>/api/show</url-pattern>
+        <url-pattern>/api/chat</url-pattern>
     </servlet-mapping>
 
     <servlet-mapping>

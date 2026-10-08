@@ -129,9 +129,9 @@ def llm_security_checks(base, client, config, stub, chat_stub):
     check(status == 200 and authorizations == ["Bearer sk-typed-probe"], "Typed probe key not used: %s" % authorizations)
     row = {"service": "OLLAMA", "model": "chat-fixture", "hoststub": chat_stub, "api_key": ROW_SECRET, "max_tokens": "256",
            "chat": True, "tldr": False, "logreport": False, "tooling": False}
-    # format_probe 2: a result of the current structured-output probe, so the page probes nothing here
+    # format_probe 3: a result of the current native probe of an OLLAMA model, so the page probes nothing here
     capabilities = {f"OLLAMA|{chat_stub}|chat-fixture": {"thinking": "unsupported", "tooling": "supported", "vision": "unsupported",
-                                                          "format": "unsupported", "format_probe": 2}}
+                                                          "format": "unsupported", "format_probe": 3}}
     inference = {"service": "OLLAMA", "hoststub": stub, "api_key": ""}
     status, _, _ = call("/LLMSelection_p.html", {"production_models": [row], "inference_system": inference, "model_capabilities": capabilities})
     check(status == 200 and ROW_SECRET in wait_setting("ai.production_models", lambda v: ROW_SECRET in v), "Production row key stored")
@@ -139,7 +139,7 @@ def llm_security_checks(base, client, config, stub, chat_stub):
         return next((v for k, v in caps.items() if k.endswith("|" + model)), None)
 
     stored_caps = json.loads(wait_setting("ai.model_capabilities", lambda v: "format_probe" in v))
-    check((stored_entry(stored_caps, "chat-fixture") or {}).get("format_probe") == 2, "Format probe version not stored: %s" % stored_caps)
+    check((stored_entry(stored_caps, "chat-fixture") or {}).get("format_probe") == 3, "Format probe version not stored: %s" % stored_caps)
     # a value of the old mood probe (no format_probe) is kept as stored, with the other capabilities, until a new probe
     legacy = {"thinking": "unsupported", "tooling": "supported", "vision": "unsupported", "format": "unsupported"}
     status, _, _ = call("/LLMSelection_p.html", {"model_capabilities": dict(capabilities, **{f"OLLAMA|{chat_stub}|legacy-fixture": legacy})})
@@ -153,6 +153,22 @@ def llm_security_checks(base, client, config, stub, chat_stub):
     check(ROW_SECRET in settings(config)["ai.production_models"], "Empty row api_key deleted the stored key")
     status, _, html = call("/LLMSelection_p.html")
     check(ROW_SECRET.encode() not in html and SECRET.encode() not in html and b'data-api-key-set="1"' in html, "Stored row api_key rendered")
+
+    # the native format probe of an OLLAMA model: /api/chat through the admin passthrough, configured endpoints only
+    llm_requests.clear()
+    probe = {"model": "chat-fixture", "stream": False, "messages": [{"role": "user", "content": "Return the required JSON object."}],
+             "format": {"type": "object", "properties": {"result": {"type": "string", "enum": ["ok"]}}, "required": ["result"],
+                        "additionalProperties": False}}
+    q = "/api/chat?hoststub=" + urllib.parse.quote(chat_stub, safe="")
+    status, headers, _ = call(q, probe)
+    check(status == 200 and llm_requests and llm_requests[-1][0] == "/api/chat" and llm_requests[-1][1].get("format") == probe["format"],
+          "Native /api/chat not mirrored: %s %s" % (status, llm_requests[-1:]))
+    status, _, body = call("/api/chat?hoststub=" + urllib.parse.quote("http://127.0.0.1:9", safe=""), probe)
+    check(status == 403 and code(body) == "hoststub_not_configured", "/api/chat to an unconfigured endpoint: %s %s" % (status, body[:200]))
+    status, _, _ = call(q, probe, auth=False)
+    check(status in (401, 403), "/api/chat without the administrator login: %s" % status)
+    status, _, body = call("/api/chat", probe)
+    check(status == 400, "/api/chat without hoststub must not be a public chat: %s" % status)
 
     def chat(headers=None, auth=False, search="no"):
         return call("/v1/chat/completions", {"model": "chat", "stream": True, "messages": [
@@ -242,7 +258,7 @@ def main():
                 (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
             inference = {"service": "OLLAMA", "hoststub": stub, "api_key": SECRET}
             capabilities = {f"OLLAMA|{stub}|fixture-model:latest":
-                            dict(dict.fromkeys(["thinking", "tooling", "vision", "format"], "unsupported"), format_probe=2)}
+                            dict(dict.fromkeys(["thinking", "tooling", "vision", "format"], "unsupported"), format_probe=3)}
             config.write_text("\n".join([
                 f"port={port}", "adminAccountForLocalhost=false", "adminAccountAllPages=false",
                 "adminAccountUserName=admin", "adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c",

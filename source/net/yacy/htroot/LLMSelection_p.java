@@ -308,7 +308,7 @@ public class LLMSelection_p {
                 String toolingStatus = capabilityEntry == null ? "unknown" : normalizeCapabilityStatus(capabilityEntry.opt("tooling"));
                 String visionStatus = capabilityEntry == null ? "unknown" : normalizeCapabilityStatus(capabilityEntry.opt("vision"));
                 // format: only a result of the current probe; the row's flag is that displayed result, not a probe of its own
-                String formatStatus = net.yacy.ai.LLM.formatCapability(capabilityEntry);
+                String formatStatus = net.yacy.ai.LLM.formatCapability(capabilityEntry, row.optString("service", ""));
                 if (row.optBoolean("thinking", false)) thinkingStatus = "supported";
                 if (row.optBoolean("tooling", false)) toolingStatus = "supported";
                 if (row.optBoolean("vision", false)) visionStatus = "supported";
