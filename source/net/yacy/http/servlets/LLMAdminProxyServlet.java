@@ -60,7 +60,9 @@ import net.yacy.search.SwitchboardConstants;
  *
  * Concept - one endpoint, two operation modes:
  * YaCy mirrors the LLM API paths (/v1/chat/completions, /api/tags, /v1/models,
- * /api/pull, /api/delete, /api/show) on its own port. The mode of a request is not
+ * /api/pull, /api/delete, /api/show, /api/chat) on its own port. /api/chat (Ollama's
+ * native chat, for the format capability test of an Ollama model) exists only in
+ * passthrough mode, for configured endpoints. The mode of a request is not
  * distinguished by the path but by the presence of a "hoststub" request parameter
  * (or X-LLM-Hoststub header) that selects the target endpoint:
  *
@@ -109,7 +111,7 @@ public class LLMAdminProxyServlet extends HttpServlet {
     /** paths that this proxy is willing to mirror on the target endpoint */
     private static final Set<String> PROXY_PATHS = Set.of(
             "/v1/chat/completions", "/v1/models",
-            "/api/tags", "/api/show", "/api/pull", "/api/delete");
+            "/api/tags", "/api/show", "/api/pull", "/api/delete", "/api/chat");
 
     /** read-only probe paths which may be used with a not-yet-saved hoststub */
     private static final Set<String> PROBE_PATHS = Set.of("/api/tags", "/v1/models");

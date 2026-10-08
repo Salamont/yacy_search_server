@@ -76,7 +76,14 @@ public class LLMSelection_pTest {
         // the page loads the probe and reads stored format values only through it
         final String html = new String(Files.readAllBytes(Paths.get("htroot/LLMSelection_p.html")), StandardCharsets.UTF_8);
         assertTrue(html.contains("<script src=\"env/scoutro/format-probe.js\"></script>"));
-        assertTrue(html.contains("format: ScoutroFormatProbe.stored(entry)"));
+        assertTrue(html.contains("format: ScoutroFormatProbe.stored(entry, service)"));
+        // an Ollama model is probed natively: the proxy mirrors /api/chat for configured endpoints only
+        assertTrue(html.contains("fetch(proxyUrl(endpointBase, ScoutroFormatProbe.path(service))"));
+        final String proxy = new String(Files.readAllBytes(Paths.get("source/net/yacy/http/servlets/LLMAdminProxyServlet.java")), StandardCharsets.UTF_8);
+        assertTrue(proxy.contains("\"/api/delete\", \"/api/chat\");"));
+        assertTrue("not a probe path for unconfigured endpoints", proxy.contains("PROBE_PATHS = Set.of(\"/api/tags\", \"/v1/models\");"));
+        final String web = new String(Files.readAllBytes(Paths.get("defaults/web.xml")), StandardCharsets.UTF_8);
+        assertTrue(web.contains("<url-pattern>/api/chat</url-pattern>"));
         assertFalse("no mood probe", html.contains("FORMAT_TEST_CASES") || html.contains("\"literal\""));
     }
 

@@ -81,7 +81,11 @@ class FakeModel(http.server.BaseHTTPRequestHandler):
                                     "quote": "betreibt das Haus Lindenhof in Berlin"}],
                       "claims": [{"subject": "k1", "predicate": "operates", "object": "e1",
                                   "quote": "Die Muster Pflege gGmbH betreibt das Haus Lindenhof"}]}
-        out = json.dumps({"choices": [{"message": {"content": json.dumps(answer)}, "finish_reason": "stop"}]}).encode()
+        if self.path == "/api/chat":  # an OLLAMA model's knowledge extraction: Ollama's native answer
+            out = json.dumps({"model": body.get("model"), "done": True, "done_reason": "stop",
+                              "message": {"role": "assistant", "content": json.dumps(answer)}}).encode()
+        else:
+            out = json.dumps({"choices": [{"message": {"content": json.dumps(answer)}, "finish_reason": "stop"}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(out)))

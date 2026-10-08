@@ -95,7 +95,7 @@ public class YacyLlmClientTest {
     }
 
     private LLM.LLMModel model(final String hoststub) {
-        return new LLM.LLMModel(new LLM(hoststub, "", 512, LLM.LLMType.OLLAMA), "fixture", false, false);
+        return new LLM.LLMModel(new LLM(hoststub, "", 512, LLM.LLMType.OPENAI), "fixture", false, false);
     }
 
     private String stub() {
@@ -105,7 +105,7 @@ public class YacyLlmClientTest {
     @Test
     public void answersWithTheSchemaAndTheConfiguredLimit() throws Exception {
         final YacyLlmClient c = new YacyLlmClient(() -> model(stub()));
-        assertEquals("OLLAMA/fixture", c.model());
+        assertEquals("OPENAI/fixture", c.model());
         assertEquals("{\"entities\":[],\"claims\":[]}", c.complete("sys", "user", LlmExtractor.SCHEMA, 5000L));
         final JSONObject req = this.requests.get(0);
         assertEquals(512, req.getInt("max_tokens"));

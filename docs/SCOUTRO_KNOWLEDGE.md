@@ -223,6 +223,13 @@ A changed vocabulary re-extracts the pages at low priority.
   it and are diagnostics only, no model answer is stored for them (codes:
   `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, 6.3). `valuesAccepted` counts the
   accepted values (prices, categories, ...).
+- **Ollama natively.** An `OLLAMA` model is asked on Ollama's native
+  `/api/chat`, with the JSON schema as `format`: Ollama enforces it there,
+  while its OpenAI-compatible `/v1/chat/completions` was seen to ignore a
+  `response_format`. Every other service keeps `/v1/chat/completions`; there
+  is no switching between the two. The validator checks every answer as
+  before, existing results and cache entries stay, and only new or changed
+  pages are asked on the new path (no re-extraction).
 - **Structured output.** With `scoutro.kg.llm.structuredOutput=auto` (the
   default) the model's "format" capability of the LLM selection decides what
   the endpoint is asked for: supported sends the JSON schema, unsupported

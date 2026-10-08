@@ -14,10 +14,13 @@ the machine, no existing peer or DATA directory is touched.
    breaker counts, while the sync publishes another page at once;
 4. clean stop with a call in flight: the shutdown is still clean;
 5. restart with the model back: llm_retry makes the failed document done.
-6. structured output: a format "unsupported" of the former mood probe counts
-   as unknown and keeps the schema; a current one (format_probe 2) sends no
-   response_format (prompt and validator only); an endpoint that rejects the
-   schema with HTTP 400 is asked once more without it, counted and shown.
+6. structured output: the fixture model is an OLLAMA row, so every call goes
+   to Ollama's native /api/chat with the schema as "format" (the answer under
+   message.content), never to /v1/chat/completions. A format "unsupported" of
+   the former mood probe counts as unknown and keeps the schema; a current one
+   of the native probe (format_probe 3) sends no format (prompt and validator
+   only); an endpoint that rejects the format with HTTP 400 is asked once more
+   natively without it, counted and shown.
 
 Run after `ant compile`:  python3 test/scoutro-api/kg-llm-live-smoke.py
 GPL-2.0-or-later.
@@ -58,6 +61,12 @@ ANSWER = {"entities": [
     {"subject": "k1", "predicate": "part_of", "object": "e2", "quote": "Die Muster Pflege gGmbH gehört zur Erfundene Holding AG"}]}
 
 
+# an answer that breaks the schema (an extra field, a synonym type, a claim without a quote): the validator drops it all
+BROKEN = {"entities": [{"id": "e1", "type": "company", "name": "Haus Lindenhof", "quote": "betreibt das Haus Lindenhof in Berlin",
+                        "confidence": 0.9}],
+          "claims": [{"subject": "k1", "predicate": "operates", "object": "e1"}], "values": []}
+
+
 class FakeModel(http.server.BaseHTTPRequestHandler):
     mode = "ok"
     requests = []
@@ -69,18 +78,27 @@ class FakeModel(http.server.BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
+    paths = []
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+        FakeModel.paths.append(self.path)
+        if self.path != "/api/chat":  # the OpenAI-compatible path must not be used for an OLLAMA model
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         FakeModel.requests.append(body)
         if FakeModel.mode == "hang":
             time.sleep(40)
-        if FakeModel.mode == "reject" and "response_format" in body:
+        if FakeModel.mode == "reject" and "format" in body:
             self.send_response(400)
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        content = json.dumps(ANSWER)
-        out = json.dumps({"choices": [{"message": {"content": content}, "finish_reason": "stop"}]}).encode()
+        content = json.dumps(BROKEN if FakeModel.mode == "broken" else ANSWER)
+        out = json.dumps({"model": body.get("model"), "created_at": "2026-10-08T00:00:00Z", "done": True, "done_reason": "stop",
+                          "message": {"role": "assistant", "content": content}}).encode()
         try:
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -253,11 +271,15 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             by = p["droppedInvalidByReason"]
             assert sum(by.values()) == p["droppedInvalid"] and len(by) >= 46 and p["valuesAccepted"] == 0, p
             req = FakeModel.requests[0]
-            assert req["model"] == "fixture" and req["response_format"]["json_schema"]["strict"] is True, req.keys()
-            # a model never probed: the schema as before, with the name of the OpenAI contract, not shown as enforced
-            assert req["response_format"]["json_schema"]["name"] == "scoutro_knowledge_extraction", req["response_format"].keys()
+            # Ollama natively: /api/chat, the extraction schema as format, not streamed, no OpenAI response_format
+            assert req["model"] == "fixture" and req["stream"] is False and isinstance(req["format"], dict), req.keys()
+            assert req["format"]["type"] == "object" and req["format"]["additionalProperties"] is False, req["format"].keys()
+            assert "response_format" not in req and "max_tokens" not in req and req["options"]["num_predict"] == 1024, req.keys()
+            # a model never probed: the schema natively, not shown as enforced
             so = s["llm"]["structuredOutput"]
-            assert so["capability"] == "unknown" and so["mode"] == "schema_unverified" and so["requests"]["json_schema"] == 1, so
+            assert so["api"] == "ollama_native" and so["capability"] == "unknown" and so["mode"] == "schema_unverified" \
+                and so["requests"]["json_schema"] == 1, so
+            assert FakeModel.paths and set(FakeModel.paths) == {"/api/chat"}, FakeModel.paths
             user = req["messages"][1]["content"]
             assert "DATA-" in user and "Haus Lindenhof" in user and "nursinghome" in user, user[:500]
             assert "tools" not in req, req.keys()
@@ -301,11 +323,11 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             checks += 4
 
             # 6. structured output negotiated: a format "unsupported" of the former mood probe (no format_probe) is unknown and
-            # keeps the schema; a current one (format_probe 2) sends no response_format; a 400 falls back visibly
+            # keeps the schema; a current one of the native probe (format_probe 3) sends no format; a 400 falls back visibly
             key = f"OLLAMA|http://127.0.0.1:{LLM_PORT}|fixture"
             legacy = {"thinking": "unknown", "tooling": "unknown", "vision": "unknown", "format": "unsupported"}
             for n, (entry, mode, host) in enumerate([(legacy, "schema_unverified", "www.vierte-pflege-llm-smoke.de"),
-                                                     (dict(legacy, format_probe=2), "validator_only", "www.sechste-pflege-llm-smoke.de")]):
+                                                     (dict(legacy, format_probe=3), "validator_only", "www.sechste-pflege-llm-smoke.de")]):
                 stop(process)
                 write_config(root, settings + ["ai.model_capabilities=" + json.dumps({key: entry})])
                 process, client = start(root, log)
@@ -317,10 +339,10 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
                 s = wait_status(client, "the page in mode " + mode, lambda x: x["llm"]["documents"]["done"] >= 4 + n, 120)
                 new = FakeModel.requests[calls:]
                 if mode == "validator_only":
-                    assert new and all("response_format" not in r for r in new), [sorted(r) for r in new]
+                    assert new and all("format" not in r and "response_format" not in r for r in new), [sorted(r) for r in new]
                     assert s["llm"]["structuredOutput"]["requests"]["none"] == len(new), s["llm"]["structuredOutput"]
                 else:
-                    assert new and all(r["response_format"]["json_schema"]["name"] == "scoutro_knowledge_extraction" for r in new), \
+                    assert new and all(isinstance(r.get("format"), dict) and "response_format" not in r for r in new), \
                         [sorted(r) for r in new]
                     assert s["llm"]["structuredOutput"]["requests"]["json_schema"] == len(new), s["llm"]["structuredOutput"]
                 assert s["llm"]["processed"]["published"] >= 1 and s["llm"]["processed"]["droppedInvalid"] >= 1, s["llm"]["processed"]
@@ -333,12 +355,22 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-llm-") as temporary:
             push(client, "https://www.fuenfte-pflege-llm-smoke.de/impressum", page("www.fuenfte-pflege-llm-smoke.de"), "kgsmoke")
             s = wait_status(client, "the page after the fallback", lambda x: x["llm"]["documents"]["done"] >= 6, 120)
             new = FakeModel.requests[calls:]
-            assert len(new) == 2 and "response_format" in new[0] and "response_format" not in new[1], [sorted(r) for r in new]
+            assert len(new) == 2 and "format" in new[0] and "format" not in new[1], [sorted(r) for r in new]
             so = s["llm"]["structuredOutput"]
             assert so["mode"] == "fallback_after_rejection" and so["withoutSchema"] is True and so["rejections"] == 1, so
             assert so["lastRejection"]["code"] == "http_400" and s["llm"]["documents"]["failed"] == 0, (so, s["llm"]["documents"])
+            # 7. a non-conforming answer on the native path: the unchanged validator still drops it; nothing went to /v1
+            FakeModel.mode = "broken"
+            before = s["llm"]["processed"]
+            push(client, "https://www.siebte-pflege-llm-smoke.de/impressum", page("www.siebte-pflege-llm-smoke.de"), "kgsmoke")
+            s = wait_status(client, "the non-conforming answer", lambda x: x["llm"]["documents"]["done"] >= 7, 120)
+            p = s["llm"]["processed"]
+            by, was = p["droppedInvalidByReason"], before["droppedInvalidByReason"]
+            assert by["entity_extra_field"] == was["entity_extra_field"] + 1 and by["claim_missing_quote"] == was["claim_missing_quote"] + 1, by
+            assert p["entitiesAccepted"] == before["entitiesAccepted"] and p["claimsAccepted"] == before["claimsAccepted"], p
             FakeModel.mode = "ok"
-            checks += 12
+            assert set(FakeModel.paths) == {"/api/chat"}, sorted(set(FakeModel.paths))
+            checks += 15
             print(f"PASS: {checks} live LLM tier checks", flush=True)
         except BaseException:
             log.flush()

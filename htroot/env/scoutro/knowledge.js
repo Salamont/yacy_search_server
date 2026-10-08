@@ -218,7 +218,8 @@
       ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
     const l = s.llm || {}, lp = l.processed || {}, so = l.structuredOutput && typeof l.structuredOutput === 'object' ? l.structuredOutput : null;
     stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')],
-      ['structured_output', so?.mode ? t('so_mode_' + so.mode) + (so.capability ? ' · ' + t('so_cap_' + so.capability) : '') : null],
+      ['structured_output', so?.mode ? t('so_mode_' + so.mode) + (so.capability ? ' · ' + t('so_cap_' + so.capability) : '')
+        + (so.api ? ' · ' + t('so_api_' + so.api) : '') : null],
       ['so_requests', so?.requests ? t('so_requests_value').replace('%1', fmt(so.requests.json_schema)).replace('%2', fmt(so.requests.json_object))
         .replace('%3', fmt(so.requests.none)).replace('%4', fmt(so.rejections)) : null],
       ['queue', l.queue?.items],

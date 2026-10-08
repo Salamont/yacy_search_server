@@ -211,7 +211,7 @@
           tooling: normalizeCapabilityStatus(entry.tooling),
           vision: normalizeCapabilityStatus(entry.vision),
           // only a result of the current technical probe counts; an older (mood probe) value is unknown and probed again
-          format: ScoutroFormatProbe.stored(entry)
+          format: ScoutroFormatProbe.stored(entry, service)
         };
       }
 
@@ -219,7 +219,7 @@
         const entry = ensureCapabilityEntry(service, hoststub, modelName);
         if (!entry || !capabilityName) return;
         entry[capabilityName] = normalizeCapabilityStatus(status);
-        if (capabilityName === "format") entry.format_probe = ScoutroFormatProbe.VERSION;
+        if (capabilityName === "format") entry.format_probe = ScoutroFormatProbe.version(service);
       }
 
       function capabilityStatusLabel(status) {
@@ -1937,9 +1937,13 @@
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
-        const payload = maybeApplyNoThinkingParameters(service, endpointBase, modelName, ScoutroFormatProbe.payload(modelName, control));
+        // an Ollama model natively on /api/chat (think: false for a thinking model), every other service OpenAI-compatible
+        const ollama = ScoutroFormatProbe.path(service) === "/api/chat";
+        const thinking = getPersistedCapabilitiesForModel(service, endpointBase, modelName).thinking === "supported";
+        const payload = ollama ? ScoutroFormatProbe.payload(modelName, control, service, thinking)
+          : maybeApplyNoThinkingParameters(service, endpointBase, modelName, ScoutroFormatProbe.payload(modelName, control, service));
         try {
-          const response = await fetch(proxyUrl(endpointBase, TEST_STRINGS.toolingEndpointPath), {
+          const response = await fetch(proxyUrl(endpointBase, ScoutroFormatProbe.path(service)), {
             method: "POST",
             headers,
             body: JSON.stringify(payload)

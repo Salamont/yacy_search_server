@@ -263,7 +263,9 @@ memory; every restart resets them, so they are no long-term statistics.
   only and without format and the rejections since the last start. In every
   mode the validator checks each answer the same way. The format capability
   is the technical test of the [LLM selection](LLMSelection_p.md); a value of
-  the former mood probe counts as unknown.
+  the former mood probe counts as unknown. An Ollama model is asked on
+  Ollama's native `/api/chat` with the schema as `format` (status
+  `api: ollama_native`); every other service on `/v1/chat/completions`.
 
 ## Collections
 

@@ -35,10 +35,14 @@ import net.yacy.scoutro.knowledge.KgJson;
  * Endpoint, key and output limit are that row's; nothing is configured twice.
  * <p>
  * Structured output is negotiated per model (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
- * 6.3). Every service is spoken to through its OpenAI-compatible
- * {@code /v1/chat/completions} ({@link LLM#chatWithResponseFormat}), so the
- * request can carry a {@code json_schema} (with the {@code name} that protocol
- * requires), a {@code json_object} or no {@code response_format} at all. With
+ * 6.3). An {@code OLLAMA} model is called natively on {@code /api/chat}
+ * ({@link LLM#chatOllamaNative}) with {@code format}: the schema itself, the
+ * string {@code "json"} or nothing; Ollama enforces the schema there, while its
+ * {@code /v1/chat/completions} was seen to ignore a {@code response_format}.
+ * Every other service keeps its OpenAI-compatible {@code /v1/chat/completions}
+ * ({@link LLM#chatWithResponseFormat}) with a {@code json_schema} (with the
+ * {@code name} that protocol requires), a {@code json_object} or no
+ * {@code response_format}; there is no switching between the two paths. With
  * the setting {@code auto} the model's "format" capability (a result of the
  * current technical probe, {@link LLM#formatCapability}) decides: supported
  * sends the schema, unsupported (the endpoint refused it) sends nothing
@@ -56,6 +60,8 @@ public final class YacyLlmClient implements LlmClient {
     /** Settings of {@code scoutro.kg.llm.structuredOutput}. */
     public static final String AUTO = "auto", JSON_SCHEMA = "json_schema", JSON_OBJECT = "json_object", NONE = "none";
     public static final List<String> SETTINGS = List.of(AUTO, JSON_SCHEMA, JSON_OBJECT, NONE);
+    /** The API a model is called on: Ollama's native {@code /api/chat}, or the OpenAI-compatible {@code /v1/chat/completions}. */
+    public static final String API_OLLAMA_NATIVE = "ollama_native", API_OPENAI_COMPATIBLE = "openai_compatible";
     /** Modes: what a request asks for and whether the endpoint is reported to enforce it. */
     public static final String SCHEMA_ENFORCED = "schema_enforced", SCHEMA_UNVERIFIED = "schema_unverified",
             JSON_MODE = "json_mode", VALIDATOR_ONLY = "validator_only", FALLBACK = "fallback_after_rejection";
@@ -197,7 +203,7 @@ public final class YacyLlmClient implements LlmClient {
         final boolean rejected = name != null && this.withoutSchema.contains(m.llm.hoststub + "|" + name);
         final Plan plan = name == null ? null : plan(setting, m.formatCapability, rejected, true);
         final long at = this.lastRejectionAt;
-        return KgJson.obj("setting", setting, "capability", name == null ? null : LLM.capabilityStatus(m.formatCapability),
+        return KgJson.obj("setting", setting, "api", name == null ? null : api(m), "capability", name == null ? null : LLM.capabilityStatus(m.formatCapability),
                 "mode", plan == null ? null : plan.mode, "request", plan == null ? null : plan.request,
                 "reason", plan == null ? null : plan.reason, "withoutSchema", rejected,
                 "requests", KgJson.obj(JSON_SCHEMA, this.requestsJsonSchema.get(), JSON_OBJECT, this.requestsJsonObject.get(),
@@ -217,6 +223,30 @@ public final class YacyLlmClient implements LlmClient {
         }
         (format == null ? this.requestsWithoutFormat
                 : JSON_OBJECT.equals(format.optString("type")) ? this.requestsJsonObject : this.requestsJsonSchema).incrementAndGet();
+        if (API_OLLAMA_NATIVE.equals(api(m))) {
+            // the same request natively: never a fallback to /v1/chat/completions
+            return m.llm.chatOllamaNative(m.model, context, ollamaFormat(format), m.llm.max_tokens, m.thinking, timeout, MAX_RESPONSE_CHARS);
+        }
         return m.llm.chatWithResponseFormat(m.model, context, format, m.llm.max_tokens, timeout, MAX_RESPONSE_CHARS);
+    }
+
+    /** The API of a model: native for {@link LLM.LLMType#OLLAMA}, OpenAI-compatible for every other service. */
+    static String api(final LLM.LLMModel m) {
+        return m != null && m.llm != null && m.llm.type == LLM.LLMType.OLLAMA ? API_OLLAMA_NATIVE : API_OPENAI_COMPATIBLE;
+    }
+
+    /**
+     * Ollama's native {@code format} for a negotiated OpenAI {@code response_format}: the schema itself for
+     * {@code json_schema}, {@code "json"} for {@code json_object}, null for none.
+     */
+    static Object ollamaFormat(final JSONObject responseFormat) {
+        if (responseFormat == null) {
+            return null;
+        }
+        if (JSON_OBJECT.equals(responseFormat.optString("type"))) {
+            return "json";
+        }
+        final JSONObject jsonSchema = responseFormat.optJSONObject("json_schema");
+        return jsonSchema == null ? null : jsonSchema.optJSONObject("schema");
     }
 }

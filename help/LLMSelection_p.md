@@ -76,7 +76,14 @@ prompt; `htroot/env/scoutro/format-probe.js`):
   5xx, or a request that fails without the schema too). Nothing is stored and
   the next visit asks again.
 
-The result is stored in `ai.model_capabilities` with `format_probe: 2`. A
+An **OLLAMA** model is tested on Ollama's native `/api/chat` with the
+schema as `format` (the path the knowledge graph uses for it, through the
+administrator passthrough `/api/chat?hoststub=…`, configured endpoints only);
+every other service on `/v1/chat/completions` with `response_format`
+`json_schema`. The result is stored in `ai.model_capabilities` with
+`format_probe: 3` for OLLAMA and `format_probe: 2` for the others; an Ollama
+value with version 2 was measured on `/v1` and is read as **?** until the
+next native test. A
 format value without it comes from the former mood probe (an invalid schema
 type `literal`, and a wrong mood counted as "no") and is read as **?**: the
 page tests that model again the next time the LLM selection is opened, and

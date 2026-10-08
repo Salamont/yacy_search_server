@@ -5665,6 +5665,8 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >format capability unknown<==>Fähigkeit format unbekannt<
 >format capability ignored (schema accepted, not followed)<==>Fähigkeit format ignoriert (Schema angenommen, nicht befolgt)<
 >Requests by format<==>Anfragen nach Format<
+>native Ollama API (/api/chat)<==>native Ollama-API (/api/chat)<
+>OpenAI-compatible API<==>OpenAI-kompatible API<
 >%1 with schema · %2 JSON only · %3 without format · %4 rejected<==>%1 mit Schema · %2 nur JSON · %3 ohne Format · %4 abgelehnt<
 >Accepted entities · claims · values<==>Übernommene Entitäten · Aussagen · Werte<
 >Calls and items count since the last start of Scoutro; every restart resets them.<==>Aufrufe und Elemente zählen seit dem letzten Start von Scoutro (seit Pod-Start); jeder Neustart setzt sie zurück.<

@@ -15746,6 +15746,12 @@
     <trans-unit id="c2f76ea4" xml:space="preserve" approved="no" translate="yes">
        <source>Requests by format</source>
     </trans-unit>
+    <trans-unit id="6f58449e" xml:space="preserve" approved="no" translate="yes">
+       <source>native Ollama API (/api/chat)</source>
+    </trans-unit>
+    <trans-unit id="f4b971c9" xml:space="preserve" approved="no" translate="yes">
+       <source>OpenAI-compatible API</source>
+    </trans-unit>
     <trans-unit id="ff6d6e31" xml:space="preserve" approved="no" translate="yes">
        <source>%1 with schema · %2 JSON only · %3 without format · %4 rejected</source>
     </trans-unit>
