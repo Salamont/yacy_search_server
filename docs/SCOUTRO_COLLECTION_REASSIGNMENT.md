@@ -34,7 +34,7 @@ accepted `office=consulting` together with the word "consulting" (see
   never `notyowea.com` or `yowea.de`). The pages are found through `host_organization_s` and then filtered exactly by
   host. Only pages in a collection of `remove` move; without `remove` every page of the domain gets `add`. Other
   collections of a page stay. A page that would keep no collection is refused (`422 reassign_would_empty`), as is a
-  domain with more than 5 000 pages (`422 reassign_too_large`).
+  domain with more than 5 000 pages or 100 000 webgraph edges (`422 reassign_too_large`).
 - **Preview first.** Without `confirm` nothing is written. The answer lists the hosts, the number of pages, pages per
   collection before and after, the collections that stay, a sample of up to 20 URLs and a `token`.
 - **Apply exactly the preview.** With `confirm` set to the token, the same request is planned again. If any page

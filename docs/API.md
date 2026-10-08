@@ -368,7 +368,7 @@ filters, crawl starts and agent grants all take their choices from it.
   `400 collection_unknown`, `409 reassign_preview_stale` (the pages changed
   since the preview; `details` hold the new one), `409 host_busy` (a crawl of
   the domain runs), `422 reassign_would_empty`, `422 reassign_too_large`
-  (more than 5 000 pages), `503 index_unavailable`. Never an agent route.
+  (more than 5 000 pages or 100 000 webgraph edges), `503 index_unavailable`. Never an agent route.
 
 ### Index
 

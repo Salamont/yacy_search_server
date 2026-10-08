@@ -69,6 +69,8 @@ final class CollectionReassign {
     static final String WEBGRAPH_CORE = "webgraph";
     /** Pages one reassignment may change; more is refused (a domain, not a collection). */
     static final int MAX_DOCUMENTS = 5000;
+    /** Webgraph edges of those pages one reassignment may change (a page has many links). */
+    static final int MAX_EDGES = 100_000;
     static final int MAX_SAMPLE = 20;
     static final int MAX_COLLECTIONS = 5;
     private static final Pattern DOMAIN = Pattern.compile("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+");
@@ -239,9 +241,9 @@ final class CollectionReassign {
         }
         plan.hosts = hosts(plan.domain);
         if (!plan.hosts.isEmpty()) {
-            pages(plan, DEFAULT_CORE, plan.pages, "host_s");
+            pages(plan, DEFAULT_CORE, plan.pages, "host_s", MAX_DOCUMENTS);
             plan.webgraph = this.index.has(WEBGRAPH_CORE);
-            if (plan.webgraph) pages(plan, WEBGRAPH_CORE, plan.edges, "source_host_s");
+            if (plan.webgraph) pages(plan, WEBGRAPH_CORE, plan.edges, "source_host_s", MAX_EDGES);
         }
         for (final Change c : plan.pages) {
             if (c.after.isEmpty()) {
@@ -313,7 +315,7 @@ final class CollectionReassign {
         return new ArrayList<>(hosts);
     }
 
-    private void pages(final Plan plan, final String core, final List<Change> out, final String hostField) throws ApiException {
+    private void pages(final Plan plan, final String core, final List<Change> out, final String hostField, final int max) throws ApiException {
         final List<String> quoted = new ArrayList<>();
         for (final String h : plan.hosts) quoted.add("\"" + h + "\"");
         final ModifiableSolrParams p = new ModifiableSolrParams();
@@ -323,7 +325,7 @@ final class CollectionReassign {
             for (final String c : plan.remove) rq.add("\"" + c + "\"");
             p.add("fq", "collection_sxt:(" + String.join(" OR ", rq) + ")");
         }
-        p.set("rows", MAX_DOCUMENTS + 1);
+        p.set("rows", max + 1);
         p.set("sort", "id asc");
         p.set("fl", DEFAULT_CORE.equals(core) ? "id,sku,_version_,collection_sxt" : "id,_version_,collection_sxt");
         final SolrDocumentList docs;
@@ -332,8 +334,8 @@ final class CollectionReassign {
         } catch (final IOException e) {
             throw new ApiException(503, "index_unavailable", "The index could not be read: " + e.getMessage());
         }
-        if (docs.size() > MAX_DOCUMENTS) {
-            throw new ApiException(422, "reassign_too_large", "More than " + MAX_DOCUMENTS + " entries of " + core + " for this domain.");
+        if (docs.size() > max) {
+            throw new ApiException(422, "reassign_too_large", "More than " + max + " entries of " + core + " for this domain.");
         }
         for (final SolrDocument d : docs) {
             final List<String> before = new ArrayList<>();
