@@ -37,13 +37,46 @@ def check(value, message):
     checks += 1
 
 
+# The native thinking and format probes of an OLLAMA model, against Ollama's own rules: a model with the capability
+# "thinking" thinks by default on /api/chat (here: the whole budget, empty content, done_reason length) unless the
+# request says think: false; think: true is refused (400) for a model without it, think: false accepted for every model.
+PROBE_MODELS = {"thinking-fixture:14b": ["completion", "tools", "thinking"], "plain-fixture:8b": ["completion", "tools"],
+                "listless-fixture:7b": None}
+
+
 class OllamaFixture(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
     def do_POST(self):
-        requests.append(("POST", self.path))
-        self.send_error(405)
+        body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or b"{}")
+        requests.append(("POST", self.path, body))
+        model = body.get("model")
+        if self.path not in ("/api/show", "/api/chat") or model not in PROBE_MODELS:
+            self.send_error(405)
+            return
+        capabilities = PROBE_MODELS[model]
+        thinks = capabilities is not None and "thinking" in capabilities
+        if self.path == "/api/show":
+            payload = {"license": "", "details": {"family": "fixture"}, "model_info": {}}
+            if capabilities is not None:
+                payload["capabilities"] = capabilities
+            return self.answer(200, payload)
+        if body.get("think") is True and not thinks:
+            return self.answer(400, {"error": '"%s" does not support thinking' % model})
+        if thinks and body.get("think") is not False:
+            message = {"role": "assistant", "content": "", "thinking": "Okay, the user wants something. Let me think step by step"}
+            return self.answer(200, {"model": model, "message": message, "done": True, "done_reason": "length"})
+        content = '{"result":"ok"}' if "format" in body else "Hello!"
+        return self.answer(200, {"model": model, "message": {"role": "assistant", "content": content}, "done": True, "done_reason": "stop"})
+
+    def answer(self, status, payload):
+        data = json.dumps(payload).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
 
     def do_GET(self):
         requests.append(("GET", self.path))
@@ -129,9 +162,9 @@ def llm_security_checks(base, client, config, stub, chat_stub):
     check(status == 200 and authorizations == ["Bearer sk-typed-probe"], "Typed probe key not used: %s" % authorizations)
     row = {"service": "OLLAMA", "model": "chat-fixture", "hoststub": chat_stub, "api_key": ROW_SECRET, "max_tokens": "256",
            "chat": True, "tldr": False, "logreport": False, "tooling": False}
-    # format_probe 3: a result of the current native probe of an OLLAMA model, so the page probes nothing here
-    capabilities = {f"OLLAMA|{chat_stub}|chat-fixture": {"thinking": "unsupported", "tooling": "supported", "vision": "unsupported",
-                                                          "format": "unsupported", "format_probe": 3}}
+    # format_probe 4 and thinking_probe 2: results of the current native probes of an OLLAMA model, so the page probes nothing here
+    capabilities = {f"OLLAMA|{chat_stub}|chat-fixture": {"thinking": "unsupported", "thinking_probe": 2, "tooling": "supported",
+                                                          "vision": "unsupported", "format": "unsupported", "format_probe": 4}}
     inference = {"service": "OLLAMA", "hoststub": stub, "api_key": ""}
     status, _, _ = call("/LLMSelection_p.html", {"production_models": [row], "inference_system": inference, "model_capabilities": capabilities})
     check(status == 200 and ROW_SECRET in wait_setting("ai.production_models", lambda v: ROW_SECRET in v), "Production row key stored")
@@ -139,7 +172,8 @@ def llm_security_checks(base, client, config, stub, chat_stub):
         return next((v for k, v in caps.items() if k.endswith("|" + model)), None)
 
     stored_caps = json.loads(wait_setting("ai.model_capabilities", lambda v: "format_probe" in v))
-    check((stored_entry(stored_caps, "chat-fixture") or {}).get("format_probe") == 3, "Format probe version not stored: %s" % stored_caps)
+    check((stored_entry(stored_caps, "chat-fixture") or {}).get("format_probe") == 4, "Format probe version not stored: %s" % stored_caps)
+    check((stored_entry(stored_caps, "chat-fixture") or {}).get("thinking_probe") == 2, "Thinking probe version not stored: %s" % stored_caps)
     # a value of the old mood probe (no format_probe) is kept as stored, with the other capabilities, until a new probe
     legacy = {"thinking": "unsupported", "tooling": "supported", "vision": "unsupported", "format": "unsupported"}
     status, _, _ = call("/LLMSelection_p.html", {"model_capabilities": dict(capabilities, **{f"OLLAMA|{chat_stub}|legacy-fixture": legacy})})
@@ -258,7 +292,7 @@ def main():
                 (root / "DATA/DICTIONARIES/harvesting" / friends).write_text('<?xml version="1.0" encoding="UTF-8"?>\n<BaseURLs/>\n')
             inference = {"service": "OLLAMA", "hoststub": stub, "api_key": SECRET}
             capabilities = {f"OLLAMA|{stub}|fixture-model:latest":
-                            dict(dict.fromkeys(["thinking", "tooling", "vision", "format"], "unsupported"), format_probe=3)}
+                            dict(dict.fromkeys(["thinking", "tooling", "vision", "format"], "unsupported"), format_probe=4, thinking_probe=2)}
             config.write_text("\n".join([
                 f"port={port}", "adminAccountForLocalhost=false", "adminAccountAllPages=false",
                 "adminAccountUserName=admin", "adminAccountBase64MD5=MD5:8cffbc0d66567a0987a4aba1ec46d63c",
@@ -326,7 +360,18 @@ def main():
                     subprocess.run(["node", str(REPO / "test/scoutro-ui/llm-selection-ui-test.mjs")], cwd=REPO, env=env, check=True, timeout=180)
                     check(before == {k: v for k, v in settings(config).items() if k.startswith("ai.")}, "Browser test unexpectedly changed inference/production configuration")
                     check(hashlib.sha256(state.read_bytes()).hexdigest() == sentinel, "Discovery state changed")
-                    check(all(method == "GET" and path.endswith(("/api/tags", "/v1/models")) for method, path in requests), "Unexpected inference, pull or delete request")
+                    # only the explicit native probes of the probe fixtures, never a request for the configured model
+                    check(all(r[0] == "GET" and r[1].endswith(("/api/tags", "/v1/models"))
+                              or r[0] == "POST" and r[1] in ("/api/show", "/api/chat") and r[2].get("model") in PROBE_MODELS for r in requests),
+                          "Unexpected inference, pull or delete request: %s" % [r[:2] for r in requests if r[0] != "GET"])
+                    probes = [r for r in requests if r[0] == "POST"]
+                    check(any(r[1] == "/api/show" for r in probes) and any(r[1] == "/api/chat" for r in probes), "Native probes not run: %s" % probes)
+                    check(all(r[2].get("think") is not True or r[2].get("model") == "listless-fixture:7b" for r in probes if r[1] == "/api/chat"),
+                          "think: true outside the chat fallback of the thinking probe")
+                    formats = [r[2] for r in probes if r[1] == "/api/chat" and "format" in r[2]]
+                    check(any(f["model"] == "thinking-fixture:14b" and f.get("think") is False for f in formats)
+                          and any(f["model"] == "plain-fixture:8b" and "think" not in f for f in formats)
+                          and all("response_format" not in f for f in formats), "Native format probes: think false / no think: %s" % formats)
                     llm_security_checks(base, client, config, stub, chat_stub)
                     status, body = get("/scoutro/api/v1/crawls")
                     check(status == 200 and json.loads(body)["crawls"] == [], "Smoke started a crawl")

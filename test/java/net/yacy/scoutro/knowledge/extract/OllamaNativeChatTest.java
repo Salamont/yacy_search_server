@@ -42,6 +42,8 @@ public class OllamaNativeChatTest {
     /** ok, reject (400 for any format), always400, error503, slow, huge, length */
     private final AtomicReference<String> endpoint = new AtomicReference<>("ok");
     private final AtomicReference<String> content = new AtomicReference<>("{\"entities\":[],\"claims\":[],\"values\":[]}");
+    /** a Qwen-like model: without think: false it thinks by default and spends the whole budget on it (empty content) */
+    private final java.util.concurrent.atomic.AtomicBoolean thinksByDefault = new java.util.concurrent.atomic.AtomicBoolean(false);
 
     @Before
     public void start() throws IOException {
@@ -71,10 +73,12 @@ public class OllamaNativeChatTest {
         }
         final int status = "always400".equals(e) || "reject".equals(e) && (body.has("format") || body.has("response_format")) ? 400
                 : "error503".equals(e) ? 503 : 200;
-        final String text = "huge".equals(e) ? "x".repeat(YacyLlmClient.MAX_RESPONSE_CHARS + 10) : this.content.get();
+        final boolean thinks = nativeApi && this.thinksByDefault.get() && !(body.has("think") && !body.optBoolean("think", true));
+        final String text = thinks ? "" : "huge".equals(e) ? "x".repeat(YacyLlmClient.MAX_RESPONSE_CHARS + 10) : this.content.get();
         final String json = nativeApi
                 ? "{\"model\":\"llama3.1:8b\",\"created_at\":\"2026-10-08T00:00:00Z\",\"message\":{\"role\":\"assistant\",\"content\":"
-                        + JSONObject.quote(text) + "},\"done\":true,\"done_reason\":\"" + ("length".equals(e) ? "length" : "stop") + "\"}"
+                        + JSONObject.quote(text) + (thinks ? ",\"thinking\":\"Okay, the user wants entities. Let me think about the page...\"" : "")
+                        + "},\"done\":true,\"done_reason\":\"" + ("length".equals(e) || thinks ? "length" : "stop") + "\"}"
                 : "{\"choices\":[{\"message\":{\"content\":" + JSONObject.quote(text) + "},\"finish_reason\":\"stop\"}]}";
         final byte[] out = status != 200 ? new byte[0] : json.getBytes(StandardCharsets.UTF_8);
         try {
@@ -144,7 +148,7 @@ public class OllamaNativeChatTest {
                 "enable_thinking")) {
             assertFalse("no OpenAI field at the top: " + openAiOnly, b.has(openAiOnly));
         }
-        assertFalse("think only for a thinking model", b.has("think"));
+        assertFalse("think: false while the thinking capability is unknown", b.getBoolean("think"));
         final JSONObject o = b.getJSONObject("options");
         assertEquals(0.1, o.getDouble("temperature"), 0.0);
         assertEquals("max_tokens of the row", 512, o.getInt("num_predict"));
@@ -305,6 +309,7 @@ public class OllamaNativeChatTest {
         this.endpoint.set("ok");
         this.requests.clear();
         final LLM.LLMModel thinking = model(LLM.LLMType.OLLAMA, "supported", true);
+        thinking.thinkingCapability = "supported";
         new YacyLlmClient(() -> thinking).complete("sys", "user", LlmExtractor.SCHEMA, 5000L, "auto");
         assertFalse("think: false for a thinking model", body(0).getBoolean("think"));
     }
@@ -316,7 +321,8 @@ public class OllamaNativeChatTest {
         for (final LLM.LLMType type : List.of(LLM.LLMType.OPENAI, LLM.LLMType.OPENROUTER, LLM.LLMType.LMSTUDIO, LLM.LLMType.OTHER)) {
             for (final String setting : List.of("auto", "json_object", "none")) {
                 this.requests.clear();
-                final LLM.LLMModel m = model(type, "supported", false);
+                final LLM.LLMModel m = model(type, "supported", true);
+                m.thinkingCapability = "supported"; // H) no effect on the OpenAI-compatible request
                 new YacyLlmClient(() -> m).complete(LlmExtractor.SYSTEM_PROMPT, "user text", LlmExtractor.SCHEMA, 5000L, setting);
                 assertEquals(type + "/" + setting, 1, this.requests.size());
                 assertEquals(type + "/" + setting, "/v1/chat/completions", path(0));
@@ -330,6 +336,7 @@ public class OllamaNativeChatTest {
                 assertEquals(type + "/" + setting + ": the same request", body(1).toString(), viaClient.toString());
                 assertFalse(viaClient.has("format"));
                 assertFalse(viaClient.has("options"));
+                assertFalse(viaClient.has("think"));
                 assertEquals("openai_compatible", new YacyLlmClient(() -> m).structuredOutput(setting).getString("api"));
             }
         }
@@ -347,20 +354,141 @@ public class OllamaNativeChatTest {
         }
     }
 
-    // the format capability of an Ollama model counts only from the native probe (version 3)
+    // the format capability of an Ollama model counts only from the native probe (version 4)
 
     @Test
     public void anOllamaCapabilityNeedsTheNativeProbe() throws Exception {
         final JSONObject v2 = new JSONObject().put("format", "ignored").put("format_probe", 2).put("tooling", "supported");
-        final JSONObject v3 = new JSONObject().put("format", "supported").put("format_probe", 3);
+        final JSONObject v3 = new JSONObject().put("format", "ignored").put("format_probe", 3);
+        final JSONObject v4 = new JSONObject().put("format", "supported").put("format_probe", 4);
         assertEquals("measured on /v1: unknown for Ollama", "unknown", LLM.formatCapability(v2, LLM.LLMType.OLLAMA));
-        assertEquals("supported", LLM.formatCapability(v3, LLM.LLMType.OLLAMA));
+        assertEquals("measured maybe without think false: unknown for Ollama", "unknown", LLM.formatCapability(v3, LLM.LLMType.OLLAMA));
+        assertEquals("supported", LLM.formatCapability(v4, LLM.LLMType.OLLAMA));
         assertEquals("ignored", LLM.formatCapability(v2, LLM.LLMType.OPENAI));
-        assertEquals("unknown", LLM.formatCapability(v3, LLM.LLMType.OPENAI));
+        assertEquals("unknown", LLM.formatCapability(v4, LLM.LLMType.OPENAI));
         assertEquals("unchanged for every other service", "ignored", LLM.formatCapability(v2, "LMSTUDIO"));
-        assertEquals(3, LLM.formatProbeVersion("OLLAMA"));
+        assertEquals(4, LLM.formatProbeVersion("OLLAMA"));
         assertEquals(2, LLM.formatProbeVersion("OPENROUTER"));
         assertEquals(2, LLM.formatProbeVersion(null));
         assertEquals("the legacy reading without a service is version 2", "ignored", LLM.formatCapability(v2));
+    }
+
+    // the native thinking capability (thinking_probe 2): think: false unless the model is known not to think
+
+    private LLM.LLMModel ollamaModel(final String name, final String thinkingCapability) {
+        final LLM.LLMModel m = new LLM.LLMModel(new LLM(stub(), "", 512, LLM.LLMType.OLLAMA), name, false, false);
+        m.formatCapability = "supported";
+        m.thinkingCapability = thinkingCapability;
+        return m;
+    }
+
+    private static final String ACCEPTED = "{\"entities\":[{\"id\":\"e1\",\"type\":\"facility\",\"name\":\"Haus Lindenhof\","
+            + "\"quote\":\"betreibt das Haus Lindenhof in Berlin\"}],\"claims\":[],\"values\":[]}";
+
+    // E) a thinking-capable OLLAMA model gets think: false on the knowledge request
+
+    @Test
+    public void aThinkingModelIsAskedWithoutThinking() throws Exception {
+        final LLM.LLMModel m = ollamaModel("any-model:14b", "supported");
+        final YacyLlmClient c = new YacyLlmClient(() -> m);
+        ask(c, "auto");
+        assertEquals("/api/chat", path(0));
+        assertFalse(body(0).getBoolean("think"));
+        assertTrue("with the schema", body(0).has("format"));
+        final JSONObject so = c.structuredOutput("auto");
+        assertEquals("supported", so.getString("thinking"));
+        assertFalse(so.getBoolean("think"));
+        assertTrue("the chat flag is not touched", !m.thinking);
+    }
+
+    // F) an OLLAMA model known not to think: the request without think, otherwise the same
+
+    @Test
+    public void aModelKnownNotToThinkKeepsItsRequest() throws Exception {
+        ask(new YacyLlmClient(() -> ollamaModel("any-model:8b", "unsupported")), "auto");
+        ask(new YacyLlmClient(() -> ollamaModel("any-model:8b", "unknown")), "auto");
+        final JSONObject without = body(0), withThink = body(1);
+        assertFalse("no think field for a model known not to think", without.has("think"));
+        assertFalse(withThink.getBoolean("think"));
+        withThink.remove("think");
+        assertEquals("otherwise the same request", withThink.toString(), without.toString());
+        final JSONObject so = new YacyLlmClient(() -> ollamaModel("any-model:8b", "unsupported")).structuredOutput("auto");
+        assertEquals("unsupported", so.getString("thinking"));
+        assertTrue("no think sent", so.isNull("think"));
+        final LLM.LLMModel openai = ollamaModel("gpt", "supported");
+        openai.llm = new LLM(stub(), "", 512, LLM.LLMType.OPENAI);
+        final JSONObject other = new YacyLlmClient(() -> openai).structuredOutput("auto");
+        assertTrue("not on the OpenAI-compatible path", other.isNull("thinking") && other.isNull("think"));
+    }
+
+    // D) a Qwen-like model: thinking by default spends the budget (empty content); think: false gives the schema answer
+
+    @Test
+    public void aQwenLikeModelAnswersOnlyWithoutThinking() throws Exception {
+        this.thinksByDefault.set(true);
+        this.content.set(ACCEPTED);
+        // the former state: taken as non-thinking (the /v1 test missed it) -> no think -> empty content, nothing extracted
+        final String wrong = ask(new YacyLlmClient(() -> ollamaModel("qwen3:14b", "unsupported")), "auto");
+        assertEquals("", wrong);
+        assertFalse(body(0).has("think"));
+        // C) that legacy value is unknown for the native path -> think: false right away, before any new probe
+        final JSONObject legacy = new JSONObject().put("thinking", "unsupported").put("tooling", "supported").put("format", "ignored");
+        assertEquals("unknown", LLM.thinkingCapability(legacy, LLM.LLMType.OLLAMA));
+        final LLM.LLMModel afterUpgrade = ollamaModel("qwen3:14b", LLM.thinkingCapability(legacy, LLM.LLMType.OLLAMA));
+        assertEquals(ACCEPTED, ask(new YacyLlmClient(() -> afterUpgrade), "auto"));
+        assertFalse(body(1).getBoolean("think"));
+        // after the native probe: supported -> think: false; the answer meets the unchanged validator
+        final JSONObject probed = new JSONObject().put("thinking", "supported").put("thinking_probe", LLM.THINKING_PROBE_VERSION_OLLAMA);
+        final LLM.LLMModel afterProbe = ollamaModel("qwen3:14b", LLM.thinkingCapability(probed, LLM.LLMType.OLLAMA));
+        final String answer = ask(new YacyLlmClient(() -> afterProbe), "auto");
+        assertFalse(body(2).getBoolean("think"));
+        assertEquals("the extraction schema as format", LlmExtractor.SCHEMA.toString(), body(2).getJSONObject("format").toString());
+        final LlmExtractor.Result result = LlmExtractor.validate(answer, LlmExtractorTest.chunk(), LlmExtractorTest.known(), Set.of());
+        assertNull(result.refused);
+        assertEquals(1, result.entities);
+        assertEquals(0, result.droppedInvalid);
+        assertEquals(0L, onV1());
+    }
+
+    // C) the stored thinking value of an OLLAMA model counts only with the native probe version; others unchanged
+
+    @Test
+    public void aLegacyThinkingValueIsUnknownForOllamaOnly() throws Exception {
+        assertEquals(2, LLM.THINKING_PROBE_VERSION_OLLAMA);
+        final JSONObject legacyNo = new JSONObject().put("thinking", "unsupported");
+        final JSONObject legacyYes = new JSONObject().put("thinking", "supported");
+        final JSONObject nativeNo = new JSONObject().put("thinking", "unsupported").put("thinking_probe", 2);
+        final JSONObject nativeYes = new JSONObject().put("thinking", "supported").put("thinking_probe", "2");
+        assertEquals("unknown", LLM.thinkingCapability(legacyNo, LLM.LLMType.OLLAMA));
+        assertEquals("unknown", LLM.thinkingCapability(legacyYes, LLM.LLMType.OLLAMA));
+        assertEquals("unsupported", LLM.thinkingCapability(nativeNo, LLM.LLMType.OLLAMA));
+        assertEquals("supported", LLM.thinkingCapability(nativeYes, "OLLAMA"));
+        assertEquals("unknown", LLM.thinkingCapability(new JSONObject().put("thinking", "supported").put("thinking_probe", 1), LLM.LLMType.OLLAMA));
+        assertEquals("unknown", LLM.thinkingCapability(null, LLM.LLMType.OLLAMA));
+        for (final LLM.LLMType t : List.of(LLM.LLMType.OPENAI, LLM.LLMType.OPENROUTER, LLM.LLMType.LMSTUDIO, LLM.LLMType.OTHER)) {
+            assertEquals(t + ": as stored", "unsupported", LLM.thinkingCapability(legacyNo, t));
+            assertEquals(t + ": as stored", "supported", LLM.thinkingCapability(legacyYes, t));
+        }
+        // the decision of a native request
+        assertTrue(ollamaModel("m", "supported").nativeNoThinking());
+        assertTrue(ollamaModel("m", "unknown").nativeNoThinking());
+        assertFalse(ollamaModel("m", "unsupported").nativeNoThinking());
+    }
+
+    // I) no model names: the request depends on the capability only
+
+    @Test
+    public void theModelNameDoesNotDecide() throws Exception {
+        ask(new YacyLlmClient(() -> ollamaModel("qwen3:14b", "unsupported")), "auto");
+        ask(new YacyLlmClient(() -> ollamaModel("llama3.1:8b", "supported")), "auto");
+        assertFalse("a Qwen name known not to think: no think", body(0).has("think"));
+        assertFalse("any name known to think: think false", body(1).getBoolean("think"));
+        for (final String file : List.of("source/net/yacy/ai/LLM.java", "source/net/yacy/scoutro/knowledge/extract/YacyLlmClient.java",
+                "htroot/env/scoutro/thinking-probe.js", "htroot/env/scoutro/format-probe.js")) {
+            final String code = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(file)), StandardCharsets.UTF_8)
+                    .replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("//[^\n]*", "")
+                    .replaceAll("(?s)public static void main\\(.*", ""); // LLM.main: a manual demo of the model list, not a decision
+            assertFalse(file + " decides by a model name", java.util.regex.Pattern.compile("(?i)[\"'](qwen|deepseek)|startsWith\\(\"(qwen|deepseek|llama)").matcher(code).find());
+        }
     }
 }

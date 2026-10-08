@@ -58,6 +58,9 @@ try {
         const formatReading = await page.evaluate(stub => {
           const fixture = getPersistedCapabilitiesForModel('OLLAMA', stub, 'fixture-model:latest');
           persistedModelCapabilities['OLLAMA|' + stub + '|legacy'] = { thinking: 'supported', tooling: 'unsupported', vision: 'unsupported', format: 'unsupported' };
+          persistedModelCapabilities['OPENAI|' + stub + '|legacy'] = { thinking: 'supported', format: 'unsupported' };
+          const openaiLegacyThinking = getPersistedCapabilitiesForModel('OPENAI', stub, 'legacy').thinking;
+          delete persistedModelCapabilities['OPENAI|' + stub + '|legacy'];
           const legacy = getPersistedCapabilitiesForModel('OLLAMA', stub, 'legacy');
           persistedModelCapabilities['OLLAMA|' + stub + '|v2'] = { format: 'ignored', format_probe: 2 };
           persistedModelCapabilities['OPENAI|' + stub + '|v2'] = { format: 'ignored', format_probe: 2 };
@@ -72,15 +75,48 @@ try {
           delete persistedModelCapabilities['OLLAMA|' + stub + '|v2'];
           delete persistedModelCapabilities['OPENAI|' + stub + '|v2'];
           return { version: typeof ScoutroFormatProbe === 'object' ? ScoutroFormatProbe.VERSION : null, ollamaVersion: ScoutroFormatProbe.VERSION_OLLAMA,
-            paths: [ScoutroFormatProbe.path('OLLAMA'), ScoutroFormatProbe.path('OPENAI')], fixture, legacy, ollamaV2, openaiV2, probed, entry, openaiEntry };
+            paths: [ScoutroFormatProbe.path('OLLAMA'), ScoutroFormatProbe.path('OPENAI')], fixture, legacy, ollamaV2, openaiV2, probed, entry, openaiEntry,
+            openaiLegacyThinking, thinkingVersion: ScoutroThinkingProbe.VERSION_OLLAMA };
         }, stub);
-        check(formatReading.version === 2 && formatReading.ollamaVersion === 3 && formatReading.fixture.format === 'unsupported'
+        check(formatReading.version === 2 && formatReading.ollamaVersion === 4 && formatReading.fixture.format === 'unsupported'
           && JSON.stringify(formatReading.paths) === JSON.stringify(['/api/chat', '/v1/chat/completions']), `${language}/${width}: current format result read: ${JSON.stringify(formatReading)}`);
-        check(formatReading.legacy.format === 'unknown' && formatReading.legacy.thinking === 'supported' && formatReading.legacy.tooling === 'unsupported',
-          `${language}/${width}: a mood-probe value is unknown, the other capabilities unchanged: ${JSON.stringify(formatReading.legacy)}`);
+        check(formatReading.legacy.format === 'unknown' && formatReading.legacy.thinking === 'unknown' && formatReading.legacy.tooling === 'unsupported'
+          && formatReading.fixture.thinking === 'unsupported' && formatReading.openaiLegacyThinking === 'supported' && formatReading.thinkingVersion === 2,
+          `${language}/${width}: old format and (OLLAMA only) thinking values are unknown, the others unchanged: ${JSON.stringify(formatReading)}`);
         check(formatReading.ollamaV2 === 'unknown' && formatReading.openaiV2 === 'ignored', `${language}/${width}: a /v1 result counts for OpenAI, not for Ollama`);
-        check(formatReading.probed.format === 'ignored' && formatReading.entry.format_probe === 3 && formatReading.entry.thinking === 'supported'
+        check(formatReading.probed.format === 'ignored' && formatReading.entry.format_probe === 4 && formatReading.entry.thinking === 'supported'
           && formatReading.openaiEntry.format_probe === 2, `${language}/${width}: a new result is stored with its service's probe version: ${JSON.stringify(formatReading.entry)}`);
+        if (language === 'en' && width === 1280) {
+          // the native thinking probe of an OLLAMA model against the fake's Ollama rules (no model name decides), then the native
+          // format probe with the found capability: a thinking model answers the schema only with think: false
+          const native = await page.evaluate(async stub => {
+            const key = model => 'OLLAMA|' + stub + '|' + model;
+            const out = {};
+            for (const model of ['thinking-fixture:14b', 'plain-fixture:8b', 'listless-fixture:7b']) out[model] = await runNativeThinkingCapabilityTest(stub, model, '');
+            // the production case: a value of the former /v1 test (unsupported, no version) -> unknown -> think: false
+            persistedModelCapabilities[key('thinking-fixture:14b')] = { thinking: 'unsupported', format: 'ignored', format_probe: 3 };
+            out.legacy = getPersistedCapabilitiesForModel('OLLAMA', stub, 'thinking-fixture:14b');
+            out.formatAfterUpgrade = await runFormatCapabilityTest('OLLAMA', stub, 'thinking-fixture:14b', '');
+            setPersistedCapability('OLLAMA', stub, 'thinking-fixture:14b', 'thinking', out['thinking-fixture:14b']);
+            out.stored = { ...persistedModelCapabilities[key('thinking-fixture:14b')] };
+            out.formatAfterProbe = await runFormatCapabilityTest('OLLAMA', stub, 'thinking-fixture:14b', '');
+            // what the former state did: taken as non-thinking -> no think -> the budget goes to thinking -> ignored
+            persistedModelCapabilities[key('thinking-fixture:14b')] = { thinking: 'unsupported', thinking_probe: 2 };
+            out.formatTakenAsNonThinking = await runFormatCapabilityTest('OLLAMA', stub, 'thinking-fixture:14b', '');
+            persistedModelCapabilities[key('plain-fixture:8b')] = { thinking: 'unsupported', thinking_probe: 2 };
+            out.formatPlain = await runFormatCapabilityTest('OLLAMA', stub, 'plain-fixture:8b', '');
+            for (const model of ['thinking-fixture:14b', 'plain-fixture:8b']) delete persistedModelCapabilities[key(model)];
+            return out;
+          }, stub);
+          check(native['thinking-fixture:14b'] === 'supported' && native['plain-fixture:8b'] === 'unsupported', `native thinking probe (/api/show): ${JSON.stringify(native)}`);
+          check(native['listless-fixture:7b'] === 'unsupported', `no capability list: the /api/chat fallback (think refused, control answered): ${JSON.stringify(native)}`);
+          check(native.legacy.thinking === 'unknown' && native.legacy.format === 'unknown', `a /v1 thinking value and a version 3 format value are unknown: ${JSON.stringify(native.legacy)}`);
+          check(native.formatAfterUpgrade === 'supported' && native.formatAfterProbe === 'supported', `format probe with think: false: ${JSON.stringify(native)}`);
+          check(native.stored.thinking === 'supported' && native.stored.thinking_probe === 2, `native thinking result stored with its version: ${JSON.stringify(native.stored)}`);
+          check(native.formatTakenAsNonThinking === 'ignored', `the root cause reproduced: without think: false the thinking model ignores the schema: ${JSON.stringify(native)}`);
+          check(native.formatPlain === 'supported', `a model known not to think: the format probe without think: ${JSON.stringify(native)}`);
+          check(errors.length === 0, `native probes: JavaScript errors: ${errors.join(', ')}`);
+        }
         if (language !== 'de') continue;
         check((await page.locator('h2').textContent()).trim() === 'LLM-Auswahl', `${width}: actual German translation`);
         await page.locator('#availableModelsContainer button[data-action="deploy-model"]').first().click();

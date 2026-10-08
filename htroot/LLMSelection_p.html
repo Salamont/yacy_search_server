@@ -9,6 +9,7 @@
     #%env/templates/header.template%#
     #%env/templates/submenuAI.template%#
     <script src="env/scoutro/format-probe.js"></script>
+    <script src="env/scoutro/thinking-probe.js"></script>
     <script>
       let availableModels = [];
 
@@ -207,7 +208,8 @@
           return { thinking: "unknown", tooling: "unknown", vision: "unknown", format: "unknown" };
         }
         return {
-          thinking: normalizeCapabilityStatus(entry.thinking),
+          // an OLLAMA model: only a result of the native thinking probe counts (a /v1 value is unknown and probed again)
+          thinking: ScoutroThinkingProbe.native(service) ? ScoutroThinkingProbe.stored(entry, service) : normalizeCapabilityStatus(entry.thinking),
           tooling: normalizeCapabilityStatus(entry.tooling),
           vision: normalizeCapabilityStatus(entry.vision),
           // only a result of the current technical probe counts; an older (mood probe) value is unknown and probed again
@@ -220,6 +222,7 @@
         if (!entry || !capabilityName) return;
         entry[capabilityName] = normalizeCapabilityStatus(status);
         if (capabilityName === "format") entry.format_probe = ScoutroFormatProbe.version(service);
+        if (capabilityName === "thinking" && ScoutroThinkingProbe.native(service)) entry.thinking_probe = ScoutroThinkingProbe.version(service);
       }
 
       function capabilityStatusLabel(status) {
@@ -1481,15 +1484,24 @@
         row.dataset.thinkingTestInFlight = "true";
         const activityId = addTestActivity(modelName, "thinking");
         updateBeforeUnloadGuard();
-        runThinkingCapabilityTest(service, normalizedHoststub, modelName, apikey)
-          .then(success => {
+        // an OLLAMA model natively (env/scoutro/thinking-probe.js), every other service with the streaming test on /v1
+        const test = ScoutroThinkingProbe.native(service)
+          ? runNativeThinkingCapabilityTest(normalizedHoststub, modelName, apikey)
+          : runThinkingCapabilityTest(service, normalizedHoststub, modelName, apikey).then(success => success ? "supported" : "unsupported");
+        test
+          .then(result => {
+            if (result === "unknown") {
+              // no answer, a server error or an unclear refusal: nothing is stored, the next visit asks again
+              console.warn(`Thinking capability check of model "${modelName}" gave no result.`);
+              return;
+            }
             const rowStillMounted = !!(document && document.body && document.body.contains(row));
-            setPersistedCapability(service, normalizedHoststub, modelName, "thinking", success ? "supported" : "unsupported");
+            setPersistedCapability(service, normalizedHoststub, modelName, "thinking", result);
             if (!rowStillMounted) {
               persistProductionModels();
               return;
             }
-            setThinkingFlagForRow(row, success ? "supported" : "unsupported");
+            setThinkingFlagForRow(row, result);
             persistProductionModels();
             updateAvailableModelCapabilityCells(service, normalizedHoststub, modelName);
             scheduleCapabilityVerificationForRow(row, getPersistedCapabilitiesForModel(service, normalizedHoststub, modelName));
@@ -1510,6 +1522,41 @@
             if (activityId) removeTestActivity(activityId, "thinking");
             updateBeforeUnloadGuard();
           });
+      }
+
+      // The native thinking probe of an OLLAMA model: /api/show's capability list, else a small /api/chat with think: true
+      // (after a 400 the same request without think); supported, unsupported or unknown.
+      async function runNativeThinkingCapabilityTest(hoststub, modelName, apikey) {
+        const endpointBase = hoststub.replace(/\/+$/, "");
+        if (!endpointBase) {
+          return "unknown";
+        }
+        const show = await postNativeThinkingProbe(endpointBase, "/api/show", ScoutroThinkingProbe.showPayload(modelName), apikey);
+        const fromShow = ScoutroThinkingProbe.classifyShow(show.status, show.body);
+        if (fromShow) return fromShow;
+        if (show.status !== 200 && show.status !== 404 && show.status !== 405) return "unknown";
+        const probe = await postNativeThinkingProbe(endpointBase, "/api/chat", ScoutroThinkingProbe.chatPayload(modelName, false), apikey);
+        if (probe.status === 400) {
+          probe.controlStatus = (await postNativeThinkingProbe(endpointBase, "/api/chat", ScoutroThinkingProbe.chatPayload(modelName, true), apikey)).status;
+        }
+        return ScoutroThinkingProbe.classifyChat(probe);
+      }
+
+      async function postNativeThinkingProbe(endpointBase, path, payload, apikey) {
+        const headers = { "Content-Type": "application/json" };
+        if (apikey) {
+          headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
+        }
+        try {
+          const response = await fetch(proxyUrl(endpointBase, path), { method: "POST", headers, body: JSON.stringify(payload) });
+          let body = null;
+          if (response.status === 200) {
+            try { body = await response.json(); } catch (error) { body = null; }
+          }
+          return { status: response.status, body };
+        } catch (error) {
+          return { status: 0, body: null };
+        }
       }
 
       async function runThinkingCapabilityTest(service, hoststub, modelName, apikey) {
@@ -1937,10 +1984,11 @@
         if (apikey) {
           headers["X-LLM-Api-Key"] = apikey; // the browser keeps its own Authorization for the YaCy login
         }
-        // an Ollama model natively on /api/chat (think: false for a thinking model), every other service OpenAI-compatible
+        // an Ollama model natively on /api/chat (think: false unless the native thinking probe found the model does not
+        // think), every other service OpenAI-compatible
         const ollama = ScoutroFormatProbe.path(service) === "/api/chat";
-        const thinking = getPersistedCapabilitiesForModel(service, endpointBase, modelName).thinking === "supported";
-        const payload = ollama ? ScoutroFormatProbe.payload(modelName, control, service, thinking)
+        const noThinking = ScoutroThinkingProbe.noThinking(getPersistedCapabilitiesForModel(service, endpointBase, modelName).thinking);
+        const payload = ollama ? ScoutroFormatProbe.payload(modelName, control, service, noThinking)
           : maybeApplyNoThinkingParameters(service, endpointBase, modelName, ScoutroFormatProbe.payload(modelName, control, service));
         try {
           const response = await fetch(proxyUrl(endpointBase, ScoutroFormatProbe.path(service)), {
