@@ -547,4 +547,140 @@ public class KnowledgeApiTest {
         assertEquals(KgException.DISABLED, sameOrigin.json().getJSONObject("error").optString("code"));
         assertEquals(405, call("GET", "/v1/kg/control", true, null, null, null).status);
     }
+
+    // --------------------------------------------------------- knowledge prompt
+
+    private static final String[] PROMPT = {"", "v1", "kg", "prompt"};
+    static final String CUSTOM = net.yacy.scoutro.knowledge.extract.LlmExtractor.SYSTEM_PROMPT
+            .replace("for a knowledge graph", "for a knowledge graph of care providers");
+
+    private static ApiException refused(final KnowledgeApi api, final String json) throws IOException {
+        try {
+            api.route("POST", PROMPT, body(json));
+        } catch (final ApiException e) {
+            return e;
+        }
+        throw new AssertionError("accepted: " + json);
+    }
+
+    @Test
+    public void theKnowledgePromptLifecycle() throws Exception {
+        final String def = net.yacy.scoutro.knowledge.extract.LlmExtractor.SYSTEM_PROMPT;
+        final String defHash = net.yacy.scoutro.knowledge.extract.LlmExtractor.PROMPT_HASH;
+        KgRuntime r = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> r);
+            // nothing activated: the compiled-in default
+            JSONObject p = api.route("GET", PROMPT, body("{}"));
+            assertEquals(0, p.getInt("activeVersion"));
+            assertEquals(defHash, p.getString("activeHash"));
+            assertEquals("default", p.getString("source"));
+            assertTrue(p.isNull("modifiedAt"));
+            assertFalse(p.getBoolean("differsFromDefault"));
+            assertEquals(def, p.getString("text"));
+            assertEquals(def, p.getJSONObject("default").getString("text"));
+            assertEquals(defHash, p.getJSONObject("default").getString("hash"));
+            assertEquals("manual", p.getString("reexamination"));
+            assertEquals(0, p.getJSONArray("history").length());
+            // validate stores nothing
+            final JSONObject v = api.route("POST", PROMPT, body(new JSONObject().put("action", "validate").put("text", CUSTOM).toString()));
+            assertTrue(v.getBoolean("valid"));
+            assertTrue(v.getBoolean("differsFromActive") && v.getBoolean("differsFromDefault"));
+            assertEquals(net.yacy.scoutro.knowledge.extract.LlmExtractor.promptHash(CUSTOM), v.getString("hash"));
+            final JSONObject bad = api.route("POST", PROMPT, body("{\"action\":\"validate\",\"text\":\"too short\"}"));
+            assertFalse(bad.getBoolean("valid"));
+            assertEquals("prompt_too_short", bad.getString("reason"));
+            assertEquals(0, api.route("GET", PROMPT, body("{}")).getInt("activeVersion"));
+            // activate: revision 1, custom, a new hash, the history without text
+            p = api.route("POST", PROMPT, body(new JSONObject().put("action", "activate").put("text", CUSTOM).put("expectedRevision", 0).toString()));
+            assertTrue(p.getBoolean("changed"));
+            assertEquals(1, p.getInt("activeVersion"));
+            assertEquals("custom", p.getString("source"));
+            assertTrue(p.getBoolean("differsFromDefault"));
+            assertEquals(net.yacy.scoutro.knowledge.extract.LlmExtractor.promptHash(CUSTOM), p.getString("activeHash"));
+            assertTrue(p.getLong("modifiedAt") > 0L);
+            assertEquals(CUSTOM, p.getString("text"));
+            assertEquals(1, p.getJSONArray("history").length());
+            assertFalse(p.getJSONArray("history").toString().contains("You extract"));
+            // the same text again changes nothing; a stale revision is a conflict; an invalid text is refused
+            p = api.route("POST", PROMPT, body(new JSONObject().put("action", "activate").put("text", CUSTOM).toString()));
+            assertFalse(p.getBoolean("changed"));
+            assertEquals(1, p.getInt("activeVersion"));
+            ApiException e = refused(api, new JSONObject().put("action", "activate").put("text", CUSTOM + " More.").put("expectedRevision", 0).toString());
+            assertEquals(409, e.status());
+            assertEquals(KgException.PROMPT_REVISION_CONFLICT, e.code());
+            e = refused(api, new JSONObject().put("action", "activate").put("text", CUSTOM + " api_key=abcdef123456").toString());
+            assertEquals(422, e.status());
+            assertEquals(KgException.PROMPT_INVALID, e.code());
+            assertEquals("prompt_secret_like", e.toJson().getJSONObject("error").getJSONObject("details").getString("reason"));
+            assertEquals("nothing changed", 1, api.route("GET", PROMPT, body("{}")).getInt("activeVersion"));
+            // unknown fields and actions
+            assertEquals(400, refused(api, "{\"action\":\"activate\",\"text\":\"x\",\"source\":\"custom\"}").status());
+            assertEquals(400, refused(api, "{\"action\":\"reset\",\"text\":\"x\"}").status());
+            assertEquals(400, refused(api, "{\"action\":\"validate\",\"text\":\"x\",\"expectedRevision\":1}").status());
+            assertEquals(400, refused(api, "{\"action\":\"delete\"}").status());
+            assertEquals(400, refused(api, "{\"action\":\"activate\"}").status());
+            assertEquals(400, refused(api, "{\"action\":\"activate\",\"text\":42}").status());
+            assertEquals(400, refused(api, "{\"action\":\"reset\",\"expectedRevision\":\"1\"}").status());
+            try {
+                api.route("GET", PROMPT, java.util.Map.of("x", "1"), body("{}"));
+                fail("a parameter");
+            } catch (final ApiException x) {
+                assertEquals(400, x.status());
+            }
+            assertEquals(405, status(api, "DELETE", PROMPT, "{}"));
+        } finally {
+            r.close();
+        }
+        // stored in the graph: a restart keeps the active version
+        final KgRuntime again = running();
+        try {
+            final KnowledgeApi api = new KnowledgeApi(() -> again);
+            JSONObject p = api.route("GET", PROMPT, body("{}"));
+            assertEquals(1, p.getInt("activeVersion"));
+            assertEquals(CUSTOM, p.getString("text"));
+            // reset: the default as a new revision; the history keeps both
+            p = api.route("POST", PROMPT, body("{\"action\":\"reset\",\"expectedRevision\":1}"));
+            assertTrue(p.getBoolean("changed"));
+            assertEquals(2, p.getInt("activeVersion"));
+            assertEquals("default", p.getString("source"));
+            assertEquals(defHash, p.getString("activeHash"));
+            assertFalse(p.getBoolean("differsFromDefault"));
+            assertEquals(2, p.getJSONArray("history").length());
+            assertFalse("a second reset changes nothing", api.route("POST", PROMPT, body("{\"action\":\"reset\"}")).getBoolean("changed"));
+            // an activation is an event, no re-examination
+            final java.util.List<String> events = new java.util.ArrayList<>();
+            final org.json.JSONArray recent = again.status().getJSONArray("events");
+            for (int i = 0; i < recent.length(); i++) {
+                events.add(recent.getJSONObject(i).optString("code"));
+            }
+            assertEquals(2L, events.stream().filter("llm_prompt_activated"::equals).count());
+            assertFalse(events.contains("llm_extractor_changed"));
+        } finally {
+            again.close();
+        }
+        // without a running graph
+        try {
+            new KnowledgeApi(() -> null).route("GET", PROMPT, body("{}"));
+            fail("disabled");
+        } catch (final ApiException x) {
+            assertEquals(409, x.status());
+            assertEquals(KgException.DISABLED, x.code());
+        }
+    }
+
+    @Test
+    public void thePromptRouteIsForTheAdministratorOnly() throws Exception {
+        assertEquals(401, call("GET", "/v1/kg/prompt", false, null, null, null).status);
+        assertEquals(401, call("POST", "/v1/kg/prompt", false, "application/json", null, "{\"action\":\"reset\"}").status);
+        assertEquals(415, call("POST", "/v1/kg/prompt", true, "text/plain", null, "{\"action\":\"reset\"}").status);
+        assertEquals(403, call("POST", "/v1/kg/prompt", true, "application/json", "https://evil.example", "{\"action\":\"reset\"}").status);
+        // a prompt of the maximum length with multi-byte characters fits the body limit of this route
+        final String longText = "Ä".repeat(net.yacy.scoutro.knowledge.extract.KnowledgePrompt.MAX_CHARS);
+        final Exchange big = call("POST", "/v1/kg/prompt", true, "application/json", null,
+                new JSONObject().put("action", "validate").put("text", longText).toString());
+        assertEquals("not 413: the graph is not started here", 409, big.status);
+        assertEquals("the other routes keep their limit", 413, call("POST", "/v1/kg/control", true, "application/json", null,
+                new JSONObject().put("action", "pause").put("x", longText + longText).toString()).status);
+    }
 }

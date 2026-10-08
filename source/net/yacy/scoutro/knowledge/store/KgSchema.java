@@ -427,7 +427,7 @@ public final class KgSchema {
     public static final String META_UPGRADE_HOLD = "upgrade_hold";
     /** The upgrade of the last start (package 6): from-version, backup file or reason, time. */
     public static final String META_UPGRADE = "upgrade";
-    /** The LLM tier's extractor (version and prompt hash) of the last start; a change re-examines every document. */
+    /** The LLM tier's extractor (version and prompt hash) of the last start; a new version re-examines every document, a new prompt hash does not. */
     public static final String META_LLM_EXTRACTOR = "llm_extractor";
     /** End of the last derivation of linked_to, same_operator and the suggested matches. */
     public static final String META_DERIVED_AT = "derived_at";

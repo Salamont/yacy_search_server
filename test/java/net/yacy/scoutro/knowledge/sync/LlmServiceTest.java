@@ -35,8 +35,10 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgPaths;
 import net.yacy.scoutro.knowledge.KgTestSupport;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
+import net.yacy.scoutro.knowledge.extract.KnowledgePrompt;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.LlmExtractor;
+import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
 
 /**
@@ -99,10 +101,14 @@ public class LlmServiceTest {
             return net.yacy.scoutro.knowledge.KgJson.obj("setting", setting, "mode", "fake");
         }
 
+        /** The system prompt of the last call. */
+        volatile String system;
+
         @Override
         public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis)
                 throws IOException {
             this.calls.incrementAndGet();
+            this.system = system;
             final CountDownLatch in = this.entered;
             final CountDownLatch out = this.release;
             if (in != null && out != null) {
@@ -455,6 +461,80 @@ public class LlmServiceTest {
         assertEquals("1:", llmStatus("AAAAAAhost01"));
         assertEquals("c2 is followed, but not by the LLM tier", "3:not_selected", llmStatus("BBBBBBhost02"));
         assertEquals(1, this.model.calls.get());
+    }
+
+    private void putMeta(final String key, final String value) throws KgException {
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 64L * 1024L, tx -> {
+            KgStore.putMeta(tx, key, value);
+            return null;
+        });
+    }
+
+    /**
+     * Knowledge prompt (6.3): another prompt is another extractor identity and cache key, so nothing is answered from
+     * the cache of the former prompt; but it reads no done document again, only new and changed pages are asked with it.
+     */
+    @Test
+    public void aNewPromptIsANewIdentityButReadsNoDocumentAgain() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);
+        settleSync();
+        settleLlm();
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        assertEquals(LlmExtractor.SYSTEM_PROMPT, this.model.system);
+        assertEquals(LlmExtractor.PROMPT_HASH, this.llm.status().getJSONObject("prompt").getString("activeHash"));
+        // an administrator activated another prompt (KgRuntime.promptActivate stores it so), then a restart
+        final String custom = LlmExtractor.SYSTEM_PROMPT.replace("for a knowledge graph", "for a knowledge graph of care providers");
+        final KnowledgePrompt p = KnowledgePrompt.next(custom, 1, this.clock.get());
+        putMeta(KnowledgePrompt.META_ACTIVE, p.toMeta());
+        restart();
+        settleLlm();
+        assertEquals(p.hash, this.llm.prompt().hash);
+        assertEquals("the done document is not read again", 1, this.model.calls.get());
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        assertEquals(0L, this.llm.status().getJSONObject("processed").getLong("cacheHits"));
+        final List<String> events = strings("SELECT code FROM kg_event");
+        assertTrue(events.toString(), events.contains("llm_prompt_changed"));
+        assertFalse(events.toString(), events.contains("llm_extractor_changed"));
+        assertEquals(List.of(LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/" + p.hash),
+                strings("SELECT value FROM kg_meta WHERE key = '" + KgSchema.META_LLM_EXTRACTOR + "'"));
+        final JSONObject ps = this.llm.status().getJSONObject("prompt");
+        assertEquals(1, ps.getInt("activeVersion"));
+        assertEquals("custom", ps.getString("source"));
+        assertTrue(ps.getBoolean("differsFromDefault"));
+        // the same text on another page of the site: asked with the new prompt, not answered from the former prompt's cache
+        add("BBBBBBhost01", "https://www.muster-pflege.de/ueber-uns", "c1", LD, TEXT);
+        settleSync();
+        settleLlm();
+        assertEquals(2, this.model.calls.get());
+        assertEquals(custom, this.model.system);
+        assertEquals("the evidence names the prompt that produced it", List.of(p.hash), strings("SELECT DISTINCT x.prompt_hash FROM kg_evidence e"
+                + " JOIN kg_extractor x ON x.ext_id = e.ext_id JOIN kg_doc d ON d.doc_rowid = e.doc_rowid WHERE e.tier = 3 AND d.doc_id = 'BBBBBBhost01'"));
+        assertEquals(List.of(LlmExtractor.PROMPT_HASH), strings("SELECT DISTINCT x.prompt_hash FROM kg_evidence e"
+                + " JOIN kg_extractor x ON x.ext_id = e.ext_id JOIN kg_doc d ON d.doc_rowid = e.doc_rowid WHERE e.tier = 3 AND d.doc_id = 'AAAAAAhost01'"));
+        assertEquals("both prompts' answers are cached apart", 2L, count("SELECT count(*) FROM kg_extraction"));
+        // back to the default while running (an activation): the next document is asked with it
+        this.llm.usePrompt(KnowledgePrompt.defaults());
+        assertEquals(LlmExtractor.PROMPT_HASH, this.llm.status().getJSONObject("prompt").getString("activeHash"));
+        final LlmExtractor.Chunk chunk = LlmExtractor.chunks(TEXT, 12_000).get(0);
+        assertFalse("the cache key follows the prompt", java.util.Arrays.equals(
+                LlmExtractor.cacheKey(LlmExtractor.PROMPT_HASH, "TEST/fixture", chunk, "Impressum", "muster-pflege.de", "de", List.of(), java.util.Set.of()),
+                LlmExtractor.cacheKey(p.hash, "TEST/fixture", chunk, "Impressum", "muster-pflege.de", "de", List.of(), java.util.Set.of())));
+    }
+
+    @Test
+    public void aNewExtractorVersionStillReadsEveryDocumentAgain() throws Exception {
+        add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);
+        settleSync();
+        settleLlm();
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        // the last start ran another extractor version (e.g. vocabulary 1)
+        putMeta(KgSchema.META_LLM_EXTRACTOR, LlmExtractor.NAME + "/1/" + LlmExtractor.PROMPT_HASH);
+        restart();
+        settleLlm();
+        assertTrue(strings("SELECT code FROM kg_event").contains("llm_extractor_changed"));
+        assertEquals("examined again (answered from the cache: same text, same prompt)", 1L,
+                this.llm.status().getJSONObject("processed").getLong("cacheHits"));
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
     }
 
     @Test

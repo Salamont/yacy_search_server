@@ -74,6 +74,10 @@ public class KgException extends Exception {
     public static final String RESTORE_FAILED = "restore_failed";
     /** No rebuild is waiting for confirmation, or none is running to cancel. */
     public static final String NO_REBUILD = "no_rebuild";
+    /** A knowledge prompt draft that cannot be activated; the reason names the rule (KnowledgePrompt.invalid). */
+    public static final String PROMPT_INVALID = "prompt_invalid";
+    /** The active knowledge prompt is not the revision the caller expected: another change came first. */
+    public static final String PROMPT_REVISION_CONFLICT = "prompt_revision_conflict";
 
     private final String code;
     private final String reason;

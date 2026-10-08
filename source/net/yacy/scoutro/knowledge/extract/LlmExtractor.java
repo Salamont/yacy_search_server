@@ -129,6 +129,10 @@ public final class LlmExtractor {
     private static final Set<String> CLAIM_KEYS = Set.of("subject", "predicate", "object", "hedged", "quote");
     private static final Set<String> VALUE_KEYS = Set.of("subject", "predicate", "quote");
 
+    /**
+     * The default system prompt, compiled in: the fallback while no other version is active
+     * ({@link KnowledgePrompt}). The prompt the tier actually uses is the active one.
+     */
     public static final String SYSTEM_PROMPT = "You extract organisations, facilities, sites and services and the relations between them"
             + " from one web page for a knowledge graph.\n"
             + "Rules:\n"
@@ -168,7 +172,11 @@ public final class LlmExtractor {
 
     /** The answer schema, sent as {@code response_format} where the endpoint supports it. */
     public static final JSONObject SCHEMA;
-    /** Hash of prompt, schema and version: part of the extractor identity, so a changed prompt is a new extractor. */
+    /**
+     * Hash of the default prompt, schema and version ({@link #promptHash(String)} of {@link #SYSTEM_PROMPT}): part of the
+     * extractor identity and the cache key, so a changed prompt is a new extractor and never answered from the cache of
+     * another prompt. The active prompt's hash is {@link KnowledgePrompt#hash}.
+     */
     public static final String PROMPT_HASH;
 
     static {
@@ -210,7 +218,12 @@ public final class LlmExtractor {
         } catch (final JSONException e) {
             throw new ExceptionInInitializerError(e);
         }
-        PROMPT_HASH = sha256Hex(VERSION + "\u0000" + SYSTEM_PROMPT + "\u0000" + SCHEMA.toString()).substring(0, 16);
+        PROMPT_HASH = promptHash(SYSTEM_PROMPT);
+    }
+
+    /** The hash of a system prompt together with the schema and the version: the prompt part of the extractor identity. */
+    public static String promptHash(final String systemPrompt) {
+        return sha256Hex(VERSION + "\u0000" + systemPrompt + "\u0000" + SCHEMA.toString()).substring(0, 16);
     }
 
     /** A part of the page text; {@code offset} is its position in the text given to {@link #chunks}. */
@@ -386,8 +399,14 @@ public final class LlmExtractor {
      */
     public static byte[] cacheKey(final String model, final Chunk chunk, final String title, final String domain,
             final String language, final List<Known> known, final Collection<String> kinds) {
+        return cacheKey(PROMPT_HASH, model, chunk, title, domain, language, known, kinds);
+    }
+
+    /** {@link #cacheKey} for the prompt with the hash {@code promptHash} (the active one, {@link KnowledgePrompt#hash}). */
+    public static byte[] cacheKey(final String promptHash, final String model, final Chunk chunk, final String title, final String domain,
+            final String language, final List<Known> known, final Collection<String> kinds) {
         final StringBuilder sb = new StringBuilder();
-        sb.append(NAME).append('\u0000').append(VERSION).append('\u0000').append(PROMPT_HASH).append('\u0000').append(model)
+        sb.append(NAME).append('\u0000').append(VERSION).append('\u0000').append(promptHash).append('\u0000').append(model)
                 .append('\u0000').append(domain).append('\u0000').append(language).append('\u0000')
                 .append(title == null ? "" : Normalizers.clip(title, MAX_STRING)).append('\u0000');
         for (final Known k : known) {

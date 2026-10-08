@@ -667,10 +667,19 @@ Writing back would run into all four problems in 1.2: no optimistic concurrency 
 
 The list is `LlmExtractor.INVALID_REASONS`; a new rule gets a new code. Within one item the order is the one above (structure, then fields, then references and types), for example an entity with an extra field and an unknown type counts as `entity_extra_field`, a claim that refers to itself with an unknown predicate as `claim_self_reference`, a claim with a string `hedged` and an unresolved subject as `claim_invalid_hedged`.
 
+**Knowledge prompt** (the system prompt of the LLM tier; `GET` / `POST /scoutro/api/v1/kg/prompt`, administrator only):
+
+- **Default and active version.** The compiled-in `LlmExtractor.SYSTEM_PROMPT` is the default and the fallback. An administrator can activate another text without a new image; Scoutro stays the source of truth and runs it (`KnowledgePrompt`). The schema stays compiled in: the validator depends on it.
+- **Storage.** In the graph's `kg_meta`, not in a file: `llm_prompt_active` (revision, source `default` or `custom`, time, and the text of a custom version only; a `default` version is always the compiled-in text of the running release) and `llm_prompt_history` (the last 50 activations: revision, hash, source, time; no texts). Both are in every backup, come back with a restore and are kept by a rebuild. An unreadable or invalid stored version runs the default.
+- **Identity.** The prompt hash is `sha256(VERSION + active text + SCHEMA)` (16 hex digits; the default's is `PROMPT_HASH`). It is part of the extractor identity (`kg_extractor.prompt_hash`, so evidence names the prompt that produced it) and of the cache key: another prompt is never answered from the cache of this one. One document is asked with one version throughout.
+- **No automatic re-extraction.** A new prompt, activated or a new compiled-in default, applies to new and changed pages from the next LLM call on (an activation needs no restart). Done documents are not read again, no cache entry and no evidence is deleted; the start records `llm_prompt_changed`, an activation `llm_prompt_activated`. Only a new extractor `VERSION` reads every document again (`llm_extractor_changed`). Reading the done documents with a new prompt will be a separate administrator action.
+- **API.** `GET` returns `activeVersion`, `activeHash`, `source`, `modifiedAt`, `differsFromDefault`, the active `text`, the `default` (hash, text), the `limits`, the `history` and `reexamination: "manual"`. `POST {"action":"validate","text":…}` checks a draft and stores nothing (`valid`, `reason`, `hash`, `differsFromActive`, `differsFromDefault`); `{"action":"activate","text":…,"expectedRevision":n}` makes it active (a new revision; the same text again changes nothing, `changed: false`); `{"action":"reset","expectedRevision":n}` makes the compiled-in default active again. 422 `prompt_invalid` (`details.reason`), 409 `prompt_revision_conflict` (`details.activeVersion`) for a stale `expectedRevision`, 409 `kg_disabled`. The body may be 64 KiB. Agents never get the route (also not with `kg.read`); there is no public or guest access and no CLI command. `llm.prompt` in `GET /kg/status` shows the metadata (no text).
+- **A draft** has 200 to 8000 characters, only printable text with tab and line breaks, and nothing that looks like a key, token or password (`sk-…`, `Bearer …`, `password=…`, private keys, cloud and chat tokens): `prompt_missing`, `prompt_too_short`, `prompt_too_long`, `prompt_control_characters`, `prompt_secret_like`.
+
 ### 6.4 Cache
 
 - **Key:** SHA-256 over:
-  - the extractor ID (name, version, model, prompt hash);
+  - the extractor ID (name, version, model, prompt hash of the active knowledge prompt, see below);
   - the input: the chunk text, the title, the known entities of tiers 1 and 2 and the facility kinds offered (exactly what the prompt contains);
   - the context: registrable domain and language.
 
@@ -1934,7 +1943,7 @@ Deletions, reconcile, retention, integrity and state checks continue. The status
   - `kg_derived` (derived rows, visible only with both collections);
   - change kind 3.
 
-  The change feed keeps its sequence. The LLM mark is the content hash, so a new vocabulary keeps the LLM evidence; a new prompt re-examines a page and keeps the old evidence until it is replaced.
+  The change feed keeps its sequence. The LLM mark is the content hash, so a new vocabulary keeps the LLM evidence; the new extractor version (vocabulary 2, with its prompt) re-examines a page and keeps the old evidence until it is replaced.
 - **New identity schemes:**
   - `domain_operator`: the unnamed operator of a services, prices or careers page. It is the declared operator if the domain has exactly one; otherwise a placeholder the operator takes in later.
   - `job_posting`, `service_name`, `place_name`.

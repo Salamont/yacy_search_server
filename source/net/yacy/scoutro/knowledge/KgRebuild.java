@@ -276,7 +276,9 @@ final class KgRebuild {
             final int copied = copyCache();
             this.cacheCopied = copied;
             final Map<String, String> carry = new HashMap<>();
-            for (final String key : new String[] {KgSchema.META_MANUAL_PAUSE, KgSchema.META_LAST_BACKUP_AT}) {
+            // the active knowledge prompt and its history belong to the graph: a rebuild keeps them
+            for (final String key : new String[] {KgSchema.META_MANUAL_PAUSE, KgSchema.META_LAST_BACKUP_AT,
+                net.yacy.scoutro.knowledge.extract.KnowledgePrompt.META_ACTIVE, net.yacy.scoutro.knowledge.extract.KnowledgePrompt.META_HISTORY}) {
                 final String v = this.main.read(c -> KgStore.getMeta(c, key));
                 if (v != null) {
                     carry.put(key, v);
