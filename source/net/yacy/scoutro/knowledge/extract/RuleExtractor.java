@@ -17,6 +17,7 @@
 package net.yacy.scoutro.knowledge.extract;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -34,6 +35,20 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * "Imprint"/"Legal notice") the first organisation name with a legal form
  * after the marker is the declared operator of the site; the register entry,
  * VAT ID, postal address, phone and e-mail of the imprint belong to it.</li>
+ * <li>Version 4: only the operator's sections of the imprint count. A section
+ * about another party (its liability insurer, its chamber or supervisory
+ * authority, the dispute resolution, the makers of the site) is opened by its
+ * label and ends at the next label of the operator's data
+ * ({@link #operatorRanges}); neither the operator's name nor its contact
+ * values are taken from it. The label decides, never the name: an insurer or
+ * a chamber that operates the site is found like any other operator.</li>
+ * <li>Version 4: an imprint without a legal form names the operator only as a
+ * name of its own line right above the operator's postal address, and only
+ * if the site's domain ("livaid.com" for "LIVAID") or the page's single
+ * structured organisation confirms it; a name that may be a person's (two or
+ * more capitalised words) needs the structured organisation. That name goes
+ * to the site's unnamed operator ({@code domain_operator}), not to a declared
+ * operator: it has no legal name to be keyed by. Otherwise nothing is named.</li>
  * <li>On other candidate pages (contact, about, locations, services, home)
  * contact values are attached only if the page's structured data describes
  * exactly one organisation or facility; otherwise nothing is guessed.</li>
@@ -50,7 +65,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class RuleExtractor {
 
     public static final String NAME = "rule";
-    public static final String VERSION = "3";
+    public static final String VERSION = "4";
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;
@@ -73,6 +88,34 @@ public final class RuleExtractor {
             "die", "der", "durch", "vertreten", "betreiber", "anbieter", "inhaber", "herausgeber", "betrieben", "von", "ist", "sind",
             "wird", "werden", "the", "by", "operated", "dieser", "diese", "website", "webseite", "seite", "internetseite"));
 
+    /**
+     * Labels of a section about another party than the operator: its liability insurer, its chamber or supervisory
+     * authority, the dispute resolution, the makers of the site. Labels only, never names: "Architektenkammer Berlin" or
+     * "Muster Versicherung AG" as the operator open no such section.
+     */
+    private static final Pattern THIRD_PARTY_SECTION = Pattern.compile("(?iu)(?<![\\p{L}])(?:"
+            + "(?:berufs|betriebs|verm(?:ö|oe)gensschaden)[\\s-]?haftpflicht\\p{L}*|haftpflichtversicherung\\p{L}*"
+            + "|versicherer\\s*:|versicherung\\s*:|(?:name|sitz|anschrift)(?:\\s+und\\s+(?:sitz|anschrift))?\\s+des\\s+versicherers"
+            + "|zust(?:ä|ae)ndige[rns]?\\s+(?:kammer|berufskammer|aufsichtsbeh(?:ö|oe)rde|beh(?:ö|oe)rde)|aufsichtsbeh(?:ö|oe)rde\\p{L}*"
+            + "|berufskammer|kammer(?:zugeh(?:ö|oe)rigkeit)?\\s*:|mitglied(?:schaft)?\\s+(?:der|des|in\\s+der|im)\\s+[\\p{L}-]*(?:kammer|verband|verbandes)(?![\\p{L}])"
+            + "|(?:eu-?|online-?)?streitschlichtung|(?:verbraucher)?streitbeilegung|schlichtungsstelle"
+            + "|web-?design|bildnachweis\\p{L}*|bildquellen?|bildrechte\\p{L}*|bildmaterial\\s*:|fotonachweis|fotos?\\s*:|fotografie\\s*:|hosting\\s*:|realisierung\\s*:"
+            + "|(?:technische\\s+)?umsetzung\\s*:|gestaltung\\s*:|design\\s*:)");
+    /** Labels of the operator's own data: they end a section about another party. */
+    private static final Pattern OPERATOR_SECTION = Pattern.compile("(?iu)(?<![\\p{L}])(?:"
+            + "\\bimpressum\\b|\\bimprint\\b|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5|anbieterkennzeichnung|diensteanbieter"
+            + "|(?:website-?|seiten)?betreiber(?:in)?\\s*:|anbieter(?:in)?\\s*:|herausgeber(?:in)?\\s*:|inhaber(?:in)?\\s*:"
+            + "|vertreten\\s+durch|vertretungsberechtigt|gesch(?:ä|ae)ftsf(?:ü|ue)hr\\p{L}*|registergericht|registereintrag|handelsregister"
+            + "|registernummer|umsatzsteuer\\p{L}*|ust\\.?\\s?-?\\s?id\\p{L}*|kontakt\\s*:|verantwortlich\\p{L}*)");
+    /** What makes a label of the operator's data one of the other party's ("USt-IdNr. des Versicherers"). */
+    private static final Pattern OTHER_PARTY_QUALIFIER = Pattern.compile("(?iu)[^\\n:]{0,12}?\\b(?:des|der|dieser|dieses)\\s+"
+            + "(?:versicher|kammer|berufskammer|aufsichtsbeh|beh(?:ö|oe)rde|schlichtungsstelle|agentur)");
+    /** A label at the start of an operator's name line ("Betreiber: LIVAID"); a holder ("Inhaber:") is a person's. */
+    private static final Pattern NAME_LABEL = Pattern.compile("(?iu)^(?:(?:website-?|seiten)?betreiber(?:in)?|anbieter(?:in)?|diensteanbieter(?:in)?"
+            + "|herausgeber(?:in)?)\\s*:\\s*");
+    /** A capitalised word as names of persons have them ("Erika", "Musterfrau"), or a particle of such a name. */
+    private static final Pattern PERSON_WORD = Pattern.compile("\\p{Lu}\\p{Ll}[\\p{L}'\\-]*|von|van|de|der|den|zu|vom|zur");
+
     private static final Pattern REGISTER_A = Pattern.compile(
             "(?:Amtsgericht|Registergericht|AG)\\s+([A-ZÄÖÜ][\\p{L}\\-]+(?:\\s+(?:am|an\\s+der|i\\.\\s?Br\\.|\\(Oder\\)|\\(Main\\)|Main|Oder)){0,2})"
             + "[\\s,:;.]{0,6}(?:(?:Registernummer|Reg\\.?\\s?-?\\s?Nr\\.?|Handelsregister(?:nummer)?|HR-?Nr\\.?|Vereinsregister(?:nummer)?)[\\s:.]{0,4})?"
@@ -84,7 +127,8 @@ public final class RuleExtractor {
             "(?i:USt\\.?\\s?-?\\s?Id(?:ent)?(?:\\.|-)?\\s?(?:Nr\\.?|Nummer)?|Umsatzsteuer-?\\s?Identifikationsnummer|Umsatzsteuer-?\\s?ID"
             + "|VAT(?:\\s?(?:ID|No\\.?|number|Reg\\.?\\s?No\\.?))?|UID(?:-?Nr\\.?)?)[\\s\\S]{0,70}?"
             // country codes are upper case: "es" in "Umsatzsteuergesetz" is no VAT ID
-            + "(?<![A-Za-z])((?:DE|ATU|CHE|BE|NL|FR|LU|DK|PL|CZ|IT|ES|SE|FI|IE|PT|SK|SI|HU|GB)[\\s.\\-]?[0-9](?:[\\s.\\-]?[0-9A-Z]){6,13})");
+            // the number stays on its line: "DE 123 456 789\nBerufsbezeichnung" is not "DE123456789B"
+            + "(?<![A-Za-z])((?:DE|ATU|CHE|BE|NL|FR|LU|DK|PL|CZ|IT|ES|SE|FI|IE|PT|SK|SI|HU|GB)[ \\t.\\-]?[0-9](?:[ \\t.\\-]?[0-9A-Z]){6,13})");
     private static final Pattern PHONE = Pattern.compile(
             "(?i)(?:\\bTel(?:efon)?\\.?|\\bPhone|\\bFon|\\bTelefonnummer|\\bT\\.)\\s*:?\\s*((?:\\+|00)?[0-9][0-9 ()/\\-.]{5,24}[0-9])");
     private static final Pattern EMAIL = Pattern.compile("[A-Za-z0-9._%+\\-]{1,64}@[A-Za-z0-9\\-]+(?:\\.[A-Za-z0-9\\-]+)*\\.[A-Za-z]{2,24}");
@@ -152,9 +196,9 @@ public final class RuleExtractor {
         final List<Mention> subjects = out.subjects(1);
         final boolean imprint = marker.find();
         if (imprint) {
-            imprint(text, marker.end(), cc, out);
+            imprint(text, marker.end(), host, cc, out, subjects);
         } else if (subjects.size() == 1) {
-            contact(text, 0, text.length(), cc, out, subjects.get(0));
+            contact(text, operatorRanges(text, 0, text.length()), cc, out, subjects.get(0));
         }
         if (ctx != null) {
             final java.util.Set<BusinessRules.PageKind> kinds = BusinessRules.kinds(url, titles);
@@ -169,102 +213,292 @@ public final class RuleExtractor {
         out.ranTier(2);
     }
 
-    private void imprint(final String text, final int markerAt, final String cc, final Extraction out) {
+    private void imprint(final String text, final int markerAt, final String host, final String cc, final Extraction out,
+            final List<Mention> structured) {
         final int end = Math.min(text.length(), markerAt + WINDOW);
-        final Matcher lf = LEGAL_FORM.matcher(text);
-        lf.region(markerAt, end);
+        // the operator's own sections only: the insurer's, the chamber's or the web agency's name and contacts are theirs
+        final List<int[]> ranges = operatorRanges(text, markerAt, end);
         String legal = null;
         int nameStart = -1;
         int nameEnd = -1;
-        while (lf.find()) {
-            final int start = nameStart(text, lf.start(), markerAt);
-            if (start >= 0) {
-                final String candidate = Normalizers.legalName(text.substring(start, lf.end()));
-                if (candidate != null && candidate.length() >= 4) {
-                    legal = candidate;
-                    nameStart = start;
-                    nameEnd = lf.end();
+        search: for (final int[] r : ranges) {
+            final Matcher lf = LEGAL_FORM.matcher(text).region(r[0], r[1]);
+            while (lf.find()) {
+                final int start = nameStart(text, lf.start(), r[0]);
+                if (start >= 0) {
+                    final String candidate = Normalizers.legalName(text.substring(start, lf.end()));
+                    if (candidate != null && candidate.length() >= 4) {
+                        legal = candidate;
+                        nameStart = start;
+                        nameEnd = lf.end();
+                        break search;
+                    }
+                }
+            }
+        }
+        final Mention m;
+        if (legal != null) {
+            m = out.add(new Mention(OPERATOR_REF, Vocabulary.ORGANIZATION, 2));
+            m.name = legal;
+            m.legalName = legal;
+            m.siteOperator = true;
+            claim(out, m, Vocabulary.NAME, legal, text, nameStart, nameEnd);
+            claim(out, m, Vocabulary.LEGAL_FORM, Normalizers.legalForm(legal), text, nameStart, nameEnd);
+        } else {
+            final int[] plain = plainOperatorName(text, ranges, host, structured);
+            if (plain == null) {
+                return; // no operator the imprint names clearly: the site's operator stays unnamed
+            }
+            nameStart = plain[0];
+            nameEnd = plain[1];
+            m = out.add(new Mention(OPERATOR_REF, Vocabulary.ORGANIZATION, 2));
+            m.name = text.substring(nameStart, nameEnd);
+            // no legal name to key a declared operator by: the name belongs to the site's operator of the domain
+            m.domainOperator = true;
+            claim(out, m, Vocabulary.NAME, m.name, text, nameStart, nameEnd);
+        }
+
+        final List<int[]> after = from(ranges, nameStart);
+        int[] ra = null;
+        Normalizers.Register reg = null;
+        for (final int[] r : after) {
+            final Matcher a = REGISTER_A.matcher(text).region(r[0], r[1]);
+            if (a.find()) {
+                reg = Normalizers.register(a.group(1), a.group(2), a.group(3));
+                ra = new int[] {a.start(), a.end()};
+                break;
+            }
+        }
+        if (reg == null) {
+            for (final int[] r : after) {
+                final Matcher b = REGISTER_B.matcher(text).region(r[0], r[1]);
+                if (b.find()) {
+                    reg = Normalizers.register(b.group(3), b.group(1), b.group(2));
+                    ra = new int[] {b.start(), b.end()};
                     break;
                 }
             }
         }
-        if (legal == null) {
-            return;
-        }
-        final Mention m = out.add(new Mention(OPERATOR_REF, Vocabulary.ORGANIZATION, 2));
-        m.name = legal;
-        m.legalName = legal;
-        m.siteOperator = true;
-        claim(out, m, Vocabulary.NAME, legal, text, nameStart, nameEnd);
-        claim(out, m, Vocabulary.LEGAL_FORM, Normalizers.legalForm(legal), text, nameStart, nameEnd);
-
-        final int from = nameStart;
-        final Matcher ra = REGISTER_A.matcher(text).region(from, end);
-        final Matcher rb = REGISTER_B.matcher(text).region(from, end);
-        Normalizers.Register reg = null;
-        int rs = -1;
-        int re = -1;
-        if (ra.find()) {
-            reg = Normalizers.register(ra.group(1), ra.group(2), ra.group(3));
-            rs = ra.start();
-            re = ra.end();
-        }
-        if (reg == null && rb.find()) {
-            reg = Normalizers.register(rb.group(3), rb.group(1), rb.group(2));
-            rs = rb.start();
-            re = rb.end();
-        }
         if (reg != null) {
             m.strongKeys.put(Vocabulary.REGISTER, reg.key);
-            claim(out, m, Vocabulary.ID_REGISTER, reg.display, text, rs, re);
+            claim(out, m, Vocabulary.ID_REGISTER, reg.display, text, ra[0], ra[1]);
         }
-        final Matcher vm = VAT.matcher(text).region(from, end);
-        while (vm.find()) {
-            final String vat = Normalizers.vat(vm.group(1));
-            if (vat != null) {
-                m.strongKeys.put(Vocabulary.VAT, vat);
-                claim(out, m, Vocabulary.ID_VAT, vat, text, vm.start(1), vm.end(1));
-                break;
+        vat: for (final int[] r : after) {
+            final Matcher vm = VAT.matcher(text).region(r[0], r[1]);
+            while (vm.find()) {
+                final String vat = Normalizers.vat(vm.group(1));
+                if (vat != null) {
+                    m.strongKeys.put(Vocabulary.VAT, vat);
+                    claim(out, m, Vocabulary.ID_VAT, vat, text, vm.start(1), vm.end(1));
+                    break vat;
+                }
             }
         }
-        final Matcher ik = IK.matcher(text).region(from, end);
-        if (ik.find()) {
-            final String v = Normalizers.ik(ik.group(1));
-            if (v != null) {
-                m.strongKeys.put(Vocabulary.IK, v);
-                claim(out, m, Vocabulary.ID_IK, v, text, ik.start(), ik.end());
+        for (final int[] r : after) {
+            final Matcher ik = IK.matcher(text).region(r[0], r[1]);
+            if (ik.find()) {
+                final String v = Normalizers.ik(ik.group(1));
+                if (v != null) {
+                    m.strongKeys.put(Vocabulary.IK, v);
+                    claim(out, m, Vocabulary.ID_IK, v, text, ik.start(), ik.end());
+                }
+                break;
             }
         }
         // contact values follow the name; searching from its end keeps the name out of the street
-        contact(text, nameEnd, end, cc, out, m);
+        contact(text, from(ranges, nameEnd), cc, out, m);
     }
 
-    /** Address, phone and e-mail found in [from, end) are attached to {@code m}; the first of each. */
-    private void contact(final String text, final int from, final int end, final String cc, final Extraction out, final Mention m) {
-        final Matcher am = ADDRESS.matcher(text).region(from, end);
-        if (am.find()) {
-            final Address a = new Address(am.group(1), am.group(2), am.group(3), am.group(4).trim(), null);
-            if (m.address == null && a.complete()) {
-                m.address = a;
+    /**
+     * The parts of [from, to) outside the sections about other parties ({@link #THIRD_PARTY_SECTION}): such a section
+     * runs from its label to the next label of the operator's data ({@link #OPERATOR_SECTION}) or to {@code to}.
+     */
+    static List<int[]> operatorRanges(final String text, final int from, final int to) {
+        final List<int[]> out = new ArrayList<>();
+        final Matcher third = THIRD_PARTY_SECTION.matcher(text);
+        final Matcher own = OPERATOR_SECTION.matcher(text);
+        int at = from;
+        while (at < to) {
+            third.region(at, to);
+            if (!third.find()) {
+                out.add(new int[] {at, to});
+                break;
             }
-            claim(out, m, Vocabulary.ADDRESS, a.display(), text, am.start(), am.end());
-            claim(out, m, Vocabulary.POSTAL_CODE, a.postalCode, text, am.start(3), am.end(3));
-            claim(out, m, Vocabulary.LOCALITY, a.locality, text, am.start(4), am.end(4));
+            if (third.start() > at) {
+                out.add(new int[] {at, third.start()});
+            }
+            own.region(third.end(), to);
+            boolean found;
+            while ((found = own.find()) && OTHER_PARTY_QUALIFIER.matcher(text).region(own.end(), Math.min(to, own.end() + 40)).lookingAt()) {
+                // "USt-IdNr. des Versicherers": a label of the other party's data, its section goes on
+            }
+            if (!found) {
+                break;
+            }
+            at = own.start();
         }
-        final Matcher pm = PHONE.matcher(text).region(from, end);
-        while (pm.find()) {
-            final String phone = Normalizers.phone(pm.group(1), cc);
-            if (phone != null) {
-                claim(out, m, Vocabulary.PHONE, phone, text, pm.start(), pm.end());
+        return out;
+    }
+
+    /** True if {@code at} lies in a section of {@code text} about another party than the operator. */
+    public static boolean inThirdPartySection(final String text, final int at) {
+        return !inside(operatorRanges(text, 0, text.length()), at);
+    }
+
+    /** True if {@code at} lies in one of the ranges. */
+    static boolean inside(final List<int[]> ranges, final int at) {
+        for (final int[] r : ranges) {
+            if (at >= r[0] && at < r[1]) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The ranges cut to start at {@code at} or later. */
+    private static List<int[]> from(final List<int[]> ranges, final int at) {
+        final List<int[]> out = new ArrayList<>();
+        for (final int[] r : ranges) {
+            if (r[1] > at) {
+                out.add(new int[] {Math.max(r[0], at), r[1]});
+            }
+        }
+        return out;
+    }
+
+    /**
+     * An operator's name without a legal form, as [start, end), or null: the whole line right above the first postal
+     * address of the operator's sections (after an optional "Betreiber:", "Anbieter:", "Herausgeber:"), confirmed by the
+     * site's domain or by the page's single structured organisation. A line that may be a person's name (a person
+     * marker, two or more capitalised words) needs the structured organisation; "Inhaber:" introduces a person.
+     */
+    static int[] plainOperatorName(final String text, final List<int[]> ranges, final String host, final List<Mention> structured) {
+        for (final int[] r : ranges) {
+            final Matcher am = ADDRESS.matcher(text).region(r[0], r[1]);
+            if (!am.find()) {
+                continue;
+            }
+            // the street starts its own line, and the line above it is the name
+            final int lineStart = lineStart(text, am.start());
+            if (!text.substring(lineStart, am.start()).trim().isEmpty() || lineStart <= r[0]) {
+                return null;
+            }
+            int end = lineStart - 1;
+            while (end > r[0] && Character.isWhitespace(text.charAt(end - 1))) {
+                end--;
+            }
+            int start = lineStart(text, end);
+            if (start < r[0] || end <= start) {
+                return null;
+            }
+            final Matcher label = NAME_LABEL.matcher(text).region(start, end);
+            if (label.lookingAt()) {
+                start = label.end();
+            }
+            while (start < end && Character.isWhitespace(text.charAt(start))) {
+                start++;
+            }
+            final String name = text.substring(start, end);
+            return plausibleName(text, start, name, host, structured) ? new int[] {start, end} : null;
+        }
+        return null;
+    }
+
+    private static boolean plausibleName(final String text, final int at, final String name, final String host,
+            final List<Mention> structured) {
+        if (name.length() < 2 || name.length() > 80 || name.indexOf(':') >= 0 || name.indexOf('§') >= 0 || name.indexOf('@') >= 0
+                || !(Character.isUpperCase(name.codePointAt(0)) || Character.isDigit(name.charAt(0)))
+                || IMPRINT_MARKER.matcher(name).find() || OPERATOR_SECTION.matcher(name).find() || LEGAL_FORM.matcher(name).find()
+                || BusinessFacts.personLike(name)) {
+            return false;
+        }
+        // a person named by a role or a salutation right before the line ("Inhaber:", "Herr")
+        if (Normalizers.excerpt(text, Math.max(0, at - 40), at + name.length()).contains("[…]")) {
+            return false;
+        }
+        final String[] words = name.trim().split("\\s+");
+        if (words.length > 4) {
+            return false;
+        }
+        boolean personShaped = words.length >= 2;
+        for (final String w : words) {
+            final String bare = w.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}&+-]", "");
+            if (NOT_IN_NAME.contains(bare) || STOP_BEFORE_NAME.contains(bare)) {
+                return false;
+            }
+            if (!PERSON_WORD.matcher(w).matches()) {
+                personShaped = false;
+            }
+        }
+        final String compact = compact(name);
+        if (compact.length() < 3) {
+            return false;
+        }
+        for (final Mention s : structured) {
+            if (Vocabulary.ORGANIZATION.equals(s.type) && structured.size() == 1 && compact.equals(compact(s.name))) {
+                return true; // the page's structured data declares this organisation
+            }
+        }
+        if (personShaped) {
+            return false; // "Erika Musterfrau" on erika-musterfrau.de is still a person
+        }
+        final String domain = Normalizers.registrableDomain(host);
+        if (domain == null || domain.indexOf('.') < 0) {
+            return false;
+        }
+        return compact.equals(compact(domain.substring(0, domain.indexOf('.'))));
+    }
+
+    /** Letters and digits of a name or a domain label, lower case, umlauts as in domains ("Müller-Bau" -> "muellerbau"). */
+    static String compact(final String s) {
+        if (s == null) {
+            return "";
+        }
+        final String t = s.toLowerCase(Locale.ROOT).replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss");
+        return t.replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    private static int lineStart(final String text, final int at) {
+        int i = at;
+        while (i > 0 && text.charAt(i - 1) != '\n' && text.charAt(i - 1) != '\r') {
+            i--;
+        }
+        return i;
+    }
+
+    /** Address, phone and e-mail found in the ranges are attached to {@code m}; the first of each. */
+    private void contact(final String text, final List<int[]> ranges, final String cc, final Extraction out, final Mention m) {
+        for (final int[] r : ranges) {
+            final Matcher am = ADDRESS.matcher(text).region(r[0], r[1]);
+            if (am.find()) {
+                final Address a = new Address(am.group(1), am.group(2), am.group(3), am.group(4).trim(), null);
+                if (m.address == null && a.complete()) {
+                    m.address = a;
+                }
+                claim(out, m, Vocabulary.ADDRESS, a.display(), text, am.start(), am.end());
+                claim(out, m, Vocabulary.POSTAL_CODE, a.postalCode, text, am.start(3), am.end(3));
+                claim(out, m, Vocabulary.LOCALITY, a.locality, text, am.start(4), am.end(4));
                 break;
             }
         }
-        final Matcher em = EMAIL.matcher(text).region(from, end);
-        while (em.find()) {
-            final String mail = Normalizers.email(em.group());
-            if (mail != null && Normalizers.roleEmail(mail)) { // no addresses of persons (O7)
-                claim(out, m, Vocabulary.EMAIL, mail, text, em.start(), em.end());
-                break;
+        phone: for (final int[] r : ranges) {
+            final Matcher pm = PHONE.matcher(text).region(r[0], r[1]);
+            while (pm.find()) {
+                final String phone = Normalizers.phone(pm.group(1), cc);
+                if (phone != null) {
+                    claim(out, m, Vocabulary.PHONE, phone, text, pm.start(), pm.end());
+                    break phone;
+                }
+            }
+        }
+        mail: for (final int[] r : ranges) {
+            final Matcher em = EMAIL.matcher(text).region(r[0], r[1]);
+            while (em.find()) {
+                final String mail = Normalizers.email(em.group());
+                if (mail != null && Normalizers.roleEmail(mail)) { // no addresses of persons (O7)
+                    claim(out, m, Vocabulary.EMAIL, mail, text, em.start(), em.end());
+                    break mail;
+                }
             }
         }
     }

@@ -622,10 +622,18 @@ public final class BusinessRules {
         if (!contactish) {
             return;
         }
+        // the fax and the contact points of the operator's insurer, chamber or web agency are theirs
+        final List<int[]> own = RuleExtractor.operatorRanges(run.text, 0, run.text.length());
         final Matcher fx = FAX.matcher(run.text);
-        if (fx.find() && !personBefore(run.text, fx.start())) {
-            final String fax = Normalizers.phone(fx.group(1), run.callingCode);
-            claim(run, run.subject, Vocabulary.FAX, fax, fx.start(), fx.end(), 0.7);
+        while (fx.find()) {
+            if (!RuleExtractor.inside(own, fx.start())) {
+                continue;
+            }
+            if (!personBefore(run.text, fx.start())) {
+                final String fax = Normalizers.phone(fx.group(1), run.callingCode);
+                claim(run, run.subject, Vocabulary.FAX, fax, fx.start(), fx.end(), 0.7);
+            }
+            break;
         }
         final Matcher h = HOURS.matcher(run.text);
         while (h.find()) {
@@ -657,7 +665,7 @@ public final class BusinessRules {
         while (dep.find() && points < 8) {
             // the department's own clause only: the next sentence may be a person's line
             final int to = Values.clauseEnd(run.text, dep.end(), Math.min(run.text.length(), dep.end() + 100));
-            if (personBetween(run.text, dep.start(), to)) {
+            if (personBetween(run.text, dep.start(), to) || !RuleExtractor.inside(own, dep.start())) {
                 continue; // a department with a named person: the person's line is not kept
             }
             final Map<String, Object> cp = new TreeMap<>();
