@@ -171,6 +171,41 @@ public class ImprintOperatorIdentityTest {
         assertEquals(0L, count("SELECT count(*) FROM kg_statement WHERE obj_val LIKE '%BaFin%' OR obj_val LIKE '%Graurheindorfer%'"));
     }
 
+    /** The real layout (name, tagline, managing director, address), in each form of the page text, with the home page's services. */
+    @Test
+    public void theRealLayoutNamesTheOrganisationThatOffersTheServices() throws Exception {
+        int run = 0;
+        for (final String imprintText : ImprintOperatorTest.realLayouts()) {
+            this.close();
+            this.tmp.delete();
+            this.tmp.create();
+            this.open();
+            final Publisher.Doc home = doc("AAAAAAhome01", "https://www.livaid.com/");
+            final Publisher.Doc imprint = doc("AAAAAAimpr01", "https://www.livaid.com/impressum");
+            if (run++ % 2 == 0) {
+                publish(home, rules(home, HOME));
+                publish(imprint, rules(imprint, imprintText));
+            } else {
+                publish(imprint, rules(imprint, imprintText));
+                publish(home, rules(home, HOME));
+            }
+            final List<String> offering = holders(Vocabulary.OFFERS);
+            assertEquals(imprintText, 1, offering.size());
+            final String livaid = offering.get(0);
+            assertEquals(imprintText, List.of("LIVAID"), values(livaid, Vocabulary.NAME));
+            assertEquals(imprintText, List.of("Bonnstraße 164, 50354 Hürth"), values(livaid, Vocabulary.ADDRESS));
+            assertEquals(imprintText, List.of("+4922335416033"), values(livaid, Vocabulary.PHONE));
+            assertEquals(imprintText, List.of("info@livaid.com"), values(livaid, Vocabulary.EMAIL));
+            assertEquals("no legal form anywhere: the insurer's SE is not LIVAID's", 0L,
+                    count("SELECT count(*) FROM kg_statement WHERE pred = " + pred(Vocabulary.LEGAL_FORM)));
+            assertEquals(imprintText, 0L, count("SELECT count(*) FROM kg_statement WHERE obj_val LIKE '%Markel%' OR obj_val LIKE '%Sophien%'"
+                    + " OR obj_val LIKE '%markel.de%' OR obj_val = '+49898908310' OR obj_val LIKE '%Zollhof%' OR obj_val LIKE '%Ferreira%'"));
+            assertEquals("one organisation, no merge", 1L, count("SELECT count(*) FROM kg_entity WHERE status = 1 AND type = "
+                    + "(SELECT term_id FROM kg_vocab WHERE name = '" + Vocabulary.ORGANIZATION + "')"));
+            assertEquals(0L, count("SELECT count(*) FROM kg_entity WHERE status = 2"));
+        }
+    }
+
     /**
      * A graph that resolved the insurer as LIVAID's operator (rule version 3) and then reads the imprint again with
      * version 4: the evidence is replaced, the merge stays. Re-extraction corrects the facts, not the identity.

@@ -18,7 +18,10 @@ import org.junit.Test;
  */
 public class ImprintOperatorTest {
 
-    /** An architect's imprint: the operator without a legal form, then its chamber and its liability insurer with their own addresses. */
+    /**
+     * A synthetic architect's imprint: the operator without a legal form right above its address, then its chamber and
+     * its liability insurer with their own addresses. The real LIVAID imprint has another order ({@link #REAL_LAYOUT_HTML}).
+     */
     public static final String LIVAID = "Startseite Leistungen Projekte Kontakt\nImpressum\nAngaben gemäß § 5 DDG\nLIVAID\n"
             + "Lindenallee 12\n10115 Berlin\nTelefon: +49 30 1234567\nE-Mail: info@livaid.com\nInhaber: Max Mustermann\n"
             + "Umsatzsteuer-Identifikationsnummer gemäß § 27 a UStG: DE 123 456 789\n"
@@ -27,6 +30,45 @@ public class ImprintOperatorTest {
             + "Berufshaftpflichtversicherung\nName und Sitz des Versicherers:\nMarkel Insurance SE\nSophienstraße 26\n80333 München\n"
             + "Telefon: +49 89 8908310\nE-Mail: info@markel.de\nUSt-IdNr. des Versicherers: DE 298 765 432\n"
             + "Geltungsraum der Versicherung: Deutschland\n";
+
+    /**
+     * The operator block of the real LIVAID imprint in its order (name, tagline, role, person, address, contacts), as
+     * reported on 08.10.2026, followed by a chamber and an insurer section. The chamber and insurer sections are
+     * assumed (Hürth is in North Rhine-Westphalia; the insurer as in the analysis): the production page and its Solr
+     * text were not readable here. As HTML with line breaks ({@code <br>}), as such imprints are written.
+     */
+    public static final String REAL_LAYOUT_HTML = "<html><body><h1>Impressum</h1><p>Angaben gemäß § 5 DDG</p>"
+            + "<p><strong>LIVAID</strong><br>Live | Architecture | Innovation | Design<br>Geschäftsführerin<br>Tânia Ferreira<br>"
+            + "Bonnstraße 164, 50354 Hürth<br>Telefon: +49 (0)2233 5416033<br>Mobil: +49 (0)176 64360027<br>E-Mail: info@livaid.com</p>"
+            + "<p>Berufsbezeichnung: Architektin (verliehen in der Bundesrepublik Deutschland)<br>Zuständige Kammer: Architektenkammer"
+            + " Nordrhein-Westfalen, Zollhof 1, 40221 Düsseldorf, Telefon: +49 211 492670</p><h3>Berufshaftpflichtversicherung</h3>"
+            + "<p>Name und Sitz des Versicherers:<br>Markel Insurance SE<br>Sophienstraße 26<br>80333 München<br>Telefon: +49 89 8908310<br>"
+            + "E-Mail: info@markel.de<br>Geltungsraum der Versicherung: Deutschland</p></body></html>";
+
+    /** The same imprint as plain lines, the order of the report. */
+    public static final String REAL_LAYOUT_LINES = "Impressum\nAngaben gemäß § 5 DDG\nLIVAID\nLive | Architecture | Innovation | Design\n"
+            + "Geschäftsführerin\nTânia Ferreira\nBonnstraße 164, 50354 Hürth\nTelefon: +49 (0)2233 5416033\nMobil: +49 (0)176 64360027\n"
+            + "E-Mail: info@livaid.com\nBerufsbezeichnung: Architektin (verliehen in der Bundesrepublik Deutschland)\n"
+            + "Zuständige Kammer: Architektenkammer Nordrhein-Westfalen, Zollhof 1, 40221 Düsseldorf, Telefon: +49 211 492670\n"
+            + "Berufshaftpflichtversicherung\nName und Sitz des Versicherers:\nMarkel Insurance SE\nSophienstraße 26\n80333 München\n"
+            + "Telefon: +49 89 8908310\nE-Mail: info@markel.de\nGeltungsraum der Versicherung: Deutschland\n";
+
+    /**
+     * The page text as YaCy's HTML parser makes it for {@code text_t} ({@code Document.getTextString}): a {@code <br>}
+     * becomes ". ", a block a line break, bold and headings Markdown ("**LIVAID. **Live | Architecture. …").
+     */
+    public static String yacyText(final String url, final String html) throws Exception {
+        return new net.yacy.document.parser.htmlParser().parse(new net.yacy.cora.document.id.DigestURL(url), "text/html", "UTF-8",
+                new net.yacy.document.VocabularyScraper(), 0, new java.io.ByteArrayInputStream(html.getBytes("UTF-8")))[0].getTextString();
+    }
+
+    /** The real layout as lines, and as YaCy's text of the HTML with {@code <br>}, with the insurer inline, and with {@code <div>}s. */
+    public static List<String> realLayouts() throws Exception {
+        final String url = "https://www.livaid.com/impressum";
+        final String brInline = REAL_LAYOUT_HTML.replace("</p><h3>Berufshaftpflichtversicherung</h3><p>", "<br>Berufshaftpflichtversicherung<br>");
+        final String divs = REAL_LAYOUT_HTML.replace("<br>", "</div><div>").replace("<p>", "<div>").replace("</p>", "</div>");
+        return List.of(REAL_LAYOUT_LINES, yacyText(url, REAL_LAYOUT_HTML), yacyText(url, brInline), yacyText(url, divs));
+    }
 
     private static Extraction rules(final String text, final String url) {
         final Extraction ex = new Extraction(50);
@@ -75,6 +117,88 @@ public class ImprintOperatorTest {
         assertEquals(1, ex.mentions().size());
         nothingOf(ex, "Markel", "Sophien", "80333", "markel.de", "+49898908310", "DE298765432", "Jakob", "10969", "+49302933070",
                 "Mustermann");
+    }
+
+    @Test
+    public void theRealLayoutNamesLivaid() throws Exception {
+        final List<String> layouts = realLayouts();
+        assertTrue("YaCy's text of the <br> imprint is sentences, not lines: " + layouts.get(1),
+                layouts.get(1).contains("**LIVAID. **Live | Architecture | Innovation | Design. Geschäftsführerin. Tânia Ferreira. Bonnstraße 164"));
+        for (final String text : layouts) {
+            final Extraction ex = rules(text, "https://www.livaid.com/impressum");
+            final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
+            assertNotNull(text, op);
+            // the operator's name
+            assertEquals(text, "LIVAID", op.name);
+            assertEquals(text, List.of("LIVAID"), values(ex, op.ref, Vocabulary.NAME));
+            assertTrue(text, op.domainOperator);
+            // its own contacts
+            assertEquals(text, List.of("Bonnstraße 164, 50354 Hürth"), values(ex, op.ref, Vocabulary.ADDRESS));
+            assertEquals(text, List.of("+4922335416033"), values(ex, op.ref, Vocabulary.PHONE));
+            assertEquals(text, List.of("info@livaid.com"), values(ex, op.ref, Vocabulary.EMAIL));
+            // nothing of the insurer: neither its contacts nor its legal form
+            assertNull(text, op.legalName);
+            assertFalse(text, op.siteOperator);
+            assertEquals(text, List.of(), values(ex, op.ref, Vocabulary.LEGAL_FORM));
+            nothingOf(ex, "Markel", "Sophien", "80333", "markel.de", "+49898908310", "SE");
+            // nothing of the chamber, and the managing director is no organisation and in no value
+            nothingOf(ex, "Zollhof", "40221", "+49211492670", "Architektenkammer", "Tânia", "Ferreira", "Geschäftsführerin");
+            assertEquals(text, 1, ex.mentions().size());
+        }
+    }
+
+    @Test
+    public void labelsAreHeadingsNotNamesOrRunningText() throws Exception {
+        // operators whose names hold a section word
+        for (final String name : new String[] {"Webdesign Beispiel GmbH", "Schlichtungsstelle Bau e.V.", "Muster Versicherung AG",
+            "Bildnachweis Archiv GmbH", "Kammer Consult GmbH"}) {
+            final Extraction ex = rules("Impressum\nAngaben gemäß § 5 DDG\n" + name + "\nHauptstraße 1\n10115 Berlin\nTelefon: 030 1234567\n",
+                    "https://www.beispiel.de/impressum");
+            final Mention op = ex.mention(RuleExtractor.OPERATOR_REF);
+            assertNotNull(name, op);
+            assertEquals(name, name, op.legalName);
+            assertEquals(name, List.of("Hauptstraße 1, 10115 Berlin"), values(ex, op.ref, Vocabulary.ADDRESS));
+            assertEquals(name, List.of("+49301234567"), values(ex, op.ref, Vocabulary.PHONE));
+        }
+        // running text with section words is no section: the operator's phone after it is kept
+        final String running = "Impressum\nLIVAID\nBonnstraße 164, 50354 Hürth\nWir bieten Webdesign, Hosting und Haftpflichtversicherungen"
+                + " für Architekten an und arbeiten mit jeder Kammer zusammen.\nTelefon: 02233 5416033\n";
+        assertEquals(List.of("+4922335416033"), values(rules(running, "https://www.livaid.com/impressum"), RuleExtractor.OPERATOR_REF,
+                Vocabulary.PHONE));
+        // a label of the operator's data inside the running text of the insurer's section does not end it
+        final String inline = "Impressum\nLIVAID\nBonnstraße 164, 50354 Hürth\nBerufshaftpflichtversicherung: Markel Insurance SE,"
+                + " eingetragen im Handelsregister des Amtsgerichts München unter HRB 233618, vertreten durch den Vorstand,"
+                + " Sophienstraße 26, 80333 München, Telefon: 089 8908310, E-Mail: info@markel.de\n";
+        final Extraction insurer = rules(inline, "https://www.livaid.com/impressum");
+        assertEquals("LIVAID", insurer.mention(RuleExtractor.OPERATOR_REF).name);
+        assertEquals(List.of(), values(insurer, RuleExtractor.OPERATOR_REF, Vocabulary.PHONE));
+        assertEquals(List.of(), values(insurer, RuleExtractor.OPERATOR_REF, Vocabulary.ID_REGISTER));
+        nothingOf(insurer, "Markel", "markel.de", "233618");
+        // a labelled address ("Anschrift: …") below the name
+        final Extraction labelled = rules("Impressum\nLIVAID\nAnschrift: Bonnstraße 164, 50354 Hürth\nTelefon: 02233 5416033\n",
+                "https://www.livaid.com/impressum");
+        assertEquals("LIVAID", labelled.mention(RuleExtractor.OPERATOR_REF).name);
+        assertEquals(List.of("Bonnstraße 164, 50354 Hürth"), values(labelled, RuleExtractor.OPERATOR_REF, Vocabulary.ADDRESS));
+        // a heading of its own, as a line, as a sentence of YaCy's text, or with a colon, opens a section
+        for (final String heading : new String[] {"Berufshaftpflichtversicherung\n", "### Berufshaftpflichtversicherung. \n",
+            "Berufshaftpflichtversicherung. ", "Berufshaftpflichtversicherung: ", "Angaben zur Berufshaftpflichtversicherung\n",
+            "EU-Streitschlichtung\n", "Webdesign: ", "Design: "}) {
+            final String t = "Impressum\nLIVAID\nBonnstraße 164, 50354 Hürth\n" + heading + "Telefon: 089 8908310\n";
+            assertEquals(heading, List.of(), values(rules(t, "https://www.livaid.com/impressum"), RuleExtractor.OPERATOR_REF, Vocabulary.PHONE));
+        }
+    }
+
+    @Test
+    public void boldNamesAndPersonsInYacysText() throws Exception {
+        // "<strong>Muster Pflege GmbH</strong>" is "**Muster Pflege GmbH. **": the whole name, not "Pflege GmbH"
+        final String bold = yacyText("https://www.muster-pflege.de/impressum", "<html><body><h1>Impressum</h1><p><strong>Muster Pflege GmbH"
+                + "</strong><br>Musterstraße 12<br>12345 Berlin<br>Telefon: 030 1234567</p></body></html>");
+        final Extraction ex = rules(bold, "https://www.muster-pflege.de/impressum");
+        assertEquals(bold, "Muster Pflege GmbH", ex.mention(RuleExtractor.OPERATOR_REF).legalName);
+        // a person after a role is no organisation, also when the domain bears the name
+        final String person = yacyText("https://www.mustermann.de/impressum", "<html><body><h1>Impressum</h1><p>Inhaberin<br>Mustermann<br>"
+                + "Hauptstraße 1, 10115 Berlin<br>Telefon: 030 1234567</p></body></html>");
+        assertTrue(person, rules(person, "https://www.mustermann.de/impressum").mentions().isEmpty());
     }
 
     @Test

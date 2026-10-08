@@ -38,16 +38,20 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * <li>Version 4: only the operator's sections of the imprint count. A section
  * about another party (its liability insurer, its chamber or supervisory
  * authority, the dispute resolution, the makers of the site) is opened by its
- * label and ends at the next label of the operator's data
+ * phrase, or by its heading as a label with a colon or as a line or sentence
+ * of its own, and ends at the next label of the operator's data
  * ({@link #operatorRanges}); neither the operator's name nor its contact
- * values are taken from it. The label decides, never the name: an insurer or
- * a chamber that operates the site is found like any other operator.</li>
+ * values are taken from it. Headings and labels decide, never names or
+ * running text: an insurer, a chamber or a "Webdesign Beispiel GmbH" that
+ * operates the site is found like any other operator.</li>
  * <li>Version 4: an imprint without a legal form names the operator only as a
- * name of its own line right above the operator's postal address, and only
- * if the site's domain ("livaid.com" for "LIVAID") or the page's single
- * structured organisation confirms it; a name that may be a person's (two or
- * more capitalised words) needs the structured organisation. That name goes
- * to the site's unnamed operator ({@code domain_operator}), not to a declared
+ * unit (a line, or a sentence of YaCy's page text, where a {@code <br>} is
+ * ". ") of its own among the few units above the operator's postal address
+ * (a tagline, a role and a person may stand between them), and only if the
+ * site's domain ("livaid.com" for "LIVAID") or the page's single structured
+ * organisation confirms it; a unit that may be a person's (two or more
+ * capitalised words, right after a role) is never a name. That name goes to
+ * the site's unnamed operator ({@code domain_operator}), not to a declared
  * operator: it has no legal name to be keyed by. Otherwise nothing is named.</li>
  * <li>On other candidate pages (contact, about, locations, services, home)
  * contact values are attached only if the page's structured data describes
@@ -89,27 +93,47 @@ public final class RuleExtractor {
             "wird", "werden", "the", "by", "operated", "dieser", "diese", "website", "webseite", "seite", "internetseite"));
 
     /**
-     * Labels of a section about another party than the operator: its liability insurer, its chamber or supervisory
-     * authority, the dispute resolution, the makers of the site. Labels only, never names: "Architektenkammer Berlin" or
-     * "Muster Versicherung AG" as the operator open no such section.
+     * Phrases that only speak of another party than the operator (its chamber, its insurer): they open such a section
+     * wherever they stand ("Zuständige Kammer", "Mitglied der Architektenkammer", "Name und Sitz des Versicherers").
      */
-    private static final Pattern THIRD_PARTY_SECTION = Pattern.compile("(?iu)(?<![\\p{L}])(?:"
-            + "(?:berufs|betriebs|verm(?:ö|oe)gensschaden)[\\s-]?haftpflicht\\p{L}*|haftpflichtversicherung\\p{L}*"
-            + "|versicherer\\s*:|versicherung\\s*:|(?:name|sitz|anschrift)(?:\\s+und\\s+(?:sitz|anschrift))?\\s+des\\s+versicherers"
-            + "|zust(?:ä|ae)ndige[rns]?\\s+(?:kammer|berufskammer|aufsichtsbeh(?:ö|oe)rde|beh(?:ö|oe)rde)|aufsichtsbeh(?:ö|oe)rde\\p{L}*"
-            + "|berufskammer|kammer(?:zugeh(?:ö|oe)rigkeit)?\\s*:|mitglied(?:schaft)?\\s+(?:der|des|in\\s+der|im)\\s+[\\p{L}-]*(?:kammer|verband|verbandes)(?![\\p{L}])"
-            + "|(?:eu-?|online-?)?streitschlichtung|(?:verbraucher)?streitbeilegung|schlichtungsstelle"
-            + "|web-?design|bildnachweis\\p{L}*|bildquellen?|bildrechte\\p{L}*|bildmaterial\\s*:|fotonachweis|fotos?\\s*:|fotografie\\s*:|hosting\\s*:|realisierung\\s*:"
-            + "|(?:technische\\s+)?umsetzung\\s*:|gestaltung\\s*:|design\\s*:)");
-    /** Labels of the operator's own data: they end a section about another party. */
-    private static final Pattern OPERATOR_SECTION = Pattern.compile("(?iu)(?<![\\p{L}])(?:"
-            + "\\bimpressum\\b|\\bimprint\\b|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5|anbieterkennzeichnung|diensteanbieter"
-            + "|(?:website-?|seiten)?betreiber(?:in)?\\s*:|anbieter(?:in)?\\s*:|herausgeber(?:in)?\\s*:|inhaber(?:in)?\\s*:"
-            + "|vertreten\\s+durch|vertretungsberechtigt|gesch(?:ä|ae)ftsf(?:ü|ue)hr\\p{L}*|registergericht|registereintrag|handelsregister"
-            + "|registernummer|umsatzsteuer\\p{L}*|ust\\.?\\s?-?\\s?id\\p{L}*|kontakt\\s*:|verantwortlich\\p{L}*)");
+    private static final Pattern THIRD_PARTY_PHRASE = Pattern.compile("(?iu)(?<![\\p{L}])(?:"
+            + "zust(?:ä|ae)ndige[rns]?\\s+(?:kammer|berufskammer|aufsichtsbeh(?:ö|oe)rde|beh(?:ö|oe)rde)"
+            + "|mitglied(?:schaft)?\\s+(?:der|des|in\\s+der|im)\\s+[\\p{L}-]*(?:kammer|verband|verbandes)(?![\\p{L}])"
+            + "|(?:name|sitz|anschrift)(?:\\s+und\\s+(?:sitz|anschrift))?\\s+des\\s+versicherers|geltungsraum\\s+der\\s+versicherung)");
+    /**
+     * Headings of such a section: they count only as a label with a colon or as a heading of their own (a line or a
+     * sentence of its own, as YaCy's text has a {@code <br>} or a heading: "### Berufshaftpflichtversicherung."), never
+     * inside a name or running text ("Webdesign Beispiel GmbH", "Schlichtungsstelle Bau e.V.", "wir bieten Webdesign").
+     */
+    private static final Pattern THIRD_PARTY_HEADING = Pattern.compile("(?iu)(?<![\\p{L}])(?:(?:angaben|informationen|hinweise?)\\s+zu[mr]?\\s+)?(?:"
+            + "(?:berufs|betriebs|verm(?:ö|oe)gensschaden)[\\s-]?haftpflicht\\p{L}*|haftpflichtversicherung\\p{L}*|versicherer"
+            + "|aufsichtsbeh(?:ö|oe)rde\\p{L}*|berufskammer|kammer(?:zugeh(?:ö|oe)rigkeit)?"
+            + "|(?:eu-?|online-?)?streitschlichtung|(?:verbraucher)?streitbeilegung(?:\\s*/\\s*(?:universal)?schlichtungsstelle)?"
+            + "|(?:universal|verbraucher)?schlichtungsstelle|web-?design|bildnachweis\\p{L}*|bildquellen?|bildrechte\\p{L}*|fotonachweis\\p{L}*)"
+            + "(?![\\p{L}])");
+    /** Words that open such a section only as a label with a colon ("Design: Pixel Agentur GmbH"). */
+    private static final Pattern THIRD_PARTY_LABEL = Pattern.compile("(?iu)(?<![\\p{L}])(?:versicherung|bildmaterial|fotos?|fotografie|hosting"
+            + "|realisierung|(?:technische\\s+)?umsetzung|gestaltung|design|konzept(?:ion)?)(?=[ \\t]*:)");
+    /** Phrases that open the operator's own data wherever they stand. */
+    private static final Pattern OPERATOR_PHRASE = Pattern.compile("(?iu)(?<![\\p{L}])(?:impressum|imprint|anbieterkennzeichnung"
+            + "|angaben\\s+gem(?:ä|ae)(?:ß|ss)\\s*§\\s*5)(?![\\p{L}])");
+    /**
+     * Labels of the operator's own data: they end a section about another party when they start a line or a sentence
+     * or carry a colon ("Registergericht: …", "Geschäftsführerin."), not inside running text of that section.
+     */
+    private static final Pattern OPERATOR_LABEL = Pattern.compile("(?iu)(?<![\\p{L}])(?:diensteanbieter(?:in)?|(?:website-?|seiten)?betreiber(?:in)?"
+            + "|anbieter(?:in)?|herausgeber(?:in)?|inhaber(?:in)?|vertreten\\s+durch|vertretungsberechtigt\\p{L}*|gesch(?:ä|ae)ftsf(?:ü|ue)hr\\p{L}*"
+            + "|registergericht|registereintrag|handelsregister|registernummer|umsatzsteuer\\p{L}*|ust\\.?\\s?-?\\s?id\\p{L}*|kontakt"
+            + "|verantwortlich\\p{L}*)(?![\\p{L}])");
     /** What makes a label of the operator's data one of the other party's ("USt-IdNr. des Versicherers"). */
     private static final Pattern OTHER_PARTY_QUALIFIER = Pattern.compile("(?iu)[^\\n:]{0,12}?\\b(?:des|der|dieser|dieses)\\s+"
             + "(?:versicher|kammer|berufskammer|aufsichtsbeh|beh(?:ö|oe)rde|schlichtungsstelle|agentur)");
+    /** A unit that introduces a person ("Geschäftsführerin", "Inhaber:", "Vertreten durch"): the next unit is a person's. */
+    private static final Pattern PERSON_ROLE_UNIT = Pattern.compile("(?iu)(?:gesch(?:ä|ae)ftsf(?:ü|ue)hr\\p{L}*|inhaber(?:in)?|vorstand\\p{L}*"
+            + "|prokurist\\p{L}*|ansprechpartner\\p{L}*|vertreten\\s+durch.*|vertretungsberechtigt.*|verantwortlich.*|owner|ceo"
+            + "|managing\\s+directors?)\\s*:?");
+    /** Units between the operator's name and its postal address that are looked at (name, tagline, role, person, …). */
+    private static final int NAME_UNITS = 6;
     /** A label at the start of an operator's name line ("Betreiber: LIVAID"); a holder ("Inhaber:") is a person's. */
     private static final Pattern NAME_LABEL = Pattern.compile("(?iu)^(?:(?:website-?|seiten)?betreiber(?:in)?|anbieter(?:in)?|diensteanbieter(?:in)?"
             + "|herausgeber(?:in)?)\\s*:\\s*");
@@ -310,34 +334,175 @@ public final class RuleExtractor {
     }
 
     /**
-     * The parts of [from, to) outside the sections about other parties ({@link #THIRD_PARTY_SECTION}): such a section
-     * runs from its label to the next label of the operator's data ({@link #OPERATOR_SECTION}) or to {@code to}.
+     * The parts of [from, to) outside the sections about other parties: such a section runs from its phrase, heading or
+     * label ({@link #THIRD_PARTY_PHRASE}, {@link #THIRD_PARTY_HEADING}, {@link #THIRD_PARTY_LABEL}) to the next label of
+     * the operator's data ({@link #OPERATOR_PHRASE}, {@link #OPERATOR_LABEL}) or to {@code to}.
      */
     static List<int[]> operatorRanges(final String text, final int from, final int to) {
         final List<int[]> out = new ArrayList<>();
-        final Matcher third = THIRD_PARTY_SECTION.matcher(text);
-        final Matcher own = OPERATOR_SECTION.matcher(text);
         int at = from;
         while (at < to) {
-            third.region(at, to);
-            if (!third.find()) {
+            final int[] third = thirdPartyLabel(text, at, to);
+            if (third == null) {
                 out.add(new int[] {at, to});
                 break;
             }
-            if (third.start() > at) {
-                out.add(new int[] {at, third.start()});
+            if (third[0] > at) {
+                out.add(new int[] {at, third[0]});
             }
-            own.region(third.end(), to);
-            boolean found;
-            while ((found = own.find()) && OTHER_PARTY_QUALIFIER.matcher(text).region(own.end(), Math.min(to, own.end() + 40)).lookingAt()) {
-                // "USt-IdNr. des Versicherers": a label of the other party's data, its section goes on
-            }
-            if (!found) {
+            final int[] own = operatorLabel(text, third[1], to);
+            if (own == null) {
                 break;
             }
-            at = own.start();
+            at = own[0];
         }
         return out;
+    }
+
+    /** The first label of another party's section in [from, to), as [start, end), or null. */
+    private static int[] thirdPartyLabel(final String text, final int from, final int to) {
+        int[] best = null;
+        for (final Pattern p : new Pattern[] {THIRD_PARTY_PHRASE, THIRD_PARTY_HEADING, THIRD_PARTY_LABEL}) {
+            final Matcher m = p.matcher(text).region(from, to).useTransparentBounds(true);
+            while (m.find() && (best == null || m.start() < best[0])) {
+                if (p != THIRD_PARTY_HEADING || colonAfter(text, m.end(), to) || unitStart(text, m.start()) && unitEnd(text, m.end(), to)) {
+                    best = new int[] {m.start(), m.end()};
+                    break;
+                }
+            }
+        }
+        return best;
+    }
+
+    /** The first label of the operator's own data in [from, to), as [start, end), or null. */
+    private static int[] operatorLabel(final String text, final int from, final int to) {
+        int[] best = null;
+        final Matcher phrase = OPERATOR_PHRASE.matcher(text).region(from, to).useTransparentBounds(true);
+        if (phrase.find()) {
+            best = new int[] {phrase.start(), phrase.end()};
+        }
+        final Matcher label = OPERATOR_LABEL.matcher(text).region(from, to).useTransparentBounds(true);
+        while (label.find() && (best == null || label.start() < best[0])) {
+            if ((colonAfter(text, label.end(), to) || unitStart(text, label.start()))
+                    // "USt-IdNr. des Versicherers": a label of the other party's data, its section goes on
+                    && !OTHER_PARTY_QUALIFIER.matcher(text).region(label.end(), Math.min(to, label.end() + 40)).lookingAt()) {
+                best = new int[] {label.start(), label.end()};
+                break;
+            }
+        }
+        return best;
+    }
+
+    // ------------------------------------------------------------ units: lines and sentences of the page text
+
+    // YaCy's page text ends a block (p, div, li, heading) with a line break and a <br> with ". " and marks bold and
+    // headings in Markdown ("**LIVAID. **Live | Architecture. Geschäftsführerin. Tânia Ferreira. Bonnstraße 164"):
+    // a unit is a line or a sentence, without its Markdown.
+
+    private static final Set<String> UNIT_ABBREVIATIONS = new TreeSet<>(java.util.Arrays.asList("st", "dr", "prof", "co", "gebr", "str",
+            "nr", "hr", "fr", "abs", "ca", "bzw", "inkl", "dipl", "ing", "med", "hl", "tel", "z.b", "u.a", "e.v", "e.k", "i.s.d"));
+
+    private static boolean markup(final char c) {
+        return c == ' ' || c == '\t' || c == '*' || c == '_' || c == '#' || c == '•' || c == '>';
+    }
+
+    /** True if the period at {@code dot} ends a sentence (not "Str." or "Dr."), followed by white space or the end. */
+    private static boolean sentenceEnd(final String text, final int dot) {
+        if (dot + 1 < text.length() && !Character.isWhitespace(text.charAt(dot + 1)) && text.charAt(dot + 1) != '*') {
+            return false;
+        }
+        int k = dot;
+        while (k > 0 && !Character.isWhitespace(text.charAt(k - 1)) && text.charAt(k - 1) != '*') {
+            k--;
+        }
+        return !UNIT_ABBREVIATIONS.contains(text.substring(k, dot).toLowerCase(Locale.ROOT));
+    }
+
+    /** True if a unit starts at {@code at}: only Markdown or white space after a line break, a sentence end or the start. */
+    static boolean unitStart(final String text, final int at) {
+        int i = at;
+        while (i > 0 && (markup(text.charAt(i - 1)) || text.charAt(i - 1) == '-' && (i < 2 || Character.isWhitespace(text.charAt(i - 2))))) {
+            i--;
+        }
+        if (i == 0) {
+            return true;
+        }
+        final char c = text.charAt(i - 1);
+        return c == '\n' || c == '\r' || (c == '.' || c == '!' || c == '?') && sentenceEnd(text, i - 1);
+    }
+
+    /** True if a unit ends at {@code at}: only Markdown or white space before a line break, a sentence end or {@code to}. */
+    private static boolean unitEnd(final String text, final int at, final int to) {
+        int i = at;
+        while (i < to && markup(text.charAt(i))) {
+            i++;
+        }
+        if (i >= to) {
+            return true;
+        }
+        final char c = text.charAt(i);
+        return c == '\n' || c == '\r' || (c == '.' || c == '!' || c == '?') && sentenceEnd(text, i);
+    }
+
+    /** True if a colon follows {@code at} ("Berufshaftpflichtversicherung:", "USt-IdNr.:"). */
+    private static boolean colonAfter(final String text, final int at, final int to) {
+        int i = at;
+        while (i < to && (text.charAt(i) == ' ' || text.charAt(i) == '\t' || text.charAt(i) == '.' || text.charAt(i) == '*')) {
+            i++;
+        }
+        return i < to && text.charAt(i) == ':';
+    }
+
+    /** The unit that ends before the unit starting at {@code at}, as [start, end) without Markdown, or null at {@code floor}. */
+    static int[] previousUnit(final String text, final int at, final int floor) {
+        int e = at;
+        while (e > floor && (Character.isWhitespace(text.charAt(e - 1)) || markup(text.charAt(e - 1)))) {
+            e--;
+        }
+        if (e > floor && (text.charAt(e - 1) == '.' || text.charAt(e - 1) == '!' || text.charAt(e - 1) == '?') && sentenceEnd(text, e - 1)) {
+            e--;
+        }
+        while (e > floor && (Character.isWhitespace(text.charAt(e - 1)) || markup(text.charAt(e - 1)))) {
+            e--;
+        }
+        if (e <= floor) {
+            return null;
+        }
+        int st = e - 1;
+        while (st > floor) {
+            final char c = text.charAt(st - 1);
+            if (c == '\n' || c == '\r' || (c == '.' || c == '!' || c == '?') && sentenceEnd(text, st - 1)) {
+                break;
+            }
+            st--;
+        }
+        while (st < e && (Character.isWhitespace(text.charAt(st)) || markup(text.charAt(st)) || text.charAt(st) == '-')) {
+            st++;
+        }
+        return st < e ? new int[] {st, e} : null;
+    }
+
+    /** The first postal address in [from, to) whose street does not reach back over a sentence end, as its matcher; or null. */
+    private static Matcher findAddress(final String text, final int from, final int to) {
+        int at = from;
+        while (at < to) {
+            final Matcher am = ADDRESS.matcher(text).region(at, to);
+            if (!am.find()) {
+                return null;
+            }
+            // "Geschäftsführerin. Tânia Ferreira. Bonnstraße 164": the street is "Bonnstraße", not the sentences before it
+            int cut = -1;
+            for (int i = am.start(1); i < am.end(1) - 1; i++) {
+                if (text.charAt(i) == '.' && Character.isWhitespace(text.charAt(i + 1)) && sentenceEnd(text, i)) {
+                    cut = i + 1;
+                }
+            }
+            if (cut < 0) {
+                return am;
+            }
+            at = cut;
+        }
+        return null;
     }
 
     /** True if {@code at} lies in a section of {@code text} about another party than the operator. */
@@ -367,39 +532,41 @@ public final class RuleExtractor {
     }
 
     /**
-     * An operator's name without a legal form, as [start, end), or null: the whole line right above the first postal
-     * address of the operator's sections (after an optional "Betreiber:", "Anbieter:", "Herausgeber:"), confirmed by the
-     * site's domain or by the page's single structured organisation. A line that may be a person's name (a person
-     * marker, two or more capitalised words) needs the structured organisation; "Inhaber:" introduces a person.
+     * An operator's name without a legal form, as [start, end), or null: a unit (a line or a sentence) above the first
+     * postal address of the operator's sections, among the {@link #NAME_UNITS} units before it (a tagline, a role and
+     * a person may stand between them), after an optional "Betreiber:", "Anbieter:", "Herausgeber:", and confirmed by
+     * the site's domain or by the page's single structured organisation. A unit that may be a person's name (a person
+     * marker, two or more capitalised words, a unit right after a role such as "Geschäftsführerin" or "Inhaber:")
+     * names nobody; without such a confirmation the operator stays unnamed.
      */
     static int[] plainOperatorName(final String text, final List<int[]> ranges, final String host, final List<Mention> structured) {
         for (final int[] r : ranges) {
-            final Matcher am = ADDRESS.matcher(text).region(r[0], r[1]);
-            if (!am.find()) {
+            final Matcher am = findAddress(text, r[0], r[1]);
+            if (am == null) {
                 continue;
             }
-            // the street starts its own line, and the line above it is the name
-            final int lineStart = lineStart(text, am.start());
-            if (!text.substring(lineStart, am.start()).trim().isEmpty() || lineStart <= r[0]) {
-                return null;
+            int at = am.start();
+            for (int n = 0; n < NAME_UNITS; n++) {
+                final int[] u = previousUnit(text, at, r[0]);
+                if (u == null) {
+                    break;
+                }
+                int start = u[0];
+                final Matcher label = NAME_LABEL.matcher(text).region(u[0], u[1]);
+                if (label.lookingAt()) {
+                    start = label.end();
+                }
+                while (start < u[1] && Character.isWhitespace(text.charAt(start))) {
+                    start++;
+                }
+                final int[] above = previousUnit(text, u[0], r[0]);
+                final boolean afterRole = above != null && PERSON_ROLE_UNIT.matcher(text.substring(above[0], above[1])).matches();
+                if (start < u[1] && !afterRole && plausibleName(text, start, text.substring(start, u[1]), host, structured)) {
+                    return new int[] {start, u[1]};
+                }
+                at = u[0];
             }
-            int end = lineStart - 1;
-            while (end > r[0] && Character.isWhitespace(text.charAt(end - 1))) {
-                end--;
-            }
-            int start = lineStart(text, end);
-            if (start < r[0] || end <= start) {
-                return null;
-            }
-            final Matcher label = NAME_LABEL.matcher(text).region(start, end);
-            if (label.lookingAt()) {
-                start = label.end();
-            }
-            while (start < end && Character.isWhitespace(text.charAt(start))) {
-                start++;
-            }
-            final String name = text.substring(start, end);
-            return plausibleName(text, start, name, host, structured) ? new int[] {start, end} : null;
+            return null;
         }
         return null;
     }
@@ -408,7 +575,8 @@ public final class RuleExtractor {
             final List<Mention> structured) {
         if (name.length() < 2 || name.length() > 80 || name.indexOf(':') >= 0 || name.indexOf('§') >= 0 || name.indexOf('@') >= 0
                 || !(Character.isUpperCase(name.codePointAt(0)) || Character.isDigit(name.charAt(0)))
-                || IMPRINT_MARKER.matcher(name).find() || OPERATOR_SECTION.matcher(name).find() || LEGAL_FORM.matcher(name).find()
+                || IMPRINT_MARKER.matcher(name).find() || OPERATOR_PHRASE.matcher(name).find() || OPERATOR_LABEL.matcher(name).find()
+                || LEGAL_FORM.matcher(name).find()
                 || BusinessFacts.personLike(name)) {
             return false;
         }
@@ -458,19 +626,11 @@ public final class RuleExtractor {
         return t.replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
-    private static int lineStart(final String text, final int at) {
-        int i = at;
-        while (i > 0 && text.charAt(i - 1) != '\n' && text.charAt(i - 1) != '\r') {
-            i--;
-        }
-        return i;
-    }
-
     /** Address, phone and e-mail found in the ranges are attached to {@code m}; the first of each. */
     private void contact(final String text, final List<int[]> ranges, final String cc, final Extraction out, final Mention m) {
         for (final int[] r : ranges) {
-            final Matcher am = ADDRESS.matcher(text).region(r[0], r[1]);
-            if (am.find()) {
+            final Matcher am = findAddress(text, r[0], r[1]);
+            if (am != null) {
                 final Address a = new Address(am.group(1), am.group(2), am.group(3), am.group(4).trim(), null);
                 if (m.address == null && a.complete()) {
                     m.address = a;
@@ -530,7 +690,15 @@ public final class RuleExtractor {
             while (k > floor && !Character.isWhitespace(text.charAt(k - 1)) && !isBreak(text.charAt(k - 1))) {
                 k--;
             }
-            final String word = text.substring(k, j);
+            // Markdown of bold text before the name ("**Muster Pflege GmbH. **"): the name starts after it
+            int lead = k;
+            while (lead < j && (text.charAt(lead) == '*' || text.charAt(lead) == '_')) {
+                lead++;
+            }
+            if (lead == j) {
+                break;
+            }
+            final String word = text.substring(lead, j);
             final String lw = word.toLowerCase(Locale.ROOT);
             if (word.endsWith(".") && !ABBREVIATIONS.contains(lw)) {
                 break; // end of the previous sentence
@@ -541,7 +709,10 @@ public final class RuleExtractor {
             }
             final char first = word.charAt(0);
             if (Character.isUpperCase(first) || Character.isDigit(first) || first == '"' || first == '„') {
-                start = k;
+                start = lead;
+                if (lead > k) {
+                    break;
+                }
             } else if (!CONNECTORS.contains(bare) && !CONNECTORS.contains(lw)) {
                 break;
             }
