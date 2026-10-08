@@ -87,11 +87,26 @@ public class LLM {
          * {@code unknown}. Informative for most usages; the knowledge usage negotiates its structured output with it.
          */
         public String formatCapability = "unknown";
+        /**
+         * The "thinking" capability as the native Ollama path knows it ({@link #thinkingCapability(JSONObject, LLMType)}):
+         * for an OLLAMA model only a result of the native thinking probe, else {@code unknown}. Read by the native
+         * requests only ({@link #nativeNoThinking()}); {@link #thinking} keeps its meaning for every other caller.
+         */
+        public String thinkingCapability = "unknown";
         public LLMModel(LLM llm, String model, boolean tooling, boolean thinking) {
             this.llm = llm;
             this.model = model;
             this.tooling = tooling;
             this.thinking = thinking;
+        }
+        /**
+         * Whether a native Ollama request (knowledge extraction, structured output) says {@code think: false}: always,
+         * except for a model the native probe found not to think. Ollama refuses only {@code think: true} for a model
+         * without thinking and accepts {@code think: false} for every model, while a thinking model thinks by default on
+         * {@code /api/chat} and may spend its whole answer budget on it.
+         */
+        public boolean nativeNoThinking() {
+            return !"unsupported".equals(this.thinkingCapability);
         }
     }
     
@@ -176,6 +191,8 @@ public class LLM {
                     LLMModel llmmodel = new LLMModel(llm, model, tooling, thinking);
                     // the row's format flag is only the displayed probe result of the page: not a result of its own
                     llmmodel.formatCapability = formatCapability(capabilityEntry, type);
+                    // the native thinking capability: for OLLAMA only a result of the native probe (the row flag is its display)
+                    llmmodel.thinkingCapability = thinkingCapability(capabilityEntry, type);
                     if (logRouting) {
                         log.info(routePrefix(runId, caller) + "event=model-routing phase=select usage=" + llmUsage + " row=" + i + " service=" + type.name() + " model=" + LogRedaction.redact(model) + " backend=" + LogRedaction.redact(llm.hoststub) + " maxTokens=" + llm.max_tokens + " numCtx=" + llm.num_ctx + " tooling=" + tooling + " thinking=" + thinking + " productionRows=" + production_models.length() + " durationMs=" + elapsed(start));
                     }
@@ -262,9 +279,37 @@ public class LLM {
     /**
      * Version of the format probe for {@link LLMType#OLLAMA}: the same test on the native {@code /api/chat} with
      * {@code format}, the path the knowledge usage takes for Ollama. A version 2 value of an Ollama model was measured
-     * on {@code /v1/chat/completions}, which says nothing about the native path, and counts as unknown.
+     * on {@code /v1/chat/completions}, which says nothing about the native path, and counts as unknown. A version 3 value
+     * was measured without {@code think: false} for a model taken as non-thinking by the former thinking test (e.g. a
+     * Qwen3 model, which then spends the probe's budget on thinking: ignored) and counts as unknown too.
      */
-    public static final int FORMAT_PROBE_VERSION_OLLAMA = 3;
+    public static final int FORMAT_PROBE_VERSION_OLLAMA = 4;
+
+    /**
+     * Version of the native thinking probe of an {@link LLMType#OLLAMA} model (htroot/env/scoutro/thinking-probe.js),
+     * stored with its result as {@code thinking_probe}: Ollama's own capability list of {@code /api/show}, else a small
+     * {@code /api/chat} with {@code think: true}. A thinking value without it was measured by the former streaming test
+     * on {@code /v1/chat/completions}, which misses the thinking of some models (e.g. Qwen3), and counts as unknown for
+     * the native path. Other services have no thinking probe version: their stored value counts as before.
+     */
+    public static final int THINKING_PROBE_VERSION_OLLAMA = 2;
+
+    /**
+     * The thinking capability of an entry of {@code ai.model_capabilities} for the native path of a service:
+     * {@code supported} or {@code unsupported}, for OLLAMA only with the native probe version, else {@code unknown}.
+     */
+    public static String thinkingCapability(final JSONObject capabilityEntry, final LLMType type) {
+        return thinkingCapability(capabilityEntry, type == null ? null : type.name());
+    }
+
+    /** {@link #thinkingCapability(JSONObject, LLMType)} for the service name of a production row. */
+    public static String thinkingCapability(final JSONObject capabilityEntry, final String service) {
+        if (capabilityEntry == null) return "unknown";
+        if (LLMType.OLLAMA.name().equals(service == null ? "" : service.trim())
+                && capabilityEntry.optInt("thinking_probe", 0) != THINKING_PROBE_VERSION_OLLAMA) return "unknown";
+        final String status = capabilityStatus(capabilityEntry.optString("thinking", ""));
+        return "ignored".equals(status) ? "unknown" : status;
+    }
 
     /** The format probe version whose result counts for a service ({@code OLLAMA}, {@code OPENAI}, ...). */
     public static int formatProbeVersion(final String service) {
@@ -560,8 +605,8 @@ public class LLM {
      * <p>
      * The options mirror what Ollama derives from {@link #chatWithResponseFormat}'s request: {@code temperature} 0.1,
      * {@code num_predict} = max_tokens and the stop tokens. {@code num_ctx} is not sent (the OpenAI-compatible path
-     * ignores it too, so the server's own context length applies as before); {@code think: false} only for a model
-     * known to think (the other path sends reasoning_effort none).
+     * ignores it too, so the server's own context length applies as before); {@code think: false} unless the model is
+     * known not to think ({@link LLMModel#nativeNoThinking()}; the other path always sends reasoning_effort none).
      *
      * @param format a JSON schema (JSONObject), the string {@code "json"} (JSON mode), or null for none
      * @param noThinking send {@code think: false}

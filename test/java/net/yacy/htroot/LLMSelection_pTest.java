@@ -88,6 +88,38 @@ public class LLMSelection_pTest {
     }
 
     @Test
+    public void theNativeThinkingProbeVersionIsKept() throws Exception {
+        final JSONObject in = new JSONObject()
+                .put("OLLAMA|http://ollama:11434|qwen3:14b", new JSONObject().put("thinking", "supported").put("thinking_probe", 2)
+                        .put("format", "supported").put("format_probe", 4))
+                .put("OLLAMA|http://ollama:11434|old", new JSONObject().put("thinking", "unsupported")) // the former /v1 test
+                .put("OPENAI|https://api.example.org|m", new JSONObject().put("thinking", "supported"));
+        final JSONObject out = LLMSelection_p.normalizeModelCapabilities(in);
+        final JSONObject probed = out.getJSONObject("OLLAMA|http://ollama:11434|qwen3:14b");
+        assertEquals(2, probed.getInt("thinking_probe"));
+        assertEquals("supported", net.yacy.ai.LLM.thinkingCapability(probed, "OLLAMA"));
+        final JSONObject old = out.getJSONObject("OLLAMA|http://ollama:11434|old");
+        assertEquals("the stored value stays until a new probe", "unsupported", old.getString("thinking"));
+        assertFalse(old.has("thinking_probe"));
+        assertEquals("unknown", net.yacy.ai.LLM.thinkingCapability(old, "OLLAMA"));
+        final JSONObject openai = out.getJSONObject("OPENAI|https://api.example.org|m");
+        assertFalse(openai.has("thinking_probe"));
+        assertEquals("other services as before", "supported", net.yacy.ai.LLM.thinkingCapability(openai, "OPENAI"));
+        // the page probes an OLLAMA model natively and reads its thinking value only through the probe
+        final String html = new String(Files.readAllBytes(Paths.get("htroot/LLMSelection_p.html")), StandardCharsets.UTF_8);
+        assertTrue(html.contains("<script src=\"env/scoutro/thinking-probe.js\"></script>"));
+        assertTrue(html.contains("ScoutroThinkingProbe.native(service) ? ScoutroThinkingProbe.stored(entry, service)"));
+        assertTrue(html.contains("postNativeThinkingProbe(endpointBase, \"/api/show\""));
+        assertTrue("the format probe of an Ollama model asks with think: false unless it does not think",
+                html.contains("ScoutroThinkingProbe.noThinking(getPersistedCapabilitiesForModel(service, endpointBase, modelName).thinking)"));
+        assertTrue("every other service keeps the /v1 test", html.contains("runThinkingCapabilityTest(service, normalizedHoststub, modelName, apikey).then("));
+        final String proxy = new String(Files.readAllBytes(Paths.get("source/net/yacy/http/servlets/LLMAdminProxyServlet.java")), StandardCharsets.UTF_8);
+        assertTrue("/api/show is mirrored for configured endpoints", proxy.contains("\"/api/tags\", \"/api/show\""));
+        final String java = new String(Files.readAllBytes(Paths.get("source/net/yacy/htroot/LLMSelection_p.java")), StandardCharsets.UTF_8);
+        assertTrue("the displayed thinking of an OLLAMA row is the native value", java.contains("net.yacy.ai.LLM.thinkingCapability(capabilityEntry, row.optString(\"service\", \"\"))"));
+    }
+
+    @Test
     public void templateRendersNoKey() throws Exception {
         final String html = new String(Files.readAllBytes(Paths.get("htroot/LLMSelection_p.html")), StandardCharsets.UTF_8);
         final String java = new String(Files.readAllBytes(Paths.get("source/net/yacy/htroot/LLMSelection_p.java")), StandardCharsets.UTF_8);

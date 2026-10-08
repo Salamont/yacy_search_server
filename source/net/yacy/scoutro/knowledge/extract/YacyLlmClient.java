@@ -39,6 +39,8 @@ import net.yacy.scoutro.knowledge.KgJson;
  * ({@link LLM#chatOllamaNative}) with {@code format}: the schema itself, the
  * string {@code "json"} or nothing; Ollama enforces the schema there, while its
  * {@code /v1/chat/completions} was seen to ignore a {@code response_format}.
+ * The native request says {@code think: false} unless the model is known not
+ * to think ({@link LLM.LLMModel#nativeNoThinking()}): extraction never thinks.
  * Every other service keeps its OpenAI-compatible {@code /v1/chat/completions}
  * ({@link LLM#chatWithResponseFormat}) with a {@code json_schema} (with the
  * {@code name} that protocol requires), a {@code json_object} or no
@@ -203,7 +205,10 @@ public final class YacyLlmClient implements LlmClient {
         final boolean rejected = name != null && this.withoutSchema.contains(m.llm.hoststub + "|" + name);
         final Plan plan = name == null ? null : plan(setting, m.formatCapability, rejected, true);
         final long at = this.lastRejectionAt;
+        final boolean nativeApi = name != null && API_OLLAMA_NATIVE.equals(api(m));
         return KgJson.obj("setting", setting, "api", name == null ? null : api(m), "capability", name == null ? null : LLM.capabilityStatus(m.formatCapability),
+                // the native path only: the model's thinking capability of the native probe, and think: false when it is sent
+                "thinking", nativeApi ? m.thinkingCapability : null, "think", nativeApi && m.nativeNoThinking() ? Boolean.FALSE : null,
                 "mode", plan == null ? null : plan.mode, "request", plan == null ? null : plan.request,
                 "reason", plan == null ? null : plan.reason, "withoutSchema", rejected,
                 "requests", KgJson.obj(JSON_SCHEMA, this.requestsJsonSchema.get(), JSON_OBJECT, this.requestsJsonObject.get(),
@@ -225,7 +230,9 @@ public final class YacyLlmClient implements LlmClient {
                 : JSON_OBJECT.equals(format.optString("type")) ? this.requestsJsonObject : this.requestsJsonSchema).incrementAndGet();
         if (API_OLLAMA_NATIVE.equals(api(m))) {
             // the same request natively: never a fallback to /v1/chat/completions
-            return m.llm.chatOllamaNative(m.model, context, ollamaFormat(format), m.llm.max_tokens, m.thinking, timeout, MAX_RESPONSE_CHARS);
+            // think: false unless the native probe found the model does not think: extraction never thinks
+            return m.llm.chatOllamaNative(m.model, context, ollamaFormat(format), m.llm.max_tokens, m.nativeNoThinking(), timeout,
+                    MAX_RESPONSE_CHARS);
         }
         return m.llm.chatWithResponseFormat(m.model, context, format, m.llm.max_tokens, timeout, MAX_RESPONSE_CHARS);
     }
