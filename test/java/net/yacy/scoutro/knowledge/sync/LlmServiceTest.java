@@ -521,6 +521,26 @@ public class LlmServiceTest {
                 LlmExtractor.cacheKey(p.hash, "TEST/fixture", chunk, "Impressum", "muster-pflege.de", "de", List.of(), java.util.Set.of())));
     }
 
+    /** The id-contract fix is a new compiled-in default: an upgrade from 0.8.5 records it and reads no done document again. */
+    @Test
+    public void theNewDefaultOfTheIdContractReadsNoDocumentAgain() throws Exception {
+        final String release085 = "d26f1ece9b8a214a"; // PROMPT_HASH of Scoutro 0.8.5
+        assertFalse("the id contract is a new default prompt", release085.equals(LlmExtractor.PROMPT_HASH));
+        add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);
+        settleSync();
+        settleLlm();
+        putMeta(KgSchema.META_LLM_EXTRACTOR, LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/" + release085);
+        restart();
+        settleLlm();
+        assertEquals("not read again", 1, this.model.calls.get());
+        assertEquals(0L, this.llm.status().getJSONObject("processed").getLong("cacheHits"));
+        assertEquals("1:", llmStatus("AAAAAAhost01"));
+        final List<String> events = strings("SELECT code FROM kg_event");
+        assertTrue(events.toString(), events.contains("llm_prompt_changed"));
+        assertFalse(events.toString(), events.contains("llm_extractor_changed"));
+        assertTrue("the prompt sent has the contract", LlmExtractor.SYSTEM_PROMPT.contains("Never put a known entity into \"entities\" again"));
+    }
+
     @Test
     public void aNewExtractorVersionStillReadsEveryDocumentAgain() throws Exception {
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);

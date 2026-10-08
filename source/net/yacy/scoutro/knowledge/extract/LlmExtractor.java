@@ -151,13 +151,24 @@ public final class LlmExtractor {
             + " service_provider_for, brand_of (subject is a brand of object), certified_by, funded_by, sponsored_by. A link or a"
             + " mention alone is no relation.\n"
             + "6. Set \"hedged\": true if the text states a claim as planned, possible or uncertain.\n"
-            + "7. Known entities of the page are listed with ids k1, k2, ...; refer to them by these ids instead of repeating them.\n"
+            + "7. Known entities of the page are listed in the DATA block with the ids k1, k2, ...: they exist already. Never put a"
+            + " known entity into \"entities\" again; use its k id only as \"subject\" or \"object\" of a claim or as \"subject\" of a"
+            + " value. Every new entity in \"entities\" gets the next new id e1, e2, e3, ... (every id once per answer, never a k id);"
+            + " claims and values refer to new entities by these ids.\n"
             + "8. \"values\" point at values the text states about an entity: price (of a service), salary (of a job), category"
             + " (the kind of a service), industry, customer_type, audience_segment, target_category (whom an organisation or service is"
             + " for), company_size, employment_type. Give only subject, predicate and the verbatim quote that states the value; never"
             + " write the value yourself, never compute, convert or estimate.\n"
             + "9. Answer with one JSON object with the fields \"entities\", \"claims\" and \"values\" and nothing else. Empty arrays"
             + " are fine.";
+
+    /**
+     * The id contract of the answer (rule 7, and the schema's descriptions): a known entity keeps its {@code k} id and is
+     * only referred to; a new entity gets a new {@code e} id, once per answer. The validator's rules are unchanged: an
+     * entity with a known id or one used before in the answer is dropped ({@code entity_duplicate_id}).
+     */
+    private static final String NEW_ID = "A new id e1, e2, e3, ... for this new entity, once per answer; never a known id (k1, k2, ...).";
+    private static final String REFERENCE = "The id of a known entity (k1, k2, ...) or of a new entity in \"entities\" (e1, e2, ...).";
 
     /** The answer schema, sent as {@code response_format} where the endpoint supports it. */
     public static final JSONObject SCHEMA;
@@ -174,7 +185,8 @@ public final class LlmExtractor {
                     .put("type", "object").put("additionalProperties", false)
                     .put("required", new JSONArray(List.of("id", "type", "name", "quote")))
                     .put("properties", new JSONObject()
-                            .put("id", new JSONObject().put("type", "string").put("maxLength", 32))
+                            .put("id", new JSONObject().put("type", "string").put("maxLength", 32)
+                                    .put("description", NEW_ID))
                             .put("type", new JSONObject().put("type", "string").put("enum", new JSONArray(TYPES)))
                             .put("name", new JSONObject().put("type", "string").put("maxLength", MAX_STRING))
                             .put("kind", new JSONObject().put("type", "string").put("maxLength", 64))
@@ -183,22 +195,24 @@ public final class LlmExtractor {
                     .put("type", "object").put("additionalProperties", false)
                     .put("required", new JSONArray(List.of("subject", "predicate", "object", "quote")))
                     .put("properties", new JSONObject()
-                            .put("subject", new JSONObject().put("type", "string").put("maxLength", 32))
+                            .put("subject", new JSONObject().put("type", "string").put("maxLength", 32).put("description", REFERENCE))
                             .put("predicate", new JSONObject().put("type", "string").put("enum", new JSONArray(PREDICATES)))
-                            .put("object", new JSONObject().put("type", "string").put("maxLength", 32))
+                            .put("object", new JSONObject().put("type", "string").put("maxLength", 32).put("description", REFERENCE))
                             .put("hedged", new JSONObject().put("type", "boolean"))
                             .put("quote", new JSONObject().put("type", "string").put("maxLength", MAX_QUOTE)));
             final JSONObject value = new JSONObject()
                     .put("type", "object").put("additionalProperties", false)
                     .put("required", new JSONArray(List.of("subject", "predicate", "quote")))
                     .put("properties", new JSONObject()
-                            .put("subject", new JSONObject().put("type", "string").put("maxLength", 32))
+                            .put("subject", new JSONObject().put("type", "string").put("maxLength", 32).put("description", REFERENCE))
                             .put("predicate", new JSONObject().put("type", "string").put("enum", new JSONArray(VALUE_PREDICATES)))
                             .put("quote", new JSONObject().put("type", "string").put("maxLength", MAX_QUOTE)));
             SCHEMA = new JSONObject().put("type", "object").put("additionalProperties", false)
                     .put("required", new JSONArray(List.of("entities", "claims", "values")))
                     .put("properties", new JSONObject()
-                            .put("entities", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS).put("items", entity))
+                            .put("entities", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS)
+                                    .put("description", "New entities only: never a known entity (k1, k2, ...) of the DATA block.")
+                                    .put("items", entity))
                             .put("claims", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS).put("items", claim))
                             .put("values", new JSONObject().put("type", "array").put("maxItems", MAX_ITEMS).put("items", value)));
         } catch (final JSONException e) {
