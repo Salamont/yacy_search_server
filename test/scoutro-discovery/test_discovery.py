@@ -865,6 +865,54 @@ class StateIntegrityTests(unittest.TestCase):
         self.assertEqual([json.loads(line)["verdict"] for line in lines[:-1]], ["PASS"] * 3)
 
 
+class ExclusionTests(CliBase):
+    """exclude/include: one (domain, profile) taken out of every selection, nothing else changes (yowea.com and
+    stackfinder after its pages were moved to checkthecoach-web)."""
+
+    def test_exclude_preview_apply_and_include(self):
+        domain = sorted(INDEX)[0]
+        before = self.state()
+        preview = json.loads(self.run_cli("exclude", "--profile", "edelsenior", "--domain", domain, "--reason", "wrong profile",
+                                          "--dry-run").stdout)
+        self.assertTrue(preview["changed"])
+        self.assertEqual(preview["after"]["status"], "excluded")
+        self.assertEqual(preview["after"]["excluded"]["previous_status"], "crawled")
+        self.assertEqual(self.state(), before, "a dry run writes nothing")
+        out = json.loads(self.run_cli("exclude", "--profile", "edelsenior", "--domain", domain, "--reason", "wrong profile").stdout)
+        self.assertTrue(out["changed"])
+        st = self.state()
+        self.assertEqual(pstate(st, domain)["status"], "excluded")
+        self.assertEqual(pstate(st, domain)["excluded"]["reason"], "wrong profile")
+        for other in INDEX:
+            if other != domain:
+                self.assertEqual(pstate(st, other)["status"], "crawled")
+        status = json.loads(self.run_cli("status").stdout)
+        self.assertEqual(status["profiles"]["edelsenior"]["excluded"], 1)
+        # again: nothing to do
+        self.assertFalse(json.loads(self.run_cli("exclude", "--profile", "edelsenior", "--domain", domain).stdout)["changed"])
+        back = json.loads(self.run_cli("include", "--profile", "edelsenior", "--domain", domain).stdout)
+        self.assertTrue(back["changed"])
+        self.assertEqual(pstate(self.state(), domain)["status"], "crawled")
+        self.assertNotIn("excluded", pstate(self.state(), domain))
+
+    def test_unknown_pair_and_invalid_domain_change_nothing(self):
+        before = self.state()
+        p = self.run_cli("exclude", "--profile", "stackfinder", "--domain", sorted(INDEX)[0], ok=False)
+        self.assertEqual(p.returncode, 2)
+        self.assertEqual(json.loads(p.stdout)["error"]["code"], "unknown_pair")
+        p = self.run_cli("exclude", "--profile", "edelsenior", "--domain", "www." + sorted(INDEX)[0], ok=False)
+        self.assertIn("invalid_domain", p.stdout + p.stderr)
+        self.assertEqual(self.state(), before)
+
+    def test_an_excluded_pair_is_never_selected(self):
+        now = int(time.time())
+        entry = {"status": "excluded", "last_crawl": now - 400 * 86400, "next_attempt": 0,
+                 "excluded": {"at": now, "reason": "", "previous_status": "crawled", "previous_next_attempt": 0}}
+        self.assertIsNone(disc.selection_kind(entry, now, 30))
+        self.assertIsNone(disc.selection_kind(entry, now, 30, force=True))
+        self.assertEqual(disc.selection_kind(dict(entry, status="crawled"), now, 30), disc.KIND_RECRAWL)
+
+
 class ReclassificationTests(CliBase):
     """criteria_version handling and one active result per domain and profile (check 8 and 9)."""
 

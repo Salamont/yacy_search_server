@@ -72,6 +72,20 @@ class AutomationTests(unittest.TestCase):
         self.assertEqual(after["profiles"]["future_profile"]["operator_note"], "keep")
         self.assertNotIn("firm-0.de", [row[0] for row in self.select()])
 
+    def test_an_excluded_pair_is_never_selected_and_survives_replenishing(self):
+        self.replenish(candidates(3))
+        entry = self.state.profile_entry("firm-0.de", "future_profile")
+        entry.update({"status": "excluded", "collection": "future-index", "last_crawl": NOW - 400 * 86400, "next_attempt": 0,
+                      "excluded": {"at": NOW, "reason": "wrong profile", "previous_status": "crawled", "previous_next_attempt": 0}})
+        self.state.put_profile_entry("firm-0.de", "another", {"status": "crawled", "last_crawl": NOW - 400 * 86400}, NOW)
+        everything = job()
+        everything["processing"] = {"fresh": True, "retry": True, "recrawl": {"enabled": True, "days": 30}}
+        self.assertNotIn("firm-0.de", [row[0] for row in self.select(everything)])
+        self.assertIn("firm-1.de", [row[0] for row in self.select(everything)])
+        self.replenish(candidates(3))
+        self.assertEqual(self.state.profile_entry("firm-0.de", "future_profile")["status"], "excluded")
+        self.assertEqual(self.state.profile_entry("firm-0.de", "another")["status"], "crawled")
+
     def test_duplicate_domains_preserve_all_source_origins(self):
         self.replenish(candidates(1) + candidates(1, region="Other City"))
         entry = self.state.profile_entry("firm-0.de", "future_profile")

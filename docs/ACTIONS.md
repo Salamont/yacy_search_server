@@ -68,6 +68,7 @@ Other findings:
 | `crawl.stop` | `POST /scoutro/api/v1/crawls/{id}/stop` | **yes** | admin | `crawl stop ID` | `scoutro_crawl_stop` |
 | `collections.list` | `GET /scoutro/api/v1/collections` | no | admin | `collections` | `scoutro_collections_list` |
 | `collections.create` | `POST /scoutro/api/v1/collections` | **yes** | admin | `collections create NAME [--id ID] [--description TEXT]` | `scoutro_collections_create` |
+| `collections.reassign` | `POST /scoutro/api/v1/collections/reassign` | **yes** | admin | `collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN]` | `scoutro_collections_reassign` |
 | `config.get` | `GET /scoutro/api/v1/config` | no | admin | `config get` | `scoutro_config_get` |
 | `config.set` | `PATCH /scoutro/api/v1/config` | **yes** | admin | `config set KEY VALUE` | `scoutro_config_set` |
 | `ui.routes` | `GET /scoutro/api/v1/ui/routes` | no | public | `ui routes` | `scoutro_ui_routes` |

@@ -146,6 +146,12 @@ def build_parser():
     create.add_argument("name", help="display name, e.g. 'Mein neues Portal'")
     create.add_argument("--id", help="collection id (2-64 lower-case letters, digits, single hyphens); default: derived from the name")
     create.add_argument("--description", help="optional description")
+    reassign = cols_sub.add_parser("reassign", help="administrator: move one domain's pages between collections "
+                                   "(preview without --confirm; nothing is crawled or deleted)")
+    reassign.add_argument("domain", help="one registrable domain, e.g. example.com (its subdomains included)")
+    reassign.add_argument("--add", action="append", default=[], help="collection to add, repeatable")
+    reassign.add_argument("--remove", action="append", default=[], help="collection to remove, repeatable")
+    reassign.add_argument("--confirm", help="the token of the preview to apply")
     host = sub.add_parser("host", help="normalize a host or URL and check the index").add_subparsers(dest="host_command", required=True)
     resolve = host.add_parser("resolve")
     resolve.add_argument("input")
@@ -348,6 +354,11 @@ def main(argv=None):
             if args.description:
                 body["description"] = args.description
             result = client.call("POST", v1 + "/collections", body=body)
+        elif getattr(args, "collections_command", None) == "reassign":
+            body = {"domain": args.domain, "add": args.add, "remove": args.remove}
+            if args.confirm:
+                body["confirm"] = args.confirm
+            result = client.call("POST", v1 + "/collections/reassign", body=body)
         else:
             result = client.call("GET", v1 + "/collections")
     elif c == "host":

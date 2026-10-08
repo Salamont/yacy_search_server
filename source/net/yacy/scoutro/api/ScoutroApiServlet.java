@@ -190,6 +190,11 @@ public class ScoutroApiServlet extends HttpServlet {
                 break;
             case "collections":
                 requireAdmin(request);
+                if (parts.length == 4 && "reassign".equals(parts[3])) {
+                    // preview without "confirm", apply with the preview's token; one domain, same origin, small body
+                    expect(method, parts, 4, "POST");
+                    return this.actions.collectionReassign(jsonBody(request, MAX_COLLECTION_BODY_BYTES));
+                }
                 if (parts.length == 3 && "POST".equals(method)) {
                     // small JSON body, same origin (jsonBody); validated and stored by the catalog
                     final JSONObject created = this.actions.collectionCreate(jsonBody(request, MAX_COLLECTION_BODY_BYTES));

@@ -337,6 +337,38 @@ filters, crawl starts and agent grants all take their choices from it.
   checked) and `503 collection_store_unavailable` when the list cannot be
   written or is damaged; in both cases nothing is created. Agents have no
   create grant (`405` on the agent path).
+- `POST /v1/collections/reassign` (administrator, same-origin JSON, at most
+  4 KiB): moves the indexed pages of **one registrable domain** (and its
+  subdomains) between collections without crawling them again, e.g. a domain
+  Discovery put into the wrong collection. Details, safety and the operating
+  procedure: [SCOUTRO_COLLECTION_REASSIGNMENT.md](SCOUTRO_COLLECTION_REASSIGNMENT.md).
+
+  ```sh
+  # preview: changes nothing, answers a token
+  curl --digest -u admin -X POST -H 'Content-Type: application/json' \
+    -d '{"domain":"example.com","add":["right-web"],"remove":["wrong-web"]}' \
+    http://scoutro:8090/scoutro/api/v1/collections/reassign
+  # apply exactly that preview
+  curl --digest -u admin -X POST -H 'Content-Type: application/json' \
+    -d '{"domain":"example.com","add":["right-web"],"remove":["wrong-web"],"confirm":"<token>"}' \
+    http://scoutro:8090/scoutro/api/v1/collections/reassign
+  ```
+
+  Answer: `domain`, `hosts`, `documents` (the domain's pages in a removed
+  collection; without `remove` every page of the domain), `changes`,
+  `unchanged`, `before`/`after` (pages per collection), `kept` (other
+  collections that stay), `sample` (≤ 20 URLs with their collections before
+  and after), `webgraph` (`written`, `edges`), `crawlRunning`, `token`,
+  `applied`; after an apply also `updated`, `webgraphUpdated` and `failed`.
+  Only `collection_sxt` changes, as a Solr atomic update with the version of
+  the preview (text, JSON-LD and every other field stay; a page changed since
+  is never overwritten and is listed in `failed`); the knowledge graph
+  re-scopes the pages through its sync. `400 invalid_request` (not exactly one
+  registrable domain, `add` and `remove` empty or overlapping, unknown field),
+  `400 collection_unknown`, `409 reassign_preview_stale` (the pages changed
+  since the preview; `details` hold the new one), `409 host_busy` (a crawl of
+  the domain runs), `422 reassign_would_empty`, `422 reassign_too_large`
+  (more than 5 000 pages), `503 index_unavailable`. Never an agent route.
 
 ### Index
 

@@ -113,7 +113,12 @@ in the knowledge graph — neither a rule change nor `classify` moves them; a
 collection is corrected by the collection reassignment of the Scoutro API
 (see `docs/SCOUTRO_COLLECTION_REASSIGNMENT.md`). A domain may still come back
 as a candidate of the profile from the freeworld search (`--source freeworld`
-/ `both`) if its pages match the profile's search terms.
+/ `both`) if its pages match the profile's search terms, and the automation
+re-crawls `crawled` pairs from `state.json` after `recrawl.days` without a new
+discovery: take such a pair out with `scoutro-discovery exclude --profile <p>
+--domain <d>` (`--dry-run` first; `include` undoes it). The automation reads
+the rules from its runtime configuration (`DATA/SCOUTRO/config`), never from
+these repository files: a rule change has to be made there.
 
 ## Usage
 

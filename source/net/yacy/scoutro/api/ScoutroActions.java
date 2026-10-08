@@ -340,6 +340,27 @@ final class ScoutroActions {
         return Json.obj("collection", this.catalog.create(body).json(), "created", true);
     }
 
+    /**
+     * collections.reassign (administrator): preview, or apply with the preview's token, a move of one domain's
+     * pages between collections without crawling them again ({@link CollectionReassign}).
+     */
+    JSONObject collectionReassign(final JSONObject body) throws ApiException {
+        final java.util.Set<String> crawling = new java.util.HashSet<>();
+        for (final JSONObject crawl : loadCrawls().values()) {
+            if ("terminated".equals(crawl.optString("state"))) continue;
+            String host = crawl.optString("host", "");
+            String name = crawl.optString("name", "");
+            try {
+                if (name.contains("://")) name = new java.net.URI(name).getHost();
+            } catch (final Exception e) {
+                name = "";
+            }
+            if (!host.isEmpty()) crawling.add(host.toLowerCase(java.util.Locale.ROOT));
+            if (name != null && !name.isEmpty()) crawling.add(name.toLowerCase(java.util.Locale.ROOT));
+        }
+        return CollectionReassign.current(this.catalog).run(body, crawling::contains);
+    }
+
     /** index.lookup: is a URL indexed, or how many documents does a host have (embedded Solr). */
     JSONObject indexLookup(final Map<String, String> query) throws ApiException {
         return indexLookup(query, null);
