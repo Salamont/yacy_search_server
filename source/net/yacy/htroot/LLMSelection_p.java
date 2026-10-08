@@ -59,6 +59,9 @@ public class LLMSelection_p {
                 // the version of the format probe that found the value (none: the old mood probe, read as unknown)
                 final int formatProbe = entry.optInt("format_probe", 0);
                 if (formatProbe > 0) normalizedEntry.put("format_probe", formatProbe);
+                // the version of the native thinking probe of an OLLAMA model (none: the former /v1 test, unknown for OLLAMA)
+                final int thinkingProbe = entry.optInt("thinking_probe", 0);
+                if (thinkingProbe > 0) normalizedEntry.put("thinking_probe", thinkingProbe);
             } else {
                 normalizedEntry.put("thinking", "unknown");
                 normalizedEntry.put("tooling", "unknown");
@@ -304,12 +307,15 @@ public class LLMSelection_p {
                 
                 final String key = capabilityKey(row);
                 JSONObject capabilityEntry = key.isEmpty() ? null : capabilities.optJSONObject(key);
-                String thinkingStatus = capabilityEntry == null ? "unknown" : normalizeCapabilityStatus(capabilityEntry.opt("thinking"));
+                final boolean ollama = net.yacy.ai.LLM.LLMType.OLLAMA.name().equals(row.optString("service", "").trim());
+                // thinking of an OLLAMA model: only a result of the native probe; the row's flag is that displayed result
+                String thinkingStatus = ollama ? net.yacy.ai.LLM.thinkingCapability(capabilityEntry, row.optString("service", ""))
+                        : capabilityEntry == null ? "unknown" : normalizeCapabilityStatus(capabilityEntry.opt("thinking"));
                 String toolingStatus = capabilityEntry == null ? "unknown" : normalizeCapabilityStatus(capabilityEntry.opt("tooling"));
                 String visionStatus = capabilityEntry == null ? "unknown" : normalizeCapabilityStatus(capabilityEntry.opt("vision"));
                 // format: only a result of the current probe; the row's flag is that displayed result, not a probe of its own
                 String formatStatus = net.yacy.ai.LLM.formatCapability(capabilityEntry, row.optString("service", ""));
-                if (row.optBoolean("thinking", false)) thinkingStatus = "supported";
+                if (!ollama && row.optBoolean("thinking", false)) thinkingStatus = "supported";
                 if (row.optBoolean("tooling", false)) toolingStatus = "supported";
                 if (row.optBoolean("vision", false)) visionStatus = "supported";
                 prop.put("productionmodels_" + i + "_thinking",
@@ -373,7 +379,8 @@ public class LLMSelection_p {
                         entry.put("format", "unknown");
                         capabilities.put(key, entry);
                     }
-                    if (row.optBoolean("thinking", false)) entry.put("thinking", "supported");
+                    // not for OLLAMA: its thinking value counts only with the native probe version, which a row flag has not
+                    if (row.optBoolean("thinking", false) && !"OLLAMA".equals(row.optString("service", "").trim())) entry.put("thinking", "supported");
                     if (row.optBoolean("tooling", false)) entry.put("tooling", "supported");
                     if (row.optBoolean("vision", false)) entry.put("vision", "supported");
                 }

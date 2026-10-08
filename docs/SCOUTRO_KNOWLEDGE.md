@@ -229,7 +229,10 @@ A changed vocabulary re-extracts the pages at low priority.
   `response_format`. Every other service keeps `/v1/chat/completions`; there
   is no switching between the two. The validator checks every answer as
   before, existing results and cache entries stay, and only new or changed
-  pages are asked on the new path (no re-extraction).
+  pages are asked on the new path (no re-extraction). The native request says
+  `think: false` unless the LLM selection's native thinking test found the
+  model does not think: a thinking model (e.g. Qwen3) would otherwise spend
+  the answer budget on thinking and answer nothing.
 - **Knowledge prompt.** The system prompt of the LLM tier can be read and
   changed without a new image through the administrator API
   `GET`/`POST /scoutro/api/v1/kg/prompt` (validate, activate, reset to the

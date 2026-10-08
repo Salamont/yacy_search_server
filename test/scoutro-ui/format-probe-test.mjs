@@ -77,8 +77,8 @@ check(probe.stored({ format: 'ignored', format_probe: '2' }) === 'ignored', 'cur
 check(probe.stored({ format: 'unknown', format_probe: 2 }) === 'unknown' && probe.stored({ format: 'yes', format_probe: 2 }) === 'unknown', 'other values: unknown');
 check(probe.stored(null) === 'unknown' && probe.stored(undefined) === 'unknown', 'no entry: unknown');
 
-// Ollama: the native /api/chat with format (probe version 3); every other service unchanged (version 2)
-check(probe.path('OLLAMA') === '/api/chat' && probe.version('OLLAMA') === 3, 'OLLAMA: native path, version 3');
+// Ollama: the native /api/chat with format (probe version 4); every other service unchanged (version 2)
+check(probe.path('OLLAMA') === '/api/chat' && probe.version('OLLAMA') === 4, 'OLLAMA: native path, version 4');
 for (const service of ['OPENAI', 'OPENROUTER', 'LMSTUDIO', 'OTHER', '', undefined]) {
   check(probe.path(service) === '/v1/chat/completions' && probe.version(service) === 2, String(service) + ': OpenAI-compatible, version 2');
   check(JSON.stringify(probe.payload('m', false, service)) === JSON.stringify(probe.payload('m', false)), String(service) + ': the former request');
@@ -100,11 +100,13 @@ check(probe.classify({ status: 400, controlStatus: 200 }) === 'unsupported', 'na
 // D) timeout, 5xx, a missing model (404), a refused control -> unknown
 for (const status of [0, 404, 500, 503]) check(probe.classify({ status }) === 'unknown', 'native ' + status + ': unknown');
 check(probe.classify({ status: 400, controlStatus: 404 }) === 'unknown', 'native 400 + control 404: unknown');
-// F) stored values: an Ollama value needs version 3; a version 2 value (measured on /v1) is unknown for Ollama only
+// F) stored values: an Ollama value needs version 4; a version 2 value (measured on /v1) and a version 3 value (measured
+// without think: false for a model taken as non-thinking) are unknown for Ollama only
 check(probe.stored({ format: 'ignored', format_probe: 2 }, 'OLLAMA') === 'unknown', 'Ollama v2 (from /v1): unknown');
-check(probe.stored({ format: 'supported', format_probe: 3 }, 'OLLAMA') === 'supported', 'Ollama v3: supported');
+check(probe.stored({ format: 'supported', format_probe: 4 }, 'OLLAMA') === 'supported', 'Ollama v4: supported');
+check(probe.stored({ format: 'ignored', format_probe: 3 }, 'OLLAMA') === 'unknown', 'Ollama v3 (maybe without think false): unknown');
 check(probe.stored({ format: 'unsupported' }, 'OLLAMA') === 'unknown', 'Ollama legacy: unknown');
-check(probe.stored({ format: 'ignored', format_probe: 2 }, 'OPENAI') === 'ignored' && probe.stored({ format: 'supported', format_probe: 3 }, 'OPENAI') === 'unknown',
-  'OpenAI: version 2 counts, version 3 does not');
+check(probe.stored({ format: 'ignored', format_probe: 2 }, 'OPENAI') === 'ignored' && probe.stored({ format: 'supported', format_probe: 4 }, 'OPENAI') === 'unknown',
+  'OpenAI: version 2 counts, version 4 does not');
 
 console.log(`PASS: ${checks} format probe checks`);

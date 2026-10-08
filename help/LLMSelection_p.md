@@ -58,6 +58,36 @@ The production matrix uses the existing Scoutro horizontal scroll container,
 cleared below its card heading so the table remains visible even when the
 capability-test activity block is hidden.
 
+### Thinking capability
+
+The **thinking** column says whether a model thinks (reasons before it
+answers). Requests that must not think (the knowledge graph's extraction, the
+format test below) then say so; the chat sends its own no-thinking parameters
+for a model marked as thinking, as before.
+
+- An **OLLAMA** model is tested natively (`htroot/env/scoutro/thinking-probe.js`):
+  first Ollama's own capability list of `POST /api/show` (static, nothing is
+  generated): **yes** if it lists `thinking`, else **no**. Only when
+  `/api/show` gives no capability list, a small `POST /api/chat` with
+  `think: true` and "Hello" decides: thinking in the answer is **yes**, an
+  answer without thinking or a refused `think` (HTTP 400 while the same request
+  without it is answered) is **no**. No answer (network, timeout, 5xx, ...)
+  is **?** and nothing is stored. Both go through the administrator
+  passthrough (`/api/show?hoststub=…`, `/api/chat?hoststub=…`), configured
+  endpoints only. The result is stored with `thinking_probe: 2`. A value
+  without it was measured by the former streaming test on
+  `/v1/chat/completions`, which misses the thinking of some models (e.g. a
+  Qwen3 model, then "no"), and is read as **?** until the page tests the
+  model again.
+- Every other service keeps the streaming test on `/v1/chat/completions`
+  ("Hello", thinking tokens in the stream) and its stored values.
+
+Why it matters for Ollama: a model with the capability `thinking` thinks by
+default on `/api/chat` unless the request says `think: false`, and can spend
+the whole answer budget on thinking (empty answer). Ollama accepts
+`think: false` for every model, so the knowledge graph and the format test
+send it for an OLLAMA model unless it is known not to think (**no**).
+
 ### Format capability (structured output)
 
 The **format** column is a technical test only: does the endpoint and model
@@ -81,9 +111,12 @@ schema as `format` (the path the knowledge graph uses for it, through the
 administrator passthrough `/api/chat?hoststub=…`, configured endpoints only);
 every other service on `/v1/chat/completions` with `response_format`
 `json_schema`. The result is stored in `ai.model_capabilities` with
-`format_probe: 3` for OLLAMA and `format_probe: 2` for the others; an Ollama
-value with version 2 was measured on `/v1` and is read as **?** until the
-next native test. A
+`format_probe: 4` for OLLAMA and `format_probe: 2` for the others. The native
+test of an OLLAMA model says `think: false` unless the model is known not to
+think (see above). An Ollama value with version 2 was measured on `/v1`, one
+with version 3 without `think: false` for a model the former thinking test
+took as non-thinking (a thinking model then answers nothing: **ignored**);
+both are read as **?** until the next native test. A
 format value without it comes from the former mood probe (an invalid schema
 type `literal`, and a wrong mood counted as "no") and is read as **?**: the
 page tests that model again the next time the LLM selection is opened, and

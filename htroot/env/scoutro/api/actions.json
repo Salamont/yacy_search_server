@@ -7090,7 +7090,27 @@
                     "unknown",
                     null
                   ],
-                  "description": "The selected model's format capability: a result of the current structured-output probe of the LLM selection (format_probe 2); an older value counts as unknown. null without a model."
+                  "description": "The selected model's format capability: a result of the current structured-output probe of the LLM selection (format_probe 2, for OLLAMA the native format_probe 4); an older value counts as unknown. null without a model."
+                },
+                "thinking": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "supported",
+                    "unsupported",
+                    "unknown",
+                    null
+                  ],
+                  "description": "ollama_native only: the model's thinking capability of the native thinking probe of the LLM selection (thinking_probe 2, Ollama's /api/show); a value of the former /v1 test counts as unknown. null on the OpenAI-compatible path."
+                },
+                "think": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "ollama_native only: false when the native request says think: false (always, unless the model is known not to think); null when no think field is sent."
                 },
                 "mode": {
                   "type": [
