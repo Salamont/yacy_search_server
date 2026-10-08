@@ -473,6 +473,21 @@ def osm_text_blob(tags, fields):
     return " ".join(str(tags.get(f, "")) for f in fields).lower()
 
 
+# keys of a tag rule that are conditions on the text, not OSM tags
+OSM_TEXT_KEYS = ("text_any", "text_words", "text_fields")
+
+
+def osm_text_matches(tags, r, default_fields):
+    """The text condition of one tag rule: a substring of text_any (lower case) or a whole word of text_words
+    (case-sensitive: "IT", "SAP", not "it" or "Sapporo") in the rule's text_fields (default: the global ones)."""
+    fields = r.get("text_fields") or default_fields
+    raw = " ".join(str(tags.get(f, "")) for f in fields)
+    blob = raw.lower()
+    if any(k.lower() in blob for k in r.get("text_any", [])):
+        return True
+    return any(re.search(r"(?<![\w-])" + re.escape(w) + r"(?![\w])", raw) for w in r.get("text_words", []))
+
+
 def osm_matches(tags, rule):
     if rule.get("text_any"):
         blob = osm_text_blob(tags, rule.get("_text_fields", ["name", "description"]))
@@ -481,18 +496,15 @@ def osm_matches(tags, rule):
     for r in rule.get("tags", []):
         ok = True
         for key, allowed in r.items():
-            if key == "text_any":
-                blob = osm_text_blob(tags, rule.get("_text_fields", ["name", "description"]))
-                if not any(k.lower() in blob for k in allowed):
-                    ok = False
-                    break
-            elif key.startswith("_"):
+            if key in OSM_TEXT_KEYS or key.startswith("_"):
                 continue
-            else:
-                if tags.get(key) not in allowed:
-                    ok = False
-                    break
-        if ok and any(not k.startswith("_") for k in r):
+            if tags.get(key) not in allowed:
+                ok = False
+                break
+        if ok and (r.get("text_any") or r.get("text_words")) \
+                and not osm_text_matches(tags, r, rule.get("_text_fields", ["name", "description"])):
+            ok = False
+        if ok and any(not k.startswith("_") and k != "text_fields" for k in r):
             return True
     return False
 

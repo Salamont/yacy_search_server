@@ -1,5 +1,5 @@
 {
-  "_comment": "OSM/Geofabrik discovery rules for scoutro-discovery. Edit freely.",
+  "_comment": "OSM/Geofabrik discovery rules for scoutro-discovery. Edit freely. A tag rule matches when every OSM tag key matches one of its values and, if it has text_any or text_words, its text matches too: text_any as a lower-case substring, text_words as a whole case-sensitive word ('IT', 'SAP'), in its own text_fields or else the global ones. A generic office (office=company/consulting) needs a real IT signal in name, operator, brand, description or service: the tag values themselves ('consulting') and generic words ('consulting', 'digital', 'daten') are no IT evidence (2026-10-08, yowea.com: office=consulting, consulting=coaching).",
   "extract": "other_tags LIKE '%social_facility%' OR other_tags LIKE '%\"office\"%' OR other_tags LIKE '%\"company\"%' OR other_tags LIKE '%\"craft\"%' OR other_tags LIKE '%coach%' OR other_tags LIKE '%\"consulting\"%' OR other_tags LIKE '%training%'",
   "text_fields": ["name", "operator", "brand", "description", "service", "consulting", "training", "office", "company", "craft", "healthcare:speciality", "social_facility"],
   "website_fields": ["website", "contact:website", "url"],
@@ -16,7 +16,12 @@
         {"office": ["it"]},
         {"company": ["it", "software"]},
         {"consulting": ["it", "software", "security"]},
-        {"office": ["company", "consulting"], "text_any": ["it ", "software", "consulting", "cloud", "systemhaus", "digital", "daten", "managed service", "edv", "computer"]}
+        {"office": ["company", "consulting"],
+         "text_fields": ["name", "operator", "brand", "description", "service"],
+         "text_any": ["software", "systemhaus", "it-dienstleist", "it-service", "it-beratung", "it-consulting", "it-lösung", "it-loesung",
+                      "it-sicherheit", "it-security", "it-infrastruktur", "informationstechnik", "cloud", "managed service", "rechenzentrum",
+                      "webentwicklung", "programmierung", "netzwerktechnik", "computer"],
+         "text_words": ["IT", "EDV", "SAP", "ERP", "DevOps"]}
       ]
     },
     "bauteamcheck": {

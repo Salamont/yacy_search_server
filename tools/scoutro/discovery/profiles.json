@@ -1,6 +1,6 @@
 {
   "_comment": "Per-profile settings for scoutro-discovery: target YaCy collection and editable topic classification criteria. Discovery search terms stay in profiles.conf, OSM rules in osm_profiles.json. Changing criteria: set a new criteria_version, then run 'classify' - only results with an older criteria_version are re-classified. legacy_collections (prospect-*) are a temporary migration source for search only; set them to [] to stop searching them (nothing is deleted). This file is trusted configuration (goes into the system prompt); crawled web content never does.",
-  "criteria_version": "2026-09-30.1",
+  "criteria_version": "2026-10-08.1",
   "profiles": {
     "edelsenior": {
       "collection": "edelsenior-web",
@@ -54,10 +54,11 @@
         "Software- oder Anbieterverzeichnis, Vergleichsportal, Jobbörse",
         "Hochschule, Informatik-Lehrstuhl, Forschungsprojekt",
         "Branchenverband, Kammer, Behörde",
-        "Unternehmen ohne IT-Kerngeschäft (IT nur als interne Abteilung)"
+        "Unternehmen ohne IT-Kerngeschäft (IT nur als interne Abteilung)",
+        "Coaching-, Trainings-, Personal-, Management- oder allgemeine Unternehmensberatung ohne eigenes IT-, Software- oder Technologieangebot (Wörter wie Consulting, Beratung oder Digitalisierung allein sind kein IT-Nachweis)"
       ],
       "entity_types": ["it_provider", "company"],
-      "keywords": ["software", "it-dienstleister", "it dienstleister", "systemhaus", "cloud", "managed service", "sap", "erp", "it-beratung", "it beratung", "rechenzentrum", "it-security", "webentwicklung", "digitalisierung", "hosting"]
+      "keywords": ["software", "it-dienstleister", "it dienstleister", "systemhaus", "cloud", "managed service", "sap", "erp", "it-beratung", "it beratung", "rechenzentrum", "it-security", "webentwicklung", "hosting"]
     },
     "bauteamcheck": {
       "collection": "bauteamcheck-web",

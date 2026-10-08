@@ -397,6 +397,13 @@ class HeuristicTests(unittest.TestCase):
                  "snippet": "Der Caritasverband für die Stadt Köln e. V. betreibt das Altenzentrum mit Kurzzeitpflege. Kontakt."}]
         self.check("edelsenior", "caritas-altenhilfe-koeln.de", docs, "PASS", "care_facility")
 
+    def test_coaching_consultancy_is_no_it_provider(self):
+        docs = [{"url": "https://yowea.com/", "title": "Yowea – Coaching & Consulting",
+                 "snippet": "Business Coaching und Consulting für Führungskräfte und Teams. Digitalisierung im Team begleiten."}]
+        rec = self.c.classify("stackfinder", "yowea.com", docs)
+        self.assertNotEqual(rec["verdict"], "PASS", rec["reasons"])
+        self.assertNotEqual(self.c.classify("checkthecoach", "yowea.com", docs)["verdict"], "FAIL")
+
     def test_wrong_profile_is_fail_wrong_topic(self):
         rec = self.check("stackfinder", "anna-berger-coaching.de", COACH, "FAIL", "other")
         self.assertEqual(rec["reasons"][0]["code"], "wrong_topic")
@@ -424,6 +431,65 @@ INDEX = {"sonnenhof-pflege.de": CARE_HOME, "koelner-zeitung.de": NEWS, "uni-koel
 
 
 EVIDENCE_COLLECTIONS = {"edelsenior-web"}     # collections that hold the INDEX documents in the mock
+
+
+class OsmRuleTests(unittest.TestCase):
+    """The OSM tag rules of osm_profiles.json (2026-10-08, yowea.com: office=consulting, consulting=coaching was taken
+    for stackfinder because the generic office rule accepted the word "consulting", which its own tag value supplies)."""
+
+    def setUp(self):
+        self.cfg = disc.load_osm_config(os.path.join(CONFIG, "osm_profiles.json"))
+
+    def matches(self, profile, tags):
+        rule = dict(self.cfg["profiles"][profile])
+        rule["_text_fields"] = self.cfg["text_fields"]
+        return disc.osm_matches(tags, rule)
+
+    def profiles(self, tags):
+        return sorted(p for p in self.cfg["profiles"] if self.matches(p, tags))
+
+    YOWEA = {"office": "consulting", "consulting": "coaching", "name": "Yowea", "website": "https://yowea.com"}
+
+    def test_coaching_consultancy_is_no_it_provider(self):
+        self.assertEqual(self.profiles(self.YOWEA), ["checkthecoach"])
+        for extra in ({"name": "Yowea Coaching & Consulting"},
+                      {"description": "Business Coaching und Consulting für Führungskräfte"},
+                      {"description": "Digitales Coaching und Datenkompetenz im Team"},
+                      {"description": "We make it happen: coaching for leaders"},
+                      {"name": "Habit Coaching", "office": "company"}):
+            tags = dict(self.YOWEA, **extra)
+            self.assertFalse(self.matches("stackfinder", tags), tags)
+        # the rule before 2026-10-08 took it: the tag value "consulting" was its own text evidence
+        old = {"tags": [{"office": ["company", "consulting"], "text_any": ["it ", "software", "consulting", "cloud", "systemhaus",
+                                                                           "digital", "daten", "managed service", "edv", "computer"]}],
+               "_text_fields": self.cfg["text_fields"]}
+        self.assertTrue(disc.osm_matches(self.YOWEA, old))
+
+    def test_real_it_consulting_still_matches(self):
+        for tags in ({"office": "consulting", "consulting": "it", "name": "Beratung Nord"},
+                     {"office": "consulting", "name": "Nordcloud IT-Beratung GmbH"},
+                     {"office": "consulting", "name": "Müller IT Consulting"},
+                     {"office": "company", "description": "SAP-Beratung und ERP-Einführung für den Mittelstand"},
+                     {"office": "company", "name": "Systemhaus Weber"},
+                     {"office": "consulting", "service": "Managed Services und Cloud-Betrieb"},
+                     {"office": "it", "name": "Weber"},
+                     {"company": "software", "name": "Weber"}):
+            self.assertTrue(self.matches("stackfinder", tags), tags)
+
+    def test_both_profiles_when_both_are_evidenced(self):
+        tags = {"office": "consulting", "consulting": "coaching", "name": "Kraft IT-Coaching",
+                "description": "Agile Coaching und Softwareentwicklung"}
+        self.assertEqual(self.profiles(tags), ["checkthecoach", "stackfinder"])
+
+    def test_text_words_are_whole_and_case_sensitive(self):
+        rule = {"tags": [{"office": ["company"], "text_words": ["IT", "SAP"], "text_fields": ["name"]}]}
+        self.assertTrue(disc.osm_matches({"office": "company", "name": "IT-Service Ost"}, rule))
+        self.assertTrue(disc.osm_matches({"office": "company", "name": "SAP Partner Süd"}, rule))
+        for name in ("Bit Werk", "it works", "Sapporo Sushi", "KIT Beratung", "Habit"):
+            self.assertFalse(disc.osm_matches({"office": "company", "name": name}, rule), name)
+        # a tag rule without text conditions is unchanged; one with only text_fields needs a tag key to match
+        self.assertTrue(disc.osm_matches({"office": "it"}, {"tags": [{"office": ["it"]}]}))
+        self.assertFalse(disc.osm_matches({"office": "it"}, {"tags": [{"text_fields": ["name"]}]}))
 
 
 class ApiMock:
