@@ -51,9 +51,10 @@ Run everything with administrator credentials from the secret store; never type 
   - `state.json` entries.
 - LIVAID: the IDs of livaid.com's pages (`GET /scoutro/api/v1/index/browse?q=livaid.com&limit=100`).
   - Find the imprint page among them.
-  - For it: `GET /scoutro/api/v1/kg/sources/<id>?limit=200`. Keep the items, `source.processed_at` and `total`,
+  - For it: `GET /scoutro/api/v1/kg/sources/<id>?limit=100` (the maximum; page on with `offset` while `total` is larger). Keep the items, `source.processed_at` and `total`,
     and the items whose `evidence.tier` is 3 (LLM).
-  - The entity of `GET /scoutro/api/v1/kg/hosts/livaid.com/entities`, with its ID and any redirect.
+  - The entities of `GET /scoutro/api/v1/kg/hosts/<host>/entities` for each livaid.com host of the page list (the
+    route matches the exact host name, e.g. `www.livaid.com`), with their IDs and any redirect.
 - `GET /scoutro/api/v1/kg/status`: keep `store`, `sync.lag` and the extractor versions.
 - A graph backup: `POST /scoutro/api/v1/kg/control {"action":"backup"}`. Check that it is listed afterwards. It is
   for a damaged graph only, not for undoing the move.
@@ -90,8 +91,8 @@ After the start, before anything else:
   - `discovery/status`: `paused` `true`;
   - `scoutro-discovery --workdir <state root> status`: `"paused": true`.
 - **The re-extraction is queued, not running.**
-  - `kg/status` `sync.lag.byType` shows the pending work. Pages' `processed_at` stays at step 1's values; check
-    this with yowea.com's and livaid.com's IDs.
+  - `kg/status` `sync.lag.byType.reconcile` holds the queued re-extraction (in a local rehearsal: one per
+    tracked page). Pages' `processed_at` stays at step 1's values; check this with yowea.com's and livaid.com's IDs.
   - Maintenance (re-scoping, integrity, reconcile) may still run.
 - **If any pause did not hold:**
   - Pause again at once.
@@ -157,9 +158,10 @@ While the graph is paused, the graph does not show the move yet: the touched pag
       30 minutes. Then record how many agree and check again later; it is not a failure.
   - **Evidence:** `total` may differ from step 1, because tiers 1 and 2 were extracted again under the coaching
     vocabulary. **The tier 3 (LLM) items stay as they were.**
-  - **Visibility:**
-    - `kg/hosts/yowea.com/entities?collection=checkthecoach-web` lists the organisation;
-    - `…?collection=stackfinder-web` lists none of the domain's entities.
+  - **Visibility,** for each host of the preview's `hosts`. The route matches the exact host name:
+    `kg/hosts/yowea.com` does not show the entities of `www.yowea.com`.
+    - `kg/hosts/<host>/entities?collection=checkthecoach-web` lists the organisation on at least one host;
+    - `…?collection=stackfinder-web` lists none of the domain's entities on any host.
   - **Controls:** unchanged collections in the index and the graph.
   - **Nothing more to move:** a new preview answers `documents: 0`.
 
@@ -188,7 +190,7 @@ incomplete. Report that if so.
 **2. Wait until the re-extraction has reached the imprint page.** `kg/sources/<imprint id>` shows a `processed_at`
 newer than the rollout's start.
 
-**3. Check the operator** in `kg/sources/<imprint id>?limit=200` (tiers 1 and 2, `evidence.kind` `rule` or
+**3. Check the operator** in `kg/sources/<imprint id>?limit=100` (all pages via `offset`) (tiers 1 and 2, `evidence.kind` `rule` or
 `metadata`):
 - the organisation's name is "LIVAID";
 - address Bonnstraße 164, 50354 Hürth;
@@ -199,7 +201,8 @@ newer than the rollout's start.
 - no person (Tânia Ferreira) as an organisation.
 
 **4. Expected and not a fault until the rebuild:**
-- the entity is still the merged one, with its redirect and the `site_operator` key with the insurer's legal name;
+- the entity is still the merged one, with the same ID as before, its redirect and the `site_operator` key with the
+  insurer's legal name. Its displayed name may already read "LIVAID";
 - the tier 3 items are unchanged (the analysis found none for livaid.com).
 
 **5. If the production text differs from the tested layout and the check fails:** report the text form. Do not

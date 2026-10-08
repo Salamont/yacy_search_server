@@ -174,8 +174,10 @@ numbers move anyway.
        re-scoped.
      - With PR #36: `total` may differ, because tiers 1 and 2 were extracted again with the coaching vocabulary; the
        tier 3 (LLM) evidence is kept as it was.
-   - **visibility:** `GET /scoutro/api/v1/kg/hosts/yowea.com/entities?collection=checkthecoach-web` lists the
-     domain's organisation; `…&collection=stackfinder-web` lists none of the domain's entities.
+   - **visibility,** for each host of the preview's `hosts` (the route matches the exact host name, so
+     `kg/hosts/yowea.com` does not show the entities of `www.yowea.com`):
+     `GET /scoutro/api/v1/kg/hosts/<host>/entities?collection=checkthecoach-web` lists the domain's organisation on
+     at least one of them; `…?collection=stackfinder-web` lists none of the domain's entities on any of them.
    - **controls:** the control domains' IDs have the same `collections` in the index and the same
      `source.collections` in the graph as in step 0.
    - **nothing more to move:** a new preview answers `documents: 0`.
