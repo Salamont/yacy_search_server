@@ -473,6 +473,21 @@ def osm_text_blob(tags, fields):
     return " ".join(str(tags.get(f, "")) for f in fields).lower()
 
 
+# keys of a tag rule that are conditions on the text, not OSM tags
+OSM_TEXT_KEYS = ("text_any", "text_words", "text_fields")
+
+
+def osm_text_matches(tags, r, default_fields):
+    """The text condition of one tag rule: a substring of text_any (lower case) or a whole word of text_words
+    (case-sensitive: "IT", "SAP", not "it" or "Sapporo") in the rule's text_fields (default: the global ones)."""
+    fields = r.get("text_fields") or default_fields
+    raw = " ".join(str(tags.get(f, "")) for f in fields)
+    blob = raw.lower()
+    if any(k.lower() in blob for k in r.get("text_any", [])):
+        return True
+    return any(re.search(r"(?<![\w-])" + re.escape(w) + r"(?![\w])", raw) for w in r.get("text_words", []))
+
+
 def osm_matches(tags, rule):
     if rule.get("text_any"):
         blob = osm_text_blob(tags, rule.get("_text_fields", ["name", "description"]))
@@ -481,18 +496,15 @@ def osm_matches(tags, rule):
     for r in rule.get("tags", []):
         ok = True
         for key, allowed in r.items():
-            if key == "text_any":
-                blob = osm_text_blob(tags, rule.get("_text_fields", ["name", "description"]))
-                if not any(k.lower() in blob for k in allowed):
-                    ok = False
-                    break
-            elif key.startswith("_"):
+            if key in OSM_TEXT_KEYS or key.startswith("_"):
                 continue
-            else:
-                if tags.get(key) not in allowed:
-                    ok = False
-                    break
-        if ok and any(not k.startswith("_") for k in r):
+            if tags.get(key) not in allowed:
+                ok = False
+                break
+        if ok and (r.get("text_any") or r.get("text_words")) \
+                and not osm_text_matches(tags, r, rule.get("_text_fields", ["name", "description"])):
+            ok = False
+        if ok and any(not k.startswith("_") and k != "text_fields" for k in r):
             return True
     return False
 
@@ -1036,7 +1048,7 @@ def state_summary(data, now=None):
 
     def prof(p):
         return profiles.setdefault(p, {"domains": 0, "crawled": 0, "retry": 0, "legacy_auth_retry": 0,
-                                       "rejected": 0, "robots": 0, "blocked": 0, "fresh": 0, "other": 0,
+                                       "rejected": 0, "robots": 0, "blocked": 0, "fresh": 0, "excluded": 0, "other": 0,
                                        "due": 0, "classified": {"PASS": 0, "FAIL": 0, "UNSURE": 0}})
     pairs = unassigned = 0
     for e in doms.values():
@@ -1055,7 +1067,7 @@ def state_summary(data, now=None):
                 c["crawled"] += 1
             elif status in RETRY_STATUSES:
                 c["retry"] += 1
-            elif status in PROBLEM_STATUSES:
+            elif status in PROBLEM_STATUSES or status == STATUS_EXCLUDED:
                 c[status] += 1
             elif not status:
                 c["fresh"] += 1
@@ -1110,6 +1122,64 @@ def cmd_resume(args):
     print(json.dumps({"paused": False, "state_file": st.path}, indent=2))
 
 
+def _exclusion_target(args, st):
+    domain = (args.domain or "").strip().lower()
+    if not domain or registrable_domain(domain) != domain:
+        sys.exit(json.dumps({"error": {"code": "invalid_domain", "message": "use exactly one registrable domain such as example.com"}}))
+    return domain, st.profile_entry(domain, args.profile)
+
+
+def cmd_exclude(args):
+    """Takes (domain, profile) out of every selection (manual start and automation): a domain Discovery found for
+    the wrong profile is neither crawled nor re-crawled for it any more. Nothing else of the domain changes, the
+    index neither; 'include' undoes it. --dry-run shows the entry and what would be written."""
+    st = open_state(args, run=not args.dry_run)
+    domain, entry = _exclusion_target(args, st)
+    report = {"domain": domain, "profile": args.profile, "before": entry, "dry_run": args.dry_run}
+    if entry is None:
+        report["error"] = {"code": "unknown_pair", "message": "the state has no entry of this domain for this profile; nothing to exclude"}
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        sys.exit(2)
+    if entry.get("status") == STATUS_EXCLUDED:
+        report["after"] = entry
+        report["changed"] = False
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return
+    now = int(time.time())
+    after = dict(entry)
+    after.update({"status": STATUS_EXCLUDED, "excluded": {"at": now, "reason": args.reason or "",
+                                                         "previous_status": entry.get("status", ""),
+                                                         "previous_next_attempt": entry.get("next_attempt")}})
+    report["after"] = after
+    report["changed"] = True
+    if not args.dry_run:
+        st.put_profile_entry(domain, args.profile, after, now)
+        st.save()
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+
+
+def cmd_include(args):
+    """Undoes 'exclude': the entry gets its status of before back and is selected again as before."""
+    st = open_state(args, run=not args.dry_run)
+    domain, entry = _exclusion_target(args, st)
+    report = {"domain": domain, "profile": args.profile, "before": entry, "dry_run": args.dry_run}
+    if entry is None or entry.get("status") != STATUS_EXCLUDED:
+        report["changed"] = False
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+        return
+    after = dict(entry)
+    previous = after.pop("excluded", {}) or {}
+    after["status"] = previous.get("previous_status", "")
+    if previous.get("previous_next_attempt") is not None:
+        after["next_attempt"] = previous["previous_next_attempt"]
+    report["after"] = after
+    report["changed"] = True
+    if not args.dry_run:
+        st.put_profile_entry(domain, args.profile, after, int(time.time()))
+        st.save()
+    print(json.dumps(report, indent=2, ensure_ascii=False))
+
+
 def discover_candidates(client, profiles, regions, profile, term_limit, region_limit, region_cursor, net_limit, strict=False):
     """Return (candidates, new_cursor). candidates = [{url,host,title,term,region}]."""
     terms = profiles[profile][:term_limit]
@@ -1144,6 +1214,7 @@ TIER_RECRAWL = 2    # crawled successfully, regular recrawl due
 TIER_RETRY = 3      # transient error (DNS, site 5xx, Scoutro upstream), retry due
 TIER_PROBLEM = 4    # known problematic start URL (rejected by Scoutro, robots, security block), cooldown over
 RETRY_STATUSES = ("retry", "error")        # "error": state written by scoutro-discovery before version 3
+STATUS_EXCLUDED = "excluded"                # (domain, profile) taken out by an administrator: see cmd_exclude
 PROBLEM_STATUSES = ("rejected", "robots", "blocked")
 
 # report names of the selection reasons, in selection order
@@ -1171,6 +1242,8 @@ def selection_kind(pentry, now, recrawl_days, force=False):
     """
     if not pentry or not pentry.get("status"):
         return KIND_FRESH
+    if pentry.get("status") == STATUS_EXCLUDED:
+        return None                         # taken out by an administrator ('exclude'): never selected, also not with force
     if legacy_auth_burned(pentry):
         return KIND_LEGACY_AUTH
     status = pentry.get("status")
@@ -1840,6 +1913,15 @@ def main():
     sub.add_parser("pause", help="pause discovery").set_defaults(func=cmd_pause)
     sub.add_parser("resume", help="resume discovery").set_defaults(func=cmd_resume)
     sub.add_parser("selftest", help="run filter/SSRF self-tests").set_defaults(func=cmd_selftest)
+    for name, func, text in (("exclude", cmd_exclude, "take one domain out of one profile's selection (never crawled or re-crawled for it)"),
+                             ("include", cmd_include, "undo 'exclude' for one domain and profile")):
+        x = sub.add_parser(name, help=text)
+        x.add_argument("--profile", required=True)
+        x.add_argument("--domain", required=True, help="registrable domain, e.g. example.com")
+        if name == "exclude":
+            x.add_argument("--reason", help="why (stored with the entry)")
+        x.add_argument("--dry-run", action="store_true", help="show the entry before and after, change nothing")
+        x.set_defaults(func=func)
     m = sub.add_parser("migrate-state", help="rewrite state.json in the current multi-profile layout "
                                              "(any regular write does this too; keeps state.v1.json)")
     m.add_argument("--dry-run", action="store_true", help="only report what the migration would do")

@@ -90,6 +90,36 @@ Edit `osm_profiles.json` (tag rules per profile) and `osm_regions.txt` (region
 slugs). Coaching is intentionally keyword-based: OSM has no reliable standard
 category for it.
 
+A tag rule matches when every OSM tag key in it matches one of its values and,
+if it has `text_any` or `text_words`, its text matches too: `text_any` as a
+lower-case substring, `text_words` as a whole, case-sensitive word (`IT`,
+`SAP`, not "it" or "Sapporo"), in the rule's own `text_fields` or else the
+global `text_fields`. The generic stackfinder rule (`office=company` or
+`office=consulting`) looks only at `name`, `operator`, `brand`, `description`
+and `service` and needs a real IT signal there (software, systemhaus,
+IT-Beratung, cloud, managed service, `IT`, `SAP`, …). The words "consulting",
+"digital" or "daten" — and the tag value `consulting` itself — are no IT
+evidence any more: before 2026-10-08 every consultancy with
+`office=consulting` (e.g. yowea.com, `consulting=coaching`) became a
+stackfinder candidate. Specific tags (`office=it`, `company=it|software`,
+`consulting=it|software|security`) match as before, and a site evidenced for
+two profiles is a candidate of both.
+
+**What a rule change does to domains found before.** Discovery selects only
+current candidates: a domain the new rule no longer finds for a profile is
+neither crawled again nor re-crawled for it (its state entry stays, nothing is
+ever removed). Pages already crawled keep their collection in the index and
+in the knowledge graph — neither a rule change nor `classify` moves them; a
+collection is corrected by the collection reassignment of the Scoutro API
+(see `docs/SCOUTRO_COLLECTION_REASSIGNMENT.md`). A domain may still come back
+as a candidate of the profile from the freeworld search (`--source freeworld`
+/ `both`) if its pages match the profile's search terms, and the automation
+re-crawls `crawled` pairs from `state.json` after `recrawl.days` without a new
+discovery: take such a pair out with `scoutro-discovery exclude --profile <p>
+--domain <d>` (`--dry-run` first; `include` undoes it). The automation reads
+the rules from its runtime configuration (`DATA/SCOUTRO/config`), never from
+these repository files: a rule change has to be made there.
+
 ## Usage
 
 ```sh
@@ -261,6 +291,13 @@ was produced with; it is stored in every record as
   everything of a profile regardless of version: `--reclassify`.
 - Which records are outdated: `export --profile <p>` and compare
   `classifier.criteria_version`.
+- `2026-10-08.1`: stackfinder fails coaching, training, personnel, management
+  or general business consulting without an IT, software or technology offer
+  ("consulting", "Beratung" or "Digitalisierung" alone are no IT evidence);
+  "digitalisierung" is no stackfinder keyword any more. A `classify --profile
+  stackfinder` re-classifies every stackfinder result of an older version; the
+  verdict changes `search`/`export` only, never the crawl, the index or the
+  knowledge graph.
 
 ### State integrity
 

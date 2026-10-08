@@ -3798,6 +3798,70 @@
       }
     },
     {
+      "name": "collections.reassign",
+      "description": "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Without confirm a preview: the hosts of the domain, how many pages, the collections before and after, a sample and a token; nothing changes. With confirm set to that token it changes collection_sxt of exactly those pages (and their webgraph edges) by a Solr atomic update with the version of the preview: text, JSON-LD and every other field stay, nothing is crawled, deleted or re-indexed, and the knowledge graph takes the new collections over through its sync (re-scoped; tiers 1 and 2 extracted again only if the extractors changed; LLM evidence is neither asked again nor corrected). A page whose version changed since (a new crawl) is never overwritten; a webgraph edge gets its page's collections only once the page has them (webgraphKept counts the others). Only the domain's pages in a removed collection move (without remove: every page of the domain); other collections stay. 400 invalid_request (domain not one registrable domain, add and remove both empty or overlapping, unknown field), 400 collection_unknown, 409 reassign_preview_stale (the pages changed since the preview; details hold the new preview), 409 host_busy (a crawl of the domain runs), 422 reassign_would_empty (a page would keep no collection), 422 reassign_too_large (more than 5000 pages or 100000 webgraph edges), 503 index_unavailable. A later crawl of the domain writes the collection of that crawl again; Discovery refuses such a crawl while the domain has pages in another collection (collection_conflict), and 'scoutro-discovery exclude' takes the domain out of the wrong profile. Agents cannot use it.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/reassign",
+        "successStatus": 200
+      },
+      "parameters": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Exactly one registrable domain such as example.com (no scheme, path, subdomain or wildcard); its subdomains' pages are included, never another domain's (also not one of the same name such as example.de, whose pages do not count towards the limit).",
+          "in": "body",
+          "required": true
+        },
+        "add": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Collections every moved page gets; existing, selectable ones only.",
+          "in": "body",
+          "required": false
+        },
+        "remove": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Collections to take away; only the domain's pages in one of them are moved (without remove: every page of the domain). Other collections of a page stay.",
+          "in": "body",
+          "required": false
+        },
+        "confirm": {
+          "type": "string",
+          "description": "The token of the preview to apply; without it the request is only a preview and changes nothing.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "CollectionReassignResult",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        422,
+        503
+      ],
+      "cli": "scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)",
+      "mcpTool": "scoutro_collections_reassign",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
       "name": "discovery.catalog",
       "description": "Discovery automation catalog. Administrator only; no agent grants.",
       "mutating": false,
@@ -14592,6 +14656,159 @@
         },
         "created": {
           "const": true
+        }
+      }
+    },
+    "CollectionReassign": {
+      "type": "object",
+      "required": [
+        "domain"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "domain": {
+          "type": "string",
+          "maxLength": 253,
+          "description": "Exactly one registrable domain such as example.com (no scheme, path, subdomain or wildcard); its subdomains' pages are included, never another domain's (also not one of the same name such as example.de, whose pages do not count towards the limit)."
+        },
+        "add": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Collections every moved page gets; existing, selectable ones only."
+        },
+        "remove": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "description": "Collections to take away; only the domain's pages in one of them are moved (without remove: every page of the domain). Other collections of a page stay."
+        },
+        "confirm": {
+          "type": "string",
+          "description": "The token of the preview to apply; without it the request is only a preview and changes nothing."
+        }
+      }
+    },
+    "CollectionReassignResult": {
+      "type": "object",
+      "properties": {
+        "domain": {
+          "type": "string"
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "add": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "remove": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "documents": {
+          "type": "integer"
+        },
+        "changes": {
+          "type": "integer"
+        },
+        "unchanged": {
+          "type": "integer"
+        },
+        "before": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "after": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        },
+        "kept": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sample": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "before": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "after": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "webgraph": {
+          "type": "object",
+          "properties": {
+            "written": {
+              "type": "boolean"
+            },
+            "edges": {
+              "type": "integer"
+            }
+          }
+        },
+        "crawlRunning": {
+          "type": "boolean"
+        },
+        "token": {
+          "type": "string"
+        },
+        "knowledgeGraph": {
+          "type": "string"
+        },
+        "applied": {
+          "type": "boolean"
+        },
+        "updated": {
+          "type": "integer"
+        },
+        "webgraphUpdated": {
+          "type": "integer"
+        },
+        "webgraphKept": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
         }
       }
     },
