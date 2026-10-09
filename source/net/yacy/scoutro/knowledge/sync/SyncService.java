@@ -201,6 +201,8 @@ public final class SyncService {
         final long now = this.clock.getAsLong();
         final String[] meta = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
             this.terms.seed(tx);
+            KgStore.putMeta(tx,"observation_vocabulary",net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION+"-"
+                    + net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version());
             WorkQueue.resetClaims(tx);
             final String collections = KgStore.getMeta(tx, KgSchema.META_COLLECTIONS);
             final String extractors = KgStore.getMeta(tx, KgSchema.META_EXTRACTORS);
@@ -451,6 +453,11 @@ public final class SyncService {
         }
         final List<String> followed = d.followed(this.cfg);
         if (followed.isEmpty()) {
+            // Classification remains security-relevant even when extraction is disabled.
+            this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+                net.yacy.scoutro.knowledge.store.Observations.classify(tx,d.id,d.collections);
+                return null;
+            });
             if (d.heldOnly(this.cfg)) {
                 // a collection switched off (package 6.2): its graph data stay as they are, nothing is extracted
                 this.counters.held.incrementAndGet();
@@ -517,6 +524,7 @@ public final class SyncService {
         doc.solrVersion = d.version;
         doc.loadedAt = d.loadDate;
         doc.collections = followed;
+        doc.accessCollections = d.collections;
         doc.jsonldBytes = d.jsonLdBytes();
         doc.jsonldSkipped = d.ldJson.isEmpty() && JsonLdCapture.wasSkipped(d.id);
         doc.contentHash = d.contentHash();

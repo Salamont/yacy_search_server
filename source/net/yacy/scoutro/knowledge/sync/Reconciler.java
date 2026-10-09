@@ -689,6 +689,10 @@ public final class Reconciler {
         }
         this.store.write(WriteClass.MAINTENANCE, ESTIMATE, tx -> {
             final int n = remove.isEmpty() ? 0 : this.publisher.remove(tx, remove, expected, now);
+            for (final String id : ids) {
+                final SolrDoc source=found.get(id);
+                if(source!=null) net.yacy.scoutro.knowledge.store.Observations.classify(tx,id,source.collections);
+            }
             WorkQueue.scanned(tx, back, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_VERIFIED, 0L, now, this.queueMax);
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_scan_candidate WHERE run_id = ? AND doc_id = ?")) {
                 for (final String id : ids) {

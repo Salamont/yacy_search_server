@@ -683,6 +683,9 @@ public final class LlmService {
         doc.host = BaseTiers.host(d);
         doc.hostId = d.hostId;
         doc.language = d.language;
+        doc.loadedAt = d.loadDate;
+        doc.contentHash = d.contentHash();
+        doc.accessCollections = d.collections;
         final Publisher.Result[] result = new Publisher.Result[1];
         try {
             this.store.write(WriteClass.GROWTH, PUBLISH_ESTIMATE, tx -> {

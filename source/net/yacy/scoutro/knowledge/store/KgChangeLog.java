@@ -57,7 +57,7 @@ public final class KgChangeLog {
      * <em>all</em> of them, because it combines the facts of two collections.
      */
     public enum Kind {
-        ENTITY(1), STATEMENT(2), DERIVED(3);
+        ENTITY(1), STATEMENT(2), DERIVED(3), OBSERVATION(4);
 
         public final int code;
 
@@ -66,12 +66,12 @@ public final class KgChangeLog {
         }
 
         static Kind of(final int code) {
-            return code == 1 ? ENTITY : code == 3 ? DERIVED : STATEMENT;
+            return code == 1 ? ENTITY : code == 3 ? DERIVED : code == 4 ? OBSERVATION : STATEMENT;
         }
 
         /** The name in the export and the feed. */
         public String label() {
-            return this == ENTITY ? "entity" : this == DERIVED ? "derived" : "statement";
+            return this == ENTITY ? "entity" : this == DERIVED ? "derived" : this == OBSERVATION ? "observation" : "statement";
         }
     }
 

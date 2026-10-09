@@ -1553,6 +1553,13 @@ public final class KgRuntime {
             close();
             moveDatabase(this.paths.db, keepAs);
             try {
+                // Final archive snapshot, after close stopped ALL publishers/corrections.
+                // Includes changes made while the shadow was building. Never used by restore.
+                try {
+                    net.yacy.scoutro.knowledge.store.Observations.carryInto(shadowDb, keepAs);
+                } catch (java.sql.SQLException e) {
+                    throw new KgException(KgException.STORAGE_ERROR, "observation_carry", "cannot carry durable observations", e);
+                }
                 moveDatabase(shadowDb, this.paths.db);
                 KgBackup.prepareRebuilt(this.paths.db, carry, "rebuilt from Solr; previous graph kept as " + keepAs.getName(), now);
             } catch (final KgException e) {

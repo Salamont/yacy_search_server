@@ -75,6 +75,8 @@ public final class Publisher {
         public long solrVersion;
         public Long loadedAt;
         public List<String> collections;
+        /** Actual source classification, independently of extraction/held collections. */
+        public List<String> accessCollections;
         public long jsonldBytes;
         public boolean jsonldSkipped;
         /** What tiers 1 and 2 read, without the extractor versions (schema 4); null keeps the stored one. */
@@ -202,6 +204,9 @@ public final class Publisher {
             replaceLinks(tx, rowid, doc.linkDomains);
         } else {
             result = new Result(collectionsChanged || stateChanged ? Outcome.LIFECYCLE : Outcome.UNCHANGED);
+        }
+        if (doc.accessCollections != null) {
+            net.yacy.scoutro.knowledge.store.Observations.classify(tx,doc.docId,doc.accessCollections);
         }
         agg.finish(tx);
         return result;
@@ -407,7 +412,7 @@ public final class Publisher {
                 PreparedStatement insStmt = tx.prepareStatement("INSERT INTO kg_statement (public_id, subj, pred, obj_ent, obj_val, obj_key,"
                         + " quality, current_sources, first_seen, last_confirmed) VALUES (?, ?, ?, ?, ?, ?, 4, 0, ?, NULL)");
                 PreparedStatement insEv = tx.prepareStatement("INSERT OR IGNORE INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id,"
-                        + " kind, certainty, confidence, locator, excerpt, observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                        + " kind, certainty, confidence, locator, excerpt, observed_at,source_revision,source_observed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?,?)")) {
             for (final Claim c : ex.claims()) {
                 final Vocabulary.Predicate p = Vocabulary.predicate(c.predicate);
                 if (p == null || p.relation != c.relation() || !replaced(replacedTiers, c.tier)) {
@@ -469,11 +474,15 @@ public final class Publisher {
                 insEv.setString(8, c.locator);
                 insEv.setString(9, Normalizers.redactPersons(Normalizers.clip(c.excerpt, Math.min(1000, this.cfg.extractMaxExcerptChars))));
                 insEv.setLong(10, now);
+                final byte[] revision=doc.contentHash!=null ? doc.contentHash : doc.inputHash;
+                insEv.setString(11,(revision==null ? "unknown" : java.util.HexFormat.of().formatHex(revision))+":"+(doc.loadedAt==null ? -1 : doc.loadedAt));
+                setNullable(insEv,12,doc.loadedAt);
                 if (insEv.executeUpdate() > 0) {
                     result.statements++;
                 }
             }
         }
+        net.yacy.scoutro.knowledge.store.Observations.capture(tx, rowid);
         final IdentityResolver.Counters rc = resolver.counters();
         result.entitiesCreated = rc.created;
         result.merged = rc.merged;
