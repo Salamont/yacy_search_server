@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 by Scoutro contributors.
+ * Scoutro is an independent community project based on YaCy.
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version.
+ */
+
 package net.yacy.scoutro.knowledge.vocab;
 
 import java.io.File;

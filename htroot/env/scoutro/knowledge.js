@@ -13,7 +13,7 @@
   const de = String(lang || '').toLowerCase().startsWith('de');
   const pct = v => v == null ? t('missing') : Math.round(v * 100) + ' %';
   const ROOT = '/scoutro/api/v1/kg/';
-  const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'source', 'settings'];
+  const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'source', 'history', 'settings'];
   const params = new URLSearchParams(location.search);
   let view = VIEWS.includes(params.get('view')) ? params.get('view') : 'overview';
   let collection = params.get('collection') || '';
@@ -34,7 +34,7 @@
     if (!response.ok) {
       const code = body?.error?.code || 'error';
       const text = response.status === 404 ? t('not_found') : code === 'kg_disabled' ? t('disabled') : code === 'kg_unavailable' ? t('unavailable') : t('error');
-      throw new Error(text + ' (HTTP ' + response.status + ', ' + code + ')');
+      const error = new Error(text + ' (HTTP ' + response.status + ', ' + code + ')'); error.status = response.status; throw error;
     }
     return body;
   }
@@ -433,10 +433,19 @@
     const run = ++generation; message(t('loading'));
     // nothing of the previous object stays visible while this one loads
     $('object-name').textContent = ''; for (const k of ['business', 'out', 'in', 'toc', 'object-facts']) $(k).replaceChildren();
-    const [e, b] = await Promise.all([api('entities/' + encodeURIComponent(id)), api('entities/' + encodeURIComponent(id) + '/business')]);
+    let e, b;
+    try { [e, b] = await Promise.all([api('entities/' + encodeURIComponent(id)), api('entities/' + encodeURIComponent(id) + '/business')]); }
+    catch (error) {
+      if (error.status === 404) {
+        const history = await api('entities/' + encodeURIComponent(id) + '/history', { limit: 1 });
+        if (run === generation && history.items?.length) { navigate({ view: 'history', entity: id }); return; }
+      }
+      throw error;
+    }
     if (run !== generation) return;
     if (e.redirect) { navigate({ view: 'object', id: e.redirect }); return; }
     $('object-name').textContent = shown(e);
+    const historyLink = $('object-history'); historyLink.replaceChildren(link(t('history_title'), { view: 'history', entity: e.id }));
     const net = $('object-network'); const np = new URLSearchParams({ view: 'network', id: e.id }); if (collection) np.set('collection', collection);
     net.href = 'ScoutroKnowledge_p.html?' + np; net.textContent = t('network_open');
     net.onclick = ev => { if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey) return; ev.preventDefault(); navigate({ view: 'network', id: e.id }); };
@@ -471,6 +480,64 @@
       more.addEventListener('click', () => { more.remove(); guarded(() => statements(id, direction, target, from + data.items.length, generation)); });
       target.append(more);
     }
+  }
+
+  // Durable observations have their own links: never rely on a deleted live statement.
+  function observationItem(o) {
+    const box = node('article', null, 'sseo-panel');
+    const value = typeof o.value === 'object' && o.value ? o.value : {};
+    const valueLabel = value.product ? t('prod_' + value.product) : value.need ? t('need_' + value.need) : value.role ? t('role_' + value.role) : t('p_' + o.predicate);
+    box.append(link(valueLabel + ' · ' + t('ctx_' + (value.context || 'metadata')),
+      { view: 'history', observation: o.id, collection: o.collections?.[0] || collection }));
+    const identity = o.identity_context?.organization || [];
+    const name = identity.find(f => f.predicate === 'name')?.value;
+    box.append(node('p', name || t('employer_unresolved'), 'sseo-note'));
+    const text = o.observed_at ? t(value.context === 'internal_use' ? 'last_proved' : 'last_observed').replace('%1', date(o.observed_at)) : t('historical_date_unknown');
+    box.append(node('p', text), node('blockquote', o.quote || t('quote_unavailable')));
+    const dl = node('dl', null, 'sseo-stats');
+    for (const [key, val] of [['source_state', t('src_' + o.source?.status)], ['assertion_state', t('assertion_' + o.assertion_status)],
+      ['asserted_at', o.asserted_at], ['actor_status', t('actor_' + (o.organization_assignment === 'unresolved' ? 'unresolved' : o.identity_context?.employer_assignment))],
+      ['processed_at', date(o.recorded_at)], ['source_revision', o.source?.revision], ['locator', o.locator],
+      ['collections', o.collections?.join(', ')], ['extractor', o.extractor], ['vocabulary_version', o.vocabulary_version],
+      ['certainty', t(o.certainty === 'qualified' ? 'qualified_signal' : 'stated_signal')]]) {
+      dl.append(node('dt', t(key)), node('dd', val == null ? t('missing') : val));
+    }
+    box.append(dl, external(o.source?.url));
+    if (o.job_search) box.append(node('p', t('job_search_state') + ': ' + t('job_' + o.job_search.status)));
+    if (o.later_system_change) box.append(node('p', t('later_system_change')), link(t('evidence'), {
+      view: 'history', observation: o.later_system_change.observation, collection: o.collections?.[0] || collection }));
+    if (o.live_statement) box.append(' · ', ...evidenceToggle(o.live_statement, o.collections?.[0] || collection));
+    return box;
+  }
+  async function historyView(p) {
+    const run = ++generation; const target = $('history-items'); target.replaceChildren(); message(t('loading'));
+    $('history-title').textContent = t('history_title'); $('history-more').hidden = true;
+    const download = $('history-download'); const query = new URLSearchParams({ include: 'history', format: 'ndjson' });
+    if (collection) query.set('collection', collection); download.href = ROOT + 'export/download?' + query;
+    if (p.get('observation')) {
+      const id = p.get('observation'); const o = await api('observations/' + encodeURIComponent(id));
+      if (run !== generation) return; target.append(observationItem(o));
+      const events = node('div'); target.append(events);
+      const readEvents = async (after = 0) => {
+        const data = await api('observations/' + encodeURIComponent(id) + '/history', { after, limit: LIMIT });
+        if (run !== generation) return;
+        data.items.forEach(e => events.append(node('p', date(e.at) + ' · ' + (e.kind.startsWith('scope_') ? t('classification_changed') : t('audit_' + e.kind)), 'sseo-note')));
+        if (data.has_more) { const more = node('button', t('more'), 'btn btn-default'); events.append(more);
+          more.onclick = () => guarded(async () => { more.remove(); await readEvents(data.next_after); }); }
+      };
+      await readEvents();
+    } else {
+      const read = async (after = 0) => {
+        const data = await api('history', { ...(p.get('entity') ? { entity: p.get('entity') } : {}), after, limit: LIMIT });
+        if (run !== generation) return;
+        data.items.forEach(o => target.append(observationItem(o)));
+        if (!target.childNodes.length) target.append(node('p', t('none')));
+        $('history-more').hidden = !data.has_more;
+        $('history-more').onclick = () => guarded(() => read(data.next_after));
+      };
+      await read();
+    }
+    message();
   }
 
   function statementItem(s, direction) {
@@ -670,6 +737,7 @@
     add('p_date_posted', j.date_posted); add('p_start_date', j.start_date); add('p_valid_through', j.valid_through);
     add('p_application_route', (j.application_route || []).map(a => valueText('application_route', a)));
     add('ended_at', j.ended_at ? date(j.ended_at) : null); add('last_confirmed', j.last_confirmed ? date(j.last_confirmed) : null);
+    add('source_state', t('src_' + j.source_status));
     li.append(dl);
     return li;
   }
@@ -1520,18 +1588,26 @@
       const llmCell = node('span'); llmCell.append(llm);
       if (c.llm && !c.llmActive) llmCell.append(' ', node('span', '(' + t(!lm.model ? 'llm_reason_no_model' : 'kgc_llm_waits') + ')', 'sseo-note'));
       const save = node('button', t('kgc_save'), 'btn btn-default btn-sm'); save.type = 'button'; save.disabled = true;
-      const initial = [active.value, vocab.value, llm.value];
-      const changed = () => { save.disabled = active.value === initial[0] && vocab.value === initial[1] && llm.value === initial[2]; };
+      const jobs = node('span'); const jobControls = [];
+      for (const [field, key] of [['jobsExtraction', 'jobs_extraction'], ['jobsDisplay', 'jobs_display'], ['jobsMatching', 'jobs_matching']]) {
+        const label = node('label'); const input = node('input'); input.type = 'checkbox'; input.checked = Boolean(c[field]); input.dataset.field = field;
+        label.append(input, ' ', t(key)); jobs.append(label, node('br')); jobControls.push(input);
+      }
+      const initial = [active.value, vocab.value, llm.value, ...jobControls.map(input => input.checked)];
+      const changed = () => { save.disabled = active.value === initial[0] && vocab.value === initial[1] && llm.value === initial[2]
+        && jobControls.every((input, i) => input.checked === initial[i + 3]); };
       active.addEventListener('change', changed); vocab.addEventListener('change', changed); llm.addEventListener('change', changed);
-      save.addEventListener('click', () => guarded(() => saveKgCollection(c, active, vocab, initial, llm, lm.model)));
-      const row = rowInto(body, heads, [name, c.indexDocuments == null ? t('missing') : fmt(c.indexDocuments), active, vocab, llmCell,
+      jobControls.forEach(input => input.addEventListener('change', changed));
+      save.addEventListener('click', () => guarded(() => saveKgCollection(c, active, vocab, initial, llm, lm.model, jobControls)));
+      const row = rowInto(body, heads, [name, c.indexDocuments == null ? t('missing') : fmt(c.indexDocuments), active, vocab, llmCell, jobs,
         c.graphDocuments == null ? t('missing') : fmt(c.graphDocuments), t('vstate_' + c.state), save]);
       row.dataset.collection = c.collection; row.dataset.state = c.state;
     }
     if (!data.collections.length) { const row = body.insertRow(); const td = row.insertCell(); td.colSpan = heads.length; td.textContent = t('kgc_empty'); }
   }
-  async function saveKgCollection(c, active, vocab, initial, llm, model) {
+  async function saveKgCollection(c, active, vocab, initial, llm, model, jobControls) {
     const change = {};
+    jobControls.forEach((input, i) => { if (input.checked !== initial[i + 3]) change[input.dataset.field] = input.checked; });
     if (active.value !== initial[0]) change.active = active.value === 'on';
     if (vocab.value !== initial[1]) change.vocabulary = vocab.value === '__default' ? null : vocab.value === '__none' ? '' : vocab.value;
     if (llm.value !== initial[2]) change.llm = llm.value === 'on';
@@ -1585,6 +1661,7 @@
     else if (view === 'services') guarded(() => servicesView(p));
     else if (view === 'compare') guarded(() => compare(p.get('category') || ''));
     else if (view === 'source') guarded(() => source(p.get('doc') || ''));
+    else if (view === 'history') guarded(() => historyView(p));
     else guarded(settings);
   }
 

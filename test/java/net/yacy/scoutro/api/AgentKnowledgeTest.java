@@ -159,6 +159,48 @@ public class AgentKnowledgeTest {
         }
     }
 
+    @Test public void durableHistorySurvivesLiveDeletionAndRespectsIndependentAgentGrants()throws Exception {
+        publish(store,publisher,"HISTAAhost05","https://industry-a.example/jobs","kga",
+                "{\"@type\":\"Organization\",\"name\":\"Industry A\",\"description\":\"Wir nutzen SAP intern.\"}");
+        publish(store,publisher,"HISTBBhost06","https://industry-b.example/jobs","kgb",
+                "{\"@type\":\"Organization\",\"name\":\"Secret Industry B\",\"description\":\"Wir nutzen Revit intern.\"}");
+        String readA=token(Agent.Kind.EXTERNAL,false,"kg.read");
+        String readB=token(Agent.Kind.RESEARCH_WORKER,false,List.of("kgb"),"kg.read");
+        String exportA=token(Agent.Kind.EXTERNAL,false,"kg.export");
+        AgentApi.Response pageA=get(readA,"kg/history");assertEquals(pageA.body.toString(),200,pageA.status);
+        assertEquals(1,pageA.body.getJSONArray("items").length());assertFalse(pageA.body.toString().contains("Secret Industry B"));
+        String archiveA=pageA.body.getJSONArray("items").getJSONObject(0).getString("id");
+        String archiveB=get(readB,"kg/history").body.getJSONArray("items").getJSONObject(0).getString("id");
+        AgentApi.Response denied=get(readA,"kg/observations/"+archiveB);
+        assertEquals(404,denied.status);assertEquals(get(readA,"kg/observations/kgo_00000000000000000000").body.toString(),denied.body.toString());
+        assertEquals(403,get(readA,"kg/export","include","history").status);
+        assertEquals(403,get(exportA,"kg/history").status);
+        assertEquals(403,get(readA,"kg/history","collection","kgb").status);
+        store.write(WriteClass.MAINTENANCE,0,c->publisher.remove(c,List.of("HISTAAhost05"),null,now.get()));
+        AgentApi.Response detail=get(readA,"kg/observations/"+archiveA);
+        assertEquals(200,detail.status);assertTrue(detail.body.isNull("live_statement"));
+        assertEquals("removed",detail.body.getJSONObject("source").getString("status"));
+        String cursor=null;int records=0,events=0,pages=0;
+        do {
+            AgentApi.Response export=cursor==null?get(exportA,"kg/export","include","history","limit","1")
+                    :get(exportA,"kg/export","include","history","limit","1","cursor",cursor);
+            assertEquals(export.body.toString(),200,export.status);assertFalse(export.body.toString().contains("Secret Industry B"));
+            JSONArray items=export.body.getJSONArray("items");for(int i=0;i<items.length();i++) {
+                if("observation".equals(items.getJSONObject(i).getString("record")))records++;else events++;
+            }
+            cursor=export.body.isNull("next")?null:export.body.getString("next");assertTrue(++pages<30);
+        }while(cursor!=null);
+        assertEquals(1,records);assertTrue(events>0);
+        store.write(WriteClass.MAINTENANCE,0,c->{net.yacy.scoutro.knowledge.store.Observations.classify(c,"HISTAAhost05",List.of("kgb"));return null;});
+        assertEquals(404,get(readA,"kg/observations/"+archiveA).status);
+        AgentApi.Response newScope=get(readB,"kg/observations/"+archiveA);assertEquals(200,newScope.status);
+        assertEquals(0,newScope.body.getJSONArray("origin_collections").length());
+        assertFalse(get(readB,"kg/observations/"+archiveA+"/history").body.toString().contains("kga"));
+        AgentApi.Response changes=get(exportA,"kg/changes","expand","true");
+        assertEquals(200,changes.status);assertTrue(changes.body.toString().contains(archiveA));
+        assertFalse(changes.body.toString().contains("Wir nutzen SAP intern."));
+    }
+
     /** Stored derivations are fixtures of the read contract, not new matching rules. */
     private void suggestion(final String suffix, final int kind, final String origin, final String candidate,
             final String ca, final String cb, final double score, final String extraBasis) throws Exception {

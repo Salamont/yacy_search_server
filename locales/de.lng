@@ -5615,7 +5615,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Rebuild identities<==>Identitäten neu aufbauen<
 >Cancel the rebuild<==>Neuaufbau abbrechen<
 >Swap in the rebuilt graph<==>Neu aufgebauten Graphen übernehmen<
->Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.<==>Baut den ganzen Graphen mit den aktuellen Identitätsregeln neu aus dem Solr-Index auf, in DATA/SCOUTRO/knowledge/rebuild und innerhalb des verbleibenden Speicherbudgets, während der aktuelle Graph weiter antwortet: falsche Zusammenführungen werden getrennt, jeder Fakt behält seine Belege. Vor dem Tausch wird der neue Graph geprüft; würde er viele Dokumente verlieren, wartet er wie ein Abgleich auf Ihre Bestätigung. Der aktuelle Graph bleibt als Backup erhalten (vor einem Neuaufbau), gespeicherte Objekt-IDs führen weiter zu ihren Objekten, und Export-Abnehmer synchronisieren neu. Abbrechen oder ein Stopp von Scoutro vor dem Tausch löscht den neuen Graphen und ändert nichts.<
 >Rebuild<==>Neuaufbau<
 >Progress of the rebuilt graph<==>Fortschritt des neuen Graphen<
 >%1 pages read from the index, %2 published, %3 queued<==>%1 Seiten aus dem Index gelesen, %2 veröffentlicht, %3 in der Warteschlange<
@@ -5910,7 +5909,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >is a reference for<==>ist Referenz für<
 >is a service provider for<==>ist Dienstleister für<
 >is a subsidiary of<==>ist Tochter von<
->is advertised by<==>wird ausgeschrieben von<
 >is certified by<==>ist zertifiziert durch<
 >is funded by<==>wird gefördert von<
 >is parent company of<==>ist Muttergesellschaft von<
@@ -5960,10 +5958,8 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Vocabulary and derived relations<==>Vokabular und abgeleitete Beziehungen<
 >Recompute suggestions now<==>Vorschläge jetzt neu berechnen<
 >Industries follow NACE Rev. 2.1 / WZ 2025; service categories and audiences come from the Scoutro vocabularies of each collection. Derived relations (same operator, weak link signals, suggested customers and partners) are no facts; they are recomputed every interval and only shown to a viewer of both collections.<==>Branchen folgen NACE Rev. 2.1 / WZ 2025; Leistungskategorien und Zielgruppen kommen aus den Scoutro-Vokabularen jeder Collection. Abgeleitete Beziehungen (gleicher Träger, schwache Link-Signale, vorgeschlagene Kunden und Partner) sind keine Fakten; sie werden in jedem Intervall neu berechnet und nur gezeigt, wer beide Collections sehen darf.<
->The graph was upgraded to vocabulary 2 without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.<==>Der Graph wurde ohne Kopie des alten Graphen auf Vokabular 2 aktualisiert (kein Platz). Die neue Extraktion aller Seiten wartet, bis ein Backup gelingt: Speicher freigeben, dann ein Backup erstellen.<
 >before an upgrade<==>vor einem Upgrade<
 >Graph vocabulary<==>Graph-Vokabular<
->Vocabulary version<==>Vokabular-Version<
 >%1 categories, %2 NACE codes<==>%1 Kategorien, %2 NACE-Codes<
 >Vocabulary problems<==>Vokabular-Probleme<
 >Derived relations<==>Abgeleitete Beziehungen<
@@ -6129,3 +6125,92 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >%1 was not deleted: a backup, restore or rebuild is running. Try again when it has ended.<==>%1 wurde nicht gelöscht: Ein Backup, eine Wiederherstellung oder ein Neuaufbau läuft. Versuchen Sie es erneut, wenn der Vorgang beendet ist.<
 >%1 was not deleted: there is no such backup (any more).<==>%1 wurde nicht gelöscht: Dieses Backup gibt es (nicht mehr).<
 >%1 could not be deleted.<==>%1 konnte nicht gelöscht werden.<
+>System and need history<==>System- und Bedarfshistorie<
+>Last evidenced on %1; present use has not been reconfirmed.<==>Zuletzt belegt am %1; heutiger Einsatz nicht erneut bestätigt.<
+>Historical observation date unknown; processing time is not evidence of freshness.<==>Historisches Beobachtungsdatum unbekannt; Verarbeitungszeit belegt keine Aktualität.<
+>Employer or organization identity unresolved<==>Arbeitgeber oder Organisationszuordnung ungeklärt<
+>The legacy evidence has no original text quotation.<==>Der Altbeleg enthält kein Originalzitat.<
+>Source availability<==>Quellenverfügbarkeit<
+>Assertion status<==>Aussagestatus<
+>Processed on<==>Verarbeitet am<
+>Source revision<==>Quellenrevision<
+>Vocabulary version<==>Vokabularversion<
+>Qualified statement; not a measured probability<==>Eingeschränkte Aussage; keine gemessene Wahrscheinlichkeit<
+>Explicit statement; not a measured probability<==>Ausdrückliche Aussage; keine gemessene Wahrscheinlichkeit<
+>A later scoped migration or shutdown is evidenced; the original statement remains historical.<==>Eine spätere Migration oder Abschaltung ist für den betreffenden Umfang belegt; die ursprüngliche Aussage bleibt historisch erhalten.<
+>Access classification changed<==>Zugriffsklassifikation geändert<
+>Observation recorded<==>Beobachtung gespeichert<
+>Source, assertion or identity status changed<==>Quellen-, Aussage- oder Identitätsstatus geändert<
+>available<==>verfügbar<
+>unavailable<==>nicht verfügbar<
+>unknown<==>unbekannt<
+>gone (not evidence of a filled vacancy or system shutdown)<==>verschwunden (kein Beleg für Stellenbesetzung oder Systemabschaltung)<
+>removed (not evidence of a filled vacancy or system shutdown)<==>entfernt (kein Beleg für Stellenbesetzung oder Systemabschaltung)<
+>internal system use<==>interner Systemeinsatz<
+>required competence<==>geforderte Kenntnisse<
+>desirable competence<==>erwünschte Kenntnisse<
+>work in customer projects<==>Arbeit in Kundenprojekten<
+>planned migration<==>geplante Migration<
+>completed migration<==>abgeschlossene Migration<
+>system shutdown<==>Systemabschaltung<
+>offered support capability<==>angebotene Unterstützung<
+>planned organizational need<==>geplanter organisatorischer Bedarf<
+>explicit organizational need<==>ausdrücklicher organisatorischer Bedarf<
+>organizational care transition; possible cooperation<==>organisatorischer Pflegeübergang; mögliche Kooperation<
+>own offered services<==>eigene angebotene Leistungen<
+>historical source metadata<==>historische Quellenmetadaten<
+>Extract jobs<==>Stellen extrahieren<
+>Display jobs<==>Stellen anzeigen<
+>Use stored job signals for matching<==>Gespeicherte Stellensignale für Matching nutzen<
+>Statement date (when evidenced)<==>Aussagedatum (sofern belegt)<
+>Organization assignment<==>Organisationszuordnung<
+>unresolved; defer job matching<==>ungeklärt; Job-Matching zurückstellen<
+>employer declared by the source<==>in der Quelle genannter Arbeitgeber<
+>organization declared by the source<==>in der Quelle genannte Organisation<
+>historical statement retained<==>historische Aussage erhalten<
+>corrected; original statement retained<==>korrigiert; ursprüngliche Aussage erhalten<
+>withdrawn; original statement retained<==>zurückgenommen; ursprüngliche Aussage erhalten<
+>System or competence signal<==>System- oder Kompetenzhinweis<
+>Organizational need signal<==>Organisatorischer Bedarfshinweis<
+>Own offered services and role<==>Eigene Leistungen und Unternehmensrolle<
+>Evidenced vacancy status<==>Belegter Anzeigenstatus<
+>current status unknown<==>aktueller Status unbekannt<
+>application deadline passed<==>Bewerbungsfrist abgelaufen<
+>Download complete authorized history (NDJSON)<==>Vollständige berechtigte Historie herunterladen (NDJSON)<
+>More history<==>Weitere Historie<
+>Job policies<==>Stellen-Einstellungen<
+>actual employer<==>tatsächlicher Arbeitgeber<
+>Source availability, vacancy status and system statements are separate. Historical evidence survives live object cleanup. A competence requirement does not confirm internal system use. Assessments are not measured probabilities.<==>Quellenverfügbarkeit, Anzeigenstatus und Systemaussagen sind getrennt. Historische Belege bleiben bei Bereinigung der Live-Objekte erhalten. Geforderte Kenntnisse bestätigen keinen internen Systemeinsatz. Bewertungen sind keine gemessenen Wahrscheinlichkeiten.<
+>Job extraction, job display and use of stored job signals for matching are independent policies, not permissions. Switching them off deletes no knowledge. New matching rules belong to a later package.<==>Stellenextraktion, Stellenanzeige und Nutzung gespeicherter Stellensignale für Matching sind unabhängige Einstellungen, keine Berechtigungen. Abschalten löscht kein Wissen. Neue Matching-Regeln folgen in einem späteren Paket.<
+>Last evidenced on %1; the current situation has not been reconfirmed.<==>Zuletzt belegt am %1; der heutige Stand ist nicht erneut bestätigt.<
+>Vacancy search status<==>Status der Personalsuche<
+>SAP family (specific product unknown)<==>SAP-Familie (konkretes Produkt unbekannt)<
+>SAP S/4HANA<==>SAP S/4HANA<
+>SAP BW<==>SAP BW<
+>SAP BW/4HANA<==>SAP BW/4HANA<
+>SAP Analytics Cloud<==>SAP Analytics Cloud<
+>Salesforce<==>Salesforce<
+>Microsoft Azure<==>Microsoft Azure<
+>Revit<==>Revit<
+>Archicad<==>Archicad<
+>Own new construction<==>Eigener Neubau<
+>Own conversion<==>Eigener Umbau<
+>Own site expansion<==>Eigener Standortausbau<
+>Energy renovation<==>Energetische Sanierung<
+>Leadership development<==>Führungsentwicklung<
+>Team development<==>Teamentwicklung<
+>Organizational care transition<==>Organisatorischer Pflegeübergang<
+>IT/SAP consulting<==>IT-/SAP-Beratung<
+>System integration<==>Systemintegration<
+>Personnel recruitment<==>Personalvermittlung<
+>Job portal<==>Stellenportal<
+>Advertisement publisher<==>Anzeigenveröffentlicher<
+>Recruiter<==>Personalvermittler<
+>Deployment organization<==>Einsatzunternehmen<
+>The graph was upgraded without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.<==>Der Graph wurde ohne Sicherung des alten Graphen aktualisiert (zu wenig Platz). Die erneute Extraktion wartet auf eine erfolgreiche Sicherung: Speicher freigeben und danach eine Sicherung erstellen.<
+>Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split. Durable observations, corrections and current access classifications are carried at the final swap; live facts are reconstructed from the current index. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.<==>Baut den Live-Graphen aus dem aktuellen Solr-Index mit den heutigen Identitätsregeln neu auf, im verbleibenden Speicherbudget unter DATA/SCOUTRO/knowledge/rebuild. Der aktuelle Graph bleibt lesbar. Beim abschließenden Austausch werden dauerhafte Beobachtungen, Korrekturen und aktuelle Zugriffsklassifikationen übernommen. Eine große Dokumentabnahme erfordert Bestätigung. Der bisherige Graph bleibt als Sicherung erhalten, gespeicherte Objekt-IDs werden soweit auflösbar weitergeleitet. Exportnutzer synchronisieren erneut. Abbruch vor dem Austausch lässt den bisherigen Graphen bestehen.<
+>current search status unknown<==>aktueller Suchstatus unbekannt<
+>application deadline passed; position status unknown<==>Bewerbungsfrist abgelaufen; Besetzungsstatus unbekannt<
+>Statement assessment<==>Aussagebewertung<
+>Text location<==>Textstelle<
+>live source object removed; reachability unknown (no vacancy or shutdown conclusion)<==>Live-Quellenobjekt entfernt; Erreichbarkeit unbekannt (keine Aussage über Stellenende oder Abschaltung)<

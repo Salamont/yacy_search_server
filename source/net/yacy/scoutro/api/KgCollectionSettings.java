@@ -77,7 +77,7 @@ final class KgCollectionSettings {
         boolean apply() throws KgException;
     }
 
-    static final Set<String> FIELDS = Set.of("active", "vocabulary", "llm");
+    static final Set<String> FIELDS = Set.of("active", "vocabulary", "llm","jobsExtraction","jobsDisplay","jobsMatching");
     private static final Object LOCK = new Object();
 
     private final Settings settings;
@@ -198,11 +198,11 @@ final class KgCollectionSettings {
                     Json.obj("field", "collection"));
         }
         if (body == null || body.length() == 0) {
-            throw ApiException.invalid("body", "Give 'active' and/or 'vocabulary'.");
+            throw ApiException.invalid("body", "Give a collection, vocabulary, LLM or job policy setting.");
         }
         for (final String k : body.keySet()) {
             if (!FIELDS.contains(k)) {
-                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: active, vocabulary.");
+                throw ApiException.invalid(k, "Unknown field '" + k + "'. Allowed: active, vocabulary, llm, jobsExtraction, jobsDisplay, jobsMatching.");
             }
         }
         final Object a = body.opt("active");
@@ -221,6 +221,8 @@ final class KgCollectionSettings {
             throw ApiException.invalid("llm", "Field 'llm' must be true or false.");
         }
         final Boolean llm = (Boolean) lo;
+        for(String key:List.of("jobsExtraction","jobsDisplay","jobsMatching"))
+            if(body.has(key)&&!(body.opt(key) instanceof Boolean))throw ApiException.invalid(key,"Field '"+key+"' must be true or false.");
         final KgVocabularies.Snapshot v = KgVocabularies.get();
         if (vocabulary != null && !vocabulary.isEmpty() && !v.categories.vocabularies.containsKey(vocabulary)) {
             throw new ApiException(400, "vocabulary_unknown", "Unknown vocabulary '" + clip(vocabulary) + "'. Known: "
@@ -243,6 +245,17 @@ final class KgCollectionSettings {
             }
             final Map<String, String> writes = new TreeMap<>();
             final List<String> removes = new ArrayList<>();
+            // Freeze initial legacy opt-ins before changing any of the independent policies.
+            if(body.has("jobsExtraction")||body.has("jobsDisplay")||body.has("jobsMatching")) {
+                String initial=this.settings.get(KgConfig.JOBS_COLLECTIONS);if(initial==null)initial="";
+                if(this.settings.get(KgConfig.JOBS_DISPLAY_COLLECTIONS)==null)writes.put(KgConfig.JOBS_DISPLAY_COLLECTIONS,initial);
+                if(this.settings.get(KgConfig.JOBS_MATCH_COLLECTIONS)==null)writes.put(KgConfig.JOBS_MATCH_COLLECTIONS,initial);
+                for(String[] pair:new String[][]{{"jobsExtraction",KgConfig.JOBS_EXTRACT_PREFIX},{"jobsDisplay",KgConfig.JOBS_DISPLAY_PREFIX},{"jobsMatching",KgConfig.JOBS_MATCH_PREFIX}})
+                    if(body.has(pair[0])) {
+                        String value=Boolean.toString(body.optBoolean(pair[0]));
+                        if(!value.equals(this.settings.get(pair[1]+collection)))writes.put(pair[1]+collection,value);
+                    }
+            }
             if (active != null) {
                 final String list = this.settings.get(KgConfig.COLLECTIONS);
                 final String inactive = this.settings.get(KgConfig.INACTIVE_COLLECTIONS);
@@ -345,6 +358,7 @@ final class KgCollectionSettings {
                 "llm", llm, "llmBy", cfg.llmAllCollections ? "all" : llm ? "list" : "none", "llmActive", cfg.enabled && cfg.llmFollows(c)
                         && model != null);
         Json.put(o, "jobs", graph == null ? null : graph.opt("jobs"));
+        Json.put(o,"jobsExtraction",cfg.jobsExtracted(c));Json.put(o,"jobsDisplay",cfg.jobsShown(c));Json.put(o,"jobsMatching",cfg.jobSignalsMatching(c));
         return o;
     }
 

@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 by Scoutro contributors.
+ * Scoutro is an independent community project based on YaCy.
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version.
+ */
+
 package net.yacy.scoutro.knowledge.extract;
 
 import java.util.*;
@@ -33,7 +39,7 @@ public final class BusinessSignals {
         if(text==null||actor==null)return;
         // JSON-LD descriptions may contain HTML; preserve paragraph boundaries.
         String plain=text.replaceAll("(?i)</?(?:p|li|br|h[1-6])[^>]*>","\n").replaceAll("<[^>]+>"," ");
-        Matcher clauses=Pattern.compile("[^.!?;\\n]+(?:[.!?;]|$)").matcher(plain);
+        Matcher clauses=Pattern.compile("(?:[^.!?;\\n]|(?<=[0-9])\\.(?=[0-9]))+(?:[.!?;]|$)").matcher(plain);
         while(clauses.find()) {
             String quote=clauses.group().trim();if(quote.isEmpty()||quote.length()>900)continue;
             for(String predicate:List.of(Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS)) {
@@ -41,10 +47,25 @@ public final class BusinessSignals {
                 if((Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)||Vocabulary.BUSINESS_ROLE_EVIDENCE.equals(predicate))
                         && !Vocabulary.ORGANIZATION.equals(actor.type)&&!Vocabulary.FACILITY.equals(actor.type))continue;
                 for(String value:read(predicate,quote,section,actor.type,actor.name))
-                    out.add(new Claim(actor.ref,predicate,null,value,tier,kind,DESIRED.matcher(quote).find(),
+                    out.add(new Claim(actor.ref,predicate,null,located(value,locator+":"+clauses.start()),tier,kind,DESIRED.matcher(quote).find(),
                             locator+":"+clauses.start(),quote));
             }
         }
+    }
+
+    /** Distinct passages/postings must not collapse into the live Evidence PK and lose a quotation. */
+    public static String located(String value,String locator) {
+        if(!value.startsWith("{"))return value;
+        try {org.json.JSONObject fields=new org.json.JSONObject(value);fields.put("statement_context",locator);return fields.toString();}
+        catch(org.json.JSONException e){throw new IllegalArgumentException(e);}
+    }
+
+    private static void assertionDate(Map<String,Object> fields,String quote) {
+        Matcher date=p("\\b(?:am|seit|zum|on|since)\\s+(20[0-9]{2}(?:-[0-9]{2}(?:-[0-9]{2})?)?|[0-9]{1,2}\\.[0-9]{1,2}\\.20[0-9]{2})\\b").matcher(quote);
+        if(date.find()){String normalized=Values.date(date.group(1));if(normalized!=null) {
+            fields.put("asserted_date",normalized);String marker=date.group().split("\\s+",2)[0].toLowerCase(Locale.ROOT);
+            fields.put("date_kind",List.of("seit","since").contains(marker)?"since":"event_date");
+        }}
     }
 
     /** Shared by rules, structured data and the LLM validator/application. */
@@ -56,15 +77,15 @@ public final class BusinessSignals {
         if(Vocabulary.SYSTEM_SIGNAL.equals(predicate)) {
             String context=null;
             boolean customer=CUSTOMERS.matcher(quote).find();
-            if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
+            if(NEGATION.matcher(quote).find())return out;
+            if(OFFER.matcher(quote).find()&&p("Beratung|Integration|Implementierung|Support|Unterstützung|Schulung|Training|consulting|implementation").matcher(quote).find())context="offered_capability";
+            else if(customer)context="customer_projects";
+            else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
             else if(MIGRATION.matcher(quote).find()&&COMPLETED.matcher(quote).find()&&(own||named))context="completed_migration";
             else if(MIGRATION.matcher(quote).find()&&PLAN.matcher(quote).find()&&(own||named))context="planned_migration";
-            else if(customer)context="customer_projects";
-            else if(NEGATION.matcher(quote).find())return out;
             else if(USE.matcher(quote).find()&&(own||named))context="internal_use";
             else if(KNOWLEDGE.matcher(quote).find()||"skills".equals(section)||"qualifications".equals(section))
                 context=DESIRED.matcher(quote).find()?"desirable_competence":"required_competence";
-            else if(OFFER.matcher(quote).find()&&p("Beratung|Integration|Implementierung|Support|consulting|implementation").matcher(quote).find())context="offered_capability";
             if(context==null)return out;
             // Simultaneous internal/customer claims need finer context; never assert internal use from them.
             if(customer&&p("\\bintern\\b|in.house").matcher(quote).find())return out;
@@ -80,7 +101,7 @@ public final class BusinessSignals {
                         else if(vocab.products(quote.substring(to)).contains(product))role="target";
                     }
                 }
-                fields.put("system_role",role);out.add(Values.canonical(fields));
+                fields.put("system_role",role);assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
         } else if(Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)) {
             if(!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find()||NEGATION.matcher(quote).find())return out;
@@ -88,7 +109,8 @@ public final class BusinessSignals {
                 String context="care-transition".equals(need)&&OWN_CARE.matcher(quote).find()?"organizational_transition"
                         : PLAN.matcher(quote).find()?"planned_need":NEED.matcher(quote).find()?"explicit_need":null;
                 if(context==null||OFFER.matcher(quote).find())continue;
-                out.add(Values.canonical(new TreeMap<>(Map.of("need",need,"context",context,"section",section,"scope","unspecified"))));
+                Map<String,Object> fields=new TreeMap<>(Map.of("need",need,"context",context,"section",section,"scope","unspecified"));
+                assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
         } else if(Vocabulary.BUSINESS_ROLE_EVIDENCE.equals(predicate)) {
             if(!OFFER.matcher(quote).find()||NEGATION.matcher(quote).find())return out;

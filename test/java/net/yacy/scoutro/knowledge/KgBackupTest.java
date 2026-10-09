@@ -224,6 +224,24 @@ public class KgBackupTest {
         assertEquals("safety copies go once a newer backup exists", 0, safety);
     }
 
+    @Test public void restoreSelectsArchiveSnapshotWithoutMixingNewerObservationsOrCorrections()throws Exception {
+        publish("HISTAAhost04","https://archive.example/",
+                "{\"@type\":\"Organization\",\"name\":\"Archive GmbH\",\"description\":\"Wir nutzen SAP intern.\"}");
+        String file=backup().getString("file");
+        assertEquals(1,count("SELECT count(*) FROM kg_observation"));
+        now.addAndGet(86_400_000);
+        publish("HISTBBhost05","https://new.example/",
+                "{\"@type\":\"Organization\",\"name\":\"Later GmbH\",\"description\":\"Wir nutzen Revit intern.\"}");
+        KgTestSupport.store(runtime).write(WriteClass.MAINTENANCE,0,c->{try(Statement s=c.createStatement()){
+            s.execute("UPDATE kg_observation SET assertion_status='corrected'");}return null;});
+        assertEquals(2,count("SELECT count(*) FROM kg_observation"));
+        runtime.restore(file);
+        assertEquals(1,count("SELECT count(*) FROM kg_observation"));
+        assertEquals(0,count("SELECT count(*) FROM kg_observation WHERE assertion_status='corrected'"));
+        assertEquals(0,count("SELECT count(*) FROM kg_observation WHERE value LIKE '%revit%'"));
+        assertEquals(1,count("SELECT count(*) FROM kg_observation_scope"));
+    }
+
     private void expectInvalid(final String name, final String reason) throws Exception {
         final long entities = count("SELECT count(*) FROM kg_entity WHERE status = 1");
         final String epoch = KgTestSupport.store(this.runtime).epoch();

@@ -81,7 +81,7 @@ final class BaseTiers {
         return ex;
     }
 
-    /** The vocabulary-2 context of a document: the vocabularies and the job switch of its followed collections. */
+    /** The document's vocabularies and job extraction policy for its followed collections. */
     static ExtractContext context(final KgConfig cfg, final SolrDoc d) {
         final List<String> followed = d.followed(cfg);
         final KgVocabularies.Snapshot vocab = KgVocabularies.get();

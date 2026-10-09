@@ -348,6 +348,7 @@ public final class KgExport {
 
     /** The current record of a changed object for the viewer; null if it is not visible (any more). */
     private JSONObject record(final Connection c, final KgChangeLog.Item it, final Viewer v, final long now) throws SQLException {
+        if(it.kind==KgChangeLog.Kind.OBSERVATION)return ObservationHistory.record(c,it.id,v);
         if (it.kind == KgChangeLog.Kind.DERIVED) {
             return BusinessGraph.derivedRecord(c, it.id, v);
         }

@@ -136,6 +136,9 @@ public final class KgBackup {
             if (!KgIds.isEpoch(epoch)) {
                 throw new KgException(KgException.BACKUP_INVALID, "epoch", "no valid dataset epoch", null);
             }
+            if(v>=5)try(Statement s=c.createStatement();ResultSet r=s.executeQuery("PRAGMA foreign_key_check")) {
+                if(r.next())throw new KgException(KgException.BACKUP_INVALID,"foreign_keys","the backup contains broken graph/history references",null);
+            }
             return KgJson.obj("schema_version", v, "epoch", epoch, "counts", KgJson.obj(
                     "documents", longValue(c, "SELECT count(*) FROM kg_doc"),
                     "entities", longValue(c, "SELECT count(*) FROM kg_entity WHERE status = 1"),

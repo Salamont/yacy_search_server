@@ -96,9 +96,10 @@ all collections and the page says so.
   cooperation, customer and reference, supplier, service provider, brand,
   certification, funding and sponsoring, with their direction. **Derived,
   no facts:** "same operator" and weak link signals (linked pages).
-- **Jobs** (only for `scoutro.kg.jobs.collections`): title, employment type,
-  place, salary with unit and date, dates and how to apply. A job ends at its
-  deadline or when its page is gone; ended jobs stay visible for
+- **Jobs** (display policy initially inherits `scoutro.kg.jobs.collections`): title, employment type,
+  place, salary with unit and date, dates and how to apply. A published deadline is marked separately from a confirmed end. A missing
+  page or old undated posting does not prove an end; current search may be unknown.
+  Ended/deadline-passed jobs stay visible for
   `scoutro.kg.jobs.endedVisibleDays` (90) days.
 - **Audiences** in three layers that never mix: the declared audience
   (customer types, segments, sizes, target industries, sought services,
@@ -335,7 +336,7 @@ uncertain, each with a quote of the page).
   JSON file in `DATA/SCOUTRO/knowledge/vocabulary/` in the format of
   `defaults/scoutro/knowledge/categories.json`, without a schema change. Both
   take effect at the next start and re-extract the pages concerned.
-- Jobs are read only for the collections named in
+- Job extraction initially follows collections named in
   `scoutro.kg.jobs.collections` (shown under Settings); a new collection never
   gets them by itself.
 
@@ -482,3 +483,47 @@ graph at once. Invalid values are listed under Settings and keep the graph off.
 - [Index Browser](IndexBrowser_p.md): **Knowledge** links per domain and page.
 - [Dashboard](scoutro-dashboard.md): knowledge graph card.
 - [LLM Selection](LLMSelection_p.md): the optional model for the LLM tier.
+
+## Durable system and need history (package B)
+
+**System and need history** opens with ?view=history; filter an actor with
+?view=history&entity=kge_… or open an observation with ?view=history&observation=kgo_….
+The object view links to this history; a removed live object can still lead to its
+authorized historical observations. History and audit events are paginated, with
+no hidden totals. Quotes are rendered as text, not executable page markup.
+
+Source state, vacancy status and assertion context are independent. No deadline
+or confirmed end means the archived search status is unknown, even for an old
+or disappeared posting. A confirmed end does not erase historical system use.
+Internal use is qualified with “Zuletzt belegt am …; heutiger Einsatz nicht erneut
+bestätigt”. Required/desirable knowledge remains competence, never installed
+software. Customer-project work, planned/completed migrations and shutdown have
+their own contexts. Later changes affect only a supported system scope.
+
+Observation/source/processing dates remain separate; missing dates are unknown.
+Assertion dates retain their original precision. Collection classification is
+current, not historical: source reclassification applies to all revisions.
+History details and quotes stay reachable without live statements.
+
+**Settings** adds independent extraction, display and stored-signal matching
+checkboxes. All initially inherit the previous jobs opt-in; the first edit freezes
+display/matching opt-ins. Off deletes no knowledge and changes no permissions.
+Only extraction changes need re-extraction. B adds no matching rules.
+
+Read endpoints under /scoutro/api/v1/kg are history (entity/source/after/limit,
+limit 1–100), entities/{id}/history, observations/{id}, and
+observations/{id}/history (after/limit). Unknown or inaccessible IDs share 404.
+Administrator authentication is unchanged. Agent mirrors require kg.read;
+history export/changes separately require kg.export. No presets gain grants.
+
+**Download complete authorized history** uses export/download?include=history;
+the page export uses export?include=history. Schema scoutro.kg.history.v1 includes
+every permitted observation and audit event, not the live export's 20-evidence
+sample. Follow all next pages, check complete, then next_changes. Streams have
+an explicit complete/incomplete trailer. Re-read changed observation events and
+deduplicate stable kgh IDs. This is not a transaction-wide snapshot.
+
+See [upgrade, rollback and lifecycle details](../docs/SCOUTRO_DURABLE_OBSERVATIONS.md).
+Rebuild carries archived revisions/corrections/current scopes at final swap;
+restore selects the chosen backup and does not merge newer history automatically.
+An old schema backup does not preserve observations created after its date.

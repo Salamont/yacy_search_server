@@ -739,16 +739,15 @@ public final class BusinessRules {
                 titles.add(new int[] {start, g.end(), g.start()});
             }
         }
-        final Set<String> seen = new LinkedHashSet<>();
         for (int i = 0; i < titles.size(); i++) {
             final int[] t = titles.get(i);
             final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
             final String key = Normalizers.key(title);
-            if (key == null || !seen.add(key) || BusinessFacts.personLike(title)) {
+            if (key == null || BusinessFacts.personLike(title)) {
                 continue;
             }
             final int windowEnd = Math.min(i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length(),t[1]+6000);
-            final Mention job = run.out.add(new Mention("rule:job:" + key, Vocabulary.JOB, 2));
+            final Mention job = run.out.add(new Mention("rule:job:" + key+":"+t[0], Vocabulary.JOB, 2));
             job.name = title;
             final Matcher wp = WORK_PLACE.matcher(run.text).region(t[1], windowEnd);
             final String place = wp.find() ? wp.group(1) : null;
@@ -757,9 +756,16 @@ public final class BusinessRules {
             claim(run, job, Vocabulary.NAME, title, t[0], t[1], 0.7);
             final String jobText=run.text.substring(t[0],windowEnd);
             // The site operator is not automatically the employer. Keep unidentified jobs as such.
-            if(!BusinessSignals.INTERMEDIARY.matcher(jobText).find()
-                    && Pattern.compile("(?iu)wir suchen|bei uns|unser Team|we are hiring|join our team").matcher(jobText).find())
-                relation(run, job, Vocabulary.HIRING_ORGANIZATION, run.subject, t[0], windowEnd, 0.7);
+            final String lead=run.text.substring(0,titles.get(0)[0]);
+            final Pattern selfHiring=Pattern.compile("(?iu)wir suchen|bei uns|unser Team|we are hiring|join our team");
+            final Matcher ownJob=selfHiring.matcher(jobText),ownList=selfHiring.matcher(lead);
+            boolean employerAssigned=false;
+            if(!BusinessSignals.INTERMEDIARY.matcher(jobText+" "+lead).find()) {
+                if(ownJob.find()){relation(run,job,Vocabulary.HIRING_ORGANIZATION,run.subject,t[0]+ownJob.start(),t[0]+ownJob.end(),0.7);employerAssigned=true;}
+                else if(ownList.find()){relation(run,job,Vocabulary.HIRING_ORGANIZATION,run.subject,ownList.start(),ownList.end(),0.7);employerAssigned=true;}
+            }
+            if(!employerAssigned)job.jobKey="unresolved:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+":"+t[0]))+"|"+key;
+            else job.jobKey+="|posting:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+":"+t[0]));
             BusinessSignals.extract(run.text.substring(t[1],windowEnd),job,run.out,2,Claim.KIND_RULE,"text","text:"+t[1]);
             final Set<String> types = new LinkedHashSet<>();
             for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, t[1], Math.min(windowEnd, t[1] + 400))) {

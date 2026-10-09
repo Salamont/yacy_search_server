@@ -788,7 +788,8 @@ public final class LlmExtractor {
                     ? BusinessSignals.read(v.optString("predicate"),v.optString("quote"),"text",actor.type,actor.name)
                     : read(v.optString("predicate"),v.optString("quote"),ctx);
             for (final String value : parsed) {
-                out.add(new Claim(s, v.optString("predicate"), null, value, TIER, Claim.KIND_LLM, false, locator(v), v.optString("quote")));
+                out.add(new Claim(s, v.optString("predicate"), null, signalPredicate(v.optString("predicate"))?BusinessSignals.located(value,locator(v)):value,
+                        TIER, Claim.KIND_LLM, false, locator(v), v.optString("quote")));
             }
         }
         BusinessFacts.industriesFromServices(out, ctx, TIER, MAX_QUOTE);

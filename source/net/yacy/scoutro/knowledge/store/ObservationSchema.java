@@ -1,3 +1,9 @@
+/*
+ * Copyright 2026 by Scoutro contributors.
+ * Scoutro is an independent community project based on YaCy.
+ * Licensed under the GNU General Public License, version 2 or (at your option) any later version.
+ */
+
 package net.yacy.scoutro.knowledge.store;
 
 /** Schema 5: business observations independent of the disposable live graph.
@@ -9,8 +15,8 @@ final class ObservationSchema {
 
     private static final String RELEVANT = "(p.name IN ('system_signal','business_need_signal','business_role_evidence','job_status')"
             + " OR (t.name = 'job' AND p.name IN ('name','hiring_organization','job_location','date_posted','valid_through',"
-            + "'employment_type','occupational_field','start_date'))"
-            + " OR (t.name = 'service' AND p.name IN ('name','category','description')))";
+            + "'employment_type','occupational_field','start_date','advertised_by','recruiting_organization','deployment_organization'))"
+            + " OR (t.name = 'service' AND p.name IN ('name','category','description')) OR p.name='offers')";
 
     /** Only identity evidence from THIS document, never names or keys from another collection. */
     private static String identity(final String entity) {
@@ -23,10 +29,15 @@ final class ObservationSchema {
 
     private static final String EMPLOYER = "(SELECT min(h.obj_ent) FROM kg_statement h JOIN kg_vocab hp ON hp.term_id=h.pred"
             + " JOIN kg_evidence he ON he.stmt_rowid=h.stmt_rowid WHERE h.subj=s.subj AND hp.name='hiring_organization'"
-            + " AND he.doc_rowid=d.doc_rowid HAVING count(DISTINCT h.obj_ent)=1)";
+            + " AND he.doc_rowid=d.doc_rowid HAVING count(DISTINCT h.obj_ent)=1 AND EXISTS"
+            + "(SELECT 1 FROM kg_statement n JOIN kg_vocab np ON np.term_id=n.pred JOIN kg_evidence ne ON ne.stmt_rowid=n.stmt_rowid"
+            + " WHERE n.subj=h.obj_ent AND ne.doc_rowid=d.doc_rowid AND np.name IN('name','legal_name') AND length(n.obj_val)>0))";
+    private static final String PROVIDER = "(SELECT min(h.subj) FROM kg_statement h JOIN kg_vocab hp ON hp.term_id=h.pred"
+            + " JOIN kg_evidence he ON he.stmt_rowid=h.stmt_rowid WHERE h.obj_ent=s.subj AND hp.name='offers'"
+            + " AND he.doc_rowid=d.doc_rowid HAVING count(DISTINCT h.subj)=1)";
 
     static String capture(final String condition) {
-        final String org = "CASE WHEN t.name='job' THEN " + EMPLOYER + " ELSE s.subj END";
+        final String org = "CASE WHEN t.name='job' THEN " + EMPLOYER + " WHEN t.name='service' THEN "+PROVIDER+" ELSE s.subj END";
         return "INSERT OR IGNORE INTO kg_observation (public_id,source_id,source_url,content_revision,subject_id,subject_type,"
                 + "organization_id,original_organization_id,identity_context,predicate,value,object_id,quote,locator,tier,extractor,"
                 + "vocabulary_version,asserted_at,observed_at,recorded_at,origin_scopes,source_status,certainty,statement_id)"
@@ -35,19 +46,31 @@ final class ObservationSchema {
                 + "en.public_id,t.name,(SELECT public_id FROM kg_entity WHERE ent_rowid=" + org + "),"
                 + "(SELECT public_id FROM kg_entity WHERE ent_rowid=" + org + "),"
                 + "json_object('subject',json(" + identity("s.subj") + "),'organization',json(" + identity(org) + "),"
+                + "'object',json("+identity("s.obj_ent")+"),"
+                + "'assignment',json(coalesce((SELECT json_group_array(json_object('predicate',ap.name,'quote',ae.excerpt,'locator',ae.locator))"
+                + " FROM kg_statement ast JOIN kg_vocab ap ON ap.term_id=ast.pred JOIN kg_evidence ae ON ae.stmt_rowid=ast.stmt_rowid"
+                + " WHERE ae.doc_rowid=d.doc_rowid AND ((t.name='job' AND ast.subj=s.subj AND ap.name='hiring_organization')"
+                + " OR (t.name='service' AND ast.obj_ent=s.subj AND ap.name='offers'))),'[]')),"
                 + "'employer_assignment',CASE WHEN t.name<>'job' THEN 'source_actor' WHEN " + EMPLOYER
                 + " IS NULL THEN 'unresolved' ELSE 'source_declared' END),"
                 + "p.name,coalesce(s.obj_val,(SELECT public_id FROM kg_entity WHERE ent_rowid=s.obj_ent),''),(SELECT public_id FROM kg_entity WHERE ent_rowid=s.obj_ent),"
                 + "coalesce(e.excerpt,''),coalesce(e.locator,''),e.tier,x.name||'/'||x.version,"
                 + "coalesce((SELECT value FROM kg_meta WHERE key='observation_vocabulary'),'legacy-unknown'),"
-                + "CASE WHEN p.name='date_posted' THEN s.obj_val ELSE NULL END,e.source_observed_at,e.observed_at,"
+                + "CASE WHEN p.name='date_posted' THEN s.obj_val WHEN json_valid(s.obj_val) THEN json_extract(s.obj_val,'$.asserted_date') ELSE NULL END,e.source_observed_at,e.observed_at,"
                 + "coalesce((SELECT group_concat(name,',') FROM kg_collection c JOIN kg_doc_collection dc ON dc.coll_id=c.coll_id"
                 + " WHERE dc.doc_rowid=d.doc_rowid),''),"
                 + "CASE d.state WHEN 1 THEN 'available' WHEN 2 THEN 'unavailable' WHEN 3 THEN 'gone' ELSE 'unknown' END,"
                 + "e.certainty,s.public_id FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid=e.stmt_rowid"
                 + " JOIN kg_doc d ON d.doc_rowid=e.doc_rowid JOIN kg_entity en ON en.ent_rowid=s.subj"
                 + " JOIN kg_vocab t ON t.term_id=en.type JOIN kg_vocab p ON p.term_id=s.pred"
-                + " JOIN kg_extractor x ON x.ext_id=e.ext_id WHERE " + RELEVANT + " AND (" + condition + ")";
+                + " JOIN kg_extractor x ON x.ext_id=e.ext_id WHERE " + RELEVANT + " AND (" + condition + ")"
+                + " AND NOT EXISTS(SELECT 1 FROM kg_observation saved WHERE saved.source_id=d.doc_id"
+                + " AND saved.content_revision=coalesce(e.source_revision,'legacy-unknown') AND (saved.subject_id=en.public_id"
+                + " OR EXISTS(SELECT 1 FROM kg_entity_redirect er WHERE er.public_id=saved.subject_id AND er.target_rowid=s.subj)"
+                + " OR EXISTS(SELECT 1 FROM kg_entity old WHERE old.public_id=saved.subject_id AND old.merged_into=s.subj))"
+                + " AND saved.predicate=p.name AND saved.value=coalesce(s.obj_val,(SELECT public_id FROM kg_entity WHERE ent_rowid=s.obj_ent),'')"
+                + " AND saved.locator=coalesce(e.locator,'') AND saved.tier=e.tier AND saved.extractor=x.name||'/'||x.version"
+                + " AND saved.quote=coalesce(e.excerpt,''))";
     }
 
     static final String[] DDL = {
@@ -76,7 +99,9 @@ final class ObservationSchema {
             + " ON DELETE CASCADE,coll_id INTEGER NOT NULL REFERENCES kg_collection(coll_id),"
             + "PRIMARY KEY(observation_rowid,coll_id)) WITHOUT ROWID",
         "CREATE INDEX kg_observation_scope_coll ON kg_observation_scope(coll_id,observation_rowid)",
-        "CREATE TABLE kg_observation_event (event_rowid INTEGER PRIMARY KEY,observation_id TEXT NOT NULL,kind TEXT NOT NULL,"
+        "CREATE TABLE kg_observation_event (event_rowid INTEGER PRIMARY KEY,public_id TEXT NOT NULL UNIQUE"
+            + " DEFAULT ('kgh_'||lower(hex(randomblob(10)))),observation_id TEXT NOT NULL REFERENCES kg_observation(public_id)"
+            + " ON DELETE CASCADE,kind TEXT NOT NULL,"
             + "at INTEGER NOT NULL,before_value TEXT,after_value TEXT)",
         "CREATE INDEX kg_observation_event_obs ON kg_observation_event(observation_id,event_rowid)",
         // Preserve the existing feed sequence; adding observations does not invalidate old cursors.
@@ -99,6 +124,14 @@ final class ObservationSchema {
         // Fail closed, including ad-hoc deletes, cascading doc deletes and FullReset.
         "CREATE TRIGGER kg_observation_evidence_delete BEFORE DELETE ON kg_evidence BEGIN "
             + capture("e.doc_rowid=OLD.doc_rowid") + "; END",
+        "CREATE TRIGGER kg_observation_evidence_update BEFORE UPDATE ON kg_evidence BEGIN "
+            + capture("e.doc_rowid=OLD.doc_rowid") + "; END",
+        "CREATE TRIGGER kg_observation_original_immutable BEFORE UPDATE OF source_id,source_url,content_revision,subject_id,subject_type,"
+            + "original_organization_id,identity_context,predicate,value,object_id,quote,locator,tier,extractor,vocabulary_version,"
+            + "asserted_at,observed_at,recorded_at,origin_scopes,certainty,statement_id ON kg_observation BEGIN "
+            + "SELECT RAISE(ABORT,'original observations are immutable; append a correction revision'); END",
+        "CREATE TRIGGER kg_observation_statement_delete BEFORE DELETE ON kg_statement BEGIN "
+            + capture("d.doc_rowid IN(SELECT doc_rowid FROM kg_evidence WHERE stmt_rowid=OLD.stmt_rowid)") + "; END",
         "CREATE TRIGGER kg_observation_doc_update BEFORE UPDATE OF input_hash,content_hash,url ON kg_doc BEGIN "
             + capture("d.doc_rowid=OLD.doc_rowid") + "; END",
         "CREATE TRIGGER kg_observation_doc_delete BEFORE DELETE ON kg_doc BEGIN "
@@ -127,8 +160,9 @@ final class ObservationSchema {
         "CREATE TRIGGER kg_observation_feed AFTER INSERT ON kg_observation_event BEGIN "
             + "INSERT OR REPLACE INTO kg_change(kind,public_id,op,scopes_now,scopes_seen,at) SELECT 4,NEW.observation_id,1,"
             + "coalesce((SELECT group_concat(coll_id,',') FROM kg_observation_scope WHERE observation_rowid=o.observation_rowid),''),"
-            + "coalesce((SELECT scopes_seen||',' FROM kg_change WHERE kind=4 AND public_id=NEW.observation_id),'')||"
-            + "coalesce((SELECT group_concat(coll_id,',') FROM kg_observation_scope WHERE observation_rowid=o.observation_rowid),''),NEW.at"
+            + "coalesce((SELECT group_concat(coll_id,',') FROM (SELECT coll_id FROM kg_observation_scope WHERE observation_rowid=o.observation_rowid"
+            + " UNION SELECT CAST(after_value AS INTEGER) AS coll_id FROM kg_observation_event WHERE observation_id=NEW.observation_id"
+            + " AND kind IN ('scope_insert','scope_delete') AND after_value IS NOT NULL)),''),NEW.at"
             + " FROM kg_observation o WHERE o.public_id=NEW.observation_id; END",
         capture("1")
     };

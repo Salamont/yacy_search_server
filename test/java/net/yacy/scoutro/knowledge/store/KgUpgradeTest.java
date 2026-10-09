@@ -105,11 +105,11 @@ public class KgUpgradeTest {
         final KgConfig cfg = cfg();
         final StorageGuard guard = new StorageGuard(cfg, p, new KgTestSupport.Probe(), System::currentTimeMillis);
         this.store = KgStore.open(p, cfg, guard, KgStore.SQLITE, System::currentTimeMillis);
-        assertEquals(4, this.store.schemaVersion());
+        assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());
         final JSONObject up = this.store.upgrade();
         assertNotNull(up);
         assertEquals(3, up.getInt("from"));
-        assertEquals(4, up.getInt("to"));
+        assertEquals(KgSchema.CURRENT_VERSION, up.getInt("to"));
         assertEquals("ok", up.getString("quickCheck"));
         final String name = up.getString("backup");
         assertTrue(name, KgBackup.NAME.matcher(name).matches() && name.endsWith("-before-upgrade.db"));
@@ -157,7 +157,7 @@ public class KgUpgradeTest {
         probe.usable.set(cfg.criticalFloorBytes() + 1024L); // the disk is nearly full: no copy of the graph fits
         final StorageGuard guard = new StorageGuard(cfg, p, probe, System::currentTimeMillis);
         this.store = KgStore.open(p, cfg, guard, KgStore.SQLITE, System::currentTimeMillis);
-        assertEquals(4, this.store.schemaVersion());
+        assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());
         final JSONObject up = this.store.upgrade();
         assertTrue(up.isNull("backup"));
         assertEquals(StorageGuard.DISK_CRITICAL, up.getString("hold"));

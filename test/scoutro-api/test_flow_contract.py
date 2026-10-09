@@ -32,6 +32,20 @@ class Contracts(unittest.TestCase):
   with tempfile.TemporaryDirectory() as folder,patch.object(sys,'argv',['generator',folder]),contextlib.redirect_stdout(io.StringIO()):
    runpy.run_path(str(ROOT/'tools/scoutro/generate_api_description.py'),run_name='__main__')
    for name in ['openapi.json','actions.json']: self.assertEqual((Path(folder)/name).read_bytes(),(ROOT/'htroot/env/scoutro/api'/name).read_bytes())
+ def test_durable_history_routes_share_read_grant_and_export_is_separate(self):
+  for name in ['kg.history','kg.entity.history','kg.observation','kg.observation.history']:
+   action=next(x for x in self.actions['actions'] if x['name']==name)
+   self.assertFalse(action['mutating']);self.assertEqual('kg.read',action['agent']['grant'])
+   self.assertIn(action['agent']['http']['path'].removeprefix('/scoutro/api'),self.openapi['paths'])
+  export=next(x for x in self.actions['actions'] if x['name']=='kg.export')
+  self.assertEqual('kg.export',export['agent']['grant']);self.assertIn('history',export['parameters']['include']['enum'])
+  policies=self.openapi['components']['schemas']['KgCollectionChange']['properties']
+  for field in ['jobsExtraction','jobsDisplay','jobsMatching']:self.assertEqual('boolean',policies[field]['type'])
+ def test_cli_history_export_and_download_send_explicit_contract(self):
+  args,kwargs=self.call(['kg','export','--history','--collection','kga'],token='agent')
+  self.assertEqual('/agent/v1/kg/export',args[1]);self.assertEqual('history',args[2]['include'])
+  args,kwargs=self.call(['kg','download','--history','--collection','kga'])
+  self.assertEqual('/v1/kg/export/download',args[1]);self.assertEqual('history',args[2]['include']);self.assertTrue(kwargs['raw'])
  def call(self,args,token=''):
   requests=[]
   class Client:

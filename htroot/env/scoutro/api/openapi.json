@@ -1947,7 +1947,7 @@
       "patch": {
         "operationId": "kg.collection.update",
         "summary": "Switch a collection on or off for the knowledge graph, set its vocabulary",
-        "description": "Package 6.2, administrator only, never an agent grant. JSON body with active, vocabulary and/or llm (package 6.3: the LLM enrichment, scoutro.kg.llm.collections); unknown fields are refused. Only this collection's keys change, with their existing meaning: scoutro.kg.collections (the name added or removed, the other names as they are; * stays *), scoutro.kg.collections.inactive (switched off: not followed, also under *; the reconcile deletes nothing of it and nothing new is extracted from it; a page deleted from the index still leaves the graph) and scoutro.kg.vocab.<collection>. A change takes effect at once: the running graph is reopened with the new settings (a manual pause stays), and the reconcile of every start reads the pages a collection switched on already has in the index (the existing backfill). No schema change, no deletion, no new collection. 400 collection_id_invalid, 400 collection_reserved (robot_*), 400 vocabulary_unknown, 400 invalid_request, 404 collection_unknown (neither in the catalog nor named by the graph), 409 operation_running while a backup, restore or rebuild runs (nothing written), 409 llm_all_collections (nothing written).",
+        "description": "Package 6.2, administrator only, never an agent grant. JSON body with active, vocabulary and/or llm (package 6.3: the LLM enrichment, scoutro.kg.llm.collections); unknown fields are refused. Only this collection's keys change, with their existing meaning: scoutro.kg.collections (the name added or removed, the other names as they are; * stays *), scoutro.kg.collections.inactive (switched off: not followed, also under *; the reconcile deletes nothing of it and nothing new is extracted from it; a page deleted from the index still leaves the graph) and scoutro.kg.vocab.<collection>. A change takes effect at once: the running graph is reopened with the new settings (a manual pause stays), and the reconcile of every start reads the pages a collection switched on already has in the index (the existing backfill). No schema change, no deletion, no new collection. 400 collection_id_invalid, 400 collection_reserved (robot_*), 400 vocabulary_unknown, 400 invalid_request, 404 collection_unknown (neither in the catalog nor named by the graph), 409 operation_running while a backup, restore or rebuild runs (nothing written), 409 llm_all_collections (nothing written). Also accepts independent jobsExtraction, jobsDisplay and jobsMatching; initial legacy opt-ins are frozen before the first policy change. Only extraction changes require re-extraction.",
         "tags": [
           "knowledge"
         ],
@@ -4426,11 +4426,505 @@
         "x-scoutro-mutating": false
       }
     },
+    "/v1/kg/history": {
+      "get": {
+        "operationId": "kg.history",
+        "summary": "Read durable system and need history",
+        "description": "Keyset pagination of authorized observations. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "description": "Current/historical actor or subject ID; need not be a live entity.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Source ID; need not exist in the live graph.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{12}$"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Key from next_after of the previous page; absent to start.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgHistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/kg/entities/{id}/history": {
+      "get": {
+        "operationId": "kg.entity.history",
+        "summary": "Read an actor's historical observations",
+        "description": "Works even after live entity deletion. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Entity ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Key from next_after of the previous page; absent to start.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgHistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/kg/observations/{id}": {
+      "get": {
+        "operationId": "kg.observation",
+        "summary": "Read a durable observation",
+        "description": "Includes quote, revision, historical identity, independent states and dates. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^kgo_[0-9a-f]{20}$"
+            },
+            "description": "Durable observation ID."
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgObservation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/kg/observations/{id}/history": {
+      "get": {
+        "operationId": "kg.observation.history",
+        "summary": "Read observation classification and correction events",
+        "description": "Keyset pagination; no per-observation event cap. Unauthorized historical collection names are suppressed. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^kgo_[0-9a-f]{20}$"
+            },
+            "description": "Durable observation ID."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Key from next_after of the previous page; absent to start.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgObservationEventPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
     "/v1/kg/export": {
       "get": {
         "operationId": "kg.export",
         "summary": "Export the knowledge graph (pages)",
-        "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. include=history exports all durable observations followed by all authorized audit events under scoutro.kg.history.v1 (phases o/e, at most 100 records per page). No per-record evidence cap; follow next_changes after this nonsnapshot export. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
         "tags": [
           "knowledge"
         ],
@@ -4443,7 +4937,7 @@
             "schema": {
               "type": "string",
               "maxLength": 80,
-              "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esd][0-9]{1,18}$"
+              "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esdoe][0-9]{1,18}$"
             }
           },
           {
@@ -4466,7 +4960,8 @@
             "schema": {
               "type": "string",
               "enum": [
-                "evidence"
+                "evidence",
+                "history"
               ]
             }
           },
@@ -4487,7 +4982,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KgExportPage"
+                  "$ref": "#/components/schemas/KgExportResponse"
                 }
               }
             }
@@ -4704,7 +5199,7 @@
       "get": {
         "operationId": "kg.download",
         "summary": "Download the knowledge graph",
-        "description": "Administrator only, never an agent grant: the whole export as one streamed download (Content-Disposition), NDJSON lines header, entities, statements, trailer, or format=json. Pages of 200 records, each in its own read lease. Errors before the first page answer as JSON; a failure later ends the stream with a trailer complete:false. The export is not a snapshot: apply /kg/changes from the header's next_changes.",
+        "description": "Administrator only, never an agent grant: the whole export as one streamed download (Content-Disposition), NDJSON lines header, entities, statements, trailer, or format=json. Pages of 200 records, each in its own read lease. Errors before the first page answer as JSON; a failure later ends the stream with a trailer complete:false. The export is not a snapshot: apply /kg/changes from the header's next_changes. include=history streams the full versioned durable history, observation and observation_event records followed by a complete/incomplete trailer, even without live statements. next_changes is in the history trailer.",
         "tags": [
           "knowledge"
         ],
@@ -4727,11 +5222,12 @@
             "name": "include",
             "in": "query",
             "required": false,
-            "description": "Also the evidence of each statement.",
+            "description": "Evidence or complete durable history, as a separate versioned contract.",
             "schema": {
               "type": "string",
               "enum": [
-                "evidence"
+                "evidence",
+                "history"
               ]
             }
           },
@@ -11657,11 +12153,629 @@
         ]
       }
     },
+    "/agent/v1/kg/history": {
+      "get": {
+        "operationId": "agent.kg.history",
+        "summary": "Read durable system and need history (scoped)",
+        "description": "Keyset pagination of authorized observations. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "tags": [
+          "agent",
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "entity",
+            "in": "query",
+            "required": false,
+            "description": "Current/historical actor or subject ID; need not be a live entity.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "description": "Source ID; need not exist in the live graph.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{12}$"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Key from next_after of the previous page; absent to start.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgHistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; for crawls also every crawl this agent did not start (crawl_not_found).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "kg.read"
+        ]
+      }
+    },
+    "/agent/v1/kg/entities/{id}/history": {
+      "get": {
+        "operationId": "agent.kg.entity.history",
+        "summary": "Read an actor's historical observations (scoped)",
+        "description": "Works even after live entity deletion. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "tags": [
+          "agent",
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Entity ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Key from next_after of the previous page; absent to start.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "History page.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgHistoryPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; for crawls also every crawl this agent did not start (crawl_not_found).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "kg.read"
+        ]
+      }
+    },
+    "/agent/v1/kg/observations/{id}": {
+      "get": {
+        "operationId": "agent.kg.observation",
+        "summary": "Read a durable observation (scoped)",
+        "description": "Includes quote, revision, historical identity, independent states and dates. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "tags": [
+          "agent",
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^kgo_[0-9a-f]{20}$"
+            },
+            "description": "Durable observation ID."
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Observation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgObservation"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; for crawls also every crawl this agent did not start (crawl_not_found).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "kg.read"
+        ]
+      }
+    },
+    "/agent/v1/kg/observations/{id}/history": {
+      "get": {
+        "operationId": "agent.kg.observation.history",
+        "summary": "Read observation classification and correction events (scoped)",
+        "description": "Keyset pagination; no per-observation event cap. Unauthorized historical collection names are suppressed. Current source classification, intersected with server-side grants, is authoritative for all revisions. Historical collection membership never grants access. Missing and inaccessible observations return the same 404. No crawl, extraction or matching is started. Dates may be null: recorded_at is processing time, observed_at is source observation time, asserted_at is the explicit assertion date. Scores are qualitative extractor assessments, not measured probabilities. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "tags": [
+          "agent",
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^kgo_[0-9a-f]{20}$"
+            },
+            "description": "Durable observation ID."
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "description": "Key from next_after of the previous page; absent to start.",
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Events.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgObservationEventPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; for crawls also every crawl this agent did not start (crawl_not_found).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "kg.read"
+        ]
+      }
+    },
     "/agent/v1/kg/export": {
       "get": {
         "operationId": "agent.kg.export",
         "summary": "Export the knowledge graph (pages) (scoped)",
-        "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.export, absent from presets.",
+        "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. include=history exports all durable observations followed by all authorized audit events under scoutro.kg.history.v1 (phases o/e, at most 100 records per page). No per-record evidence cap; follow next_changes after this nonsnapshot export. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.export, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -11675,7 +12789,7 @@
             "schema": {
               "type": "string",
               "maxLength": 80,
-              "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esd][0-9]{1,18}$"
+              "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esdoe][0-9]{1,18}$"
             }
           },
           {
@@ -11698,7 +12812,8 @@
             "schema": {
               "type": "string",
               "enum": [
-                "evidence"
+                "evidence",
+                "history"
               ]
             }
           },
@@ -11719,7 +12834,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KgExportPage"
+                  "$ref": "#/components/schemas/KgExportResponse"
                 }
               }
             }
@@ -17541,12 +18656,12 @@
               "graphVocabulary": {
                 "type": "string",
                 "enum": [
-                  "2"
+                  "3"
                 ]
               },
               "version": {
                 "type": "string",
-                "description": "Hash of the category files and the number of NACE codes; part of the extractor identity."
+                "description": "Category-file version, NACE code count and global product/need content fingerprint; part of extraction and cache identities."
               },
               "vocabularies": {
                 "type": "array",
@@ -17629,7 +18744,7 @@
                 },
                 "jobs": {
                   "type": "boolean",
-                  "description": "Followed and named in scoutro.kg.jobs.collections."
+                  "description": "Followed and enabled by the job display policy; extraction and later signal use are separate collection settings."
                 },
                 "llm": {
                   "type": "boolean",
@@ -17660,7 +18775,7 @@
               "object",
               "null"
             ],
-            "description": "The last schema migration of this graph (package 6: 3 -> 4); null if it was never upgraded. Before it: PRAGMA quick_check (a failed or unfinished check keeps the graph off, state unavailable, reason upgrade_blocked, file unchanged) and a verified copy graph-<UTC>-before-upgrade.db. Without room for the copy the additive migration still runs, but the re-extraction with vocabulary 2 waits (waiting) until a verified backup exists.",
+            "description": "The last schema migration of this graph (current schema 5 with durable observations); null if it was never upgraded. Before it: PRAGMA quick_check (a failed or unfinished check keeps the graph off, state unavailable, reason upgrade_blocked, file unchanged) and a verified copy graph-<UTC>-before-upgrade.db. Without room for the copy the additive migration still runs, but re-extraction with the current extractors waits (waiting) until a verified backup exists.",
             "properties": {
               "from": {
                 "type": "integer"
@@ -17755,7 +18870,7 @@
               "derive",
               "delete_backup"
             ],
-            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts the backup in place with a new dataset epoch and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (the controlled way to vocabulary 2: brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (wrong merges are split, every fact keeps its evidence) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false. delete_backup (with backup, package 6.3) deletes one backup and its metadata file: only a name of GET /kg/backups, the file a regular file directly in DATA/SCOUTRO/knowledge/backup (no symbolic link), never the graph's own graph.db, WAL or SHM; the answer is the status with deleted and the backup state after it. 400 for anything but such a name, 404 backup_not_found, 409 operation_running while a backup, restore or rebuild swap holds the backup slot (nothing deleted), 503 backup_delete_failed. Restore and download of the other backups are unchanged."
+            "description": "pause stops new growth (stored across restarts); deletions, state changes and bookkeeping continue. resume ends a manual pause, schedules a full reconcile and, after a storage error or a failed or aborted integrity check, requests a new PRAGMA quick_check; graph writes resume only when it passes (store.integrity). reconcile schedules a full reconcile now. confirm_reconcile lets a reconcile that the mass-deletion brake stopped (sync.reconcile.awaitingConfirmation) delete the documents it confirmed as absent; 409 nothing_to_confirm otherwise. llm_retry makes the documents the LLM tier gave up on due again and closes its circuit breaker (the answer adds reopened); 409 llm_unavailable while the tier is off. backup writes a verified copy into DATA/SCOUTRO/knowledge/backup on the backup thread (status backup.state, backup.last; skipped with the guard's reason while growth is paused or the budget or disk reserve would be crossed). restore (with backup: a file name of GET /kg/backups) checks the backup (SHA-256 of its metadata, quick_check, schema version), stops the graph, keeps the current database as graph-<UTC>-before-restore.db, puts exactly the chosen backup and its history in place with a new dataset epoch, without mixing newer observations, and starts the graph again, which reconciles with Solr; 404 backup_not_found, 422 backup_invalid (nothing changed), 409 operation_running, 503 restore_failed (the previous graph is back). rebuild re-resolves every identity and extracts every page again with the current vocabulary (brake, cancel and progress, the old graph serves until the swap): it builds a shadow graph from Solr in DATA/SCOUTRO/knowledge/rebuild with the current rules (live facts are extracted from current sources; durable observations, corrections and current classifications are carried after the old writer stops) while the graph keeps serving, verifies it (quick_check, the reconcile's mass-deletion brake), keeps the current database as graph-<UTC>-before-rebuild.db, redirects entity IDs the new graph does not know, and swaps it in with a new dataset epoch; progress in rebuild. 409 operation_running (details.reason reconcile_busy while a reconcile waits for its confirmation or a reset runs), 503 kg_write_refused with reason rebuild_space when the budget has no room for the shadow. rebuild_cancel deletes the shadow before the swap; the graph stays as it is. rebuild_confirm lets a rebuild that the brake stopped (rebuild.awaitingConfirmation) swap. 409 no_rebuild otherwise. derive makes the derived layer (weak links, same operator, suggested matches; no facts) due at the next maintenance step instead of after scoutro.kg.derived.intervalMinutes; it still waits for the sync, a rebuild and every growth refusal (status derived). 409 derived_unavailable while scoutro.kg.derived.enabled=false. delete_backup (with backup, package 6.3) deletes one backup and its metadata file: only a name of GET /kg/backups, the file a regular file directly in DATA/SCOUTRO/knowledge/backup (no symbolic link), never the graph's own graph.db, WAL or SHM; the answer is the status with deleted and the backup state after it. 400 for anything but such a name, 404 backup_not_found, 409 operation_running while a backup, restore or rebuild swap holds the backup slot (nothing deleted), 503 backup_delete_failed. Restore and download of the other backups are unchanged."
           }
         }
       },
@@ -18276,6 +19391,18 @@
                     "not_followed",
                     "unknown_vocabulary"
                   ]
+                },
+                "jobsExtraction": {
+                  "type": "boolean",
+                  "description": "Extract new job facts. Disabling keeps knowledge. This is not an access permission."
+                },
+                "jobsDisplay": {
+                  "type": "boolean",
+                  "description": "Show live job sections independently of extraction. This is not an access permission."
+                },
+                "jobsMatching": {
+                  "type": "boolean",
+                  "description": "Allow later matching to use stored job signals. Initially inherits the existing jobs opt-in; package B adds no matching rules. This is not an access permission."
                 }
               }
             },
@@ -18305,6 +19432,18 @@
           "llm": {
             "type": "boolean",
             "description": "Package 6.3: the LLM enrichment for the collection on (added to scoutro.kg.llm.collections) or off (removed). 409 llm_all_collections to switch one off while the key is *: it is never rewritten into a list. Never switched on by itself."
+          },
+          "jobsExtraction": {
+            "type": "boolean",
+            "description": "Extract new job facts. Disabling keeps knowledge. This is not an access permission."
+          },
+          "jobsDisplay": {
+            "type": "boolean",
+            "description": "Show live job sections independently of extraction. This is not an access permission."
+          },
+          "jobsMatching": {
+            "type": "boolean",
+            "description": "Allow later matching to use stored job signals. Initially inherits the existing jobs opt-in; package B adds no matching rules. This is not an access permission."
           }
         }
       },
@@ -18431,6 +19570,18 @@
                   "not_followed",
                   "unknown_vocabulary"
                 ]
+              },
+              "jobsExtraction": {
+                "type": "boolean",
+                "description": "Extract new job facts. Disabling keeps knowledge. This is not an access permission."
+              },
+              "jobsDisplay": {
+                "type": "boolean",
+                "description": "Show live job sections independently of extraction. This is not an access permission."
+              },
+              "jobsMatching": {
+                "type": "boolean",
+                "description": "Allow later matching to use stored job signals. Initially inherits the existing jobs opt-in; package B adds no matching rules. This is not an access permission."
               }
             }
           },
@@ -20570,7 +21721,9 @@
             "type": "string",
             "enum": [
               "open",
-              "ended"
+              "ended",
+              "deadline_passed",
+              "unknown"
             ]
           },
           "ended_at": {
@@ -20590,6 +21743,15 @@
           "hidden": {
             "type": "boolean",
             "description": "Ended longer than scoutro.kg.jobs.endedVisibleDays (90) ago: not shown in the UI and the chat."
+          },
+          "status_reason": {
+            "type": "string"
+          },
+          "source_status": {
+            "type": "string"
+          },
+          "position_filled": {
+            "const": "unknown"
           }
         }
       },
@@ -22952,6 +24114,339 @@
           }
         }
       },
+      "KgObservation": {
+        "type": "object",
+        "required": [
+          "schema",
+          "id",
+          "predicate",
+          "value",
+          "quote",
+          "source",
+          "collections",
+          "identity_context",
+          "assertion_status"
+        ],
+        "properties": {
+          "schema": {
+            "const": "scoutro.kg.history.v1"
+          },
+          "id": {
+            "type": "string",
+            "pattern": "^kgo_[0-9a-f]{20}$"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "subject_type": {
+            "type": "string"
+          },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "original_organization": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "identity_context": {
+            "type": "object",
+            "description": "Historical identity and employer assignment evidence from this source only."
+          },
+          "predicate": {
+            "type": "string"
+          },
+          "value": {
+            "type": [
+              "string",
+              "object"
+            ]
+          },
+          "object": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "quote": {
+            "type": "string"
+          },
+          "locator": {
+            "type": "string"
+          },
+          "extractor": {
+            "type": "string"
+          },
+          "vocabulary_version": {
+            "type": "string"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "revision": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "available",
+                  "unavailable",
+                  "gone",
+                  "removed",
+                  "unknown"
+                ]
+              }
+            }
+          },
+          "asserted_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "recorded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "assertion_status": {
+            "type": "string"
+          },
+          "correction_of": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "certainty": {
+            "type": "string",
+            "enum": [
+              "stated",
+              "qualified"
+            ]
+          },
+          "assessment_kind": {
+            "const": "rule_or_extractor_assessment"
+          },
+          "organization_assignment": {
+            "type": "string",
+            "enum": [
+              "unresolved",
+              "source_grounded"
+            ]
+          },
+          "current_use": {
+            "const": "not_reconfirmed"
+          },
+          "live_statement": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "origin_collections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Historical provenance, filtered to names granted now; never authorizes reading."
+          },
+          "job_search": {
+            "type": "object",
+            "description": "Independent of source availability and system assertions. Unknown without explicit end or deadline; removal is not a filled position."
+          },
+          "later_system_change": {
+            "type": "object",
+            "description": "Later authorized shutdown/completed source migration in a known matching scope. Original assertions remain historical."
+          }
+        }
+      },
+      "KgObservationEvent": {
+        "type": "object",
+        "required": [
+          "id",
+          "observation",
+          "kind",
+          "at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^kgh_[0-9a-f]{20}$"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "observation": {
+            "type": "string",
+            "pattern": "^kgo_[0-9a-f]{20}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "recorded",
+              "state",
+              "scope_insert",
+              "scope_delete"
+            ]
+          },
+          "at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "before": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "after": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "KgHistoryPage": {
+        "type": "object",
+        "required": [
+          "schema",
+          "items",
+          "has_more",
+          "next_after"
+        ],
+        "properties": {
+          "schema": {
+            "const": "scoutro.kg.history.v1"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KgObservation"
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "KgObservationEventPage": {
+        "type": "object",
+        "required": [
+          "schema",
+          "items",
+          "has_more",
+          "next_after"
+        ],
+        "properties": {
+          "schema": {
+            "const": "scoutro.kg.history.v1"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KgObservationEvent"
+            }
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "next_after": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "KgHistoryExportPage": {
+        "type": "object",
+        "required": [
+          "schema",
+          "items",
+          "complete",
+          "next",
+          "next_changes",
+          "snapshot"
+        ],
+        "properties": {
+          "schema": {
+            "const": "scoutro.kg.history.v1"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/KgObservation"
+                },
+                {
+                  "$ref": "#/components/schemas/KgObservationEvent"
+                }
+              ]
+            }
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "has_more": {
+            "type": "boolean"
+          },
+          "snapshot": {
+            "const": false
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_changes": {
+            "type": "string"
+          }
+        }
+      },
       "KgExportRecord": {
         "type": "object",
         "required": [
@@ -23088,7 +24583,8 @@
             "enum": [
               "entity",
               "statement",
-              "derived"
+              "derived",
+              "observation"
             ]
           },
           "id": {
@@ -23121,7 +24617,7 @@
               "object",
               "null"
             ],
-            "description": "With expand=true for an upsert: the current KgEntity, KgStatement or KgDerived for this viewer (null if it is no longer visible)."
+            "description": "With expand=true for an upsert: the current KgEntity, KgStatement, KgDerived or archival KgObservation for this viewer (null if it is no longer visible)."
           }
         }
       },
@@ -23255,7 +24751,17 @@
           "items": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/KgExportRecord"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/KgExportRecord"
+                },
+                {
+                  "$ref": "#/components/schemas/KgObservation"
+                },
+                {
+                  "$ref": "#/components/schemas/KgObservationEvent"
+                }
+              ]
             }
           },
           "trailer": {
@@ -23293,10 +24799,29 @@
                   "string",
                   "null"
                 ]
+              },
+              "schema": {
+                "type": "string"
+              },
+              "records": {
+                "type": "integer"
+              },
+              "next_changes": {
+                "type": "string"
               }
             }
           }
         }
+      },
+      "KgExportResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/KgExportPage"
+          },
+          {
+            "$ref": "#/components/schemas/KgHistoryExportPage"
+          }
+        ]
       },
       "SeoCitation": {
         "type": "object",

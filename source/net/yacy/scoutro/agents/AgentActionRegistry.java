@@ -119,11 +119,13 @@ public final class AgentActionRegistry {
                         + "services, prices, contacts, jobs, audiences), the network around an entity, comparisons, suggested "
                         + "matches and facets; names, values, counts and evidence come only from documents of granted collections, "
                         + "derived rows only where both of their collections are granted. The collection filter selects origin facts; "
-                        + "customer/partner suggestions of that origin may reach all granted collections, with scoped evidence and target links.",
+                        + "customer/partner suggestions of that origin may reach all granted collections, with scoped evidence and target links. "
+                        + "Read durable observations and paginated history by current source classification, including after live-object deletion.",
                 Risk.READ, true, "GET", "/kg/entities", false, ext, worker));
         add(new Action("kg.export", "Knowledge graph export",
                 "Export the knowledge graph of granted collections page by page and follow its change feed with delete "
-                        + "notices; separate from kg.read.",
+                        + "notices; include=history exports all authorized durable observations and audit events, "
+                        + "without the live evidence cap; separate from kg.read.",
                 Risk.READ, true, "GET", "/kg/export", false, ext));
 
         add(new Action("index.metrics", "Scoped index metrics",

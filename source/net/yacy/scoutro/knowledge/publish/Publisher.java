@@ -204,6 +204,20 @@ public final class Publisher {
             replaceLinks(tx, rowid, doc.linkDomains);
         } else {
             result = new Result(collectionsChanged || stateChanged ? Outcome.LIFECYCLE : Outcome.UNCHANGED);
+            // A genuinely newer source load of identical content is a new observation.
+            // Mere processing/cache reuse keeps the source date, and never enters this branch.
+            if(cur!=null&&doc.state==Aggregates.STATE_ACTIVE&&doc.loadedAt!=null&&cur.loadedAt!=null
+                    &&doc.loadedAt>cur.loadedAt&&doc.contentHash!=null&&doc.inputHash!=null
+                    &&java.util.Arrays.equals(doc.inputHash,cur.inputHash)) {
+                net.yacy.scoutro.knowledge.store.Observations.capture(tx,rowid);
+                String hash=java.util.HexFormat.of().formatHex(doc.contentHash);
+                try(PreparedStatement p=tx.prepareStatement("UPDATE kg_evidence SET source_revision=?,source_observed_at=?,observed_at=?"
+                        +" WHERE doc_rowid=? AND substr(source_revision,1,?)=? AND (source_observed_at IS NULL OR source_observed_at<?)")) {
+                    p.setString(1,hash+":"+doc.loadedAt);p.setLong(2,doc.loadedAt);p.setLong(3,now);p.setLong(4,rowid);
+                    p.setInt(5,hash.length()+1);p.setString(6,hash+":");p.setLong(7,doc.loadedAt);p.executeUpdate();
+                }
+                net.yacy.scoutro.knowledge.store.Observations.capture(tx,rowid);
+            }
         }
         if (doc.accessCollections != null) {
             net.yacy.scoutro.knowledge.store.Observations.classify(tx,doc.docId,doc.accessCollections);
@@ -472,7 +486,8 @@ public final class Publisher {
                 insEv.setInt(6, c.hedged ? 2 : 1);
                 insEv.setDouble(7, Math.round(c.effectiveConfidence() * 1000.0) / 1000.0);
                 insEv.setString(8, c.locator);
-                insEv.setString(9, Normalizers.redactPersons(Normalizers.clip(c.excerpt, Math.min(1000, this.cfg.extractMaxExcerptChars))));
+                final boolean durableSignal=Set.of(Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS).contains(c.predicate);
+                insEv.setString(9, Normalizers.redactPersons(Normalizers.clip(c.excerpt, durableSignal?1000:Math.min(1000, this.cfg.extractMaxExcerptChars))));
                 insEv.setLong(10, now);
                 final byte[] revision=doc.contentHash!=null ? doc.contentHash : doc.inputHash;
                 insEv.setString(11,(revision==null ? "unknown" : java.util.HexFormat.of().formatHex(revision))+":"+(doc.loadedAt==null ? -1 : doc.loadedAt));

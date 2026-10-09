@@ -2366,3 +2366,14 @@ The native crawl page (`ScoutroCrawls_p.html`, `crawls.js`) shows the answer of 
 - `KnowledgeApiTest`: `delete_backup` takes a name, never a path (400), missing name, extra field, `backup` on other actions, unknown name 404, GET 405, 503 mapping.
 - `knowledge-ui-test.mjs` (live): the three layers and the model at five widths in German and two in English; the LLM column; kgb switched on and off through the page (question with the model, only kgb changed); a backup deleted through the page (question with file, type, size and date; cancel keeps it; list and space follow; the live graph, download and restore of the others unchanged; only names; anonymous 401).
 - `crawl-flow-ui-test.mjs` (mocked writes): started, waiting (paused crawler), rejected (422, 409 `host_busy`, 400), backend error (502), no answer, the replayed retry with the same key, unconfirmed, finished and removed, reload with `?crawl=`, an unknown and an invalid id, a double click and a second submit (one POST), 360 px.
+
+## Package B: durable observations supersede live-only job knowledge
+
+The current lifecycle, dates, settings, extraction and history/export contract
+are specified in [SCOUTRO_DURABLE_OBSERVATIONS.md](SCOUTRO_DURABLE_OBSERVATIONS.md).
+Earlier live-only recommendations in sections 23/24 are superseded where they
+treat disappearance as job end, rely on current Solr/evidence for historical
+knowledge, or couple extraction/display/matching to a single jobs switch.
+Existing industry matching remains; additional system/need matching is package C.
+Rebuild carries the authoritative archive at final swap; restore selects the
+chosen snapshot without silently merging newer history.

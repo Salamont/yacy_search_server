@@ -965,8 +965,11 @@ public final class JsonLdExtractor {
         if (o.optString("jobLocationType", "").toUpperCase(java.util.Locale.ROOT).contains("TELECOMMUTE")) {
             literal(run, m, Vocabulary.EMPLOYMENT_TYPE, "remote", p + "/jobLocationType", "jobLocationType: TELECOMMUTE");
         }
-        m.jobKey = (employer == null ? "" : Normalizers.key(employer)) + "|" + (m.name == null ? "" : Normalizers.key(m.name)) + "|"
+        m.jobKey = (employer == null||intermediary ? "unresolved:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.pageUrl+"|"+p)) : Normalizers.key(employer)) + "|" + (m.name == null ? "" : Normalizers.key(m.name)) + "|"
                 + (location == null ? "" : Normalizers.key(location));
+        final String postingId=string(o.opt("@id"));
+        final String posting=postingId==null?run.pageUrl+"|"+p:absoluteId(run,postingId);
+        m.jobKey+="|posting:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(posting));
         for (final String t : strings(o.opt("employmentType"))) {
             final String et = BusinessFacts.employmentType(t);
             if (et != null) {

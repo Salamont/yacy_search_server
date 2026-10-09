@@ -452,6 +452,47 @@
     </junit>
   </target>
 
+  <target name="scoutro-kg-observations-test" depends="compile" description="durable knowledge migration, lifecycle, context and access regressions">
+    <mkdir dir="build/scoutro-kg-observations-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-observations-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/knowledge/**/*.java"/>
+      <include name="net/yacy/scoutro/api/KnowledgeApiTest.java"/>
+      <include name="net/yacy/scoutro/api/AgentKnowledgeTest.java"/>
+      <include name="net/yacy/scoutro/api/ScopedActionsTest.java"/>
+      <include name="net/yacy/scoutro/api/AgentApiTest.java"/>
+      <include name="net/yacy/scoutro/api/KgCollectionSettingsTest.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-kg-observations-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.knowledge.store.ObservationStoreTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.BusinessSignalsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.publish.PublisherTest"/>
+      <arg value="net.yacy.scoutro.knowledge.store.KgStoreTest"/>
+      <arg value="net.yacy.scoutro.knowledge.store.KgUpgradeTest"/>
+      <arg value="net.yacy.scoutro.knowledge.store.KgChangeLogTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.SyncServiceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmServiceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgBackupTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgRebuildTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgRuntimeTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgSyncRuntimeTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.KgExportTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.KgReaderTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.BusinessViewTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.BusinessExtractionTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.KnowledgePromptTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorInvalidReasonTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.KnownEntityIdContractTest"/>
+      <arg value="net.yacy.scoutro.api.KnowledgeApiTest"/>
+      <arg value="net.yacy.scoutro.api.AgentKnowledgeTest"/>
+      <arg value="net.yacy.scoutro.api.ScopedActionsTest"/>
+      <arg value="net.yacy.scoutro.api.AgentApiTest"/>
+      <arg value="net.yacy.scoutro.api.KgCollectionSettingsTest"/>
+    </java>
+  </target>
+
   <target name="scoutro-kg-suggestions-test" depends="compile" description="focused KG suggestion projection, permissions, agent and export regressions">
     <mkdir dir="build/scoutro-kg-suggestions-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-suggestions-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

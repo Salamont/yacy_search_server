@@ -25,8 +25,19 @@ public class BusinessSignalsTest {
         assertTrue(system("SAP S/4HANA").isEmpty());assertTrue(system("SAPV Kenntnisse erwünscht").isEmpty());
         assertTrue(system("Kenntnisse in SAC erwünscht").isEmpty());assertTrue(system("Wir nutzen SAP nicht.").isEmpty());
         assertTrue(system("Wir verwenden SAP intern und in Kundenprojekten.").isEmpty());
+        assertTrue(system("Wir planen keine Migration zu SAP.").isEmpty());
+        assertEquals(1,system("Wir planen eine Migration zu SAP in Kundenprojekten.").size());
         assertEquals(Set.of("sap"),KgVocabularies.get().signals.products("SAP"));
         assertEquals(Set.of("sap-sac"),KgVocabularies.get().signals.products("SAP Analytics Cloud"));
+    }
+    @Test public void assertionDatePreservesPrecisionAndDistinctPassagesKeepTheirQuotes()throws Exception {
+        Mention actor=new Mention("j",Vocabulary.JOB,1);Extraction e=new Extraction(30);e.add(actor);
+        BusinessSignals.extract("Wir nutzen SAP intern seit 09.10.2020. SAP Kenntnisse erwünscht.",actor,e,1,Claim.KIND_JSONLD,"description","/description");
+        assertEquals(2,e.claims().size());
+        assertEquals("2020-10-09",new JSONObject(e.claims().get(0).value).getString("asserted_date"));
+        assertEquals("desirable_competence",new JSONObject(e.claims().get(1).value).getString("context"));
+        assertNotEquals(e.claims().get(0).value,e.claims().get(1).value);
+        assertEquals("2020",new JSONObject(system("Wir nutzen SAP intern seit 2020.").get(0)).getString("asserted_date"));
     }
     @Test public void allDomainsHaveControlledOrganizationalNeeds() {
         for(String text:List.of("Wir planen einen Neubau.","Wir planen einen Umbau.","Wir planen eine energetische Sanierung.",
@@ -54,6 +65,14 @@ public class BusinessSignalsTest {
         assertFalse(ex.claims().stream().anyMatch(c->c.subject.equals(revit)&&c.predicate.equals(Vocabulary.HIRING_ORGANIZATION)));
         assertTrue(ex.claims().stream().anyMatch(c->c.subject.equals(revit)&&c.predicate.equals(Vocabulary.RECRUITING_ORGANIZATION)));
         assertEquals(1,signals.stream().map(c->c.subject).filter(s->!s.equals(revit)).distinct().count());
+    }
+    @Test public void postingsWithSameTitleAndEmployerHaveSeparateSearchStatusIdentity() {
+        Extraction e=new Extraction(100);ExtractContext ctx=new ExtractContext(KgVocabularies.get(),Set.of(),true,List.of("care"));
+        String employer="{\"@type\":\"Organization\",\"name\":\"Industry GmbH\"}";
+        String json="[{\"@type\":\"JobPosting\",\"title\":\"Engineer\",\"hiringOrganization\":"+employer+",\"description\":\"Wir nutzen SAP intern.\"},"
+                +"{\"@type\":\"JobPosting\",\"title\":\"Engineer\",\"hiringOrganization\":"+employer+",\"description\":\"Die Stelle ist besetzt.\"}]";
+        new JsonLdExtractor(500).extract(List.of(json),"https://industry.example/jobs","industry.example","de",e,ctx);
+        assertEquals(2,e.mentions().stream().filter(m->Vocabulary.JOB.equals(m.type)).map(m->m.jobKey).distinct().count());
     }
     @Test public void llmCannotPromoteBareProductsOrInventNeedsAndApplicationAgreesWithValidation() {
         Mention m=new Mention("company",Vocabulary.ORGANIZATION,1);m.name="Industry GmbH";

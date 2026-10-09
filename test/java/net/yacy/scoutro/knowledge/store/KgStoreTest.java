@@ -189,9 +189,9 @@ public class KgStoreTest {
             st.execute("DELETE FROM kg_change WHERE seq = 12");
         }
         this.store = KgStore.open(v3, this.cfg, this.guard, KgStore.SQLITE, System::currentTimeMillis);
-        assertEquals(4, this.store.schemaVersion());
+        assertEquals(KgSchema.CURRENT_VERSION, this.store.schemaVersion());
         this.store.read(c -> {
-            assertEquals(1L, KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'"));
+            assertEquals(KgSchema.CURRENT_VERSION-3L, KgStore.queryLong(c, "SELECT count(*) FROM kg_event WHERE code = 'schema_migrated'"));
             assertEquals("the rows are copied with their sequence numbers", "5:1:1:1,9:2:2:1,2",
                     KgStore.queryString(c, "SELECT group_concat(seq || ':' || kind || ':' || op || ':' || scopes_seen, ',') FROM"
                             + " (SELECT * FROM kg_change ORDER BY seq)"));
@@ -210,7 +210,7 @@ public class KgStoreTest {
             assertEquals(13L, KgStore.queryLong(c, "SELECT seq FROM kg_change WHERE kind = 3"));
             return null;
         });
-        expectConstraint(c -> exec(c, "INSERT INTO kg_change (kind, public_id, op, at) VALUES (4, 'kgd_bbbbbbbbbbbbbbbbbbbb', 1, 0)"));
+        expectConstraint(c -> exec(c, "INSERT INTO kg_change (kind, public_id, op, at) VALUES (5, 'kgd_bbbbbbbbbbbbbbbbbbbb', 1, 0)"));
     }
 
     @Test
