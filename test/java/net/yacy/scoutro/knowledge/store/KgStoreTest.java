@@ -210,7 +210,7 @@ public class KgStoreTest {
             assertEquals(13L, KgStore.queryLong(c, "SELECT seq FROM kg_change WHERE kind = 3"));
             return null;
         });
-        expectConstraint(c -> exec(c, "INSERT INTO kg_change (kind, public_id, op, at) VALUES (5, 'kgd_bbbbbbbbbbbbbbbbbbbb', 1, 0)"));
+        expectConstraint(c -> exec(c, "INSERT INTO kg_change (kind, public_id, op, at) VALUES (6, 'kgd_bbbbbbbbbbbbbbbbbbbb', 1, 0)"));
     }
 
     @Test

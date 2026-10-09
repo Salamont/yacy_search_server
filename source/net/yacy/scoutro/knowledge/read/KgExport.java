@@ -47,7 +47,7 @@ import net.yacy.scoutro.knowledge.store.KgStore;
  * statements (optionally with up to {@link #MAX_EVIDENCE} evidence entries
  * each), then (schema 4) the derived rows the viewer may see (both
  * collections), every page in its own read lease. The cursor
- * {@code <epoch>:<as_of_seq>:<e|s|d><rowid>} carries the change sequence at the
+ * {@code <epoch>:<as_of_seq>:<e|s|d|m><rowid>} carries the change sequence at the
  * start of the export; the export is not a snapshot, so a consumer applies the
  * change feed from {@code next_changes} afterwards (upserts by ID are
  * idempotent, the delete of an unknown ID is a no-op).
@@ -64,7 +64,7 @@ public final class KgExport {
     /** Evidence entries per statement in an export with evidence. */
     public static final int MAX_EVIDENCE = 20;
 
-    private static final Pattern CURSOR = Pattern.compile("^([0-9a-f]{16}):([0-9]{1,18}):([esd])([0-9]{1,18})$");
+    private static final Pattern CURSOR = Pattern.compile("^([0-9a-f]{16}):([0-9]{1,18}):([esdm])([0-9]{1,18})$");
 
     private final KgReader reader;
 
@@ -136,6 +136,7 @@ public final class KgExport {
         long statements = 0;
         long evidenceCount = 0;
         long derivedCount = 0;
+        long matchingCount = 0;
         boolean begun = false;
         try {
             while (true) {
@@ -153,6 +154,8 @@ public final class KgExport {
                         entities++;
                     } else if ("derived".equals(r.optString("record"))) {
                         derivedCount++;
+                    } else if ("match_contribution".equals(r.optString("record"))) {
+                        matchingCount++;
                     } else {
                         statements++;
                         final JSONArray ev = r.optJSONArray("evidence");
@@ -169,16 +172,16 @@ public final class KgExport {
             if (!begun) {
                 throw e;
             }
-            sink.end(trailer(entities, statements, evidenceCount, derivedCount, false, e.code()));
+            sink.end(trailer(entities, statements, evidenceCount, derivedCount, matchingCount,false, e.code()));
             return;
         }
-        sink.end(trailer(entities, statements, evidenceCount, derivedCount, true, null));
+        sink.end(trailer(entities, statements, evidenceCount, derivedCount, matchingCount,true, null));
     }
 
-    private static JSONObject trailer(final long entities, final long statements, final long evidence, final long derived,
+    private static JSONObject trailer(final long entities, final long statements, final long evidence, final long derived,final long matching,
             final boolean complete, final String error) {
         return KgJson.obj("record", "trailer", "counts", KgJson.obj("entities", entities, "statements", statements, "evidence", evidence,
-                "derived", derived), "complete", complete, "error", error);
+                "derived", derived,"match_contributions",matching), "complete", complete, "error", error);
     }
 
     /** The position of a cursor, or of a new export; refuses a cursor of another epoch or older than the retained changes. */
@@ -190,7 +193,7 @@ public final class KgExport {
         }
         final Matcher m = CURSOR.matcher(cursor);
         if (!m.matches()) {
-            throw new KgException(KgException.INVALID_CURSOR, "export cursor must look like <epoch>:<seq>:<e|s|d><rowid>");
+            throw new KgException(KgException.INVALID_CURSOR, "export cursor must look like <epoch>:<seq>:<e|s|d|m><rowid>");
         }
         if (!m.group(1).equals(epoch)) {
             throw new KgException(KgException.EPOCH_CHANGED, "the dataset was reset; start the export again");
@@ -239,6 +242,7 @@ public final class KgExport {
                 return p;
             }
         }
+        if(p.phase=='m')return matches(c,p,limit-out.size(),v,out);
         if (p.phase == 'd') {
             return derived(c, p, limit - out.size(), v, out);
         }
@@ -276,8 +280,9 @@ public final class KgExport {
     }
 
     /** The visible derived rows from {@code p} (record {@code derived}); null at the end. */
-    private static Position derived(final Connection c, final Position p, final int room, final Viewer v, final List<JSONObject> out)
+    private Position derived(final Connection c, final Position p, final int room, final Viewer v, final List<JSONObject> out)
             throws SQLException {
+        final int before=out.size();
         final List<long[]> rows = new ArrayList<>();
         try (PreparedStatement ps = c.prepareStatement("SELECT d.der_rowid FROM kg_derived d WHERE d.der_rowid > ? AND "
                 + BusinessView.visibleDerived(v, "d") + " ORDER BY d.der_rowid LIMIT ?")) {
@@ -291,7 +296,7 @@ public final class KgExport {
         }
         for (int i = 0; i < Math.min(room, rows.size()); i++) {
             final String id = KgStore.queryString(c, "SELECT public_id FROM kg_derived WHERE der_rowid = " + rows.get(i)[0]);
-            final JSONObject d = BusinessGraph.derivedRecord(c, id, v);
+            final JSONObject d = BusinessGraph.derivedRecord(c, id, v,this.reader);
             if (d != null) {
                 final JSONObject r = KgJson.obj("record", "derived");
                 for (final String k : d.keySet()) {
@@ -300,7 +305,23 @@ public final class KgExport {
                 out.add(r);
             }
         }
-        return rows.size() > room ? new Position(p.epoch, p.asOf, 'd', rows.get(room - 1)[0]) : null;
+        if(rows.size()>room)return new Position(p.epoch,p.asOf,'d',rows.get(room-1)[0]);
+        final Position next=new Position(p.epoch,p.asOf,'m',0);
+        final int remaining=room-(out.size()-before);
+        return remaining<=0?next:matches(c,next,remaining,v,out);
+    }
+
+    private Position matches(Connection c,Position p,int room,Viewer v,List<JSONObject> out)throws SQLException {
+        if(room<=0)return p;
+        long last=p.after;boolean more=false;int scanned=0;
+        try(PreparedStatement q=c.prepareStatement("SELECT rowid,public_id FROM kg_match_contribution WHERE rowid>? ORDER BY rowid LIMIT ?")) {
+            q.setLong(1,p.after);q.setInt(2,room+1);try(ResultSet r=q.executeQuery()){while(r.next()) {
+                if(scanned==room){more=true;break;}last=r.getLong(1);scanned++;
+                JSONObject record=MatchingProjection.record(c,r.getString(2),v,this.reader.config());
+                if(record!=null){KgJson.put(record,"record","match_contribution");out.add(record);}
+            }}
+        }
+        return more?new Position(p.epoch,p.asOf,'m',last):null;
     }
 
     /** The newest {@link #MAX_EVIDENCE} visible evidence entries of a statement. */
@@ -333,10 +354,14 @@ public final class KgExport {
             final KgChangeLog.Page page = KgChangeLog.read(c, cursor, v, limit);
             final JSONArray items = new JSONArray();
             for (final KgChangeLog.Item it : page.items) {
+                final JSONObject match=it.kind==KgChangeLog.Kind.MATCH_CONTRIBUTION&&it.op==KgChangeLog.Op.UPSERT
+                        ?MatchingProjection.record(c,it.id,v,this.reader.config()):null;
+                final KgChangeLog.Op operation=it.kind==KgChangeLog.Kind.MATCH_CONTRIBUTION&&it.op==KgChangeLog.Op.UPSERT&&match==null
+                        ?KgChangeLog.Op.DELETE:it.op;
                 final JSONObject o = KgJson.obj("seq", it.seq, "kind", it.kind.label(),
-                        "id", it.id, "op", it.op.name().toLowerCase(java.util.Locale.ROOT), "redirect_to", it.redirectTo,
+                        "id", it.id, "op", operation.name().toLowerCase(java.util.Locale.ROOT), "redirect_to", it.redirectTo,
                         "at", KgReader.iso(it.at));
-                if (expand && it.op == KgChangeLog.Op.UPSERT) {
+                if (expand && operation == KgChangeLog.Op.UPSERT) {
                     KgJson.put(o, "record", record(c, it, v, now));
                 }
                 items.put(o);
@@ -348,9 +373,10 @@ public final class KgExport {
 
     /** The current record of a changed object for the viewer; null if it is not visible (any more). */
     private JSONObject record(final Connection c, final KgChangeLog.Item it, final Viewer v, final long now) throws SQLException {
+        if(it.kind==KgChangeLog.Kind.MATCH_CONTRIBUTION)return MatchingProjection.record(c,it.id,v,this.reader.config());
         if(it.kind==KgChangeLog.Kind.OBSERVATION)return ObservationHistory.record(c,it.id,v);
         if (it.kind == KgChangeLog.Kind.DERIVED) {
-            return BusinessGraph.derivedRecord(c, it.id, v);
+            return BusinessGraph.derivedRecord(c, it.id, v,this.reader);
         }
         if (it.kind == KgChangeLog.Kind.ENTITY) {
             final long[] ent = KgReader.entityRow(c, it.id, v);

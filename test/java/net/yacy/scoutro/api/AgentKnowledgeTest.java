@@ -315,7 +315,36 @@ public class AgentKnowledgeTest {
         final JSONObject safe = get(both, "kg/entities/" + origin + "/suggestions", "collection", "kga").body;
         assertFalse(safe.toString(), safe.toString().contains(vat));
         assertFalse(safe.toString(), safe.toString().contains("DE123456789"));
-        assertFalse(safe.getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(1).getBoolean("evidence_complete"));
+        assertEquals(1, safe.getJSONArray("items").getJSONObject(0).getJSONArray("contributions").length());
+        assertTrue(safe.getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(0).getBoolean("evidence_complete"));
+    }
+
+    @Test
+    public void archivedServiceSignalReasonsUseTheActualUserAndAgentScopes() throws Exception {
+        final String all=token(Agent.Kind.EXTERNAL,true,"kg.read","kg.export");
+        final String origin=id(all,null,"Muster Pflege"), candidate=id(all,null,"Nur Bee");
+        publish(store,publisher,"HHHHHHhost01","https://www.muster.de/services","kga",
+                ORG_A.substring(0,ORG_A.length()-1)+",\"makesOffer\":{\"@type\":\"Offer\",\"itemOffered\":{\"@type\":\"Service\",\"name\":\"Revit Schulung\"}}}");
+        publish(store,publisher,"IIIIIIhost02","https://www.nur-bee.de/systems","kgb",
+                ONLY_B.substring(0,ONLY_B.length()-1)+",\"description\":\"Wir nutzen Revit intern.\"}");
+        new net.yacy.scoutro.knowledge.derive.MatchingService(store,KgTestSupport.config(KgTestSupport.enabled())).run(now.get());
+        final String both=token(Agent.Kind.EXTERNAL,false,List.of("kga","kgb"),"kg.read","kg.export");
+        final JSONObject page=get(both,"kg/entities/"+origin+"/suggestions","collection","kga").body;
+        assertEquals(page.toString(),1,page.getInt("total"));
+        final JSONObject item=page.getJSONArray("items").getJSONObject(0);
+        assertEquals(candidate,item.getJSONObject("other").getString("id"));
+        final String path="kg/entities/"+origin+"/suggestions/"+item.getString("id")+"/contributions";
+        final AgentApi.Response detail=get(both,path,"collection","kga");assertEquals(detail.body.toString(),200,detail.status);
+        final JSONObject reason=detail.body.getJSONArray("items").getJSONObject(0);
+        assertEquals("cad-bim",reason.getString("rule"));assertEquals(2,reason.getJSONArray("evidence").length());
+        assertTrue(reason.toString().contains("Wir nutzen Revit intern."));
+        final String onlyA=token(Agent.Kind.EXTERNAL,false,"kg.read","kg.export");
+        assertEquals(404,get(onlyA,path,"collection","kga").status);
+        assertNothingOfB("contribution export",get(onlyA,"kg/export","collection","kga").body.toString());
+        final JSONObject admin=new KnowledgeApi(()->runtime).route("GET",("/v1/"+path).split("/"),Map.of("collection","kga"),JSONObject::new);
+        assertEquals(1,admin.getInt("total"));
+        assertEquals(404,get(both,path,"collection","kgb").status); // origin service is not a fact of B
+        assertEquals(403,get(onlyA,path,"collection","kgb").status);
     }
 
     @Test

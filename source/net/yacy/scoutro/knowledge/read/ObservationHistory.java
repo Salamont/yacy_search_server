@@ -91,7 +91,7 @@ public final class ObservationHistory {
             sink.end(KgJson.obj("record","trailer","schema",SCHEMA,"complete",true,"records",count,"next_changes",page.opt("next_changes")));
         }catch(KgException e){sink.end(KgJson.obj("record","trailer","schema",SCHEMA,"complete",false,"records",count,"error",e.code()));}
     }
-    static JSONObject record(Connection c,String id,Viewer v)throws SQLException {
+    public static JSONObject record(Connection c,String id,Viewer v)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT o.* FROM kg_observation o WHERE o.public_id=? AND "+scope(v,"o"))) {
             p.setString(1,id);try(ResultSet r=p.executeQuery()){if(!r.next())return null;
                 Object value=r.getString("value");try{if(((String)value).startsWith("{"))value=new JSONObject((String)value);}catch(JSONException ignored){ }

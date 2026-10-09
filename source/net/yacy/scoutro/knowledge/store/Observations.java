@@ -130,6 +130,20 @@ public final class Observations {
                 final long wanted = KgStore.queryLong(c,"SELECT count(*) FROM previous.kg_observation");
                 final long got = KgStore.queryLong(c,"SELECT count(*) FROM kg_observation WHERE public_id IN(SELECT public_id FROM previous.kg_observation)");
                 if (wanted != got) throw new SQLException("incomplete observation carry");
+                if(KgStore.queryLong(c,"SELECT CAST(value AS INTEGER) FROM previous.kg_meta WHERE key='schema_version'")>=6) {
+                    // Preserve archive-backed proposal IDs through the rebuild. Rules and current assignments
+                    // are still revalidated when read. A fresh epoch needs no old feed access chains.
+                    s.executeUpdate("INSERT OR REPLACE INTO kg_match_contribution(public_id,proposal_id,kind,provider_id,candidate_id,rule,rule_version,"
+                            +"service_key,signal_key,corroboration_key,refs,computed_at,seen_generation) SELECT public_id,proposal_id,kind,provider_id,"
+                            +"candidate_id,rule,rule_version,service_key,signal_key,corroboration_key,refs,computed_at,seen_generation FROM previous.kg_match_contribution");
+                    s.executeUpdate("INSERT OR IGNORE INTO kg_match_ref SELECT r.contribution_id,r.observation_id FROM previous.kg_match_ref r"
+                            +" JOIN kg_observation o ON o.public_id=r.observation_id");
+                    try(ResultSet r=s.executeQuery("SELECT public_id FROM kg_match_contribution")) {
+                        java.util.List<String> ids=new java.util.ArrayList<>();while(r.next())ids.add(r.getString(1));
+                        for(String id:ids)MatchingAccess.remember(c,id);
+                    }
+                    KgStore.putMeta(c,"matching_work","{}");
+                }
                 c.commit();
             } catch (SQLException | RuntimeException e) { c.rollback(); throw e; }
         }

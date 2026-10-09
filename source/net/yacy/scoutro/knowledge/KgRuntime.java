@@ -1304,9 +1304,12 @@ public final class KgRuntime {
             KgJson.put(o, "rebuild", rb != null ? rb.status() : this.lastRebuild != null ? this.lastRebuild : KgJson.obj("phase", "none"));
             final net.yacy.scoutro.knowledge.derive.DerivedService dv = this.derived;
             final net.yacy.scoutro.knowledge.derive.DerivedService.Result dr = dv == null ? null : dv.last();
+            JSONObject matching=dr==null?null:dr.matching;
+            if(matching==null)try {matching=s.read(c->net.yacy.scoutro.knowledge.extract.Values.json(KgStore.getMeta(c,"matching_last")));}
+            catch(KgException ignored) { /* Other status fields remain available during a refused read. */ }
             KgJson.put(o, "derived", KgJson.obj("enabled", this.config.derivedEnabled, "intervalMinutes",
                     this.config.derivedIntervalMillis / 60_000L, "lastRun", dv == null || dv.lastRun() == 0L ? null : dv.lastRun(),
-                    "last", dr == null ? null : dr.json()));
+                    "last", dr == null ? null : dr.json(), "matching", matching));
             KgJson.put(o, "vocabulary", vocabularyStatus());
             KgJson.put(o, "collections", collectionsStatus(true));
             KgJson.put(o, "upgrade", upgradeStatus());

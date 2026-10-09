@@ -452,6 +452,21 @@
     </junit>
   </target>
 
+  <target name="scoutro-kg-matching-test" depends="compile" description="focused service/signal rules, contribution cache and access tests">
+    <mkdir dir="build/scoutro-kg-matching-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-matching-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/knowledge/**/*.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-kg-matching-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.knowledge.derive.MatchingTest"/>
+      <arg value="net.yacy.scoutro.knowledge.derive.DerivedServiceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.BusinessSignalsTest"/>
+      <arg value="net.yacy.scoutro.knowledge.store.ObservationStoreTest"/>
+    </java>
+  </target>
+
   <target name="scoutro-kg-observations-test" depends="compile" description="durable knowledge migration, lifecycle, context and access regressions">
     <mkdir dir="build/scoutro-kg-observations-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-observations-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
@@ -466,6 +481,8 @@
     <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
       <classpath><pathelement location="build/scoutro-kg-observations-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
       <arg value="net.yacy.scoutro.knowledge.store.ObservationStoreTest"/>
+      <arg value="net.yacy.scoutro.knowledge.derive.MatchingTest"/>
+      <arg value="net.yacy.scoutro.knowledge.derive.DerivedServiceTest"/>
       <arg value="net.yacy.scoutro.knowledge.extract.BusinessSignalsTest"/>
       <arg value="net.yacy.scoutro.knowledge.publish.PublisherTest"/>
       <arg value="net.yacy.scoutro.knowledge.store.KgStoreTest"/>

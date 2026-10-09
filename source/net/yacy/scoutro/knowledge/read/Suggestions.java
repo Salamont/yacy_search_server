@@ -32,8 +32,11 @@ public final class Suggestions {
     static final class Group {
         final int kind;
         final long other;
-        final double score;
+        double score;
         final boolean outgoing;
+        String otherId;
+        JSONObject otherRef;
+        final List<JSONObject> contributions=new ArrayList<>();
 
         Group(final int kind, final long other, final double score, final boolean outgoing) {
             this.kind = kind;
@@ -62,14 +65,49 @@ public final class Suggestions {
     }
 
     /** Lightweight unique neighbours for graph pagination; no per-row JSON/evidence expansion here. */
-    static List<Group> groups(final Connection c, final long ent, final Viewer origin, final Viewer permitted) throws SQLException {
+    static List<Group> groups(final Connection c, final long ent, final Viewer origin, final Viewer permitted,final KgReader reader) throws SQLException {
         final List<Group> groups = new ArrayList<>();
         try (PreparedStatement ps = c.prepareStatement("SELECT d.kind, CASE WHEN d.a_ent = " + ent
                 + " THEN d.b_ent ELSE d.a_ent END AS other, max(d.confidence) AS score, CASE WHEN d.kind = 4 OR d.a_ent = "
                 + ent + " THEN 1 ELSE 0 END AS outgoing" + from(ent, origin, permitted)
                 + " GROUP BY d.kind, other, outgoing ORDER BY score DESC, other, d.kind, outgoing DESC"); ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) groups.add(new Group(rs.getInt(1), rs.getLong(2), rs.getDouble(3), rs.getInt(4) != 0));
+            while (rs.next()) {
+                Group g=new Group(rs.getInt(1),rs.getLong(2),0,rs.getInt(4)!=0);g.otherId=KgReader.publicId(c,g.other);groups.add(g);
+            }
         }
+        Suggestions projection=new Suggestions(reader);
+        for(Group g:groups) {
+            JSONObject legacy=projection.legacyItem(c,ent,g,origin,permitted);g.otherRef=legacy.optJSONObject("other");
+            JSONArray reasons=legacy.optJSONArray("contributions");
+            for(int i=0;i<reasons.length();i++) {
+                JSONObject reason=reasons.optJSONObject(i);
+                if(!reason.optBoolean("evidence_complete"))continue;
+                KgJson.put(reason,"rule","legacy_industry_or_partner");KgJson.put(reason,"rule_version","legacy-1");
+                KgJson.put(reason,"evidence_strength","qualified");KgJson.put(reason,"temporal_status","legacy_not_reconfirmed");
+                g.contributions.add(reason);g.score=Math.max(g.score,reason.optDouble("score"));
+            }
+        }
+        groups.removeIf(g->g.contributions.isEmpty());
+        for(JSONObject reason:MatchingProjection.visible(c,KgReader.publicId(c,ent),origin,permitted,reader.config())) {
+            int kind="suggested_customer".equals(reason.optString("kind"))?3:4;
+            boolean outgoing=kind==4||"out".equals(reason.optString("direction"));
+            String other=reason.optJSONObject("other").optString("id");
+            Group g=groups.stream().filter(x->x.kind==kind&&x.outgoing==outgoing&&other.equals(x.otherId)).findFirst().orElse(null);
+            if(g==null) {
+                long[] row=KgReader.entityRow(c,other,permitted);g=new Group(kind,row==null?-1:row[0],0,outgoing);
+                g.otherId=other;g.otherRef=reason.optJSONObject("other");groups.add(g);
+            }
+            String key=reason.optString("corroboration_key");
+            JSONObject previous=g.contributions.stream().filter(x->key.equals(x.optString("corroboration_key"))).findFirst().orElse(null);
+            if(previous==null)g.contributions.add(reason);
+            else if(reason.optDouble("score")>previous.optDouble("score")||reason.optDouble("score")==previous.optDouble("score")
+                    &&reason.optString("observed_at","").compareTo(previous.optString("observed_at",""))>0) {
+                g.contributions.remove(previous);g.contributions.add(reason);
+            }
+            g.score=Math.max(g.score,reason.optDouble("score"));
+        }
+        groups.sort(java.util.Comparator.comparingDouble((Group g)->g.score).reversed().thenComparing(g->g.otherId)
+                .thenComparingInt(g->g.kind).thenComparing(g->!g.outgoing));
         return groups;
     }
 
@@ -88,7 +126,7 @@ public final class Suggestions {
 
     JSONObject page(final Connection c, final long ent, final int offset, final int limit, final Viewer origin, final Viewer permitted)
             throws SQLException {
-        final List<Group> groups = groups(c, ent, origin, permitted);
+        final List<Group> groups = groups(c, ent, origin, permitted,this.reader);
         final JSONArray items = new JSONArray();
         final int end = Math.min(groups.size(), offset + limit);
         for (int i = Math.min(offset, groups.size()); i < end; i++) items.put(item(c, ent, groups.get(i), origin, permitted));
@@ -98,7 +136,7 @@ public final class Suggestions {
     }
 
     /** Expand only a shown group. Keep all its authorized collection-pair contributions. */
-    JSONObject item(final Connection c, final long ent, final Group group, final Viewer origin, final Viewer permitted) throws SQLException {
+    private JSONObject legacyItem(final Connection c, final long ent, final Group group, final Viewer origin, final Viewer permitted) throws SQLException {
         final JSONArray contributions = new JSONArray();
         JSONObject item = null;
         final Set<String> origins = new TreeSet<>();
@@ -116,14 +154,20 @@ public final class Suggestions {
                     final Viewer av = Viewer.of(Set.of(rs.getInt(4))), bv = Viewer.of(Set.of(rs.getInt(5)));
                     final String originName = rs.getString(mine ? 10 : 11), targetName = rs.getString(mine ? 11 : 10);
                     origins.add(originName);
-                    final JSONObject basis = Values.json(rs.getString(8));
+                    final List<JSONObject> bases=new ArrayList<>();
+                    try(PreparedStatement p=c.prepareStatement("SELECT reason_key,score,reason,basis FROM kg_derived_reason WHERE derived_id=? ORDER BY score DESC,reason_key")) {
+                        p.setString(1,rs.getString(1));try(ResultSet extra=p.executeQuery()){while(extra.next())bases.add(KgJson.obj("id",extra.getString(1),"score",extra.getDouble(2),"reason",extra.getString(3),"basis",Values.json(extra.getString(4))));}
+                    }
+                    if(bases.isEmpty())bases.add(KgJson.obj("id",rs.getString(1),"score",rs.getDouble(6),"reason",rs.getString(7),"basis",Values.json(rs.getString(8))));
+                    for(JSONObject saved:bases) {
+                    final JSONObject basis = saved.optJSONObject("basis");
                     final JSONArray evidence = new JSONArray();
                     final boolean completeA = references(c, basis == null ? null : basis.optJSONArray("a"), av, rs.getString(10), evidence);
                     final boolean completeB = references(c, basis == null ? null : basis.optJSONArray("b"), bv, rs.getString(11), evidence);
-                    final String reason = completeA && completeB ? rs.getString(7) : "Supporting statements are no longer fully available.";
-                    final JSONObject contribution = KgJson.obj("id", rs.getString(1), "direction", mine ? "out" : "in", "collection_a", rs.getString(10), "collection_b",
+                    final String reason = completeA && completeB ? saved.optString("reason") : "Supporting statements are no longer fully available.";
+                    final JSONObject contribution = KgJson.obj("id", rs.getString(1),"reason_id",saved.optString("id"), "direction", mine ? "out" : "in", "collection_a", rs.getString(10), "collection_b",
                             rs.getString(11), "origin_collection", originName, "target_collection", targetName, "reason", reason,
-                            "score", BusinessView.round(rs.getDouble(6)), "computed_at", KgReader.iso(rs.getLong(9)), "evidence", evidence,
+                            "score", BusinessView.round(saved.optDouble("score")), "computed_at", KgReader.iso(rs.getLong(9)), "evidence", evidence,
                             "evidence_complete", completeA && completeB);
                     contributions.put(contribution);
                     if (item == null) {
@@ -136,6 +180,7 @@ public final class Suggestions {
                                 "reason", reason, "computed_at", KgReader.iso(rs.getLong(9)), "fact", false, "label", "suggestion",
                                 "target_collection", targetName);
                     }
+                    }
                 }
             }
         }
@@ -145,6 +190,44 @@ public final class Suggestions {
         KgJson.put(item, "origin_collections", new JSONArray(origins));
         KgJson.put(item, "contributions", contributions);
         return item;
+    }
+
+    JSONObject item(Connection c,long ent,Group group,Viewer origin,Viewer permitted)throws SQLException {
+        List<JSONObject> reasons=new ArrayList<>(group.contributions);
+        reasons.sort(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score")).reversed().thenComparing(x->x.optString("id")));
+        JSONObject best=reasons.get(0);JSONObject other=Values.json(group.otherRef.toString());
+        Set<String> external=new TreeSet<>(),origins=new TreeSet<>();
+        for(JSONObject reason:reasons) {
+            String name=reason.optString("target_collection");if(!name.isEmpty())external.add(name);
+            String self=reason.optString("origin_collection");if(!self.isEmpty())origins.add(self);
+        }
+        external.removeAll(memberships(c,ent,origin));
+        KgJson.put(other,"other_collections",new JSONArray(external));
+        String target=best.optString("target_collection",other.optString("target_collection",null));
+        KgJson.put(other,"target_collection",target);
+        String id=reasons.stream().filter(x->x.optString("rule").startsWith("legacy")).map(x->x.optString("id")).sorted().findFirst()
+                .orElse(best.optString("proposal_id",best.optString("id")));
+        JSONObject out=KgJson.obj("id",id,"kind",Vocabulary.DERIVED_KINDS.get(group.kind),"direction",best.optString("direction"),
+                "other",other,"confidence",group.score,"score",group.score,"reason",best.optString("reason"),
+                "computed_at",best.opt("computed_at"),"fact",false,"label","suggestion","target_collection",target,
+                "origin_collections",new JSONArray(origins),"contributions",new JSONArray(reasons.subList(0,Math.min(25,reasons.size()))),
+                "contributions_total",reasons.size(),"next_contribution_offset",reasons.size()>25?25:null);
+        KgJson.put(out,"contributions_path","entities/"+KgReader.publicId(c,ent)+"/suggestions/"+id+"/contributions");
+        return out;
+    }
+
+    public JSONObject contributions(String entity,String proposal,int offset,int limit,Viewer selected,Viewer permitted)throws KgException,KgReader.NotFound {
+        JSONObject result=reader.store().read(c->{
+            Viewer origin=KgReader.within(selected,permitted);long[] row=KgReader.entityRow(c,entity,origin);if(row==null)return null;
+            for(Group g:groups(c,row[0],origin,permitted,reader)) {
+                if(g.contributions.stream().noneMatch(x->proposal.equals(x.optString("proposal_id"))||proposal.equals(x.optString("id"))))continue;
+                List<JSONObject> all=new ArrayList<>(g.contributions);all.sort(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score")).reversed().thenComparing(x->x.optString("id")));
+                int end=Math.min(all.size(),offset+limit);
+                return KgJson.obj("schema",BusinessView.SCHEMA,"items",new JSONArray(all.subList(Math.min(offset,all.size()),end)),
+                        "total",all.size(),"offset",offset,"limit",limit,"next_offset",end<all.size()?end:null);
+            }return null;
+        });
+        if(result==null)throw new KgReader.NotFound("suggestion");return result;
     }
 
     private boolean references(final Connection c, final JSONArray ids, final Viewer v, final String collection, final JSONArray out)
@@ -177,5 +260,23 @@ public final class Suggestions {
             try (ResultSet rs = ps.executeQuery()) { while (rs.next()) names.add(rs.getString(1)); }
         }
         return names;
+    }
+
+    static JSONObject legacyRecord(Connection c,String id,Viewer v,KgReader reader)throws SQLException {
+        try(PreparedStatement p=c.prepareStatement("SELECT a_ent,b_ent,kind FROM kg_derived WHERE public_id=?")) {
+            p.setString(1,id);try(ResultSet r=p.executeQuery()){if(!r.next()||r.getInt(3)<3)return null;
+                long origin=r.getLong(1);for(Group g:groups(c,origin,v,v,reader)) {
+                    List<JSONObject> mine=new ArrayList<>();for(JSONObject reason:g.contributions)if(id.equals(reason.optString("id")))mine.add(reason);
+                    if(mine.isEmpty())continue;
+                    JSONObject item=itemForLegacy(reader,c,origin,g,v,mine);KgJson.put(item,"id",id);
+                    KgJson.put(item,"subject",BusinessView.entityRef(c,origin,v));return item;
+                }return null;
+            }
+        }
+    }
+    private static JSONObject itemForLegacy(KgReader reader,Connection c,long ent,Group group,Viewer v,List<JSONObject> reasons)throws SQLException {
+        Group only=new Group(group.kind,group.other,0,group.outgoing);only.otherId=group.otherId;only.otherRef=group.otherRef;only.contributions.addAll(reasons);
+        for(JSONObject reason:reasons)only.score=Math.max(only.score,reason.optDouble("score"));
+        return new Suggestions(reader).item(c,ent,only,v,v);
     }
 }

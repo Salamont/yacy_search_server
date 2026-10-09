@@ -150,6 +150,11 @@ final class KnowledgeRead {
                         allow(q, "include", "collection");
                         out = new BusinessView(reader).entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer, permitted,
                                 oneOf(q, "include", Set.of("hidden_jobs")) != null);
+                    } else if (parts.size()==5 && "suggestions".equals(parts.get(2)) && "contributions".equals(parts.get(4))) {
+                        allow(q,"offset","limit","collection");
+                        out=new Suggestions(reader).contributions(id(parts.get(1),KgReader.ENTITY_ID,"entity"),
+                                id(parts.get(3),java.util.regex.Pattern.compile("^kgd_[a-z2-7]{20}$"),"suggestion"),intParam(q,"offset",0,0,Integer.MAX_VALUE-100),
+                                intParam(q,"limit",25,1,100),viewer,permitted);
                     } else if (parts.size() == 3 && "suggestions".equals(parts.get(2))) {
                         allow(q, "offset", "limit", "collection");
                         out = new Suggestions(reader).page(id(parts.get(1), KgReader.ENTITY_ID, "entity"),
@@ -314,7 +319,8 @@ final class KnowledgeRead {
         final int n = p.size();
         switch (p.get(0)) {
             case "entities":
-                return n == 1 || n == 2 || n == 3 && ("statements".equals(p.get(2)) || "business".equals(p.get(2))
+                return n==5 && "suggestions".equals(p.get(2)) && "contributions".equals(p.get(4))
+                        || n == 1 || n == 2 || n == 3 && ("statements".equals(p.get(2)) || "business".equals(p.get(2))
                         || "neighborhood".equals(p.get(2)) || "suggestions".equals(p.get(2))||"history".equals(p.get(2)));
             case "observations":
                 return n==2||n==3&&"history".equals(p.get(2));

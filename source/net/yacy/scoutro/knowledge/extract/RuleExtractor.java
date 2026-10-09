@@ -69,7 +69,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class RuleExtractor {
 
     public static final String NAME = "rule";
-    public static final String VERSION = "5";
+    public static final String VERSION = "6";
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;
