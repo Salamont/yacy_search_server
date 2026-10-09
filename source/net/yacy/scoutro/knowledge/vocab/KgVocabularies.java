@@ -50,19 +50,21 @@ public final class KgVocabularies {
     public static final class Snapshot {
         public final Nace nace;
         public final Categories categories;
+        public final Signals signals;
         public final List<String> problems;
         public final List<String> files;
 
-        Snapshot(final Nace nace, final Categories categories, final List<String> problems, final List<String> files) {
+        Snapshot(final Nace nace, final Categories categories, final Signals signals, final List<String> problems, final List<String> files) {
             this.nace = nace;
             this.categories = categories;
+            this.signals = signals;
             this.problems = Collections.unmodifiableList(problems);
             this.files = Collections.unmodifiableList(files);
         }
 
         /** Part of the extractor identity: a changed vocabulary or classification re-extracts. */
         public String version() {
-            return this.categories.version + "-" + this.nace.size();
+            return this.categories.version + "-" + this.nace.size()+"-signals-"+this.signals.version;
         }
     }
 
@@ -123,7 +125,7 @@ public final class KgVocabularies {
         final List<String> names = new ArrayList<>();
         read(new File(defaults, CATEGORIES_FILE), DEFAULTS + "/" + CATEGORIES_FILE, jsons, names, problems);
         if (overrides != null && overrides.isDirectory()) {
-            final File[] list = overrides.listFiles((d, n) -> n.endsWith(".json"));
+            final File[] list = overrides.listFiles((d, n) -> n.endsWith(".json") && !n.equals("products.json") && !n.equals("needs.json"));
             if (list != null) {
                 Arrays.sort(list);
                 for (final File f : list) {
@@ -135,7 +137,9 @@ public final class KgVocabularies {
         final Categories.Problems p = new Categories.Problems();
         final Categories categories = jsons.isEmpty() ? Categories.EMPTY : Categories.read(jsons, names, nace, p);
         problems.addAll(p.list);
-        return new Snapshot(nace, categories, problems, files);
+        final Signals signals=Signals.load(defaults,overrides,problems);
+        files.add(DEFAULTS+"/products.json");files.add(DEFAULTS+"/needs.json");
+        return new Snapshot(nace, categories, signals, problems, files);
     }
 
     private static void read(final File f, final String name, final List<JSONObject> out, final List<String> names,

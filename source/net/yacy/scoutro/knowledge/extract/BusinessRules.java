@@ -747,7 +747,7 @@ public final class BusinessRules {
             if (key == null || !seen.add(key) || BusinessFacts.personLike(title)) {
                 continue;
             }
-            final int windowEnd = i + 1 < titles.size() ? titles.get(i + 1)[0] : Math.min(run.text.length(), t[1] + 1200);
+            final int windowEnd = Math.min(i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length(),t[1]+6000);
             final Mention job = run.out.add(new Mention("rule:job:" + key, Vocabulary.JOB, 2));
             job.name = title;
             final Matcher wp = WORK_PLACE.matcher(run.text).region(t[1], windowEnd);
@@ -755,7 +755,12 @@ public final class BusinessRules {
             job.jobKey = (run.subject.name == null ? "" : Normalizers.key(run.subject.name)) + "|" + key + "|"
                     + (place == null ? "" : Normalizers.key(place));
             claim(run, job, Vocabulary.NAME, title, t[0], t[1], 0.7);
-            relation(run, job, Vocabulary.HIRING_ORGANIZATION, run.subject, t[0], t[1], 0.7);
+            final String jobText=run.text.substring(t[0],windowEnd);
+            // The site operator is not automatically the employer. Keep unidentified jobs as such.
+            if(!BusinessSignals.INTERMEDIARY.matcher(jobText).find()
+                    && Pattern.compile("(?iu)wir suchen|bei uns|unser Team|we are hiring|join our team").matcher(jobText).find())
+                relation(run, job, Vocabulary.HIRING_ORGANIZATION, run.subject, t[0], windowEnd, 0.7);
+            BusinessSignals.extract(run.text.substring(t[1],windowEnd),job,run.out,2,Claim.KIND_RULE,"text","text:"+t[1]);
             final Set<String> types = new LinkedHashSet<>();
             for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, t[1], Math.min(windowEnd, t[1] + 400))) {
                 if (types.add(h.entry.id)) {

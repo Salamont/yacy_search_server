@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "products": {
+    "sap": ["SAP"],
+    "sap-s4hana": ["S/4HANA", "S/4 HANA", "SAP S4HANA", "SAP S4"],
+    "sap-bw": ["SAP BW", "SAP Business Warehouse"],
+    "sap-bw4": ["BW/4HANA", "BW/4 HANA", "SAP BW4", "SAP BW/4HANA"],
+    "sap-sac": ["SAP Analytics Cloud", "SAP SAC", "SAC"],
+    "salesforce": ["Salesforce"],
+    "microsoft-azure": ["Microsoft Azure", "Azure"],
+    "revit": ["Revit", "Autodesk Revit"],
+    "archicad": ["Archicad", "ArchiCAD"]
+  }
+}
