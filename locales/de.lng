@@ -5566,10 +5566,53 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 #-----------------------------
 
 #File: ScoutroKnowledge_p.html
+>Disabled by the matching budget setting<==>Durch die Matching-Budgeteinstellung ausgeschaltet<
+>Product support, training or introduction<==>Produktunterstützung, Schulung oder Einführung<
+>Architecture and planning<==>Architektur und Planung<
+>Construction services<==>Bauausführung<
+>Energy or specialist planning<==>Energetische oder Fachplanung<
+>Leadership or organizational development<==>Führungs- oder Organisationsentwicklung<
+>Team or organizational development<==>Team- oder Organisationsentwicklung<
+>Outpatient care<==>Ambulante Pflege<
+>Short-term care<==>Kurzzeitpflege<
+>Service and signal matching<==>Leistungs- und Signalabgleich<
+>%1 signals examined; %2 provider partitions completed<==>%1 Signale geprüft; %2 Anbieterbereiche vollständig bearbeitet<
+>Calculation cycle completed<==>Berechnungszyklus abgeschlossen<
+>Continues in the next pass; incomplete partitions keep their existing reasons<==>Fortsetzung im nächsten Lauf; unvollständige Bereiche behalten ihre bisherigen Gründe<
+>A provider exceeds the observation limit; its reconciliation is deferred<==>Ein Anbieter überschreitet die Beobachtungsgrenze; sein Abgleich bleibt zurückgestellt<
+>planned<==>geplant<
+>approved<==>genehmigt<
+>under construction<==>im Bau<
 #---------------------------
 The selected collection filters the origin and its facts. Customer and partner suggestions may reach other authorized collections; their target context and evidence are shown separately. Without a collection, all authorized collections are shown.==Die gewählte Collection filtert die Ausgangsorganisation und ihre Fakten. Kunden- und Partnervorschläge können aus anderen berechtigten Collections stammen; ihr Zielkontext und ihre Belege werden getrennt gezeigt. Ohne Collection werden alle berechtigten Collections gezeigt.
 >Sorting score (not a probability)<==>Sortierwert (keine Wahrscheinlichkeit)<
 >Other collection<==>Andere Collection<
+>Matching offered service<==>Passende angebotene Leistung<
+>Evidence strength<==>Belegstärke<
+>Fit<==>Passung<
+>Time qualification<==>Zeitliche Einschränkung<
+>Project phase<==>Projektphase<
+>More reasons<==>Weitere Begründungen<
+>Possible customer for IT system support<==>Möglicher Kunde für IT-Systemunterstützung<
+>Possible customer for CAD/BIM support<==>Möglicher Kunde für CAD-/BIM-Unterstützung<
+>Possible customer for construction or planning<==>Möglicher Kunde für Bau- oder Planungsleistungen<
+>Possible customer for energy renovation planning<==>Möglicher Kunde für energetische Sanierungsplanung<
+>Possible customer for leadership development<==>Möglicher Kunde für Führungsentwicklung<
+>Possible customer for team development<==>Möglicher Kunde für Teamentwicklung<
+>Possible care cooperation partner<==>Möglicher Pflege-Kooperationspartner<
+>Explicit assertion<==>Ausdrückliche Aussage<
+>Qualified evidence<==>Beleg mit Einschränkungen<
+>Weak competence signal<==>Schwacher Kompetenzhinweis<
+>Explicit service and signal match<==>Ausdrückliche Leistungs- und Signalpassung<
+>Explicit service, process and region match<==>Ausdrückliche Leistungs-, Prozess- und Regionspassung<
+>Historically evidenced; current situation not reconfirmed<==>Historisch belegt; heutiger Stand nicht erneut bestätigt<
+>Planned need; current plan not reconfirmed<==>Geplanter Bedarf; heutiger Plan nicht erneut bestätigt<
+>Observed program or process; current situation not reconfirmed<==>Belegtes Programm oder Verfahren; heutiger Stand nicht erneut bestätigt<
+>The employer's business role is unclear; weaker assessment.<==>Unternehmensrolle des Arbeitgebers unklar; geringere Bewertung.<
+>External purchasing need or cooperation has not been confirmed.<==>Externer Einkaufsbedarf oder Kooperation nicht bestätigt.<
+>Organizational conditions and care capacity need verification.<==>Organisatorische Bedingungen und Pflegekapazität sind zu prüfen.<
+>The source observation date is unknown.<==>Das Quellenbeobachtungsdatum ist unbekannt.<
+>External procurement and execution phase are not confirmed.<==>Externer Einkauf und Ausführungsphase nicht bestätigt.<
 >Reasons and supporting facts<==>Gründe und zugrunde liegende Fakten<
 >Supporting statements are no longer fully available.<==>Die zugrunde liegenden Aussagen sind nicht mehr vollständig verfügbar.<
 >Suggested customers and partners<==>Vorgeschlagene Kunden und Partner<

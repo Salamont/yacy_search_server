@@ -668,14 +668,32 @@ KG_CONTRIBUTION = {"type": "object", "properties": {
     "origin_collection": {"type": "string"}, "target_collection": {"type": "string"}, "reason": {"type": "string"},
     "score": {"type": "number", "description": "Technical sorting value, not a measured probability."}, "computed_at": KG_DT,
     "evidence_complete": {"type": "boolean", "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."},
-    "evidence": {"type": "array", "items": {"allOf": [ref("KgStatement"), {"type": "object", "properties": {"collection": {"type": "string", "description": "Explicit context for evidence and source reads."}}}]}}}}
-schemas["KgSuggestion"] = {"type": "object", "description": "Existing customer/partner derivations grouped by organization and relation; every contribution has both collections authorized. No new matching, no fact.", "properties": {
+    "evidence": {"type": "array", "items": {"oneOf": [ref("KgStatement"), ref("KgObservation")]}}}}
+KG_CONTRIBUTION["properties"].update({
+    "proposal_id": {"type": "string"}, "reason_id": {"type": "string"},
+    "rule": {"type": "string", "description": "it-support, cad-bim, construction, energy-renovation, leadership-development, team-development, care-transition, or legacy_industry_or_partner."},
+    "rule_version": {"type": "string"}, "provider": KG_TARGET_REF, "candidate": KG_TARGET_REF,
+    "service": {"type": "string"}, "service_name": {"type": "string", "description": "Source-stated concrete service name or offered-capability text, never a generated offer."}, "product": {"type": ["string", "null"]}, "need": {"type": ["string", "null"]}, "context": {"type": "string"},
+    "evidence_strength": {"type": "string", "enum": ["stated", "qualified", "weak"]},
+    "fit": {"type": "string", "enum": ["explicit_rule", "explicit_rule_and_region"]},
+    "temporal_status": {"type": "string", "enum": ["historical_not_reconfirmed", "planned_not_reconfirmed", "observed_need_not_reconfirmed", "legacy_not_reconfirmed"]},
+    "observed_at": KG_DT, "asserted_at": {"type": ["string", "null"]}, "location": {"type": ["string", "null"]},
+    "project": {"type": ["string", "null"]}, "phase": {"type": ["string", "null"]},
+    "uncertainties": {"type": "array", "items": {"type": "string"}},
+    "required_collections": {"type": "array", "items": {"type": "string"}, "description": "Current authorized contexts of the complete evidence chain. Each referenced observation requires access to at least one of its current collections; historical origin scopes confer no access."},
+    "source_corroboration_key": {"type": "string", "description": "Same source and contextual assertion across tiers/revisions is one confirmation."},
+    "corroboration_key": {"type": "string", "description": "Repeated quotes across tiers, revisions or portals are one reason; scores are not added."},
+    "fact": {"const": False}})
+schemas["KgMatchContribution"] = KG_CONTRIBUTION
+schemas["KgSuggestion"] = {"type": "object", "description": "Customer/partner derivations grouped by organization and relationship. Explicit versioned service/signal rules supplement legacy industry/partner reasons. Every complete evidence chain is authorized; never a fact or purchase probability.", "properties": {
     **{key: value for key, value in schemas["KgDerived"]["properties"].items() if key != "basis"},
     "kind": {"type": "string", "enum": ["suggested_customer", "suggested_partner"]}, "other": KG_TARGET_REF,
     "confidence": {"type": "number", "description": "Legacy alias of score, not a measured probability."},
     "score": {"type": "number", "description": "Best authorized contribution's technical sorting value; never a probability."},
     "target_collection": {"type": "string"}, "origin_collections": {"type": "array", "items": {"type": "string"}},
-    "contributions": {"type": "array", "items": KG_CONTRIBUTION}}}
+    "contributions": {"type": "array", "maxItems": 25, "items": KG_CONTRIBUTION},
+    "contributions_total": {"type": "integer", "description": "Authorized, eligible, deduplicated reasons; no hidden counts."},
+    "next_contribution_offset": {"type": ["integer", "null"]}, "contributions_path": {"type": "string", "description": "Relative kg.read path to all paginated reasons, with the same origin collection context."}}}
 schemas["KgSuggestionPage"] = {"type": "object", "required": ["schema", "origin", "offset", "limit", "total", "items", "next_offset"], "properties": {
     "schema": KG_BUSINESS_SCHEMA, "origin": {"type": "string"}, "offset": {"type": "integer"}, "limit": {"type": "integer"}, "total": {"type": "integer", "description": "Authorized groups, counted after endpoint visibility and grouping, before pagination."},
     "items": {"type": "array", "items": ref("KgSuggestion")}, "next_offset": {"type": ["integer", "null"]}, "note": {"type": "string"}, "lag": KG_LAG}}
@@ -732,12 +750,20 @@ schemas["KgFacets"] = {"type": "object", "properties": {"schema": KG_BUSINESS_SC
     "counts": {"type": "object", "properties": {"jobs": {"type": "integer"}, "services": {"type": "integer"}, "prices": {"type": "integer"}, "derived": {"type": "object", "additionalProperties": {"type": "integer"}}}}, "lag": KG_LAG}}
 KG_BOOL = lambda name, default, text: q(name, {"type": "boolean", "default": default}, text)
 schemas["KgBusinessView"]["properties"]["suggestions"] = ref("KgSuggestionPage")
-KG_SUGGESTION_NOTE = " The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter."
+KG_SUGGESTION_NOTE = " The collection parameter selects the origin and its normal facts; only customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain all independent authorized reasons, with scoped live statements or durable observations (including assignment quotes). Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter."
 KG_SUGGESTION_OFFSET = q("offset", {"type": "integer", "minimum": 0, "maximum": 2147483547, "default": 0}, "First authorized group.")
 paths["/v1/kg/entities/{id}/suggestions"] = {"get": op("kg.entity.suggestions", "Customer and partner suggestions of an origin", KG_SUGGESTION_NOTE + KG_READ_NOTE, ["knowledge"],
     {**ok("Authorized suggestions (existing derivations).", "KgSuggestionPage"), **KG_ERRS}, params=[KG_EID, KG_SUGGESTION_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
 paths["/v1/kg/entities/{id}/business"] = {"get": op("kg.entity.business", "Business view of an entity", "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections." + KG_READ_NOTE, ["knowledge"], {**ok("Business view.", "KgBusinessView"), **KG_ERRS}, params=[KG_EID,
     q("include", {"type": "string", "enum": ["hidden_jobs"]}, "Also ended jobs past the visibility window."), KG_COLLECTION])}
+schemas["KgContributionPage"] = {"type": "object", "required": ["schema", "items", "total", "offset", "limit", "next_offset"], "properties": {
+    "schema": KG_BUSINESS_SCHEMA, "items": {"type": "array", "items": KG_CONTRIBUTION}, "total": {"type": "integer"},
+    "offset": {"type": "integer"}, "limit": {"type": "integer"}, "next_offset": {"type": ["integer", "null"]}}}
+paths["/v1/kg/entities/{id}/suggestions/{proposal}/contributions"] = {"get": op("kg.entity.contributions", "All authorized reasons for a suggestion",
+    "Paginated complete independent reasons after current evidence-chain authorization and rule eligibility. Revalidates archive assignments, withdrawals, policy, migration/shutdown and project scope on every read. Missing or inaccessible origin/proposal returns 404 without hidden counts." + KG_SUGGESTION_NOTE + KG_READ_NOTE,
+    ["knowledge"], {**ok("Contribution page.", "KgContributionPage"), **KG_ERRS}, params=[KG_EID,
+    {"name": "proposal", "in": "path", "required": True, "description": "A visible proposal or legacy derived ID returned by suggestions.", "schema": {"type": "string", "pattern": "^kgd_[a-z2-7]{20}$"}},
+    KG_SUGGESTION_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
 paths["/v1/kg/entities/{id}/neighborhood"] = {"get": op("kg.entity.neighborhood", "Network around an entity", "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of." + KG_READ_NOTE, ["knowledge"], {**ok("Neighbourhood.", "KgNeighborhood"), **KG_ERRS}, params=[KG_EID,
     q("depth", {"type": "integer", "minimum": 1, "maximum": 2, "default": 1}, "1: direct neighbours; 2: also their neighbours."),
     q("limit", {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}, "Direct neighbours per page (strongest first)."), KG_OFFSET,
@@ -862,21 +888,21 @@ schemas["KgJob"]["properties"]["status"]["enum"] = ["open", "ended", "deadline_p
 schemas["KgJob"]["properties"].update({"status_reason": {"type": "string"}, "source_status": {"type": "string"}, "position_filled": {"const": "unknown"}})
 
 # knowledge graph export, change feed and download (package 4)
-KG_RECORD = {"type": "string", "enum": ["entity", "statement", "derived"], "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first); derived: a KgDerived row (vocabulary 2), only where the viewer sees both of its collections."}
+KG_RECORD = {"type": "string", "enum": ["entity", "statement", "derived", "match_contribution"], "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first); derived: a KgDerived row (vocabulary 2), only where the viewer sees both of its collections."}
 schemas["KgExportRecord"] = {"type": "object", "required": ["record", "id"], "description": "An entity or statement exactly as the read routes show it to the same viewer, with the discriminator record.", "properties": {
-    "record": KG_RECORD, "id": {"type": "string"}, "evidence": {"type": "array", "items": ref("KgEvidence")}}, "additionalProperties": True}
+    "record": KG_RECORD, "id": {"type": "string"}, "evidence": {"type": "array", "items": {"anyOf": [ref("KgEvidence"), ref("KgObservation")]}}}, "additionalProperties": True}
 schemas["KgExportPage"] = {"type": "object", "required": ["schema", "epoch", "as_of_seq", "items", "complete", "next", "next_changes"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "epoch": {"type": "string"},
     "as_of_seq": {"type": "integer", "description": "Change sequence when this export started (carried in the cursor)."},
-    "items": {"type": "array", "items": ref("KgExportRecord"), "description": "First all visible entities, then all visible statements, then the visible derived rows, each in ID order."},
+    "items": {"type": "array", "items": ref("KgExportRecord"), "description": "Entities, statements, legacy derivations, then eligible match contributions. Cursors advance over inaccessible records, so an empty page can have next; continue until complete."},
     "complete": {"type": "boolean"}, "next": {"type": ["string", "null"], "description": "Cursor of the next page; null when complete."},
     "next_changes": {"type": "string", "description": "Cursor for /kg/changes after the export (<epoch>:<as_of_seq>). The export is not a snapshot: apply the changes from here; upserts by ID are idempotent, the delete of an unknown ID is a no-op."},
     "lag": KG_LAG}}
 schemas["KgChange"] = {"type": "object", "required": ["seq", "kind", "id", "op"], "properties": {
-    "seq": {"type": "integer"}, "kind": {"type": "string", "enum": ["entity", "statement", "derived", "observation"]}, "id": {"type": "string"},
+    "seq": {"type": "integer"}, "kind": {"type": "string", "enum": ["entity", "statement", "derived", "observation", "match_contribution"]}, "id": {"type": "string"},
     "op": {"type": "string", "enum": ["upsert", "delete", "redirect"], "description": "delete also when the object left the viewer's collections; redirect: merged into redirect_to."},
     "redirect_to": {"type": ["string", "null"]}, "at": KG_DT,
-    "record": {"type": ["object", "null"], "description": "With expand=true for an upsert: the current KgEntity, KgStatement, KgDerived or archival KgObservation for this viewer (null if it is no longer visible)."}}}
+    "record": {"type": ["object", "null"], "description": "With expand=true for an upsert: the current KgEntity, KgStatement, KgDerived, KgMatchContribution or archival KgObservation for this viewer (null if it is no longer visible)."}}}
 schemas["KgChanges"] = {"type": "object", "required": ["schema", "items", "next", "has_more"], "properties": {
     "schema": {"type": "string", "enum": ["scoutro.kg.v1"]}, "items": {"type": "array", "items": ref("KgChange")},
     "next": {"type": "string", "description": "Cursor to continue with; it advances over changes this viewer cannot see."},
@@ -885,12 +911,12 @@ schemas["KgExportDownload"] = {"type": "object", "description": "format=json: he
     "header": {"type": "object", "properties": {"record": {"type": "string", "enum": ["header"]}, "schema": {"type": "string"}, "epoch": {"type": "string"}, "as_of_seq": {"type": "integer"},
         "next_changes": {"type": "string"}, "generated_at": KG_DT, "collection": {"type": ["string", "null"]}, "evidence": {"type": "boolean"}}},
     "items": {"type": "array", "items": ref("KgExportRecord")},
-    "trailer": {"type": "object", "properties": {"record": {"type": "string", "enum": ["trailer"]}, "counts": {"type": "object", "properties": {"entities": {"type": "integer"}, "statements": {"type": "integer"}, "evidence": {"type": "integer"}, "derived": {"type": "integer"}}},
+    "trailer": {"type": "object", "properties": {"record": {"type": "string", "enum": ["trailer"]}, "counts": {"type": "object", "properties": {"entities": {"type": "integer"}, "statements": {"type": "integer"}, "evidence": {"type": "integer"}, "derived": {"type": "integer"}, "match_contributions": {"type": "integer"}}},
         "complete": {"type": "boolean", "description": "false: the stream ended early (error names the code); start again."}, "error": {"type": ["string", "null"]}}}}}
 KG_CURSOR_NOTE = " 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync."
-KG_EXPORT_DESC = "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes." + KG_CURSOR_NOTE
+KG_EXPORT_DESC = "The visible graph page by page: entities, statements, legacy derivations, then match_contribution records (KgMatchContribution), with every current evidence chain authorized and revalidated; first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes." + KG_CURSOR_NOTE
 KG_CHANGES_DESC = "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100)." + KG_CURSOR_NOTE
-KG_EXPORT_PARAMS = [q("cursor", {"type": "string", "maxLength": 80, "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esdoe][0-9]{1,18}$"}, "From next of the previous page; absent to start."),
+KG_EXPORT_PARAMS = [q("cursor", {"type": "string", "maxLength": 80, "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esdmo][0-9]{1,18}$"}, "From next of the previous page; absent to start."),
     KG_LIMIT(100, 200), q("include", {"type": "string", "enum": ["evidence", "history"]}, "Also the evidence of each statement."), KG_COLLECTION]
 KG_CHANGES_PARAMS = [q("cursor", {"type": "string", "maxLength": 80, "pattern": "^[0-9a-f]{16}:[0-9]{1,18}$"}, "next_changes of an export or next of the previous page."),
     q("limit", {"type": "integer", "minimum": 1, "maximum": 1000, "default": 100}, "Changes per page (at most 100 with expand=true)."),
@@ -1095,6 +1121,13 @@ for suffix, operation, result_schema, parameters in report_endpoints:
     paths["/v1" + suffix] = {"get": op(operation, "Crawl report", REPORT_NOTE, ["reports"], {**ok("Crawl report.", result_schema), **errs("400", "401", "404", "405", "503")}, params=parameters)}
     paths["/agent/v1" + suffix] = {"get": aop("agent." + operation, "Crawl report (scoped)", REPORT_NOTE + " Requires explicit report.read, absent from presets; foreign collections are refused (403), jobs with a collection outside the scope are not visible (404).", ["agent", "reports"], {**ok("Scoped crawl report.", result_schema), **aerrs("400", "401", "403", "404", "405", "429", "503")}, params=parameters, grants=["report.read"])}
 
+schemas["KgMatchingRun"] = {"type": "object", "properties": {
+    "version": {"type": "string"}, "checked": {"type": "integer"}, "upserts": {"type": "integer"},
+    "completed_partitions": {"type": "integer"}, "cycle_complete": {"type": "boolean"},
+    "deferred": {"type": ["string", "null"], "description": "work_budget, provider_fact_limit or configuration_disabled (matches.max=0); none is refutation. Resume state persists; only complete unchanged provider partitions reconcile."}}}
+schemas["KgStatus"]["properties"]["derived"]["properties"]["matching"] = {"anyOf": [ref("KgMatchingRun"), {"type": "null"}]}
+schemas["KgDerived"]["properties"].update({key: value for key, value in schemas["KgSuggestion"]["properties"].items()
+    if key in ("contributions", "contributions_total", "next_contribution_offset", "contributions_path", "score")})
 # Knowledge graph on the agent path: the read routes (kg.read) and export/changes (kg.export), never status, control, the prompt or the download.
 KG_AGENT_NOTE = " On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field."
 for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/prompt", "/v1/kg/export/download",
@@ -1382,11 +1415,11 @@ for _name, _path in (("kg.history", "history"), ("kg.entity.history", "entities/
 mcp.update({'kg.prompt': 'scoutro_kg_prompt', 'kg.prompt.change': 'scoutro_kg_prompt_change'})  # administrator only: never an agent tool
 mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entity', 'kg.entity.statements': 'scoutro_kg_entity_statements', 'kg.statement': 'scoutro_kg_statement', 'kg.statement.evidence': 'scoutro_kg_statement_evidence', 'kg.host.entities': 'scoutro_kg_host_entities', 'kg.source': 'scoutro_kg_source'})
 cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
-mcp.update({'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.suggestions': 'scoutro_kg_entity_suggestions', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
+mcp.update({'kg.entity.contributions': 'scoutro_kg_entity_contributions', 'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.suggestions': 'scoutro_kg_entity_suggestions', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
             'kg.derived': 'scoutro_kg_derived', 'kg.facets': 'scoutro_kg_facets', 'kg.services': 'scoutro_kg_services',
             'kg.services.providers': 'scoutro_kg_services_providers', 'kg.services.network': 'scoutro_kg_services_network',
             'kg.collections': 'scoutro_kg_collections', 'kg.collection.update': 'scoutro_kg_collection_update'})
-cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.suggestions': 'HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions?collection=ORIGIN&offset=0&limit=25', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]',
+cli.update({'kg.entity.contributions': 'HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions/{proposal}/contributions?collection=ORIGIN&offset=0&limit=25', 'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.suggestions': 'HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions?collection=ORIGIN&offset=0&limit=25', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]',
             'kg.compare': 'scoutroctl kg compare CATEGORY', 'kg.derived': 'scoutroctl kg derived [--kind K] [--entity ID]', 'kg.facets': 'scoutroctl kg facets',
             'kg.services': 'scoutroctl kg services [--q TEXT] [--category C]', 'kg.services.providers': 'scoutroctl kg service-providers NAME [--category C]',
             'kg.services.network': 'scoutroctl kg service-network NAME [--category C] [--limit N] [--offset N] [--include-stale]',

@@ -1101,3 +1101,36 @@ Global versioned product/need vocabularies and the LLM value schema/validator/
 grounding/application are updated together; custom prompt text remains.
 System mentions alone are not assertions of software use or procurement.
 See [the B contract and upgrade/rollback procedure](SCOUTRO_DURABLE_OBSERVATIONS.md).
+
+### Service/signal contributions (package C, schema 6)
+
+Customer/partner suggestions now combine independent legacy reasons and explicit
+versioned service/signal rules. Normal fact and graph boundaries remain unchanged.
+`contributions` is a preview of at most 25 eligible, authorized, deduplicated
+reasons; `contributions_total`, `next_contribution_offset`, `contributions_path`
+link all details. No hidden evidence/collection counts or sorting influence.
+
+`GET /v1/kg/entities/{id}/suggestions/{proposal}/contributions` (agent equivalent
+`/agent/v1/kg/…`, grant `kg.read`) accepts origin `collection`, `offset=0` and
+`limit=25` (1–100). Returns `items`, `total`, `offset`, `limit`, `next_offset`;
+inaccessible/absent origin or proposal is 404. There are no writes or client-supplied
+permission parameters. Each reason includes rule/version, concrete service,
+product/need, evidence strength, fit, temporal status, uncertainties and original
+source-observed/asserted dates. Evidence is a live statement or full durable
+observation, including source-local assignment quotes. Current authorization
+covers the entire chain, including regional evidence in additional collections.
+The employer, policy, withdrawals and scoped migration/project changes are
+revalidated on each read; historical job expiry/source removal alone do not
+withdraw system or competence reasons. Scores are not probabilities.
+
+Regular paged/download export adds `match_contribution` records and cursor phase
+`m` after legacy derivations. Follow `next` even on empty pages; all eligible
+archived evidence is included in each contribution. Trailer counts include
+`match_contributions`. The change feed (`kg.export`) adds that kind, and suppresses
+ineligible reasons even without `expand`; previously fully authorized contributions
+can receive removal notices. History export remains `scoutro.kg.history.v1` with
+all observation/audit records. Graph JSON/GraphML retain preview and detail links.
+`/kg/status` exposes `derived.matching` with version, checked signals, upserts,
+completed partitions, `cycle_complete`, and `deferred` (`work_budget` or
+`provider_fact_limit`): an incomplete pass is not refutation. More details and
+concrete upgrade/rollback: `docs/SCOUTRO_MATCHING.md`.

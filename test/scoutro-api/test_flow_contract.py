@@ -8,6 +8,22 @@ from unittest.mock import patch
 ROOT=Path(__file__).resolve().parents[2]
 CLI=runpy.run_path(str(ROOT/'tools/scoutro/scoutroctl'))
 class Contracts(unittest.TestCase):
+ def test_matching_details_keep_read_grants_and_export_contracts(self):
+  spec=json.loads((ROOT/'htroot/env/scoutro/api/openapi.json').read_text())
+  catalog=json.loads((ROOT/'htroot/env/scoutro/api/actions.json').read_text())
+  suffix='/kg/entities/{id}/suggestions/{proposal}/contributions'
+  admin=spec['paths']['/v1'+suffix]['get'];agent=spec['paths']['/agent/v1'+suffix]['get']
+  self.assertEqual(admin['operationId'],'kg.entity.contributions')
+  self.assertEqual(agent['x-scoutro-agent-grants'],['kg.read'])
+  self.assertEqual({p['name'] for p in admin['parameters']},{'id','proposal','offset','limit','collection'})
+  action=next(a for a in catalog['actions'] if a['name']=='kg.entity.contributions')
+  self.assertTrue(action['agent']['grantable']);self.assertFalse(action['mutating'])
+  schemas=spec['components']['schemas']
+  self.assertIn('match_contribution',schemas['KgChange']['properties']['kind']['enum'])
+  self.assertIn('match_contribution',schemas['KgExportRecord']['properties']['record']['enum'])
+  self.assertEqual(schemas['KgSuggestion']['properties']['contributions']['maxItems'],25)
+  self.assertIn('contributions_path',schemas['KgSuggestion']['properties'])
+  self.assertEqual(schemas['KgMatchContribution']['properties']['evidence_strength']['enum'],['stated','qualified','weak'])
  def setUp(self):
   self.openapi=json.loads((ROOT/'htroot/env/scoutro/api/openapi.json').read_text())
   self.actions=json.loads((ROOT/'htroot/env/scoutro/api/actions.json').read_text())

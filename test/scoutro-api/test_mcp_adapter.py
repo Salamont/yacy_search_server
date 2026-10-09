@@ -16,6 +16,18 @@ class FakeOpener:
         if request.full_url.endswith('/capabilities'):return FakeResponse({'actions':[{'name':n} for n in self.grants]},self.status)
         return FakeResponse({'documents':3,'pages':2,'hosts':1})
 class Mcp(unittest.TestCase):
+    def test_matching_contribution_tool_retains_both_path_ids_and_origin_context(self):
+        self.opener.grants=['kg.read']
+        names={t['name'] for t in self.request('tools/list')['result']['tools']}
+        self.assertIn('scoutro_kg_entity_contributions',names)
+        args={'id':'kge_'+'a'*20,'proposal':'kgd_'+'b'*20,'collection':'allowed','offset':25,'limit':25}
+        result=self.request('tools/call',{'name':'scoutro_kg_entity_contributions','arguments':args})
+        self.assertNotIn('error',result)
+        url=self.opener.calls[-1].full_url
+        self.assertIn('/kg/entities/'+args['id']+'/suggestions/'+args['proposal']+'/contributions?',url)
+        self.assertIn('collection=allowed',url);self.assertIn('offset=25',url)
+        self.opener.grants=[]
+        self.assertIn('error',self.request('tools/call',{'name':'scoutro_kg_entity_contributions','arguments':args}))
     def setUp(self):self.opener=FakeOpener();self.adapter=MODULE['Adapter']('http://127.0.0.1:1',TOKEN,CATALOG,self.opener)
     def request(self,method,params=None):return self.adapter.dispatch({'jsonrpc':'2.0','id':1,'method':method,'params':params or {}})
     def test_initialize_notifications_ping_and_parse(self):

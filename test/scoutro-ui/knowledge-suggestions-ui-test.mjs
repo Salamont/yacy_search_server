@@ -88,7 +88,12 @@ try {
     await page.locator('#skg-sec-matches details summary').first().click();
     await page.locator('#skg-sec-matches .skg-contribution button').first().click();
     await page.locator('#skg-sec-matches .skg-excerpt').waitFor();
+    const nextEvidence = page.waitForResponse(response => {
+      const url = new URL(response.url());
+      return url.pathname.endsWith('/evidence') && url.searchParams.get('offset') === '1';
+    });
     await page.locator('#skg-sec-matches .skg-evidence > button').click();
+    await nextEvidence;
     check(requests.some(u => u.pathname.endsWith('/evidence') && u.searchParams.get('offset') === '1' && u.searchParams.get('collection') === 'kgb'), 'additional evidence pages keep B context');
     const source = page.locator('#skg-sec-matches .skg-evidence a[href*="view=source"]').first();
     check(new URL(await source.getAttribute('href'), base).searchParams.get('collection') === 'kgb', 'source href preserves evidence context');
