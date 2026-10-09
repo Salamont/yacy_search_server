@@ -258,14 +258,21 @@ public final class DerivedService {
 
     // ------------------------------------------------------------- compute
 
+    private static final class ComputedRows extends LinkedHashMap<String,Row> {
+        private static final long serialVersionUID=1L;
+        boolean capped;
+    }
+
     Map<String, Row> compute(final Connection c, final Nace nace) throws SQLException {
-        final Map<String, Row> out = new LinkedHashMap<>();
+        final Map<String, Row> out = new ComputedRows();
         if (this.cfg.derivedEnabled) {
             linkedTo(c, out);
             sameOperator(c, out);
             final Graph g = Graph.read(c, nace);
             suggestedCustomers(g, nace, out);
             suggestedPartners(g, out);
+            if(count(out,KIND_SUGGESTED_CUSTOMER)+count(out,KIND_SUGGESTED_PARTNER)>=this.cfg.matchesMax
+                    ||count(out,KIND_LINKED_TO)>=MAX_LINKED_TO)((ComputedRows)out).capped=true;
         }
         return out;
     }
@@ -603,6 +610,7 @@ public final class DerivedService {
             }
             final int[] kept = perCollection.computeIfAbsent(r.collA, x -> new int[1]);
             if (kept[0] >= this.cfg.matchesMaxPerEntity) {
+                if(out instanceof ComputedRows)((ComputedRows)out).capped=true;
                 continue;
             }
             if (!seen.add(r.b + ":" + r.kind + ":" + r.collA + ":" + r.collB) && r.kind == KIND_SUGGESTED_CUSTOMER) {
@@ -649,9 +657,10 @@ public final class DerivedService {
         });
         final List<Object[]> deletes = new ArrayList<>();
         // A capped legacy pass is incomplete, not evidence that older suggestions became false.
-        final boolean complete = !stamp || want.size() < this.cfg.matchesMax
+        final boolean complete = !stamp || !(want instanceof ComputedRows&&((ComputedRows)want).capped) && want.size() < this.cfg.matchesMax
                 && this.store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_statement_scope") < MAX_ROWS
-                    && KgStore.queryLong(c,"SELECT count(*) FROM kg_entity") < MAX_ROWS);
+                    && KgStore.queryLong(c,"SELECT count(*) FROM kg_entity") < MAX_ROWS
+                    && KgStore.queryLong(c,"SELECT count(*) FROM kg_doc_link") < MAX_ROWS);
         for (final Map.Entry<String, Object[]> e : have.entrySet()) {
             if (complete && !want.containsKey(e.getKey())) {
                 final String[] k = e.getKey().split(":");

@@ -348,6 +348,24 @@ public class AgentKnowledgeTest {
     }
 
     @Test
+    public void realStructuredCareRegionsAreAnAdditionalRequiredAgentScope() throws Exception {
+        String all=token(Agent.Kind.EXTERNAL,true,"kg.read");String origin=id(all,null,"Muster Pflege");
+        publish(store,publisher,"JJJJJJhost01","https://www.muster.de/care","kga",
+                ORG_A.substring(0,ORG_A.length()-1)+",\"makesOffer\":{\"@type\":\"Offer\",\"itemOffered\":{\"@type\":\"Service\",\"name\":\"Ambulante Pflege\"}}}");
+        publish(store,publisher,"KKKKKKhost01","https://www.muster.de/region","kgregion",ORG_A.substring(0,ORG_A.length()-1)+",\"areaServed\":\"Berlin\"}");
+        publish(store,publisher,"LLLLLLhost02","https://www.nur-bee.de/transitions","kgb",ONLY_B.substring(0,ONLY_B.length()-1)
+                +",\"description\":\"Unser Krankenhaus koordiniert unser Entlassmanagement für den Übergang in ambulante Versorgung in Berlin.\"}");
+        new net.yacy.scoutro.knowledge.derive.MatchingService(store,KgTestSupport.config(KgTestSupport.enabled())).run(now.get());
+        String both=token(Agent.Kind.EXTERNAL,false,List.of("kga","kgb"),"kg.read");
+        assertEquals(0,get(both,"kg/entities/"+origin+"/suggestions","collection","kga").body.getInt("total"));
+        String regional=token(Agent.Kind.EXTERNAL,false,List.of("kga","kgb","kgregion"),"kg.read");
+        JSONObject page=get(regional,"kg/entities/"+origin+"/suggestions","collection","kga").body;
+        assertEquals(page.toString(),1,page.getInt("total"));JSONObject item=page.getJSONArray("items").getJSONObject(0);
+        assertEquals("suggested_partner",item.getString("kind"));assertEquals(3,item.getJSONArray("contributions").getJSONObject(0).getJSONArray("evidence").length());
+        assertFalse(get(both,"kg/entities/"+origin+"/business","collection","kga").body.toString().contains("kgregion"));
+    }
+
+    @Test
     public void customerDirectionAndOriginContributionStayDistinct() throws Exception {
         final String all = token(Agent.Kind.EXTERNAL, true, "kg.read");
         final String origin = id(all, null, "Muster Pflege"), candidate = id(all, null, "Nur Bee");

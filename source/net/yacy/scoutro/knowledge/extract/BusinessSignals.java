@@ -95,11 +95,10 @@ public final class BusinessSignals {
                 String role="unspecified";
                 if("shutdown".equals(context))role="source";
                 else if(context.endsWith("migration")) {
-                    int from=quote.toLowerCase(Locale.ROOT).indexOf("von "),to=quote.toLowerCase(Locale.ROOT).indexOf(" zu ");
-                    if(from>=0&&to>from) {
-                        if(vocab.products(quote.substring(from,to)).contains(product))role="source";
-                        else if(vocab.products(quote.substring(to)).contains(product))role="target";
-                    }
+                    Matcher fromWord=p("\\b(?:von|from) ").matcher(quote),toWord=p("\\b(?:zu|auf|nach|to) ").matcher(quote);
+                    int from=fromWord.find()?fromWord.start():-1,to=toWord.find()?toWord.start():-1;
+                    if(from>=0&&vocab.products(quote.substring(from,to>from?to:quote.length())).contains(product))role="source";
+                    else if(to>=0&&vocab.products(quote.substring(to)).contains(product))role="target";
                 }
                 fields.put("system_role",role);assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
@@ -108,10 +107,14 @@ public final class BusinessSignals {
             for(String need:vocab.needs(quote)) {
                 boolean cancelled=p("abgesagt|eingestellt|aufgegeben|cancelled|canceled").matcher(quote).find();
                 boolean completed=p("fertiggestellt|abgeschlossen|completed|finished").matcher(quote).find();
+                boolean ownProgram=List.of("leadership-development","team-development").contains(need)
+                        &&p("Programm|program").matcher(quote).find()
+                        &&(p("unser(?:e[nmrs]?)? (?:Führungskräfte|Mitarbeitende|Teams|Belegschaft)|our (?:leaders|employees|teams)").matcher(quote).find()
+                            ||p("intern(?:e[nmrs]?)? |internal ").matcher(quote).find()&&p("starten|beginnen|initiieren|führen|start|launch").matcher(quote).find());
                 if(NEGATION.matcher(quote).find()&&!cancelled)continue;
                 String context=cancelled?"cancelled_need":completed?"completed_need"
                         :"care-transition".equals(need)&&OWN_CARE.matcher(quote).find()?"organizational_transition"
-                        : PLAN.matcher(quote).find()?"planned_need":NEED.matcher(quote).find()?"explicit_need":null;
+                        : PLAN.matcher(quote).find()?"planned_need":NEED.matcher(quote).find()||ownProgram?"explicit_need":null;
                 if(context==null||OFFER.matcher(quote).find())continue;
                 Map<String,Object> fields=new TreeMap<>(Map.of("need",need,"context",context,"section",section,"scope","unspecified"));
                 needDetails(fields,quote,need);

@@ -17,7 +17,7 @@ public final class MatchingRules {
     private MatchingRules() { }
 
     public static final class Observation {
-        public String id,actor,originalActor,subject,type,predicate,text,source,status,assertedAt;
+        public String id,actor,originalActor,subject,type,predicate,text,source,revision,status,assertedAt;
         public JSONObject value,identity;
         public Long observedAt;
         public final Map<Integer,String> collections=new TreeMap<>();
@@ -31,6 +31,7 @@ public final class MatchingRules {
             o.originalActor=r.getString("original_organization_id");
             o.subject=r.getString("subject_id");o.type=r.getString("subject_type");o.predicate=r.getString("predicate");
             o.text=r.getString("quote");o.source=r.getString("source_id");o.status=r.getString("assertion_status");
+            o.revision=r.getString("content_revision");
             o.assertedAt=r.getString("asserted_at");o.observedAt=r.getObject("observed_at")==null?null:r.getLong("observed_at");
             try {o.identity=new JSONObject(r.getString("identity_context"));String raw=r.getString("value");
                 o.value=raw.startsWith("{")?new JSONObject(raw):KgJson.obj("literal",raw);
@@ -69,7 +70,7 @@ public final class MatchingRules {
         if(!o.usable()||"job".equals(o.type))return List.of();
         boolean service="service".equals(o.type)&&List.of("name","category","description").contains(o.predicate)
                 &&o.identity.optJSONArray("assignment")!=null&&o.identity.optJSONArray("assignment").length()>0;
-        boolean offered="system_signal".equals(o.predicate)&&"offered_capability".equals(o.value.optString("context"));
+        boolean offered=Set.of("organization","facility").contains(o.type)&&"system_signal".equals(o.predicate)&&"offered_capability".equals(o.value.optString("context"));
         if(!service&&!offered)return List.of();
         String text=o.value.optString("literal",o.text)+" "+o.text;
         List<Offer> out=new ArrayList<>();
@@ -104,24 +105,35 @@ public final class MatchingRules {
                 ||!offer.evidence.accessible(permitted)||!signal.accessible(permitted))return null;
         String context=signal.value.optString("context");
         Assessment result=new Assessment();result.fit="explicit_rule";result.score=60;result.strength="qualified";
+        boolean jobBased="job".equals(signal.type);
+        if(!jobBased&&hasPosting(c,signal)) {
+            Observation employer=postingEmployer(c,signal,extras,permitted);if(employer==null)return null;
+            result.extra.add(employer);jobBased=true;
+        }
+        if(jobBased) {
+            if(("job".equals(signal.type)&&!"source_declared".equals(signal.identity.optString("employer_assignment")))
+                    ||!Objects.equals(signal.actor,signal.originalActor))return null;
+            if(signal.collections.entrySet().stream().noneMatch(e->(permitted==null||permitted.all()||permitted.collections().contains(e.getKey()))
+                    &&cfg.jobSignalsMatching(e.getValue())))return null;
+        }
         if(List.of("it-support","cad-bim").contains(offer.rule)) {
+            if(!Set.of("organization","facility","job").contains(signal.type))return null;
             if(!"system_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("product"))
                     ||!List.of("internal_use","required_competence","desirable_competence","planned_migration").contains(context))return null;
             if(List.of("internal_use","planned_migration").contains(context)&&systemRetired(c,signal))return null;
-            if("job".equals(signal.type)) {
-                if(!"source_declared".equals(signal.identity.optString("employer_assignment"))||!Objects.equals(signal.actor,signal.originalActor))return null;
-                if(signal.collections.entrySet().stream().noneMatch(e->(permitted==null||permitted.all()||permitted.collections().contains(e.getKey()))
-                        &&cfg.jobSignalsMatching(e.getValue())))return null;
+            if(jobBased) {
                 if(itConsultancy(c,signal.actor)||ownCapacity(signal))return null;
                 result.uncertainties.add("company_role_unknown");result.score-=15;
             }
             result.strength="internal_use".equals(context)?"stated":"weak";
+            if(jobBased&&"stated".equals(result.strength))result.strength="qualified";
             result.score+= "internal_use".equals(context)?15:"planned_migration".equals(context)?5:"desirable_competence".equals(context)?-15:-10;
             result.temporal="planned_migration".equals(context)?"planned_not_reconfirmed":"historical_not_reconfirmed";
             result.reason=offer.service+" meets "+context+"; present use not reconfirmed";
         } else {
-            if(!"business_need_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("need"))||"job".equals(signal.type)
+            if(!"business_need_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("need"))||!Set.of("organization","facility").contains(signal.type)
                     ||!List.of("planned_need","explicit_need","organizational_transition").contains(context))return null;
+            if(jobBased&&List.of("leadership-development","team-development").contains(offer.rule))return null;
             if(needRetired(c,signal))return null;
             String phase=signal.value.optString("phase","unknown");
             if("construction".equals(offer.rule)||"energy-renovation".equals(offer.rule)) {
@@ -133,11 +145,12 @@ public final class MatchingRules {
                 }
             }
             if("care-transition".equals(offer.rule)) {
+                if(has(signal.text,"für (?:Frau|Herr[n]?)\\b|Patient(?:in)? (?:Frau|Herr[n]?)\\b|eine? Patient(?:in)?\\b|a patient\\b|the patient with\\b"))return null;
                 if(!signal.value.optBoolean("hospital_process")||!offer.service.equals(signal.value.optString("destination"))
                         ||signal.value.optString("location").isBlank())return null;
                 Observation region=extras.stream().filter(o->o.usable()&&offer.evidence.actor.equals(o.actor)
                         &&"service_area".equals(o.predicate)&&o.accessible(permitted)
-                        &&compact(o.value.optString("literal")).equals(compact(signal.value.optString("location")))).findFirst().orElse(null);
+                        &&regionName(o).equals(compact(signal.value.optString("location")))).findFirst().orElse(null);
                 if(region==null)return null;
                 result.extra.add(region);result.fit="explicit_rule_and_region";result.uncertainties.add("organizational_capacity_unconfirmed");
             }
@@ -153,6 +166,36 @@ public final class MatchingRules {
         if(names!=null)for(int i=0;i<names.length();i++){JSONObject n=names.optJSONObject(i);if(n!=null&&"name".equals(n.optString("predicate")))title+=" "+n.optString("value");}
         return has(title,"SAP.Berater|IT.Berater|SAP.Consultant|Revit.Trainer|Archicad.Trainer|BIM.Berater|CAD.Berater|Coach");
     }
+    private static String regionName(Observation evidence) {
+        String kind=evidence.value.optString("kind");
+        if(List.of("place","region","state").contains(kind))return compact(evidence.value.optString("name"));
+        // Legacy literal regions are also explicit; national/radius scopes need a future geographic rule.
+        return kind.isEmpty()?compact(evidence.value.optString("literal")):"";
+    }
+    private static boolean hasPosting(Connection c,Observation signal)throws SQLException {
+        try(PreparedStatement p=c.prepareStatement("SELECT 1 FROM kg_observation WHERE source_id=? AND content_revision=? AND subject_type='job' LIMIT 1")) {
+            p.setString(1,signal.source);p.setString(2,signal.revision);try(ResultSet r=p.executeQuery()){return r.next();}
+        }
+    }
+    /** A company passage on a posting page cannot bypass job policy or the employer exclusion.
+     * Only one source-declared employer for that revision grounds the passage; mixed postings defer it. */
+    private static Observation postingEmployer(Connection c,Observation signal,List<Observation> supplied,Viewer v)throws SQLException {
+        List<Observation> assignments=new ArrayList<>();Set<String> actors=new HashSet<>();
+        try(PreparedStatement p=c.prepareStatement("SELECT 1 FROM kg_observation WHERE source_id=? AND content_revision=? AND subject_type='job'"
+                +" AND (organization_id IS NULL OR original_organization_id IS NULL OR organization_id<>original_organization_id) LIMIT 1")) {
+            p.setString(1,signal.source);p.setString(2,signal.revision);try(ResultSet r=p.executeQuery()){if(r.next())return null;}
+        }
+        try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE source_id=? AND content_revision=?"
+                +" AND subject_type='job' AND predicate='hiring_organization' ORDER BY public_id")) {
+            p.setString(1,signal.source);p.setString(2,signal.revision);try(ResultSet r=p.executeQuery()){while(r.next()) {
+                Observation o=Observation.read(c,r);if(!o.usable()||!Objects.equals(o.actor,o.originalActor))continue;
+                actors.add(o.actor);if(o.accessible(v))assignments.add(o);
+            }}
+        }
+        if(actors.size()!=1||!actors.contains(signal.actor))return null;
+        for(Observation o:supplied)if(assignments.stream().anyMatch(a->a.id.equals(o.id)))return o;
+        return assignments.isEmpty()?null:assignments.get(0);
+    }
     private static boolean itConsultancy(Connection c,String actor)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT value FROM kg_observation WHERE organization_id=? AND predicate='business_role_evidence'"
                 +" AND assertion_status='recorded' AND json_valid(value)")) {
@@ -166,27 +209,39 @@ public final class MatchingRules {
         if("event_date".equals(o.value.optString("date_kind"))&&o.assertedAt!=null) {
             LocalDate last=Values.lastDay(o.assertedAt);
             if(last!=null) {
-                if(upper)return last.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()-1;
                 String date=o.assertedAt.length()==4?o.assertedAt+"-01-01":o.assertedAt.length()==7?o.assertedAt+"-01":o.assertedAt;
-                return LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+                long event=upper?last.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()-1
+                        :LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+                // A scheduled execution date is not the date the plan was first evidenced.
+                if(o.value.optString("context").startsWith("planned_")&&o.observedAt!=null)return Math.min(event,o.observedAt);
+                return event;
             }
         }return o.observedAt;
     }
     private static boolean systemRetired(Connection c,Observation signal)throws SQLException {
-        Long floor=effectiveTime(signal,true);if(floor==null)return false;
+        return latestSystemChange(c,signal,null)!=null;
+    }
+    public static Observation latestSystemChange(Connection c,Observation signal,Viewer permitted)throws SQLException {
+        Long floor=effectiveTime(signal,true);if(floor==null)return null;
+        Observation latest=null;long latestTime=Long.MIN_VALUE;
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE predicate='system_signal' AND json_valid(value)"
                 +" AND json_extract(value,'$.product')=? AND organization_id=? AND assertion_status='recorded'"
                 +" AND json_extract(value,'$.context') IN('shutdown','completed_migration')")) {
             p.setString(1,signal.value.optString("product"));p.setString(2,signal.actor);
             try(ResultSet r=p.executeQuery()){while(r.next()) {
-                Observation later=Observation.read(c,r);Long time=effectiveTime(later,false);if(time==null||time<=floor)continue;
+                Observation later=Observation.read(c,r);Long time=effectiveTime(later,false);if(time==null||time<=floor||!later.accessible(permitted))continue;
                 String scope=signal.value.optString("scope","unspecified"),other=later.value.optString("scope","unspecified");
                 if(!"organization".equals(other)&&("unspecified".equals(scope)||!scope.equals(other)))continue;
                 String context=later.value.optString("context"),role=later.value.optString("system_role");
-                if("shutdown".equals(context)||"source".equals(role)
-                        ||"planned_migration".equals(signal.value.optString("context"))&&role.equals(signal.value.optString("system_role")))return true;
+                boolean retires=false;
+                if("planned_migration".equals(signal.value.optString("context"))) {
+                    String plannedRole=signal.value.optString("system_role");
+                    if("source".equals(plannedRole)&&("shutdown".equals(context)||"source".equals(role)))retires=true;
+                    if("target".equals(plannedRole)&&"completed_migration".equals(context)&&"target".equals(role))retires=true;
+                } else if("shutdown".equals(context)||"source".equals(role))retires=true;
+                if(retires&&time>latestTime){latest=later;latestTime=time;}
             }}
-        }return false;
+        }return latest;
     }
     private static boolean needRetired(Connection c,Observation signal)throws SQLException {
         String project=signal.value.optString("project");Long floor=effectiveTime(signal,true);
@@ -200,7 +255,11 @@ public final class MatchingRules {
     }
     public static String corroboration(Offer offer,Observation signal) {
         // Same quote on portals, tiers or revisions is one reason, never independent confirmation.
-        return KgIds.statementId(offer.evidence.actor,offer.rule,offer.key+"\0"+signal.actor+"\0"+compact(offer.evidence.text)
-                +"\0"+compact(signal.text)+"\0"+signal.value.optString("scope")+"\0"+signal.value.optString("project"));
+        return KgIds.statementId(offer.evidence.actor,offer.rule,offer.key+"\0"+offer.evidence.subject+"\0"+offer.service+"\0"+signal.actor
+                +"\0"+compact(signal.text)+"\0"+signal.value.optString("context")+"\0"+signal.value.optString("scope")+"\0"+signal.value.optString("project"));
+    }
+    public static String sourceCorroboration(Offer offer,Observation signal) {
+        String fields="";for(String key:List.of("context","scope","system_role","project","location","phase","destination"))fields+="\0"+signal.value.optString(key);
+        return KgIds.statementId(offer.evidence.actor,offer.rule,offer.key+"\0"+offer.evidence.subject+"\0"+offer.service+"\0"+signal.actor+"\0"+signal.source+fields);
     }
 }

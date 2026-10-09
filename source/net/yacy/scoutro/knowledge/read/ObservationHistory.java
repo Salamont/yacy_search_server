@@ -134,26 +134,16 @@ public final class ObservationHistory {
     private static void timeline(Connection c,ResultSet observation,JSONObject value,Viewer v,JSONObject out)throws SQLException {
         if(observation.getString("organization_id")==null)return;
         if(!List.of("internal_use","planned_migration").contains(value.optString("context")))return;
-        Long floor=observation.getObject("observed_at")==null?null:observation.getLong("observed_at");
-        if("event_date".equals(value.optString("date_kind"))) {
-            java.time.LocalDate last=net.yacy.scoutro.knowledge.extract.Values.lastDay(observation.getString("asserted_at"));
-            if(last!=null)floor=last.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli()-1;
-        }
-        if(floor==null)return;
-        // Only a known matching scope, or explicitly organization-wide shutdown,
-        // can update this timeline. An unspecified shutdown never retires every installation.
-        try(PreparedStatement p=c.prepareStatement("SELECT o.public_id,o.value,o.observed_at FROM kg_observation o WHERE "+scope(v,"o")
-                +" AND o.organization_id=? AND o.predicate='system_signal' AND coalesce(CASE WHEN o.asserted_at IS NOT NULL THEN"
-                +" CAST(strftime('%s',CASE length(o.asserted_at) WHEN 4 THEN o.asserted_at||'-01-01' WHEN 7 THEN o.asserted_at||'-01' ELSE o.asserted_at END) AS INTEGER)*1000 END,o.observed_at)>? AND o.assertion_status='recorded'"
-                +" AND json_valid(o.value) AND json_extract(o.value,'$.product')=? AND (json_extract(o.value,'$.scope')='organization'"
-                +" OR (json_extract(o.value,'$.scope')=? AND json_extract(o.value,'$.scope')<>'unspecified'))"
-                +" AND (json_extract(o.value,'$.context')='shutdown' OR (json_extract(o.value,'$.context')='completed_migration'"
-                +" AND (json_extract(o.value,'$.system_role')='source' OR (?='planned_migration' AND json_extract(o.value,'$.system_role')=?)))) ORDER BY o.observed_at DESC LIMIT 1")) {
-            p.setString(1,observation.getString("organization_id"));p.setLong(2,floor);p.setString(3,value.optString("product"));p.setString(4,value.optString("scope"));
-            p.setString(5,value.optString("context"));p.setString(6,value.optString("system_role"));
-            try(ResultSet r=p.executeQuery()){if(r.next())KgJson.put(out,"later_system_change",KgJson.obj("observation",r.getString(1),"observed_at",r.getObject(3)==null?null:KgReader.iso(r.getLong(3)),"value",json(r.getString(2))));}
+        net.yacy.scoutro.knowledge.derive.MatchingRules.Observation signal=
+                net.yacy.scoutro.knowledge.derive.MatchingRules.Observation.read(c,observation);
+        net.yacy.scoutro.knowledge.derive.MatchingRules.Observation later=
+                net.yacy.scoutro.knowledge.derive.MatchingRules.latestSystemChange(c,signal,v);
+        if(later!=null) {
+            String context=later.collections.entrySet().stream().filter(e->v.all()||v.collections().contains(e.getKey())).map(java.util.Map.Entry::getValue).findFirst().orElse(null);
+            KgJson.put(out,"later_system_change",KgJson.obj("observation",later.id,"observed_at",KgReader.iso(later.observedAt),"value",later.value,"collection",context));
         }
     }
+
     private static void jobStatus(Connection c,ResultSet observation,Viewer v,JSONObject out)throws SQLException {
         String status="unknown",reason="not_reconfirmed";String deadline=null;
         try(PreparedStatement p=c.prepareStatement("SELECT o.predicate,o.value,o.observed_at FROM kg_observation o WHERE " +scope(v,"o")

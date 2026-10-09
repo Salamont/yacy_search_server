@@ -27,9 +27,14 @@ public final class MatchingService {
         int checked;boolean complete,unchanged;String deferred;
     }
     public JSONObject run(long now)throws KgException {
+        if(cfg.matchesMax==0) {
+            JSONObject disabled=KgJson.obj("version",MatchingRules.VERSION,"checked",0,"upserts",0,"completed_partitions",0,
+                    "cycle_complete",false,"deferred","configuration_disabled");
+            store.write(WriteClass.SYSTEM,0,c->{KgStore.putMeta(c,"matching_last",disabled.toString());return null;});return disabled;
+        }
         JSONObject state=store.read(c->{String raw=KgStore.getMeta(c,"matching_work");return raw==null?new JSONObject():net.yacy.scoutro.knowledge.extract.Values.json(raw);});
-        int checked=0,inserted=0,completed=0;String deferred=null;boolean cycleComplete=false;
-        while(checked<budget&&completed<500) {
+        int checked=0,inserted=0,completed=0,visited=0;String deferred=null;boolean cycleComplete=false;
+        while(checked<budget&&visited<500) {
             final JSONObject previous=state;final int remaining=budget-checked;
             Partition part=store.read(c->compute(c,previous,remaining));
             if(part==null){state=new JSONObject();cycleComplete=true;break;}
@@ -50,11 +55,11 @@ public final class MatchingService {
             });
             inserted+=part.rows.size();state=next;
             if(part.deferred!=null)deferred=part.deferred;
-            if(part.complete)completed++;else {deferred=part.deferred==null?"work_budget":part.deferred;break;}
+            if(part.complete){visited++;if(part.deferred==null)completed++;}else {deferred=part.deferred==null?"work_budget":part.deferred;break;}
         }
         if(cycleComplete)store.write(WriteClass.SYSTEM,0,c->{KgStore.putMeta(c,"matching_work","{}");return null;});
         JSONObject result=KgJson.obj("version",MatchingRules.VERSION,"checked",checked,"upserts",inserted,"completed_partitions",completed,
-                "cycle_complete",cycleComplete,"deferred",deferred==null&&!cycleComplete?"work_budget":deferred);
+                "cycle_complete",cycleComplete&&deferred==null,"deferred",deferred==null&&!cycleComplete?"work_budget":deferred);
         store.write(WriteClass.SYSTEM,0,c->{KgStore.putMeta(c,"matching_last",result.toString());return null;});
         return result;
     }
@@ -73,7 +78,8 @@ public final class MatchingService {
         } else {out.token=state.optString("token");out.startRevision=state.optLong("start_revision");}
         List<Offer> offers=new ArrayList<>();List<Observation> regions=new ArrayList<>();int facts=0;
         try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE organization_id=? AND"
-                +" (predicate IN('system_signal','service_area') OR (subject_type='service' AND predicate IN('name','category','description')))"
+                +" (predicate='service_area' OR (predicate='system_signal' AND json_valid(value) AND json_extract(value,'$.context')='offered_capability')"
+                +" OR (subject_type='service' AND predicate IN('name','category','description'))) AND assertion_status='recorded'"
                 +" ORDER BY observation_rowid LIMIT ?")) {
             p.setString(1,out.provider);p.setInt(2,MAX_PROVIDER_FACTS+1);
             try(ResultSet r=p.executeQuery()){while(r.next()) {
@@ -109,15 +115,16 @@ public final class MatchingService {
         String proposal=KgIds.derivedId(kind,offer.evidence.actor,signal.actor,"matching-v1","");
         String id=KgIds.derivedId(kind,offer.evidence.actor,signal.actor,"contribution:"+offerKey(offer),signal.id);
         JSONArray refs=new JSONArray().put(KgJson.obj("role","service","id",offer.evidence.id)).put(KgJson.obj("role","signal","id",signal.id));
-        for(Observation extra:row.assessment.extra)refs.put(KgJson.obj("role","region","id",extra.id));
+        for(Observation extra:row.assessment.extra)refs.put(KgJson.obj("role","hiring_organization".equals(extra.predicate)?"employer":"region","id",extra.id));
         if(refs.toString().length()>4000)throw new SQLException("match references exceed their contract");
         boolean changed=true;
-        try(PreparedStatement previous=c.prepareStatement("SELECT refs,rule_version FROM kg_match_contribution WHERE public_id=?")) {
-            previous.setString(1,id);try(ResultSet r=previous.executeQuery()){if(r.next())changed=!refs.toString().equals(r.getString(1))||!MatchingRules.VERSION.equals(r.getString(2));}
+        try(PreparedStatement previous=c.prepareStatement("SELECT refs,rule_version,corroboration_key FROM kg_match_contribution WHERE public_id=?")) {
+            previous.setString(1,id);try(ResultSet r=previous.executeQuery()){if(r.next())changed=!refs.toString().equals(r.getString(1))||!MatchingRules.VERSION.equals(r.getString(2))
+                    ||!MatchingRules.corroboration(offer,signal).equals(r.getString(3));}
         }
         try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_match_contribution(public_id,proposal_id,kind,provider_id,candidate_id,rule,"
                 +"rule_version,service_key,signal_key,corroboration_key,refs,computed_at,seen_generation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)"
-                +" ON CONFLICT(public_id) DO UPDATE SET seen_generation=excluded.seen_generation,refs=excluded.refs,rule_version=excluded.rule_version")) {
+                +" ON CONFLICT(public_id) DO UPDATE SET seen_generation=excluded.seen_generation,refs=excluded.refs,rule_version=excluded.rule_version,corroboration_key=excluded.corroboration_key")) {
             int n=1;p.setString(n++,id);p.setString(n++,proposal);p.setInt(n++,offer.kind);p.setString(n++,offer.evidence.actor);p.setString(n++,signal.actor);
             p.setString(n++,offer.rule);p.setString(n++,MatchingRules.VERSION);p.setString(n++,offerKey(offer));p.setString(n++,signal.id);
             p.setString(n++,MatchingRules.corroboration(offer,signal));p.setString(n++,refs.toString());p.setLong(n++,now);p.setString(n,generation);p.executeUpdate();

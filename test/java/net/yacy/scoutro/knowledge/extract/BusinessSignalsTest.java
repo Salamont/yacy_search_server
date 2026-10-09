@@ -47,6 +47,18 @@ public class BusinessSignalsTest {
         for(String text:List.of("Wir bieten Teamentwicklung an.","Unser Kunde plant einen Neubau.","Frau Beispiel benötigt ambulante Pflege."))
             assertTrue(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"text",Vocabulary.ORGANIZATION,null).isEmpty());
     }
+    @Test public void explicitOwnStaffProgramsAndProjectDetailsAreGrounded()throws Exception {
+        JSONObject program=new JSONObject(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,
+                "Unsere Führungskräfte durchlaufen ein Führungsprogramm.","company",Vocabulary.ORGANIZATION,null).get(0));
+        assertEquals("leadership-development",program.getString("need"));assertEquals("explicit_need",program.getString("context"));
+        JSONObject project=new JSONObject(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,
+                "Als Gebäudebetreiber planen wir die energetische Sanierung unseres Gebäudes in Berlin, Projekt Alpha.","company",Vocabulary.ORGANIZATION,null).get(0));
+        assertEquals("own_responsibility",project.getString("responsibility"));assertEquals("Berlin",project.getString("location"));
+        assertEquals("alpha",project.getString("project"));assertEquals("planned",project.getString("phase"));
+        for(String text:List.of("Wir bieten ein Führungsprogramm für Kunden.","Wir starten kein internes Programm zur Teamentwicklung.","Eine Führungsstelle ist ausgeschrieben."))
+            assertTrue(text,BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,text,"company",Vocabulary.ORGANIZATION,null).isEmpty());
+    }
+
     @Test public void businessRoleRequiresOwnOfferedItServices() {
         assertFalse(BusinessSignals.read(Vocabulary.BUSINESS_ROLE_EVIDENCE,"Wir bieten SAP-Beratung für Kunden.","company",Vocabulary.ORGANIZATION,null).isEmpty());
         assertFalse(BusinessSignals.read(Vocabulary.BUSINESS_ROLE_EVIDENCE,"Wir bieten Systemintegration an.","company",Vocabulary.ORGANIZATION,null).isEmpty());

@@ -22,6 +22,7 @@ public class MatchingTest {
     private KgStore store;private KgConfig cfg;private KgReader reader;private int serial;private String jobTitle="Engineer";
     private final String provider=KgIds.entityId("organization","test","","provider"),candidate=KgIds.entityId("organization","test","","candidate");
     private final long date=1_700_000_000_000L,now=1_800_000_000_000L;
+    private long observationDate=1_700_000_000_000L;
     @Before public void open()throws Exception {
         Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());settings.put(KgConfig.JOBS_COLLECTIONS,"a,b,c");
         cfg=KgTestSupport.config(settings);KgPaths paths=new KgPaths(tmp.getRoot());
@@ -42,7 +43,7 @@ public class MatchingTest {
     private String observation(String actor,String type,String predicate,JSONObject value,String quote,String scope)throws Exception {
         String id="kgo_"+String.format("%020x",++serial),source=String.format("src%09d",serial);
         JSONObject identity=KgJson.obj("organization",new JSONArray().put(KgJson.obj("predicate","name","value",actor.equals(provider)?"Provider":"Candidate")),
-                "subject",new JSONArray().put(KgJson.obj("predicate","name","value",jobTitle)),
+                "subject",new JSONArray().put(KgJson.obj("predicate","name","value","service".equals(type)?value.optString("literal"):jobTitle)),
                 "assignment",new JSONArray().put(KgJson.obj("predicate","offers","quote","We offer this service","locator","/offers")),
                 "employer_assignment","source_declared");
         store.write(WriteClass.GROWTH,0,c->{
@@ -50,7 +51,7 @@ public class MatchingTest {
                     +"organization_id,original_organization_id,identity_context,predicate,value,quote,locator,tier,extractor,vocabulary_version,"
                     +"observed_at,recorded_at,origin_scopes,source_status,certainty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,'jsonld/5','test',?,?,'','removed',1)")) {
                 int n=1;for(String s:List.of(id,source,"https://example.org/"+source,"revision",actor,type,actor,actor,identity.toString(),predicate,value.toString(),quote,"/description"))p.setString(n++,s);
-                p.setLong(n++,date+serial);p.setLong(n,now);p.executeUpdate();
+                p.setLong(n++,observationDate+serial);p.setLong(n,now);p.executeUpdate();
             }
             try(PreparedStatement p=c.prepareStatement("INSERT OR IGNORE INTO kg_collection(name) VALUES(?)")){p.setString(1,scope);p.executeUpdate();}
             try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_observation_scope SELECT o.observation_rowid,k.coll_id FROM kg_observation o,kg_collection k WHERE o.public_id=? AND k.name=?")) {
@@ -241,5 +242,78 @@ public class MatchingTest {
             assertEquals("withdrawn",KgStore.queryString(c,"SELECT assertion_status FROM kg_observation WHERE public_id='"+id+"'"));
             assertNull(KgStore.queryString(c,"PRAGMA foreign_key_check"));
         }
+    }
+    @Test public void matchingPolicyAndZeroBudgetSuppressCacheButKeepHistoricalKnowledge()throws Exception {
+        offer("Revit Schulung");String job=signal("Revit Kenntnisse erforderlich.","job");run();assertEquals(1,count());
+        Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());settings.put(KgConfig.JOBS_MATCH_COLLECTIONS,"");
+        KgConfig off=KgTestSupport.config(settings);KgReader offReader=new KgReader(store,off,()->now);
+        assertEquals(0,new Suggestions(offReader).page(provider,0,100,reader.viewer(List.of("a")),reader.viewer(List.of("a","b"))).getInt("total"));
+        assertTrue(new ObservationHistory(offReader).detail(job,reader.viewer(List.of("b"))).has("quote"));
+        settings.put(KgConfig.MATCHES_MAX,"0");off=KgTestSupport.config(settings);
+        assertEquals("configuration_disabled",new MatchingService(store,off).run(now).getString("deferred"));assertEquals(1,count());
+    }
+    private void postingOn(String signal,String employer)throws Exception {
+        String id="kgo_"+String.format("%020x",++serial);
+        store.write(WriteClass.GROWTH,0,c->{
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_observation(public_id,source_id,source_url,content_revision,subject_id,subject_type,"
+                    +"organization_id,original_organization_id,identity_context,predicate,value,quote,locator,tier,extractor,vocabulary_version,observed_at,recorded_at,origin_scopes,source_status,certainty)"
+                    +" SELECT ?,source_id,source_url,content_revision,subject_id,'job',?,?,identity_context,'hiring_organization',?,'Source-declared employer is hiring','/hiringOrganization',tier,extractor,vocabulary_version,observed_at,recorded_at,origin_scopes,source_status,certainty"
+                    +" FROM kg_observation WHERE public_id=?")) {
+                p.setString(1,id);p.setString(2,employer);p.setString(3,employer);p.setString(4,employer==null?"":employer);p.setString(5,signal);p.executeUpdate();
+            }
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_observation_scope SELECT target.observation_rowid,old.coll_id FROM kg_observation_scope old JOIN kg_observation origin USING(observation_rowid),kg_observation target WHERE origin.public_id=? AND target.public_id=?")) {
+                p.setString(1,signal);p.setString(2,id);p.executeUpdate();
+            }return null;
+        });
+    }
+    @Test public void companyPassageOnAJobPageCannotBypassJobExclusionOrEmployerGrounding()throws Exception {
+        offer("SAP Beratung");String passage=signal("Wir nutzen SAP intern.","organization");postingOn(passage,candidate);run();
+        JSONObject reason=page("a","b").getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(0);
+        assertEquals(3,reason.getJSONArray("evidence").length());assertEquals("qualified",reason.getString("evidence_strength"));
+        observation(candidate,"organization","business_role_evidence",KgJson.obj("role","it_consultancy","context","own_offered_services"),"Wir bieten SAP-Beratung an.","b");
+        assertEquals(0,page("a","b").getInt("total"));
+        signal("Wir nutzen SAP intern.","organization");run();assertEquals(1,page("a","b").getInt("total")); // independent source
+    }
+    @Test public void mixedPostingEmployersDeferUnassignedCompanyPassages()throws Exception {
+        offer("Revit Schulung");String passage=signal("Wir nutzen Revit intern.","organization");postingOn(passage,candidate);postingOn(passage,provider);
+        run();assertEquals(0,count());
+    }
+    @Test public void unknownPostingEmployerAndCoachRecruitmentCannotBecomeOrganizationalNeed()throws Exception {
+        offer("Führungscoaching");String passage=need("Unser Unternehmen benötigt Führungsentwicklung.");postingOn(passage,candidate);run();assertEquals(0,count());
+        offer("Revit Schulung");String system=signal("Wir nutzen Revit intern.","organization");postingOn(system,null);run();assertEquals(0,count());
+    }
+    @Test public void repeatedTiersAndServiceFactsAreNotIndependentConfirmations()throws Exception {
+        offer("Revit Schulung");observation(provider,"service","description",KgJson.obj("literal","Wir bieten Revit Schulung an."),"Wir bieten Revit Schulung an.","a");
+        String first=signal("Wir nutzen Revit intern.","organization");
+        String second="kgo_"+String.format("%020x",++serial);
+        store.write(WriteClass.GROWTH,0,c->{try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_observation(public_id,source_id,source_url,content_revision,subject_id,subject_type,organization_id,original_organization_id,identity_context,predicate,value,quote,locator,tier,extractor,vocabulary_version,observed_at,recorded_at,origin_scopes,source_status,certainty)"
+                +" SELECT ?,source_id,source_url,content_revision,subject_id,subject_type,organization_id,original_organization_id,identity_context,predicate,value,'Unser Unternehmen verwendet Revit intern.','/another-section',2,'rule/6',vocabulary_version,observed_at,recorded_at,origin_scopes,source_status,certainty FROM kg_observation WHERE public_id=?")){
+                    p.setString(1,second);p.setString(2,first);p.executeUpdate();}
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_observation_scope SELECT target.observation_rowid,old.coll_id FROM kg_observation_scope old JOIN kg_observation origin USING(observation_rowid),kg_observation target WHERE origin.public_id=? AND target.public_id=?")){
+                p.setString(1,first);p.setString(2,second);p.executeUpdate();}return null;});
+        run();assertEquals(1,page("a","b").getJSONArray("items").getJSONObject(0).getInt("contributions_total"));
+        assertEquals(1,new BusinessGraph(reader).derived("suggested_customer",null,0,100,reader.viewer(List.of("a","b"))).getJSONArray("items").getJSONObject(0).getInt("contributions_total"));
+    }
+    @Test public void fullDetailsRemainReachableAfterLiveProviderCleanup()throws Exception {
+        offer("Revit Schulung");signal("Wir nutzen Revit intern.","organization");run();
+        String proposal=page("a","b").getJSONArray("items").getJSONObject(0).getString("id");
+        store.write(WriteClass.MAINTENANCE,0,c->{try(Statement s=c.createStatement()){s.execute("DELETE FROM kg_entity WHERE public_id='"+provider+"'");}return null;});
+        JSONObject details=new Suggestions(reader).contributions(provider,proposal,0,25,reader.viewer(List.of("a")),reader.viewer(List.of("a","b")));
+        assertEquals(1,details.getInt("total"));
+        try{new Suggestions(reader).contributions(provider,proposal,0,25,reader.viewer(List.of("b")),reader.viewer(List.of("a","b")));fail("origin archive does not belong to B");}
+        catch(KgReader.NotFound expected){}
+        try{new Suggestions(reader).contributions(provider,proposal,0,25,reader.viewer(List.of("a")),reader.viewer(List.of("a")));fail("full chain permission required");}
+        catch(KgReader.NotFound expected){}
+    }
+    @Test public void individualPatientCaseCannotGenerateAnOrganizationalCarePartner()throws Exception {
+        offer("Ambulante Pflege");need("Unser Krankenhaus koordiniert das Entlassmanagement für Frau Müller für den Übergang in ambulante Versorgung in Berlin.");
+        observation(provider,"organization","service_area",KgJson.obj("literal","Berlin"),"Unser Versorgungsgebiet ist Berlin.","a");
+        run();assertEquals(0,count());
+    }
+    @Test public void futureTargetPlanSurvivesShutdownButCompletedTargetMigrationClosesIt()throws Exception {
+        offer("Microsoft Azure Integration");signal("Wir planen unternehmensweit eine Migration zu Microsoft Azure am 2028-10-09.","organization");run();
+        observationDate=1_750_000_000_000L;
+        signal("Wir haben Microsoft Azure unternehmensweit am 2024-10-09 abgeschaltet.","organization");assertEquals(1,page("a","b").getInt("total"));
+        signal("Unsere Migration zu Microsoft Azure ist unternehmensweit am 2025-10-09 abgeschlossen.","organization");assertEquals(0,page("a","b").getInt("total"));
     }
 }

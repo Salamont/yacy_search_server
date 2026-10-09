@@ -19,6 +19,7 @@ public final class MatchingProjection {
         }
     }
     private static JSONObject record(Connection c,ResultSet r,Viewer permitted,KgConfig cfg)throws SQLException {
+        if(cfg.matchesMax==0||!cfg.derivedEnabled)return null;
         if(!MatchingRules.VERSION.equals(r.getString("rule_version"))||!MatchingAccess.allowed(MatchingAccess.chain(c,r.getString("public_id")),permitted))return null;
         JSONArray refs=array(r.getString("refs"));Observation service=null,signal=null;List<Observation> extras=new ArrayList<>();
         for(int i=0;i<refs.length();i++) {
@@ -29,8 +30,9 @@ public final class MatchingProjection {
         if(service==null||signal==null||!r.getString("provider_id").equals(service.actor)||!r.getString("candidate_id").equals(signal.actor))return null;
         Offer offer=MatchingRules.offers(service).stream().filter(o->o.rule.equals(rSafe(r,"rule"))
                 &&(o.evidence.id+":"+o.rule+":"+o.key+":"+o.service).equals(rSafe(r,"service_key"))).findFirst().orElse(null);
-        if(offer==null)return null;
+        if(offer==null||offer.kind!=r.getInt("kind"))return null;
         Assessment a=MatchingRules.assess(c,offer,signal,extras,cfg,permitted);if(a==null)return null;
+        for(Observation required:a.extra)if(extras.stream().noneMatch(o->o.id.equals(required.id)))return null;
         JSONArray evidence=new JSONArray(),collections=new JSONArray();Set<String> names=new TreeSet<>();
         for(int i=0;i<refs.length();i++) {
             JSONObject ref=refs.optJSONObject(i),o=ObservationHistory.record(c,ref.optString("id"),permitted);
@@ -49,9 +51,30 @@ public final class MatchingProjection {
                 "observed_at",KgReader.iso(signal.observedAt),"asserted_at",signal.assertedAt,"computed_at",KgReader.iso(r.getLong("computed_at")),
                 "evidence",evidence,"evidence_complete",true,"fact",false,"corroboration_key",r.getString("corroboration_key"));
         KgJson.put(result,"context",signal.value.optString("context"));
+        KgJson.put(result,"source_corroboration_key",MatchingRules.sourceCorroboration(offer,signal));
+        String serviceName=service.text;JSONArray stated=service.identity.optJSONArray("subject");
+        if("service".equals(service.type)&&stated!=null)for(int i=0;i<stated.length();i++)if("name".equals(stated.optJSONObject(i).optString("predicate")))serviceName=stated.optJSONObject(i).optString("value");
+        KgJson.put(result,"service_name",serviceName);
         KgJson.put(result,"location",signal.value.optString("location",null));KgJson.put(result,"project",signal.value.optString("project",null));
         KgJson.put(result,"phase",signal.value.optString("phase",null));
         return result;
+    }
+    /** Equivalence by same contextual quote OR same source/semantic assertion. Aliases stay internal. */
+    public static final class Deduplicator {
+        private final List<JSONObject> reasons;
+        private final Map<String,JSONObject> aliases=new HashMap<>();
+        public Deduplicator(List<JSONObject> reasons){this.reasons=reasons;}
+        public void add(JSONObject incoming) {
+            List<String> keys=List.of(incoming.optString("corroboration_key"),incoming.optString("source_corroboration_key"));
+            Set<JSONObject> same=new HashSet<>();for(String key:keys)if(aliases.containsKey(key))same.add(aliases.get(key));
+            List<JSONObject> candidates=new ArrayList<>(same);candidates.add(incoming);
+            candidates.sort(Comparator.comparingDouble((JSONObject o)->o.optDouble("score")).reversed()
+                    .thenComparing((JSONObject o)->o.optString("observed_at",""),Comparator.reverseOrder()).thenComparing(o->o.optString("id")));
+            JSONObject best=candidates.get(0);
+            for(Map.Entry<String,JSONObject> e:aliases.entrySet())if(same.contains(e.getValue()))e.setValue(best);
+            for(String key:keys)aliases.put(key,best);
+            reasons.removeAll(same);reasons.add(best);
+        }
     }
     private static JSONArray array(String raw)throws SQLException {try{return new JSONArray(raw);}catch(JSONException e){throw new SQLException("invalid match references",e);}}
     private static String rSafe(ResultSet r,String key){try{return r.getString(key);}catch(SQLException e){throw new IllegalStateException(e);}}
@@ -96,10 +119,13 @@ public final class MatchingProjection {
                 +" WHERE other.organization_id=?")) {
             p.setString(1,o.actor);try(ResultSet r=p.executeQuery()){while(r.next())if(v.all()||v.collections().contains(r.getInt(1)))names.add(r.getString(2));}
         }
-        String name=o.name();String type="organization";
+        String name=o.name();String type="facility".equals(o.type)&&o.actor.equals(o.subject)?"facility":"organization";
         long[] live=KgReader.entityRow(c,o.actor,v);
         if(live!=null&&live[1]==0) {
             String current=KgReader.visibleName(c,live[0],v);if(current!=null)name=current;
+            try(PreparedStatement p=c.prepareStatement("SELECT t.name FROM kg_entity e JOIN kg_vocab t ON t.term_id=e.type WHERE e.ent_rowid=?")) {
+                p.setLong(1,live[0]);try(ResultSet r=p.executeQuery()){if(r.next())type=r.getString(1);}
+            }
         }
         return KgJson.obj("id",o.actor,"name",name,"display_name",name,"type",type,"collections",new JSONArray(names),
                 "target_collection",selectedCollection(o,v),"archived",live==null,"observation",o.id);

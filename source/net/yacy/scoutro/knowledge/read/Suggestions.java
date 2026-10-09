@@ -37,6 +37,7 @@ public final class Suggestions {
         String otherId;
         JSONObject otherRef;
         final List<JSONObject> contributions=new ArrayList<>();
+        final MatchingProjection.Deduplicator deduplicator=new MatchingProjection.Deduplicator(contributions);
 
         Group(final int kind, final long other, final double score, final boolean outgoing) {
             this.kind = kind;
@@ -97,13 +98,7 @@ public final class Suggestions {
                 long[] row=KgReader.entityRow(c,other,permitted);g=new Group(kind,row==null?-1:row[0],0,outgoing);
                 g.otherId=other;g.otherRef=reason.optJSONObject("other");groups.add(g);
             }
-            String key=reason.optString("corroboration_key");
-            JSONObject previous=g.contributions.stream().filter(x->key.equals(x.optString("corroboration_key"))).findFirst().orElse(null);
-            if(previous==null)g.contributions.add(reason);
-            else if(reason.optDouble("score")>previous.optDouble("score")||reason.optDouble("score")==previous.optDouble("score")
-                    &&reason.optString("observed_at","").compareTo(previous.optString("observed_at",""))>0) {
-                g.contributions.remove(previous);g.contributions.add(reason);
-            }
+            g.deduplicator.add(reason);
             g.score=Math.max(g.score,reason.optDouble("score"));
         }
         groups.sort(java.util.Comparator.comparingDouble((Group g)->g.score).reversed().thenComparing(g->g.otherId)
@@ -218,16 +213,32 @@ public final class Suggestions {
 
     public JSONObject contributions(String entity,String proposal,int offset,int limit,Viewer selected,Viewer permitted)throws KgException,KgReader.NotFound {
         JSONObject result=reader.store().read(c->{
-            Viewer origin=KgReader.within(selected,permitted);long[] row=KgReader.entityRow(c,entity,origin);if(row==null)return null;
+            Viewer origin=KgReader.within(selected,permitted);long[] row=KgReader.entityRow(c,entity,origin);
+            if(row==null) {
+                // Details remain reachable from export/global suggestions after live origin cleanup.
+                // The origin's archived service/signal must still be in the selected, permitted view.
+                List<JSONObject> visible=MatchingProjection.visible(c,entity,origin,permitted,reader.config());
+                JSONObject seed=visible.stream().filter(x->proposal.equals(x.optString("proposal_id"))||proposal.equals(x.optString("id"))).findFirst().orElse(null);
+                if(seed==null)return null;
+                List<JSONObject> reasons=new ArrayList<>();MatchingProjection.Deduplicator duplicate=new MatchingProjection.Deduplicator(reasons);
+                for(JSONObject x:visible)if(seed.optString("kind").equals(x.optString("kind"))
+                        &&seed.optJSONObject("other").optString("id").equals(x.optJSONObject("other").optString("id"))
+                        &&("suggested_partner".equals(seed.optString("kind"))||seed.optString("direction").equals(x.optString("direction"))))duplicate.add(x);
+                return contributionPage(reasons,offset,limit);
+            }
             for(Group g:groups(c,row[0],origin,permitted,reader)) {
                 if(g.contributions.stream().noneMatch(x->proposal.equals(x.optString("proposal_id"))||proposal.equals(x.optString("id"))))continue;
-                List<JSONObject> all=new ArrayList<>(g.contributions);all.sort(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score")).reversed().thenComparing(x->x.optString("id")));
-                int end=Math.min(all.size(),offset+limit);
-                return KgJson.obj("schema",BusinessView.SCHEMA,"items",new JSONArray(all.subList(Math.min(offset,all.size()),end)),
-                        "total",all.size(),"offset",offset,"limit",limit,"next_offset",end<all.size()?end:null);
+                return contributionPage(g.contributions,offset,limit);
             }return null;
         });
         if(result==null)throw new KgReader.NotFound("suggestion");return result;
+    }
+
+    private static JSONObject contributionPage(List<JSONObject> reasons,int offset,int limit) {
+        List<JSONObject> all=new ArrayList<>(reasons);all.sort(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score")).reversed().thenComparing(x->x.optString("id")));
+        int end=Math.min(all.size(),offset+limit);
+        return KgJson.obj("schema",BusinessView.SCHEMA,"items",new JSONArray(all.subList(Math.min(offset,all.size()),end)),
+                "total",all.size(),"offset",offset,"limit",limit,"next_offset",end<all.size()?end:null);
     }
 
     private boolean references(final Connection c, final JSONArray ids, final Viewer v, final String collection, final JSONArray out)
@@ -263,12 +274,16 @@ public final class Suggestions {
     }
 
     static JSONObject legacyRecord(Connection c,String id,Viewer v,KgReader reader)throws SQLException {
+        return legacyRecord(c,id,v,reader,true);
+    }
+    static JSONObject legacyRecord(Connection c,String id,Viewer v,KgReader reader,boolean preview)throws SQLException {
         try(PreparedStatement p=c.prepareStatement("SELECT a_ent,b_ent,kind FROM kg_derived WHERE public_id=?")) {
             p.setString(1,id);try(ResultSet r=p.executeQuery()){if(!r.next()||r.getInt(3)<3)return null;
                 long origin=r.getLong(1);for(Group g:groups(c,origin,v,v,reader)) {
                     List<JSONObject> mine=new ArrayList<>();for(JSONObject reason:g.contributions)if(id.equals(reason.optString("id")))mine.add(reason);
                     if(mine.isEmpty())continue;
                     JSONObject item=itemForLegacy(reader,c,origin,g,v,mine);KgJson.put(item,"id",id);
+                    if(!preview)KgJson.put(item,"contributions",new JSONArray(mine));
                     KgJson.put(item,"subject",BusinessView.entityRef(c,origin,v));return item;
                 }return null;
             }

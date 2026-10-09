@@ -36,6 +36,7 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
+import net.yacy.scoutro.knowledge.store.KgStore;
 import net.yacy.scoutro.knowledge.vocab.Categories;
 import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 import net.yacy.scoutro.knowledge.vocab.Nace;
@@ -566,9 +567,13 @@ public final class BusinessGraph {
 
     private List<JSONObject> projectedDerived(Connection c,String kind,String entity,Viewer v)throws SQLException {
         final Map<String,JSONObject> groups=new LinkedHashMap<>();
+        final Map<String,List<JSONObject>> reasonsByGroup=new LinkedHashMap<>();
+        final Map<String,MatchingProjection.Deduplicator> duplicates=new LinkedHashMap<>();
         try(Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT public_id FROM kg_derived ORDER BY der_rowid")) {
             while(r.next()) {
-                JSONObject item=derivedRecord(c,r.getString(1),v,this.reader);if(item==null)continue;
+                String id=r.getString(1);
+                long legacyKind=KgStore.queryLong(c,"SELECT coalesce(max(kind),0) FROM kg_derived WHERE public_id='"+id+"'");
+                JSONObject item=legacyKind>=3?Suggestions.legacyRecord(c,id,v,this.reader,false):derivedRecord(c,id,v,this.reader);if(item==null)continue;
                 if(kind!=null&&!kind.equals(item.optString("kind")))continue;
                 String a=item.optJSONObject("subject").optString("id"),b=item.optJSONObject("other").optString("id");
                 if(entity!=null&&!entity.equals(a)&&!entity.equals(b))continue;
@@ -594,9 +599,14 @@ public final class BusinessGraph {
                         "other",reason.optJSONObject("candidate"),"direction","out","score",0.0,"confidence",0.0,"fact",false,"label","suggestion", "contributions",new JSONArray());
                 groups.put(key,item);
             }
-            JSONArray contributions=item.optJSONArray("contributions");boolean duplicate=false;
-            for(int i=0;i<contributions.length();i++)if(reason.optString("corroboration_key").equals(contributions.optJSONObject(i).optString("corroboration_key")))duplicate=true;
-            if(!duplicate)contributions.put(reason);
+            List<JSONObject> contributions=reasonsByGroup.get(key);
+            if(contributions==null) {
+                contributions=new ArrayList<>();JSONArray initial=item.optJSONArray("contributions");
+                for(int i=0;i<initial.length();i++)contributions.add(initial.optJSONObject(i));
+                reasonsByGroup.put(key,contributions);duplicates.put(key,new MatchingProjection.Deduplicator(contributions));
+            }
+            duplicates.get(key).add(reason);
+            KgJson.put(item,"contributions",new JSONArray(contributions));
             if(reason.optDouble("score")>item.optDouble("score",item.optDouble("confidence"))) {
                 KgJson.put(item,"score",reason.optDouble("score"));KgJson.put(item,"confidence",reason.optDouble("score"));
                 KgJson.put(item,"reason",reason.optString("reason"));KgJson.put(item,"computed_at",reason.opt("computed_at"));
