@@ -51,7 +51,7 @@ class Mcp(unittest.TestCase):
         with self.assertRaises(MODULE['AdapterError']):self.adapter.get('/scoutro/api/v1/system')
     def test_knowledge_graph_tools_follow_their_two_grants(self):
         kg_read={'scoutro_kg_entities','scoutro_kg_entity','scoutro_kg_entity_statements','scoutro_kg_statement',
-                 'scoutro_kg_statement_evidence','scoutro_kg_host_entities','scoutro_kg_source'}
+                 'scoutro_kg_statement_evidence','scoutro_kg_host_entities','scoutro_kg_source','scoutro_kg_entity_suggestions'}
         admin_only={'scoutro_kg_status','scoutro_kg_control','scoutro_kg_download'}
         self.opener.grants=['kg.read'];names=set(self.adapter.available())
         self.assertTrue(kg_read<=names);self.assertFalse(names&admin_only);self.assertFalse(names&{'scoutro_kg_export','scoutro_kg_changes'})
@@ -60,6 +60,8 @@ class Mcp(unittest.TestCase):
         self.opener.grants=['kg.read','kg.export']
         self.request('tools/call',{'name':'scoutro_kg_entity','arguments':{'id':'kge_'+'a'*20,'collection':'visible'}})
         self.assertEqual(self.opener.calls[-1].full_url,'http://127.0.0.1:1/scoutro/api/agent/v1/kg/entities/kge_'+'a'*20+'?collection=visible')
+        self.request('tools/call',{'name':'scoutro_kg_entity_suggestions','arguments':{'id':'kge_'+'a'*20,'collection':'visible','offset':10001,'limit':25}})
+        self.assertEqual(self.opener.calls[-1].full_url,'http://127.0.0.1:1/scoutro/api/agent/v1/kg/entities/kge_'+'a'*20+'/suggestions?collection=visible&offset=10001&limit=25')
         self.request('tools/call',{'name':'scoutro_kg_changes','arguments':{'expand':True,'limit':100}})
         self.assertEqual(self.opener.calls[-1].full_url,'http://127.0.0.1:1/scoutro/api/agent/v1/kg/changes?expand=true&limit=100')
         for args in [{'id':'../status'},{'id':'kge_x'}]:

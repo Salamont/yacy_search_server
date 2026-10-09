@@ -86,7 +86,7 @@ final class KnowledgeApi {
         if (parts.length >= 5 && KnowledgeRead.handles(parts[3])
                 || parts.length == 4 && KnowledgeRead.single(parts[3])) {
             return new KnowledgeRead(this.runtime).route(method, java.util.Arrays.asList(parts).subList(3, parts.length), query,
-                    SeoAnalysis.adminCollections(query));
+                    SeoAnalysis.adminCollections(query), null); // administrator grant; collection remains only the view filter
         }
         if ((parts.length == 4 || parts.length == 5) && "collections".equals(parts[3])) {
             return collections(method, parts, query, body);

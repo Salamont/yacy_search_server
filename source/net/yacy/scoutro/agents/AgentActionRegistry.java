@@ -118,7 +118,8 @@ public final class AgentActionRegistry {
                 "Read entities, facts, relations, evidence and sources of the knowledge graph, the business view (industry, "
                         + "services, prices, contacts, jobs, audiences), the network around an entity, comparisons, suggested "
                         + "matches and facets; names, values, counts and evidence come only from documents of granted collections, "
-                        + "derived rows only where both of their collections are granted.",
+                        + "derived rows only where both of their collections are granted. The collection filter selects origin facts; "
+                        + "customer/partner suggestions of that origin may reach all granted collections, with scoped evidence and target links.",
                 Risk.READ, true, "GET", "/kg/entities", false, ext, worker));
         add(new Action("kg.export", "Knowledge graph export",
                 "Export the knowledge graph of granted collections page by page and follow its change feed with delete "

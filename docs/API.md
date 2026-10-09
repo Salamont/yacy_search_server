@@ -667,6 +667,46 @@ is ever written to Solr.
 | `GET /scoutro/api/agent/v1/kg/{entities,statements,hosts,sources}/…`, `…/kg/entities/{id}/business`, `…/neighborhood`, `…/kg/compare`, `…/kg/derived`, `…/kg/facets`, `…/kg/services`, `…/kg/services/providers`, `…/kg/services/network` | agent with `kg.read` | The read routes for the agent's collections; derived rows only with both of their collections. The collection settings (`kg/collections`) are never an agent route |
 | `GET /scoutro/api/agent/v1/kg/export`, `…/kg/changes` | agent with `kg.export` | Export pages and change feed for the agent's collections |
 
+**Collection-crossing suggestions (package A).** The collection filter selects
+the origin and its ordinary facts. The business view's `suggestions` page and
+the origin's neighborhood (`suggested=true`) may include existing customer and
+partner derivations from all server-authorized collections. Administrator
+access grants all collections; agents remain limited to their fixed grants,
+with `collection` validated independently. No request parameter grants a
+candidate collection. Other derived kinds, ordinary graph edges, facets,
+general export/download and change feeds retain their strict filter.
+
+`GET /scoutro/api/v1/kg/entities/{id}/suggestions?collection=ORIGIN&offset=0&limit=25`
+(agent equivalent: `/scoutro/api/agent/v1/kg/entities/{id}/suggestions`, grant
+`kg.read`) returns `total`, `items`, `next_offset` after authorization and
+grouping by canonical endpoints and relationship. Customer direction is kept;
+partners are symmetric. Groups sort by strongest authorized contribution,
+then endpoint and kind. Page size is 1–100; offset may exceed the general
+10,000-row read cap. The business view embeds the first 100 groups; the
+standalone route supplies subsequent pages. A missing/invisible origin is
+404; an ungranted agent collection is 403; unknown parameters are 400.
+
+Targets contain authorized `collections`, `other_collections` for visible
+external tags, and `target_collection` for navigation. `contributions` retain
+each authorized collection pair, reason, computation date and `score`, with
+supporting statement projections carrying their own `collection`. Request
+statement evidence and source details in that explicit context. Inaccessible
+references are omitted, `evidence_complete=false`, and the stored reason is
+replaced by an incomplete-basis notice. Raw basis JSON is not forwarded by this
+projection. Scores (including the legacy `confidence` alias) are technical
+ranking values, never measured probabilities. Counts and sorting do not use
+hidden contributions or memberships.
+
+Only the neighborhood center can gain external suggestions; depth-2 ordinary
+relations stay filtered. Neighbor counts deduplicate organizations before
+paging, while customer and partner roles remain separate edges. Grouped edge
+IDs are presentation keys `suggestion:<kind>:<from>:<to>`, not stored row IDs;
+partner keys use canonical endpoint ordering. `next_offset` advances direct
+neighbor pages only; `truncated=true` without a next page can describe a
+depth-2/node cap. Network UI JSON/GraphML exports contain the loaded visible
+nodes and scoped contribution metadata. Existing computation caps still limit
+which rows exist. This read-only change needs no re-extraction or rebuild.
+
 **Display names (package 6.1).** Entities, references, nodes, statement
 subjects and objects, providers and service rows carry `display_name` and
 `display_name_source` next to `name`: `fact` (the stated name), `legal` (a

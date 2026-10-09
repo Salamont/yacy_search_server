@@ -604,7 +604,7 @@ schemas["KgSourcePage"] = kg_page("KgStatement", {"source": {"type": "object", "
     "collections": {"type": "array", "items": {"type": "string"}}, "state": {"type": "string"}, "current": {"type": "boolean"}, "loaded_at": KG_DT, "processed_at": KG_DT,
     "tiers": {"type": "array", "items": {"type": "integer"}}, "jsonld_bytes": {"type": "integer"}, "jsonld_skipped": {"type": "boolean"},
     "llm": {"type": ["object", "null"], "properties": {"status": {"type": "string", "enum": ["done", "failed", "skipped"]}, "reason": {"type": ["string", "null"]}}}}}})
-KG_COLLECTION = q("collection", {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.")
+KG_COLLECTION = q("collection", {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.")
 KG_OFFSET = q("offset", {"type": "integer", "minimum": 0, "maximum": 10000, "default": 0}, "First item.")
 def KG_LIMIT(default, maximum): return q("limit", {"type": "integer", "minimum": 1, "maximum": maximum, "default": default}, "Items per page.")
 KG_EID = {"name": "id", "in": "path", "required": True, "description": "Entity ID.", "schema": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}}
@@ -639,6 +639,9 @@ KG_FACT = {"statement": {"type": "string", "pattern": "^kgs_[a-z2-7]{20}$"}, "st
     "kinds": {"type": "array", "items": {"type": "string", "enum": ["jsonld", "metadata", "rule", "llm"]}}, "last_confirmed": KG_DT,
     "sources": {"type": "integer"}, "source_docs": {"type": "array", "items": {"type": "object", "properties": {"doc_id": {"type": "string"}, "url": {"type": ["string", "null"]}}}, "description": "Up to 3 visible source pages."}}
 KG_REF = {"type": "object", "properties": {"id": {"type": "string", "pattern": "^kge_[a-z2-7]{20}$"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY, "type": {"type": ["string", "null"]}}}
+KG_TARGET_REF = {"type": "object", "properties": {**KG_REF["properties"], "collections": {"type": "array", "items": {"type": "string"}, "description": "Authorized memberships only (suggestion targets)."},
+    "other_collections": {"type": "array", "items": {"type": "string"}, "description": "Authorized target memberships outside the origin view."},
+    "target_collection": {"type": "string", "description": "Explicit authorized target context; takes precedence over the origin filter in links."}}}
 schemas["KgLiteral"] = {"type": "object", "description": "A visible literal of the entity with its labels and status.", "properties": {**KG_FACT,
     "value": {"description": "The stored value; a JSON value (contact point, service area, price, salary) as an object."},
     "label": {"type": ["string", "null"], "description": "NACE: the official English title."}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]},
@@ -660,6 +663,22 @@ schemas["KgDerived"] = {"type": "object", "description": "A derived row, never a
     "reason": {"type": ["string", "null"], "description": "Why it was suggested, e.g. offers care/tagespflege, seeks target_category care.ambulant, same region."},
     "basis": {"type": ["object", "null"], "description": "The facts of both sides it rests on (statement IDs of A and of B, shared places, link pages)."},
     "computed_at": KG_DT, "fact": {"type": "boolean", "enum": [False]}, "label": {"type": "string", "enum": ["weak_signal", "derived", "suggestion"], "description": "UI and chat show suggestion as \"Vorschlag\" / \"moeglicher Kunde\", never as a customer relation."}}}
+KG_CONTRIBUTION = {"type": "object", "properties": {
+    "id": {"type": "string"}, "direction": {"type": "string", "enum": ["in", "out"]}, "collection_a": {"type": "string"}, "collection_b": {"type": "string"},
+    "origin_collection": {"type": "string"}, "target_collection": {"type": "string"}, "reason": {"type": "string"},
+    "score": {"type": "number", "description": "Technical sorting value, not a measured probability."}, "computed_at": KG_DT,
+    "evidence_complete": {"type": "boolean", "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."},
+    "evidence": {"type": "array", "items": {"allOf": [ref("KgStatement"), {"type": "object", "properties": {"collection": {"type": "string", "description": "Explicit context for evidence and source reads."}}}]}}}}
+schemas["KgSuggestion"] = {"type": "object", "description": "Existing customer/partner derivations grouped by organization and relation; every contribution has both collections authorized. No new matching, no fact.", "properties": {
+    **{key: value for key, value in schemas["KgDerived"]["properties"].items() if key != "basis"},
+    "kind": {"type": "string", "enum": ["suggested_customer", "suggested_partner"]}, "other": KG_TARGET_REF,
+    "confidence": {"type": "number", "description": "Legacy alias of score, not a measured probability."},
+    "score": {"type": "number", "description": "Best authorized contribution's technical sorting value; never a probability."},
+    "target_collection": {"type": "string"}, "origin_collections": {"type": "array", "items": {"type": "string"}},
+    "contributions": {"type": "array", "items": KG_CONTRIBUTION}}}
+schemas["KgSuggestionPage"] = {"type": "object", "required": ["schema", "origin", "offset", "limit", "total", "items", "next_offset"], "properties": {
+    "schema": KG_BUSINESS_SCHEMA, "origin": {"type": "string"}, "offset": {"type": "integer"}, "limit": {"type": "integer"}, "total": {"type": "integer", "description": "Authorized groups, counted after endpoint visibility and grouping, before pagination."},
+    "items": {"type": "array", "items": ref("KgSuggestion")}, "next_offset": {"type": ["integer", "null"]}, "note": {"type": "string"}, "lag": KG_LAG}}
 schemas["KgJob"] = {"type": "object", "properties": {"id": {"type": "string"}, "title": {"type": ["string", "null"]}, "valid_through": {"type": "string"},
     "date_posted": {"type": "string"}, "start_date": {"type": "string"}, "occupational_field": {"type": "string"},
     "employment_type": {"type": "array", "items": ref("KgLiteral")}, "industry": {"type": "array", "items": ref("KgLiteral")}, "application_route": {"type": "array", "items": ref("KgLiteral")},
@@ -712,6 +731,11 @@ schemas["KgFacets"] = {"type": "object", "properties": {"schema": KG_BUSINESS_SC
     "target_industries": KG_FACET, "employment_types": KG_FACET,
     "counts": {"type": "object", "properties": {"jobs": {"type": "integer"}, "services": {"type": "integer"}, "prices": {"type": "integer"}, "derived": {"type": "object", "additionalProperties": {"type": "integer"}}}}, "lag": KG_LAG}}
 KG_BOOL = lambda name, default, text: q(name, {"type": "boolean", "default": default}, text)
+schemas["KgBusinessView"]["properties"]["suggestions"] = ref("KgSuggestionPage")
+KG_SUGGESTION_NOTE = " The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter."
+KG_SUGGESTION_OFFSET = q("offset", {"type": "integer", "minimum": 0, "maximum": 2147483547, "default": 0}, "First authorized group.")
+paths["/v1/kg/entities/{id}/suggestions"] = {"get": op("kg.entity.suggestions", "Customer and partner suggestions of an origin", KG_SUGGESTION_NOTE + KG_READ_NOTE, ["knowledge"],
+    {**ok("Authorized suggestions (existing derivations).", "KgSuggestionPage"), **KG_ERRS}, params=[KG_EID, KG_SUGGESTION_OFFSET, KG_LIMIT(25, 100), KG_COLLECTION])}
 paths["/v1/kg/entities/{id}/business"] = {"get": op("kg.entity.business", "Business view of an entity", "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections." + KG_READ_NOTE, ["knowledge"], {**ok("Business view.", "KgBusinessView"), **KG_ERRS}, params=[KG_EID,
     q("include", {"type": "string", "enum": ["hidden_jobs"]}, "Also ended jobs past the visibility window."), KG_COLLECTION])}
 paths["/v1/kg/entities/{id}/neighborhood"] = {"get": op("kg.entity.neighborhood", "Network around an entity", "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of." + KG_READ_NOTE, ["knowledge"], {**ok("Neighbourhood.", "KgNeighborhood"), **KG_ERRS}, params=[KG_EID,
@@ -773,6 +797,18 @@ paths["/v1/kg/services/network"] = {"get": op("kg.services.network", "Network of
     KG_OFFSET, q("limit", {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}, "Providers per page (strongest line first)."),
     q("include", {"type": "string", "enum": ["stale"]}, "Also outdated offers."), KG_COLLECTION])}
 paths["/v1/kg/facets"] = {"get": op("kg.facets", "Filter values of the knowledge graph", "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows." + KG_READ_NOTE, ["knowledge"], {**ok("Facets.", "KgFacets"), **KG_ERRS}, params=[KG_COLLECTION])}
+
+# Scope exception is limited to the origin's suggestions, also in the graph.
+for _path in ("/v1/kg/entities/{id}/business", "/v1/kg/entities/{id}/neighborhood"):
+    paths[_path]["get"]["description"] += KG_SUGGESTION_NOTE
+for _parameter in paths["/v1/kg/entities/{id}/neighborhood"]["get"]["parameters"]:
+    if _parameter["name"] == "offset": _parameter["schema"]["maximum"] = 2147483447
+schemas["KgNeighborhood"]["properties"]["nodes"]["items"]["properties"].update({key: KG_TARGET_REF["properties"][key] for key in ("target_collection", "other_collections")})
+_edge_props = schemas["KgNeighborhood"]["properties"]["edges"]["items"]["properties"]
+_edge_props.update({"contributions": {"type": "array", "items": KG_CONTRIBUTION}, "score": schemas["KgSuggestion"]["properties"]["score"],
+    "target_collection": {"type": "string"}, "origin_collections": {"type": "array", "items": {"type": "string"}}, "reason": {"type": "string"}, "computed_at": KG_DT})
+_edge_props["id"]["description"] = "Statement/derived-row ID; grouped suggestions use suggestion:<kind>:<from>:<to> (presentation key, not a stored row ID). Partners use canonical endpoint ordering in this key."
+_edge_props["evidence"]["description"] = "Visible source pages for facts; scoped supporting statement references for suggestions; zero for other derived rows."
 
 # knowledge graph export, change feed and download (package 4)
 KG_RECORD = {"type": "string", "enum": ["entity", "statement", "derived"], "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first); derived: a KgDerived row (vocabulary 2), only where the viewer sees both of its collections."}
@@ -1004,7 +1040,7 @@ for suffix, operation, result_schema, parameters in report_endpoints:
     paths["/agent/v1" + suffix] = {"get": aop("agent." + operation, "Crawl report (scoped)", REPORT_NOTE + " Requires explicit report.read, absent from presets; foreign collections are refused (403), jobs with a collection outside the scope are not visible (404).", ["agent", "reports"], {**ok("Scoped crawl report.", result_schema), **aerrs("400", "401", "403", "404", "405", "429", "503")}, params=parameters, grants=["report.read"])}
 
 # Knowledge graph on the agent path: the read routes (kg.read) and export/changes (kg.export), never status, control, the prompt or the download.
-KG_AGENT_NOTE = " On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field."
+KG_AGENT_NOTE = " On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field."
 for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/prompt", "/v1/kg/export/download",
         "/v1/kg/collections", "/v1/kg/collections/{collection}")]:
     o = paths[path]["get"]
@@ -1287,11 +1323,11 @@ mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'
 mcp.update({'kg.prompt': 'scoutro_kg_prompt', 'kg.prompt.change': 'scoutro_kg_prompt_change'})  # administrator only: never an agent tool
 mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entity', 'kg.entity.statements': 'scoutro_kg_entity_statements', 'kg.statement': 'scoutro_kg_statement', 'kg.statement.evidence': 'scoutro_kg_statement_evidence', 'kg.host.entities': 'scoutro_kg_host_entities', 'kg.source': 'scoutro_kg_source'})
 cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
-mcp.update({'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
+mcp.update({'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.suggestions': 'scoutro_kg_entity_suggestions', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
             'kg.derived': 'scoutro_kg_derived', 'kg.facets': 'scoutro_kg_facets', 'kg.services': 'scoutro_kg_services',
             'kg.services.providers': 'scoutro_kg_services_providers', 'kg.services.network': 'scoutro_kg_services_network',
             'kg.collections': 'scoutro_kg_collections', 'kg.collection.update': 'scoutro_kg_collection_update'})
-cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]',
+cli.update({'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.suggestions': 'HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions?collection=ORIGIN&offset=0&limit=25', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]',
             'kg.compare': 'scoutroctl kg compare CATEGORY', 'kg.derived': 'scoutroctl kg derived [--kind K] [--entity ID]', 'kg.facets': 'scoutroctl kg facets',
             'kg.services': 'scoutroctl kg services [--q TEXT] [--category C]', 'kg.services.providers': 'scoutroctl kg service-providers NAME [--category C]',
             'kg.services.network': 'scoutroctl kg service-network NAME [--category C] [--limit N] [--offset N] [--include-stale]',

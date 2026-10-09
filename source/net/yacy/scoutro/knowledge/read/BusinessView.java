@@ -239,6 +239,13 @@ public final class BusinessView {
 
     /** The business view of an entity, or a redirect, or null if it is invisible. */
     public JSONObject entity(final String id, final Viewer v, final boolean hiddenJobs) throws KgException, KgReader.NotFound {
+        return entity(id, v, v, hiddenJobs);
+    }
+
+    /** Only customer/partner suggestions use the caller's full permission scope. */
+    public JSONObject entity(final String id, final Viewer selected, final Viewer permitted, final boolean hiddenJobs)
+            throws KgException, KgReader.NotFound {
+        final Viewer v = KgReader.within(selected, permitted);
         final long now = this.reader.now();
         final Object r = this.reader.store().read(c -> {
             final long[] ent = KgReader.entityRow(c, id, v);
@@ -248,7 +255,7 @@ public final class BusinessView {
             if (ent[1] != 0L) {
                 return KgJson.obj("schema", SCHEMA, "redirect", KgReader.publicId(c, ent[1]));
             }
-            return view(c, ent[0], v, now, hiddenJobs);
+            return view(c, ent[0], v, permitted, now, hiddenJobs);
         });
         if (r == null) {
             throw new KgReader.NotFound("entity " + id);
@@ -257,6 +264,11 @@ public final class BusinessView {
     }
 
     JSONObject view(final Connection c, final long ent, final Viewer v, final long now, final boolean hiddenJobs) throws SQLException {
+        return view(c, ent, v, v, now, hiddenJobs);
+    }
+
+    private JSONObject view(final Connection c, final long ent, final Viewer v, final Viewer permitted, final long now,
+            final boolean hiddenJobs) throws SQLException {
         loadCollections(c);
         final Categories cats = KgVocabularies.get().categories;
         final Nace nace = KgVocabularies.get().nace;
@@ -377,15 +389,26 @@ public final class BusinessView {
                 collect(f, docs);
             }
         }
-        final JSONObject suggested = derived(c, ent, v, Set.of(DerivedKind.SUGGESTED_CUSTOMER));
-        if (declared.length() > 0 || observed.length() > 0 || suggested.length() > 0) {
-            KgJson.put(out, "audiences", KgJson.obj("declared", declared, "observed", observed, "suggested",
-                    suggested.optJSONArray("suggested_customer") == null ? new JSONArray() : suggested.optJSONArray("suggested_customer")));
+        final JSONObject suggestionPage = new Suggestions(this.reader).page(c, ent, 0, MAX_DERIVED, v, permitted);
+        final JSONObject matches = new JSONObject();
+        final JSONArray suggestionItems = suggestionPage.optJSONArray("items");
+        for (int i = 0; i < suggestionItems.length(); i++) {
+            final JSONObject item = suggestionItems.optJSONObject(i);
+            final String key = Vocabulary.SUGGESTED_CUSTOMER.equals(item.optString("kind")) && "in".equals(item.optString("direction"))
+                    ? "as_possible_customer" : item.optString("kind");
+            if (!matches.has(key)) KgJson.put(matches, key, new JSONArray());
+            matches.optJSONArray(key).put(item);
         }
-        final JSONObject matches = derived(c, ent, v, Set.of(DerivedKind.SUGGESTED_CUSTOMER, DerivedKind.SUGGESTED_PARTNER));
+        final JSONArray customerSuggestions = matches.optJSONArray(Vocabulary.SUGGESTED_CUSTOMER) == null ? new JSONArray()
+                : matches.optJSONArray(Vocabulary.SUGGESTED_CUSTOMER);
+        if (declared.length() > 0 || observed.length() > 0 || customerSuggestions.length() > 0) {
+            KgJson.put(out, "audiences", KgJson.obj("declared", declared, "observed", observed, "suggested",
+                    customerSuggestions));
+        }
         if (matches.length() > 0) {
             KgJson.put(out, "suggested_matches", matches);
         }
+        KgJson.put(out, "suggestions", suggestionPage);
         // the remaining statements of the entity (names, identifiers, descriptions, ...) are in the overview
         KgJson.put(out, "sources", sources(c, docs, v));
         KgJson.put(out, "as_of", KgJson.obj("epoch", this.reader.store().epoch(), "seq",
@@ -704,7 +727,7 @@ public final class BusinessView {
         return o;
     }
 
-    private static JSONObject entityRef(final Connection c, final long ent, final Viewer v) throws SQLException {
+    static JSONObject entityRef(final Connection c, final long ent, final Viewer v) throws SQLException {
         String type = null;
         try (PreparedStatement ps = c.prepareStatement("SELECT t.name FROM kg_entity e JOIN kg_vocab t ON t.term_id = e.type WHERE e.ent_rowid = ?")) {
             ps.setLong(1, ent);

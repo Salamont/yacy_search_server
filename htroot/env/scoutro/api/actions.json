@@ -1750,7 +1750,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -1770,7 +1770,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgEntityPage",
@@ -1824,7 +1824,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgEntity",
@@ -1902,7 +1902,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -1922,7 +1922,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgStatementPage",
@@ -1976,7 +1976,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgStatement",
@@ -2028,7 +2028,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2048,7 +2048,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgEvidencePage",
@@ -2100,7 +2100,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2120,7 +2120,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgEntityPage",
@@ -2172,7 +2172,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2192,7 +2192,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgSourcePage",
@@ -2224,8 +2224,80 @@
       }
     },
     {
+      "name": "kg.entity.suggestions",
+      "description": " The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/entities/{id}/suggestions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "Entity ID."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483547,
+          "default": 0,
+          "in": "query",
+          "required": false,
+          "description": "First authorized group."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
+        }
+      },
+      "returns": "KgSuggestionPage",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions?collection=ORIGIN&offset=0&limit=25",
+      "mcpTool": "scoutro_kg_entity_suggestions",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities/{id}/suggestions"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
       "name": "kg.entity.business",
-      "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -2255,7 +2327,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgBusinessView",
@@ -2288,7 +2360,7 @@
     },
     {
       "name": "kg.entity.neighborhood",
-      "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -2325,7 +2397,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2387,7 +2459,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgNeighborhood",
@@ -2451,7 +2523,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgCompare",
@@ -2515,7 +2587,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2535,7 +2607,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgDerivedPage",
@@ -2595,7 +2667,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2615,7 +2687,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgServiceGroupPage",
@@ -2675,7 +2747,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2695,7 +2767,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgServiceProviders",
@@ -2755,7 +2827,7 @@
         "offset": {
           "type": "integer",
           "minimum": 0,
-          "maximum": 10000,
+          "maximum": 2147483447,
           "default": 0,
           "in": "query",
           "required": false,
@@ -2784,7 +2856,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgServiceNetwork",
@@ -2831,7 +2903,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgFacets",
@@ -2904,7 +2976,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgExportPage",
@@ -2975,7 +3047,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgChanges",
@@ -3042,7 +3114,7 @@
           "pattern": "^[A-Za-z0-9_-]{1,64}$",
           "in": "query",
           "required": false,
-          "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing."
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
         }
       },
       "returns": "KgExportDownload",
@@ -10228,6 +10300,335 @@
         }
       }
     },
+    "KgSuggestion": {
+      "type": "object",
+      "description": "Existing customer/partner derivations grouped by organization and relation; every contribution has both collections authorized. No new matching, no fact.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^kgd_[a-z2-7]{20}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "suggested_customer",
+            "suggested_partner"
+          ]
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "out",
+            "in"
+          ]
+        },
+        "subject": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "other": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Authorized memberships only (suggestion targets)."
+            },
+            "other_collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Authorized target memberships outside the origin view."
+            },
+            "target_collection": {
+              "type": "string",
+              "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+            }
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "description": "Legacy alias of score, not a measured probability."
+        },
+        "reason": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Why it was suggested, e.g. offers care/tagespflege, seeks target_category care.ambulant, same region."
+        },
+        "computed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "fact": {
+          "type": "boolean",
+          "enum": [
+            false
+          ]
+        },
+        "label": {
+          "type": "string",
+          "enum": [
+            "weak_signal",
+            "derived",
+            "suggestion"
+          ],
+          "description": "UI and chat show suggestion as \"Vorschlag\" / \"moeglicher Kunde\", never as a customer relation."
+        },
+        "score": {
+          "type": "number",
+          "description": "Best authorized contribution's technical sorting value; never a probability."
+        },
+        "target_collection": {
+          "type": "string"
+        },
+        "origin_collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "contributions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "in",
+                  "out"
+                ]
+              },
+              "collection_a": {
+                "type": "string"
+              },
+              "collection_b": {
+                "type": "string"
+              },
+              "origin_collection": {
+                "type": "string"
+              },
+              "target_collection": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "score": {
+                "type": "number",
+                "description": "Technical sorting value, not a measured probability."
+              },
+              "computed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "evidence_complete": {
+                "type": "boolean",
+                "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/KgStatement"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "collection": {
+                          "type": "string",
+                          "description": "Explicit context for evidence and source reads."
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "KgSuggestionPage": {
+      "type": "object",
+      "required": [
+        "schema",
+        "origin",
+        "offset",
+        "limit",
+        "total",
+        "items",
+        "next_offset"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "origin": {
+          "type": "string"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer",
+          "description": "Authorized groups, counted after endpoint visibility and grouping, before pagination."
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/KgSuggestion"
+          }
+        },
+        "next_offset": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "note": {
+          "type": "string"
+        },
+        "lag": {
+          "type": "object",
+          "description": "How far the graph lags behind Solr (absent without the sync).",
+          "properties": {
+            "pending": {
+              "type": "integer"
+            },
+            "oldest_pending_age_s": {
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "reconcile_pending": {
+              "type": "boolean"
+            },
+            "byType": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+              "properties": {
+                "new": {
+                  "type": "integer"
+                },
+                "update": {
+                  "type": "integer"
+                },
+                "delete": {
+                  "type": "integer"
+                },
+                "reconcile": {
+                  "type": "integer"
+                },
+                "captured": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "KgJob": {
       "type": "object",
       "properties": {
@@ -11007,6 +11408,9 @@
               }
             }
           }
+        },
+        "suggestions": {
+          "$ref": "#/components/schemas/KgSuggestionPage"
         }
       }
     },
@@ -11171,6 +11575,17 @@
               "service": {
                 "type": "string",
                 "description": "Price nodes: the service the price belongs to (never another provider's)."
+              },
+              "target_collection": {
+                "type": "string",
+                "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+              },
+              "other_collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Authorized target memberships outside the origin view."
               }
             }
           }
@@ -11182,7 +11597,7 @@
             "properties": {
               "id": {
                 "type": "string",
-                "description": "Statement (kgs_) or derived row (kgd_) ID."
+                "description": "Statement/derived-row ID; grouped suggestions use suggestion:<kind>:<from>:<to> (presentation key, not a stored row ID). Partners use canonical endpoint ordering in this key."
               },
               "from": {
                 "type": "string"
@@ -11212,7 +11627,7 @@
               },
               "evidence": {
                 "type": "integer",
-                "description": "Visible source pages (0 for derived rows)."
+                "description": "Visible source pages for facts; scoped supporting statement references for suggestions; zero for other derived rows."
               },
               "fact": {
                 "type": "boolean"
@@ -11224,6 +11639,96 @@
                   "out"
                 ],
                 "description": "Edges of the centre: in when it points to the centre (a provider offers the service in the centre), out when the centre points away."
+              },
+              "contributions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string",
+                      "enum": [
+                        "in",
+                        "out"
+                      ]
+                    },
+                    "collection_a": {
+                      "type": "string"
+                    },
+                    "collection_b": {
+                      "type": "string"
+                    },
+                    "origin_collection": {
+                      "type": "string"
+                    },
+                    "target_collection": {
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "score": {
+                      "type": "number",
+                      "description": "Technical sorting value, not a measured probability."
+                    },
+                    "computed_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "evidence_complete": {
+                      "type": "boolean",
+                      "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "allOf": [
+                          {
+                            "$ref": "#/components/schemas/KgStatement"
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "collection": {
+                                "type": "string",
+                                "description": "Explicit context for evidence and source reads."
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              "score": {
+                "type": "number",
+                "description": "Best authorized contribution's technical sorting value; never a probability."
+              },
+              "target_collection": {
+                "type": "string"
+              },
+              "origin_collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "reason": {
+                "type": "string"
+              },
+              "computed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
               }
             }
           }

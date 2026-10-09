@@ -28,6 +28,7 @@ import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.read.BusinessGraph;
+import net.yacy.scoutro.knowledge.read.Suggestions;
 import net.yacy.scoutro.knowledge.read.BusinessView;
 import net.yacy.scoutro.knowledge.read.KgExport;
 import net.yacy.scoutro.knowledge.read.KgReader;
@@ -99,6 +100,12 @@ final class KnowledgeRead {
      */
     JSONObject route(final String method, final List<String> parts, final Map<String, String> q, final List<String> collections)
             throws ApiException {
+        return route(method, parts, q, collections, collections);
+    }
+
+    /** View collections are already validated by the caller; grants are never taken from request parameters. */
+    JSONObject route(final String method, final List<String> parts, final Map<String, String> q, final List<String> collections,
+            final List<String> permittedCollections) throws ApiException {
         if (!"GET".equals(method)) {
             throw new ApiException(405, "method_not_allowed", "Knowledge graph reads use GET.", Json.obj("allowed", "GET"));
         }
@@ -114,7 +121,8 @@ final class KnowledgeRead {
             final boolean agent = AGENT_BASE.equals(this.base);
             // agents: evidence without model names, and no graph-wide backlog (it counts every collection)
             final KgReader reader = agent ? r.reader().forAgents() : r.reader();
-            final Viewer viewer = reader.viewer(collections);
+            final Viewer permitted = reader.viewer(permittedCollections);
+            final Viewer viewer = KgReader.within(reader.viewer(collections), permitted);
             final JSONObject out;
             switch (resource) {
                 case "entities":
@@ -136,14 +144,19 @@ final class KnowledgeRead {
                         out = reader.entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer);
                     } else if (parts.size() == 3 && "business".equals(parts.get(2))) {
                         allow(q, "include", "collection");
-                        out = new BusinessView(reader).entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer,
+                        out = new BusinessView(reader).entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer, permitted,
                                 oneOf(q, "include", Set.of("hidden_jobs")) != null);
+                    } else if (parts.size() == 3 && "suggestions".equals(parts.get(2))) {
+                        allow(q, "offset", "limit", "collection");
+                        out = new Suggestions(reader).page(id(parts.get(1), KgReader.ENTITY_ID, "entity"),
+                                intParam(q, "offset", 0, 0, Integer.MAX_VALUE - KgReader.MAX_LIMIT),
+                                intParam(q, "limit", 25, 1, KgReader.MAX_LIMIT), viewer, permitted);
                     } else if (parts.size() == 3 && "neighborhood".equals(parts.get(2))) {
                         allow(q, "depth", "limit", "offset", "types", "weak", "derived", "suggested", "values", "prices", "include", "collection");
                         final BusinessGraph.Query nq = new BusinessGraph.Query();
                         nq.depth = intParam(q, "depth", 1, 1, BusinessGraph.MAX_DEPTH);
                         nq.limit = intParam(q, "limit", 50, 1, BusinessGraph.MAX_NODES);
-                        nq.offset = intParam(q, "offset", 0, 0, KgReader.MAX_OFFSET);
+                        nq.offset = intParam(q, "offset", 0, 0, Integer.MAX_VALUE - BusinessGraph.MAX_NODES);
                         nq.types = types(q);
                         nq.weak = bool(q, "weak", false);
                         nq.derived = bool(q, "derived", true);
@@ -151,7 +164,7 @@ final class KnowledgeRead {
                         nq.values = bool(q, "values", true);
                         nq.prices = bool(q, "prices", false);
                         nq.stale = oneOf(q, "include", Set.of("stale")) != null;
-                        out = new BusinessGraph(reader).neighborhood(id(parts.get(1), KgReader.ENTITY_ID, "entity"), nq, viewer);
+                        out = new BusinessGraph(reader).neighborhood(id(parts.get(1), KgReader.ENTITY_ID, "entity"), nq, viewer, permitted);
                     } else if (parts.size() == 3 && "statements".equals(parts.get(2))) {
                         allow(q, "predicate", "direction", "include", "offset", "limit", "collection");
                         final String direction = oneOf(q, "direction", Set.of("in", "out"));
@@ -288,7 +301,7 @@ final class KnowledgeRead {
         switch (p.get(0)) {
             case "entities":
                 return n == 1 || n == 2 || n == 3 && ("statements".equals(p.get(2)) || "business".equals(p.get(2))
-                        || "neighborhood".equals(p.get(2)));
+                        || "neighborhood".equals(p.get(2)) || "suggestions".equals(p.get(2)));
             case "statements":
                 return n == 2 || n == 3 && "evidence".equals(p.get(2));
             case "hosts":

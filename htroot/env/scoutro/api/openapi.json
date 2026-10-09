@@ -2347,7 +2347,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -2367,7 +2367,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -2470,7 +2470,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -2612,7 +2612,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -2632,7 +2632,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -2735,7 +2735,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -2842,7 +2842,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -2862,7 +2862,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -2969,7 +2969,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -2989,7 +2989,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -3096,7 +3096,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -3116,7 +3116,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -3196,11 +3196,138 @@
         "x-scoutro-mutating": false
       }
     },
+    "/v1/kg/entities/{id}/suggestions": {
+      "get": {
+        "operationId": "kg.entity.suggestions",
+        "summary": "Customer and partner suggestions of an origin",
+        "description": " The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Entity ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First authorized group.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483547,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized suggestions (existing derivations).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgSuggestionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      }
+    },
     "/v1/kg/entities/{id}/business": {
       "get": {
         "operationId": "kg.entity.business",
         "summary": "Business view of an entity",
-        "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
         "tags": [
           "knowledge"
         ],
@@ -3231,7 +3358,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -3315,7 +3442,7 @@
       "get": {
         "operationId": "kg.entity.neighborhood",
         "summary": "Network around an entity",
-        "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+        "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
         "tags": [
           "knowledge"
         ],
@@ -3362,7 +3489,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -3442,7 +3569,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -3558,7 +3685,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -3680,7 +3807,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -3700,7 +3827,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -3818,7 +3945,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -3838,7 +3965,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -3956,7 +4083,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -3976,7 +4103,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -4094,7 +4221,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -4126,7 +4253,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -4219,7 +4346,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -4347,7 +4474,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -4483,7 +4610,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -4612,7 +4739,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -8626,7 +8753,7 @@
       "get": {
         "operationId": "agent.kg.backups",
         "summary": "Knowledge graph backups (scoped)",
-        "description": "Administrator only: the backup files in DATA/SCOUTRO/knowledge/backup, newest first, with their metadata (SHA-256, size, schema version, epoch, counts), and the backup state. A file copied into that directory by hand (named graph-<yyyyMMddTHHmmssZ>.db) is listed without metadata and can be restored. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Administrator only: the backup files in DATA/SCOUTRO/knowledge/backup, newest first, with their metadata (SHA-256, size, schema version, epoch, counts), and the backup state. A file copied into that directory by hand (named graph-<yyyyMMddTHHmmssZ>.db) is listed without metadata and can be restored. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -8738,7 +8865,7 @@
       "get": {
         "operationId": "agent.kg.backup.download",
         "summary": "Download a knowledge graph backup (scoped)",
-        "description": "Administrator only, never an agent grant: the backup as one SQLite file (application/vnd.sqlite3, Content-Disposition), to keep it outside the app. 404 backup_not_found for anything but a listed backup name. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Administrator only, never an agent grant: the backup as one SQLite file (application/vnd.sqlite3, Content-Disposition), to keep it outside the app. 404 backup_not_found for anything but a listed backup name. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -8858,7 +8985,7 @@
       "get": {
         "operationId": "agent.kg.entities",
         "summary": "List knowledge graph entities (scoped)",
-        "description": "Newest first. q searches visible names and aliases (all words, the last as a prefix). On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Newest first. q searches visible names and aliases (all words, the last as a prefix). On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -8956,7 +9083,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -8976,7 +9103,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -9090,7 +9217,7 @@
       "get": {
         "operationId": "agent.kg.entity",
         "summary": "Knowledge graph entity (scoped)",
-        "description": "One entity, or {\"redirect\": id} when it was merged into a visible survivor. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "One entity, or {\"redirect\": id} when it was merged into a visible survivor. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -9110,7 +9237,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -9224,7 +9351,7 @@
       "get": {
         "operationId": "agent.kg.entity.statements",
         "summary": "Facts and relations of an entity (scoped)",
-        "description": "direction=out: the entity's facts and relations; in: relations pointing to it. Stale facts only with include=stale. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "direction=out: the entity's facts and relations; in: relations pointing to it. Stale facts only with include=stale. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -9283,7 +9410,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -9303,7 +9430,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -9417,7 +9544,7 @@
       "get": {
         "operationId": "agent.kg.statement",
         "summary": "Knowledge graph statement (scoped)",
-        "description": "One statement as the viewer sees it. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "One statement as the viewer sees it. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -9437,7 +9564,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -9551,7 +9678,7 @@
       "get": {
         "operationId": "agent.kg.statement.evidence",
         "summary": "Evidence of a statement (scoped)",
-        "description": "The visible sources of one statement, newest first: page, collections, state, extractor, locator and excerpt. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "The visible sources of one statement, newest first: page, collections, state, extractor, locator and excerpt. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -9575,7 +9702,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -9595,7 +9722,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -9709,7 +9836,7 @@
       "get": {
         "operationId": "agent.kg.host.entities",
         "summary": "Knowledge graph entities of a host (scoped)",
-        "description": "Entities with visible evidence from documents of the host (for the SEO analysis and the Index Browser). On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Entities with visible evidence from documents of the host (for the SEO analysis and the Index Browser). On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -9733,7 +9860,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -9753,7 +9880,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -9867,7 +9994,7 @@
       "get": {
         "operationId": "agent.kg.source",
         "summary": "What the graph holds from one page (scoped)",
-        "description": "The source document (Solr id) and every visible fact it supports, with this page's evidence. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "The source document (Solr id) and every visible fact it supports, with this page's evidence. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -9891,7 +10018,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -9911,7 +10038,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -10021,11 +10148,169 @@
         ]
       }
     },
+    "/agent/v1/kg/entities/{id}/suggestions": {
+      "get": {
+        "operationId": "agent.kg.entity.suggestions",
+        "summary": "Customer and partner suggestions of an origin (scoped)",
+        "description": " The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "tags": [
+          "agent",
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Entity ID.",
+            "schema": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "description": "First authorized group.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2147483547,
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Items per page.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 25
+            }
+          },
+          {
+            "name": "collection",
+            "in": "query",
+            "required": false,
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorized suggestions (existing derivations).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgSuggestionPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found; for crawls also every crawl this agent did not start (crawl_not_found).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict: crawl not running, host_busy (another crawl runs on the same host), host_indexed_elsewhere, or crawl_start_unconfirmed (a recorded start with this Idempotency-Key whose outcome cannot be confirmed; it is never repeated automatically).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate_limited (requests per minute of this agent), limit_exceeded:maxParallelCrawls, or too_many_failures (failed authentications from this client).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Scoutro or the agent store is not available yet (a crawl start that cannot be recorded is not started).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "agentBearer": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-agent-grants": [
+          "kg.read"
+        ]
+      }
+    },
     "/agent/v1/kg/entities/{id}/business": {
       "get": {
         "operationId": "agent.kg.entity.business",
         "summary": "Business view of an entity (scoped)",
-        "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -10057,7 +10342,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -10171,7 +10456,7 @@
       "get": {
         "operationId": "agent.kg.entity.neighborhood",
         "summary": "Network around an entity (scoped)",
-        "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -10219,7 +10504,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -10299,7 +10584,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -10413,7 +10698,7 @@
       "get": {
         "operationId": "agent.kg.compare",
         "summary": "Compare services and prices across providers (scoped)",
-        "description": "All visible services of one Scoutro category with their providers and prices as published (amount, currency, unit, kind, conditions, VAT, date, status, sources); never converted, normalised or averaged; conflicts stay visible. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "All visible services of one Scoutro category with their providers and prices as published (amount, currency, unit, kind, conditions, VAT, date, status, sources); never converted, normalised or averaged; conflicts stay visible. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -10446,7 +10731,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -10560,7 +10845,7 @@
       "get": {
         "operationId": "agent.kg.derived",
         "summary": "Derived relations and suggested matches (scoped)",
-        "description": "Derived rows the viewer may see (both collections): linked_to (weak), same_operator, suggested_customer, suggested_partner; never facts, each with its reason and the facts of both sides. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Derived rows the viewer may see (both collections): linked_to (weak), same_operator, suggested_customer, suggested_partner; never facts, each with its reason and the facts of both sides. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -10599,7 +10884,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -10619,7 +10904,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -10733,7 +11018,7 @@
       "get": {
         "operationId": "agent.kg.services",
         "summary": "Services of the same name across providers (scoped)",
-        "description": "Package 6.1: read-only groups of the visible services by name (SAP · 133 providers), the largest first: providers, services without a provider, the viewer's collections, the providers' places, how many with a current price and with a current source. Every provider's service stays its own entity with its own provider, prices and sources; no entity, ID, price or evidence changes, nothing is merged or averaged. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Package 6.1: read-only groups of the visible services by name (SAP · 133 providers), the largest first: providers, services without a provider, the viewer's collections, the providers' places, how many with a current price and with a current source. Every provider's service stays its own entity with its own provider, prices and sources; no entity, ID, price or evidence changes, nothing is merged or averaged. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -10768,7 +11053,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -10788,7 +11073,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -10902,7 +11187,7 @@
       "get": {
         "operationId": "agent.kg.services.providers",
         "summary": "The services of one name, each with its provider (scoped)",
-        "description": "Package 6.1: the group of one service name and its services, one row per service with its own provider (name, hosts, collections, places), quality, sources and price counts. 404 not_found when no visible service has the name. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Package 6.1: the group of one service name and its services, one row per service with its own provider (name, hosts, collections, places), quality, sources and price counts. 404 not_found when no visible service has the name. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -10937,7 +11222,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -10957,7 +11242,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -11071,7 +11356,7 @@
       "get": {
         "operationId": "agent.kg.services.network",
         "summary": "Network of all providers of one service name (scoped)",
-        "description": "Package 6.2: all visible providers of one service name (SAP) around a virtual centre that is the name only, no object: one node per provider with its context, one line per provider's own offers statement to its own service, which the line names (field service, with its own prices, sources and collections). Services, prices, sources and facts of different providers are never merged or mixed. Paged by provider, the strongest line first; outdated offers only with include=stale. Services without a visible provider are counted in group.without_provider, not drawn. The network of one object (GET entities/{id}/neighborhood) is unchanged. 404 not_found when no visible service has the name. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "Package 6.2: all visible providers of one service name (SAP) around a virtual centre that is the name only, no object: one node per provider with its context, one line per provider's own offers statement to its own service, which the line names (field service, with its own prices, sources and collections). Services, prices, sources and facts of different providers are never merged or mixed. Paged by provider, the strongest line first; outdated offers only with include=stale. Services without a visible provider are counted in group.without_provider, not drawn. The network of one object (GET entities/{id}/neighborhood) is unchanged. 404 not_found when no visible service has the name. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -11106,7 +11391,7 @@
             "schema": {
               "type": "integer",
               "minimum": 0,
-              "maximum": 10000,
+              "maximum": 2147483447,
               "default": 0
             }
           },
@@ -11138,7 +11423,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -11252,7 +11537,7 @@
       "get": {
         "operationId": "agent.kg.facets",
         "summary": "Filter values of the knowledge graph (scoped)",
-        "description": "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
+        "description": "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.read, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -11262,7 +11547,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -11376,7 +11661,7 @@
       "get": {
         "operationId": "agent.kg.export",
         "summary": "Export the knowledge graph (pages) (scoped)",
-        "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.export, absent from presets.",
+        "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.export, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -11421,7 +11706,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -11545,7 +11830,7 @@
       "get": {
         "operationId": "agent.kg.changes",
         "summary": "Knowledge graph change feed (scoped)",
-        "description": "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100). 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. On the agent path the viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope; every name, value, count and piece of evidence comes from those collections only, objects without evidence there are 404, evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.export, absent from presets.",
+        "description": "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100). 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field. Requires the explicit grant kg.export, absent from presets.",
         "tags": [
           "agent",
           "knowledge"
@@ -11588,7 +11873,7 @@
             "name": "collection",
             "in": "query",
             "required": false,
-            "description": "Only evidence from this collection counts; names, values, counts and hosts of other collections stay invisible and their objects are not_found. Unknown valid names see nothing.",
+            "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions.",
             "schema": {
               "type": "string",
               "pattern": "^[A-Za-z0-9_-]{1,64}$"
@@ -19779,6 +20064,335 @@
           }
         }
       },
+      "KgSuggestion": {
+        "type": "object",
+        "description": "Existing customer/partner derivations grouped by organization and relation; every contribution has both collections authorized. No new matching, no fact.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^kgd_[a-z2-7]{20}$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "suggested_customer",
+              "suggested_partner"
+            ]
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "out",
+              "in"
+            ]
+          },
+          "subject": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^kge_[a-z2-7]{20}$"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
+                ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
+              },
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "other": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^kge_[a-z2-7]{20}$"
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "display_name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+              },
+              "display_name_source": {
+                "type": "string",
+                "enum": [
+                  "fact",
+                  "legal",
+                  "operator",
+                  "domain",
+                  "fallback"
+                ]
+              },
+              "display_host": {
+                "type": "string",
+                "description": "With display_name_source domain: the host the name is derived from."
+              },
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Authorized memberships only (suggestion targets)."
+              },
+              "other_collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Authorized target memberships outside the origin view."
+              },
+              "target_collection": {
+                "type": "string",
+                "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+              }
+            }
+          },
+          "confidence": {
+            "type": "number",
+            "description": "Legacy alias of score, not a measured probability."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it was suggested, e.g. offers care/tagespflege, seeks target_category care.ambulant, same region."
+          },
+          "computed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "fact": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "label": {
+            "type": "string",
+            "enum": [
+              "weak_signal",
+              "derived",
+              "suggestion"
+            ],
+            "description": "UI and chat show suggestion as \"Vorschlag\" / \"moeglicher Kunde\", never as a customer relation."
+          },
+          "score": {
+            "type": "number",
+            "description": "Best authorized contribution's technical sorting value; never a probability."
+          },
+          "target_collection": {
+            "type": "string"
+          },
+          "origin_collections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "contributions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "in",
+                    "out"
+                  ]
+                },
+                "collection_a": {
+                  "type": "string"
+                },
+                "collection_b": {
+                  "type": "string"
+                },
+                "origin_collection": {
+                  "type": "string"
+                },
+                "target_collection": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number",
+                  "description": "Technical sorting value, not a measured probability."
+                },
+                "computed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "evidence_complete": {
+                  "type": "boolean",
+                  "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."
+                },
+                "evidence": {
+                  "type": "array",
+                  "items": {
+                    "allOf": [
+                      {
+                        "$ref": "#/components/schemas/KgStatement"
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "collection": {
+                            "type": "string",
+                            "description": "Explicit context for evidence and source reads."
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "KgSuggestionPage": {
+        "type": "object",
+        "required": [
+          "schema",
+          "origin",
+          "offset",
+          "limit",
+          "total",
+          "items",
+          "next_offset"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string",
+            "enum": [
+              "scoutro.kg.business.v1"
+            ]
+          },
+          "origin": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer",
+            "description": "Authorized groups, counted after endpoint visibility and grouping, before pagination."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KgSuggestion"
+            }
+          },
+          "next_offset": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "note": {
+            "type": "string"
+          },
+          "lag": {
+            "type": "object",
+            "description": "How far the graph lags behind Solr (absent without the sync).",
+            "properties": {
+              "pending": {
+                "type": "integer"
+              },
+              "oldest_pending_age_s": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              },
+              "reconcile_pending": {
+                "type": "boolean"
+              },
+              "byType": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "Pending work by type (recounted every 5 s): new pages and updates are enrichment and wait during a pause; deletions and reconcile checks continue; captured changes are not yet queued.",
+                "properties": {
+                  "new": {
+                    "type": "integer"
+                  },
+                  "update": {
+                    "type": "integer"
+                  },
+                  "delete": {
+                    "type": "integer"
+                  },
+                  "reconcile": {
+                    "type": "integer"
+                  },
+                  "captured": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "KgJob": {
         "type": "object",
         "properties": {
@@ -20558,6 +21172,9 @@
                 }
               }
             }
+          },
+          "suggestions": {
+            "$ref": "#/components/schemas/KgSuggestionPage"
           }
         }
       },
@@ -20722,6 +21339,17 @@
                 "service": {
                   "type": "string",
                   "description": "Price nodes: the service the price belongs to (never another provider's)."
+                },
+                "target_collection": {
+                  "type": "string",
+                  "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                },
+                "other_collections": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Authorized target memberships outside the origin view."
                 }
               }
             }
@@ -20733,7 +21361,7 @@
               "properties": {
                 "id": {
                   "type": "string",
-                  "description": "Statement (kgs_) or derived row (kgd_) ID."
+                  "description": "Statement/derived-row ID; grouped suggestions use suggestion:<kind>:<from>:<to> (presentation key, not a stored row ID). Partners use canonical endpoint ordering in this key."
                 },
                 "from": {
                   "type": "string"
@@ -20763,7 +21391,7 @@
                 },
                 "evidence": {
                   "type": "integer",
-                  "description": "Visible source pages (0 for derived rows)."
+                  "description": "Visible source pages for facts; scoped supporting statement references for suggestions; zero for other derived rows."
                 },
                 "fact": {
                   "type": "boolean"
@@ -20775,6 +21403,96 @@
                     "out"
                   ],
                   "description": "Edges of the centre: in when it points to the centre (a provider offers the service in the centre), out when the centre points away."
+                },
+                "contributions": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "direction": {
+                        "type": "string",
+                        "enum": [
+                          "in",
+                          "out"
+                        ]
+                      },
+                      "collection_a": {
+                        "type": "string"
+                      },
+                      "collection_b": {
+                        "type": "string"
+                      },
+                      "origin_collection": {
+                        "type": "string"
+                      },
+                      "target_collection": {
+                        "type": "string"
+                      },
+                      "reason": {
+                        "type": "string"
+                      },
+                      "score": {
+                        "type": "number",
+                        "description": "Technical sorting value, not a measured probability."
+                      },
+                      "computed_at": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "format": "date-time"
+                      },
+                      "evidence_complete": {
+                        "type": "boolean",
+                        "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."
+                      },
+                      "evidence": {
+                        "type": "array",
+                        "items": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/KgStatement"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "collection": {
+                                  "type": "string",
+                                  "description": "Explicit context for evidence and source reads."
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "score": {
+                  "type": "number",
+                  "description": "Best authorized contribution's technical sorting value; never a probability."
+                },
+                "target_collection": {
+                  "type": "string"
+                },
+                "origin_collections": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "computed_at": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
                 }
               }
             }

@@ -113,7 +113,7 @@ class ScopedActions {
                     throw new ApiException(404, "not_found", "Unknown action '" + action + "' for this path.");
                 }
                 return ok(new KnowledgeRead(this.knowledge, KnowledgeRead.AGENT_BASE)
-                        .route(call.request.method, kg, q, filterCollections(agent, q.get("collection"))));
+                        .route(call.request.method, kg, q, filterCollections(agent, q.get("collection")), filterCollections(agent, null)));
             }
             case "search":
                 return ok(search(agent, q));
