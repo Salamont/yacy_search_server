@@ -69,6 +69,8 @@ Zusätzlich wurde das generierte OpenAPI-3.1-Dokument mit `openapi_spec_validato
 | OpenAPI, Generator, JS-Syntax, Diff | bestanden |
 | Locale-Identifikatoren | 18 Seiten gegen 14 Sprachdateien, 0 Kollisionen |
 
+Der separate Draft-PR ist [#43](https://github.com/Salamont/yacy_search_server/pull/43). Nach Erstellung werden die vorhandenen GitHub-Jobs `build` und `docker` aufgrund ihrer Fork-/Repository-Bedingungen übersprungen (`skipping`). Das ist kein zusätzlicher erfolgreicher CI-Nachweis; die oben genannten Prüfungen wurden lokal tatsächlich ausgeführt. Keine Workflow-Bedingung wurde geändert und kein Release-/Deployment-Workflow ausgelöst.
+
 Die gezielte Java-Suite verwendet steuerbare Uhren, kontrollierte Clients und lokale echte HTTP-Formatverhandlung. Sie prüft:
 
 - Standardmodus; halb offene Grenzen, gleiche Zeiten, Mitternacht mit Startwochentag, explizite Zone, Sommerzeitlücke und doppelte Stunde; keine Nachholstarts.
