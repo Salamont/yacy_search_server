@@ -5566,6 +5566,85 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 #-----------------------------
 
 #File: ScoutroKnowledge_p.html
+>Knowledge graph disabled<==>Wissensgraph deaktiviert<
+>Actual model request starts<==>Tatsächliche Modellaufrufstarts<
+>Knowledge graph manually paused<==>Wissensgraph manuell pausiert<
+>Waiting for indexing load<==>Warten auf Indizierungslast<
+>Waiting for disk reserve<==>Warten auf Festplattenreserve<
+>Critical disk reserve; writes paused<==>Kritische Festplattenreserve; Schreibzugriffe pausiert<
+>Waiting for storage budget<==>Warten auf Speicherbudget<
+>Storage budget exhausted<==>Speicherbudget ausgeschöpft<
+>Waiting for integrity check<==>Warten auf Integritätsprüfung<
+>Integrity check failed<==>Integritätsprüfung fehlgeschlagen<
+>Storage error; writes paused<==>Speicherfehler; Schreibzugriffe pausiert<
+>Waiting for WAL space<==>Warten auf WAL-Speicher<
+>Waiting for WAL checkpoint<==>Warten auf WAL-Checkpoint<
+>Waiting for temporary storage<==>Warten auf temporären Speicher<
+>Waiting for start-state persistence<==>Warten auf gespeicherten Startzustand<
+>Index reset in progress<==>Index wird zurückgesetzt<
+>Manual request limit reached<==>Manuelles Aufruflimit erreicht<
+>Manual document limit reached<==>Manuelles Dokumentlimit erreicht<
+>Collection no longer eligible<==>Collection nicht mehr zugelassen<
+>Waiting for current input<==>Warten auf aktuellen Inhalt<
+>Selected model changed<==>Gewähltes Modell geändert<
+>Stopping after current request<==>Stoppt nach laufender Anfrage<
+>Waiting to publish retained results<==>Warten auf Veröffentlichung erhaltener Ergebnisse<
+>Storage guard pauses new enrichment<==>Speicherschutz pausiert neue Anreicherung<
+>General settings take effect at the next start; collection settings and LLM timing apply immediately. Invalid general settings keep the graph off; an invalid timing plan pauses only LLM calls.<==>Allgemeine Einstellungen gelten beim nächsten Start; Collection-Einstellungen und LLM-Zeitsteuerung sofort. Ungültige allgemeine Einstellungen lassen den Graphen ausgeschaltet; ein ungültiger Zeitplan pausiert nur LLM-Aufrufe.<
+>Timing of LLM enrichment<==>Zeitsteuerung der LLM-Anreicherung<
+>Mode<==>Modus<
+>Automatic as before<==>Wie bisher automatisch<
+>Scheduled<==>Nach Zeitplan<
+>Manual only<==>Nur manuell<
+>Weekdays (window starts on these days)<==>Wochentage (Fenster beginnt an diesen Tagen)<
+>From<==>Von<
+>Until (exclusive)<==>Bis (ausschließlich)<
+>Time zone<==>Zeitzone<
+>Minimum seconds between request starts<==>Mindestabstand zwischen Aufrufstarts in Sekunden<
+>Save timing<==>Zeitsteuerung speichern<
+>Enrich now<==>Jetzt anreichern<
+>Stop manual run<==>Manuellen Lauf stoppen<
+>Document limit (1–100)<==>Arbeitslimit Dokumente (1–100)<
+>Request-start limit (1–1000)<==>Limit Aufrufstarts (1–1000)<
+>Allowed starts, not guaranteed completion times. Overnight windows belong to their starting weekday; equal times mean 24 hours. Clock-change gaps have no starts; both repeated times are allowed. Manual runs last at most one hour and keep all safety checks. Completed pages are not reevaluated; failed pages need Retry.<==>Erlaubte Starts, keine garantierten Fertigstellungszeiten. Fenster über Mitternacht zählen zum Startwochentag; gleiche Zeiten bedeuten 24 Stunden. In Zeitumstellungslücken gibt es keine Starts; beide wiederholten Zeiten sind zulässig. Manuelle Läufe dauern höchstens eine Stunde und beachten alle Schutzprüfungen. Erledigte Seiten werden nicht erneut ausgewertet; fehlgeschlagene Seiten benötigen Retry.<
+>Window open now<==>Zeitfenster jetzt offen<
+>Next temporally allowed start (resources may still block)<==>Nächster zeitlich erlaubter Start (Ressourcen können weiter blockieren)<
+>Current waiting reason<==>Tatsächlicher Wartegrund<
+>Running requests<==>Laufende Anfragen<
+>Manual run<==>Manueller Lauf<
+>Timing saved without restarting the graph<==>Zeitsteuerung ohne Neustart des Graphen gespeichert<
+>Monday<==>Montag<
+>Tuesday<==>Dienstag<
+>Wednesday<==>Mittwoch<
+>Thursday<==>Donnerstag<
+>Friday<==>Freitag<
+>Saturday<==>Samstag<
+>Sunday<==>Sonntag<
+>Waiting for time window<==>Warten auf Zeitfenster<
+>Manual run required<==>Manueller Lauf erforderlich<
+>Waiting for minimum interval<==>Warten auf Mindestabstand<
+>No unfinished work<==>Keine offene Arbeit<
+>Circuit breaker pauses model requests<==>Circuit Breaker pausiert Modellaufrufe<
+>Model request running<==>Modellanfrage läuft<
+>Preserving results; waiting for writable storage<==>Ergebnisse werden erhalten; Warten auf beschreibbaren Speicher<
+>Knowledge graph manually paused<==>Wissensgraph manuell pausiert<
+>Waiting for available heap<==>Warten auf freien Heap<
+>Waiting for lower system load<==>Warten auf geringere Systemlast<
+>Waiting for indexing load<==>Warten auf Indizierungslast<
+>Invalid stored schedule; LLM calls paused<==>Gespeicherter Zeitplan ungültig; LLM-Aufrufe pausiert<
+>Manual run stopped; unfinished work retained<==>Manueller Lauf gestoppt; offene Arbeit bleibt erhalten<
+>No knowledge model selected<==>Kein Wissensmodell gewählt<
+>LLM enrichment disabled<==>LLM-Anreicherung deaktiviert<
+>No collections enabled for LLM enrichment<==>Keine Collections für LLM-Anreicherung aktiviert<
+>Not running<==>Kein Lauf<
+>Running<==>Läuft<
+>Stopping after current requests<==>Stoppt nach laufenden Anfragen<
+>Stopped<==>Gestoppt<
+>One-hour limit reached<==>Stundenlimit erreicht<
+>Request limit reached<==>Aufruflimit erreicht<
+>Document limit reached<==>Dokumentlimit erreicht<
+>No further unfinished work<==>Keine weitere offene Arbeit<
+
 >Disabled by the matching budget setting<==>Durch die Matching-Budgeteinstellung ausgeschaltet<
 >Changed matching settings apply to reads; change-feed notices wait for writable storage<==>Geänderte Matching-Einstellungen gelten für Ansichten; Änderungsfeed-Hinweise warten auf beschreibbaren Speicher<
 >Product support, training or introduction<==>Produktunterstützung, Schulung oder Einführung<

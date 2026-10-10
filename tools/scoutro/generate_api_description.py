@@ -1128,10 +1128,38 @@ schemas["KgMatchingRun"] = {"type": "object", "properties": {
 schemas["KgStatus"]["properties"]["derived"]["properties"]["matching"] = {"anyOf": [ref("KgMatchingRun"), {"type": "null"}]}
 schemas["KgDerived"]["properties"].update({key: value for key, value in schemas["KgSuggestion"]["properties"].items()
     if key in ("contributions", "contributions_total", "next_contribution_offset", "contributions_path", "score")})
+# Global LLM timing is admin-only and deliberately outside selection/extraction identities.
+schemas["KgLlmSchedule"]={"type":"object","additionalProperties":False,"required":["mode","days","from","until","zone","minStartSeconds"],"properties":{
+    "mode":{"type":"string","enum":["automatic","scheduled","manual"],"default":"automatic"},
+    "days":{"type":"array","minItems":1,"maxItems":7,"uniqueItems":True,"items":{"type":"integer","minimum":1,"maximum":7},"description":"ISO weekdays of the window start; overnight/equal windows belong to this day."},
+    "from":{"type":"string","pattern":"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"},"until":{"type":"string","pattern":"^(?:[01][0-9]|2[0-3]):[0-5][0-9]$","description":"Exclusive end; equal start/end is a 24-hour window."},
+    "zone":{"type":"string","examples":["Europe/Berlin","UTC"],"description":"Explicit installed named ZoneId. Nonexistent DST times have no starts; both repeated times are eligible."},
+    "minStartSeconds":{"type":"integer","minimum":0,"maximum":86400,"default":0,"description":"Shared between both workers and actual format-fallback HTTP starts; cache hits do not consume it."}}}
+schemas["KgLlmScheduleResult"]={"type":"object","properties":{"plan":ref("KgLlmSchedule"),"valid":{"type":"boolean"},"validationError":{"type":["string","null"]},"applied":{"type":"boolean"},"reopened":{"type":"boolean","const":False}}}
+schemas["KgLlmManual"]={"type":"object","properties":{
+    "id":{"type":["integer","null"]},"state":{"type":"string","enum":["not_running","running","stopping","stopped","expired","request_limit","document_limit","completed"]},
+    "startedAt":{"type":["integer","null"]},"expiresAt":{"type":["integer","null"]},
+    **{k:{"type":"integer","minimum":0} for k in ["maxDocuments","maxRequests","documents","unfinishedDocuments","requestStarts","runningRequests"]}}}
+schemas["KgLlmTiming"]={"type":"object","properties":{"plan":ref("KgLlmSchedule"),"valid":{"type":"boolean"},"validationError":{"type":["string","null"]},"windowOpen":{"type":"boolean"},
+    "nextAllowedStart":{"type":["integer","null"],"description":"Epoch milliseconds, earliest temporal admission with spacing; not a resource or completion guarantee. null in manual-only mode without active override."},
+    "lastActualStart":{"type":["integer","null"]},"waitReason":{"type":["string","null"],"description":"Actual protection/window/spacing/empty-backlog reason, separately from running requests."},
+    "runningRequests":{"type":"integer","minimum":0},"manual":ref("KgLlmManual"),"note":{"type":"string"}}}
+schemas["KgLlmRun"]={"type":"object","required":["action"],"properties":{"action":{"type":"string","enum":["start","stop"]},"maxDocuments":{"type":"integer","minimum":1,"maximum":100,"default":25},"maxRequests":{"type":"integer","minimum":1,"maximum":1000,"default":100}},"oneOf":[{"type":"object","additionalProperties":False,"required":["action"],"properties":{
+    "action":{"const":"start"},"maxDocuments":{"type":"integer","minimum":1,"maximum":100,"default":25},"maxRequests":{"type":"integer","minimum":1,"maximum":1000,"default":100}}},
+    {"type":"object","additionalProperties":False,"required":["action"],"properties":{"action":{"const":"stop"}}}]}
+schemas["KgStatus"]["properties"]["llm"]["properties"].update({"timing":ref("KgLlmTiming"),"pendingResultCheckpoints":{"type":"integer","minimum":0}})
+schemas["KgStatus"]["properties"]["llm"]["properties"]["processed"].setdefault("properties",{})["requestStarts"]={"type":"integer","minimum":0,"description":"Actual HTTP starts including format fallbacks. Existing calls retains logical-call semantics; cache hits consume neither."}
+schemas["KgStatus"]["properties"]["config"]["properties"]["llmSchedule"]=ref("KgLlmSchedule")
+KG_TIMING_NOTE=" Global LLM start scheduling only; crawling, indexing and base tiers continue. Full-plan validation before one configuration-key write (scoutro.kg.llm.schedule); hot apply without KG reopen or re-extraction. Default automatic/0 spacing preserves existing policy. Every transport start rechecks safety, time and shared spacing. Inflight requests finish; unfinished chunks are retained independently of optional cache. No missed-window catch-up. Invalid persisted plans close only LLM admission."
+paths["/v1/kg/llm-schedule"]={
+    "get":op("kg.llm.schedule","Read global LLM timing","Administrator only; no query parameters."+KG_TIMING_NOTE,["knowledge"],{**ok("Timing plan.","KgLlmScheduleResult"),**errs("400","401","405","503")}),
+    "put":op("kg.llm.schedule.change","Replace global LLM timing","Administrator only; same-site JSON body; no query parameters. No arbitrary configuration writes."+KG_TIMING_NOTE,["knowledge"],{**ok("Validated saved plan.","KgLlmScheduleResult"),**errs("400","401","403","405","413","415","503")},body="KgLlmSchedule",mutating=True)}
+paths["/v1/kg/llm-run"]={"post":op("kg.llm.run","Start or stop a bounded manual LLM run","Administrator only; no query parameters. Defaults: 25 distinct examined documents, 100 actual request starts, at most one hour; upper bounds 100/1000. Overrides the temporal window only, never manual KG pause, collection eligibility, resources/integrity/breaker or request spacing. Done pages are not reevaluated; failed pages require existing llm_retry. Stop finishes current requests and retains unfinished results. Runs are not resumed after restart. 409 operation_running if active, llm_unavailable without a selected model/tier.",["knowledge"],{**ok("KG status with manual run.","KgStatus"),**errs("400","401","403","405","409","413","415","503")},body="KgLlmRun",mutating=True)}
+
 # Knowledge graph on the agent path: the read routes (kg.read) and export/changes (kg.export), never status, control, the prompt or the download.
 KG_AGENT_NOTE = " On the agent path the fact viewer is the requested collection (403 collection_not_in_scope outside the scope) or the agent's whole scope. Only customer/partner suggestions of the origin in business, suggestions and neighborhood may reach other granted collections; their names, memberships, scores, contributions and evidence are authorized server-side. Ordinary objects without evidence in their requested view are 404. Evidence names the extractor without the model, and there is no lag field."
 for path in [p for p in list(paths) if p.startswith("/v1/kg/") and p not in ("/v1/kg/status", "/v1/kg/control", "/v1/kg/prompt", "/v1/kg/export/download",
-        "/v1/kg/collections", "/v1/kg/collections/{collection}")]:
+        "/v1/kg/collections", "/v1/kg/collections/{collection}", "/v1/kg/llm-schedule", "/v1/kg/llm-run")]:
     o = paths[path]["get"]
     grant = "kg.export" if o["operationId"] in ("kg.export", "kg.changes") else "kg.read"
     responses = {c: (EA[c] if c in EA else r) for c, r in o["responses"].items() if c != "401"}
@@ -1408,6 +1436,8 @@ cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "sea
        "config.set": "scoutroctl config set KEY VALUE", "ui.routes": "scoutroctl ui routes", "ui.route": "scoutroctl ui route NAME"}
 mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'collections.create': 'scoutro_collections_create', 'collections.reassign': 'scoutro_collections_reassign', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
 cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'collections.reassign': 'scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
+mcp.update({'kg.llm.schedule':'scoutro_kg_llm_schedule','kg.llm.schedule.change':'scoutro_kg_llm_schedule_change','kg.llm.run':'scoutro_kg_llm_run'})
+cli.update({'kg.llm.schedule':'HTTP GET /scoutro/api/v1/kg/llm-schedule (administrator)','kg.llm.schedule.change':'HTTP PUT /scoutro/api/v1/kg/llm-schedule (administrator)','kg.llm.run':'HTTP POST /scoutro/api/v1/kg/llm-run (administrator)'})
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
 for _name, _path in (("kg.history", "history"), ("kg.entity.history", "entities/{id}/history"), ("kg.observation", "observations/{id}"), ("kg.observation.history", "observations/{id}/history")):
     mcp[_name] = "scoutro_" + _name.replace(".", "_")

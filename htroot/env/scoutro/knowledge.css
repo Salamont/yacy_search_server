@@ -129,3 +129,10 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 .skg-llm-invalid { margin: 0.5em 0; }
 .skg-llm-invalid summary { cursor: pointer; }
 .skg-llm-invalid dt { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: break-word; }
+
+/* Global LLM timing controls remain usable on narrow administration pages. */
+#skg-schedule-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .6rem 1rem; align-items: center; }
+#skg-schedule-form fieldset, #skg-schedule-form button { grid-column: 1 / -1; }
+#skg-schedule-form input, #skg-schedule-form select { max-width: 100%; min-width: 0; }
+#skg-schedule-days label { display: inline-block; margin-right: .8rem; }
+@media (max-width: 600px) { #skg-schedule-form { grid-template-columns: minmax(0, 1fr); } }
