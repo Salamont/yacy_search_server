@@ -782,4 +782,157 @@ public class LlmServiceTest {
         final Map<String, String> s = KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1", KgConfig.LLM_COLLECTIONS, "c1,c9");
         assertEquals("[\"c9\"]", KgTestSupport.config(s).toJson().getJSONArray("llmIgnoredCollections").toString());
     }
+    private void schedule(String mode,int gap)throws Exception {
+        this.llm.updateSchedule(LlmScheduleTest.plan(mode,"[1]","08:00","09:00","UTC",gap));
+    }
+    @Test public void closedWindowWakeAndRetryDoNotStartOrCountFailures()throws Exception {
+        this.clock.set(LlmScheduleTest.at("2026-10-12T10:00:00Z"));schedule("scheduled",0);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);settleSync();
+        this.llm.wake();this.llm.step();this.llm.retryFailed();this.clock.addAndGet(1000);this.llm.step();
+        assertEquals(0,this.model.calls.get());assertEquals("null:",llmStatus("AAAAAAhost01"));
+        assertEquals(0,this.llm.status().getJSONObject("processed").getLong("callFailures"));
+        assertEquals("time_window",this.llm.status().getJSONObject("timing").getString("waitReason"));
+    }
+    @Test public void windowEndRetainsChunksWithoutCacheAcrossRestartAndNoAttemptIncrement()throws Exception {
+        this.cfg=KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS,"c1,c2",KgConfig.LLM_COLLECTIONS,"c1",
+                "scoutro.kg.cache.maxPercent","0",LlmSchedule.KEY,LlmScheduleTest.plan("scheduled","[1]","08:00","09:00","UTC",0).json().toString()));
+        restart();this.clock.set(LlmScheduleTest.at("2026-10-12T08:59:00Z"));
+        String text=TEXT+" Fülltext über Unternehmen und Tagespflege.".repeat(190);
+        assertTrue(LlmExtractor.chunks(text,this.cfg.extractMaxInputChars).size()>1);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,text);settleSync();
+        long inputObserved=this.clock.get();this.model.during=()->this.clock.set(LlmScheduleTest.at("2026-10-12T09:00:00Z"));
+        this.llm.step();assertEquals(1,this.model.calls.get());assertEquals("null:",llmStatus("AAAAAAhost01"));
+        assertTrue(count("SELECT count(*) FROM kg_meta WHERE key GLOB 'llm_progress:*'")>0);
+        assertEquals(0,count("SELECT attempts FROM kg_llm_work"));assertEquals(0,count("SELECT count(*) FROM kg_extraction"));
+        restart();this.clock.set(LlmScheduleTest.at("2026-10-19T08:00:00Z"));settleLlm();
+        assertEquals(LlmExtractor.chunks(text,this.cfg.extractMaxInputChars).size(),this.model.calls.get());
+        assertEquals("1:",llmStatus("AAAAAAhost01"));assertEquals(0,count("SELECT count(*) FROM kg_meta WHERE key GLOB 'llm_progress:*'"));
+        assertEquals(0,this.llm.status().getJSONObject("processed").getLong("callFailures"));
+        assertEquals(inputObserved,count("SELECT loaded_at FROM kg_doc WHERE doc_id='AAAAAAhost01'"));
+    }
+    @Test public void manualProcessesUnfinishedOnlyAndRetainsFailedForRetry()throws Exception {
+        schedule("manual",0);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);settleSync();
+        this.llm.step();assertEquals(0,this.model.calls.get());this.llm.manualRun(1,10);this.llm.step();
+        assertEquals(1,this.model.calls.get());assertEquals("1:",llmStatus("AAAAAAhost01"));
+        this.clock.addAndGet(10000);this.llm.step();this.llm.manualRun(1,10);this.llm.step();assertEquals(1,this.model.calls.get());
+        assertEquals("completed",this.llm.status().getJSONObject("timing").getJSONObject("manual").getString("state"));
+        add("BBBBBBhost02","https://www.other-pflege.de/impressum","c1",LD,TEXT+" Zweite Seite.");settleSync();
+        this.store.write(StorageGuard.WriteClass.MAINTENANCE,1024,tx->{try(java.sql.Statement q=tx.createStatement()){q.executeUpdate("UPDATE kg_doc SET llm_status=2 WHERE doc_id='BBBBBBhost02'");}return null;});
+        this.llm.manualRun(10,10);this.clock.addAndGet(10000);this.llm.step();assertEquals(1,this.model.calls.get());
+        this.llm.manualStop();this.llm.retryFailed();this.clock.addAndGet(10000);this.llm.step();assertEquals(1,this.model.calls.get());
+        this.llm.manualRun(10,10);settleLlm();assertEquals(2,this.model.calls.get());
+    }
+    @Test public void minimumIntervalDefersNextChunkAndCacheHitsDoNotStartModelRequests()throws Exception {
+        schedule("automatic",10);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);settleSync();this.llm.step();
+        int calls=this.model.calls.get();assertEquals(1,calls);
+        add("BBBBBBhost01","https://www.muster-pflege.de/ueber-uns","c1",LD,TEXT);settleSync();
+        this.llm.wake();this.llm.step();assertEquals(calls,this.model.calls.get());assertEquals("1:",llmStatus("BBBBBBhost01"));
+        assertEquals(1,this.llm.status().getJSONObject("processed").getLong("cacheHits"));
+    }
+    @Test public void stopDuringModelCallKeepsResultAndDoesNotStartNextChunk()throws Exception {
+        schedule("manual",0);
+        String text=TEXT+" Fülltext über Unternehmen und Tagespflege.".repeat(190);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,text);settleSync();
+        this.llm.manualRun(10,100);this.model.during=()->this.llm.manualStop();this.llm.step();
+        assertEquals(1,this.model.calls.get());assertEquals(0,count("SELECT attempts FROM kg_llm_work"));
+        assertEquals("stopped",this.llm.status().getJSONObject("timing").getJSONObject("manual").getString("state"));
+        assertTrue(count("SELECT count(*) FROM kg_meta WHERE key GLOB 'llm_progress:*'")>0);
+        this.llm.manualRun(10,100);settleLlm();assertEquals(LlmExtractor.chunks(text,this.cfg.extractMaxInputChars).size(),this.model.calls.get());
+    }
+    @Test public void timingChangeKeepsSelectionExtractorIdentityDoneDocumentsAndPause()throws Exception {
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);settleSync();settleLlm();
+        String selection=this.cfg.llmSelectionKey(),extractor=strings("SELECT value FROM kg_meta WHERE key='"+KgSchema.META_LLM_EXTRACTOR+"'").get(0);
+        this.guard.setManualPause(true);schedule("manual",10);this.llm.manualRun(10,100);this.clock.addAndGet(10000);this.llm.step();
+        assertEquals(1,this.model.calls.get());assertFalse(this.store.growthRefusal()==null);assertEquals(selection,this.cfg.llmSelectionKey());
+        assertEquals(extractor,strings("SELECT value FROM kg_meta WHERE key='"+KgSchema.META_LLM_EXTRACTOR+"'").get(0));
+        assertEquals("1:",llmStatus("AAAAAAhost01"));assertEquals(1,this.llm.status().getJSONObject("processed").getLong("published"));
+    }
+
+    @Test public void twoServiceWorkersShareAdmissionAndRetainClaimsWithoutFailedAttempts()throws Exception {
+        schedule("automatic",10);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);
+        add("BBBBBBhost02","https://www.other-pflege.de/impressum","c1",LD,TEXT+" Weitere Einrichtung.");settleSync();
+        this.model.entered=new CountDownLatch(1);this.model.release=new CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool=java.util.concurrent.Executors.newSingleThreadExecutor();
+        java.util.concurrent.Future<?> first=pool.submit(()->this.llm.step());
+        try{
+            assertTrue(this.model.entered.await(10,TimeUnit.SECONDS));this.llm.step();
+            assertEquals(1,this.model.calls.get());assertEquals(0,count("SELECT sum(attempts) FROM kg_llm_work"));
+            assertEquals(1,this.llm.status().getJSONObject("timing").getInt("runningRequests"));
+        }finally{this.model.release.countDown();first.get(10,TimeUnit.SECONDS);pool.shutdownNow();}
+        this.model.entered=null;this.model.release=null;this.clock.addAndGet(10001);settleLlm();assertEquals(2,this.model.calls.get());
+        assertEquals(0,this.llm.status().getJSONObject("processed").getLong("callFailures"));
+    }
+    @Test public void manualWindowOverrideStillRechecksActualResourceGatesForNextChunk()throws Exception {
+        AtomicInteger block=new AtomicInteger();
+        Gates.Probe probe=new Gates.Probe(){
+            public int indexingQueue(){return block.get()==1?Integer.MAX_VALUE:0;}
+            public double load(){return block.get()==2?Double.MAX_VALUE:-1;}
+            public long freeHeapBytes(){return block.get()==3?0:Long.MAX_VALUE;}
+            public String onlineCaution(){return null;}
+        };
+        this.llm=new LlmService(this.cfg,this.store,this.source,new Gates(this.cfg,probe),this.model,this.clock::get);schedule("manual",0);
+        String text=TEXT+" Fülltext über Unternehmen und Tagespflege.".repeat(190);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,text);settleSync();this.llm.manualRun(10,100);
+        this.model.during=()->block.set(1);this.llm.step();assertEquals(1,this.model.calls.get());assertEquals(0,count("SELECT attempts FROM kg_llm_work"));
+        for(int code=1;code<=3;code++){
+            block.set(code);this.clock.addAndGet(10001);this.llm.step();assertEquals(1,this.model.calls.get());
+            assertEquals(new String[]{"","indexing_queue","load","heap"}[code],this.llm.status().getJSONObject("timing").getString("waitReason"));
+        }
+        block.set(0);this.guard.setManualPause(true);this.clock.addAndGet(10001);this.llm.step();assertEquals(1,this.model.calls.get());
+        this.guard.setManualPause(false);this.clock.addAndGet(60001);settleLlm();
+        assertEquals(LlmExtractor.chunks(text,this.cfg.extractMaxInputChars).size(),this.model.calls.get());
+    }
+
+    @Test public void checkpointWriteRefusalRetainsReceivedChunksAndStopsFurtherRequestsUntilWritable()throws Exception {
+        this.cfg=KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS,"c1",KgConfig.LLM_COLLECTIONS,"c1","scoutro.kg.cache.maxPercent","0"));restart();
+        String text=TEXT+" Fülltext über Unternehmen und Tagespflege.".repeat(190);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,text);settleSync();
+        this.model.during=()->this.guard.setIntegrityBlock(StorageGuard.INTEGRITY_FAILED,"controlled fixture");
+        this.llm.step();assertEquals(1,this.model.calls.get());assertEquals(1,this.llm.status().getInt("pendingResultCheckpoints"));
+        assertEquals("checkpoint_storage",this.llm.status().getJSONObject("timing").getString("waitReason"));
+        assertEquals(0,count("SELECT attempts FROM kg_llm_work"));assertEquals("null:",llmStatus("AAAAAAhost01"));
+        this.clock.addAndGet(10000);this.llm.step();assertEquals(1,this.model.calls.get());
+        this.guard.setIntegrityBlock(null,null);this.clock.addAndGet(60001);settleLlm();
+        assertEquals(LlmExtractor.chunks(text,this.cfg.extractMaxInputChars).size(),this.model.calls.get());
+        assertEquals(0,this.llm.status().getInt("pendingResultCheckpoints"));assertEquals("1:",llmStatus("AAAAAAhost01"));
+    }
+
+    private void httpFormatFallback(int gap)throws Exception {
+        AtomicInteger requests=new AtomicInteger();
+        com.sun.net.httpserver.HttpServer server=com.sun.net.httpserver.HttpServer.create(new java.net.InetSocketAddress("127.0.0.1",0),0);
+        server.createContext("/v1/chat/completions",exchange->{
+            requests.incrementAndGet();String request=new String(exchange.getRequestBody().readAllBytes(),java.nio.charset.StandardCharsets.UTF_8);
+            if(request.contains("\"response_format\"")){exchange.sendResponseHeaders(400,-1);exchange.close();return;}
+            byte[] body="{\"choices\":[{\"message\":{\"content\":\"{\\\"entities\\\":[],\\\"claims\\\":[]}\"}}]}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+            exchange.sendResponseHeaders(200,body.length);exchange.getResponseBody().write(body);exchange.close();
+        });server.start();
+        try {
+            net.yacy.ai.LLM.LLMModel selected=new net.yacy.ai.LLM.LLMModel(new net.yacy.ai.LLM("http://127.0.0.1:"+server.getAddress().getPort(),"",512,net.yacy.ai.LLM.LLMType.OPENAI),"fixture",false,false);
+            this.llm=new LlmService(this.cfg,this.store,this.source,new Gates(this.cfg,Gates.IDLE),new net.yacy.scoutro.knowledge.extract.YacyLlmClient(()->selected),this.clock::get);
+            schedule("automatic",gap);add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);settleSync();this.llm.step();
+            if(gap>0){assertEquals(1,requests.get());assertEquals(0,count("SELECT attempts FROM kg_llm_work"));assertEquals("null:",llmStatus("AAAAAAhost01"));this.clock.addAndGet(gap*1000L+1);this.llm.step();}
+            assertEquals(2,requests.get());assertEquals("1:",llmStatus("AAAAAAhost01"));
+            assertEquals(2,this.llm.status().getJSONObject("processed").getLong("requestStarts"));
+            assertEquals(gap==0?1:2,this.llm.status().getJSONObject("processed").getLong("calls"));
+            assertEquals(0,this.llm.status().getJSONObject("processed").getLong("callFailures"));
+        } finally{server.stop(0);}
+    }
+    @Test public void defaultFormatFallbackCountsBothActualStartsButKeepsLogicalCounter()throws Exception {httpFormatFallback(0);}
+    @Test public void temporallyDeferredRealHttpFormatFallbackIsNotAFailedAttempt()throws Exception {httpFormatFallback(10);}
+
+    @Test public void failedDocumentCheckpointSurvivesRestartAndExplicitRetryWithoutRepeatingCompletedChunks()throws Exception {
+        this.cfg=KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS,"c1",KgConfig.LLM_COLLECTIONS,"c1","scoutro.kg.cache.maxPercent","0"));restart();
+        String text=TEXT+" Fülltext über Unternehmen und Tagespflege.".repeat(190);
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,text);settleSync();
+        this.model.answer=u->{String result=Fake.grounded(u);this.model.failure=new IOException("controlled transport failure");return result;};
+        this.llm.step();this.clock.addAndGet(60001);this.llm.step();assertTrue(llmStatus("AAAAAAhost01").startsWith("2:"));
+        assertEquals(3,this.model.calls.get());assertTrue(count("SELECT count(*) FROM kg_meta WHERE key GLOB 'llm_progress:*'")>0);
+        restart();this.model.failure=null;this.model.answer=Fake::grounded;
+        this.llm.step();assertEquals(3,this.model.calls.get());this.llm.retryFailed();settleLlm();
+        assertEquals(3+LlmExtractor.chunks(text,this.cfg.extractMaxInputChars).size()-1,this.model.calls.get());assertEquals("1:",llmStatus("AAAAAAhost01"));
+    }
+
 }

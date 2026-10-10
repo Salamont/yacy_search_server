@@ -452,6 +452,29 @@
     </junit>
   </target>
 
+  <target name="scoutro-kg-llm-schedule-test" depends="compile" description="LLM timing, transport admission, continuation, runtime and admin regressions">
+    <mkdir dir="build/scoutro-kg-llm-schedule-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-llm-schedule-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/knowledge/**/*.java"/>
+      <include name="net/yacy/scoutro/api/**/*.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-kg-llm-schedule-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmScheduleTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmTimingTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmProgressTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmServiceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.YacyLlmClientTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.StructuredOutputNegotiationTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgRuntimeTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgSyncRuntimeTest"/>
+      <arg value="net.yacy.scoutro.api.KgLlmSettingsTest"/>
+      <arg value="net.yacy.scoutro.api.KnowledgeApiTest"/>
+      <arg value="net.yacy.scoutro.api.AgentKnowledgeTest"/>
+    </java>
+  </target>
+
   <target name="scoutro-kg-matching-test" depends="compile" description="focused service/signal rules, contribution cache and access tests">
     <mkdir dir="build/scoutro-kg-matching-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-matching-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

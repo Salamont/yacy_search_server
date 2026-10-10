@@ -210,3 +210,27 @@ agent collection scopes in the same disposable DATA.
 ## Native crawl / host / Discovery flow
 
 `seo-live-smoke.py` also runs `crawl-flow-ui-test.mjs` and scoped host/crawl API checks. All valid UI crawl starts are intercepted; live starts are invalid/disallowed only. English/German at 360/390/412/1280, JSON contract, coalesced polling and delayed responses are covered. See `docs/SCOUTRO_CRAWL_FLOW_TESTS.md`.
+
+## Global LLM timing
+
+After `ant scoutro-kg-llm-schedule-test`, the disposable harness checks the actual
+parser → base KG → controlled local model → independent chunk checkpoints → API
+→ browser settings/manual start/stop → restart path. It creates new DATA and
+refuses an existing directory; no crawl or production model is used:
+
+```sh
+JAVA=/path/to/jdk/bin/java SCOUTRO_CHROMIUM_PATH=/usr/bin/chromium \
+SCOUTRO_SCHEDULE_EVIDENCE=/tmp/new-scoutro-timing-test \
+python3 test/scoutro-api/kg-llm-schedule-live.py
+node test/scoutro-ui/knowledge-schedule-ui-test.mjs
+```
+
+The live browser checks global request URLs under a selected collection,
+validation failure without partial persistence, hot timing updates during an
+inflight request, manual bounds/stop/resume, unchanged completed work and mobile
+layout. The companion offline browser fixture checks EN/DE labels, saved
+weekdays, midnight windows, resource reasons and running/stop controls at 390px.
+Clocks, DST, simultaneous workers, actual HTTP format fallbacks, retry and
+checkpoint-write refusal are exercised by the Java target. The write refusal is
+simulated through the existing integrity/storage guard; it is not a host disk-full
+test. [Timing semantics and limits](../../docs/SCOUTRO_LLM_SCHEDULE.md).

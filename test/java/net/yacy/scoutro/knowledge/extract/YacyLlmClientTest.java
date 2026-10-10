@@ -168,4 +168,16 @@ public class YacyLlmClientTest {
         }
         assertNull(LlmClient.NONE.model());
     }
+    @Test public void rejectedFormatFallbackRequiresItsOwnAdmissionAndRemembersRejection()throws Exception {
+        this.mode.set("noschema");YacyLlmClient c=new YacyLlmClient(()->model(stub()));
+        java.util.concurrent.atomic.AtomicInteger starts=new java.util.concurrent.atomic.AtomicInteger();
+        try{c.complete("sys","user",new JSONObject("{\"type\":\"object\"}"),5000,"auto",()->{
+            if(starts.incrementAndGet()>1)throw new net.yacy.scoutro.knowledge.sync.LlmTiming.Deferred("minimum_interval");
+            return ()->{};
+        });fail();}catch(net.yacy.scoutro.knowledge.sync.LlmTiming.Deferred e){assertEquals("minimum_interval",e.reason);}
+        assertEquals(1,this.requests.size());assertTrue(this.requests.get(0).has("response_format"));
+        c.complete("sys","user",new JSONObject("{\"type\":\"object\"}"),5000,"auto",()->{starts.incrementAndGet();return ()->{};});
+        assertEquals(2,this.requests.size());assertFalse(this.requests.get(1).has("response_format"));
+    }
+
 }
