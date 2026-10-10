@@ -31,9 +31,9 @@ missing response times, restart and schema persistence failures. See
 | What | Value | Where |
 |---|---|---|
 | YaCy version | `1.942` | `build.properties` → `releaseVersion` (unchanged from upstream) |
-| Scoutro release | `21` | `scoutro.properties` → `scoutro.release` |
-| Full Scoutro version | `1.942-scoutro.21` | git tag `v1.942-scoutro.21`, image tag `1.942-scoutro.21` |
-| Image alias | `0.8.7` | image tag `0.8.7` (same immutable digest as the full version) |
+| Scoutro release | `22` | `scoutro.properties` → `scoutro.release` |
+| Full Scoutro version | `1.942-scoutro.22` | git tag `v1.942-scoutro.22`, image tag `1.942-scoutro.22` |
+| Image alias | `0.9.0` | image tag `0.9.0` (same immutable digest as the full version) |
 
 Why not change `releaseVersion`: YaCy parses its version as a number
 (`yacyVersion`, `Seed.getVersion()` use `Double.parseDouble`, and
@@ -69,7 +69,7 @@ the root `.dockerignore`: the root file excludes `test/`, but `build.xml`
 needs `test/jetty` for the Solr 9 bridge (`build-solr9-bridge`).
 
 ```sh
-VERSION=1.942-scoutro.1
+VERSION=1.942-scoutro.22
 docker build -f docker/Dockerfile.scoutro \
   --build-arg SCOUTRO_VERSION=$VERSION \
   --build-arg SCOUTRO_REVISION=$(git rev-parse HEAD) \
@@ -85,34 +85,61 @@ step and is not part of phase 1.
 
 ### Behind a TLS-intercepting proxy
 
-If the Ivy dependency download fails with
-`unable to find valid certification path`, the build container does not trust
-the proxy's certificate. Build a local base image that adds the CA to the
-Java trust store and tag it as `eclipse-temurin:24-jdk-noble` for the local
-build only. Never publish an image built that way.
+The builder honors inherited HTTP(S) proxy settings for Ant/Java. Supply a
+session CA with BuildKit rather than modifying or retagging the upstream base:
 
-## DATA compatibility
+```sh
+docker build --secret id=proxy_ca,src="$CODEX_PROXY_CERT" \
+  -f docker/Dockerfile.scoutro \
+  --build-arg SCOUTRO_VERSION=1.942-scoutro.22 \
+  --build-arg SCOUTRO_REVISION="$(git rev-parse HEAD)" \
+  -t scoutro:0.9.0-rc-local .
+```
 
-The Scoutro image reads and writes the same `DATA` layout as the official
-YaCy 1.942 image (`SETTINGS/yacy.conf`, `INDEX`, `HTCACHE`, `LOG`, `QUEUES`,
-`PACKS`, …). There is no data migration. Test performed for phase 1 (on a
-**copy** of the data):
+The optional secret and temporary Java trust store exist only during the build;
+they are removed before the runtime application is copied. TLS verification
+remains enabled. Do not put proxy credentials or a session CA in image layers.
+Build from a normal checkout with its own `.git` directory; a worktree `.git`
+file referring to a path outside the build context cannot provide the revision.
 
-1. DATA created by the official image (uid 1000 as on Olares, with the
-   Olares `init-config` step) → started with the Scoutro image: settings,
-   admin account and index documents present, no errors.
-2. The same DATA started again with the official image (rollback): index
-   documents present, no errors.
+## Release candidate and DATA upgrades
 
-Scoutro adds UI files under `htroot/` and the API classes (package
-`net.yacy.scoutro.api`, registered in `defaults/web.xml`). It does not change
-configuration defaults or the index schema. The API only writes the two
-allowlisted settings to `yacy.conf` when `config.set` is called. Scoutro's own
-data lives in `DATA/SETTINGS` (agents), `DATA/WORK` (crawl report table) and
-`DATA/SCOUTRO` (crawl ledger, rollups, Discovery). The knowledge graph adds
-`DATA/SCOUTRO/knowledge/` only when `scoutro.kg.enabled=true`; a rollback to an
-older image ignores that directory (remove it while Scoutro is stopped to free
-the space).
+[Scoutro 0.9.0 release/upgrade notes](SCOUTRO_RELEASE_0.9.0.md) are the current
+operator contract. [Changelog](../CHANGELOG.md) describes the user-facing changes.
+The pre-existing main publication workflow will publish **both** immutable
+image tags `1.942-scoutro.22` and `0.9.0` after a separately authorized merge;
+its existing-tag refusal must remain enabled. A branch push/Draft PR does not
+publish the image. Do not manually dispatch the workflow in addition to the
+merge-triggered run, or race two publications of the same version.
+
+For local distribution checks use `ant clean all dist`, then the unchanged
+Dependency-Guard and Solr-Spike. `test/scoutro-release/check-attribution.py`
+compares original upstream manifests, Maven metadata and attribution bytes with
+the distribution and an exported local image root. Never infer image contents
+from a successful tarball build alone.
+
+The image retains the YaCy application/DATA paths and non-root runtime user.
+**The knowledge graph now requires migrations 4 → 5 → 6.** Before a real
+upgrade, stop the old peer and verify a full backup of its DATA, configuration
+and compatible application/image revision. Keep it outside the live volume;
+verify checksums and a restore on an isolated copy. A KG-only backup is not a
+full Solr/configuration backup. Leave room for the pre-upgrade copy, WAL,
+archive growth, rebuild/shadow data where used, and the configured reserve.
+
+Startup integrity checks, a verified pre-upgrade KG copy and additive schema
+migrations/backfill protect still-existing relevant evidence before new
+extractor work. If an upgrade/storage hold appears, keep the protection in
+place, resolve its cause and verify a backup; do not delete/archive tables,
+force a schema version or clear the hold to obtain progress. Lost legacy
+quotes cannot be recreated from job titles. No production upgrade is implied
+by local fixture tests.
+
+Rollback uses a compatible verified older backup. Preserve the current
+schema-6 graph and complete authorized history export separately first.
+B requires schema 5; pre-B versions require their supported schema (typically
+4). No in-place lossless downgrade, no automatic mixing of newer history into
+an older restore. Older binaries ignore the LLM schedule and may call unfinished
+chunks again; disable LLM or pause the KG before such a rollback when needed.
 
 ## Security notes
 

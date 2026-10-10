@@ -752,12 +752,26 @@
     <!-- copy documentation -->
     <copy todir="${release_main}">
       <fileset dir=".">
+        <include name="scoutro.properties"/>
+        <include name="CHANGELOG.md"/>
+        <include name="docs/SCOUTRO_RELEASE_0.9.0.md"/>
         <include name="readme.txt"/>
         <include name="gpl.txt"/>
         <include name="ChangeLog"/>
           <include name="AUTHORS"/>
           <include name="COPYRIGHT"/>
           <include name="NOTICE"/>
+      </fileset>
+    </copy>
+
+    <!-- Scoutro's runtime help, operator documentation, tools and licenses. -->
+    <copy todir="${release_main}">
+      <fileset dir=".">
+        <include name="help/**"/>
+        <include name="docs/**"/>
+        <include name="tools/scoutro/**"/>
+        <include name="LICENSES/**"/>
+        <exclude name="**/__pycache__/**"/>
       </fileset>
     </copy>
 
