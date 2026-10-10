@@ -851,17 +851,26 @@
        ======================================================================================================= -->
 
   <target name="dist" depends="copyMain4Dist" description="make for standard YaCy">
-    <tar destfile="${release}/${stdReleaseFile}" compression="gzip" defaultexcludes="yes" longfile="fail">
+    <!-- Preserve complete upstream provenance paths with POSIX extended headers. -->
+    <tar destfile="${release}/${stdReleaseFile}" compression="gzip" defaultexcludes="yes" longfile="posix">
 
       <!-- packing all files into a gzipped tar -->
       <tarfileset dir="${release_main}" prefix="${releaseFileParentDir}/" dirmode="${accessRightsDir}" mode="${accessRightsExecutable}">
           <include name="**/*.sh"/>
           <include name="**/*.command"/>
+          <include name="tools/scoutro/scoutroctl"/>
+          <include name="tools/scoutro/scoutro-mcp"/>
+          <include name="tools/scoutro/scoutro-discovery"/>
+          <include name="tools/scoutro/agent/scoutro-agent-bridge"/>
       </tarfileset>
       <tarfileset dir="${release_main}" prefix="${releaseFileParentDir}/" dirmode="${accessRightsDir}" mode="${accessRightsFile}" >
         <include name="**/*"/>
         <exclude name="**/*.sh"/>
         <exclude name="**/*.command"/>
+        <exclude name="tools/scoutro/scoutroctl"/>
+        <exclude name="tools/scoutro/scoutro-mcp"/>
+        <exclude name="tools/scoutro/scoutro-discovery"/>
+        <exclude name="tools/scoutro/agent/scoutro-agent-bridge"/>
       </tarfileset>
     </tar>
 

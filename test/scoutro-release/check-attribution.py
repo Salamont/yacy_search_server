@@ -56,6 +56,8 @@ def main():
                 assert member is not None, name
                 return member.read()
             verify(read, expected, args.version)
+            for name in ['scoutroctl', 'scoutro-mcp', 'scoutro-discovery', 'agent/scoutro-agent-bridge']:
+                assert archive.getmember('yacy/tools/scoutro/' + name).mode & 0o111, 'Non-executable CLI: ' + name
         report['verified'].append('distribution')
     if args.image_root:
         app = args.image_root / 'opt/yacy_search_server'

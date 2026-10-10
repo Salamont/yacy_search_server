@@ -57,7 +57,9 @@ Crawling, indexing, rules/JSON-LD and existing knowledge remain available.
 **Packaging.** Corrected Jetty/Solr relocation retains unchanged original
 upstream manifests, Maven provenance and attribution under
 `lib/solr9-bridge-upstream/`. The unchanged Dependency-Guard verifies isolation.
-Distribution includes Scoutro metadata/changelog/release notes. The image build
+Distribution includes Scoutro metadata/changelog/release notes, executable
+operator tools and POSIX extended TAR headers for full upstream provenance paths.
+The image build
 can mount a temporary session CA for dependency resolution; it is not shipped in
 the runtime image. No upstream version/dependency-guard weakening.
 
