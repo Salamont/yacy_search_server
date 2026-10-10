@@ -157,8 +157,8 @@ final class KnowledgeApi {
             throw ApiException.invalid("format", "Field 'format' must be one of: json, ndjson.");
         }
         final String include = q.get("include");
-        if (include != null && !include.isEmpty() && !"evidence".equals(include)) {
-            throw ApiException.invalid("include", "Field 'include' must be one of: evidence.");
+        if (include != null && !include.isEmpty() && !"evidence".equals(include)&&!"history".equals(include)) {
+            throw ApiException.invalid("include", "Field 'include' must be one of: evidence, history.");
         }
         final java.util.List<String> collections = SeoAnalysis.adminCollections(q);
         final KgRuntime r = this.runtime.get();
@@ -172,7 +172,7 @@ final class KnowledgeApi {
         final boolean json = "json".equals(format);
         try {
             final KgReader reader = r.reader();
-            new KgExport(reader).stream(reader.viewer(collections), "evidence".equals(include), collection, DOWNLOAD_PAGE, new KgExport.Sink() {
+            final KgExport.Sink sink=new KgExport.Sink() {
                 private java.io.Writer out;
                 private long n;
 
@@ -195,7 +195,9 @@ final class KnowledgeApi {
                     this.out.write(json ? "\n],\"trailer\":" + trailer + "}\n" : trailer + "\n");
                     this.out.flush();
                 }
-            });
+            };
+            if("history".equals(include))new net.yacy.scoutro.knowledge.read.ObservationHistory(reader).stream(reader.viewer(collections),collection,DOWNLOAD_PAGE,sink);
+            else new KgExport(reader).stream(reader.viewer(collections),"evidence".equals(include),collection,DOWNLOAD_PAGE,sink);
         } catch (final KgException e) {
             throw toApi(e);
         }

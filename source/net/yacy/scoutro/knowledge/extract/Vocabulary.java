@@ -43,7 +43,7 @@ import java.util.TreeSet;
  */
 public final class Vocabulary {
 
-    public static final String VERSION = "2";
+    public static final String VERSION = "3";
 
     // entity types (kg_vocab kind 1)
     public static final String ORGANIZATION = "organization";
@@ -134,6 +134,13 @@ public final class Vocabulary {
     public static final String DATE_POSTED = "date_posted";
     public static final String VALID_THROUGH = "valid_through";
     public static final String APPLICATION_ROUTE = "application_route";
+    public static final String SYSTEM_SIGNAL="system_signal";
+    public static final String BUSINESS_NEED_SIGNAL="business_need_signal";
+    public static final String BUSINESS_ROLE_EVIDENCE="business_role_evidence";
+    public static final String JOB_STATUS="job_status";
+    public static final String ADVERTISED_BY="advertised_by";
+    public static final String RECRUITING_ORGANIZATION="recruiting_organization";
+    public static final String DEPLOYMENT_ORGANIZATION="deployment_organization";
 
     // version 2: declared audience (I); observed customers are CUSTOMER_OF / REFERENCE_FOR, suggestions are derived
     public static final String CUSTOMER_TYPE = "customer_type";
@@ -281,6 +288,11 @@ public final class Vocabulary {
         literal(p, DATE_POSTED, true, T_DATE);
         literal(p, VALID_THROUGH, true, T_DATE);
         literal(p, APPLICATION_ROUTE, false, T_STRING);
+        literal(p,SYSTEM_SIGNAL,false,T_JSON);
+        literal(p,BUSINESS_NEED_SIGNAL,false,T_JSON);
+        literal(p,BUSINESS_ROLE_EVIDENCE,false,T_JSON);
+        literal(p,JOB_STATUS,false,T_CODE);
+        relation(p,ADVERTISED_BY);relation(p,RECRUITING_ORGANIZATION);relation(p,DEPLOYMENT_ORGANIZATION);
         literal(p, CUSTOMER_TYPE, false, T_CODE);
         literal(p, AUDIENCE_SEGMENT, false, T_CODE);
         literal(p, TARGET_INDUSTRY, false, T_CODE);

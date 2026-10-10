@@ -576,6 +576,22 @@ public class LlmServiceTest {
         assertEquals("1:", llmStatus("BBBBBBhost01"));
     }
 
+    @Test public void cachedSystemQuoteKeepsSourceObservationTimeAcrossExtractorRestart()throws Exception {
+        String quote="Die Muster Pflege gGmbH nutzt SAP intern.";
+        this.model.answer=u->"{\"entities\":[],\"claims\":[],\"values\":[{\"subject\":\"k1\",\"predicate\":\"system_signal\",\"quote\":\""+quote+"\"}]}";
+        long observed=this.clock.get();
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,quote);
+        settleSync();settleLlm();
+        assertEquals(observed,count("SELECT min(observed_at) FROM kg_observation WHERE predicate='system_signal' AND tier=3"));
+        long archive=count("SELECT count(*) FROM kg_observation WHERE predicate='system_signal' AND tier=3");
+        this.clock.addAndGet(30*86_400_000L);
+        putMeta(KgSchema.META_LLM_EXTRACTOR,LlmExtractor.NAME+"/1/"+LlmExtractor.PROMPT_HASH);
+        restart();settleLlm();
+        assertEquals(1L,this.llm.status().getJSONObject("processed").getLong("cacheHits"));
+        assertEquals(archive,count("SELECT count(*) FROM kg_observation WHERE predicate='system_signal' AND tier=3"));
+        assertEquals(observed,count("SELECT min(observed_at) FROM kg_observation WHERE predicate='system_signal' AND tier=3"));
+    }
+
     @Test
     public void validResultsAreCachedPerSite() throws Exception {
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);

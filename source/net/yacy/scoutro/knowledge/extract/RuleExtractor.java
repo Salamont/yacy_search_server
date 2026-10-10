@@ -69,7 +69,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class RuleExtractor {
 
     public static final String NAME = "rule";
-    public static final String VERSION = "4";
+    public static final String VERSION = "5";
     public static final String OPERATOR_REF = "rule:operator";
 
     private static final int WINDOW = 2500;
@@ -231,6 +231,8 @@ public final class RuleExtractor {
             }
             final Mention subject = BusinessRules.subject(out, out.mention(OPERATOR_REF));
             this.business.extract(text, url, host, language, outbound, out, ctx, kinds, subject);
+            if(subject!=null && !kinds.contains(BusinessRules.PageKind.CAREERS))
+                BusinessSignals.extract(text,subject,out,2,Claim.KIND_RULE,"text","text");
             BusinessFacts.ownPlaces(out, host, 2);
             BusinessFacts.industriesFromServices(out, ctx, 2, this.maxExcerpt);
         }

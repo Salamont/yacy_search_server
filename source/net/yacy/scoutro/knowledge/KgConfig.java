@@ -108,6 +108,11 @@ public final class KgConfig {
     public static final String VOCAB_PREFIX = "scoutro.kg.vocab.";
     /** Collections whose job postings the graph reads (comma-separated or *); off by default. */
     public static final String JOBS_COLLECTIONS = "scoutro.kg.jobs.collections";
+    public static final String JOBS_DISPLAY_COLLECTIONS="scoutro.kg.jobs.display.collections";
+    public static final String JOBS_MATCH_COLLECTIONS="scoutro.kg.jobs.matching.collections";
+    public static final String JOBS_EXTRACT_PREFIX="scoutro.kg.jobs.extract.";
+    public static final String JOBS_DISPLAY_PREFIX="scoutro.kg.jobs.display.";
+    public static final String JOBS_MATCH_PREFIX="scoutro.kg.jobs.matching.";
     /** Days an ended job stays visible as ended before it is hidden from views and chat. */
     public static final String JOBS_ENDED_VISIBLE_DAYS = "scoutro.kg.jobs.endedVisibleDays";
     /** Days after its date (or last confirmation) a price counts as stale; {@code .<collection>} overrides per collection. */
@@ -223,6 +228,8 @@ public final class KgConfig {
     public final Map<String, String> vocabOverrides;
     public final Set<String> jobsCollections;
     public final boolean jobsAllCollections;
+    public final Set<String> jobsDisplayCollections,jobsMatchCollections;
+    public final Map<String,Boolean> jobsExtractOverrides,jobsDisplayOverrides,jobsMatchOverrides;
     public final long jobsEndedVisibleMillis;
     public final long priceStaleMillis;
     public final Map<String, Long> priceStaleByCollection;
@@ -326,7 +333,7 @@ public final class KgConfig {
         final List<String> keyed = new ArrayList<>();
         if (this.allCollections) {
             for (final String k : p.keys) {
-                for (final String prefix : new String[] {VOCAB_PREFIX, PRICES_STALE_DAYS + "."}) {
+                for (final String prefix : new String[] {VOCAB_PREFIX, PRICES_STALE_DAYS + ".",JOBS_EXTRACT_PREFIX,JOBS_DISPLAY_PREFIX,JOBS_MATCH_PREFIX}) {
                     final String c = k.startsWith(prefix) ? k.substring(prefix.length()) : null;
                     if (c != null && COLLECTION_NAME.matcher(c).matches() && !keyed.contains(k)) {
                         keyed.add(k);
@@ -356,6 +363,11 @@ public final class KgConfig {
         this.jobsAllCollections = jobs.contains(ALL_COLLECTIONS);
         jobs.remove(ALL_COLLECTIONS);
         this.jobsCollections = Collections.unmodifiableSet(jobs);
+        this.jobsDisplayCollections=Collections.unmodifiableSet(p.raw(JOBS_DISPLAY_COLLECTIONS)==null?legacyJobs():p.collections(JOBS_DISPLAY_COLLECTIONS));
+        this.jobsMatchCollections=Collections.unmodifiableSet(p.raw(JOBS_MATCH_COLLECTIONS)==null?legacyJobs():p.collections(JOBS_MATCH_COLLECTIONS));
+        this.jobsExtractOverrides=jobOverrides(p,perCollection,JOBS_EXTRACT_PREFIX);
+        this.jobsDisplayOverrides=jobOverrides(p,perCollection,JOBS_DISPLAY_PREFIX);
+        this.jobsMatchOverrides=jobOverrides(p,perCollection,JOBS_MATCH_PREFIX);
         this.jobsEndedVisibleMillis = DAY * p.longValue(JOBS_ENDED_VISIBLE_DAYS, 90, 0, 3650);
         this.derivedEnabled = p.bool(DERIVED_ENABLED, true);
         this.derivedIntervalMillis = 60_000L * p.longValue(DERIVED_INTERVAL_MINUTES, 60, 5, 1440);
@@ -501,7 +513,7 @@ public final class KgConfig {
             return false;
         }
         for (final String c : docCollections) {
-            if (follows(c) && (this.jobsAllCollections || this.jobsCollections.contains(c))) {
+            if (follows(c) && jobsExtracted(c)) {
                 return true;
             }
         }
@@ -510,7 +522,17 @@ public final class KgConfig {
 
     /** True if jobs of this collection may be shown (the read side hides the jobs of a collection that switched them off). */
     public boolean jobsShown(final String collection) {
-        return collection != null && (this.jobsAllCollections || this.jobsCollections.contains(collection));
+        return collection != null && this.jobsDisplayOverrides.getOrDefault(collection,
+                this.jobsDisplayCollections.contains(ALL_COLLECTIONS)||this.jobsDisplayCollections.contains(collection));
+    }
+
+    public boolean jobsExtracted(String c){return this.jobsExtractOverrides.getOrDefault(c,this.jobsAllCollections||this.jobsCollections.contains(c));}
+    /** Input policy for existing job signals and future C rules, never authorization. */
+    public boolean jobSignalsMatching(String c){return this.jobsMatchOverrides.getOrDefault(c,
+            this.jobsMatchCollections.contains(ALL_COLLECTIONS)||this.jobsMatchCollections.contains(c));}
+    private Set<String> legacyJobs(){Set<String> out=new TreeSet<>(this.jobsCollections);if(this.jobsAllCollections)out.add(ALL_COLLECTIONS);return out;}
+    private static Map<String,Boolean> jobOverrides(Parser p,Collection<String> collections,String prefix){
+        Map<String,Boolean> out=new TreeMap<>();for(String c:collections)if(p.raw(prefix+c)!=null)out.put(c,p.bool(prefix+c,false));return Collections.unmodifiableMap(out);
     }
 
     /** The vocabulary in force for a collection: the operator's setting, else the default; null for none. */
@@ -547,7 +569,7 @@ public final class KgConfig {
 
     /** Stable description of what the extraction reads per collection (vocabularies, jobs): part of the extractor identity. */
     public String extractionKey() {
-        return this.vocabOverrides + "|" + (this.jobsAllCollections ? ALL_COLLECTIONS : String.join(",", this.jobsCollections));
+        return this.vocabOverrides + "|" + (this.jobsAllCollections ? ALL_COLLECTIONS : String.join(",", this.jobsCollections))+"|"+this.jobsExtractOverrides;
     }
 
     /** Stable description of what the LLM tier selects (collections, kinds, per-host cap). */

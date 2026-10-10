@@ -35,6 +35,7 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgPaths;
 import net.yacy.scoutro.knowledge.KgTestSupport;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
+import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.store.KgChangeLog;
 import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
@@ -636,10 +637,11 @@ public class SyncServiceTest {
 
     @Test
     public void fullClearResetsTheGraphWithANewEpoch() throws Exception {
-        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111").replace("}",",\"description\":\"Wir nutzen SAP intern.\"}"));
         add("BBBBBBhost01", "https://www.muster.de/b", org("B GmbH", "030 2222222"));
         commit();
         settle();
+        assertEquals(1L,count("SELECT count(*) FROM kg_observation"));
         final String epoch = this.store.epoch();
         final String cursor = KgChangeLog.cursor(epoch, count("SELECT max(seq) FROM kg_change"));
         client().deleteByQuery("*:*");
@@ -650,6 +652,8 @@ public class SyncServiceTest {
         for (final String t : new String[] {"kg_doc", "kg_statement", "kg_entity", "kg_evidence", "kg_change", "kg_work"}) {
             assertEquals(t, 0L, count("SELECT count(*) FROM " + t));
         }
+        assertEquals(1L,count("SELECT count(*) FROM kg_observation WHERE source_status='removed' AND assertion_status='recorded'"));
+        assertEquals(1L,count("SELECT count(*) FROM kg_observation_scope"));
         try {
             this.store.read(c -> KgChangeLog.read(c, cursor, KgChangeLog.Viewer.ALL, 10));
             fail("an old cursor must be refused");
@@ -854,7 +858,7 @@ public class SyncServiceTest {
 
     @Test
     public void retentionExpiresAndPurgesOldSources() throws Exception {
-        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111").replace("}",",\"description\":\"Wir nutzen SAP intern.\"}"));
         settle();
         final SolrInputDocument fail = doc("AAAAAAhost01", "https://www.muster.de/", "c1", null);
         fail.setField("httpstatus_i", 410);
@@ -866,11 +870,26 @@ public class SyncServiceTest {
         this.sync.retention().runSoon();
         settle();
         assertFalse("gone longer than the retention: removed", tracked("AAAAAAhost01"));
+        assertEquals(1L,count("SELECT count(*) FROM kg_observation WHERE assertion_status='recorded' AND quote LIKE '%SAP intern%'"));
         assertEquals(0L, count("SELECT count(*) FROM kg_statement"));
         // the fail document is still in Solr; the next reconcile does not track it again
         this.sync.requestReconcile(Reconciler.REASON_ADMIN);
         settle();
         assertFalse(tracked("AAAAAAhost01"));
+    }
+
+    @Test public void archivedSourceReclassificationIsReconciledEvenAfterItsLiveDocIsGone()throws Exception {
+        String content=org("A GmbH","030 1111111").replace("}",",\"description\":\"Wir nutzen SAP intern.\"}");
+        add("AAAAAAhost01","https://www.muster.de/",content);commit();settle();
+        this.store.write(WriteClass.MAINTENANCE,0,c->{try(java.sql.Statement s=c.createStatement()){s.execute("DELETE FROM kg_doc");}return null;});
+        assertEquals(1L,count("SELECT count(*) FROM kg_observation"));
+        client().add(doc("AAAAAAhost01","https://www.muster.de/","not-followed",content));commit();
+        this.sync.requestReconcile(Reconciler.REASON_ADMIN);
+        settle();
+        assertEquals(0L,count("SELECT count(*) FROM kg_observation_scope s JOIN kg_collection c USING(coll_id) WHERE c.name='c1'"));
+        assertEquals(1L,count("SELECT count(*) FROM kg_observation_scope s JOIN kg_collection c USING(coll_id) WHERE c.name='not-followed'"));
+        assertEquals(0L,count("SELECT count(*) FROM kg_doc"));
+        assertEquals(1L,count("SELECT count(*) FROM kg_observation WHERE assertion_status='recorded'"));
     }
 
     // ------------------------------------------- collections switched off (6.2)

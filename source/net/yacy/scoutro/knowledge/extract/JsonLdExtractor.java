@@ -56,7 +56,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class JsonLdExtractor {
 
     public static final String NAME = "jsonld";
-    public static final String VERSION = "3";
+    public static final String VERSION = "4";
 
     private final int maxExcerpt;
 
@@ -555,6 +555,8 @@ public final class JsonLdExtractor {
 
     /** Business facts of a node: industry of its type, categories and prices of a service, a job's fields, the audience. */
     private void business(final Run run, final Mention m, final JSONObject o, final String p, final String schemaType, final int depth) {
+        if(Vocabulary.ORGANIZATION.equals(m.type)||Vocabulary.FACILITY.equals(m.type))
+            BusinessSignals.extract(string(o.opt("description")),m,run.out,1,Claim.KIND_JSONLD,"company",p+"/description");
         if (Vocabulary.ORGANIZATION.equals(m.type) || Vocabulary.FACILITY.equals(m.type)) {
             final String nace = BusinessFacts.industryOfType(m.subkind != null ? m.subkind : bare(schemaType));
             if (nace != null && run.ctx.nace.valid(nace)) {
@@ -932,13 +934,15 @@ public final class JsonLdExtractor {
      * recruiter's name or a personal e-mail address.
      */
     private void job(final Run run, final Mention m, final JSONObject o, final String p, final int depth) {
+        final String description=string(o.opt("description"));
+        final boolean intermediary=description!=null && BusinessSignals.INTERMEDIARY.matcher(description).find();
         String employer = null;
         for (final Object v : values(o.opt("hiringOrganization"))) {
             final String ref = v instanceof JSONObject ? node(run, (JSONObject) v, p + "/hiringOrganization", depth + 1, Vocabulary.ORGANIZATION)
                     : null;
             final Mention om = ref == null ? null : run.out.mention(ref);
             if (om != null && (Vocabulary.ORGANIZATION.equals(om.type) || Vocabulary.FACILITY.equals(om.type))) {
-                relation(run, m.ref, Vocabulary.HIRING_ORGANIZATION, ref, p + "/hiringOrganization");
+                relation(run, m.ref, intermediary ? Vocabulary.RECRUITING_ORGANIZATION : Vocabulary.HIRING_ORGANIZATION, ref, p + "/hiringOrganization");
                 employer = om.name;
             }
         }
@@ -961,8 +965,11 @@ public final class JsonLdExtractor {
         if (o.optString("jobLocationType", "").toUpperCase(java.util.Locale.ROOT).contains("TELECOMMUTE")) {
             literal(run, m, Vocabulary.EMPLOYMENT_TYPE, "remote", p + "/jobLocationType", "jobLocationType: TELECOMMUTE");
         }
-        m.jobKey = (employer == null ? "" : Normalizers.key(employer)) + "|" + (m.name == null ? "" : Normalizers.key(m.name)) + "|"
+        m.jobKey = (employer == null||intermediary ? "unresolved:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.pageUrl+"|"+p)) : Normalizers.key(employer)) + "|" + (m.name == null ? "" : Normalizers.key(m.name)) + "|"
                 + (location == null ? "" : Normalizers.key(location));
+        final String postingId=string(o.opt("@id"));
+        final String posting=postingId==null?run.pageUrl+"|"+p:absoluteId(run,postingId);
+        m.jobKey+="|posting:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(posting));
         for (final String t : strings(o.opt("employmentType"))) {
             final String et = BusinessFacts.employmentType(t);
             if (et != null) {
@@ -1005,6 +1012,17 @@ public final class JsonLdExtractor {
         }
         if (o.opt("directApply") instanceof Boolean && (Boolean) o.opt("directApply") && run.pageUrl != null) {
             literal(run, m, Vocabulary.APPLICATION_ROUTE, Normalizers.url(run.pageUrl), p + "/directApply", "directApply: true");
+        }
+        for(String signalField:List.of("description","skills","qualifications")) {
+            for(String text:strings(o.opt(signalField)))
+                BusinessSignals.extract(text,m,run.out,1,Claim.KIND_JSONLD,signalField,p+"/"+signalField);
+        }
+        for(String[] role:new String[][]{{"publisher",Vocabulary.ADVERTISED_BY},{"provider",Vocabulary.RECRUITING_ORGANIZATION},
+                {"employmentUnit",Vocabulary.DEPLOYMENT_ORGANIZATION}}) {
+            for(Object value:values(o.opt(role[0]))) if(value instanceof JSONObject) {
+                String ref=node(run,(JSONObject)value,p+"/"+role[0],depth+1,Vocabulary.ORGANIZATION);
+                if(ref!=null)relation(run,m.ref,role[1],ref,p+"/"+role[0]);
+            }
         }
     }
 

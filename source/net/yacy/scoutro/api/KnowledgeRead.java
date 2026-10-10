@@ -32,6 +32,7 @@ import net.yacy.scoutro.knowledge.read.Suggestions;
 import net.yacy.scoutro.knowledge.read.BusinessView;
 import net.yacy.scoutro.knowledge.read.KgExport;
 import net.yacy.scoutro.knowledge.read.KgReader;
+import net.yacy.scoutro.knowledge.read.ObservationHistory;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
 
 /**
@@ -85,13 +86,13 @@ final class KnowledgeRead {
     static boolean handles(final String resource) {
         return "entities".equals(resource) || "statements".equals(resource) || "hosts".equals(resource) || "sources".equals(resource)
                 || "export".equals(resource) || "changes".equals(resource) || "compare".equals(resource) || "derived".equals(resource)
-                || "facets".equals(resource) || "services".equals(resource);
+                || "facets".equals(resource) || "services".equals(resource)||"history".equals(resource)||"observations".equals(resource);
     }
 
     /** Resources without a sub path (for the administrator router). */
     static boolean single(final String resource) {
         return "entities".equals(resource) || "export".equals(resource) || "changes".equals(resource) || "compare".equals(resource)
-                || "derived".equals(resource) || "facets".equals(resource) || "services".equals(resource);
+                || "derived".equals(resource) || "facets".equals(resource) || "services".equals(resource)||"history".equals(resource);
     }
 
     /**
@@ -142,6 +143,9 @@ final class KnowledgeRead {
                     } else if (parts.size() == 2) {
                         allow(q, "collection");
                         out = reader.entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer);
+                    } else if (parts.size() == 3 && "history".equals(parts.get(2))) {
+                        allow(q,"after","limit","collection");
+                        out=new ObservationHistory(reader).page(id(parts.get(1),KgReader.ENTITY_ID,"entity"),null,after(q),intParam(q,"limit",25,1,100),viewer);
                     } else if (parts.size() == 3 && "business".equals(parts.get(2))) {
                         allow(q, "include", "collection");
                         out = new BusinessView(reader).entity(id(parts.get(1), KgReader.ENTITY_ID, "entity"), viewer, permitted,
@@ -210,8 +214,18 @@ final class KnowledgeRead {
                         throw notFound();
                     }
                     allow(q, "cursor", "limit", "include", "collection");
-                    out = new KgExport(reader).page(cursor(q), intParam(q, "limit", 100, 1, KgExport.MAX_LIMIT),
-                            oneOf(q, "include", Set.of("evidence")) != null, viewer);
+                    final String exportInclude=oneOf(q,"include",Set.of("evidence","history"));
+                    out="history".equals(exportInclude)?new ObservationHistory(reader).export(cursor(q),intParam(q,"limit",100,1,100),viewer)
+                            : new KgExport(reader).page(cursor(q),intParam(q,"limit",100,1,KgExport.MAX_LIMIT),exportInclude!=null,viewer);
+                    break;
+                case "history":
+                    allow(q,"entity","source","after","limit","collection");
+                    out=new ObservationHistory(reader).page(q.get("entity")==null?null:id(q.get("entity"),KgReader.ENTITY_ID,"entity"),
+                            q.get("source")==null?null:id(q.get("source"),KgReader.DOC_ID,"source"),after(q),intParam(q,"limit",25,1,100),viewer);
+                    break;
+                case "observations":
+                    if(parts.size()==2){allow(q,"collection");out=new ObservationHistory(reader).detail(id(parts.get(1),ObservationHistory.ID,"observation"),viewer);}
+                    else {allow(q,"after","limit","collection");out=new ObservationHistory(reader).events(id(parts.get(1),ObservationHistory.ID,"observation"),after(q),intParam(q,"limit",25,1,100),viewer);}
                     break;
                 case "compare": {
                     allow(q, "category", "limit", "collection");
@@ -301,7 +315,9 @@ final class KnowledgeRead {
         switch (p.get(0)) {
             case "entities":
                 return n == 1 || n == 2 || n == 3 && ("statements".equals(p.get(2)) || "business".equals(p.get(2))
-                        || "neighborhood".equals(p.get(2)) || "suggestions".equals(p.get(2)));
+                        || "neighborhood".equals(p.get(2)) || "suggestions".equals(p.get(2))||"history".equals(p.get(2)));
+            case "observations":
+                return n==2||n==3&&"history".equals(p.get(2));
             case "statements":
                 return n == 2 || n == 3 && "evidence".equals(p.get(2));
             case "hosts":
@@ -315,6 +331,7 @@ final class KnowledgeRead {
             case "compare":
             case "derived":
             case "facets":
+            case "history":
                 return n == 1;
             default:
                 return false;
@@ -323,6 +340,11 @@ final class KnowledgeRead {
 
     private static ApiException notFound() {
         return new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+    }
+
+    private static long after(Map<String,String> q)throws ApiException {
+        try {long value=Long.parseLong(q.getOrDefault("after","0"));if(value<0)throw new NumberFormatException();return value;}
+        catch(NumberFormatException e){throw ApiException.invalid("after","A non-negative history key is required.");}
     }
 
     private static void allow(final Map<String, String> q, final String... names) throws ApiException {

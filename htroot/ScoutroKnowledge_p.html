@@ -11,6 +11,7 @@
 <nav class="sseo-views" aria-label="Views">
 <a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-services" href="ScoutroKnowledge_p.html?view=services" data-skg-view="services">Services</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
 </nav>
+<p><a href="ScoutroKnowledge_p.html?view=history" data-skg-view="history">System and need history</a></p>
 <form id="skg-scope" class="sseo-search skg-scope">
 <label for="skg-collection">Collection<select class="form-control" id="skg-collection" disabled="disabled" aria-busy="true"><option value="">All collections</option></select></label>
 <p class="sseo-note" id="skg-scope-unknown" hidden>The collection of the link is not available; all collections are shown.</p>
@@ -23,7 +24,7 @@
 <p class="sseo-note">State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</p>
 <div class="sseo-cards" id="skg-cards"></div>
 <div id="skg-budget-banner" role="alert" hidden></div>
-<p id="skg-upgrade-note" class="skg-banner skg-banner-warning" role="alert" hidden>The graph was upgraded to vocabulary 2 without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.</p>
+<p id="skg-upgrade-note" class="skg-banner skg-banner-warning" role="alert" hidden>The graph was upgraded without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.</p>
 <p id="skg-paused-note" class="skg-banner skg-banner-warning" role="status" hidden>Enrichment is paused: new pages, updates and the LLM tier wait; deletions, reconcile and state checks continue.</p>
 <section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl>
 <h4>JSON-LD in the Solr index</h4><div id="skg-jsonld-budget" class="skg-budget"></div>
@@ -57,7 +58,7 @@
 <button class="btn btn-default" type="button" data-skg-action="rebuild_cancel" hidden>Cancel the rebuild</button>
 <button class="btn btn-default" type="button" data-skg-action="rebuild_confirm" hidden>Swap in the rebuilt graph</button>
 </div>
-<p class="sseo-note">Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</p></section>
+<p class="sseo-note">Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split. Durable observations, corrections and current access classifications are carried at the final swap; live facts are reconstructed from the current index. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-events-title"><h3 id="skg-events-title">Recent events</h3><div class="sseo-scroll" id="skg-events"></div></section>
 </section>
 
@@ -81,11 +82,20 @@
 <section id="skg-object" hidden aria-labelledby="skg-object-name">
 <h2 id="skg-object-name" tabindex="-1"></h2>
 <div class="sseo-controls skg-object-links"><a id="skg-object-network" href="ScoutroKnowledge_p.html?view=network">Network view</a></div>
+<p id="skg-object-history"></p>
 <nav id="skg-toc" class="skg-toc" aria-label="Sections of this object"></nav>
 <section class="sseo-panel" id="skg-sec-overview" aria-labelledby="skg-sec-overview-title"><h3 id="skg-sec-overview-title">Overview</h3><dl id="skg-object-facts" class="sseo-stats"></dl></section>
 <div id="skg-business"></div>
 <section class="sseo-panel" id="skg-sec-facts" aria-labelledby="skg-out-title"><h3 id="skg-out-title">All facts and relations</h3><div id="skg-out"></div></section>
 <section class="sseo-panel" id="skg-sec-in" aria-labelledby="skg-in-title"><h3 id="skg-in-title">Referenced by</h3><div id="skg-in"></div></section>
+</section>
+
+<section id="skg-history" hidden aria-labelledby="skg-history-title">
+<h2 id="skg-history-title">System and need history</h2>
+<p>Source availability, vacancy status and system statements are separate. Historical evidence survives live object cleanup. A competence requirement does not confirm internal system use. Assessments are not measured probabilities.</p>
+<p><a id="skg-history-download" href="/scoutro/api/v1/kg/export/download?include=history">Download complete authorized history (NDJSON)</a></p>
+<div id="skg-history-items"></div>
+<button id="skg-history-more" type="button" class="btn btn-default" hidden>More history</button>
 </section>
 
 <section id="skg-network" hidden aria-labelledby="skg-network-title">
@@ -176,7 +186,8 @@
 <p class="sseo-note">The LLM enrichment reads the pages of the collections switched on for it in addition, with the model of the LLM selection that has the usage knowledge; there is no second model setting. It is never switched on by itself, and without it the knowledge graph works as before.</p>
 <p class="skg-kgc-llm" id="skg-kgc-llm-state"></p>
 <p><span id="skg-kgc-model"></span> <a href="LLMSelection_p.html">LLM selection</a></p>
-<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-kgc" id="skg-kgc"><thead><tr><th>Collection</th><th>Pages in the index</th><th>Knowledge graph</th><th>Vocabulary</th><th>LLM enrichment</th><th>Documents in the graph</th><th>Status</th><th>Save</th></tr></thead><tbody></tbody></table></div>
+<p>Job extraction, job display and use of stored job signals for matching are independent policies, not permissions. Switching them off deletes no knowledge. New matching rules belong to a later package.</p>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-kgc" id="skg-kgc"><thead><tr><th>Collection</th><th>Pages in the index</th><th>Knowledge graph</th><th>Vocabulary</th><th>LLM enrichment</th><th>Job policies</th><th>Documents in the graph</th><th>Status</th><th>Save</th></tr></thead><tbody></tbody></table></div>
 <p id="skg-kgc-message" class="sseo-note" role="status" aria-live="polite"></p>
 </section>
 </section>
@@ -426,6 +437,84 @@
 <span data-skg-label="derived_relations">Derived, no facts</span>
 <span data-skg-label="job_open">open</span>
 <span data-skg-label="job_ended">ended</span>
+<span data-skg-label="job_unknown">current search status unknown</span>
+<span data-skg-label="job_deadline_passed">application deadline passed; position status unknown</span>
+<span data-skg-label="certainty">Statement assessment</span>
+<span data-skg-label="locator">Text location</span>
+<span data-skg-label="last_observed">Last evidenced on %1; the current situation has not been reconfirmed.</span>
+<span data-skg-label="job_search_state">Vacancy search status</span>
+<span data-skg-label="prod_sap">SAP family (specific product unknown)</span>
+<span data-skg-label="prod_sap-s4hana">SAP S/4HANA</span>
+<span data-skg-label="prod_sap-bw">SAP BW</span>
+<span data-skg-label="prod_sap-bw4">SAP BW/4HANA</span>
+<span data-skg-label="prod_sap-sac">SAP Analytics Cloud</span>
+<span data-skg-label="prod_salesforce">Salesforce</span>
+<span data-skg-label="prod_microsoft-azure">Microsoft Azure</span>
+<span data-skg-label="prod_revit">Revit</span>
+<span data-skg-label="prod_archicad">Archicad</span>
+<span data-skg-label="need_new-build">Own new construction</span>
+<span data-skg-label="need_rebuild">Own conversion</span>
+<span data-skg-label="need_site-expansion">Own site expansion</span>
+<span data-skg-label="need_energy-renovation">Energy renovation</span>
+<span data-skg-label="need_leadership-development">Leadership development</span>
+<span data-skg-label="need_team-development">Team development</span>
+<span data-skg-label="need_care-transition">Organizational care transition</span>
+<span data-skg-label="role_it_consultancy">IT/SAP consulting</span>
+<span data-skg-label="role_system_integrator">System integration</span>
+<span data-skg-label="role_recruiter">Personnel recruitment</span>
+<span data-skg-label="role_job_portal">Job portal</span>
+<span data-skg-label="p_advertised_by">Advertisement publisher</span>
+<span data-skg-label="p_recruiting_organization">Recruiter</span>
+<span data-skg-label="p_deployment_organization">Deployment organization</span>
+<span data-skg-label="history_title">System and need history</span>
+<span data-skg-label="last_proved">Last evidenced on %1; present use has not been reconfirmed.</span>
+<span data-skg-label="historical_date_unknown">Historical observation date unknown; processing time is not evidence of freshness.</span>
+<span data-skg-label="employer_unresolved">Employer or organization identity unresolved</span>
+<span data-skg-label="quote_unavailable">The legacy evidence has no original text quotation.</span>
+<span data-skg-label="source_state">Source availability</span>
+<span data-skg-label="assertion_state">Assertion status</span>
+<span data-skg-label="processed_at">Processed on</span>
+<span data-skg-label="source_revision">Source revision</span>
+<span data-skg-label="vocabulary_version">Vocabulary version</span>
+<span data-skg-label="qualified_signal">Qualified statement; not a measured probability</span>
+<span data-skg-label="stated_signal">Explicit statement; not a measured probability</span>
+<span data-skg-label="later_system_change">A later scoped migration or shutdown is evidenced; the original statement remains historical.</span>
+<span data-skg-label="classification_changed">Access classification changed</span>
+<span data-skg-label="audit_recorded">Observation recorded</span>
+<span data-skg-label="audit_state">Source, assertion or identity status changed</span>
+<span data-skg-label="src_available">available</span>
+<span data-skg-label="src_unavailable">unavailable</span>
+<span data-skg-label="src_gone">gone (not evidence of a filled vacancy or system shutdown)</span>
+<span data-skg-label="src_removed">live source object removed; reachability unknown (no vacancy or shutdown conclusion)</span>
+<span data-skg-label="src_unknown">unknown</span>
+<span data-skg-label="ctx_internal_use">internal system use</span>
+<span data-skg-label="ctx_required_competence">required competence</span>
+<span data-skg-label="ctx_desirable_competence">desirable competence</span>
+<span data-skg-label="ctx_customer_projects">work in customer projects</span>
+<span data-skg-label="ctx_planned_migration">planned migration</span>
+<span data-skg-label="ctx_completed_migration">completed migration</span>
+<span data-skg-label="ctx_shutdown">system shutdown</span>
+<span data-skg-label="ctx_offered_capability">offered support capability</span>
+<span data-skg-label="ctx_planned_need">planned organizational need</span>
+<span data-skg-label="ctx_explicit_need">explicit organizational need</span>
+<span data-skg-label="ctx_organizational_transition">organizational care transition; possible cooperation</span>
+<span data-skg-label="ctx_own_offered_services">own offered services</span>
+<span data-skg-label="ctx_metadata">historical source metadata</span>
+<span data-skg-label="jobs_extraction">Extract jobs</span>
+<span data-skg-label="jobs_display">Display jobs</span>
+<span data-skg-label="jobs_matching">Use stored job signals for matching</span>
+<span data-skg-label="asserted_at">Statement date (when evidenced)</span>
+<span data-skg-label="actor_status">Organization assignment</span>
+<span data-skg-label="actor_unresolved">unresolved; defer job matching</span>
+<span data-skg-label="actor_source_declared">employer declared by the source</span>
+<span data-skg-label="actor_source_actor">organization declared by the source</span>
+<span data-skg-label="assertion_recorded">historical statement retained</span>
+<span data-skg-label="assertion_corrected">corrected; original statement retained</span>
+<span data-skg-label="assertion_withdrawn">withdrawn; original statement retained</span>
+<span data-skg-label="p_system_signal">System or competence signal</span>
+<span data-skg-label="p_business_need_signal">Organizational need signal</span>
+<span data-skg-label="p_business_role_evidence">Own offered services and role</span>
+<span data-skg-label="p_job_status">Evidenced vacancy status</span>
 <span data-skg-label="hidden_ended">%1 ended jobs older than the visibility window are hidden.</span>
 <span data-skg-label="salary">Salary</span>
 <span data-skg-label="location">Location</span>
@@ -661,7 +750,7 @@
 <span data-skg-label="p_office_hours">office hours</span>
 <span data-skg-label="p_social_profile">company profile</span>
 <span data-skg-label="p_directions">directions</span>
-<span data-skg-label="p_hiring_organization">is advertised by</span>
+<span data-skg-label="p_hiring_organization">actual employer</span>
 <span data-skg-label="p_job_location">place of work</span>
 <span data-skg-label="p_employment_type">employment type</span>
 <span data-skg-label="p_occupational_field">occupational field</span>

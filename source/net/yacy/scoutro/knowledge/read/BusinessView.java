@@ -59,8 +59,10 @@ import net.yacy.scoutro.knowledge.vocab.Nace;
  * {@code prices.staleDays} from its stated date or last confirmation, and
  * {@code conflicting} when another current price of the same service, unit,
  * kind and condition states a different amount (both are shown, nothing is
- * averaged). A job is {@code open} or {@code ended} (deadline passed or no
- * current source) and hidden {@code jobs.endedVisibleDays} after it ended.
+ * averaged). A job has observed search ({@code open}), an explicit end,
+ * a passed published deadline or unknown current status. Source loss and age
+ * do not prove its end; the ended visibility window applies only to an explicit
+ * end or a published deadline, and never erases archived observations.
  * The three audience layers are kept apart: {@code declared} (what the
  * organisation says), {@code observed} (customers and references named as
  * facts) and {@code suggested} (derived, never a fact).
@@ -619,7 +621,7 @@ public final class BusinessView {
         }
     }
 
-    /** One job with its status: open, or ended (deadline passed or no current source), hidden some days after it ended. */
+    /** One job: observed search, explicit end, published deadline passed or unknown current status. */
     private JSONObject job(final Connection c, final long job, final Viewer v, final long now, final Categories cats, final Nace nace,
             final Set<String> docs) throws SQLException {
         final List<Fact> facts = facts(c, job, false, null, v, now, 200);
@@ -637,15 +639,28 @@ public final class BusinessView {
         final JSONObject o = KgJson.obj("id", KgReader.publicId(c, job));
         boolean current = false;
         Long lastSeen = null;
+        try(PreparedStatement p=c.prepareStatement("SELECT max(e.source_observed_at) FROM kg_evidence e"
+                +" JOIN kg_statement s ON s.stmt_rowid=e.stmt_rowid JOIN kg_doc d ON d.doc_rowid=e.doc_rowid"
+                +" WHERE s.subj=? AND "+KgReader.visibleDoc(v,"d"))) {
+            p.setLong(1,job);try(ResultSet r=p.executeQuery()){if(r.next()&&r.getObject(1)!=null)lastSeen=r.getLong(1);}
+        }
         String validThrough = null;
+        boolean confirmedEnd=false;
+        Long confirmedEndAt=null;
         for (final Fact f : facts) {
             current |= !"stale".equals(f.stat.quality);
-            // the last load of its pages, also of a page that is gone (lastConfirmed counts current pages only)
-            if (f.stat.lastSeen != null && (lastSeen == null || f.stat.lastSeen > lastSeen)) {
-                lastSeen = f.stat.lastSeen;
-            }
+            // A later failed load must not date an old job quotation as newly confirmed.
             collect(f, docs);
             switch (f.stat.predicate) {
+                case Vocabulary.JOB_STATUS:
+                    confirmedEnd|="ended".equals(f.stat.objVal);
+                    if("ended".equals(f.stat.objVal)) {
+                        try(PreparedStatement p=c.prepareStatement("SELECT max(e.source_observed_at) FROM kg_evidence e JOIN kg_doc d USING(doc_rowid)"
+                                +" WHERE e.stmt_rowid=? AND "+KgReader.visibleDoc(v,"d"))) {
+                            p.setLong(1,f.stat.rowid);try(ResultSet r=p.executeQuery()){if(r.next()&&r.getObject(1)!=null)confirmedEndAt=r.getLong(1);}
+                        }
+                    }
+                    break;
                 case Vocabulary.NAME:
                     if (!o.has("title") || "supported".equals(f.stat.quality)) {
                         KgJson.put(o, "title", f.stat.objVal);
@@ -694,10 +709,14 @@ public final class BusinessView {
         Long endedAt = null;
         if (deadline != null && deadline.isBefore(today)) {
             endedAt = deadline.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
-        } else if (!current) {
-            endedAt = lastSeen == null ? now : lastSeen; // the posting is gone: ended when it was last seen
+        } else if (confirmedEnd) {
+            endedAt = confirmedEndAt; // historical source observation, not processing or disappearance
         }
-        KgJson.put(o, "status", endedAt == null ? "open" : "ended");
+        final boolean deadlinePassed=deadline!=null&&deadline.isBefore(today);
+        KgJson.put(o,"status",confirmedEnd?"ended":deadlinePassed?"deadline_passed":current?"open":"unknown");
+        KgJson.put(o,"status_reason",confirmedEnd?"explicit_end":deadlinePassed?"application_deadline":current?"observed_search":"not_reconfirmed");
+        KgJson.put(o,"source_status",current?"available":"unknown");
+        KgJson.put(o,"position_filled","unknown");
         KgJson.put(o, "ended_at", KgReader.iso(endedAt));
         KgJson.put(o, "last_confirmed", KgReader.iso(lastSeen));
         KgJson.put(o, "hidden", endedAt != null && now - endedAt > this.cfg.jobsEndedVisibleMillis);

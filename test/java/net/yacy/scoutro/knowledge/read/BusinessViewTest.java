@@ -145,7 +145,7 @@ public class BusinessViewTest {
                 "Preise. Verhinderungspflege: 25 € pro Stunde. Stand: 01/2025", care, fresh);
         // jobs: one open, one ended within 90 days, one ended long ago
         publish(doc("JOBSA1host02", "https://www.lindenhof.de/karriere", "edelsenior-web"), OP,
-                "Karriere. Pflegefachkraft (m/w/d) in Vollzeit. Vergütung: 3.400 – 3.900 € brutto monatlich. Bewerbungsfrist: 31.03.2027. "
+                "Karriere. Wir suchen: Pflegefachkraft (m/w/d) in Vollzeit. Vergütung: 3.400 – 3.900 € brutto monatlich. Bewerbungsfrist: 31.03.2027. "
                         + "Pflegehelfer (m/w/d) in Teilzeit. Bewerbungsfrist: 31.12.2026. Hauswirtschaftskraft (m/w/d) in Minijob."
                         + " Bewerbungsfrist: 30.06.2026.", care, fresh);
         // a software company of another collection that names care homes as its customers' field, and as reference
@@ -209,24 +209,24 @@ public class BusinessViewTest {
         assertEquals(List.of("43.34"), strings(industry.getJSONArray("secondary"), "code"));
     }
 
-    /** A posting whose page disappears ends when the page was last seen, and is hidden after the visible days. */
+    /** Disappearance is source loss, never a vacancy end; age without a deadline stays unknown. */
     @Test
-    public void aPostingWhosePageDisappearsEndsWithIt() throws Exception {
+    public void aPostingWhosePageDisappearsHasUnknownSearchStatus() throws Exception {
         final long seen = this.now - 10 * DAY;
         publish(doc("JOBSB1host02", "https://www.lindenhof.de/stellen", "edelsenior-web"), OP,
-                "Karriere. Alltagsbegleiter (m/w/d) in Teilzeit. Bewerbungsfrist: 31.12.2027.", ctx("care", "edelsenior-web", true), seen);
+                "Karriere. Wir suchen: Alltagsbegleiter (m/w/d) in Teilzeit.", ctx("care", "edelsenior-web", true), seen);
         final String op = entity("Lindenhof Pflege gGmbH");
         final Viewer v = viewer("edelsenior-web");
         assertEquals("open", job(new BusinessView(this.reader), op, v, "Alltagsbegleiter").getString("status"));
         final long rowid = this.store.read(c -> KgStore.queryLong(c, "SELECT doc_rowid FROM kg_doc WHERE doc_id = 'JOBSB1host02'"));
         this.store.write(WriteClass.MAINTENANCE, 0, tx -> this.publisher.setState(tx, List.of(rowid), Aggregates.STATE_GONE, this.now - DAY));
         final JSONObject ended = job(new BusinessView(this.reader), op, v, "Alltagsbegleiter");
-        assertNotNull("an ended posting stays visible for its days", ended);
-        assertEquals("ended", ended.getString("status"));
-        assertEquals("ended when its page was last seen", KgReader.iso(seen), ended.getString("ended_at"));
+        assertNotNull("source loss does not hide the posting", ended);
+        assertEquals("unknown", ended.getString("status"));
+        assertTrue(ended.isNull("ended_at"));
         final KgReader later = new KgReader(this.store, this.cfg, () -> this.now + 100 * DAY);
-        assertEquals("hidden 90 days after its end", null, job(new BusinessView(later), op, later.viewer(List.of("edelsenior-web")),
-                "Alltagsbegleiter"));
+        assertEquals("age without end proof remains unknown", "unknown", job(new BusinessView(later), op, later.viewer(List.of("edelsenior-web")),
+                "Alltagsbegleiter").getString("status"));
     }
 
     @Test
@@ -272,7 +272,7 @@ public class BusinessViewTest {
         }
         java.util.Collections.sort(shown);
         assertEquals("ended 15 days ago: still visible; ended in June 2026: hidden", List.of("Pflegefachkraft (m/w/d) open",
-                "Pflegehelfer (m/w/d) ended"), shown);
+                "Pflegehelfer (m/w/d) deadline_passed"), shown);
         assertEquals(1, jobs.getInt("hidden_ended"));
         final JSONObject all = bv.entity(entity("Lindenhof Pflege gGmbH"), viewer("edelsenior-web"), true);
         assertEquals(3, all.getJSONObject("jobs").getJSONArray("items").length());
@@ -283,17 +283,17 @@ public class BusinessViewTest {
         assertFalse(none.has("jobs"));
     }
 
-    /** One job on pages of two collections: the chat of each collection names it with its own page. */
+    /** Equal titles on distinct pages are not proof of one posting; each chat keeps its own source. */
     @Test
-    public void aJobReachesTheChatOfEveryCollectionThatShowsIt() throws Exception {
+    public void separatePostingsReachTheChatOfEveryCollectionThatShowsThem() throws Exception {
         final KgConfig both = KgTestSupport.config(KgTestSupport.enabled(KgConfig.JOBS_COLLECTIONS, "edelsenior-web,pflegejobs-web"));
         final String[][] pages = {{"JOBSC1host02", "https://www.lindenhof.de/karriere/wbl", "edelsenior-web"},
             {"JOBSD1host02", "https://www.lindenhof.de/jobs/wbl", "pflegejobs-web"}};
         for (final String[] p : pages) {
-            publish(doc(p[0], p[1], p[2]), OP, "Karriere. Wohnbereichsleitung (m/w/d) in Vollzeit. Bewerbungsfrist: 31.03.2027.",
+            publish(doc(p[0], p[1], p[2]), OP, "Karriere. Wir suchen: Wohnbereichsleitung (m/w/d) in Vollzeit. Bewerbungsfrist: 31.03.2027.",
                     ctx("care", p[2], true), this.now - DAY);
         }
-        assertEquals("one job, one name in both collections", 1L, (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_statement s"
+        assertEquals("distinct postings keep independent status", 2L, (long) this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_statement s"
                 + " JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'name' AND s.obj_val LIKE 'Wohnbereichsleitung%'")));
         final KgReader reader = new KgReader(this.store, both, () -> this.now);
         for (final String[] p : pages) {

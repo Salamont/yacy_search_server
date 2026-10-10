@@ -71,7 +71,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class LlmExtractor {
 
     public static final String NAME = "llm";
-    public static final String VERSION = "2";
+    public static final String VERSION = "3";
     public static final int TIER = 3;
     public static final int CHUNK_CHARS = 4000;
     public static final int MAX_ANSWER_BYTES = 64 * 1024;
@@ -84,7 +84,7 @@ public final class LlmExtractor {
     static final List<String> PREDICATES;
     static {
         final List<String> p = new ArrayList<>(List.of(Vocabulary.OPERATES, Vocabulary.OFFERS, Vocabulary.LOCATED_AT, Vocabulary.PART_OF,
-                Vocabulary.HIRING_ORGANIZATION));
+                Vocabulary.HIRING_ORGANIZATION,Vocabulary.ADVERTISED_BY,Vocabulary.RECRUITING_ORGANIZATION,Vocabulary.DEPLOYMENT_ORGANIZATION));
         p.addAll(Vocabulary.BUSINESS_RELATIONS);
         PREDICATES = java.util.Collections.unmodifiableList(p);
     }
@@ -95,7 +95,7 @@ public final class LlmExtractor {
      */
     static final List<String> VALUE_PREDICATES = List.of(Vocabulary.PRICE, Vocabulary.SALARY, Vocabulary.CATEGORY, Vocabulary.INDUSTRY,
             Vocabulary.CUSTOMER_TYPE, Vocabulary.AUDIENCE_SEGMENT, Vocabulary.TARGET_CATEGORY, Vocabulary.COMPANY_SIZE,
-            Vocabulary.EMPLOYMENT_TYPE);
+            Vocabulary.EMPLOYMENT_TYPE,Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS);
 
     /** Subject and object types each relation accepts. */
     private static final Map<String, Set<String>[]> RELATION_TYPES = new LinkedHashMap<>();
@@ -106,6 +106,8 @@ public final class LlmExtractor {
                 Set.of(Vocabulary.SITE, Vocabulary.FACILITY)));
         RELATION_TYPES.put(Vocabulary.PART_OF, types(Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY), Set.of(Vocabulary.ORGANIZATION)));
         RELATION_TYPES.put(Vocabulary.HIRING_ORGANIZATION, types(Set.of(Vocabulary.JOB), Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY)));
+        for(String role:List.of(Vocabulary.ADVERTISED_BY,Vocabulary.RECRUITING_ORGANIZATION,Vocabulary.DEPLOYMENT_ORGANIZATION))
+            RELATION_TYPES.put(role,types(Set.of(Vocabulary.JOB),Set.of(Vocabulary.ORGANIZATION,Vocabulary.FACILITY)));
         for (final String r : Vocabulary.BUSINESS_RELATIONS) {
             RELATION_TYPES.put(r, types(Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY), Vocabulary.CARRIER_OF.equals(r)
                     ? Set.of(Vocabulary.ORGANIZATION, Vocabulary.FACILITY) : Set.of(Vocabulary.ORGANIZATION)));
@@ -160,7 +162,13 @@ public final class LlmExtractor {
             + " for), company_size, employment_type. Give only subject, predicate and the verbatim quote that states the value; never"
             + " write the value yourself, never compute, convert or estimate.\n"
             + "9. Answer with one JSON object with the fields \"entities\", \"claims\" and \"values\" and nothing else. Empty arrays"
-            + " are fine.";
+            + " are fine.\n"
+            + "10. Additional values: system_signal, business_need_signal, business_role_evidence, job_status. Quote the named actor"
+            + " and its explicit assertion. Internal use, required/desirable competence, customer projects, planned migration,"
+            + " completed migration and shutdown are different contexts. A product mention alone proves neither use nor purchasing need."
+            + " Never infer an individual's care needs. Own offered IT consulting/system integration is role evidence; names or sectors alone are not."
+            + " A job portal, recruiter, advertiser and deployment company are not automatically the employer. Relations advertised_by,"
+            + " recruiting_organization and deployment_organization are separate from hiring_organization. Unknown employers stay unknown.";
 
     /**
      * The id contract of the answer (rule 7, and the schema's descriptions): a known entity keeps its {@code k} id and is
@@ -223,7 +231,8 @@ public final class LlmExtractor {
 
     /** The hash of a system prompt together with the schema and the version: the prompt part of the extractor identity. */
     public static String promptHash(final String systemPrompt) {
-        return sha256Hex(VERSION + "\u0000" + systemPrompt + "\u0000" + SCHEMA.toString()).substring(0, 16);
+        return sha256Hex(VERSION + "\u0000" + systemPrompt + "\u0000" + SCHEMA.toString()+"\u0000"
+                +net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().signals.version).substring(0, 16);
     }
 
     /** A part of the page text; {@code offset} is its position in the text given to {@link #chunks}. */
@@ -543,6 +552,9 @@ public final class LlmExtractor {
                 r.droppedUngrounded++;
                 continue;
             }
+            if(Vocabulary.HIRING_ORGANIZATION.equals(predicate)&&BusinessSignals.INTERMEDIARY.matcher(quote).find()) {
+                r.invalid("claim_employer_unresolved");continue;
+            }
             final boolean hedged = Boolean.TRUE.equals(hedgedValue) || HEDGE.matcher(quote).find();
             okClaims.put(item("subject", subject, "predicate", predicate, "object", object, "hedged", hedged,
                     "quote", Normalizers.text(quote), "at", chunk.offset + rawOffset(chunk.text, quote)));
@@ -567,6 +579,16 @@ public final class LlmExtractor {
             if (groundedAt(text, quote, List.of()) < 0) {
                 r.droppedUngrounded++; // a value the page does not state verbatim
                 continue;
+            }
+            if (signalPredicate(predicate)) {
+                // Named actor grounding prevents a company's client from becoming that company's own need.
+                final long jobsOnPage=names.values().stream().filter(n->Vocabulary.JOB.equals(n[0])).count();
+                if((!Vocabulary.JOB.equals(s[0])||jobsOnPage>1) && groundedAt(text,quote,List.of(s[1]))<0) {
+                    r.droppedUngrounded++;continue;
+                }
+                if(BusinessSignals.read(predicate,quote,"text",s[0],s[1]).isEmpty()) {
+                    r.invalid("value_signal_context_missing");continue;
+                }
             }
             if ((Vocabulary.PRICE.equals(predicate) || Vocabulary.SALARY.equals(predicate)) && Values.prices(quote, 0, quote.length()).isEmpty()) {
                 r.droppedUngrounded++; // the quote holds no amount with a currency
@@ -677,6 +699,9 @@ public final class LlmExtractor {
 
     /** The entity types a value may describe. */
     private static boolean valueSubject(final String predicate, final String type) {
+        if(signalPredicate(predicate))return Vocabulary.JOB_STATUS.equals(predicate)?Vocabulary.JOB.equals(type)
+                : Vocabulary.SYSTEM_SIGNAL.equals(predicate)?Set.of(Vocabulary.ORGANIZATION,Vocabulary.FACILITY,Vocabulary.JOB).contains(type)
+                : Set.of(Vocabulary.ORGANIZATION,Vocabulary.FACILITY).contains(type);
         switch (predicate) {
             case Vocabulary.PRICE:
             case Vocabulary.CATEGORY:
@@ -758,8 +783,13 @@ public final class LlmExtractor {
             if (s == null || out.mention(s) == null) {
                 continue;
             }
-            for (final String value : read(v.optString("predicate"), v.optString("quote"), ctx)) {
-                out.add(new Claim(s, v.optString("predicate"), null, value, TIER, Claim.KIND_LLM, false, locator(v), v.optString("quote")));
+            final Mention actor=out.mention(s);
+            final List<String> parsed=signalPredicate(v.optString("predicate"))
+                    ? BusinessSignals.read(v.optString("predicate"),v.optString("quote"),"text",actor.type,actor.name)
+                    : read(v.optString("predicate"),v.optString("quote"),ctx);
+            for (final String value : parsed) {
+                out.add(new Claim(s, v.optString("predicate"), null, signalPredicate(v.optString("predicate"))?BusinessSignals.located(value,locator(v)):value,
+                        TIER, Claim.KIND_LLM, false, locator(v), v.optString("quote")));
             }
         }
         BusinessFacts.industriesFromServices(out, ctx, TIER, MAX_QUOTE);
@@ -773,6 +803,7 @@ public final class LlmExtractor {
             return out;
         }
         final ExtractContext c = ctx == null ? ExtractContext.none() : ctx;
+        if(signalPredicate(predicate)) return BusinessSignals.read(predicate,quote,"text",Vocabulary.ORGANIZATION,null);
         switch (predicate) {
             case Vocabulary.PRICE:
             case Vocabulary.SALARY:
@@ -835,6 +866,10 @@ public final class LlmExtractor {
                 }
         }
         return out;
+    }
+
+    private static boolean signalPredicate(String predicate) {
+        return Set.of(Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS).contains(predicate);
     }
 
     private static String locator(final JSONObject item) {

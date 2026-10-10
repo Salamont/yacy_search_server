@@ -384,6 +384,7 @@ public final class Reconciler {
                 delete(r, now);
                 return true;
             default:
+                if(archiveClassification(r,now))return true;
                 complete(r, now);
                 return true;
         }
@@ -689,6 +690,10 @@ public final class Reconciler {
         }
         this.store.write(WriteClass.MAINTENANCE, ESTIMATE, tx -> {
             final int n = remove.isEmpty() ? 0 : this.publisher.remove(tx, remove, expected, now);
+            for (final String id : ids) {
+                final SolrDoc source=found.get(id);
+                if(source!=null) net.yacy.scoutro.knowledge.store.Observations.classify(tx,id,source.collections);
+            }
             WorkQueue.scanned(tx, back, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_VERIFIED, 0L, now, this.queueMax);
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_scan_candidate WHERE run_id = ? AND doc_id = ?")) {
                 for (final String id : ids) {
@@ -754,6 +759,32 @@ public final class Reconciler {
             request(REASON_LOST_CHANGES, after);
         }
         JsonLdCapture.reconciled();
+    }
+
+    /** Historical sources without live kg_doc rows also need current classification.
+     * One bounded real-time lookup batch per step; disappearance changes availability only. */
+    private String archiveAfter;
+    private long archiveRun=-1;
+    private boolean archiveClassification(Run r,long now)throws KgException {
+        if(archiveRun!=r.id){archiveRun=r.id;archiveAfter=null;}
+        final List<String> ids=this.store.read(c->{List<String> out=new ArrayList<>();
+            try(PreparedStatement p=c.prepareStatement("SELECT DISTINCT source_id FROM kg_observation WHERE source_id>? ORDER BY source_id LIMIT ?")) {
+                p.setString(1,archiveAfter==null?"":archiveAfter);p.setInt(2,SolrSource.MAX_GET);
+                try(ResultSet found=p.executeQuery()){while(found.next())out.add(found.getString(1));}
+            }return out;});
+        if(ids.isEmpty())return false;
+        final Map<String,SolrDoc> sources;
+        try{sources=this.solr.get(ids,SolrDoc.SCAN_FIELDS);}catch(IOException e){abort(r,"archive_classification: "+e.getMessage(),now);return true;}
+        this.store.write(WriteClass.MAINTENANCE,ESTIMATE,tx->{
+            for(String id:ids) {
+                SolrDoc source=sources.get(id);
+                if(source!=null)net.yacy.scoutro.knowledge.store.Observations.classify(tx,id,source.collections);
+                String state=source==null?"removed":source.state()==1?"available":source.state()==2?"unavailable":"gone";
+                try(PreparedStatement p=tx.prepareStatement("UPDATE kg_observation SET source_status=? WHERE source_id=? AND source_status<>?")) {
+                    p.setString(1,state);p.setString(2,id);p.setString(3,state);p.executeUpdate();
+                }
+            }return null;
+        });archiveAfter=ids.get(ids.size()-1);return true;
     }
 
     private void abort(final Run r, final String detail, final long now) throws KgException {

@@ -69,23 +69,19 @@ final class BaseTiers {
         }
     }
 
-    /** Tiers 1 and 2; the text is read only for tier-2 candidates. */
+    /** Tiers 1 and 2; globally relevant signals also occur outside career/service pages. */
     Extraction extract(final SolrDoc d, final Text text) throws IOException {
         final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
         final String host = host(d);
         final ExtractContext ctx = context(this.cfg, d);
         this.jsonld.extract(d.ldJson, d.url, host, d.language, ex, ctx);
         this.metadata.extract(d.publisher, d.coordinates(), ex);
-        if (RuleExtractor.candidate(d.url, d.titles, ex)) {
-            this.rules.extract(text.get(), d.url, host, d.language, ex, ctx, d.titles, d.outbound);
-        } else {
-            // the industries of the structured data's services still count without a text tier
-            net.yacy.scoutro.knowledge.extract.BusinessFacts.industriesFromServices(ex, ctx, 2, this.cfg.extractMaxExcerptChars);
-        }
+        this.rules.extract(text.get(), d.url, host, d.language, ex, ctx, d.titles, d.outbound);
+        net.yacy.scoutro.knowledge.extract.BusinessFacts.industriesFromServices(ex, ctx, 2, this.cfg.extractMaxExcerptChars);
         return ex;
     }
 
-    /** The vocabulary-2 context of a document: the vocabularies and the job switch of its followed collections. */
+    /** The document's vocabularies and job extraction policy for its followed collections. */
     static ExtractContext context(final KgConfig cfg, final SolrDoc d) {
         final List<String> followed = d.followed(cfg);
         final KgVocabularies.Snapshot vocab = KgVocabularies.get();

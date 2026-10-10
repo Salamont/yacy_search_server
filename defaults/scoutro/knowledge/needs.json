@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "needs": {
+    "new-build": ["Neubau", "new building"],
+    "rebuild": ["Umbau", "remodelling"],
+    "site-expansion": ["Standortausbau", "Standorterweiterung", "Standort erweitern", "site expansion"],
+    "energy-renovation": ["energetische Sanierung", "energetischen Sanierung", "energy renovation"],
+    "leadership-development": ["Führungsentwicklung", "Führungskräfteentwicklung", "leadership development"],
+    "team-development": ["Teamentwicklung", "team development"],
+    "care-transition": ["Entlassmanagement", "Überleitungsmanagement", "Pflegeüberleitung", "discharge management"]
+  }
+}

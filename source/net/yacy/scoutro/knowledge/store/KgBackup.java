@@ -136,11 +136,17 @@ public final class KgBackup {
             if (!KgIds.isEpoch(epoch)) {
                 throw new KgException(KgException.BACKUP_INVALID, "epoch", "no valid dataset epoch", null);
             }
+            if(v>=5)try(Statement s=c.createStatement();ResultSet r=s.executeQuery("PRAGMA foreign_key_check")) {
+                if(r.next())throw new KgException(KgException.BACKUP_INVALID,"foreign_keys","the backup contains broken graph/history references",null);
+            }
             return KgJson.obj("schema_version", v, "epoch", epoch, "counts", KgJson.obj(
                     "documents", longValue(c, "SELECT count(*) FROM kg_doc"),
                     "entities", longValue(c, "SELECT count(*) FROM kg_entity WHERE status = 1"),
                     "statements", longValue(c, "SELECT count(*) FROM kg_statement"),
-                    "evidence", longValue(c, "SELECT count(*) FROM kg_evidence")));
+                    "evidence", longValue(c, "SELECT count(*) FROM kg_evidence"),
+                    "observations", v >= 5 ? longValue(c, "SELECT count(*) FROM kg_observation") : 0,
+                    "observation_scopes", v >= 5 ? longValue(c, "SELECT count(*) FROM kg_observation_scope") : 0,
+                    "observation_events", v >= 5 ? longValue(c, "SELECT count(*) FROM kg_observation_event") : 0));
         } catch (final SQLException e) {
             throw new KgException(KgException.BACKUP_INVALID, "unreadable", "the backup cannot be read: " + clip(e.getMessage()), e);
         }

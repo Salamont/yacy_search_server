@@ -1064,3 +1064,40 @@ Collection is now mandatory for every Scoutro crawl, including administrators. S
 `GET /v1/index/domains` lists the index consolidated per host and collection; `GET /v1/index/domains/export?format=json|csv` downloads all entries of the same filter as `scoutro.domains.v1` (administrator only, read-only, streamed). Contract and field sources: [Index Browser](SCOUTRO_INDEX_BROWSER.md#export-contract-scoutrodomainsv1).
 
 Structured system facts: `GET /v1/index/metrics` and `GET /v1/system/questions`, with corresponding authorized agent routes. CLI `index metrics`/`ask`, JSON/SSE chat behavior and real read-only stdio MCP adapter are documented in [System questions and MCP](SCOUTRO_SYSTEM_QUESTIONS_MCP.md). The question router delegates to existing grants; it is not a broad system/admin grant.
+
+### Durable observations and history (package B)
+
+SQLite schema 5 adds a history projection independent of live entities/statements.
+GET /scoutro/api/v1/kg/history accepts entity, source, after, limit (1–100) and
+collection. GET entities/{id}/history works after live cleanup. GET
+observations/{kgo_id} returns quote, revision, actor/identity grounding, context,
+independent source/assertion/job states, original/current identity and three
+separate dates. GET observations/{kgo_id}/history pages all audit events with
+stable kgh IDs. Responses use scoutro.kg.history.v1 and current access
+classification; historical memberships never authorize access. Missing and
+inaccessible observations share 404 and no private totals are exposed.
+
+Agent mirrors require kg.read, while export?include=history and changes require
+the separate kg.export grant. Administrator-only download supports
+export/download?include=history&format=ndjson or json. This explicit export
+includes all observations followed by all audit events (at most 100 per page),
+without the live evidence cap. Follow next until complete and then next_changes;
+on changed observations read paginated events and deduplicate stable event IDs.
+Cursor phases are o/e and belong to one epoch. The export is not a snapshot;
+streaming failures produce complete:false in the trailer.
+
+The existing scoutro.kg.v1 change feed gains kind observation; expand returns the
+currently authorized archival record, or null if no longer accessible. Ordinary
+live export stays scoutro.kg.v1. Clients must tolerate the additional kind or
+upgrade to the history-aware contract; after epoch change start a full export.
+
+Collection settings PATCH adds jobsExtraction, jobsDisplay and jobsMatching,
+also returned by GET. These are independent policies, not access grants.
+Initial opt-ins inherit scoutro.kg.jobs.collections; changing the first policy
+freezes legacy display/matching opt-ins. Off deletes no historical knowledge.
+Only extraction changes affect extraction identity. No new matching rules in B.
+
+Global versioned product/need vocabularies and the LLM value schema/validator/
+grounding/application are updated together; custom prompt text remains.
+System mentions alone are not assertions of software use or procurement.
+See [the B contract and upgrade/rollback procedure](SCOUTRO_DURABLE_OBSERVATIONS.md).

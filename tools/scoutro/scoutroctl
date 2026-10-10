@@ -270,7 +270,9 @@ def build_parser():
     exp = kg.add_parser("export", help="one export page, or with --all every record as one JSON line")
     exp.add_argument("--cursor")
     exp.add_argument("--limit", type=int)
-    exp.add_argument("--evidence", action="store_true")
+    exp_kind = exp.add_mutually_exclusive_group()
+    exp_kind.add_argument("--evidence", action="store_true")
+    exp_kind.add_argument("--history", action="store_true", help="full durable observations and audit events")
     exp.add_argument("--collection")
     exp.add_argument("--all", action="store_true")
     ch = kg.add_parser("changes")
@@ -280,7 +282,9 @@ def build_parser():
     ch.add_argument("--collection")
     dl = kg.add_parser("download", help="administrator: the whole export as NDJSON or JSON to stdout")
     dl.add_argument("--format", choices=["ndjson", "json"])
-    dl.add_argument("--evidence", action="store_true")
+    dl_kind = dl.add_mutually_exclusive_group()
+    dl_kind.add_argument("--evidence", action="store_true")
+    dl_kind.add_argument("--history", action="store_true")
     dl.add_argument("--collection")
     kg.add_parser("status", help="administrator")
     kg.add_parser("collections", help="administrator: the knowledge graph settings of each collection (on/off, vocabulary)")
@@ -438,11 +442,11 @@ def main(argv=None):
         elif k in ("rebuild", "rebuild-cancel", "rebuild-confirm"):
             result = client.call("POST", "/v1/kg/control", body={"action": k.replace("-", "_")})
         elif k == "download":
-            client.call("GET", "/v1/kg/export/download", {"format": args.format, "include": "evidence" if args.evidence else None,
+            client.call("GET", "/v1/kg/export/download", {"format": args.format, "include": "history" if args.history else "evidence" if args.evidence else None,
                                                          "collection": args.collection}, raw=True)
             return 0
         elif k == "export":
-            query = {"cursor": args.cursor, "limit": args.limit, "include": "evidence" if args.evidence else None,
+            query = {"cursor": args.cursor, "limit": args.limit, "include": "history" if args.history else "evidence" if args.evidence else None,
                      "collection": args.collection}
             if not args.all:
                 result = client.call("GET", v1 + "/kg/export", query)

@@ -165,7 +165,7 @@ public class BusinessExtractionTest {
         final Extraction ex = jsonld(block, "https://www.lindenhof.de/karriere/pflegefachkraft", care(true));
         final Mention job = named(ex, Vocabulary.JOB, "Pflegefachkraft (m/w/d)");
         assertNotNull(ex.mentions().toString(), job);
-        assertEquals("lindenhof pflege ggmbh|pflegefachkraft m w d|berlin", job.jobKey);
+        assertTrue(job.jobKey.startsWith("lindenhof pflege ggmbh|pflegefachkraft m w d|berlin|posting:"));
         assertEquals(List.of("full_time", "part_time"), valuesOf(ex, job, Vocabulary.EMPLOYMENT_TYPE));
         assertEquals(List.of("2026-12-31"), valuesOf(ex, job, Vocabulary.VALID_THROUGH));
         assertEquals(List.of("2026-09-01"), valuesOf(ex, job, Vocabulary.DATE_POSTED));

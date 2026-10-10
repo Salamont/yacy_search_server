@@ -111,6 +111,21 @@ public class KgCollectionSettingsTest {
         });
     }
 
+    @Test public void independentJobPoliciesInitiallyInheritLegacyAndDoNotDeleteKnowledge()throws Exception {
+        productive();JSONObject before=row(settings.list(),"edelsenior-web");
+        assertTrue(before.getBoolean("jobsExtraction"));assertTrue(before.getBoolean("jobsDisplay"));assertTrue(before.getBoolean("jobsMatching"));
+        JSONObject display=settings.update("edelsenior-web",new JSONObject().put("jobsDisplay",false));
+        assertFalse(display.getBoolean("reextract"));assertFalse(display.getJSONObject("collection").getBoolean("jobsDisplay"));
+        assertTrue(display.getJSONObject("collection").getBoolean("jobsExtraction"));assertTrue(display.getJSONObject("collection").getBoolean("jobsMatching"));
+        assertEquals("edelsenior-web",conf.get(KgConfig.JOBS_MATCH_COLLECTIONS));
+        assertFalse(settings.update("edelsenior-web",new JSONObject().put("jobsDisplay",false)).getBoolean("changed"));
+        JSONObject extract=settings.update("edelsenior-web",new JSONObject().put("jobsExtraction",false));
+        assertTrue(extract.getBoolean("reextract"));assertTrue(extract.getJSONObject("collection").getBoolean("jobsMatching"));
+        JSONObject match=settings.update("edelsenior-web",new JSONObject().put("jobsMatching",false));
+        assertFalse(match.getBoolean("reextract"));assertFalse(match.getJSONObject("collection").getBoolean("jobsMatching"));
+        assertEquals("edelsenior-web",conf.get(KgConfig.JOBS_COLLECTIONS));
+    }
+
     private static JSONObject row(final JSONObject list, final String collection) throws Exception {
         final JSONArray rows = list.getJSONArray("collections");
         for (int i = 0; i < rows.length(); i++) {
