@@ -71,7 +71,7 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 public final class LlmExtractor {
 
     public static final String NAME = "llm";
-    public static final String VERSION = "3";
+    public static final String VERSION = "4";
     public static final int TIER = 3;
     public static final int CHUNK_CHARS = 4000;
     public static final int MAX_ANSWER_BYTES = 64 * 1024;

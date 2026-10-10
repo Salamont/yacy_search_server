@@ -43,6 +43,7 @@ import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.extract.Values;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
+import net.yacy.scoutro.knowledge.extract.Values;
 import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.store.KgChangeLog;
 import net.yacy.scoutro.knowledge.store.KgSchema;
@@ -99,6 +100,7 @@ public final class DerivedService {
         double confidence;
         String reason;
         JSONObject basis;
+        final Map<String,JSONObject> reasons=new LinkedHashMap<>();
 
         Row(final int kind, final long a, final long b, final int collA, final int collB) {
             this.kind = kind;
@@ -122,10 +124,11 @@ public final class DerivedService {
         public final Map<String, Integer> byKind = new LinkedHashMap<>();
         public String refused;
         public long millis;
+        public JSONObject matching;
 
         public JSONObject json() {
             return KgJson.obj("computed", this.computed, "inserted", this.inserted, "updated", this.updated, "deleted", this.deleted,
-                    "byKind", new JSONObject(this.byKind), "refused", this.refused, "durationMs", this.millis);
+                    "byKind", new JSONObject(this.byKind), "refused", this.refused, "durationMs", this.millis,"matching",this.matching);
         }
     }
 
@@ -199,6 +202,7 @@ public final class DerivedService {
         final Nace nace = KgVocabularies.get().nace;
         final Map<String, Row> want = this.store.read(c -> compute(c, nace));
         final Result r = apply(want, start, true);
+        r.matching = new MatchingService(this.store,this.cfg).run(start);
         r.millis = this.clock.getAsLong() - start;
         this.lastRun = start;
         this.last = r;
@@ -216,11 +220,12 @@ public final class DerivedService {
             return null;
         }
         try {
-            if (this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_derived")) == 0L) {
+            if (this.store.read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_derived")+KgStore.queryLong(c,"SELECT count(*) FROM kg_match_contribution")) == 0L) {
                 this.cleared = true;
                 return null;
             }
             final Result r = apply(new LinkedHashMap<>(), now, false);
+            this.store.write(WriteClass.MAINTENANCE,0,tx->{MatchingService.clear(tx,now);return null;});
             this.cleared = true;
             this.last = r;
             return r;
@@ -253,14 +258,21 @@ public final class DerivedService {
 
     // ------------------------------------------------------------- compute
 
+    private static final class ComputedRows extends LinkedHashMap<String,Row> {
+        private static final long serialVersionUID=1L;
+        boolean capped;
+    }
+
     Map<String, Row> compute(final Connection c, final Nace nace) throws SQLException {
-        final Map<String, Row> out = new LinkedHashMap<>();
+        final Map<String, Row> out = new ComputedRows();
         if (this.cfg.derivedEnabled) {
             linkedTo(c, out);
             sameOperator(c, out);
             final Graph g = Graph.read(c, nace);
             suggestedCustomers(g, nace, out);
             suggestedPartners(g, out);
+            if(count(out,KIND_SUGGESTED_CUSTOMER)+count(out,KIND_SUGGESTED_PARTNER)>=this.cfg.matchesMax
+                    ||count(out,KIND_LINKED_TO)>=MAX_LINKED_TO)((ComputedRows)out).capped=true;
         }
         return out;
     }
@@ -590,14 +602,22 @@ public final class DerivedService {
         final Map<Integer, int[]> perCollection = new HashMap<>();
         final Set<String> seen = new HashSet<>();
         for (final Row r : rows) {
+            final String reasonKey=KgIds.statementId(Long.toString(r.a),"legacy_reason",r.basis.toString());
+            final Row existing=out.get(r.key());
+            if(existing!=null) {
+                existing.reasons.putIfAbsent(reasonKey,KgJson.obj("basis",r.basis,"score",r.confidence,"reason",r.reason));
+                continue;
+            }
             final int[] kept = perCollection.computeIfAbsent(r.collA, x -> new int[1]);
             if (kept[0] >= this.cfg.matchesMaxPerEntity) {
+                if(out instanceof ComputedRows)((ComputedRows)out).capped=true;
                 continue;
             }
             if (!seen.add(r.b + ":" + r.kind + ":" + r.collA + ":" + r.collB) && r.kind == KIND_SUGGESTED_CUSTOMER) {
                 continue; // one suggestion per pair and pair of collections: the best reason
             }
             if (out.putIfAbsent(r.key(), r) == null) {
+                r.reasons.put(reasonKey,KgJson.obj("basis",r.basis,"score",r.confidence,"reason",r.reason));
                 kept[0]++;
                 n++;
             }
@@ -636,8 +656,13 @@ public final class DerivedService {
             return m;
         });
         final List<Object[]> deletes = new ArrayList<>();
+        // A capped legacy pass is incomplete, not evidence that older suggestions became false.
+        final boolean complete = !stamp || !(want instanceof ComputedRows&&((ComputedRows)want).capped) && want.size() < this.cfg.matchesMax
+                && this.store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_statement_scope") < MAX_ROWS
+                    && KgStore.queryLong(c,"SELECT count(*) FROM kg_entity") < MAX_ROWS
+                    && KgStore.queryLong(c,"SELECT count(*) FROM kg_doc_link") < MAX_ROWS);
         for (final Map.Entry<String, Object[]> e : have.entrySet()) {
-            if (!want.containsKey(e.getKey())) {
+            if (complete && !want.containsKey(e.getKey())) {
                 final String[] k = e.getKey().split(":");
                 deletes.add(new Object[] {e.getValue()[0], e.getValue()[1], Integer.parseInt(k[3]), Integer.parseInt(k[4])});
             }
@@ -661,8 +686,25 @@ public final class DerivedService {
         final List<Row> upserts = new ArrayList<>();
         for (final Row row : want.values()) {
             final Object[] old = have.get(row.key());
+            if(!complete&&old!=null&&row.kind>=3) {
+                this.store.read(c->{
+                    try(PreparedStatement p=c.prepareStatement("SELECT reason_key,score,reason,basis FROM kg_derived_reason WHERE derived_id=?")) {
+                        p.setString(1,(String)old[1]);try(ResultSet rs=p.executeQuery()){while(rs.next())row.reasons.putIfAbsent(rs.getString(1),
+                                KgJson.obj("score",rs.getDouble(2),"reason",rs.getString(3),"basis",Values.json(rs.getString(4))));}
+                    }
+                    if(row.reasons.isEmpty())row.reasons.put("retained",KgJson.obj("score",old[2],"reason",old[4],"basis",Values.json((String)old[3])));
+                    return null;
+                });
+            }
             final String basis = clipBasis(row.basis);
-            if (old == null || Math.abs((Double) old[2] - row.confidence) > 1e-9 || !basis.equals(old[3]) || !row.reason.equals(old[4])) {
+            final Set<String> saved=this.store.read(c->{
+                Set<String> keys=new TreeSet<>();if(old==null)return keys;
+                try(PreparedStatement p=c.prepareStatement("SELECT reason_key FROM kg_derived_reason WHERE derived_id=?")) {
+                    p.setString(1,(String)old[1]);try(ResultSet rs=p.executeQuery()){while(rs.next())keys.add(rs.getString(1));}
+                }return keys;
+            });
+            if (old == null || Math.abs((Double) old[2] - row.confidence) > 1e-9 || !basis.equals(old[3]) || !row.reason.equals(old[4])
+                    || !saved.equals(row.reasons.keySet())) {
                 upserts.add(row);
             }
         }
@@ -696,6 +738,16 @@ public final class DerivedService {
                         ps.executeUpdate();
                     }
                     final Set<Integer> scopes = new TreeSet<>(List.of(row.collA, row.collB));
+                    try(PreparedStatement del=tx.prepareStatement("DELETE FROM kg_derived_reason WHERE derived_id=?");
+                            PreparedStatement reason=tx.prepareStatement("INSERT INTO kg_derived_reason VALUES(?,?,?,?,?)")) {
+                        del.setString(1,id);del.executeUpdate();
+                        for(Map.Entry<String,JSONObject> e:row.reasons.entrySet()) {
+                            final JSONObject entry=e.getValue();final String raw=entry.optJSONObject("basis").toString();
+                            if(raw.length()>4000)throw new SQLException("legacy reason exceeds bounded reference contract");
+                            reason.setString(1,id);reason.setString(2,e.getKey());reason.setDouble(3,entry.optDouble("score"));
+                            reason.setString(4,entry.optString("reason"));reason.setString(5,raw);reason.executeUpdate();
+                        }
+                    }
                     KgChangeLog.record(tx, KgChangeLog.Kind.DERIVED, id, KgChangeLog.Op.UPSERT, null, scopes, scopes, now);
                     if (existed) {
                         r.updated++;
@@ -717,7 +769,7 @@ public final class DerivedService {
 
     private static String clipBasis(final JSONObject basis) {
         final String s = basis == null ? "{}" : basis.toString();
-        return s.length() <= 4000 ? s : s.substring(0, 3990) + "\"}";
+        return s.length() <= 4000 ? s : KgJson.obj("detail","derived_reasons","complete",false).toString();
     }
 
     static String publicId(final Connection c, final Long ent) throws SQLException {

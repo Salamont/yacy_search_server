@@ -20,6 +20,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -35,6 +36,7 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
+import net.yacy.scoutro.knowledge.store.KgStore;
 import net.yacy.scoutro.knowledge.vocab.Categories;
 import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 import net.yacy.scoutro.knowledge.vocab.Nace;
@@ -365,13 +367,13 @@ public final class BusinessGraph {
         return out;
     }
 
-    private static void addSuggestions(final Connection c, final long ent, final String self, final Query q, final Viewer origin,
+    private void addSuggestions(final Connection c, final long ent, final String self, final Query q, final Viewer origin,
             final Viewer permitted, final List<Edge> edges) throws SQLException {
         if (!q.suggested) return;
-        for (final Suggestions.Group g : Suggestions.groups(c, ent, origin, permitted)) {
+        for (final Suggestions.Group g : Suggestions.groups(c, ent, origin, permitted,this.reader)) {
             final String kind = Vocabulary.DERIVED_KINDS.get(g.kind);
             if (q.types != null && !q.types.contains(kind)) continue;
-            final String other = KgReader.publicId(c, g.other);
+            final String other = g.otherId;
             final boolean selfFirst = g.kind == 3 ? g.outgoing : self.compareTo(other) < 0;
             final String from = selfFirst ? self : other, to = selfFirst ? other : self;
             final Edge e = new Edge(KgJson.obj("id", "suggestion:" + kind + ":" + from + ":" + to, "from", from, "to", to,
@@ -386,12 +388,12 @@ public final class BusinessGraph {
             throws SQLException {
         if (edge.suggestion == null || edge.json.has("contributions")) return;
         final JSONObject item = new Suggestions(this.reader).item(c, ent, edge.suggestion, origin, permitted);
-        for (final String key : List.of("other", "score", "reason", "computed_at", "contributions", "origin_collections", "target_collection")) {
+        for (final String key : List.of("other", "score", "reason", "computed_at", "contributions","contributions_total","next_contribution_offset","contributions_path", "origin_collections", "target_collection")) {
             KgJson.put(edge.json, key, item.opt(key));
         }
         final boolean outgoing = "out".equals(item.optString("direction"));
-        KgJson.put(edge.json, "from", KgReader.publicId(c, outgoing ? ent : edge.suggestion.other));
-        KgJson.put(edge.json, "to", KgReader.publicId(c, outgoing ? edge.suggestion.other : ent));
+        KgJson.put(edge.json, "from", outgoing ? KgReader.publicId(c,ent) : edge.suggestion.otherId);
+        KgJson.put(edge.json, "to", outgoing ? edge.suggestion.otherId : KgReader.publicId(c,ent));
         int evidence = 0;
         final JSONArray contributions = item.optJSONArray("contributions");
         for (int i = 0; i < contributions.length(); i++) evidence += contributions.optJSONObject(i).optJSONArray("evidence").length();
@@ -552,29 +554,10 @@ public final class BusinessGraph {
                 }
                 ent = e[1] != 0L ? e[1] : e[0];
             }
-            final int k = kind == null ? 0 : Vocabulary.DERIVED_KINDS.indexOf(kind);
-            final String where = "a.status = 1 AND b.status = 1 AND " + BusinessView.visibleDerived(v, "d") + (k > 0 ? " AND d.kind = " + k : "")
-                    + (ent != null ? " AND (d.a_ent = " + ent + " OR d.b_ent = " + ent + ")" : "");
-            final String from = " FROM kg_derived d JOIN kg_entity a ON a.ent_rowid = d.a_ent JOIN kg_entity b ON b.ent_rowid = d.b_ent WHERE " + where;
-            final long total = net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(*)" + from);
-            final JSONArray items = new JSONArray();
-            try (PreparedStatement ps = c.prepareStatement("SELECT d.public_id, d.kind, d.a_ent, d.b_ent, d.confidence, d.reason, d.basis,"
-                    + " d.computed_at" + from + " ORDER BY d.kind, d.confidence DESC, d.der_rowid LIMIT ? OFFSET ?")) {
-                ps.setInt(1, limit);
-                ps.setInt(2, offset);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        if (!BusinessView.visible(c, rs.getLong(3), v) || !BusinessView.visible(c, rs.getLong(4), v)) {
-                            continue;
-                        }
-                        final JSONObject o = BusinessView.derivedJson(rs, rs.getLong(4), true, c, v);
-                        KgJson.put(o, "subject", subjectRef(c, rs.getLong(3), v));
-                        items.put(o);
-                    }
-                }
-            }
-            return KgJson.obj("schema", BusinessView.SCHEMA, "offset", offset, "limit", limit, "total", total, "items", items,
-                    "note", "derived rows are no facts: suggestions and weak signals, each with the facts of both sides");
+            final List<JSONObject> rows=projectedDerived(c,kind,entity,v);
+            int end=Math.min(rows.size(),offset+limit);
+            return KgJson.obj("schema",BusinessView.SCHEMA,"offset",offset,"limit",limit,"total",rows.size(),
+                    "items",new JSONArray(rows.subList(Math.min(offset,rows.size()),end)),"note","Derived suggestions, never facts or measured probabilities.");
         });
         if (r == null) {
             throw new KgReader.NotFound("entity " + entity);
@@ -582,8 +565,68 @@ public final class BusinessGraph {
         return (JSONObject) r;
     }
 
+    private List<JSONObject> projectedDerived(Connection c,String kind,String entity,Viewer v)throws SQLException {
+        final Map<String,JSONObject> groups=new LinkedHashMap<>();
+        final Map<String,List<JSONObject>> reasonsByGroup=new LinkedHashMap<>();
+        final Map<String,MatchingProjection.Deduplicator> duplicates=new LinkedHashMap<>();
+        try(Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT public_id FROM kg_derived ORDER BY der_rowid")) {
+            while(r.next()) {
+                String id=r.getString(1);
+                long legacyKind=KgStore.queryLong(c,"SELECT coalesce(max(kind),0) FROM kg_derived WHERE public_id='"+id+"'");
+                JSONObject item=legacyKind>=3?Suggestions.legacyRecord(c,id,v,this.reader,false):derivedRecord(c,id,v,this.reader);if(item==null)continue;
+                if(kind!=null&&!kind.equals(item.optString("kind")))continue;
+                String a=item.optJSONObject("subject").optString("id"),b=item.optJSONObject("other").optString("id");
+                if(entity!=null&&!entity.equals(a)&&!entity.equals(b))continue;
+                String key=item.optString("kind")+":"+("suggested_partner".equals(item.optString("kind"))&&a.compareTo(b)>0?b+":"+a:a+":"+b);
+                JSONObject existing=groups.get(key);
+                if(existing==null)groups.put(key,item);
+                else {
+                    JSONArray all=existing.optJSONArray("contributions"),add=item.optJSONArray("contributions");
+                    if(all!=null&&add!=null)for(int i=0;i<add.length();i++)all.put(add.optJSONObject(i));
+                    if(item.optDouble("score",item.optDouble("confidence"))>existing.optDouble("score",existing.optDouble("confidence"))) {
+                        for(String field:List.of("score","confidence","reason","computed_at"))KgJson.put(existing,field,item.opt(field));
+                    }
+                }
+            }
+        }
+        for(JSONObject reason:MatchingProjection.all(c,v,this.reader.config())) {
+            if(kind!=null&&!kind.equals(reason.optString("kind")))continue;
+            String a=reason.optJSONObject("provider").optString("id"),b=reason.optJSONObject("candidate").optString("id");
+            if(entity!=null&&!entity.equals(a)&&!entity.equals(b))continue;
+            String key=reason.optString("kind")+":"+("suggested_partner".equals(reason.optString("kind"))&&a.compareTo(b)>0?b+":"+a:a+":"+b);JSONObject item=groups.get(key);
+            if(item==null) {
+                item=KgJson.obj("id",reason.optString("proposal_id"),"kind",reason.optString("kind"),"subject",reason.optJSONObject("provider"),
+                        "other",reason.optJSONObject("candidate"),"direction","out","score",0.0,"confidence",0.0,"fact",false,"label","suggestion", "contributions",new JSONArray());
+                groups.put(key,item);
+            }
+            List<JSONObject> contributions=reasonsByGroup.get(key);
+            if(contributions==null) {
+                contributions=new ArrayList<>();JSONArray initial=item.optJSONArray("contributions");
+                for(int i=0;i<initial.length();i++)contributions.add(initial.optJSONObject(i));
+                reasonsByGroup.put(key,contributions);duplicates.put(key,new MatchingProjection.Deduplicator(contributions));
+            }
+            duplicates.get(key).add(reason);
+            KgJson.put(item,"contributions",new JSONArray(contributions));
+            if(reason.optDouble("score")>item.optDouble("score",item.optDouble("confidence"))) {
+                KgJson.put(item,"score",reason.optDouble("score"));KgJson.put(item,"confidence",reason.optDouble("score"));
+                KgJson.put(item,"reason",reason.optString("reason"));KgJson.put(item,"computed_at",reason.opt("computed_at"));
+            }
+        }
+        List<JSONObject> out=new ArrayList<>(groups.values());
+        for(JSONObject item:out) {
+            JSONArray all=item.optJSONArray("contributions");if(all==null)continue;
+            KgJson.put(item,"contributions_total",all.length());KgJson.put(item,"next_contribution_offset",all.length()>25?25:null);
+            KgJson.put(item,"contributions_path","entities/"+item.optJSONObject("subject").optString("id")+"/suggestions/"+item.optString("id")+"/contributions");
+            if(all.length()>25){JSONArray first=new JSONArray();for(int i=0;i<25;i++)first.put(all.opt(i));KgJson.put(item,"contributions",first);}
+        }
+        out.sort(java.util.Comparator.comparingDouble((JSONObject x)->x.optDouble("score",x.optDouble("confidence"))).reversed().thenComparing(x->x.optString("id")));
+        return out;
+    }
+
     /** Derived row by ID for the change feed's expanded records; null if invisible. */
-    static JSONObject derivedRecord(final Connection c, final String id, final Viewer v) throws SQLException {
+    static JSONObject derivedRecord(final Connection c, final String id, final Viewer v,final KgReader reader) throws SQLException {
+        final long kind=net.yacy.scoutro.knowledge.store.KgStore.queryLong(c,"SELECT coalesce(max(kind),0) FROM kg_derived WHERE public_id='"+id+"'");
+        if(kind>=3)return Suggestions.legacyRecord(c,id,v,reader);
         try (PreparedStatement ps = c.prepareStatement("SELECT d.public_id, d.kind, d.a_ent, d.b_ent, d.confidence, d.reason, d.basis,"
                 + " d.computed_at FROM kg_derived d JOIN kg_entity a ON a.ent_rowid = d.a_ent JOIN kg_entity b ON b.ent_rowid = d.b_ent"
                 + " WHERE d.public_id = ? AND a.status = 1 AND b.status = 1 AND " + BusinessView.visibleDerived(v, "d"))) {
@@ -641,12 +684,9 @@ public final class BusinessGraph {
             KgJson.put(counts, "prices", net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(*) FROM kg_statement s JOIN kg_vocab v"
                     + " ON v.term_id = s.pred WHERE v.name = 'price' AND " + KgReader.visibleStatement(v, "s")));
             final JSONObject derived = new JSONObject();
-            try (PreparedStatement ps = c.prepareStatement("SELECT d.kind, count(*) FROM kg_derived d WHERE " + BusinessView.visibleDerived(v, "d")
-                    + " GROUP BY d.kind"); ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    KgJson.put(derived, Vocabulary.DERIVED_KINDS.get(rs.getInt(1)), rs.getLong(2));
-                }
-            }
+            final Map<String,Integer> totals=new LinkedHashMap<>();
+            for(JSONObject item:projectedDerived(c,null,null,v))totals.merge(item.optString("kind"),1,Integer::sum);
+            for(Map.Entry<String,Integer> e:totals.entrySet())KgJson.put(derived,e.getKey(),e.getValue());
             KgJson.put(counts, "derived", derived);
             KgJson.put(out, "counts", counts);
             return out;

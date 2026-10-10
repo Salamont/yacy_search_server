@@ -2243,7 +2243,7 @@
     },
     {
       "name": "kg.entity.suggestions",
-      "description": " The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "description": " The collection parameter selects the origin and its normal facts; only customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain all independent authorized reasons, with scoped live statements or durable observations (including assignment quotes). Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -2315,7 +2315,7 @@
     },
     {
       "name": "kg.entity.business",
-      "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
+      "description": "The object view in sections (overview, industry, services, prices, contacts, relations, jobs, audiences, suggested matches, sources); each value with status, confidence, evidence count and dates. Ended jobs older than scoutro.kg.jobs.endedVisibleDays only with include=hidden_jobs; jobs only for collections in scoutro.kg.jobs.collections. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain all independent authorized reasons, with scoped live statements or durable observations (including assignment quotes). Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -2377,8 +2377,87 @@
       }
     },
     {
+      "name": "kg.entity.contributions",
+      "description": "Paginated complete independent reasons after current evidence-chain authorization and rule eligibility. Revalidates archive assignments, withdrawals, policy, migration/shutdown and project scope on every read. Missing or inaccessible origin/proposal returns 404 without hidden counts. The collection parameter selects the origin and its normal facts; only customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain all independent authorized reasons, with scoped live statements or durable observations (including assignment quotes). Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/kg/entities/{id}/suggestions/{proposal}/contributions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^kge_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "Entity ID."
+        },
+        "proposal": {
+          "type": "string",
+          "pattern": "^kgd_[a-z2-7]{20}$",
+          "in": "path",
+          "required": true,
+          "description": "A visible proposal or legacy derived ID returned by suggestions."
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2147483547,
+          "default": 0,
+          "in": "query",
+          "required": false,
+          "description": "First authorized group."
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 25,
+          "in": "query",
+          "required": false,
+          "description": "Items per page."
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "query",
+          "required": false,
+          "description": "View filter for facts, names, counts and evidence; unknown valid names see nothing. Exception: an origin's customer/partner suggestions in business, suggestions and neighborhood may reach other server-authorized collections, with explicit target and evidence contexts. This filter never expands permissions."
+        }
+      },
+      "returns": "KgContributionPage",
+      "errors": [
+        400,
+        401,
+        404,
+        405,
+        409,
+        503
+      ],
+      "cli": "HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions/{proposal}/contributions?collection=ORIGIN&offset=0&limit=25",
+      "mcpTool": "scoutro_kg_entity_contributions",
+      "agent": {
+        "grantable": true,
+        "risk": "read",
+        "scoped": true,
+        "presetable": false,
+        "kinds": [
+          "external",
+          "research_worker"
+        ],
+        "presets": [],
+        "http": {
+          "method": "GET",
+          "path": "/scoutro/api/agent/v1/kg/entities/{id}/suggestions/{proposal}/contributions"
+        },
+        "grant": "kg.read"
+      }
+    },
+    {
       "name": "kg.entity.neighborhood",
-      "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only existing customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain authorized collection-pair reasons and scoped supporting statements. Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
+      "description": "The neighbourhood of one entity for the network view: nodes (entities with their hosts, collections, places, quality and sources; industry, audience and, on request, price values) and typed, directed edges with status, confidence and evidence count. Incoming facts count like outgoing ones: a service in the centre shows who offers it, a job its employer. Depth 2 continues only from organisations and facilities; around a service or a job it shows the providers' relations, not their other services and jobs. There is no global graph. Weak link signals (linked_to) and suggestions only on request, derived rows only between collections the viewer sees both of. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400. The collection parameter selects the origin and its normal facts; only customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain all independent authorized reasons, with scoped live statements or durable observations (including assignment quotes). Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -3231,7 +3310,7 @@
     },
     {
       "name": "kg.export",
-      "description": "The visible graph page by page: first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. include=history exports all durable observations followed by all authorized audit events under scoutro.kg.history.v1 (phases o/e, at most 100 records per page). No per-record evidence cap; follow next_changes after this nonsnapshot export. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "description": "The visible graph page by page: entities, statements, legacy derivations, then match_contribution records (KgMatchContribution), with every current evidence chain authorized and revalidated; first entities, then statements (with include=evidence their newest 20 pieces of evidence), the same JSON as the read routes for the same viewer. Each page is one bounded read. The cursor carries the change sequence of the export's start; afterwards follow /kg/changes from next_changes. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. include=history exports all durable observations followed by all authorized audit events under scoutro.kg.history.v1 (phases o/e, at most 100 records per page). No per-record evidence cap; follow next_changes after this nonsnapshot export. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -3243,7 +3322,7 @@
         "cursor": {
           "type": "string",
           "maxLength": 80,
-          "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esdoe][0-9]{1,18}$",
+          "pattern": "^[0-9a-f]{16}:[0-9]{1,18}:[esdmo][0-9]{1,18}$",
           "in": "query",
           "required": false,
           "description": "From next of the previous page; absent to start."
@@ -3305,7 +3384,7 @@
     },
     {
       "name": "kg.changes",
-      "description": "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100). 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "description": "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100). Effective matching-policy changes invalidate contribution feed records at KG reopen even when calculation is paused or disabled; read eligibility selects delete/upsert under current grants. Unchanged policy is silent. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -8064,6 +8143,16 @@
                   "type": "integer"
                 }
               }
+            },
+            "matching": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/KgMatchingRun"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           }
         },
@@ -10630,12 +10719,618 @@
             "suggestion"
           ],
           "description": "UI and chat show suggestion as \"Vorschlag\" / \"moeglicher Kunde\", never as a customer relation."
+        },
+        "score": {
+          "type": "number",
+          "description": "Best authorized contribution's technical sorting value; never a probability."
+        },
+        "contributions": {
+          "type": "array",
+          "maxItems": 25,
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "in",
+                  "out"
+                ]
+              },
+              "collection_a": {
+                "type": "string"
+              },
+              "collection_b": {
+                "type": "string"
+              },
+              "origin_collection": {
+                "type": "string"
+              },
+              "target_collection": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "score": {
+                "type": "number",
+                "description": "Technical sorting value, not a measured probability."
+              },
+              "computed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "evidence_complete": {
+                "type": "boolean",
+                "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/KgStatement"
+                    },
+                    {
+                      "$ref": "#/components/schemas/KgObservation"
+                    }
+                  ]
+                }
+              },
+              "proposal_id": {
+                "type": "string"
+              },
+              "reason_id": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string",
+                "description": "it-support, cad-bim, construction, energy-renovation, leadership-development, team-development, care-transition, or legacy_industry_or_partner."
+              },
+              "rule_version": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized memberships only (suggestion targets)."
+                  },
+                  "other_collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized target memberships outside the origin view."
+                  },
+                  "target_collection": {
+                    "type": "string",
+                    "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                  }
+                }
+              },
+              "candidate": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized memberships only (suggestion targets)."
+                  },
+                  "other_collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized target memberships outside the origin view."
+                  },
+                  "target_collection": {
+                    "type": "string",
+                    "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                  }
+                }
+              },
+              "service": {
+                "type": "string"
+              },
+              "service_name": {
+                "type": "string",
+                "description": "Source-stated concrete service name or offered-capability text, never a generated offer."
+              },
+              "product": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "need": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "context": {
+                "type": "string"
+              },
+              "evidence_strength": {
+                "type": "string",
+                "enum": [
+                  "stated",
+                  "qualified",
+                  "weak"
+                ]
+              },
+              "fit": {
+                "type": "string",
+                "enum": [
+                  "explicit_rule",
+                  "explicit_rule_and_region"
+                ]
+              },
+              "temporal_status": {
+                "type": "string",
+                "enum": [
+                  "historical_not_reconfirmed",
+                  "planned_not_reconfirmed",
+                  "observed_need_not_reconfirmed",
+                  "legacy_not_reconfirmed"
+                ]
+              },
+              "observed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "asserted_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "location": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phase": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "uncertainties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "required_collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Current authorized contexts of the complete evidence chain. Each referenced observation requires access to at least one of its current collections; historical origin scopes confer no access."
+              },
+              "source_corroboration_key": {
+                "type": "string",
+                "description": "Same source and contextual assertion across tiers/revisions is one confirmation."
+              },
+              "corroboration_key": {
+                "type": "string",
+                "description": "Repeated quotes across tiers, revisions or portals are one reason; scores are not added."
+              },
+              "fact": {
+                "const": false
+              }
+            }
+          }
+        },
+        "contributions_total": {
+          "type": "integer",
+          "description": "Authorized, eligible, deduplicated reasons; no hidden counts."
+        },
+        "next_contribution_offset": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "contributions_path": {
+          "type": "string",
+          "description": "Relative kg.read path to all paginated reasons, with the same origin collection context."
+        }
+      }
+    },
+    "KgMatchContribution": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "in",
+            "out"
+          ]
+        },
+        "collection_a": {
+          "type": "string"
+        },
+        "collection_b": {
+          "type": "string"
+        },
+        "origin_collection": {
+          "type": "string"
+        },
+        "target_collection": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "score": {
+          "type": "number",
+          "description": "Technical sorting value, not a measured probability."
+        },
+        "computed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "evidence_complete": {
+          "type": "boolean",
+          "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/KgStatement"
+              },
+              {
+                "$ref": "#/components/schemas/KgObservation"
+              }
+            ]
+          }
+        },
+        "proposal_id": {
+          "type": "string"
+        },
+        "reason_id": {
+          "type": "string"
+        },
+        "rule": {
+          "type": "string",
+          "description": "it-support, cad-bim, construction, energy-renovation, leadership-development, team-development, care-transition, or legacy_industry_or_partner."
+        },
+        "rule_version": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Authorized memberships only (suggestion targets)."
+            },
+            "other_collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Authorized target memberships outside the origin view."
+            },
+            "target_collection": {
+              "type": "string",
+              "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+            }
+          }
+        },
+        "candidate": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^kge_[a-z2-7]{20}$"
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+            },
+            "display_name_source": {
+              "type": "string",
+              "enum": [
+                "fact",
+                "legal",
+                "operator",
+                "domain",
+                "fallback"
+              ]
+            },
+            "display_host": {
+              "type": "string",
+              "description": "With display_name_source domain: the host the name is derived from."
+            },
+            "type": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Authorized memberships only (suggestion targets)."
+            },
+            "other_collections": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Authorized target memberships outside the origin view."
+            },
+            "target_collection": {
+              "type": "string",
+              "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+            }
+          }
+        },
+        "service": {
+          "type": "string"
+        },
+        "service_name": {
+          "type": "string",
+          "description": "Source-stated concrete service name or offered-capability text, never a generated offer."
+        },
+        "product": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "need": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "context": {
+          "type": "string"
+        },
+        "evidence_strength": {
+          "type": "string",
+          "enum": [
+            "stated",
+            "qualified",
+            "weak"
+          ]
+        },
+        "fit": {
+          "type": "string",
+          "enum": [
+            "explicit_rule",
+            "explicit_rule_and_region"
+          ]
+        },
+        "temporal_status": {
+          "type": "string",
+          "enum": [
+            "historical_not_reconfirmed",
+            "planned_not_reconfirmed",
+            "observed_need_not_reconfirmed",
+            "legacy_not_reconfirmed"
+          ]
+        },
+        "observed_at": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "asserted_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "project": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "phase": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uncertainties": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "required_collections": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Current authorized contexts of the complete evidence chain. Each referenced observation requires access to at least one of its current collections; historical origin scopes confer no access."
+        },
+        "source_corroboration_key": {
+          "type": "string",
+          "description": "Same source and contextual assertion across tiers/revisions is one confirmation."
+        },
+        "corroboration_key": {
+          "type": "string",
+          "description": "Repeated quotes across tiers, revisions or portals are one reason; scores are not added."
+        },
+        "fact": {
+          "const": false
         }
       }
     },
     "KgSuggestion": {
       "type": "object",
-      "description": "Existing customer/partner derivations grouped by organization and relation; every contribution has both collections authorized. No new matching, no fact.",
+      "description": "Customer/partner derivations grouped by organization and relationship. Explicit versioned service/signal rules supplement legacy industry/partner reasons. Every complete evidence chain is authorized; never a fact or purchase probability.",
       "properties": {
         "id": {
           "type": "string",
@@ -10805,6 +11500,7 @@
         },
         "contributions": {
           "type": "array",
+          "maxItems": 25,
           "items": {
             "type": "object",
             "properties": {
@@ -10851,24 +11547,266 @@
               "evidence": {
                 "type": "array",
                 "items": {
-                  "allOf": [
+                  "oneOf": [
                     {
                       "$ref": "#/components/schemas/KgStatement"
                     },
                     {
-                      "type": "object",
-                      "properties": {
-                        "collection": {
-                          "type": "string",
-                          "description": "Explicit context for evidence and source reads."
-                        }
-                      }
+                      "$ref": "#/components/schemas/KgObservation"
                     }
                   ]
                 }
+              },
+              "proposal_id": {
+                "type": "string"
+              },
+              "reason_id": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string",
+                "description": "it-support, cad-bim, construction, energy-renovation, leadership-development, team-development, care-transition, or legacy_industry_or_partner."
+              },
+              "rule_version": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized memberships only (suggestion targets)."
+                  },
+                  "other_collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized target memberships outside the origin view."
+                  },
+                  "target_collection": {
+                    "type": "string",
+                    "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                  }
+                }
+              },
+              "candidate": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized memberships only (suggestion targets)."
+                  },
+                  "other_collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized target memberships outside the origin view."
+                  },
+                  "target_collection": {
+                    "type": "string",
+                    "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                  }
+                }
+              },
+              "service": {
+                "type": "string"
+              },
+              "service_name": {
+                "type": "string",
+                "description": "Source-stated concrete service name or offered-capability text, never a generated offer."
+              },
+              "product": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "need": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "context": {
+                "type": "string"
+              },
+              "evidence_strength": {
+                "type": "string",
+                "enum": [
+                  "stated",
+                  "qualified",
+                  "weak"
+                ]
+              },
+              "fit": {
+                "type": "string",
+                "enum": [
+                  "explicit_rule",
+                  "explicit_rule_and_region"
+                ]
+              },
+              "temporal_status": {
+                "type": "string",
+                "enum": [
+                  "historical_not_reconfirmed",
+                  "planned_not_reconfirmed",
+                  "observed_need_not_reconfirmed",
+                  "legacy_not_reconfirmed"
+                ]
+              },
+              "observed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "asserted_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "location": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phase": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "uncertainties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "required_collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Current authorized contexts of the complete evidence chain. Each referenced observation requires access to at least one of its current collections; historical origin scopes confer no access."
+              },
+              "source_corroboration_key": {
+                "type": "string",
+                "description": "Same source and contextual assertion across tiers/revisions is one confirmation."
+              },
+              "corroboration_key": {
+                "type": "string",
+                "description": "Repeated quotes across tiers, revisions or portals are one reason; scores are not added."
+              },
+              "fact": {
+                "const": false
               }
             }
           }
+        },
+        "contributions_total": {
+          "type": "integer",
+          "description": "Authorized, eligible, deduplicated reasons; no hidden counts."
+        },
+        "next_contribution_offset": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "contributions_path": {
+          "type": "string",
+          "description": "Relative kg.read path to all paginated reasons, with the same origin collection context."
         }
       }
     },
@@ -12032,21 +12970,249 @@
                     "evidence": {
                       "type": "array",
                       "items": {
-                        "allOf": [
+                        "oneOf": [
                           {
                             "$ref": "#/components/schemas/KgStatement"
                           },
                           {
-                            "type": "object",
-                            "properties": {
-                              "collection": {
-                                "type": "string",
-                                "description": "Explicit context for evidence and source reads."
-                              }
-                            }
+                            "$ref": "#/components/schemas/KgObservation"
                           }
                         ]
                       }
+                    },
+                    "proposal_id": {
+                      "type": "string"
+                    },
+                    "reason_id": {
+                      "type": "string"
+                    },
+                    "rule": {
+                      "type": "string",
+                      "description": "it-support, cad-bim, construction, energy-renovation, leadership-development, team-development, care-transition, or legacy_industry_or_partner."
+                    },
+                    "rule_version": {
+                      "type": "string"
+                    },
+                    "provider": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^kge_[a-z2-7]{20}$"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "display_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                        },
+                        "display_name_source": {
+                          "type": "string",
+                          "enum": [
+                            "fact",
+                            "legal",
+                            "operator",
+                            "domain",
+                            "fallback"
+                          ]
+                        },
+                        "display_host": {
+                          "type": "string",
+                          "description": "With display_name_source domain: the host the name is derived from."
+                        },
+                        "type": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "collections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Authorized memberships only (suggestion targets)."
+                        },
+                        "other_collections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Authorized target memberships outside the origin view."
+                        },
+                        "target_collection": {
+                          "type": "string",
+                          "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                        }
+                      }
+                    },
+                    "candidate": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "pattern": "^kge_[a-z2-7]{20}$"
+                        },
+                        "name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "display_name": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                        },
+                        "display_name_source": {
+                          "type": "string",
+                          "enum": [
+                            "fact",
+                            "legal",
+                            "operator",
+                            "domain",
+                            "fallback"
+                          ]
+                        },
+                        "display_host": {
+                          "type": "string",
+                          "description": "With display_name_source domain: the host the name is derived from."
+                        },
+                        "type": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "collections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Authorized memberships only (suggestion targets)."
+                        },
+                        "other_collections": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Authorized target memberships outside the origin view."
+                        },
+                        "target_collection": {
+                          "type": "string",
+                          "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                        }
+                      }
+                    },
+                    "service": {
+                      "type": "string"
+                    },
+                    "service_name": {
+                      "type": "string",
+                      "description": "Source-stated concrete service name or offered-capability text, never a generated offer."
+                    },
+                    "product": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "need": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "context": {
+                      "type": "string"
+                    },
+                    "evidence_strength": {
+                      "type": "string",
+                      "enum": [
+                        "stated",
+                        "qualified",
+                        "weak"
+                      ]
+                    },
+                    "fit": {
+                      "type": "string",
+                      "enum": [
+                        "explicit_rule",
+                        "explicit_rule_and_region"
+                      ]
+                    },
+                    "temporal_status": {
+                      "type": "string",
+                      "enum": [
+                        "historical_not_reconfirmed",
+                        "planned_not_reconfirmed",
+                        "observed_need_not_reconfirmed",
+                        "legacy_not_reconfirmed"
+                      ]
+                    },
+                    "observed_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "format": "date-time"
+                    },
+                    "asserted_at": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "location": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "project": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "phase": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "uncertainties": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "required_collections": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "description": "Current authorized contexts of the complete evidence chain. Each referenced observation requires access to at least one of its current collections; historical origin scopes confer no access."
+                    },
+                    "source_corroboration_key": {
+                      "type": "string",
+                      "description": "Same source and contextual assertion across tiers/revisions is one confirmation."
+                    },
+                    "corroboration_key": {
+                      "type": "string",
+                      "description": "Repeated quotes across tiers, revisions or portals are one reason; scores are not added."
+                    },
+                    "fact": {
+                      "const": false
                     }
                   }
                 }
@@ -12680,6 +13846,335 @@
               }
             }
           }
+        }
+      }
+    },
+    "KgContributionPage": {
+      "type": "object",
+      "required": [
+        "schema",
+        "items",
+        "total",
+        "offset",
+        "limit",
+        "next_offset"
+      ],
+      "properties": {
+        "schema": {
+          "type": "string",
+          "enum": [
+            "scoutro.kg.business.v1"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "direction": {
+                "type": "string",
+                "enum": [
+                  "in",
+                  "out"
+                ]
+              },
+              "collection_a": {
+                "type": "string"
+              },
+              "collection_b": {
+                "type": "string"
+              },
+              "origin_collection": {
+                "type": "string"
+              },
+              "target_collection": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "score": {
+                "type": "number",
+                "description": "Technical sorting value, not a measured probability."
+              },
+              "computed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "evidence_complete": {
+                "type": "boolean",
+                "description": "False if a basis reference is no longer accessible in its contribution collection. Raw missing references and the original reason are then withheld."
+              },
+              "evidence": {
+                "type": "array",
+                "items": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/KgStatement"
+                    },
+                    {
+                      "$ref": "#/components/schemas/KgObservation"
+                    }
+                  ]
+                }
+              },
+              "proposal_id": {
+                "type": "string"
+              },
+              "reason_id": {
+                "type": "string"
+              },
+              "rule": {
+                "type": "string",
+                "description": "it-support, cad-bim, construction, energy-renovation, leadership-development, team-development, care-transition, or legacy_industry_or_partner."
+              },
+              "rule_version": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized memberships only (suggestion targets)."
+                  },
+                  "other_collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized target memberships outside the origin view."
+                  },
+                  "target_collection": {
+                    "type": "string",
+                    "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                  }
+                }
+              },
+              "candidate": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^kge_[a-z2-7]{20}$"
+                  },
+                  "name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "display_name": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Package 6.1: the name to show, never a technical ID. The stated name; without one a visible legal name, the visible name of the one declared operator of the site (for its unnamed operator) or, for an organisation, a name derived from the host of the viewer's pages; null when none is known (the page shows a typed \"unnamed ...\"). Only display_name_source fact is a stated name: the others are presentation, never stored, never a key, never a fact for the chat; name stays the stated name."
+                  },
+                  "display_name_source": {
+                    "type": "string",
+                    "enum": [
+                      "fact",
+                      "legal",
+                      "operator",
+                      "domain",
+                      "fallback"
+                    ]
+                  },
+                  "display_host": {
+                    "type": "string",
+                    "description": "With display_name_source domain: the host the name is derived from."
+                  },
+                  "type": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized memberships only (suggestion targets)."
+                  },
+                  "other_collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Authorized target memberships outside the origin view."
+                  },
+                  "target_collection": {
+                    "type": "string",
+                    "description": "Explicit authorized target context; takes precedence over the origin filter in links."
+                  }
+                }
+              },
+              "service": {
+                "type": "string"
+              },
+              "service_name": {
+                "type": "string",
+                "description": "Source-stated concrete service name or offered-capability text, never a generated offer."
+              },
+              "product": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "need": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "context": {
+                "type": "string"
+              },
+              "evidence_strength": {
+                "type": "string",
+                "enum": [
+                  "stated",
+                  "qualified",
+                  "weak"
+                ]
+              },
+              "fit": {
+                "type": "string",
+                "enum": [
+                  "explicit_rule",
+                  "explicit_rule_and_region"
+                ]
+              },
+              "temporal_status": {
+                "type": "string",
+                "enum": [
+                  "historical_not_reconfirmed",
+                  "planned_not_reconfirmed",
+                  "observed_need_not_reconfirmed",
+                  "legacy_not_reconfirmed"
+                ]
+              },
+              "observed_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "asserted_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "location": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "phase": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "uncertainties": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "required_collections": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Current authorized contexts of the complete evidence chain. Each referenced observation requires access to at least one of its current collections; historical origin scopes confer no access."
+              },
+              "source_corroboration_key": {
+                "type": "string",
+                "description": "Same source and contextual assertion across tiers/revisions is one confirmation."
+              },
+              "corroboration_key": {
+                "type": "string",
+                "description": "Repeated quotes across tiers, revisions or portals are one reason; scores are not added."
+              },
+              "fact": {
+                "const": false
+              }
+            }
+          }
+        },
+        "total": {
+          "type": "integer"
+        },
+        "offset": {
+          "type": "integer"
+        },
+        "limit": {
+          "type": "integer"
+        },
+        "next_offset": {
+          "type": [
+            "integer",
+            "null"
+          ]
         }
       }
     },
@@ -13878,7 +15373,8 @@
           "enum": [
             "entity",
             "statement",
-            "derived"
+            "derived",
+            "match_contribution"
           ],
           "description": "entity: a KgEntity (detail); statement: a KgStatement, with include=evidence also evidence (at most 20 KgEvidence, newest first); derived: a KgDerived row (vocabulary 2), only where the viewer sees both of its collections."
         },
@@ -13888,7 +15384,14 @@
         "evidence": {
           "type": "array",
           "items": {
-            "$ref": "#/components/schemas/KgEvidence"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KgEvidence"
+              },
+              {
+                "$ref": "#/components/schemas/KgObservation"
+              }
+            ]
           }
         }
       },
@@ -13924,7 +15427,7 @@
           "items": {
             "$ref": "#/components/schemas/KgExportRecord"
           },
-          "description": "First all visible entities, then all visible statements, then the visible derived rows, each in ID order."
+          "description": "Entities, statements, legacy derivations, then eligible match contributions. Cursors advance over inaccessible records, so an empty page can have next; continue until complete."
         },
         "complete": {
           "type": "boolean"
@@ -14002,7 +15505,8 @@
             "entity",
             "statement",
             "derived",
-            "observation"
+            "observation",
+            "match_contribution"
           ]
         },
         "id": {
@@ -14035,7 +15539,7 @@
             "object",
             "null"
           ],
-          "description": "With expand=true for an upsert: the current KgEntity, KgStatement, KgDerived or archival KgObservation for this viewer (null if it is no longer visible)."
+          "description": "With expand=true for an upsert: the current KgEntity, KgStatement, KgDerived, KgMatchContribution or archival KgObservation for this viewer (null if it is no longer visible)."
         }
       }
     },
@@ -14204,6 +15708,9 @@
                   "type": "integer"
                 },
                 "derived": {
+                  "type": "integer"
+                },
+                "match_contributions": {
                   "type": "integer"
                 }
               }
@@ -15500,6 +17007,33 @@
           "items": {
             "type": "object"
           }
+        }
+      }
+    },
+    "KgMatchingRun": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string"
+        },
+        "checked": {
+          "type": "integer"
+        },
+        "upserts": {
+          "type": "integer"
+        },
+        "completed_partitions": {
+          "type": "integer"
+        },
+        "cycle_complete": {
+          "type": "boolean"
+        },
+        "deferred": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "work_budget, provider_fact_limit, configuration_disabled (matches.max=0), or policy_notice_deferred (storage refuses notices; reads remain available and maintenance retries). None is refutation. Resume state persists; only complete unchanged provider partitions reconcile."
         }
       }
     },

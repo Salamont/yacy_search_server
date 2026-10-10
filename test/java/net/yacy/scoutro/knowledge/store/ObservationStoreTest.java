@@ -195,6 +195,36 @@ public class ObservationStoreTest {
         try {publish(new Extraction(30));fail("replacement must be refused");}catch(KgException expected){assertTrue(expected.getMessage().contains("archive full"));}
         assertEquals(3,count("SELECT count(*) FROM kg_evidence"));assertEquals(3,count("SELECT count(*) FROM kg_statement"));
     }
+    @Test public void boundedSqliteFullDuringArchiveCapturePreservesBothKnowledgeLayers() throws Exception {
+        publish(system("Wir nutzen SAP intern."));String id=systemId();
+        long observations=count("SELECT count(*) FROM kg_observation"),evidence=count("SELECT count(*) FROM kg_evidence");
+        store.write(WriteClass.SYSTEM,0,c->{try(Statement s=c.createStatement()) {
+            long pages=KgStore.queryLong(c,"PRAGMA page_count");
+            s.execute("CREATE TABLE bounded_pressure(payload BLOB)");
+            s.execute("PRAGMA max_page_count="+(pages+8));
+            // Actual SQLITE_FULL in this bounded test DB, not a filled host filesystem.
+            s.execute("CREATE TRIGGER test_bounded_archive BEFORE INSERT ON kg_observation BEGIN "
+                    +"INSERT INTO bounded_pressure VALUES(zeroblob(2097152)); END");
+        }return null;});
+        doc.contentHash[0]=1;doc.loadedAt=observed+86_400_000;
+        try {publish(system("Wir nutzen Salesforce intern."));fail("archive storage failure must stop KG replacement");}
+        catch(KgException expected){assertEquals(KgException.STORAGE_FULL,expected.code());}
+        assertEquals(observations,count("SELECT count(*) FROM kg_observation"));
+        assertEquals(evidence,count("SELECT count(*) FROM kg_evidence"));
+        assertEquals(0,count("SELECT count(*) FROM bounded_pressure"));
+        assertEquals("Wir nutzen SAP intern.",history().detail(id,viewer("a")).getString("quote"));
+    }
+    @Test public void injectedArchiveStatusWriteFailureRollsBackSourceDeletion() throws Exception {
+        publish(system("Wir nutzen SAP intern."));String id=systemId();long evidence=count("SELECT count(*) FROM kg_evidence");
+        store.write(WriteClass.SYSTEM,0,c->{try(Statement s=c.createStatement()) {
+            s.execute("CREATE TRIGGER test_archive_status_failure BEFORE UPDATE OF source_status ON kg_observation "
+                    +"BEGIN SELECT RAISE(ABORT,'injected archive status write failure'); END");
+        }return null;});
+        try {store.write(WriteClass.MAINTENANCE,0,c->publisher.remove(c,List.of(doc.docId),null,processed));fail("delete must roll back");}
+        catch(KgException expected){assertTrue(expected.getMessage().contains("injected archive status write failure"));}
+        assertEquals(1,count("SELECT count(*) FROM kg_doc"));assertEquals(evidence,count("SELECT count(*) FROM kg_evidence"));
+        assertEquals("available",history().detail(id,viewer("a")).getJSONObject("source").getString("status"));
+    }
     @Test public void realSchemaFourUpgradeCapturesOnlyStillExistingEvidence() throws Exception {
         publish(job());store.checkpoint();
         KgPaths oldPaths=new KgPaths(tmp.newFolder("legacy"));oldPaths.dir.mkdirs();oldPaths.tmp.mkdirs();
@@ -208,12 +238,37 @@ public class ObservationStoreTest {
             s.execute("UPDATE kg_meta SET value='4' WHERE key='schema_version'");
         }
         try(KgStore upgraded=KgStore.open(oldPaths,cfg,new StorageGuard(cfg,oldPaths,new KgTestSupport.Probe(),()->processed),KgStore.SQLITE,()->processed)) {
-            assertEquals(5,upgraded.schemaVersion());
+            assertEquals(KgSchema.CURRENT_VERSION,upgraded.schemaVersion());
             assertEquals(2L,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation")));
             upgraded.write(WriteClass.MAINTENANCE,0,c->{Observations.captureExisting(c);return null;});
             assertEquals(2L,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation")));
         }
     }
+    @Test public void schemaFiveUpgradePreservesHistoryDatesIdsAndFeedHighWater()throws Exception {
+        publish(system("Wir nutzen SAP intern."));store.checkpoint();String original=systemId();
+        KgPaths oldPaths=new KgPaths(tmp.newFolder("schema-five"));oldPaths.dir.mkdirs();oldPaths.tmp.mkdirs();
+        try(java.sql.Connection c=java.sql.DriverManager.getConnection("jdbc:sqlite:"+oldPaths.db);Statement s=c.createStatement()) {
+            for(String ddl:KgSchema.DDL_V1)s.execute(ddl);
+            for(int i=0;i<4;i++)for(String ddl:KgSchema.MIGRATIONS[i])s.execute(ddl);
+            try(java.sql.PreparedStatement p=c.prepareStatement("ATTACH DATABASE ? AS fixture")){p.setString(1,paths.db.getAbsolutePath());p.execute();}
+            for(String table:List.of("kg_meta","kg_collection","kg_vocab","kg_extractor","kg_doc","kg_entity","kg_statement","kg_doc_collection","kg_evidence","kg_observation"))
+                s.execute("INSERT INTO "+table+" SELECT * FROM fixture."+table);
+            s.execute("DELETE FROM kg_observation_event");s.execute("INSERT INTO kg_observation_event SELECT * FROM fixture.kg_observation_event");
+            s.execute("UPDATE kg_meta SET value='5' WHERE key='schema_version'");
+            s.execute("UPDATE sqlite_sequence SET seq=500 WHERE name='kg_change'");
+        }
+        try(KgStore upgraded=KgStore.open(oldPaths,cfg,new StorageGuard(cfg,oldPaths,new KgTestSupport.Probe(),()->processed),KgStore.SQLITE,()->processed)) {
+            assertEquals(6,upgraded.schemaVersion());
+            assertTrue(upgraded.read(c->KgStore.queryLong(c,"SELECT seq FROM sqlite_sequence WHERE name='kg_change'"))>=500);
+            JSONObject preserved=new ObservationHistory(new KgReader(upgraded,cfg,()->processed)).detail(original,new KgReader(upgraded,cfg,()->processed).viewer(List.of("a")));
+            assertEquals("Wir nutzen SAP intern.",preserved.getString("quote"));assertTrue(preserved.getString("observed_at").startsWith("2023"));
+            long count=upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation"));
+            upgraded.write(WriteClass.MAINTENANCE,0,c->{Observations.captureExisting(c);return null;});
+            assertEquals(count,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation")));
+            assertEquals(0L,(long)upgraded.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_match_contribution")));
+        }
+    }
+
     @Test public void upgradeBackfillIsIdempotentAndRawStatementDeleteProtected() throws Exception {
         publish(job());store.write(WriteClass.MAINTENANCE,0,c->{
             try(Statement s=c.createStatement()){s.execute("DELETE FROM kg_observation_event");s.execute("DELETE FROM kg_observation");}

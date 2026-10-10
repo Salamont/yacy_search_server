@@ -120,7 +120,9 @@ public final class AgentActionRegistry {
                         + "matches and facets; names, values, counts and evidence come only from documents of granted collections, "
                         + "derived rows only where both of their collections are granted. The collection filter selects origin facts; "
                         + "customer/partner suggestions of that origin may reach all granted collections, with scoped evidence and target links. "
-                        + "Read durable observations and paginated history by current source classification, including after live-object deletion.",
+                        + "Read durable observations and paginated history by current source classification, including after live-object deletion. "
+                        + "Versioned service/signal rules supplement independent industry reasons. Paginated contribution details revalidate "
+                        + "the complete current evidence chain, employer, withdrawals and project/system scope; strengths and scores are not probabilities.",
                 Risk.READ, true, "GET", "/kg/entities", false, ext, worker));
         add(new Action("kg.export", "Knowledge graph export",
                 "Export the knowledge graph of granted collections page by page and follow its change feed with delete "

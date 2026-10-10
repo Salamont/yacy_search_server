@@ -16,7 +16,7 @@ import net.yacy.scoutro.knowledge.vocab.Signals;
  * rather than turning a truncated product mention into installed software.
  */
 public final class BusinessSignals {
-    public static final String VERSION="1";
+    public static final String VERSION="2";
     private static final Pattern CUSTOMERS=p("Kundenprojekt|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
     private static final Pattern DESIRED=p("wünschenswert|erwünscht|von Vorteil|idealerweise|optional|desirable|preferred|nice.to.have");
@@ -95,21 +95,29 @@ public final class BusinessSignals {
                 String role="unspecified";
                 if("shutdown".equals(context))role="source";
                 else if(context.endsWith("migration")) {
-                    int from=quote.toLowerCase(Locale.ROOT).indexOf("von "),to=quote.toLowerCase(Locale.ROOT).indexOf(" zu ");
-                    if(from>=0&&to>from) {
-                        if(vocab.products(quote.substring(from,to)).contains(product))role="source";
-                        else if(vocab.products(quote.substring(to)).contains(product))role="target";
-                    }
+                    Matcher fromWord=p("\\b(?:von|from) ").matcher(quote),toWord=p("\\b(?:zu|auf|nach|to) ").matcher(quote);
+                    int from=fromWord.find()?fromWord.start():-1,to=toWord.find()?toWord.start():-1;
+                    if(from>=0&&vocab.products(quote.substring(from,to>from?to:quote.length())).contains(product))role="source";
+                    else if(to>=0&&vocab.products(quote.substring(to)).contains(product))role="target";
                 }
                 fields.put("system_role",role);assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
         } else if(Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)) {
-            if(!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find()||NEGATION.matcher(quote).find())return out;
+            if(!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find())return out;
             for(String need:vocab.needs(quote)) {
-                String context="care-transition".equals(need)&&OWN_CARE.matcher(quote).find()?"organizational_transition"
-                        : PLAN.matcher(quote).find()?"planned_need":NEED.matcher(quote).find()?"explicit_need":null;
+                boolean cancelled=p("abgesagt|eingestellt|aufgegeben|cancelled|canceled").matcher(quote).find();
+                boolean completed=p("fertiggestellt|abgeschlossen|completed|finished").matcher(quote).find();
+                boolean ownProgram=List.of("leadership-development","team-development").contains(need)
+                        &&p("Programm|program").matcher(quote).find()
+                        &&(p("unser(?:e[nmrs]?)? (?:Führungskräfte|Mitarbeitende|Teams|Belegschaft)|our (?:leaders|employees|teams)").matcher(quote).find()
+                            ||p("intern(?:e[nmrs]?)? |internal ").matcher(quote).find()&&p("starten|beginnen|initiieren|führen|start|launch").matcher(quote).find());
+                if(NEGATION.matcher(quote).find()&&!cancelled)continue;
+                String context=cancelled?"cancelled_need":completed?"completed_need"
+                        :"care-transition".equals(need)&&OWN_CARE.matcher(quote).find()?"organizational_transition"
+                        : PLAN.matcher(quote).find()?"planned_need":NEED.matcher(quote).find()||ownProgram?"explicit_need":null;
                 if(context==null||OFFER.matcher(quote).find())continue;
                 Map<String,Object> fields=new TreeMap<>(Map.of("need",need,"context",context,"section",section,"scope","unspecified"));
+                needDetails(fields,quote,need);
                 assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
         } else if(Vocabulary.BUSINESS_ROLE_EVIDENCE.equals(predicate)) {
@@ -121,5 +129,28 @@ public final class BusinessSignals {
                 out.add(Values.canonical(new TreeMap<>(Map.of("role",r.getKey(),"context","own_offered_services","section",section))));
         } else if(Vocabulary.JOB_STATUS.equals(predicate)&&CLOSED.matcher(quote).find())out.add("ended");
         return out;
+    }
+
+    /** Only explicit project responsibility/region/process, never inferred from a company name or collection. */
+    private static void needDetails(Map<String,Object> fields,String quote,String need) {
+        Matcher location=Pattern.compile("(?:\\bin |am Standort |Standort |\\bat )([\\p{Lu}][\\p{L}-]{2,40}(?: [\\p{Lu}][\\p{L}-]{2,40})?)").matcher(quote);
+        if(location.find())fields.put("location",location.group(1));
+        Matcher project=Pattern.compile("(?iu)\\bProjekt\\s+[\"„]?([\\p{L}\\p{N}_-]{2,50})").matcher(quote);
+        if(project.find())fields.put("project",project.group(1).toLowerCase(Locale.ROOT));
+        String responsibility=p("als (?:Bauherr|Eigentümer|Gebäudebetreiber)|unser(?:e[nmrs]?)? (?:eigene[nmrs]? )?(?:Werk|Gebäude|Standort|Betrieb|Klinik|Krankenhaus)|our (?:own )?(?:building|site|factory)").matcher(quote).find()?"own_responsibility":"unknown";
+        fields.put("responsibility",responsibility);
+        String phase=p("abgesagt|aufgegeben|eingestellt|cancelled|canceled").matcher(quote).find()?"cancelled"
+                :p("fertiggestellt|abgeschlossen|completed|finished").matcher(quote).find()?"completed"
+                :p("Bauarbeiten|im Bau|construction started|under construction").matcher(quote).find()?"construction"
+                :p("genehmigt|approved").matcher(quote).find()?"approved"
+                :PLAN.matcher(quote).find()?"planned":"unknown";
+        fields.put("phase",phase);
+        if("care-transition".equals(need)) {
+            fields.put("hospital_process",p("unser(?:e[nmrs]?)? (?:Klinik|Krankenhaus)|our hospital").matcher(quote).find()
+                    &&p("organisiert|organisieren|koordiniert|koordinieren|Übergang|Überleitung|coordinate|transition").matcher(quote).find());
+            String destination=p("ambulant(?:e[nrms]?)? (?:Versorgung|Pflege)|outpatient care").matcher(quote).find()?"outpatient"
+                    :p("Kurzzeitpflege|short.term care").matcher(quote).find()?"short_term":null;
+            if(destination!=null)fields.put("destination",destination);
+        }
     }
 }

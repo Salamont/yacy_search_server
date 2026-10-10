@@ -237,6 +237,8 @@
       ['vocab_problems', (vo.problems || []).join('\n') || t('none')],
       ['derived_last', dv.enabled === false ? t('derived_off') : t('derived_value').replace('%1', fmt(derivedRows))
         .replace('%2', dv.lastRun ? date(dv.lastRun) : t('none')).replace('%3', fmt(dv.intervalMinutes))],
+      ['matching_run', dv.matching ? t('matching_progress').replace('%1', fmt(dv.matching.checked)).replace('%2', fmt(dv.matching.completed_partitions))
+        + ' · ' + t(dv.matching.deferred ? 'matching_deferred_' + dv.matching.deferred : dv.matching.cycle_complete ? 'matching_complete' : 'matching_deferred_work_budget') : t('none')],
       ['upgrade', up ? t('upgrade_value').replace('%1', fmt(up.from)).replace('%2', fmt(up.to)).replace('%3', up.waiting
         ? t('upgrade_waiting').replace('%1', up.hold) : up.backup ? t('upgrade_copy').replace('%1', up.backup) : date(up.at)) : t('none')]]);
     $('upgrade-note').hidden = !up?.waiting;
@@ -505,7 +507,7 @@
     box.append(dl, external(o.source?.url));
     if (o.job_search) box.append(node('p', t('job_search_state') + ': ' + t('job_' + o.job_search.status)));
     if (o.later_system_change) box.append(node('p', t('later_system_change')), link(t('evidence'), {
-      view: 'history', observation: o.later_system_change.observation, collection: o.collections?.[0] || collection }));
+      view: 'history', observation: o.later_system_change.observation, collection: o.later_system_change.collection || o.collections?.[0] || collection }));
     if (o.live_statement) box.append(' · ', ...evidenceToggle(o.live_statement, o.collections?.[0] || collection));
     return box;
   }
@@ -687,15 +689,41 @@
   }
   function contributionList(d) {
     const details = node('details'); details.append(node('summary', t('derivation_evidence')));
-    for (const c of d.contributions || []) {
+    function append(c) {
       const part = node('div', null, 'skg-contribution');
       part.append(node('p', [c.collection_a, c.collection_b].filter((x, i, all) => all.indexOf(x) === i).join(' · ') + ' · ' + date(c.computed_at), 'sseo-note'));
-      part.append(node('p', c.evidence_complete ? c.reason : t('basis_unavailable'), 'skg-reason'));
+      const product = c.product ? t('prod_' + c.product) : c.need ? t('need_' + c.need) : '';
+      if (c.rule && !c.rule.startsWith('legacy')) {
+        const serviceKey = c.service?.endsWith(' support') ? 'software_support' : ({ 'architecture/planning': 'architecture_planning',
+          'construction execution': 'construction_execution', 'energy/facility planning': 'energy_planning',
+          'leadership/organization development': 'leadership_development', 'team/organization development': 'team_development',
+          outpatient: 'outpatient', short_term: 'short_term' })[c.service];
+        part.append(node('p', t('match_rule_' + c.rule) + (product ? ': ' + product : '') + ' · ' + t('matched_service') + ': ' + (c.service_name || (serviceKey ? t('service_' + serviceKey) : c.service)), 'skg-reason'));
+        const context = c.context ? t('ctx_' + c.context) : '';
+        const when = c.observed_at ? t(c.context === 'internal_use' ? 'last_proved' : 'last_observed').replace('%1', date(c.observed_at)) : t('historical_date_unknown');
+        part.append(node('p', [context, when, c.location, c.project, c.phase ? t('project_phase') + ': ' + t('phase_' + c.phase) : null].filter(Boolean).join(' · ')));
+        part.append(node('p', [t('evidence_strength') + ': ' + t('strength_' + c.evidence_strength),
+          t('matching_fit') + ': ' + t('fit_' + c.fit), t('matching_time') + ': ' + t('time_' + c.temporal_status),
+          c.rule + '/' + c.rule_version].join(' · '), 'sseo-note'));
+        for (const key of c.uncertainties || []) part.append(node('p', t('uncertainty_' + key), 'sseo-note'));
+      } else part.append(node('p', c.evidence_complete ? c.reason : t('basis_unavailable'), 'skg-reason'));
       for (const s of c.evidence || []) {
+        if (s.id?.startsWith('kgo_')) { part.append(observationItem(s)); continue; }
         const evidence = node('div'); evidence.append(predicate(s.predicate) + ': ' + (s.object?.value ?? shown(s.object)) + ' · ' + s.collection + ' ');
         evidence.append(...evidenceToggle(s.id, s.collection)); part.append(evidence);
       }
       details.append(part);
+    }
+    (d.contributions || []).forEach(append);
+    if (d.next_contribution_offset != null && d.contributions_path) {
+      let offset = d.next_contribution_offset;
+      const more = node('button', t('more_reasons'), 'btn btn-default btn-sm'); more.type = 'button';
+      more.addEventListener('click', () => guarded(async () => {
+        more.disabled = true;
+        try { const page = await api(d.contributions_path, { offset, limit: 25 }); page.items.forEach(append);
+          offset = page.next_offset; if (offset == null) more.remove();
+        } finally { more.disabled = false; }
+      })); details.append(more);
     }
     return details;
   }

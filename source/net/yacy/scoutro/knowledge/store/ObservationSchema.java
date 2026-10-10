@@ -16,7 +16,8 @@ final class ObservationSchema {
     private static final String RELEVANT = "(p.name IN ('system_signal','business_need_signal','business_role_evidence','job_status')"
             + " OR (t.name = 'job' AND p.name IN ('name','hiring_organization','job_location','date_posted','valid_through',"
             + "'employment_type','occupational_field','start_date','advertised_by','recruiting_organization','deployment_organization'))"
-            + " OR (t.name = 'service' AND p.name IN ('name','category','description')) OR p.name='offers')";
+            + " OR (t.name = 'service' AND p.name IN ('name','category','description')) OR p.name='offers'"
+            + " OR (t.name IN ('organization','facility') AND p.name='service_area'))";
 
     /** Only identity evidence from THIS document, never names or keys from another collection. */
     private static String identity(final String entity) {

@@ -527,3 +527,40 @@ See [upgrade, rollback and lifecycle details](../docs/SCOUTRO_DURABLE_OBSERVATIO
 Rebuild carries archived revisions/corrections/current scopes at final swap;
 restore selects the chosen backup and does not merge newer history automatically.
 An old schema backup does not preserve observations created after its date.
+
+## Additional service and signal suggestions (package C)
+
+Changing the stored-job matching setting or disabling calculation also updates
+contribution change-feed notices when the graph reopens. This works while normal
+calculation is paused or deferred. Turning matching off keeps historical knowledge;
+turning it on again does not need a new extraction. Scores remain sorting values.
+If storage refuses the notice write, reads remain available and use the changed
+settings immediately. The overview shows the pending change-feed notices; storage
+recovery retries them. A consumer must not infer a completed notification update
+from that pending status.
+
+Specific provider services can also match durable system/competence, construction,
+energy renovation, leadership/team development and hospital-transition observations.
+No declared target industry is required. Care transitions suggest **possible
+cooperation partners**, not customers or confirmed cooperation. Six explicit rule
+groups are described in `docs/SCOUTRO_MATCHING.md`; there is no arbitrary keyword
+or LLM matching.
+
+The suggestion details separate matching strength, service fit and temporal
+restriction, show the original archived quotes and source/assignment contexts,
+and retain historical dates. An expired/removed vacancy does not refute an earlier
+system observation. Competence is not a confirmed installed system. Unresolved
+employers are deferred; own IT/SAP consultancy/system-integrator job signals are
+excluded while independently grounded reasons remain.
+
+The same checkbox controls list and graph. Other permitted collections remain
+tagged and clickable; archive-only targets open history. At most 25 reasons are
+previewed; **More reasons** fetches the complete authorized pages. Visible totals,
+ranking and pagination use only currently eligible, fully authorized reasons.
+Technical scores are sorting values, never success probabilities.
+
+Overview shows the service/signal calculation's examined signals and completed
+provider partitions. A deferred work budget resumes later without withdrawing
+unprocessed reasons. A provider above the observation limit remains deferred;
+other providers continue. Operator limits, upgrade/rollback and API/agent/export
+contracts are documented in `docs/SCOUTRO_MATCHING.md`.

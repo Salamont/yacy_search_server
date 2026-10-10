@@ -39,7 +39,7 @@ package net.yacy.scoutro.knowledge.store;
  */
 public final class KgSchema {
 
-    public static final int CURRENT_VERSION = 5;
+    public static final int CURRENT_VERSION = 6;
 
     private KgSchema() {}
 
@@ -394,6 +394,7 @@ public final class KgSchema {
             "CREATE INDEX kg_change_at ON kg_change (at)",
         },
         ObservationSchema.DDL,
+        MatchingSchema.DDL,
     };
 
     /** Keys of kg_meta written by the store. */

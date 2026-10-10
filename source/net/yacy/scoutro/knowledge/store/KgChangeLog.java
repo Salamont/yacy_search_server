@@ -57,7 +57,7 @@ public final class KgChangeLog {
      * <em>all</em> of them, because it combines the facts of two collections.
      */
     public enum Kind {
-        ENTITY(1), STATEMENT(2), DERIVED(3), OBSERVATION(4);
+        ENTITY(1), STATEMENT(2), DERIVED(3), OBSERVATION(4), MATCH_CONTRIBUTION(5);
 
         public final int code;
 
@@ -66,12 +66,12 @@ public final class KgChangeLog {
         }
 
         static Kind of(final int code) {
-            return code == 1 ? ENTITY : code == 3 ? DERIVED : code == 4 ? OBSERVATION : STATEMENT;
+            return code == 1 ? ENTITY : code == 3 ? DERIVED : code == 4 ? OBSERVATION : code == 5 ? MATCH_CONTRIBUTION : STATEMENT;
         }
 
         /** The name in the export and the feed. */
         public String label() {
-            return this == ENTITY ? "entity" : this == DERIVED ? "derived" : this == OBSERVATION ? "observation" : "statement";
+            return this == ENTITY ? "entity" : this == DERIVED ? "derived" : this == OBSERVATION ? "observation" : this == MATCH_CONTRIBUTION ? "match_contribution" : "statement";
         }
     }
 
@@ -257,7 +257,8 @@ public final class KgChangeLog {
                     final long seq = rs.getLong(1);
                     last = seq;
                     final Kind kind = Kind.of(rs.getInt(2));
-                    final Op op = kind == Kind.DERIVED ? visibleDerived(viewer, Op.of(rs.getInt(4)), parse(rs.getString(7)))
+                    final Op op = kind == Kind.MATCH_CONTRIBUTION ? MatchingAccess.visibleOp(c,rs.getString(3),Op.of(rs.getInt(4)),viewer)
+                            : kind == Kind.DERIVED ? visibleDerived(viewer, Op.of(rs.getInt(4)), parse(rs.getString(7)))
                             : visibleOp(viewer, Op.of(rs.getInt(4)), parse(rs.getString(6)), parse(rs.getString(7)));
                     if (op != null) {
                         items.add(new Item(seq, kind, rs.getString(3), op,
