@@ -584,7 +584,17 @@
     </java>
   </target>
 
-  <target name="all" depends="jetty12-server-test">
+  <target name="solr9-relocation-test" depends="build-solr9-bridge" description="verify complete bridge relocation and preserved upstream attribution">
+    <javac srcdir="test/jetty" destdir="${solr9.bridge.tool}" includes="RelocateJettyPackagesTest.java"
+           includeantruntime="false" release="${javacRelease}" encoding="UTF-8">
+      <classpath refid="solr9.bridge.runtime.path"/>
+    </javac>
+    <java classname="net.yacy.test.jetty.RelocateJettyPackagesTest" fork="true" failonerror="true">
+      <classpath refid="solr9.bridge.runtime.path"/>
+    </java>
+  </target>
+
+  <target name="all" depends="solr9-relocation-test,jetty12-server-test">
   </target>
 
   <target name="copyMain4Dist" depends="compile">      
