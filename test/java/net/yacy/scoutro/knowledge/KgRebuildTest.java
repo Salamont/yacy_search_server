@@ -40,6 +40,7 @@ import net.yacy.scoutro.knowledge.sync.JsonLdCapture;
  * graph unchanged.
  */
 public class KgRebuildTest {
+    private boolean background;
 
     @Rule
     public TemporaryFolder tmp = new TemporaryFolder();
@@ -79,7 +80,7 @@ public class KgRebuildTest {
         all[7] = Long.toString(2L * 1024 * 1024);
         System.arraycopy(extra, 0, all, 8, extra.length);
         final Map<String, String> settings = KgTestSupport.enabled(all);
-        KgRuntime.start(new KgRuntime.Env(this.data, settings::get, this.clock::get, new KgTestSupport.Probe(), KgStore.SQLITE, false,
+        KgRuntime.start(new KgRuntime.Env(this.data, settings::get, this.clock::get, new KgTestSupport.Probe(), KgStore.SQLITE, this.background,
                 () -> this.solr.getDefaultServer(), Gates.IDLE));
         final KgRuntime r = KgRuntime.current();
         assertNotNull(r);
@@ -112,7 +113,7 @@ public class KgRebuildTest {
     /** Runs the graph's steps with an advancing clock until the condition holds (the rebuild runs on its own thread). */
     private void drive(final KgRuntime r, final BooleanSupplier done) throws InterruptedException {
         for (int i = 0; i < 3000; i++) {
-            if (r.state() == KgRuntime.State.RUNNING) {
+            if (r.state() == KgRuntime.State.RUNNING && !this.background) {
                 r.tick();
                 r.syncTick();
             }
@@ -137,6 +138,19 @@ public class KgRebuildTest {
     private static String phase(final KgRuntime r) {
         final JSONObject rb = r.status().optJSONObject("rebuild");
         return rb == null ? "" : rb.optString("phase");
+    }
+
+    @Test
+    public void rebuildSwapClosesTheOldScheduledSyncAndStartsOneReplacement() throws Exception {
+        this.background=true;
+        final KgRuntime r=start();
+        client().add(doc("AAAAAAhost01","fixture.example",org("Fixture GmbH","DE123456789")));client().commit();settle(r);
+        final java.lang.reflect.Field field=KgRuntime.class.getDeclaredField("syncFuture");field.setAccessible(true);
+        final java.util.concurrent.ScheduledFuture<?> old=(java.util.concurrent.ScheduledFuture<?>)field.get(r);
+        r.rebuild();drive(r,()->"done".equals(phase(r)));settle(r);
+        final java.util.concurrent.ScheduledFuture<?> fresh=(java.util.concurrent.ScheduledFuture<?>)field.get(r);
+        assertTrue(old.isCancelled());assertNotEquals(old,fresh);assertFalse(fresh.isDone());
+        KgRuntime.stop();assertTrue(fresh.isCancelled());r.watchdogTick();assertTrue(fresh.isDone());
     }
 
     private static long count(final KgRuntime r, final String sql) {

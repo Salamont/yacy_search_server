@@ -26,6 +26,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -264,6 +265,11 @@ public final class KgRuntime {
     private ScheduledExecutorService watchdog;
     private ScheduledExecutorService maintenance;
     private ScheduledExecutorService syncThread;
+    /** Retained: an exceptional periodic task is done although its executor is still alive. */
+    private volatile ScheduledFuture<?> syncFuture;
+    private volatile boolean syncExecuting;
+    private volatile long syncLastStartedAt, syncLastFinishedAt, syncCompletedTicks, syncFailedAt;
+    private volatile String syncTaskError;
     private DirtySet dirty;
     private volatile SyncService sync;
     private volatile LlmService llm;
@@ -431,6 +437,10 @@ public final class KgRuntime {
     public synchronized void open() {
         this.startedAt = this.env.clock.getAsLong();
         this.closing = false;
+        this.syncFuture = null;
+        this.syncExecuting = false;
+        this.syncLastStartedAt = this.syncLastFinishedAt = this.syncCompletedTicks = this.syncFailedAt = 0L;
+        this.syncTaskError = null;
         try {
             this.config = KgConfig.read(this.env.config, this.env.keys.get());
             this.jsonld = new JsonLdCapturePolicy(this.config);
@@ -481,7 +491,7 @@ public final class KgRuntime {
                 this.maintenance.scheduleWithFixedDelay(this::tick, 0L, MAINTENANCE_MILLIS, TimeUnit.MILLISECONDS);
                 if (this.sync != null) {
                     this.syncThread = daemon(SYNC_THREAD);
-                    this.syncThread.scheduleWithFixedDelay(this::syncTick, 0L, SYNC_DELAY_MILLIS, TimeUnit.MILLISECONDS);
+                    this.syncFuture = this.syncThread.scheduleWithFixedDelay(this::syncTick, 0L, SYNC_DELAY_MILLIS, TimeUnit.MILLISECONDS);
                 }
                 if (this.llm != null) {
                     this.llmThreads = daemons(EXTRACT_THREAD, this.config.llmParallel);
@@ -646,6 +656,10 @@ public final class KgRuntime {
         if (this.sync != null) {
             this.sync.requestStop();
         }
+        final ScheduledFuture<?> scheduledSync = this.syncFuture;
+        if (scheduledSync != null) {
+            scheduledSync.cancel(false); // prevent another start; never interrupt embedded Solr
+        }
         if (this.syncThread != null) {
             this.syncThread.shutdown();
             awaitQuietly(this.syncThread);
@@ -736,12 +750,47 @@ public final class KgRuntime {
         if (s == null || this.state != State.RUNNING || this.closing) {
             return;
         }
-        final long until = this.env.clock.getAsLong() + SYNC_SLICE_MILLIS;
-        int steps = 0;
-        while (s.step() && !this.closing && !Thread.currentThread().isInterrupted() && this.env.clock.getAsLong() < until
-                && ++steps < SYNC_SLICE_STEPS) {
-            // more work is due right away
+        this.syncExecuting = true;
+        try {
+            this.syncLastStartedAt = this.env.clock.getAsLong();
+            final long until = this.syncLastStartedAt + SYNC_SLICE_MILLIS;
+            int steps = 0;
+            while (s.step() && !this.closing && !Thread.currentThread().isInterrupted() && this.env.clock.getAsLong() < until
+                    && ++steps < SYNC_SLICE_STEPS) {
+                // more work is due right away
+            }
+            this.syncCompletedTicks++;
+        } catch (final RuntimeException | Error failure) {
+            // Do not restart after an Error: Java/SQLite state may not be safe
+            // for recovery (in particular VirtualMachineError/ThreadDeath).
+            // Retain the failure even though ScheduledThreadPoolExecutor hides
+            // it in its Future rather than the thread's uncaught handler.
+            this.syncTaskError = failure.getClass().getName();
+            this.syncFailedAt = this.env.clock.getAsLong();
+            LOG.severe("knowledge graph sync task terminated; automatic recovery is disabled", failure);
+            throw failure;
+        } finally {
+            this.syncLastFinishedAt = this.env.clock.getAsLong();
+            this.syncExecuting = false;
         }
+    }
+
+    /** No SQL or scheduler mutation; timestamps/counters describe this runtime session only. */
+    private JSONObject syncSchedulerStatus() {
+        final ScheduledFuture<?> future = this.syncFuture;
+        final boolean cancelled = future != null && future.isCancelled();
+        final boolean done = future != null && future.isDone();
+        final String schedulerState = this.closing || this.state == State.STOPPED ? "stopped"
+                : this.syncTaskError != null || (done && !cancelled) ? "failed"
+                : cancelled ? "cancelled" : future == null ? "not_scheduled"
+                : this.syncExecuting ? "running" : "scheduled";
+        return KgJson.obj("state", schedulerState, "executing", this.syncExecuting,
+                "done", done, "cancelled", cancelled,
+                "lastStartedAt", this.syncLastStartedAt > 0L ? this.syncLastStartedAt : null,
+                "lastFinishedAt", this.syncLastFinishedAt > 0L ? this.syncLastFinishedAt : null,
+                "completedTicks", this.syncCompletedTicks,
+                "failedAt", this.syncFailedAt > 0L ? this.syncFailedAt : null,
+                "lastError", this.syncTaskError, "automaticRecovery", false);
     }
 
     /** Extract step: one document at a time, for up to a second, then yields. */
@@ -1324,8 +1373,16 @@ public final class KgRuntime {
                     "integrity", integrityStatus(), "manualPause", this.guard.manualPause(),
                     "manualPauseSaved", this.unsavedManualPause == null));
             final SyncService sy = this.sync;
-            KgJson.put(o, "sync", sy != null ? sy.status()
-                    : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped"));
+            final JSONObject syncStatus = sy != null ? sy.status()
+                    : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped");
+            final JSONObject scheduler = syncSchedulerStatus();
+            if ("failed".equals(scheduler.optString("state"))) {
+                KgJson.put(syncStatus, "state", "failed");
+                KgJson.put(syncStatus, "reason", "task_terminated");
+                KgJson.put(syncStatus, "lastError", this.syncTaskError == null ? "unexpected_task_end" : this.syncTaskError);
+            }
+            KgJson.put(syncStatus, "scheduler", scheduler);
+            KgJson.put(o, "sync", syncStatus);
             final LlmService ll = this.llm;
             // the model of the LLM selection (usage knowledge) is shown also while the tier is off (package 6.3)
             // no_llm_collections only while no collection is switched on for it; switched on but all off for the graph is said so

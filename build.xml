@@ -452,6 +452,28 @@
     </junit>
   </target>
 
+  <target name="scoutro-kg-sync-test" depends="compile" description="Sync task termination, long-text extraction, reconcile, queue and lifecycle regressions">
+    <mkdir dir="build/scoutro-kg-sync-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-sync-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/knowledge/**/*.java"/>
+      <include name="net/yacy/scoutro/api/**/*.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-kg-sync-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.knowledge.KgSyncSchedulerTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.SyncBoundaryTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.SyncServiceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgRuntimeTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgSyncRuntimeTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgBackupTest"/>
+      <arg value="net.yacy.scoutro.knowledge.KgRebuildTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.BusinessSignalsTest"/>
+      <arg value="net.yacy.scoutro.api.KnowledgeApiTest"/>
+      <arg value="net.yacy.scoutro.api.AgentKnowledgeTest"/>
+    </java>
+  </target>
+
   <target name="scoutro-kg-llm-schedule-test" depends="compile" description="LLM timing, transport admission, continuation, runtime and admin regressions">
     <mkdir dir="build/scoutro-kg-llm-schedule-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-llm-schedule-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

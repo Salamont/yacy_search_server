@@ -37,6 +37,18 @@ price comparison, and the evidence behind each fact. Operator guide:
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
 | Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary (see below) |
 
+The synchronisation panel also shows the periodic task's state, last start
+and finish, completed ticks, error class, and the current reconcile's scanned
+count and cursor. Completed ticks include idle waits: compare queue,
+published counters and reconcile progress rather than treating ticks as
+processed documents. `Sync task terminated` / API `sync.state=failed`
+means the periodic task ended unexpectedly even if its thread/executor
+still exists. Inspect the server log for the full exception before a
+controlled restart. Unexpected errors are not automatically repeated;
+normal Solr/storage retry paths remain in effect. No watchdog revives a
+closed session, including during restore or a rebuild swap. These status
+details remain administrator-only, and opening the overview changes no data.
+
 Every view takes `collection=<name>`. **Ordinary facts, names, values, counts,
 hosts and sources are computed only from documents of that collection**;
 customer/partner suggestions use the targeted exception described below.

@@ -18161,7 +18161,8 @@
                   "running",
                   "resetting",
                   "unavailable",
-                  "off"
+                  "off",
+                  "failed"
                 ]
               },
               "reason": {
@@ -18189,7 +18190,67 @@
                 "type": [
                   "string",
                   "null"
-                ]
+                ],
+                "description": "Expected sync error or exception class after terminal task failure (reason task_terminated). Full stack trace is in the server log."
+              },
+              "scheduler": {
+                "type": "object",
+                "description": "Administrator-only periodic task diagnostics for this runtime session. No automatic restart after unexpected failure; expected service retry paths remain. Completed ticks include idle and are not document progress.",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "not_scheduled",
+                      "scheduled",
+                      "running",
+                      "failed",
+                      "cancelled",
+                      "stopped"
+                    ]
+                  },
+                  "executing": {
+                    "type": "boolean"
+                  },
+                  "done": {
+                    "type": "boolean"
+                  },
+                  "cancelled": {
+                    "type": "boolean"
+                  },
+                  "lastStartedAt": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "lastFinishedAt": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "completedTicks": {
+                    "type": "integer"
+                  },
+                  "failedAt": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "lastError": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "automaticRecovery": {
+                    "type": "boolean",
+                    "enum": [
+                      false
+                    ]
+                  }
+                }
               },
               "gate": {
                 "type": [

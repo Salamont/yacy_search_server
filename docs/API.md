@@ -750,7 +750,26 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     processing counters (`processed`), the `_version_` checkpoint, the
     reconcile (`reconcile`: `pending`, `reason`, `current` run with phase and
     counts, `awaitingConfirmation`, `catchUp`), `retention` and `lag`
-    (`pending`, `oldest_pending_age_s`, `reconcile_pending`);
+    (`pending`, `oldest_pending_age_s`, `reconcile_pending`). Additive
+    `scheduler` diagnostics report `state` (`not_scheduled`, `scheduled`,
+    `running`, `failed`, `cancelled`, `stopped`), `executing`, Future `done`
+    and `cancelled`, `lastStartedAt`, `lastFinishedAt`, `completedTicks`,
+    `failedAt`, `lastError` (exception class) and `automaticRecovery: false`.
+    Times are epoch milliseconds or null and all counters reset on reopen.
+    Completed ticks include idle/gate-waiting ticks, **not** documents or
+    committed progress: use `processed`, `queue` and the reconcile's
+    `current.scanned`, `cursor`, phase and counts to assess progress.
+    An escaping RuntimeException/Error terminates the periodic task and
+    sets `sync.state: failed`, `reason: task_terminated`; the full exception
+    is logged once. An alive executor is not proof of an alive task.
+    Expected Solr/storage failures still follow existing retry/backoff paths.
+    Unexpected task failures are not automatically restarted, in particular
+    JVM errors, ThreadDeath and linkage errors. Inspect the log before a
+    controlled restart; no restart, re-extraction or schema change is caused
+    by reading status. Admin/Digest access remains required; agents cannot
+    read these diagnostics. Shutdown cancels the future without interrupting
+    a running embedded-Solr operation; restore/rebuild swaps close that
+    session before scheduling the replacement session;
   - `llm`: the optional LLM tier (package 2b): `state` (`off`,
     `not_configured`, `idle`, `running`, `paused` with `reason:
     circuit_breaker`, `waiting` with a gate, `full_reset` or

@@ -166,6 +166,21 @@ public class KgSyncRuntimeTest {
     }
 
     @Test
+    public void longProseDoesNotStopSyncOrLoseSubsequentDocuments() throws Exception {
+        final KgRuntime r=start(settings());
+        final SolrInputDocument longPage=doc("AAAAAAhost01","",org("Fixture GmbH"));
+        longPage.setField("text_t","a".repeat(65500)+". Wir nutzen SAP intern.");
+        client().add(longPage);
+        client().add(doc("BBBBBBhost02","next",org("Next GmbH")));client().commit();
+        settle(r);
+        assertTrue(tracked(r,"AAAAAAhost01"));assertTrue(tracked(r,"BBBBBBhost02"));
+        assertTrue(r.status().getJSONObject("sync").getJSONObject("scheduler").getLong("completedTicks")>0L);
+        assertTrue(r.status().getJSONObject("sync").getJSONObject("scheduler").isNull("lastError"));
+        assertEquals(0L,count(r,"SELECT count(*) FROM kg_work"));
+        assertEquals(1L,count(r,"SELECT count(*) FROM kg_observation WHERE predicate='system_signal'"));
+    }
+
+    @Test
     public void stopDrainsPendingChangesAndTheNextStartProcessesAndReconciles() throws Exception {
         KgRuntime r = start(settings());
         client().add(doc("AAAAAAhost01", "", org("A GmbH")));
