@@ -398,6 +398,43 @@ public class BusinessViewTest {
     }
 
     @Test
+    public void theOriginFilterKeepsItsFactsButAllowsGrantedCustomerSuggestions() throws Exception {
+        final String soft = entity("PflegeSoft GmbH");
+        final Viewer origin = viewer("stackfinder-web"), granted = viewer("stackfinder-web", "edelsenior-web");
+        final JSONObject business = new BusinessView(this.reader).entity(soft, origin, granted, false);
+        final JSONObject page = business.getJSONObject("suggestions");
+        assertTrue(page.toString(), page.getInt("total") > 0);
+        final JSONObject suggestion = page.getJSONArray("items").getJSONObject(0);
+        assertFalse(suggestion.getBoolean("fact"));
+        assertEquals("edelsenior-web", suggestion.getString("target_collection"));
+        assertTrue(suggestion.getJSONObject("other").getJSONArray("other_collections").toString().contains("edelsenior-web"));
+        final JSONArray contributions = suggestion.getJSONArray("contributions");
+        assertTrue(contributions.getJSONObject(0).getBoolean("evidence_complete"));
+        assertTrue(contributions.getJSONObject(0).getJSONArray("evidence").length() >= 2);
+        assertEquals("normal facts and sources keep the origin filter", new BusinessView(this.reader).entity(soft, origin, false)
+                .getJSONArray("sources").toString(), business.getJSONArray("sources").toString());
+        final BusinessGraph graph = new BusinessGraph(this.reader);
+        final JSONObject plain = graph.neighborhood(soft, q(false, false), origin, granted);
+        assertFalse(plain.toString(), plain.toString().contains("edelsenior-web"));
+        final JSONObject network = graph.neighborhood(soft, q(false, true), origin, granted);
+        assertTrue(network.toString(), network.toString().contains("edelsenior-web"));
+        for (int i = 0; i < network.getJSONArray("edges").length(); i++) {
+            final JSONObject edge = network.getJSONArray("edges").getJSONObject(i);
+            if (edge.optBoolean("fact")) assertFalse(edge.toString(), edge.toString().contains("Lindenhof"));
+        }
+        assertEquals(0, new Suggestions(this.reader).page(soft, 0, 100, origin, origin).getInt("total"));
+        final Viewer deniedOrigin = viewer("edelsenior-web");
+        for (final String route : List.of("business", "suggestions", "network")) {
+            try {
+                if ("business".equals(route)) new BusinessView(this.reader).entity(entity("Haus Birke"), deniedOrigin, origin, false);
+                else if ("suggestions".equals(route)) new Suggestions(this.reader).page(entity("Haus Birke"), 0, 100, deniedOrigin, origin);
+                else graph.neighborhood(entity("Haus Birke"), q(false, true), deniedOrigin, origin);
+                fail("a view must not expand its grant: " + route);
+            } catch (final KgReader.NotFound expected) { /* invisible like missing */ }
+        }
+    }
+
+    @Test
     public void theNeighbourhoodShowsTypesStatusesAndPagesItsNeighbours() throws Exception {
         final Viewer both = viewer("stackfinder-web", "edelsenior-web");
         final BusinessGraph g = new BusinessGraph(this.reader);

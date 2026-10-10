@@ -28,7 +28,7 @@
   async function api(path, query = {}) {
     const p = new URLSearchParams();
     for (const [k, v] of Object.entries(query)) if (v != null && v !== '') p.set(k, v);
-    if (collection) p.set('collection', collection);
+    if (collection && !Object.hasOwn(query, 'collection')) p.set('collection', collection);
     const response = await fetch(ROOT + path + (p.toString() ? '?' + p : ''), { credentials: 'same-origin', cache: 'no-store' });
     let body = null; try { body = await response.json(); } catch (_) { /* reported below */ }
     if (!response.ok) {
@@ -41,7 +41,7 @@
 
   function link(text, query, hash) {
     const a = node('a', text);
-    const p = new URLSearchParams(query); if (collection) p.set('collection', collection);
+    const p = new URLSearchParams(query); if (collection && !Object.hasOwn(query, 'collection')) p.set('collection', collection);
     a.href = 'ScoutroKnowledge_p.html?' + p + (hash ? '#' + hash : '');
     a.addEventListener('click', e => { if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey) return; e.preventDefault(); navigate(query, hash); });
     return a;
@@ -68,7 +68,7 @@
   function shownSource(x, prefix = '') { const src = x?.[prefix + 'display_name_source']; return src && src !== 'fact' ? src : null; }
   // a link to an object under its shown name; a name that is not stated by the sources is marked as such
   function nameLink(x, id, type, prefix = '') {
-    const a = link(shown(x, type, prefix), { view: 'object', id });
+    const a = link(shown(x, type, prefix), { view: 'object', id, ...(x?.target_collection ? { collection: x.target_collection } : {}) });
     const src = shownSource(x, prefix);
     if (src) { a.classList.add('skg-name-' + src); a.title = t('name_src_' + src); }
     return a;
@@ -79,7 +79,7 @@
   }
 
   function navigate(query, hash) {
-    const p = new URLSearchParams(query); if (collection) p.set('collection', collection);
+    const p = new URLSearchParams(query); if (collection && !Object.hasOwn(query, 'collection')) p.set('collection', collection);
     history.pushState(null, '', 'ScoutroKnowledge_p.html' + (p.toString() ? '?' + p : '') + (hash ? '#' + hash : ''));
     load();
   }
@@ -494,15 +494,29 @@
   }
 
   // A button that loads and shows the evidence of one statement below itself.
-  function evidenceToggle(statementId) {
+  function evidenceToggle(statementId, context = collection) {
     const toggle = node('button', t('evidence'), 'btn btn-default btn-sm'); toggle.type = 'button'; toggle.setAttribute('aria-expanded', 'false');
     const box = node('div', null, 'skg-evidence'); box.hidden = true;
     toggle.addEventListener('click', () => {
       const open = box.hidden; box.hidden = !open; toggle.setAttribute('aria-expanded', String(open)); toggle.textContent = t(open ? 'hide_evidence' : 'evidence');
       if (open && !box.dataset.loaded) guarded(async () => {
         box.replaceChildren(node('p', t('loading')));
-        const data = await api('statements/' + encodeURIComponent(statementId) + '/evidence', { limit: 50 });
-        box.replaceChildren(evidenceList(data.items, true)); box.dataset.loaded = '1';
+        const run = generation;
+        const data = await api('statements/' + encodeURIComponent(statementId) + '/evidence', { limit: 50, collection: context });
+        if (run !== generation) return;
+        box.replaceChildren(evidenceList(data.items, true, context)); box.dataset.loaded = '1';
+        let next = data.items.length;
+        const more = node('button', t('more'), 'btn btn-default btn-sm'); more.type = 'button'; more.hidden = next >= data.total;
+        more.addEventListener('click', () => guarded(async () => {
+          more.disabled = true;
+          try {
+            const page = await api('statements/' + encodeURIComponent(statementId) + '/evidence', { limit: 50, offset: next, collection: context });
+            if (run !== generation) return;
+            box.insertBefore(evidenceList(page.items, true, context), more); next += page.items.length;
+            more.hidden = next >= page.total || !page.items.length;
+          } finally { more.disabled = false; }
+        }));
+        box.append(more);
       });
     });
     return [toggle, box];
@@ -587,13 +601,36 @@
     const li = node('li', null, 'skg-statement skg-derived');
     const head = node('div', null, 'skg-statement-head');
     head.append(badge(t('s_' + (d.kind === 'linked_to' ? 'weak' : d.kind === 'same_operator' ? 'derived' : 'suggested')), 'd-' + d.kind), ' ', entityLink(d.other));
+    if (d.contributions) head.prepend(node('span', t('m_' + (d.kind === 'suggested_customer' && d.direction === 'in' ? 'as_possible_customer' : d.kind)) + ': '));
     li.append(head);
+    collectionTags(head, d.other);
     const meta = node('div', null, 'skg-meta');
-    meta.append(node('span', [t('confidence') + ': ' + pct(d.confidence), d.computed_at ? t('computed') + ': ' + date(d.computed_at) : null].filter(Boolean).join(' · '), 'sseo-note'));
+    meta.append(node('span', [scoreText(d), d.computed_at ? t('computed') + ': ' + date(d.computed_at) : null].filter(Boolean).join(' · '), 'sseo-note'));
     li.append(meta);
     if (d.reason) li.append(node('p', t('reason_label') + ': ' + d.reason, 'skg-reason'));
+    if (d.contributions) li.append(contributionList(d));
     li.append(node('p', t('no_fact'), 'sseo-note'));
     return li;
+  }
+
+  const scoreText = d => t('sort_score') + ': ' + fmt(d.score ?? d.confidence);
+  function collectionTags(box, ref) {
+    for (const name of ref?.other_collections || []) box.append(' ', badge(t('other_collection') + ': ' + name, 'collection'));
+    if ((ref?.collections || []).length > 1) box.append(node('span', ' · ' + t('collections') + ': ' + ref.collections.join(', '), 'sseo-note'));
+  }
+  function contributionList(d) {
+    const details = node('details'); details.append(node('summary', t('derivation_evidence')));
+    for (const c of d.contributions || []) {
+      const part = node('div', null, 'skg-contribution');
+      part.append(node('p', [c.collection_a, c.collection_b].filter((x, i, all) => all.indexOf(x) === i).join(' · ') + ' · ' + date(c.computed_at), 'sseo-note'));
+      part.append(node('p', c.evidence_complete ? c.reason : t('basis_unavailable'), 'skg-reason'));
+      for (const s of c.evidence || []) {
+        const evidence = node('div'); evidence.append(predicate(s.predicate) + ': ' + (s.object?.value ?? shown(s.object)) + ' · ' + s.collection + ' ');
+        evidence.append(...evidenceToggle(s.id, s.collection)); part.append(evidence);
+      }
+      details.append(part);
+    }
+    return details;
   }
   // the date a price holds for: as the source wrote it (2026-09), else the day it was last seen
   function asOfText(p) {
@@ -679,10 +716,36 @@
       const declared = []; for (const [p, l] of Object.entries(a.declared || {})) for (const i of l) declared.push([p, i]);
       if (declared.length) parts.push(node('h4', t('declared')), list(declared, ([p, i]) => p === 'serves_place' ? relationItem(i) : literalItem(p, i)));
       if (a.observed?.length) parts.push(node('h4', t('observed_customers')), list(a.observed, relationItem));
-      if (a.suggested?.length) parts.push(node('h4', t('suggested_customers')), list(a.suggested, derivedItem), node('p', t('suggestion_note'), 'sseo-note'));
+      if (!b.suggestions && a.suggested?.length) parts.push(node('h4', t('suggested_customers')), list(a.suggested, derivedItem), node('p', t('suggestion_note'), 'sseo-note'));
       if (parts.length) box.append(section('audiences', ...parts));
     }
-    if (b.suggested_matches && Object.keys(b.suggested_matches).length) {
+    if (b.suggestions?.total) {
+      const on = new URLSearchParams(location.search).get('suggested') !== 'false';
+      const toggle = node('input'); toggle.type = 'checkbox'; toggle.checked = on;
+      const label = node('label'); label.append(toggle, ' ', t('suggested_toggle'));
+      const content = node('div'); content.hidden = !on;
+      toggle.addEventListener('change', () => {
+        content.hidden = !toggle.checked;
+        const p = new URLSearchParams(location.search); if (toggle.checked) p.delete('suggested'); else p.set('suggested', 'false');
+        history.replaceState(null, '', 'ScoutroKnowledge_p.html?' + p + location.hash);
+      });
+      const count = node('p', t('suggestion_count').replace('%1', fmt(b.suggestions.total)), 'sseo-note');
+      content.append(count, node('p', t('suggestion_note'), 'sseo-note'), list(b.suggestions.items, derivedItem));
+      const more = node('button', t('more'), 'btn btn-default'); more.type = 'button';
+      let next = b.suggestions.next_offset;
+      const key = d => [d.kind, d.direction, d.other?.id].join('|'), seen = new Set(b.suggestions.items.map(key));
+      more.hidden = next == null;
+      more.addEventListener('click', () => guarded(async () => {
+        more.disabled = true;
+        try {
+          const run = generation, page = await api('entities/' + encodeURIComponent(b.id) + '/suggestions', { offset: next, limit: 100 });
+          if (run !== generation) return;
+          content.insertBefore(list(page.items.filter(d => { if (seen.has(key(d))) return false; seen.add(key(d)); return true; }), derivedItem), more); next = page.next_offset;
+          count.textContent = t('suggestion_count').replace('%1', fmt(page.total)); more.hidden = next == null;
+        } finally { more.disabled = false; }
+      }));
+      content.append(more); box.append(section('matches', label, content));
+    } else if (!b.suggestions && b.suggested_matches && Object.keys(b.suggested_matches).length) {
       const parts = [node('p', t('suggestion_note'), 'sseo-note')];
       for (const [k, l] of Object.entries(b.suggested_matches)) if (l.length) parts.push(node('h4', t('m_' + k)), list(l, derivedItem));
       box.append(section('matches', ...parts));
@@ -709,7 +772,7 @@
     }
   }
 
-  function evidenceList(items, withPage) {
+  function evidenceList(items, withPage, context = collection) {
     const ul = node('ul', null, 'skg-evidence-list');
     for (const e of items) {
       const li = node('li');
@@ -719,8 +782,8 @@
       if (withPage) {
         add('page', external(e.url));
         const links = node('span');
-        links.append(link(t('source_view'), { view: 'source', doc: e.doc_id }), ' · ');
-        const ib = node('a', t('index_browser')); const p = new URLSearchParams({ view: 'urls', q: e.url || '' }); if (collection) p.set('collection', collection);
+        links.append(link(t('source_view'), { view: 'source', doc: e.doc_id, collection: context }), ' · ');
+        const ib = node('a', t('index_browser')); const p = new URLSearchParams({ view: 'urls', q: e.url || '' }); if (context) p.set('collection', context);
         ib.href = 'IndexBrowser_p.html?' + p; links.append(ib); add('source_view', links);
         add('collections', (e.collections || []).join(', '));
         add('doc_state', e.state); add('loaded', date(e.loaded_at));
@@ -867,6 +930,7 @@
   const nodeLabel = n => n.type === 'price' ? money(n.price) : n.value ? ((de ? n.label_de : n.label_en) || n.label || n.code) : shown({ ...n, name: n.label }, n.type);
   // the second line of a node: the domain of an organisation, "Service" for a service, the place of a facility
   function subLabel(n) {
+    if (n.other_collections?.length) return t('other_collection') + ': ' + n.other_collections.join(', ');
     if (n.virtual) return t('service_group') + ' · ' + t('n_providers').replace('%1', fmt(n.providers));
     if (n.type === 'price') return t('price') + (n.status && n.status !== 'current' ? ' · ' + t('s_' + n.status) : '');
     if (n.type === 'industry') return t('industry') + ' · ' + n.code;
@@ -1120,7 +1184,7 @@
       s.append(svg('line', { x1: '0', y1: '5', x2: '36', y2: '5', class: 'skg-line skg-e-' + st })); li.append(s, ' ', t(key)); legend.append(li);
     }
     $('net-count').textContent = t('net_count').replace('%1', fmt(nodes.length)).replace('%2', fmt(edges.length)) + (g.truncated ? ' · ' + t('net_more_hint') : '');
-    $('net-more').hidden = !g.truncated;
+    $('net-more').hidden = !g.truncated || g.next == null;
     const json = new Blob([JSON.stringify({ schema: 'scoutro.kg.business.v1', center: g.center, collection: collection || null,
       ...(g.group ? { aggregated: true, group: g.group.summary || null } : {}), nodes, edges }, null, 2)], { type: 'application/json' });
     const graphml = new Blob([toGraphml({ center: g.center, nodes, edges })], { type: 'application/graphml+xml' });
@@ -1130,13 +1194,13 @@
     for (const e of edges) {
       const end = id => {
         const n = byId.get(id) || { id }, span = node('span');
-        span.append(n.value || id === g.center ? node('span', nodeLabel(n)) : link(nodeLabel(n), { view: 'object', id }));
+        span.append(n.value || id === g.center ? node('span', nodeLabel(n)) : link(nodeLabel(n), { view: 'object', id, ...(n.target_collection ? { collection: n.target_collection } : {}) }));
         span.append(' ', node('span', '(' + subLabel(n) + ')', 'sseo-note'));
         return span;
       };
       const ev = node('span'); ev.append(fmt(e.evidence) + ' ');
-      if (e.fact && e.id.startsWith('kgs_')) ev.append(...evidenceToggle(e.id)); else ev.append(node('span', t('no_fact'), 'sseo-note'));
-      rowInto(body, heads, [end(e.from), edgeName(e), e.service ? ownService(e.service) : end(e.to), statusBadge(e.status), pct(e.confidence), ev]);
+      if (e.fact && e.id.startsWith('kgs_')) ev.append(...evidenceToggle(e.id)); else { ev.append(node('span', t('no_fact'), 'sseo-note')); if (e.contributions) ev.append(contributionList(e)); }
+      rowInto(body, heads, [end(e.from), edgeName(e), e.service ? ownService(e.service) : end(e.to), statusBadge(e.status), e.fact ? pct(e.confidence) : scoreText(e), ev]);
     }
     hideDetail();
     box.dataset.state = 'ready';
@@ -1152,9 +1216,10 @@
     const from = byId.get(e.from) || { id: e.from }, to = byId.get(e.to) || { id: e.to };
     const li = node('li', null, 'skg-statement');
     li.append(node('div', nodeLabel(from) + ' → ' + edgeShort(e) + ' → ' + nodeLabel(to), 'skg-statement-head'));
-    li.append(node('div', t('s_' + e.status) + ' · ' + t('confidence') + ': ' + pct(e.confidence) + ' · ' + t('sources') + ': ' + fmt(e.evidence)
+    li.append(node('div', t('s_' + e.status) + ' · ' + (e.fact ? t('confidence') + ': ' + pct(e.confidence) : scoreText(e)) + ' · ' + t('sources') + ': ' + fmt(e.evidence)
       + (e.fact ? '' : ' · ' + t('no_fact')), 'sseo-note'));
     if (e.service) li.append(serviceLine(e.service));
+    if (e.contributions) li.append(contributionList(e));
     return li;
   }
   // a line of a name's network: the provider's own service, with its own prices and collections (never another provider's)
@@ -1172,6 +1237,7 @@
     const box = $('net-detail'); box.replaceChildren(); box.hidden = false;
     box.append(node('h3', nodeLabel(n)));
     box.append(node('p', subLabel(n) + (n.kind ? ' · ' + n.kind : '') + (n.id === graph.center ? ' · ' + t('net_center') : ''), 'sseo-note'));
+    collectionTags(box, n);
     { const note = nameNote(n); if (note) box.append(note); }
     if (n.virtual) {
       // the centre of a name's network: the counts of the group, and the way to its list; it is no object to open
@@ -1206,9 +1272,10 @@
     const actions = node('div', null, 'sseo-controls skg-detail-actions');
     const button = (text, query, hash) => { const a = link(text, query, hash); a.className = 'btn btn-default btn-sm'; return a; };
     if (!n.value) {
-      actions.append(button(t('open_object'), { view: 'object', id: n.id }));
-      if (n.id !== graph.center) actions.append(button(t('open_network'), { view: 'network', id: n.id }));
-      actions.append(button(t('open_sources'), { view: 'object', id: n.id }, 'skg-sec-sources'));
+      const context = n.target_collection ? { collection: n.target_collection } : {};
+      actions.append(button(t('open_object'), { view: 'object', id: n.id, ...context }));
+      if (n.id !== graph.center) actions.append(button(t('open_network'), { view: 'network', id: n.id, ...context }));
+      actions.append(button(t('open_sources'), { view: 'object', id: n.id, ...context }, 'skg-sec-sources'));
     } else if (n.type === 'industry') actions.append(button(t('objects_industry'), { view: 'objects', industry: n.code }));
     else if (n.type === 'audience') actions.append(button(t('objects_audience'), { view: 'objects', audience: n.code }));
     else if (n.type === 'price') {
@@ -1225,7 +1292,7 @@
     const from = byId.get(e.from) || { id: e.from }, to = byId.get(e.to) || { id: e.to };
     box.append(node('h3', nodeLabel(from) + ' → ' + edgeShort(e) + ' → ' + nodeLabel(to)));
     box.append(node('p', edgeName(e), 'sseo-note'));
-    const meta = node('div', null, 'skg-meta'); meta.append(statusBadge(e.status), node('span', t('confidence') + ': ' + pct(e.confidence) + ' · ' + t('sources') + ': ' + fmt(e.evidence), 'sseo-note'));
+    const meta = node('div', null, 'skg-meta'); meta.append(statusBadge(e.status), node('span', (e.fact ? t('confidence') + ': ' + pct(e.confidence) : scoreText(e)) + ' · ' + t('sources') + ': ' + fmt(e.evidence), 'sseo-note'));
     box.append(meta);
     if (e.service) {
       box.append(serviceLine(e.service));
@@ -1236,7 +1303,7 @@
       box.append(actions);
     }
     if (e.fact && e.id.startsWith('kgs_')) box.append(...evidenceToggle(e.id));
-    else box.append(node('p', t('no_fact'), 'sseo-note'));
+    else { box.append(node('p', t('no_fact'), 'sseo-note')); if (e.contributions) box.append(contributionList(e)); }
     if (box.getBoundingClientRect().top > window.innerHeight - 80) box.scrollIntoView({ block: 'nearest' });
   }
   function toGraphml(g) {
@@ -1245,6 +1312,10 @@
       '<key id="label" for="node" attr.name="label" attr.type="string"/>', '<key id="type" for="node" attr.name="type" attr.type="string"/>',
       '<key id="kind" for="node" attr.name="kind" attr.type="string"/>', '<key id="depth" for="node" attr.name="depth" attr.type="int"/>',
       '<key id="hosts" for="node" attr.name="hosts" attr.type="string"/>', '<key id="collections" for="node" attr.name="collections" attr.type="string"/>',
+      '<key id="target_collection" for="node" attr.name="target_collection" attr.type="string"/>',
+      '<key id="other_collections" for="node" attr.name="other_collections" attr.type="string"/>',
+      '<key id="contributions" for="edge" attr.name="contributions" attr.type="string"/>',
+      '<key id="score" for="edge" attr.name="sorting_score" attr.type="double"/>',
       '<key id="relation" for="edge" attr.name="relation" attr.type="string"/>', '<key id="status" for="edge" attr.name="status" attr.type="string"/>',
       '<key id="confidence" for="edge" attr.name="confidence" attr.type="double"/>', '<key id="evidence" for="edge" attr.name="evidence" attr.type="int"/>',
       '<key id="fact" for="edge" attr.name="fact" attr.type="boolean"/>', '<key id="virtual" for="node" attr.name="virtual" attr.type="boolean"/>',
@@ -1252,9 +1323,12 @@
     for (const n of g.nodes) out.push(`<node id="${x(n.id)}"><data key="label">${x(nodeLabel(n))}</data><data key="type">${x(n.type)}</data>`
       + (n.kind ? `<data key="kind">${x(n.kind)}</data>` : '') + `<data key="depth">${n.depth}</data>`
       + (n.hosts?.length ? `<data key="hosts">${x(n.hosts.join(' '))}</data>` : '') + (n.collections?.length ? `<data key="collections">${x(n.collections.join(' '))}</data>` : '')
+      + (n.target_collection ? `<data key="target_collection">${x(n.target_collection)}</data>` : '')
+      + (n.other_collections?.length ? `<data key="other_collections">${x(n.other_collections.join(' '))}</data>` : '')
       + (n.virtual ? '<data key="virtual">true</data>' : '') + '</node>');
     g.edges.forEach((e, i) => out.push(`<edge id="e${i}" source="${x(e.from)}" target="${x(e.to)}"><data key="relation">${x(e.type)}</data><data key="status">${x(e.status)}</data>`
       + `<data key="confidence">${e.confidence ?? 0}</data><data key="evidence">${e.evidence ?? 0}</data><data key="fact">${e.fact ? 'true' : 'false'}</data>`
+      + (e.contributions ? `<data key="score">${e.score}</data><data key="contributions">${x(JSON.stringify(e.contributions))}</data>` : '')
       + (e.service ? `<data key="service">${x(e.service.id)}</data>` : '') + '</edge>'));
     out.push('</graph>', '</graphml>');
     return out.join('\n') + '\n';

@@ -452,6 +452,34 @@
     </junit>
   </target>
 
+  <target name="scoutro-kg-suggestions-test" depends="compile" description="focused KG suggestion projection, permissions, agent and export regressions">
+    <mkdir dir="build/scoutro-kg-suggestions-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-suggestions-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/knowledge/read/BusinessViewTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/read/KgReaderTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/read/KgExportTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/derive/DerivedServiceTest.java"/>
+      <include name="net/yacy/scoutro/knowledge/store/KgChangeLogTest.java"/>
+      <include name="net/yacy/scoutro/api/KnowledgeApiTest.java"/>
+      <include name="net/yacy/scoutro/api/AgentKnowledgeTest.java"/>
+      <include name="net/yacy/scoutro/api/ScopedActionsTest.java"/>
+      <include name="net/yacy/scoutro/api/AgentApiTest.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true">
+      <classpath><pathelement location="build/scoutro-kg-suggestions-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.knowledge.read.BusinessViewTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.KgReaderTest"/>
+      <arg value="net.yacy.scoutro.knowledge.read.KgExportTest"/>
+      <arg value="net.yacy.scoutro.knowledge.derive.DerivedServiceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.store.KgChangeLogTest"/>
+      <arg value="net.yacy.scoutro.api.KnowledgeApiTest"/>
+      <arg value="net.yacy.scoutro.api.AgentKnowledgeTest"/>
+      <arg value="net.yacy.scoutro.api.ScopedActionsTest"/>
+      <arg value="net.yacy.scoutro.api.AgentApiTest"/>
+    </java>
+  </target>
+
   <!-- Scoutro: load and resource measurement of the knowledge graph (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 22.4); not a test -->
   <target name="scoutro-kg-measure" depends="compile" description="measure the knowledge graph on a synthetic corpus (-Dkg.measure.sizes=2000,10000)">
     <property name="kg.measure.sizes" value="2000,10000" />

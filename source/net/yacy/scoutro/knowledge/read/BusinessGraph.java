@@ -21,7 +21,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,6 +101,7 @@ public final class BusinessGraph {
         final JSONObject json;
         final String to;
         final double strength;
+        Suggestions.Group suggestion;
 
         Edge(final JSONObject json, final String to, final double strength) {
             this.json = json;
@@ -109,6 +112,13 @@ public final class BusinessGraph {
 
     /** The neighbourhood of an entity; a redirect for a merged one; null if invisible. */
     public JSONObject neighborhood(final String id, final Query q, final Viewer v) throws KgException, KgReader.NotFound {
+        return neighborhood(id, q, v, v);
+    }
+
+    /** The center's suggestions alone may reach other granted collections. */
+    public JSONObject neighborhood(final String id, final Query q, final Viewer selected, final Viewer permitted)
+            throws KgException, KgReader.NotFound {
+        final Viewer v = KgReader.within(selected, permitted);
         final long now = this.reader.now();
         final Object r = this.reader.store().read(c -> {
             final long[] ent = KgReader.entityRow(c, id, v);
@@ -129,31 +139,47 @@ public final class BusinessGraph {
             final boolean leafCenter = Vocabulary.SERVICE.equals(centerType) || Vocabulary.JOB.equals(centerType);
             // depth 1: the center's edges, strongest first, paged by neighbour
             final List<Edge> first = edgesOf(c, ent[0], center, q, v, now, true);
+            addSuggestions(c, ent[0], center, q, v, permitted, first);
             first.sort((a, b) -> Double.compare(b.strength, a.strength));
-            final List<String> neighbours = new ArrayList<>();
+            final Set<String> neighbourIds = new LinkedHashSet<>();
             for (final Edge e : first) {
-                if (!neighbours.contains(e.to)) {
-                    neighbours.add(e.to);
-                }
+                neighbourIds.add(e.to);
             }
+            final List<String> neighbours = new ArrayList<>(neighbourIds);
             final int limit = Math.max(1, Math.min(MAX_NODES, q.limit));
             final List<String> page = neighbours.subList(Math.min(q.offset, neighbours.size()), Math.min(neighbours.size(), q.offset + limit));
+            final Set<String> pageIds = new HashSet<>(page);
             final Map<String, Long> pageRows = new LinkedHashMap<>();
             for (final Edge e : first) {
-                if (page.contains(e.to)) {
+                if (pageIds.contains(e.to)) {
+                    expandSuggestion(c, ent[0], e, v, permitted);
                     KgJson.put(e.json, "direction", center.equals(e.json.optString("to")) ? "in" : "out");
                     edges.add(e.json);
                     if (!nodes.containsKey(e.to)) {
                         final Long row = e.json.has("_row") ? e.json.optLong("_row") : null;
-                        nodes.put(e.to, row != null ? node(c, row, v, 1) : valueNode(e.to, 1));
+                        final JSONObject suggestionNode = e.json.optJSONObject("other");
+                        nodes.put(e.to, suggestionNode != null ? suggestionNode : row != null ? node(c, row, v, 1) : valueNode(e.to, 1));
+                        if (suggestionNode != null) {
+                            KgJson.put(suggestionNode, "label", suggestionNode.optString("name", null));
+                            KgJson.put(suggestionNode, "depth", 1);
+                        }
                         if (row != null) {
-                            pageRows.put(e.to, row);
-                            rows.put(e.to, row);
+                            if (BusinessView.visible(c, row, v)) {
+                                pageRows.put(e.to, row);
+                                rows.put(e.to, row);
+                            }
+                        }
+                    }
+                    if (e.suggestion != null) {
+                        final JSONObject other = e.json.optJSONObject("other"), shown = nodes.get(e.to);
+                        for (final String key : List.of("collections", "other_collections", "target_collection")) {
+                            KgJson.put(shown, key, other.opt(key));
                         }
                     }
                 }
             }
-            boolean truncated = neighbours.size() > q.offset + page.size();
+            final boolean moreNeighbours = neighbours.size() > q.offset + page.size();
+            boolean truncated = moreNeighbours;
             // depth 2: the relations of the organisations and facilities on the page, while room is left
             if (q.depth >= 2) {
                 for (final Map.Entry<String, Long> n : pageRows.entrySet()) {
@@ -162,10 +188,12 @@ public final class BusinessGraph {
                         continue; // places, services, jobs and values are leaves: no hubs
                     }
                     final List<Edge> second = edgesOf(c, n.getValue(), n.getKey(), q, v, now, false);
+                    addSuggestions(c, n.getValue(), n.getKey(), q, v, v, second);
                     second.sort((a, b) -> Double.compare(b.strength, a.strength));
                     for (final Edge e : second) {
                         if (nodes.containsKey(e.to)) {
                             if (!containsEdge(edges, e.json)) {
+                                expandSuggestion(c, n.getValue(), e, v, v);
                                 if (center.equals(e.json.optString("from")) || center.equals(e.json.optString("to"))) {
                                     KgJson.put(e.json, "direction", center.equals(e.json.optString("to")) ? "in" : "out");
                                 }
@@ -181,6 +209,7 @@ public final class BusinessGraph {
                             truncated = true;
                             break;
                         }
+                        expandSuggestion(c, n.getValue(), e, v, v);
                         final Long row = e.json.has("_row") ? e.json.optLong("_row") : null;
                         nodes.put(e.to, row != null ? node(c, row, v, 2) : valueNode(e.to, 2));
                         if (row != null) {
@@ -198,6 +227,7 @@ public final class BusinessGraph {
             for (final Map.Entry<String, Long> n : rows.entrySet()) {
                 final JSONObject cj = EntityContexts.ctxJson(ctx.get(n.getValue()));
                 for (final String k : cj.keySet()) {
+                    if ("collections".equals(k) && nodes.get(n.getKey()).has("target_collection")) continue;
                     KgJson.put(nodes.get(n.getKey()), k, cj.opt(k));
                 }
             }
@@ -208,7 +238,7 @@ public final class BusinessGraph {
             }
             return KgJson.obj("schema", BusinessView.SCHEMA, "center", center, "depth", Math.min(MAX_DEPTH, Math.max(1, q.depth)), "nodes",
                     new JSONArray(nodes.values()), "edges", edgeArray, "offset", q.offset, "limit", limit, "neighbours", neighbours.size(),
-                    "truncated", truncated, "next_offset", truncated ? q.offset + page.size() : null);
+                    "truncated", truncated, "next_offset", moreNeighbours ? q.offset + page.size() : null);
         });
         if (r == null) {
             throw new KgReader.NotFound("entity " + id);
@@ -302,12 +332,6 @@ public final class BusinessGraph {
         if (q.derived && (q.types == null || q.types.contains(Vocabulary.SAME_OPERATOR))) {
             kinds.add(2);
         }
-        if (q.suggested && (q.types == null || q.types.contains(Vocabulary.SUGGESTED_CUSTOMER))) {
-            kinds.add(3);
-        }
-        if (q.suggested && (q.types == null || q.types.contains(Vocabulary.SUGGESTED_PARTNER))) {
-            kinds.add(4);
-        }
         if (!kinds.isEmpty()) {
             final StringBuilder in = new StringBuilder();
             for (final Integer k : kinds) {
@@ -339,6 +363,39 @@ public final class BusinessGraph {
             }
         }
         return out;
+    }
+
+    private static void addSuggestions(final Connection c, final long ent, final String self, final Query q, final Viewer origin,
+            final Viewer permitted, final List<Edge> edges) throws SQLException {
+        if (!q.suggested) return;
+        for (final Suggestions.Group g : Suggestions.groups(c, ent, origin, permitted)) {
+            final String kind = Vocabulary.DERIVED_KINDS.get(g.kind);
+            if (q.types != null && !q.types.contains(kind)) continue;
+            final String other = KgReader.publicId(c, g.other);
+            final boolean selfFirst = g.kind == 3 ? g.outgoing : self.compareTo(other) < 0;
+            final String from = selfFirst ? self : other, to = selfFirst ? other : self;
+            final Edge e = new Edge(KgJson.obj("id", "suggestion:" + kind + ":" + from + ":" + to, "from", from, "to", to,
+                    "type", kind, "business", false, "status", "suggested", "confidence", BusinessView.round(g.score),
+                    "fact", false, "_row", g.other), other, strength("suggested", g.score, 0));
+            e.suggestion = g;
+            edges.add(e);
+        }
+    }
+
+    private void expandSuggestion(final Connection c, final long ent, final Edge edge, final Viewer origin, final Viewer permitted)
+            throws SQLException {
+        if (edge.suggestion == null || edge.json.has("contributions")) return;
+        final JSONObject item = new Suggestions(this.reader).item(c, ent, edge.suggestion, origin, permitted);
+        for (final String key : List.of("other", "score", "reason", "computed_at", "contributions", "origin_collections", "target_collection")) {
+            KgJson.put(edge.json, key, item.opt(key));
+        }
+        final boolean outgoing = "out".equals(item.optString("direction"));
+        KgJson.put(edge.json, "from", KgReader.publicId(c, outgoing ? ent : edge.suggestion.other));
+        KgJson.put(edge.json, "to", KgReader.publicId(c, outgoing ? edge.suggestion.other : ent));
+        int evidence = 0;
+        final JSONArray contributions = item.optJSONArray("contributions");
+        for (int i = 0; i < contributions.length(); i++) evidence += contributions.optJSONObject(i).optJSONArray("evidence").length();
+        KgJson.put(edge.json, "evidence", evidence);
     }
 
     /** The subject of a derived row: ID, stated name and the name to show. */

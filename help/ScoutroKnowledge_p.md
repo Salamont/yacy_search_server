@@ -37,9 +37,11 @@ price comparison, and the evidence behind each fact. Operator guide:
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
 | Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary (see below) |
 
-Every view takes `collection=<name>`. **Every name, value, count, host and
-source is then computed only from documents of that collection**; objects only
-other collections know are "not found". Without a collection the administrator
+Every view takes `collection=<name>`. **Ordinary facts, names, values, counts,
+hosts and sources are computed only from documents of that collection**;
+customer/partner suggestions use the targeted exception described below.
+Ordinary objects only other collections know are "not found" unless opened in
+their own authorized target context. Without a collection the administrator
 sees all followed collections. Status, storage and events on the overview
 describe the whole graph.
 
@@ -104,7 +106,43 @@ all collections and the page says so.
 - **Suggested matches** combine what one company offers with what another
   seeks (or a shared audience for partners). They are always labelled as a
   suggestion or possible customer, never as a customer relation, and only
-  shown to a viewer of both collections.
+  shown when both collections are authorized (the view filter may be narrower).
+
+The selected collection filters the origin organization and its ordinary facts,
+sources and graph relations. Existing **customer and partner suggestions** may
+reach all collections authorized for the caller. For an administrator these are
+all collections; an agent's fixed grants determine its permission scope. The
+filter never adds permissions. External targets show **Other collection: NAME**
+(**Andere Collection: NAME** in German); all authorized memberships are listed,
+without hidden membership counts. Contributions from multiple collections are
+grouped by organization and relationship before sorting and paging.
+
+The **Suggested customers and partners** checkbox controls these derivations in
+the object list and network (including its list view). Reasons and supporting
+facts are expandable. Every evidence and source link uses its contribution's
+collection; target object/network links open the explicit authorized target
+collection. Browser Back restores the origin view. A missing or inaccessible
+supporting statement is omitted and its contribution marked incomplete. Sorting
+scores are technical ranking values, not measured probabilities or chances of
+winning a customer.
+
+`GET /scoutro/api/v1/kg/entities/{id}/suggestions?collection=ORIGIN&offset=0&limit=25`
+returns authorized groups, `total`, `next_offset`, target contexts, memberships
+and collection-pair `contributions` with scoped supporting statements. Limits:
+1–100 groups per page; the business view embeds the first 100 with a More button.
+The agent path `/scoutro/api/agent/v1/kg/entities/{id}/suggestions` requires
+`kg.read`; collection must be granted, and candidates may reach the remaining
+granted collections. Unknown parameters are rejected. No extraction, matching,
+schema change or rebuild is performed by these reads. Counts and ordering use
+only authorized rows; without an authorized origin the response is 404.
+
+Network JSON and GraphML exports contain the currently shown, authorized nodes
+and derivations, their target/membership contexts and supporting contributions.
+Load further neighbour pages to include more stored suggestions. General
+`kg/export`, downloads, facets and change feeds retain their strict collection
+filter and separate export grant. The existing derivation computation limits
+still bound which suggestions exist; displaying all authorized collections does
+not run additional matching. Reuse existing graph data; no re-extraction needed.
 
 ## Services of the same name
 

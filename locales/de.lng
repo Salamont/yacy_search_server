@@ -5567,7 +5567,13 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 
 #File: ScoutroKnowledge_p.html
 #---------------------------
-Every number, name and source on this page is computed only from the documents of the selected collection. Without a collection, all followed collections are shown.==Jede Zahl, jeder Name und jede Quelle auf dieser Seite wird nur aus den Dokumenten der gewählten Collection berechnet. Ohne Collection werden alle verfolgten Collections gezeigt.
+The selected collection filters the origin and its facts. Customer and partner suggestions may reach other authorized collections; their target context and evidence are shown separately. Without a collection, all authorized collections are shown.==Die gewählte Collection filtert die Ausgangsorganisation und ihre Fakten. Kunden- und Partnervorschläge können aus anderen berechtigten Collections stammen; ihr Zielkontext und ihre Belege werden getrennt gezeigt. Ohne Collection werden alle berechtigten Collections gezeigt.
+>Sorting score (not a probability)<==>Sortierwert (keine Wahrscheinlichkeit)<
+>Other collection<==>Andere Collection<
+>Reasons and supporting facts<==>Gründe und zugrunde liegende Fakten<
+>Supporting statements are no longer fully available.<==>Die zugrunde liegenden Aussagen sind nicht mehr vollständig verfügbar.<
+>Suggested customers and partners<==>Vorgeschlagene Kunden und Partner<
+>%1 suggestions<==>%1 Vorschläge<
 Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in==Optional. Aussagen, die nur die LLM-Stufe belegt, werden als unsicher gezeigt; jede trägt ein Zitat aus der Seite. Das Modell wird gewählt in
 State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.==Zustand, Speicher, Warteschlangen und Ereignisse beschreiben den ganzen Graphen; die Zahl der Objekte folgt der gewählten Collection.
 Pausing stops new enrichment (extraction, the LLM tier and a rebuild); deletions, reconcile and state checks continue. Nothing here changes the Solr index.==Eine Pause stoppt neue Anreicherung (Extraktion, die LLM-Stufe und einen Rebuild); Löschungen, Abgleich und Zustandsprüfungen laufen weiter. Nichts hier ändert den Solr-Index.

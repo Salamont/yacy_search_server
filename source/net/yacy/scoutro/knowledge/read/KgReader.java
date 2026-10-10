@@ -165,6 +165,15 @@ public final class KgReader {
         });
     }
 
+    /** A view filter may narrow an authenticated grant, never widen it. */
+    public static Viewer within(final Viewer view, final Viewer permitted) {
+        if (permitted.all()) return view;
+        if (view.all()) return permitted;
+        final Set<Integer> collections = new TreeSet<>(view.collections());
+        collections.retainAll(permitted.collections());
+        return Viewer.of(collections);
+    }
+
     /** SQL condition: document {@code alias} is in the viewer's collections ("1" for all). */
     static String visibleDoc(final Viewer v, final String alias) {
         if (v.all()) {
@@ -1122,7 +1131,7 @@ public final class KgReader {
         }
     }
 
-    private static String statementPublicId(final Connection c, final long stmt) throws SQLException {
+    static String statementPublicId(final Connection c, final long stmt) throws SQLException {
         try (PreparedStatement ps = c.prepareStatement("SELECT public_id FROM kg_statement WHERE stmt_rowid = ?")) {
             ps.setLong(1, stmt);
             try (ResultSet rs = ps.executeQuery()) {

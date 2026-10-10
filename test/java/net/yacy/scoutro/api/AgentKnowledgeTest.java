@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.json.JSONArray;
@@ -114,10 +116,14 @@ public class AgentKnowledgeTest {
     }
 
     private String token(final Agent.Kind kind, final boolean all, final String... actions) throws Exception {
+        return token(kind, all, List.of("kga"), actions);
+    }
+
+    private String token(final Agent.Kind kind, final boolean all, final List<String> collections, final String... actions) throws Exception {
         final Agent.Builder b = new Agent.Builder();
         b.name = "kg " + (++this.agentNumber);
         b.kind = kind;
-        b.scope = new Agent.Scope(all ? new LinkedHashSet<>() : new LinkedHashSet<>(Arrays.asList("kga")), all);
+        b.scope = new Agent.Scope(all ? new LinkedHashSet<>() : new LinkedHashSet<>(collections), all);
         b.actions = new LinkedHashSet<>(Arrays.asList(actions));
         final Agent a = this.agents.store.createAgent(b);
         return this.agents.store.issueToken(a.id, 30 * AgentStore.DAY).plainText();
@@ -151,6 +157,195 @@ public class AgentKnowledgeTest {
         for (final String secret : ONLY_IN_B) {
             assertFalse(where + " reveals " + secret + ": " + text, text.contains(secret));
         }
+    }
+
+    /** Stored derivations are fixtures of the read contract, not new matching rules. */
+    private void suggestion(final String suffix, final int kind, final String origin, final String candidate,
+            final String ca, final String cb, final double score, final String extraBasis) throws Exception {
+        this.store.write(WriteClass.SYSTEM, 0, c -> {
+            final JSONObject basis = new JSONObject();
+            for (final String side : List.of("a", "b")) {
+                try (PreparedStatement ps = c.prepareStatement("SELECT s.public_id FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                        + " JOIN kg_entity e ON e.ent_rowid = s.subj WHERE e.public_id = ? AND v.name = 'name' LIMIT 1")) {
+                    ps.setString(1, side.equals("a") ? origin : candidate);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        assertTrue(rs.next());
+                        final JSONArray refs = new JSONArray();
+                        if (side.equals("b") && extraBasis != null) refs.put(extraBasis);
+                        refs.put(rs.getString(1));
+                        Json.put(basis, side, refs);
+                    }
+                }
+            }
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO kg_derived(public_id,kind,a_ent,b_ent,coll_a,coll_b,confidence,reason,basis,computed_at)"
+                    + " SELECT ?,?,a.ent_rowid,b.ent_rowid,ca.coll_id,cb.coll_id,?,?,?,? FROM kg_entity a,kg_entity b,kg_collection ca,kg_collection cb"
+                    + " WHERE a.public_id=? AND b.public_id=? AND ca.name=? AND cb.name=?")) {
+                ps.setString(1, "kgd_" + suffix.repeat(20).substring(0, 20)); ps.setInt(2, kind); ps.setDouble(3, score);
+                ps.setString(4, "Fixture: matching declared audience and service."); ps.setString(5, basis.toString()); ps.setLong(6, this.now.get());
+                ps.setString(7, origin); ps.setString(8, candidate); ps.setString(9, ca); ps.setString(10, cb);
+                assertEquals(1, ps.executeUpdate());
+            }
+            return null;
+        });
+    }
+
+    @Test
+    public void aFilteredUserAndAgentSeeOnlyAuthorizedCustomerAndPartnerSuggestions() throws Exception {
+        final String all = token(Agent.Kind.EXTERNAL, true, "kg.read", "kg.export");
+        final String origin = id(all, null, "Muster Pflege"), candidate = id(all, null, "Nur Bee");
+        suggestion("a", 3, origin, candidate, "kga", "kgb", 0.6, null);
+        suggestion("b", 4, candidate, origin, "kgb", "kga", 0.45, null); // symmetric partner, origin is side B
+        final String both = token(Agent.Kind.EXTERNAL, false, List.of("kga", "kgb"), "kg.read");
+        final AgentApi.Response page = get(both, "kg/entities/" + origin + "/suggestions", "collection", "kga", "limit", "1");
+        assertEquals(page.body.toString(), 200, page.status);
+        assertEquals(2, page.body.getInt("total"));
+        assertEquals(1, page.body.getInt("next_offset"));
+        assertEquals("suggested_customer", page.body.getJSONArray("items").getJSONObject(0).getString("kind"));
+        final JSONObject entry = page.body.getJSONArray("items").getJSONObject(0);
+        final JSONArray refs = entry.getJSONArray("contributions").getJSONObject(0).getJSONArray("evidence");
+        final String candidateStatement = refs.getJSONObject(refs.length() - 1).getString("id");
+        final AgentApi.Response proof = get(both, "kg/statements/" + candidateStatement + "/evidence", "collection", entry.getString("target_collection"));
+        assertEquals(proof.body.toString(), 200, proof.status);
+        assertTrue(proof.body.getJSONArray("items").length() > 0);
+        assertEquals("[\"kgb\"]", proof.body.getJSONArray("items").getJSONObject(0).getJSONArray("collections").toString());
+        assertEquals("suggested_partner", get(both, "kg/entities/" + origin + "/suggestions", "collection", "kga", "offset", "1")
+                .body.getJSONArray("items").getJSONObject(0).getString("kind"));
+        final String onlyA = token(Agent.Kind.EXTERNAL, false, "kg.read", "kg.export");
+        assertEquals(403, get(onlyA, "kg/statements/" + candidateStatement + "/evidence", "collection", "kgb").status);
+        assertEquals(404, get(onlyA, "kg/statements/" + candidateStatement + "/evidence", "collection", "kga").status);
+        assertEquals(400, get(both, "kg/entities/" + origin + "/suggestions", "permitted_collections", "kgsecret").status);
+        for (final String route : List.of("suggestions", "business", "neighborhood")) {
+            final AgentApi.Response narrow = get(onlyA, "kg/entities/" + origin + "/" + route, "collection", "kga",
+                    route.equals("neighborhood") ? "suggested" : "collection", route.equals("neighborhood") ? "true" : "kga");
+            assertEquals(narrow.body.toString(), 200, narrow.status);
+            assertNothingOfB(route, narrow.body.toString());
+        }
+        final JSONObject business = get(both, "kg/entities/" + origin + "/business", "collection", "kga").body;
+        assertEquals(2, business.getJSONObject("suggestions").getInt("total"));
+        assertFalse(business.getJSONObject("overview").toString().contains("Geheime Holding"));
+        final JSONObject admin = new KnowledgeApi(() -> this.runtime).route("GET", ("/v1/kg/entities/" + origin + "/business").split("/"),
+                Map.of("collection", "kga"), JSONObject::new);
+        assertEquals(2, admin.getJSONObject("suggestions").getInt("total"));
+        assertFalse(admin.getJSONObject("overview").toString().contains("Geheime Holding"));
+        final JSONObject graph = get(both, "kg/entities/" + origin + "/neighborhood", "collection", "kga", "suggested", "true").body;
+        assertTrue(graph.toString(), graph.toString().contains(candidate));
+        assertFalse(graph.toString(), graph.toString().contains("Geheime Holding"));
+        assertEquals(403, get(onlyA, "kg/entities/" + candidate, "collection", "kgb").status);
+        assertEquals(404, get(onlyA, "kg/entities/" + candidate, "collection", "kga").status);
+        assertEquals(403, get(both, "kg/export").status); // export still requires its own grant
+        assertNothingOfB("strict export", get(all, "kg/export", "collection", "kga", "include", "evidence").body.toString());
+    }
+
+    @Test
+    public void collectionPairsAreGroupedBeforePagingAndHiddenBasisDoesNotEscape() throws Exception {
+        final String all = token(Agent.Kind.EXTERNAL, true, "kg.read");
+        final String origin = id(all, null, "Muster Pflege"), candidate = id(all, null, "Nur Bee");
+        publish(this.store, this.publisher, "FFFFFFhost02", "https://www.nur-bee.de/a", "kga", ONLY_B);
+        publish(this.store, this.publisher, "GGGGGGhost02", "https://www.nur-bee.de/secret", "kgsecret", ONLY_B);
+        suggestion("a", 3, origin, candidate, "kga", "kga", 0.5, null);
+        suggestion("b", 3, origin, candidate, "kga", "kgb", 0.6, null);
+        suggestion("c", 3, origin, candidate, "kga", "kgsecret", 0.99, null);
+        final String both = token(Agent.Kind.EXTERNAL, false, List.of("kga", "kgb"), "kg.read");
+        final JSONObject page = get(both, "kg/entities/" + origin + "/suggestions", "collection", "kga", "limit", "1").body;
+        assertEquals(1, page.getInt("total"));
+        assertTrue(page.isNull("next_offset"));
+        final JSONObject item = page.getJSONArray("items").getJSONObject(0);
+        assertEquals(2, item.getJSONArray("contributions").length());
+        assertEquals(0.6, item.getDouble("score"), 0.001); // hidden strongest row cannot affect sorting
+        assertEquals("kgb", item.getString("target_collection"));
+        assertEquals("[\"kga\",\"kgb\"]", item.getJSONObject("other").getJSONArray("collections").toString());
+        assertFalse(page.toString(), page.toString().contains("kgsecret"));
+        final JSONObject network = get(both, "kg/entities/" + origin + "/neighborhood", "collection", "kga", "suggested", "true",
+                "types", "suggested_customer", "depth", "2").body;
+        assertEquals(network.toString(), 1, network.getJSONArray("edges").length()); // reverse traversal must not duplicate a group
+        assertEquals(1, network.getInt("neighbours"));
+        final JSONObject empty = get(both, "kg/entities/" + origin + "/suggestions", "collection", "kga", "offset", "1").body;
+        assertEquals(1, empty.getInt("total")); assertEquals(0, empty.getJSONArray("items").length());
+        final String vat = this.store.read(c -> KgStore.queryString(c, "SELECT s.public_id FROM kg_statement s JOIN kg_vocab v ON v.term_id=s.pred WHERE v.name='identifier:vat'"));
+        assertTrue(vat != null);
+        this.store.write(WriteClass.SYSTEM, 0, c -> {
+            try (PreparedStatement ps = c.prepareStatement("UPDATE kg_derived SET basis=? WHERE public_id=?")) {
+                ps.setString(1, Json.obj("a", new JSONArray().put(vat), "b", new JSONArray().put(vat)).toString());
+                ps.setString(2, "kgd_" + "a".repeat(20)); ps.executeUpdate();
+            }
+            return null;
+        });
+        final JSONObject safe = get(both, "kg/entities/" + origin + "/suggestions", "collection", "kga").body;
+        assertFalse(safe.toString(), safe.toString().contains(vat));
+        assertFalse(safe.toString(), safe.toString().contains("DE123456789"));
+        assertFalse(safe.getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(1).getBoolean("evidence_complete"));
+    }
+
+    @Test
+    public void customerDirectionAndOriginContributionStayDistinct() throws Exception {
+        final String all = token(Agent.Kind.EXTERNAL, true, "kg.read");
+        final String origin = id(all, null, "Muster Pflege"), candidate = id(all, null, "Nur Bee");
+        suggestion("a", 3, origin, candidate, "kga", "kgb", 0.6, null);
+        suggestion("b", 3, candidate, origin, "kgb", "kga", 0.5, null);
+        suggestion("c", 4, origin, candidate, "kgb", "kgb", 0.45, null); // origin fact from B cannot enter origin A's view
+        final String both = token(Agent.Kind.EXTERNAL, false, List.of("kga", "kgb"), "kg.read");
+        final JSONObject page = get(both, "kg/entities/" + origin + "/suggestions", "collection", "kga").body;
+        assertEquals(2, page.getInt("total"));
+        assertEquals("out", page.getJSONArray("items").getJSONObject(0).getString("direction"));
+        assertEquals("in", page.getJSONArray("items").getJSONObject(1).getString("direction"));
+        final JSONObject graph = get(both, "kg/entities/" + origin + "/neighborhood", "collection", "kga", "types", "suggested_customer", "suggested", "true").body;
+        assertEquals(1, graph.getInt("neighbours"));
+        assertEquals(2, graph.getJSONArray("edges").length());
+        assertNotEquals(graph.getJSONArray("edges").getJSONObject(0).getString("id"), graph.getJSONArray("edges").getJSONObject(1).getString("id"));
+    }
+
+    @Test
+    public void pagesReachBeyondTheFormerBusinessAndGraphRowCaps() throws Exception {
+        final String all = token(Agent.Kind.EXTERNAL, true, "kg.read");
+        final String origin = id(all, null, "Muster Pflege");
+        final String alphabet = "abcdefghijklmnopqrstuvwxyz234567";
+        for (int i = 0; i < 205; i++) {
+            final String name = "Candidate " + i, url = "https://candidate-" + i + ".example/";
+            publish(this.store, this.publisher, String.format(java.util.Locale.ROOT, "S%05dhost03", i), url, "kgb",
+                    Json.obj("@type", "Organization", "name", name, "url", url).toString());
+            final String candidate = this.store.read(c -> {
+                try (PreparedStatement ps = c.prepareStatement("SELECT e.public_id FROM kg_entity e JOIN kg_statement s ON s.subj=e.ent_rowid"
+                        + " JOIN kg_vocab v ON v.term_id=s.pred WHERE v.name='name' AND s.obj_val=?")) {
+                    ps.setString(1, name);
+                    try (ResultSet rs = ps.executeQuery()) { assertTrue(rs.next()); return rs.getString(1); }
+                }
+            });
+            final String suffix = "" + alphabet.charAt(i / 32) + alphabet.charAt(i % 32);
+            suggestion(suffix, 3, origin, candidate, "kga", "kgb", 0.6, null);
+        }
+        final JSONObject business = get(all, "kg/entities/" + origin + "/business", "collection", "kga").body;
+        assertEquals(205, business.getJSONObject("suggestions").getInt("total"));
+        assertEquals(100, business.getJSONObject("suggestions").getJSONArray("items").length());
+        assertEquals(100, business.getJSONObject("suggestions").getInt("next_offset"));
+        final JSONObject last = get(all, "kg/entities/" + origin + "/suggestions", "collection", "kga", "offset", "200", "limit", "100").body;
+        assertEquals(205, last.getInt("total")); assertEquals(5, last.getJSONArray("items").length()); assertTrue(last.isNull("next_offset"));
+        final JSONObject firstGraph = get(all, "kg/entities/" + origin + "/neighborhood", "collection", "kga", "types", "suggested_customer", "suggested", "true").body;
+        assertEquals(205, firstGraph.getInt("neighbours")); assertEquals(50, firstGraph.getInt("next_offset"));
+        final JSONObject lastGraph = get(all, "kg/entities/" + origin + "/neighborhood", "collection", "kga", "types", "suggested_customer", "suggested", "true", "offset", "200").body;
+        assertEquals(205, lastGraph.getInt("neighbours")); assertEquals(5, lastGraph.getJSONArray("edges").length()); assertTrue(lastGraph.isNull("next_offset"));
+    }
+
+    @Test
+    public void suggestionEvidenceFollowsVisibleRedirectsWithoutDuplicates() throws Exception {
+        final String all = token(Agent.Kind.EXTERNAL, true, "kg.read");
+        final String origin = id(all, null, "Muster Pflege"), candidate = id(all, null, "Nur Bee");
+        final String old = "kgs_" + "z".repeat(20);
+        this.store.write(WriteClass.SYSTEM, 0, c -> {
+            try (PreparedStatement ps = c.prepareStatement("INSERT INTO kg_statement_redirect(public_id,target_rowid)"
+                    + " SELECT ?,s.stmt_rowid FROM kg_statement s JOIN kg_vocab v ON v.term_id=s.pred JOIN kg_entity e ON e.ent_rowid=s.subj"
+                    + " WHERE e.public_id=? AND v.name='name'")) {
+                ps.setString(1, old); ps.setString(2, candidate); assertEquals(1, ps.executeUpdate());
+            }
+            return null;
+        });
+        suggestion("a", 3, origin, candidate, "kga", "kgb", 0.6, old);
+        final JSONObject item = get(all, "kg/entities/" + origin + "/suggestions", "collection", "kga").body.getJSONArray("items").getJSONObject(0);
+        final JSONObject contribution = item.getJSONArray("contributions").getJSONObject(0);
+        assertTrue(contribution.getBoolean("evidence_complete"));
+        assertEquals(2, contribution.getJSONArray("evidence").length());
+        assertFalse(contribution.toString(), contribution.toString().contains(old));
+        final String canonical = contribution.getJSONArray("evidence").getJSONObject(1).getString("id");
+        assertEquals(200, get(all, "kg/statements/" + canonical + "/evidence", "collection", "kgb").status);
     }
 
     @Test
