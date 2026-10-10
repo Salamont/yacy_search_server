@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # Scoutro container image (based on YaCy, GPL-2.0-or-later)
 #
 # Same runtime layout as the official YaCy image (docker/Dockerfile), so that
@@ -10,12 +11,12 @@
 # build (from the repository root, with .git present so that the build records
 # the source revision):
 #   docker build -f docker/Dockerfile.scoutro \
-#     --build-arg SCOUTRO_VERSION=1.942-scoutro.1 \
+#     --build-arg SCOUTRO_VERSION=1.942-scoutro.22 \
 #     --build-arg SCOUTRO_REVISION=$(git rev-parse HEAD) \
-#     -t ghcr.io/salamont/scoutro:1.942-scoutro.1 .
+#     -t ghcr.io/salamont/scoutro:1.942-scoutro.22 .
 #
 # run:
-#   docker run -d --name scoutro -p 8090:8090 -v scoutro_data:/opt/yacy_search_server/DATA ghcr.io/salamont/scoutro:1.942-scoutro.1
+#   docker run -d --name scoutro -p 8090:8090 -v scoutro_data:/opt/yacy_search_server/DATA ghcr.io/salamont/scoutro:1.942-scoutro.22
 
 ## builder image
 FROM eclipse-temurin:24-jdk-noble AS builder
@@ -29,9 +30,31 @@ RUN for i in 1 2 3; do \
 WORKDIR /opt
 COPY . /opt/yacy_search_server/
 # .git is needed during the build to determine the revision, not at runtime
-RUN git config --global --add safe.directory /opt/yacy_search_server \
-    && ant compile -f /opt/yacy_search_server/build.xml \
-    && rm -fr /opt/yacy_search_server/.git
+# Optional session CA is build-only; neither it nor the temporary Java trust
+# store is copied to the runtime image. Java/Ant also needs explicit JVM proxy
+# properties when the build environment supplies HTTP(S)_PROXY.
+RUN --mount=type=secret,id=proxy_ca \
+    set -eu; \
+    proxy_url="${https_proxy:-${HTTPS_PROXY:-${http_proxy:-${HTTP_PROXY:-}}}}"; \
+    if [ -n "$proxy_url" ]; then \
+      proxy_authority="${proxy_url#*://}"; proxy_authority="${proxy_authority%%/*}"; \
+      proxy_authority="${proxy_authority##*@}"; \
+      proxy_host="${proxy_authority%%:*}"; proxy_port="${proxy_authority##*:}"; \
+      if [ "$proxy_port" = "$proxy_authority" ]; then proxy_port=80; fi; \
+      ANT_OPTS="${ANT_OPTS:-} -Dhttp.proxyHost=$proxy_host -Dhttp.proxyPort=$proxy_port -Dhttps.proxyHost=$proxy_host -Dhttps.proxyPort=$proxy_port"; \
+      export ANT_OPTS; \
+    fi; \
+    if [ -f /run/secrets/proxy_ca ]; then \
+      cp "$JAVA_HOME/lib/security/cacerts" /tmp/scoutro-build-cacerts; \
+      keytool -importcert -noprompt -alias scoutro-build-proxy -file /run/secrets/proxy_ca \
+        -keystore /tmp/scoutro-build-cacerts -storepass changeit; \
+      ANT_OPTS="${ANT_OPTS:-} -Djavax.net.ssl.trustStore=/tmp/scoutro-build-cacerts"; \
+      export ANT_OPTS; \
+    fi; \
+    git config --global --add safe.directory /opt/yacy_search_server; \
+    ant compile -f /opt/yacy_search_server/build.xml; \
+    rm -f /tmp/scoutro-build-cacerts; \
+    rm -fr /opt/yacy_search_server/.git
 
 # Same defaults as the official image: admin password "yacy" (to be changed),
 # no unauthenticated admin access from localhost, HTTPS listener enabled.
