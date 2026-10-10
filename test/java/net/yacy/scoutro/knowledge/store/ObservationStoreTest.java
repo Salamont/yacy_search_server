@@ -195,6 +195,36 @@ public class ObservationStoreTest {
         try {publish(new Extraction(30));fail("replacement must be refused");}catch(KgException expected){assertTrue(expected.getMessage().contains("archive full"));}
         assertEquals(3,count("SELECT count(*) FROM kg_evidence"));assertEquals(3,count("SELECT count(*) FROM kg_statement"));
     }
+    @Test public void boundedSqliteFullDuringArchiveCapturePreservesBothKnowledgeLayers() throws Exception {
+        publish(system("Wir nutzen SAP intern."));String id=systemId();
+        long observations=count("SELECT count(*) FROM kg_observation"),evidence=count("SELECT count(*) FROM kg_evidence");
+        store.write(WriteClass.SYSTEM,0,c->{try(Statement s=c.createStatement()) {
+            long pages=KgStore.queryLong(c,"PRAGMA page_count");
+            s.execute("CREATE TABLE bounded_pressure(payload BLOB)");
+            s.execute("PRAGMA max_page_count="+(pages+8));
+            // Actual SQLITE_FULL in this bounded test DB, not a filled host filesystem.
+            s.execute("CREATE TRIGGER test_bounded_archive BEFORE INSERT ON kg_observation BEGIN "
+                    +"INSERT INTO bounded_pressure VALUES(zeroblob(2097152)); END");
+        }return null;});
+        doc.contentHash[0]=1;doc.loadedAt=observed+86_400_000;
+        try {publish(system("Wir nutzen Salesforce intern."));fail("archive storage failure must stop KG replacement");}
+        catch(KgException expected){assertEquals(KgException.STORAGE_FULL,expected.code());}
+        assertEquals(observations,count("SELECT count(*) FROM kg_observation"));
+        assertEquals(evidence,count("SELECT count(*) FROM kg_evidence"));
+        assertEquals(0,count("SELECT count(*) FROM bounded_pressure"));
+        assertEquals("Wir nutzen SAP intern.",history().detail(id,viewer("a")).getString("quote"));
+    }
+    @Test public void injectedArchiveStatusWriteFailureRollsBackSourceDeletion() throws Exception {
+        publish(system("Wir nutzen SAP intern."));String id=systemId();long evidence=count("SELECT count(*) FROM kg_evidence");
+        store.write(WriteClass.SYSTEM,0,c->{try(Statement s=c.createStatement()) {
+            s.execute("CREATE TRIGGER test_archive_status_failure BEFORE UPDATE OF source_status ON kg_observation "
+                    +"BEGIN SELECT RAISE(ABORT,'injected archive status write failure'); END");
+        }return null;});
+        try {store.write(WriteClass.MAINTENANCE,0,c->publisher.remove(c,List.of(doc.docId),null,processed));fail("delete must roll back");}
+        catch(KgException expected){assertTrue(expected.getMessage().contains("injected archive status write failure"));}
+        assertEquals(1,count("SELECT count(*) FROM kg_doc"));assertEquals(evidence,count("SELECT count(*) FROM kg_evidence"));
+        assertEquals("available",history().detail(id,viewer("a")).getJSONObject("source").getString("status"));
+    }
     @Test public void realSchemaFourUpgradeCapturesOnlyStillExistingEvidence() throws Exception {
         publish(job());store.checkpoint();
         KgPaths oldPaths=new KgPaths(tmp.newFolder("legacy"));oldPaths.dir.mkdirs();oldPaths.tmp.mkdirs();
