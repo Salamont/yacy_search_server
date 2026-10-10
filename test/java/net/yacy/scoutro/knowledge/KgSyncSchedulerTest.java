@@ -29,7 +29,8 @@ public class KgSyncSchedulerTest {
         runtime.open();assertEquals(KgRuntime.State.RUNNING,runtime.state());return runtime;
     }
     private static ScheduledFuture<?> future(KgRuntime r)throws Exception {
-        Field field=KgRuntime.class.getDeclaredField("syncFuture");field.setAccessible(true);return (ScheduledFuture<?>)field.get(r);
+        Field state=KgRuntime.class.getDeclaredField("syncTask");state.setAccessible(true);
+        Field field=state.getType().getDeclaredField("future");field.setAccessible(true);return (ScheduledFuture<?>)field.get(state.get(r));
     }
     private static ScheduledExecutorService executor(KgRuntime r)throws Exception {
         Field field=KgRuntime.class.getDeclaredField("syncThread");field.setAccessible(true);return (ScheduledExecutorService)field.get(r);
@@ -98,5 +99,24 @@ public class KgSyncSchedulerTest {
         ScheduledFuture<?> fresh=future(runtime);assertNotSame(old,fresh);assertTrue(old.isCancelled());assertTrue(oldExecutor.isShutdown());
         await(()->scheduler().optLong("completedTicks")>0L);assertFalse(fresh.isDone());
         runtime.close();runtime.watchdogTick();assertTrue(fresh.isCancelled());
+    }
+
+    @Test(timeout=30000) public void lateFailureAfterCloseCannotPoisonTheNewSessionsDiagnostics()throws Exception {
+        CountDownLatch entered=new CountDownLatch(1),release=new CountDownLatch(1);AtomicInteger calls=new AtomicInteger();
+        open(()->{
+            if(calls.incrementAndGet()==1){entered.countDown();try{release.await(20,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}
+                throw new AssertionError("late closed-session failure");}
+            return null;
+        });
+        try {
+            assertTrue(entered.await(5,TimeUnit.SECONDS));ScheduledFuture<?> old=future(runtime);ScheduledExecutorService oldWorker=executor(runtime);
+            runtime.close(); // exercise the UNCHANGED five-second close wait
+            assertTrue(old.isCancelled());assertFalse(oldWorker.isTerminated());
+            clock.addAndGet(1000L);runtime.open();ScheduledFuture<?> fresh=future(runtime);
+            await(()->scheduler().optLong("completedTicks")>0L);release.countDown();assertTrue(oldWorker.awaitTermination(5,TimeUnit.SECONDS));
+            assertFalse(fresh.isDone());assertTrue(scheduler().isNull("lastError"));
+            assertTrue(java.util.Set.of("scheduled","running").contains(scheduler().getString("state")));
+            runtime.close();assertEquals(2,calls.get());
+        } finally {release.countDown();}
     }
 }

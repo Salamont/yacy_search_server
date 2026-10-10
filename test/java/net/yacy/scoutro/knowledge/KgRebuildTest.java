@@ -145,10 +145,11 @@ public class KgRebuildTest {
         this.background=true;
         final KgRuntime r=start();
         client().add(doc("AAAAAAhost01","fixture.example",org("Fixture GmbH","DE123456789")));client().commit();settle(r);
-        final java.lang.reflect.Field field=KgRuntime.class.getDeclaredField("syncFuture");field.setAccessible(true);
-        final java.util.concurrent.ScheduledFuture<?> old=(java.util.concurrent.ScheduledFuture<?>)field.get(r);
+        final java.lang.reflect.Field state=KgRuntime.class.getDeclaredField("syncTask");state.setAccessible(true);
+        final java.lang.reflect.Field field=state.getType().getDeclaredField("future");field.setAccessible(true);
+        final java.util.concurrent.ScheduledFuture<?> old=(java.util.concurrent.ScheduledFuture<?>)field.get(state.get(r));
         r.rebuild();drive(r,()->"done".equals(phase(r)));settle(r);
-        final java.util.concurrent.ScheduledFuture<?> fresh=(java.util.concurrent.ScheduledFuture<?>)field.get(r);
+        final java.util.concurrent.ScheduledFuture<?> fresh=(java.util.concurrent.ScheduledFuture<?>)field.get(state.get(r));
         assertTrue(old.isCancelled());assertNotEquals(old,fresh);assertFalse(fresh.isDone());
         KgRuntime.stop();assertTrue(fresh.isCancelled());r.watchdogTick();assertTrue(fresh.isDone());
     }
