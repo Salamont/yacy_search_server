@@ -32,6 +32,16 @@ public class BusinessSignalsTest {
         assertEquals("2020-10-09",new JSONObject(e.claims().get(0).value).getString("asserted_date"));
         assertFalse(e.claims().stream().anyMatch(c->c.value.contains("revit")));
     }
+    @Test public void terminalNewlinesKeepTheExistingEndOfTextContract() throws Exception {
+        for(String ending:List.of("","\n","\r\n")) {
+            Mention actor=new Mention("company",Vocabulary.ORGANIZATION,2);Extraction e=new Extraction(30);e.add(actor);
+            String quote="Wir nutzen SAP intern seit 09.10.2020";
+            BusinessSignals.extract(quote+ending,actor,e,2,Claim.KIND_RULE,"text","text");
+            assertEquals(1,e.claims().size());assertEquals(quote,e.claims().get(0).excerpt);
+            assertEquals("text:0",e.claims().get(0).locator);
+            assertEquals("2020-10-09",new JSONObject(e.claims().get(0).value).getString("asserted_date"));
+        }
+    }
     private List<String> system(String text) {return BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,text,"text",Vocabulary.JOB,null);}
     private void context(String text,String product,String context) throws Exception {
         List<String> result=system(text);assertEquals(text,1,result.size());JSONObject v=new JSONObject(result.get(0));

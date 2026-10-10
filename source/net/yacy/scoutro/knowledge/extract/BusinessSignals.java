@@ -50,10 +50,11 @@ public final class BusinessSignals {
                 lastNumericDot=at;continue;
             }
             if(!end&&ch!='\n'&&ch!='.'&&ch!='!'&&ch!='?'&&ch!=';')continue;
-            // A newline was not a regex terminator. Its greedy repetition
+            // An interior newline was not a regex terminator. Its greedy repetition
             // could backtrack to the last numeric dot, otherwise skip this
             // unterminated line. Keep that behavior; do not invent evidence.
-            int until=ch=='\n'?lastNumericDot+1:end?at:at+1;
+            // Java's $ also matched immediately before the final newline.
+            int until=ch=='\n'?(at==plain.length()-1?at:lastNumericDot+1):end?at:at+1;
             int offset=start,locatorOffset=start;start=at+1;lastNumericDot=-1;
             if(until<=offset||(!end&&ch!='\n'&&at==offset))continue;
             if(until-offset>900) {
