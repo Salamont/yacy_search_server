@@ -39,19 +39,43 @@ public final class BusinessSignals {
         if(text==null||actor==null)return;
         // JSON-LD descriptions may contain HTML; preserve paragraph boundaries.
         String plain=text.replaceAll("(?i)</?(?:p|li|br|h[1-6])[^>]*>","\n").replaceAll("<[^>]+>"," ");
-        Matcher clauses=Pattern.compile("(?:[^.!?;\\n]|(?<=[0-9])\\.(?=[0-9]))+(?:[.!?;]|$)").matcher(plain);
-        while(clauses.find()) {
-            String quote=clauses.group().trim();if(quote.isEmpty()||quote.length()>900)continue;
+        // The old repeated regex alternation recursed once per character,
+        // overflowing BEFORE the quote-length check. Iterate once over the
+        // text instead, also avoiding quadratic find() retries on long lines
+        // without terminating punctuation. Preserve its offsets/date dots.
+        int start=0,lastNumericDot=-1;
+        for(int at=0;at<=plain.length();at++) {
+            boolean end=at==plain.length();char ch=end?'\0':plain.charAt(at);
+            if(ch=='.'&&at>0&&at+1<plain.length()&&asciiDigit(plain.charAt(at-1))&&asciiDigit(plain.charAt(at+1))) {
+                lastNumericDot=at;continue;
+            }
+            if(!end&&ch!='\n'&&ch!='.'&&ch!='!'&&ch!='?'&&ch!=';')continue;
+            // A newline was not a regex terminator. Its greedy repetition
+            // could backtrack to the last numeric dot, otherwise skip this
+            // unterminated line. Keep that behavior; do not invent evidence.
+            int until=ch=='\n'?lastNumericDot+1:end?at:at+1;
+            int offset=start,locatorOffset=start;start=at+1;lastNumericDot=-1;
+            if(until<=offset||(!end&&ch!='\n'&&at==offset))continue;
+            if(until-offset>900) {
+                // Length is checked after trim in the original contract.
+                while(offset<until&&plain.charAt(offset)<=' ')offset++;
+                while(until>offset&&plain.charAt(until-1)<=' ')until--;
+                if(until-offset>900)continue;
+            }
+            String quote=plain.substring(offset,until).trim();if(quote.isEmpty())continue;
+            // Locator starts before trim, as with Matcher.start().
             for(String predicate:List.of(Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS)) {
                 if(Vocabulary.JOB_STATUS.equals(predicate)&&!Vocabulary.JOB.equals(actor.type))continue;
                 if((Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)||Vocabulary.BUSINESS_ROLE_EVIDENCE.equals(predicate))
                         && !Vocabulary.ORGANIZATION.equals(actor.type)&&!Vocabulary.FACILITY.equals(actor.type))continue;
                 for(String value:read(predicate,quote,section,actor.type,actor.name))
-                    out.add(new Claim(actor.ref,predicate,null,located(value,locator+":"+clauses.start()),tier,kind,DESIRED.matcher(quote).find(),
-                            locator+":"+clauses.start(),quote));
+                    out.add(new Claim(actor.ref,predicate,null,located(value,locator+":"+locatorOffset),tier,kind,DESIRED.matcher(quote).find(),
+                            locator+":"+locatorOffset,quote));
             }
         }
     }
+
+    private static boolean asciiDigit(char ch){return ch>='0'&&ch<='9';}
 
     /** Distinct passages/postings must not collapse into the live Evidence PK and lose a quotation. */
     public static String located(String value,String locator) {

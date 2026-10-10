@@ -7,6 +7,31 @@ import org.junit.Test;
 import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
 public class BusinessSignalsTest {
+    @Test(timeout=5000) public void longParagraphsAreSkippedWithoutRecursionOrLosingFollowingEvidence() throws Exception {
+        Mention actor=new Mention("company",Vocabulary.ORGANIZATION,2);actor.name="Fixture GmbH";
+        for(int size:List.of(20000,65536,1048576)) {
+            String prefix="a".repeat(size)+". "+"b".repeat(size)+"\n";Extraction e=new Extraction(30);e.add(actor);
+            BusinessSignals.extract(prefix+"Wir nutzen SAP intern seit 09.10.2020. Wir nutzen Revit intern.",
+                    actor,e,2,Claim.KIND_RULE,"text","text");
+            assertEquals(2,e.claims().size());
+            Claim first=e.claims().get(0);
+            assertEquals("Wir nutzen SAP intern seit 09.10.2020.",first.excerpt);
+            assertEquals("2020-10-09",new JSONObject(first.value).getString("asserted_date"));
+            assertEquals("text:"+prefix.length(),first.locator);
+            assertTrue(e.claims().stream().allMatch(c->c.excerpt.length()<=900));
+        }
+    }
+    @Test public void clauseBoundariesKeepOffsetsDatesAndUnterminatedLineBehavior() throws Exception {
+        Mention actor=new Mention("company",Vocabulary.ORGANIZATION,2);Extraction e=new Extraction(30);e.add(actor);
+        String prefix="Ignored line without punctuation\n!;  ";
+        BusinessSignals.extract(prefix+"Wir nutzen SAP intern seit 09.10.2020.\nWir nutzen Revit intern\nWir nutzen Azure intern.",
+                actor,e,2,Claim.KIND_RULE,"text","text");
+        assertEquals(2,e.claims().size());
+        assertEquals("text:"+(prefix.length()-2),e.claims().get(0).locator);
+        assertEquals("Wir nutzen SAP intern seit 09.10.2020.",e.claims().get(0).excerpt);
+        assertEquals("2020-10-09",new JSONObject(e.claims().get(0).value).getString("asserted_date"));
+        assertFalse(e.claims().stream().anyMatch(c->c.value.contains("revit")));
+    }
     private List<String> system(String text) {return BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,text,"text",Vocabulary.JOB,null);}
     private void context(String text,String product,String context) throws Exception {
         List<String> result=system(text);assertEquals(text,1,result.size());JSONObject v=new JSONObject(result.get(0));
