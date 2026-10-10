@@ -63,6 +63,7 @@ public class LlmServiceTest {
     private SyncService sync;
     private LlmService llm;
     private final Fake model = new Fake();
+    private final KgTestSupport.Probe storageProbe = new KgTestSupport.Probe();
     private final AtomicLong clock = new AtomicLong(System.currentTimeMillis());
 
     static final String LD = "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Muster Pflege gGmbH\","
@@ -170,7 +171,7 @@ public class LlmServiceTest {
     }
 
     private void start() throws Exception {
-        this.guard = new StorageGuard(this.cfg, this.paths, new KgTestSupport.Probe(), System::currentTimeMillis);
+        this.guard = new StorageGuard(this.cfg, this.paths, this.storageProbe, System::currentTimeMillis);
         this.store = KgStore.open(this.paths, this.cfg, this.guard, KgStore.SQLITE, System::currentTimeMillis);
         this.dirty = new DirtySet(1000);
         Capture.activate(this.dirty);
@@ -898,6 +899,44 @@ public class LlmServiceTest {
         this.guard.setIntegrityBlock(null,null);this.clock.addAndGet(60001);settleLlm();
         assertEquals(LlmExtractor.chunks(text,this.cfg.extractMaxInputChars).size(),this.model.calls.get());
         assertEquals(0,this.llm.status().getInt("pendingResultCheckpoints"));assertEquals("1:",llmStatus("AAAAAAhost01"));
+    }
+
+    @Test public void manualRunCannotOverrideStorageAndIntegrityProtections()throws Exception {
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);
+        settleSync();schedule("manual",0);this.llm.manualRun(10,100);
+        // Controlled measurements only: no allocation and no filling the host filesystem.
+        for(String reason:List.of(StorageGuard.MANUAL,StorageGuard.BUDGET,StorageGuard.DISK_RESERVE,
+                StorageGuard.DISK_CRITICAL,StorageGuard.INTEGRITY_PENDING,StorageGuard.INTEGRITY_FAILED,
+                StorageGuard.START_NOT_RECORDED)) {
+            this.guard.setManualPause(StorageGuard.MANUAL.equals(reason));
+            this.storageProbe.openUnlinked.set(StorageGuard.BUDGET.equals(reason)?this.cfg.pauseAtBytes():0);
+            this.storageProbe.usable.set(StorageGuard.DISK_CRITICAL.equals(reason)?0:
+                    StorageGuard.DISK_RESERVE.equals(reason)?this.cfg.growthFloorBytes()-1:100L*KgTestSupport.GIB);
+            this.guard.setIntegrityBlock(reason.startsWith("integrity_")?reason:null,"controlled fixture");
+            this.guard.setStartNotRecorded(StorageGuard.START_NOT_RECORDED.equals(reason));
+            this.guard.refresh();this.clock.addAndGet(10001);this.llm.step();
+            assertEquals(reason,0,this.model.calls.get());
+            assertEquals(reason,this.llm.status().getJSONObject("timing").getString("waitReason"));
+            assertEquals(0,count("SELECT coalesce(sum(attempts),0) FROM kg_llm_work"));
+            assertEquals(0,count("SELECT count(*) FROM kg_doc WHERE llm_status = 2"));
+        }
+        this.guard.setStartNotRecorded(false);this.clock.addAndGet(10001);settleLlm();
+        assertEquals(1,this.model.calls.get());assertEquals("1:",llmStatus("AAAAAAhost01"));
+    }
+
+    @Test public void aNewManualRunDoesNotResetOrBypassAnOpenCircuitBreaker()throws Exception {
+        this.cfg=KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS,"c1",KgConfig.LLM_COLLECTIONS,"c1",
+                KgConfig.LLM_BREAKER_FAILURES,"1"));restart();
+        add("AAAAAAhost01","https://www.muster-pflege.de/impressum","c1",LD,TEXT);
+        settleSync();schedule("manual",0);this.llm.manualRun(10,100);
+        this.model.failure=new SocketTimeoutException("controlled timeout");this.llm.step();
+        assertEquals(1,this.model.calls.get());assertTrue(this.llm.status().getJSONObject("breaker").getBoolean("open"));
+        this.llm.manualStop();this.llm.manualRun(10,100);this.clock.addAndGet(10001);this.llm.step();
+        assertEquals(1,this.model.calls.get());
+        assertEquals("circuit_breaker",this.llm.status().getJSONObject("timing").getString("waitReason"));
+        assertEquals(1,count("SELECT attempts FROM kg_llm_work"));
+        this.model.failure=null;this.clock.addAndGet(300001);settleLlm();
+        assertEquals(2,this.model.calls.get());assertEquals("1:",llmStatus("AAAAAAhost01"));
     }
 
     private void httpFormatFallback(int gap)throws Exception {
