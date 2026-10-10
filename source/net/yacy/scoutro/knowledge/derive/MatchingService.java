@@ -26,7 +26,34 @@ public final class MatchingService {
         final List<Pending> rows=new ArrayList<>();
         int checked;boolean complete,unchanged;String deferred;
     }
+    /** Settings can invalidate projections without changing their archived input.
+     * Publish notices at reopen, even when calculation is disabled or deferred. */
+    private static String policyFingerprint(KgConfig cfg) {
+        Map<String,Object> policy=new TreeMap<>();
+        policy.put("version",MatchingRules.VERSION);policy.put("enabled",cfg.derivedEnabled&&cfg.matchesMax>0);
+        policy.put("job_collections",new TreeSet<>(cfg.jobsMatchCollections));policy.put("job_overrides",new TreeMap<>(cfg.jobsMatchOverrides));
+        return net.yacy.scoutro.knowledge.extract.Values.canonical(policy);
+    }
+    public static long policyEstimate(Connection c,KgConfig cfg)throws SQLException {
+        if(policyFingerprint(cfg).equals(KgStore.getMeta(c,"matching_policy")))return 0;
+        return 1024L+1024L*KgStore.queryLong(c,"SELECT count(*) FROM kg_match_contribution");
+    }
+    public static void invalidatePolicy(Connection c,KgConfig cfg,long now)throws SQLException {
+        String fingerprint=policyFingerprint(cfg);
+        if(fingerprint.equals(KgStore.getMeta(c,"matching_policy")))return;
+        List<String> ids=new ArrayList<>();
+        try(Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT public_id FROM kg_match_contribution ORDER BY public_id")) {
+            while(r.next())ids.add(r.getString(1));
+        }
+        for(String id:ids) {
+            MatchingAccess.remember(c,id);
+            KgChangeLog.record(c,KgChangeLog.Kind.MATCH_CONTRIBUTION,id,KgChangeLog.Op.UPSERT,null,Set.of(),Set.of(),now);
+        }
+        KgStore.putMeta(c,"matching_policy",fingerprint);
+    }
     public JSONObject run(long now)throws KgException {
+        long estimate=store.read(c->policyEstimate(c,cfg));
+        if(estimate>0)store.write(WriteClass.SYSTEM,estimate,c->{invalidatePolicy(c,cfg,now);return null;});
         if(cfg.matchesMax==0) {
             JSONObject disabled=KgJson.obj("version",MatchingRules.VERSION,"checked",0,"upserts",0,"completed_partitions",0,
                     "cycle_complete",false,"deferred","configuration_disabled");

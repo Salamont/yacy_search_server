@@ -1104,6 +1104,11 @@ See [the B contract and upgrade/rollback procedure](SCOUTRO_DURABLE_OBSERVATIONS
 
 ### Service/signal contributions (package C, schema 6)
 
+Effective matching-policy changes publish contribution invalidation notices at KG
+reopen, including `matches.max=0` and stored-job matching changes. Consumers follow
+their existing change cursor; read eligibility determines a delete/upsert under
+their current grants even when derivation is paused. An unchanged policy is silent.
+
 Customer/partner suggestions now combine independent legacy reasons and explicit
 versioned service/signal rules. Normal fact and graph boundaries remain unchanged.
 `contributions` is a preview of at most 25 eligible, authorized, deduplicated

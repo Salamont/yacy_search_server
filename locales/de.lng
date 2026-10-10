@@ -5567,6 +5567,7 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 
 #File: ScoutroKnowledge_p.html
 >Disabled by the matching budget setting<==>Durch die Matching-Budgeteinstellung ausgeschaltet<
+>Changed matching settings apply to reads; change-feed notices wait for writable storage<==>Geänderte Matching-Einstellungen gelten für Ansichten; Änderungsfeed-Hinweise warten auf beschreibbaren Speicher<
 >Product support, training or introduction<==>Produktunterstützung, Schulung oder Einführung<
 >Architecture and planning<==>Architektur und Planung<
 >Construction services<==>Bauausführung<

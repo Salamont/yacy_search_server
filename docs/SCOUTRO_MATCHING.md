@@ -133,6 +133,13 @@ emits full eligible `match_contribution` records with archival evidence. Hidden
 raw records can yield an empty page with `next`: continue until `complete`.
 Change feeds require `kg.export`; contribution eligibility is checked even with
 `expand=false`, converting invalid prior reasons to authorized deletions.
+Changing stored-job matching policy, disabling the new calculation (`matches.max=0`)
+or disabling derivations invalidates cached contribution feed records at KG reopen.
+An unchanged policy does not create artificial changes. Re-enabling emits current
+upserts without erasing historical observations or requiring new extraction;
+read validation remains authoritative even while calculation is paused or deferred.
+When the storage guard refuses the notice transaction, the runtime remains readable
+and exposes `deferred=policy_notice_deferred`; maintenance retries after recovery.
 `include=history` remains B's complete versioned observation/audit export.
 Graph JSON and GraphML include previews, total and the full-details link.
 

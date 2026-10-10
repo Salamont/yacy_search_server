@@ -530,6 +530,15 @@ An old schema backup does not preserve observations created after its date.
 
 ## Additional service and signal suggestions (package C)
 
+Changing the stored-job matching setting or disabling calculation also updates
+contribution change-feed notices when the graph reopens. This works while normal
+calculation is paused or deferred. Turning matching off keeps historical knowledge;
+turning it on again does not need a new extraction. Scores remain sorting values.
+If storage refuses the notice write, reads remain available and use the changed
+settings immediately. The overview shows the pending change-feed notices; storage
+recovery retries them. A consumer must not infer a completed notification update
+from that pending status.
+
 Specific provider services can also match durable system/competence, construction,
 energy renovation, leadership/team development and hospital-transition observations.
 No declared target industry is required. Care transitions suggest **possible
