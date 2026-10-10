@@ -62,4 +62,4 @@ Start auf der genannten Basis übernimmt ohne neuen Schlüssel unverändert die 
 
 ## Prüfungen
 
-`ant scoutro-kg-llm-schedule-test` prüft Testuhren, lokale Modelltransporte, Fortsetzung und Admin-Verträge; `ant scoutro-kg-observations-test` sichert die Kette ab. Die isolierte echte Browser-/Peer-Prüfung wird unter `test/scoutro-api/kg-llm-schedule-live.py` gestartet; kontrollierte HTML-Fixtures und Modellclient ausschließlich lokal, temporäres DATA, kein produktiver Crawl. Ausführungsnachweise und verbleibende Grenzen werden im PR ergänzt.
+`ant scoutro-kg-llm-schedule-test` prüft Testuhren, lokale Modelltransporte, Fortsetzung und Admin-Verträge; `ant scoutro-kg-observations-test` sichert die Kette ab. Die isolierte echte Browser-/Peer-Prüfung wird unter `test/scoutro-api/kg-llm-schedule-live.py` gestartet; kontrollierte HTML-Fixtures und Modellclient ausschließlich lokal, temporäres DATA, kein produktiver Crawl. [Ausführungsnachweise und verbleibende Grenzen](SCOUTRO_LLM_SCHEDULE_VALIDATION.md).
