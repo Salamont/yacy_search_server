@@ -17,6 +17,7 @@ import java.util.Enumeration;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.jar.Manifest;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -44,6 +45,11 @@ public final class RelocateJettyPackages {
     private static void relocate(final Path input, final Path output) throws IOException {
         Files.createDirectories(output.toAbsolutePath().getParent());
         final Remapper remapper = new BridgeRemapper();
+        // Upstream coordinates/notices describe the original artifact, not this private
+        // runtime island. Preserve them verbatim next to the jars (copyMain4Dist includes
+        // all lib/**), rather than publishing false Maven identities or editing attribution.
+        final Path upstream = output.toAbsolutePath().getParent().resolve("solr9-bridge-upstream")
+                .resolve(input.getFileName().toString().replaceFirst("\\.jar$", ""));
 
         try (JarFile source = new JarFile(input.toFile());
                 JarOutputStream target = new JarOutputStream(Files.newOutputStream(output))) {
@@ -53,20 +59,41 @@ public final class RelocateJettyPackages {
                 if (entry.isDirectory() || isSignature(entry.getName())) {
                     continue;
                 }
+                final byte[] content;
+                try (InputStream stream = source.getInputStream(entry)) {
+                    content = readAll(stream);
+                }
+                final String name = entry.getName();
+                final boolean attribution = isAttribution(name);
+                if (attribution || name.equalsIgnoreCase("META-INF/MANIFEST.MF") || name.startsWith("META-INF/maven/")) {
+                    final Path original = upstream.resolve(name).normalize();
+                    if (!original.startsWith(upstream)) throw new IOException("unsafe upstream entry: " + name);
+                    Files.createDirectories(original.getParent());
+                    Files.write(original, content);
+                }
+                if (name.startsWith("META-INF/maven/")) continue;
                 final String outputName = relocateEntryName(entry.getName());
                 final JarEntry outputEntry = new JarEntry(outputName);
                 outputEntry.setTime(entry.getTime());
                 target.putNextEntry(outputEntry);
-                try (InputStream stream = source.getInputStream(entry)) {
-                    final byte[] content = readAll(stream);
-                    if (entry.getName().endsWith(".class")) {
-                        target.write(relocateClass(content, remapper));
-                    } else if (entry.getName().startsWith("META-INF/services/")) {
-                        target.write(relocateText(new String(content, StandardCharsets.UTF_8))
-                                .getBytes(StandardCharsets.UTF_8));
-                    } else {
-                        target.write(content);
-                    }
+                if (name.endsWith(".class")) {
+                    target.write(relocateClass(content, remapper));
+                } else if (name.equalsIgnoreCase("META-INF/MANIFEST.MF")) {
+                    final Manifest manifest = new Manifest(new java.io.ByteArrayInputStream(content));
+                    manifest.getMainAttributes().replaceAll((key, value) -> relocateText(value.toString()));
+                    manifest.getEntries().values().forEach(attributes ->
+                            attributes.replaceAll((key, value) -> relocateText(value.toString())));
+                    manifest.write(target); // unfold before relocation, then apply valid manifest wrapping
+                } else if (attribution && containsReference(content)) {
+                    target.write(("Unmodified upstream attribution is distributed with this runtime jar at:\n"
+                            + "solr9-bridge-upstream/" + upstream.getFileName() + "/" + name + "\n"
+                            + "(relative to the lib directory). No upstream attribution has been changed.\n")
+                            .getBytes(StandardCharsets.UTF_8));
+                } else if (!attribution && isTextResource(name)) {
+                    target.write(relocateText(new String(content, StandardCharsets.UTF_8))
+                            .getBytes(StandardCharsets.UTF_8));
+                } else {
+                    target.write(content);
                 }
                 target.closeEntry();
             }
@@ -83,6 +110,12 @@ public final class RelocateJettyPackages {
         public String map(final String internalName) {
             return relocateInternalName(internalName);
         }
+
+        @Override
+        public String mapPackageName(final String name) { return relocateInternalName(name); }
+
+        @Override
+        public String mapModuleName(final String name) { return relocateText(name); }
 
         @Override
         public Object mapValue(final Object value) {
@@ -138,6 +171,24 @@ public final class RelocateJettyPackages {
             return relocateText(internalName);
         }
         return internalName;
+    }
+
+    private static boolean isAttribution(final String name) {
+        final String base = name.substring(name.lastIndexOf('/') + 1).toUpperCase(java.util.Locale.ROOT);
+        return base.startsWith("NOTICE") || base.startsWith("LICENSE") || base.startsWith("COPYING");
+    }
+
+    private static boolean isTextResource(final String name) {
+        return name.startsWith("META-INF/services/") || name.endsWith(".properties") || name.endsWith(".xml")
+                || name.endsWith(".json") || name.endsWith(".txt") || name.endsWith(".html");
+    }
+
+    private static boolean containsReference(final byte[] content) {
+        final String text = new String(content, StandardCharsets.UTF_8);
+        for (final Relocation relocation : RELOCATIONS) {
+            if (text.contains(relocation.sourceBinary) || text.contains(relocation.sourceInternal)) return true;
+        }
+        return false;
     }
 
     private static String relocateInternalName(final String name) {
