@@ -1044,6 +1044,21 @@ public final class KgRuntime {
         return status();
     }
 
+    /** Timing only: no reopen, queue reset, extractor change or pause change. */
+    public synchronized boolean updateLlmSchedule(net.yacy.scoutro.knowledge.sync.LlmSchedule plan) {
+        if(this.config!=null)this.config.llmSchedule=plan;
+        LlmService l=this.llm;if(l!=null)l.updateSchedule(plan);return this.state==State.RUNNING;
+    }
+    public synchronized JSONObject llmManualRun(int documents,int starts)throws KgException {
+        requireRunning();LlmService l=this.llm;
+        if(l==null||llmModel()==null)throw new KgException(KgException.LLM_UNAVAILABLE,"No selected knowledge model or enabled LLM collections.");
+        try{l.manualRun(documents,starts);}catch(IllegalStateException e){throw new KgException(KgException.OPERATION_RUNNING,e.getMessage());}
+        return status();
+    }
+    public synchronized JSONObject llmManualStop()throws KgException {
+        requireRunning();LlmService l=this.llm;if(l!=null)l.manualStop();return status();
+    }
+
     /**
      * Makes the documents the LLM tier gave up on due again
      * ({@code POST /kg/control {"action":"llm_retry"}}); also closes the
@@ -1272,6 +1287,10 @@ public final class KgRuntime {
                 "reason", this.reason, "reasonDetail", this.reasonDetail,
                 "startedAt", this.startedAt > 0 ? this.startedAt : null,
                 "config", this.config == null ? null : this.config.toJson());
+        if(this.config!=null&&this.llm==null) {
+            KgJson.put(o,"llm",KgJson.obj("state","off","enabled",false,"reason",this.config.enabled?"llm_off":"kg_disabled","model",llmModel(),
+                    "timing",new net.yacy.scoutro.knowledge.sync.LlmTiming(this.config.llmSchedule,this.env.clock).status(this.config.enabled?"llm_off":"kg_disabled")));
+        }
         if (this.config == null || !this.config.enabled) {
             return o;
         }
@@ -1331,6 +1350,7 @@ public final class KgRuntime {
                         "completed_partitions",0,"cycle_complete",false):net.yacy.scoutro.knowledge.extract.Values.json(matching.toString());
                 KgJson.put(matching,"deferred","policy_notice_deferred");
             }
+            if(ll==null)KgJson.put(o.optJSONObject("llm"),"timing",new net.yacy.scoutro.knowledge.sync.LlmTiming(this.config.llmSchedule,this.env.clock).status("llm_off"));
             KgJson.put(o, "derived", KgJson.obj("enabled", this.config.derivedEnabled, "intervalMinutes",
                     this.config.derivedIntervalMillis / 60_000L, "lastRun", dv == null || dv.lastRun() == 0L ? null : dv.lastRun(),
                     "last", dr == null ? null : dr.json(), "matching", matching));

@@ -122,6 +122,12 @@ public final class YacyLlmClient implements LlmClient {
     @Override
     public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis,
             final String structuredOutput) throws IOException {
+        return complete(system,user,schema,timeoutMillis,structuredOutput,LlmClient.UNLIMITED);
+    }
+
+    @Override
+    public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis,
+            final String structuredOutput,final RequestGate gate) throws IOException {
         final LLM.LLMModel m = this.selection.get();
         final String name = name(m);
         if (name == null) {
@@ -132,14 +138,22 @@ public final class YacyLlmClient implements LlmClient {
         final Plan plan = plan(structuredOutput, m.formatCapability, this.withoutSchema.contains(key), schema != null);
         final JSONObject format = responseFormat(plan.request, schema);
         try {
-            return call(m, system, user, format, timeout);
+            return call(m, system, user, format, timeout,gate);
         } catch (final IOException e) {
             if (format != null && e.getMessage() != null && e.getMessage().contains("response code 400")) {
                 this.formatRejections.incrementAndGet();
                 this.lastRejectionAt = System.currentTimeMillis();
-                final String answer = call(m, system, user, null, timeout);
                 this.withoutSchema.add(key);
-                return answer;
+                // Remember rejection before admission: a deferred fallback must not repeat the rejected request.
+                try {
+                    final String value = call(m, system, user, null, timeout, gate);
+                    this.withoutSchema.add(key);
+                    return value;
+                } catch (final IOException fallback) {
+                    if (fallback instanceof LlmClient.Deferred) this.withoutSchema.add(key);
+                    else this.withoutSchema.remove(key); // unchanged policy if the endpoint fails without format too
+                    throw fallback;
+                }
             }
             throw e;
         }
@@ -218,7 +232,7 @@ public final class YacyLlmClient implements LlmClient {
     }
 
     private String call(final LLM.LLMModel m, final String system, final String user, final JSONObject format,
-            final int timeout) throws IOException {
+            final int timeout,final RequestGate gate) throws IOException {
         final LLM.Context context;
         try {
             context = new LLM.Context(system);
@@ -226,6 +240,7 @@ public final class YacyLlmClient implements LlmClient {
         } catch (final JSONException e) {
             throw new IOException(e.getMessage());
         }
+        try(RequestPermit permit=gate.start()) {
         (format == null ? this.requestsWithoutFormat
                 : JSON_OBJECT.equals(format.optString("type")) ? this.requestsJsonObject : this.requestsJsonSchema).incrementAndGet();
         if (API_OLLAMA_NATIVE.equals(api(m))) {
@@ -235,6 +250,7 @@ public final class YacyLlmClient implements LlmClient {
                     MAX_RESPONSE_CHARS);
         }
         return m.llm.chatWithResponseFormat(m.model, context, format, m.llm.max_tokens, timeout, MAX_RESPONSE_CHARS);
+        }
     }
 
     /** The API of a model: native for {@link LLM.LLMType#OLLAMA}, OpenAI-compatible for every other service. */

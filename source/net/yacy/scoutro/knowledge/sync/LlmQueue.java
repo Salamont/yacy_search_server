@@ -182,10 +182,16 @@ final class LlmQueue {
 
     /** Claims the next due item; null if none. */
     static Item claim(final Connection tx, final long now) throws SQLException {
+        return claim(tx,now,null);
+    }
+    static Item claim(final Connection tx,final long now,final java.util.Set<String> only)throws SQLException {
+        if(only!=null&&only.isEmpty())return null;
+        String scope=only==null?"":" AND doc_id IN ("+String.join(",",java.util.Collections.nCopies(only.size(),"?"))+")";
         final Item item;
         try (PreparedStatement ps = tx.prepareStatement("SELECT doc_id, host_id, attempts FROM kg_llm_work"
-                + " WHERE claimed_at IS NULL AND not_before <= ? ORDER BY priority, not_before LIMIT 1")) {
+                + " WHERE claimed_at IS NULL AND not_before <= ?"+scope+" ORDER BY priority, not_before, doc_id LIMIT 1")) {
             ps.setLong(1, now);
+            if(only!=null){int i=2;for(String doc:only)ps.setString(i++,doc);}
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return null;
@@ -212,7 +218,9 @@ final class LlmQueue {
         }
     }
 
-    static void complete(final Connection tx, final String docId) throws SQLException {
+    static void complete(final Connection tx, final String docId) throws SQLException {complete(tx,docId,false);}
+    static void complete(final Connection tx,final String docId,boolean preserveProgress)throws SQLException {
+        if(!preserveProgress)LlmProgress.clear(tx,docId);
         try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_llm_work WHERE doc_id = ?")) {
             ps.setString(1, docId);
             ps.executeUpdate();
@@ -262,6 +270,18 @@ final class LlmQueue {
                 + " WHERE llm_status = ?")) {
             ps.setInt(1, status);
             return ps.executeUpdate();
+        }
+    }
+
+    static long pending(Connection c,java.util.function.Predicate<String> selected)throws SQLException {
+        List<String> names=new ArrayList<>();try(java.sql.Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT name FROM kg_collection")) {
+            while(r.next())if(selected.test(r.getString(1)))names.add(r.getString(1));
+        }
+        if(names.isEmpty())return 0;
+        try(PreparedStatement p=c.prepareStatement("SELECT count(*) FROM kg_doc d WHERE state=1 AND input_hash IS NOT NULL AND llm_status IS NULL"
+                +" AND EXISTS(SELECT 1 FROM kg_doc_collection dc JOIN kg_collection k USING(coll_id) WHERE dc.doc_rowid=d.doc_rowid AND k.name IN("
+                +String.join(",",java.util.Collections.nCopies(names.size(),"?"))+"))")) {
+            int i=1;for(String name:names)p.setString(i++,name);try(ResultSet r=p.executeQuery()){r.next();return r.getLong(1);}
         }
     }
 

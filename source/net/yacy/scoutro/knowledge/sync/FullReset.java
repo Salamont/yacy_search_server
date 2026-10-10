@@ -74,7 +74,7 @@ final class FullReset {
                 KgStore.putMeta(tx, KgSchema.META_RESET_IN_PROGRESS, "1");
                 KgStore.putMeta(tx, KgSchema.META_EPOCH, epoch);
                 exec(tx, "DELETE FROM kg_work");
-                exec(tx, "DELETE FROM kg_llm_work");
+                LlmQueue.clear(tx);
                 exec(tx, "DELETE FROM kg_scan_candidate");
                 try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_scan SET state = 3, finished_at = ?, detail = 'full_reset'"
                         + " WHERE state IN (1, 3, 4)")) {
@@ -88,6 +88,7 @@ final class FullReset {
             this.begun = true;
             return false;
         }
+        if(this.store.write(WriteClass.MAINTENANCE,ESTIMATE,LlmProgress::resetBatch))return false;
         if (deleteBatch("SELECT seq FROM kg_change LIMIT " + BATCH, "DELETE FROM kg_change WHERE seq = ?")) {
             return false;
         }

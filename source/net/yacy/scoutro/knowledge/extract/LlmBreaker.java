@@ -76,6 +76,9 @@ public final class LlmBreaker {
         this.trial = false;
     }
 
+    /** A reserved half-open trial was deferred before a transport verdict; not a failure or a retry. */
+    public synchronized void deferred() { this.trial=false; }
+
     /** A transport failure (timeout, refused connection, HTTP error). */
     public synchronized void failure(final String reason) {
         this.lastFailure = reason;
