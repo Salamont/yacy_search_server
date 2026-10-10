@@ -123,7 +123,12 @@ public final class LlmTiming {
 
     private void adopt(Session s) throws Deferred {
         if (s.manual != 0 && (!override() || s.manual != manual.id))
-            throw new Deferred("manual_stopped");
+            throw new Deferred(
+                    s.manual == manual.id && "request_limit".equals(manual.state)
+                            ? "manual_request_limit"
+                            : s.manual == manual.id && "expired".equals(manual.state)
+                                    ? "manual_expired"
+                                    : "manual_stopped");
         if (override()) {
             if (!manual.documents.contains(s.document)) {
                 if (manual.documents.size() >= manual.maxDocuments)
@@ -247,7 +252,11 @@ public final class LlmTiming {
                 "windowOpen",
                 plan.windowOpen(now),
                 "nextAllowedStart",
-                override() ? Long.valueOf(floor) : plan.nextWindow(floor),
+                plan.error != null
+                        ? null
+                        : override() && manual.starts < manual.maxRequests && floor < manual.ends
+                                ? Long.valueOf(floor)
+                                : plan.nextWindow(floor),
                 "lastActualStart",
                 lastStart,
                 "waitReason",
@@ -258,6 +267,6 @@ public final class LlmTiming {
                 manualJson(),
                 "note",
                 "Allowed starts only; resource availability and completion times are not"
-                    + " guaranteed.");
+                        + " guaranteed.");
     }
 }

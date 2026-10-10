@@ -52,6 +52,8 @@ def main():
         token=peer.create_agent("timing read fixture",["kg.read"],["timing-a"])
         for path in ("llm-schedule","llm-run"):
             check(peer.agent(token,"/kg/"+path)[0] in (403,404),"agent cannot access admin timing: "+path)
+            method="PUT" if path=="llm-schedule" else "POST";body=plan if method=="PUT" else {"action":"start"}
+            check(peer.call(method,"/scoutro/api/v1/kg/"+path,body,{"Authorization":"Bearer "+token},opener=helper.ANON)[0]==401,"agent Bearer cannot mutate admin timing: "+path)
         text="Impressum. Die Muster Pflege gGmbH betreibt das Haus Lindenhof in Berlin. Das Haus Lindenhof bietet Tagespflege an. "
         long_text=text+"Information über Unternehmen und Tagespflege. "*190
         def page(name,text):

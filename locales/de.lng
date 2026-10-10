@@ -5566,6 +5566,7 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 #-----------------------------
 
 #File: ScoutroKnowledge_p.html
+>Manual run expired; unfinished work retained<==>Manueller Lauf abgelaufen; offene Arbeit bleibt erhalten<
 >Knowledge graph disabled<==>Wissensgraph deaktiviert<
 >Actual model request starts<==>Tatsächliche Modellaufrufstarts<
 >Knowledge graph manually paused<==>Wissensgraph manuell pausiert<

@@ -10,6 +10,47 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.*;
 
 public class LlmTimingTest {
+    @Test
+    public void requestBudgetAndExpiryReportTheirOwnDeferralReasons() throws Exception {
+        AtomicLong clock = new AtomicLong(1000);
+        LlmTiming t =
+                new LlmTiming(
+                        LlmScheduleTest.plan("manual", "[1]", "00:00", "00:00", "UTC", 0),
+                        clock::get);
+        t.run(25, 1);
+        LlmTiming.Session session = t.begin("a");
+        try (LlmClient.RequestPermit p = t.start(session, SAFE, RECORD)) {}
+        try {
+            t.chunk(session);
+            fail();
+        } catch (LlmTiming.Deferred e) {
+            assertEquals("manual_request_limit", e.reason);
+        }
+        t.run(25, 100);
+        session = t.begin("a");
+        clock.addAndGet(LlmTiming.MANUAL_DURATION);
+        try {
+            t.chunk(session);
+            fail();
+        } catch (LlmTiming.Deferred e) {
+            assertEquals("manual_expired", e.reason);
+        }
+    }
+
+    @Test
+    public void manualOverrideDoesNotPromiseAStartAfterItsExpiry() throws Exception {
+        AtomicLong clock = new AtomicLong(1000);
+        LlmTiming t =
+                new LlmTiming(
+                        LlmScheduleTest.plan("manual", "[1]", "00:00", "00:00", "UTC", 86400),
+                        clock::get);
+        t.restoreLastStart(1000L);
+        t.run(25, 100);
+        assertTrue(t.status(null).isNull("nextAllowedStart"));
+        t.update(LlmSchedule.defaults());
+        assertEquals(1000, t.status(null).getLong("nextAllowedStart"));
+    }
+
     private static final LlmTiming.Protection SAFE = () -> {};
     private static final LlmTiming.Recorder RECORD = at -> {};
 
