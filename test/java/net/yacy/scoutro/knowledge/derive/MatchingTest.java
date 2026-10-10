@@ -77,6 +77,26 @@ public class MatchingTest {
         assertEquals(1,page("a","b").getInt("total"));assertEquals(0,page("a").getInt("total"));
         assertEquals("internal_use",page("a","b").getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(0).getString("context"));
     }
+    @Test public void policyDisableAndReenableReachFeedWithoutNewEvidenceOrCalculation()throws Exception {
+        offer("SAP Beratung");signal("Wir nutzen SAP intern.","job");run();
+        long archive=store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation"));
+        JSONObject before=new KgExport(reader).changes(null,100,true,reader.viewer(List.of("a","b")));
+        String cursor=before.getString("next");
+        Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());settings.put(KgConfig.JOBS_MATCH_COLLECTIONS,"");
+        KgConfig disabled=KgTestSupport.config(settings);
+        store.write(WriteClass.SYSTEM,0,c->{MatchingService.invalidatePolicy(c,disabled,now+1);return null;});
+        KgReader off=new KgReader(store,disabled,()->now+1);
+        JSONObject notices=new KgExport(off).changes(cursor,100,false,off.viewer(List.of("a","b")));
+        assertTrue(notices.toString().contains("\"kind\":\"match_contribution\""));assertTrue(notices.toString().contains("\"op\":\"delete\""));
+        assertEquals(0,new Suggestions(off).page(provider,0,100,off.viewer(List.of("a")),off.viewer(List.of("a","b"))).getInt("total"));
+        assertEquals(archive,(long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation")));assertEquals(1,count());
+        store.write(WriteClass.SYSTEM,0,c->{MatchingService.invalidatePolicy(c,cfg,now+2);return null;});
+        JSONObject enabled=new KgExport(reader).changes(notices.getString("next"),100,true,reader.viewer(List.of("a","b")));
+        assertTrue(enabled.toString().contains("\"op\":\"upsert\""));assertEquals(1,page("a","b").getInt("total"));
+        long seq=store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change"));
+        store.write(WriteClass.SYSTEM,0,c->{MatchingService.invalidatePolicy(c,cfg,now+3);return null;});
+        assertEquals(seq,(long)store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change")));
+    }
     @Test public void genericSapDoesNotConfirmSpecificStack()throws Exception {offer("SAP S/4HANA Beratung");signal("SAP Kenntnisse erforderlich.","job");run();assertEquals(0,count());}
     @Test public void customerProjectsCannotBecomeOwnUse()throws Exception {offer("Salesforce Integration");signal("Sie arbeiten mit Salesforce in Kundenprojekten.","job");run();assertEquals(0,count());}
     @Test public void competenceIsWeakAndCompanyRoleUnknownIsVisible()throws Exception {

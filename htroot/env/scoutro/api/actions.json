@@ -3384,7 +3384,7 @@
     },
     {
       "name": "kg.changes",
-      "description": "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100). 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
+      "description": "Coalesced changes after the cursor: upsert, redirect, and delete also for objects that left the viewer's collections (notices are never missing, but can be redundant). Without a cursor the feed starts at its beginning while nothing was removed by retention. expand=true adds each upsert's current record (limit at most 100). Effective matching-policy changes invalidate contribution feed records at KG reopen even when calculation is paused or disabled; read eligibility selects delete/upsert under current grants. Unchanged policy is silent. 400 invalid_cursor for a malformed cursor or one ahead of the feed; 410 epoch_changed after a reset and 410 cursor_expired when retention removed changes the cursor still needs, both with details.full_sync. Administrator only; reads stay available while growth is paused. 404 not_found for unknown objects and for objects without evidence in the requested collection; 409 kg_disabled while scoutro.kg.enabled=false; 503 kg_unavailable when the graph cannot run. Unknown parameters return 400.",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -17033,7 +17033,7 @@
             "string",
             "null"
           ],
-          "description": "work_budget, provider_fact_limit or configuration_disabled (matches.max=0); none is refutation. Resume state persists; only complete unchanged provider partitions reconcile."
+          "description": "work_budget, provider_fact_limit, configuration_disabled (matches.max=0), or policy_notice_deferred (storage refuses notices; reads remain available and maintenance retries). None is refutation. Resume state persists; only complete unchanged provider partitions reconcile."
         }
       }
     },

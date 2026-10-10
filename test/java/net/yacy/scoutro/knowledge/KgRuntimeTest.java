@@ -249,6 +249,24 @@ public class KgRuntimeTest {
             again.close();
         }
     }
+    @Test
+    public void changedMatchingPolicyDefersNoticesOnCriticalDiskAndRecovers() throws Exception {
+        final KgRuntime first=runtime(KgTestSupport.enabled(),false);first.open();first.close();
+        final Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());
+        settings.put(KgConfig.MATCHES_MAX,"0");
+        final KgTestSupport.Probe probe=new KgTestSupport.Probe();probe.usable.set(100L*KgTestSupport.MIB);
+        final KgRuntime r=new KgRuntime(new KgRuntime.Env(this.tmp.getRoot(),settings::get,
+                System::currentTimeMillis,probe,KgStore.SQLITE,false));r.open();
+        try {
+            assertEquals(KgRuntime.State.RUNNING,r.state());
+            assertEquals("policy_notice_deferred",r.status().getJSONObject("derived").getJSONObject("matching").getString("deferred"));
+            probe.usable.set(100L*KgTestSupport.GIB);r.tick();
+            assertTrue(r.startRecorded());
+            JSONObject matching=r.status().getJSONObject("derived").optJSONObject("matching");
+            assertTrue(matching==null||!"policy_notice_deferred".equals(matching.optString("deferred")));
+            assertEquals(0L,(long)r.store().read(c->net.yacy.scoutro.knowledge.derive.MatchingService.policyEstimate(c,r.config())));
+        } finally { r.close(); }
+    }
 
     @Test
     public void uncleanStartHoldsGraphWritesUntilTheIntegrityCheckPasses() throws Exception {

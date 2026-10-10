@@ -260,6 +260,7 @@ public final class KgRuntime {
     private StorageGuard guard;
     private JsonLdCapturePolicy jsonld;
     private volatile KgStore store;
+    private volatile boolean matchingPolicyPending;
     private ScheduledExecutorService watchdog;
     private ScheduledExecutorService maintenance;
     private ScheduledExecutorService syncThread;
@@ -450,6 +451,12 @@ public final class KgRuntime {
             this.guard.refresh();
             this.store = KgStore.open(this.paths, this.config, this.guard, this.env.connections, this.env.clock);
             markStarted();
+            this.matchingPolicyPending=true;
+            try { invalidateMatchingPolicy(); }
+            catch(KgException e) {
+                if(!KgException.WRITE_REFUSED.equals(e.code())&&!KgException.STORAGE_FULL.equals(e.code())&&!KgException.STORAGE_ERROR.equals(e.code()))throw e;
+                LOG.warn("knowledge graph matching-policy notices deferred; reads remain available: "+e.code());
+            }
             this.guard.refresh();
             this.lastMeasure = this.env.clock.getAsLong();
             final String[] backupMeta = this.store.read(c -> new String[] {KgStore.getMeta(c, KgSchema.META_LAST_BACKUP_AT),
@@ -575,6 +582,14 @@ public final class KgRuntime {
             this.startRecorded = false;
             LOG.warn("knowledge graph started read-only: the start could not be recorded (" + e.reason() + "); retrying");
         }
+    }
+
+    private void invalidateMatchingPolicy() throws KgException {
+        long estimate=this.store.read(c->net.yacy.scoutro.knowledge.derive.MatchingService.policyEstimate(c,this.config));
+        if(estimate>0)this.store.write(WriteClass.SYSTEM,estimate,c->{
+            net.yacy.scoutro.knowledge.derive.MatchingService.invalidatePolicy(c,this.config,this.env.clock.getAsLong());return null;
+        });
+        this.matchingPolicyPending=false;
     }
 
     private void recordStart() throws KgException {
@@ -779,6 +794,10 @@ public final class KgRuntime {
                 } catch (final KgException e) {
                     // kept in memory, retried
                 }
+            }
+            if(this.matchingPolicyPending) {
+                try { invalidateMatchingPolicy(); }
+                catch(KgException e) { /* The status exposes this backlog; keep reads and storage recovery running. */ }
             }
             if (beginIntegrityCheck()) {
                 runIntegrityCheck(s);
@@ -1307,6 +1326,11 @@ public final class KgRuntime {
             JSONObject matching=dr==null?null:dr.matching;
             if(matching==null)try {matching=s.read(c->net.yacy.scoutro.knowledge.extract.Values.json(KgStore.getMeta(c,"matching_last")));}
             catch(KgException ignored) { /* Other status fields remain available during a refused read. */ }
+            if(this.matchingPolicyPending) {
+                matching=matching==null?KgJson.obj("version",net.yacy.scoutro.knowledge.derive.MatchingRules.VERSION,"checked",0,
+                        "completed_partitions",0,"cycle_complete",false):net.yacy.scoutro.knowledge.extract.Values.json(matching.toString());
+                KgJson.put(matching,"deferred","policy_notice_deferred");
+            }
             KgJson.put(o, "derived", KgJson.obj("enabled", this.config.derivedEnabled, "intervalMinutes",
                     this.config.derivedIntervalMillis / 60_000L, "lastRun", dv == null || dv.lastRun() == 0L ? null : dv.lastRun(),
                     "last", dr == null ? null : dr.json(), "matching", matching));
