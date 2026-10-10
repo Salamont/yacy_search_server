@@ -209,6 +209,8 @@ public final class KgConfig {
     public final int llmMaxDocsPerHost;
     /** {@link #LLM_STRUCTURED_OUTPUT}; transport only, no part of the extractor identity or of the selection. */
     public final String llmStructuredOutput;
+    /** Independently replaceable timing policy; deliberately absent from all extraction/selection identities. */
+    public volatile net.yacy.scoutro.knowledge.sync.LlmSchedule llmSchedule;
     public final int extractMaxInputChars;
     public final int cacheMaxPercent;
     /** Backups kept in {@code backup/} (at least one); scheduled backups every {@link #backupIntervalMillis}, 0 = only on request. */
@@ -315,6 +317,7 @@ public final class KgConfig {
         this.llmBreakerMaxBackoffMillis = 60_000L * p.longValue(LLM_BREAKER_MAX_BACKOFF_MINUTES, 60, 5, 1440);
         this.llmMaxDocsPerHost = (int) p.longValue(LLM_MAX_DOCS_PER_HOST, 25, 1, 10_000);
         this.llmStructuredOutput = p.choice(LLM_STRUCTURED_OUTPUT, "auto", List.of("auto", "json_schema", "json_object", "none"));
+        this.llmSchedule=net.yacy.scoutro.knowledge.sync.LlmSchedule.read(p.lookup.apply(net.yacy.scoutro.knowledge.sync.LlmSchedule.KEY));
         this.extractMaxInputChars = (int) p.longValue(EXTRACT_MAX_INPUT_CHARS, 12_000, 1_000, 100_000);
         this.cacheMaxPercent = (int) p.longValue(CACHE_MAX_PERCENT, 20, 0, 50);
         this.backupKeep = (int) p.longValue(BACKUP_KEEP, 1, 1, 20);
@@ -711,7 +714,7 @@ public final class KgConfig {
         }
         return KgJson.obj("valid", valid(), "errors", errors, "collections", colls, "inactiveCollections",
                 new JSONArray(this.inactiveCollections), "llmCollections", llm, "jobsCollections", jobs,
-                "llmIgnoredCollections", new JSONArray(this.llmIgnored), "llmKinds", kinds,
+                "llmSchedule",this.llmSchedule.json(),"llmIgnoredCollections", new JSONArray(this.llmIgnored), "llmKinds", kinds,
                 "chat", KgJson.obj("enabled", this.chatEnabled, "allowGuests", this.chatAllowGuests, "maxFacts", this.chatMaxFacts,
                         "maxChars", this.chatMaxChars, "timeoutMs", this.chatTimeoutMillis));
     }

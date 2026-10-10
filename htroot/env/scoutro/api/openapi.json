@@ -9382,6 +9382,277 @@
         ]
       }
     },
+    "/v1/kg/llm-schedule": {
+      "get": {
+        "operationId": "kg.llm.schedule",
+        "summary": "Read global LLM timing",
+        "description": "Administrator only; no query parameters. Global LLM start scheduling only; crawling, indexing and base tiers continue. Full-plan validation before one configuration-key write (scoutro.kg.llm.schedule); hot apply without KG reopen or re-extraction. Default automatic/0 spacing preserves existing policy. Every transport start rechecks safety, time and shared spacing. Inflight requests finish; unfinished chunks are retained independently of optional cache. No missed-window catch-up. Invalid persisted plans close only LLM admission.",
+        "tags": [
+          "knowledge"
+        ],
+        "responses": {
+          "200": {
+            "description": "Timing plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgLlmScheduleResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false
+      },
+      "put": {
+        "operationId": "kg.llm.schedule.change",
+        "summary": "Replace global LLM timing",
+        "description": "Administrator only; same-site JSON body; no query parameters. No arbitrary configuration writes. Global LLM start scheduling only; crawling, indexing and base tiers continue. Full-plan validation before one configuration-key write (scoutro.kg.llm.schedule); hot apply without KG reopen or re-extraction. Default automatic/0 spacing preserves existing policy. Every transport start rechecks safety, time and shared spacing. Inflight requests finish; unfinished chunks are retained independently of optional cache. No missed-window catch-up. Invalid persisted plans close only LLM admission.",
+        "tags": [
+          "knowledge"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KgLlmSchedule"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validated saved plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgLlmScheduleResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "403": {
+            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/kg/llm-run": {
+      "post": {
+        "operationId": "kg.llm.run",
+        "summary": "Start or stop a bounded manual LLM run",
+        "description": "Administrator only; no query parameters. Defaults: 25 distinct examined documents, 100 actual request starts, at most one hour; upper bounds 100/1000. Overrides the temporal window only, never manual KG pause, collection eligibility, resources/integrity/breaker or request spacing. Done pages are not reevaluated; failed pages require existing llm_retry. Stop finishes current requests and retains unfinished results. Runs are not resumed after restart. 409 operation_running if active, llm_unavailable without a selected model/tier.",
+        "tags": [
+          "knowledge"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KgLlmRun"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "KG status with manual run.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+          },
+          "403": {
+            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true
+      }
+    },
     "/agent/v1/kg/backups": {
       "get": {
         "operationId": "agent.kg.backups",
@@ -17509,6 +17780,9 @@
                   }
                 },
                 "description": "Facility kinds the LLM tier may assign per collection: the start vocabulary or scoutro.kg.llm.kinds.<collection>."
+              },
+              "llmSchedule": {
+                "$ref": "#/components/schemas/KgLlmSchedule"
               }
             }
           },
@@ -18338,7 +18612,14 @@
               "processed": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Counters: calls, callFailures, timeouts, averageCallMillis, answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored."
+                "description": "Counters: calls, callFailures, timeouts, averageCallMillis, answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored.",
+                "properties": {
+                  "requestStarts": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Actual HTTP starts including format fallbacks. Existing calls retains logical-call semantics; cache hits consume neither."
+                  }
+                }
               },
               "prompt": {
                 "type": "object",
@@ -18520,6 +18801,13 @@
                   "string",
                   "null"
                 ]
+              },
+              "timing": {
+                "$ref": "#/components/schemas/KgLlmTiming"
+              },
+              "pendingResultCheckpoints": {
+                "type": "integer",
+                "minimum": 0
               }
             }
           },
@@ -27844,6 +28132,264 @@
             "description": "work_budget, provider_fact_limit, configuration_disabled (matches.max=0), or policy_notice_deferred (storage refuses notices; reads remain available and maintenance retries). None is refutation. Resume state persists; only complete unchanged provider partitions reconcile."
           }
         }
+      },
+      "KgLlmSchedule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mode",
+          "days",
+          "from",
+          "until",
+          "zone",
+          "minStartSeconds"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "automatic",
+              "scheduled",
+              "manual"
+            ],
+            "default": "automatic"
+          },
+          "days": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 7,
+            "uniqueItems": true,
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 7
+            },
+            "description": "ISO weekdays of the window start; overnight/equal windows belong to this day."
+          },
+          "from": {
+            "type": "string",
+            "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "until": {
+            "type": "string",
+            "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+            "description": "Exclusive end; equal start/end is a 24-hour window."
+          },
+          "zone": {
+            "type": "string",
+            "examples": [
+              "Europe/Berlin",
+              "UTC"
+            ],
+            "description": "Explicit installed named ZoneId. Nonexistent DST times have no starts; both repeated times are eligible."
+          },
+          "minStartSeconds": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400,
+            "default": 0,
+            "description": "Shared between both workers and actual format-fallback HTTP starts; cache hits do not consume it."
+          }
+        }
+      },
+      "KgLlmScheduleResult": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/KgLlmSchedule"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "validationError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "applied": {
+            "type": "boolean"
+          },
+          "reopened": {
+            "type": "boolean",
+            "const": false
+          }
+        }
+      },
+      "KgLlmManual": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_running",
+              "running",
+              "stopping",
+              "stopped",
+              "expired",
+              "request_limit",
+              "document_limit",
+              "completed"
+            ]
+          },
+          "startedAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "expiresAt": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "maxDocuments": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxRequests": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "documents": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "unfinishedDocuments": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "requestStarts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "runningRequests": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "KgLlmTiming": {
+        "type": "object",
+        "properties": {
+          "plan": {
+            "$ref": "#/components/schemas/KgLlmSchedule"
+          },
+          "valid": {
+            "type": "boolean"
+          },
+          "validationError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "windowOpen": {
+            "type": "boolean"
+          },
+          "nextAllowedStart": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Epoch milliseconds, earliest temporal admission with spacing; not a resource or completion guarantee. null in manual-only mode without active override."
+          },
+          "lastActualStart": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "waitReason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Actual protection/window/spacing/empty-backlog reason, separately from running requests."
+          },
+          "runningRequests": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "manual": {
+            "$ref": "#/components/schemas/KgLlmManual"
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "KgLlmRun": {
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "start",
+              "stop"
+            ]
+          },
+          "maxDocuments": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 25
+          },
+          "maxRequests": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000,
+            "default": 100
+          }
+        },
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "const": "start"
+              },
+              "maxDocuments": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100,
+                "default": 25
+              },
+              "maxRequests": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "default": 100
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action"
+            ],
+            "properties": {
+              "action": {
+                "const": "stop"
+              }
+            }
+          }
+        ]
       },
       "DiscoveryJob": {
         "type": "object",

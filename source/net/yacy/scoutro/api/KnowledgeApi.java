@@ -66,22 +66,38 @@ final class KnowledgeApi {
 
     private final Supplier<KgRuntime> runtime;
     private final Supplier<KgCollectionSettings> settings;
+    private final Supplier<KgLlmSettings> llmSettings;
 
     KnowledgeApi(final Supplier<KgRuntime> runtime) {
         this(runtime, KgCollectionSettings::current);
     }
 
     KnowledgeApi(final Supplier<KgRuntime> runtime, final Supplier<KgCollectionSettings> settings) {
+        this(runtime, settings, KgLlmSettings::current);
+    }
+
+    KnowledgeApi(
+            final Supplier<KgRuntime> runtime,
+            final Supplier<KgCollectionSettings> settings,
+            final Supplier<KgLlmSettings> llmSettings) {
         this.runtime = runtime;
         this.settings = settings;
+        this.llmSettings = llmSettings;
     }
 
     JSONObject route(final String method, final String[] parts, final Body body) throws ApiException, IOException {
         return route(method, parts, java.util.Collections.emptyMap(), body);
     }
 
-    /** Status, control and (package 3) the read routes, for the administrator; {@code collection} filters the reads. */
-    JSONObject route(final String method, final String[] parts, final java.util.Map<String, String> query, final Body body)
+    /**
+     * Status, control and (package 3) the read routes, for the administrator; {@code collection}
+     * filters the reads.
+     */
+    JSONObject route(
+            final String method,
+            final String[] parts,
+            final java.util.Map<String, String> query,
+            final Body body)
             throws ApiException, IOException {
         if (parts.length >= 5 && KnowledgeRead.handles(parts[3])
                 || parts.length == 4 && KnowledgeRead.single(parts[3])) {
@@ -95,6 +111,18 @@ final class KnowledgeApi {
             throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
         switch (parts[3]) {
+            case "llm-schedule":
+                if (!"GET".equals(method)) allow(method, "PUT");
+                noParameters(query);
+                final KgLlmSettings ls = this.llmSettings.get();
+                if (ls == null)
+                    throw new ApiException(
+                            503, "settings_unavailable", "The settings cannot be read.");
+                return "GET".equals(method) ? ls.read() : ls.update(body.get());
+            case "llm-run":
+                allow(method, "POST");
+                noParameters(query);
+                return llmRun(body.get());
             case "status":
                 allow(method, "GET");
                 return status();
@@ -117,8 +145,43 @@ final class KnowledgeApi {
                 allow(method, "POST");
                 return prompt(body.get());
             default:
-                throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+                throw new ApiException(
+                        404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
+    }
+
+    private static void noParameters(java.util.Map<String, String> query) throws ApiException {
+        if (!query.isEmpty())
+            throw ApiException.invalid(
+                    query.keySet().iterator().next(), "This global route takes no parameters.");
+    }
+
+    private JSONObject llmRun(JSONObject body) throws ApiException {
+        final String action = body.optString("action", "");
+        if (!java.util.Set.of("start", "stop").contains(action))
+            throw ApiException.invalid("action", "start or stop required.");
+        for (Iterator<?> keys = body.keys(); keys.hasNext(); ) {
+            String key = String.valueOf(keys.next());
+            if (!("action".equals(key)
+                    || "start".equals(action)
+                            && java.util.Set.of("maxDocuments", "maxRequests").contains(key)))
+                throw ApiException.invalid(key, "Unknown manual-run field.");
+        }
+        int documents = net.yacy.scoutro.knowledge.sync.LlmTiming.DEFAULT_DOCUMENTS,
+                starts = net.yacy.scoutro.knowledge.sync.LlmTiming.DEFAULT_REQUESTS;
+        try {
+            if (body.has("maxDocuments"))
+                documents =
+                        net.yacy.scoutro.knowledge.sync.LlmSchedule.integer(
+                                body.opt("maxDocuments"), "maxDocuments", 1, 100);
+            if (body.has("maxRequests"))
+                starts =
+                        net.yacy.scoutro.knowledge.sync.LlmSchedule.integer(
+                                body.opt("maxRequests"), "maxRequests", 1, 1000);
+        }catch(IllegalArgumentException e){throw ApiException.invalid("limits",e.getMessage());}
+        KgRuntime r=this.runtime.get();
+        if (r == null) throw toApi(new KgException(KgException.DISABLED, "not started"));
+        try{return "start".equals(action)?r.llmManualRun(documents,starts):r.llmManualStop();}catch(KgException e){throw toApi(e);}
     }
 
     /** The settings of each collection (package 6.2): GET the list, PATCH one collection. */
@@ -285,7 +348,10 @@ final class KnowledgeApi {
             if (body.has("expectedRevision")) {
                 final Object r = body.opt("expectedRevision");
                 if (!(r instanceof Integer) || (Integer) r < 0) {
-                    throw ApiException.invalid("expectedRevision", "Field 'expectedRevision' must be the activeVersion read before (an integer >= 0).");
+                    throw ApiException.invalid(
+                            "expectedRevision",
+                            "Field 'expectedRevision' must be the activeVersion read before (an"
+                                + " integer >= 0).");
                 }
                 expected = (Integer) r;
             }
@@ -375,7 +441,11 @@ final class KnowledgeApi {
     static ApiException toApi(final KgException e, final String fullSync) {
         switch (e.code()) {
             case KgException.OPERATION_RUNNING:
-                return new ApiException(409, KgException.OPERATION_RUNNING, "A backup, restore or rebuild is running; see GET /scoutro/api/v1/kg/status.",
+                return new ApiException(
+                        409,
+                        KgException.OPERATION_RUNNING,
+                        "A backup, restore or rebuild is running; see GET"
+                            + " /scoutro/api/v1/kg/status.",
                         Json.obj("reason", e.reason() == null ? "running" : e.reason()));
             case KgException.BACKUP_NOT_FOUND:
                 return new ApiException(404, KgException.BACKUP_NOT_FOUND, "No such backup; see GET /scoutro/api/v1/kg/backups.");
@@ -388,8 +458,14 @@ final class KnowledgeApi {
             case KgException.BACKUP_DELETE_FAILED:
                 return new ApiException(503, KgException.BACKUP_DELETE_FAILED, "The backup could not be deleted: " + e.getMessage() + ".");
             case KgException.PROMPT_INVALID:
-                return new ApiException(422, KgException.PROMPT_INVALID, "The prompt cannot be activated (" + e.reason()
-                        + "); POST {\"action\":\"validate\"} names the rule. Nothing was changed.", Json.obj("reason", e.reason()));
+                return new ApiException(
+                        422,
+                        KgException.PROMPT_INVALID,
+                        "The prompt cannot be activated ("
+                                + e.reason()
+                                + "); POST {\"action\":\"validate\"} names the rule. Nothing was"
+                                + " changed.",
+                        Json.obj("reason", e.reason()));
             case KgException.PROMPT_REVISION_CONFLICT:
                 return new ApiException(409, KgException.PROMPT_REVISION_CONFLICT, "The active prompt changed in the meantime; read"
                         + " GET /scoutro/api/v1/kg/prompt again. Nothing was changed.", Json.obj("activeVersion", Integer.parseInt(e.reason())));
@@ -411,8 +487,11 @@ final class KnowledgeApi {
                 return new ApiException(503, KgException.UNAVAILABLE, "The knowledge graph is not running.",
                         Json.obj("reason", e.reason()));
             case KgException.NOTHING_TO_CONFIRM:
-                return new ApiException(409, KgException.NOTHING_TO_CONFIRM,
-                        "No reconcile is waiting for confirmation; see sync.reconcile in GET /scoutro/api/v1/kg/status.");
+                return new ApiException(
+                        409,
+                        KgException.NOTHING_TO_CONFIRM,
+                        "No reconcile is waiting for confirmation; see sync.reconcile in GET"
+                            + " /scoutro/api/v1/kg/status.");
             case KgException.SYNC_UNAVAILABLE:
                 return new ApiException(503, KgException.SYNC_UNAVAILABLE,
                         "The knowledge graph does not follow the embedded Solr index here.");
@@ -423,8 +502,11 @@ final class KnowledgeApi {
                 return new ApiException(409, KgException.DERIVED_UNAVAILABLE,
                         "The derived layer is off: set " + KgConfig.DERIVED_ENABLED + "=true; it needs the embedded Solr synchronisation.");
             case KgException.WRITE_REFUSED:
-                return new ApiException(503, "kg_write_refused",
-                        "The knowledge graph cannot write right now; see GET /scoutro/api/v1/kg/status.",
+                return new ApiException(
+                        503,
+                        "kg_write_refused",
+                        "The knowledge graph cannot write right now; see GET"
+                            + " /scoutro/api/v1/kg/status.",
                         Json.obj("reason", e.reason()));
             default:
                 return new ApiException(503, KgException.UNAVAILABLE, "The knowledge graph store failed.",

@@ -222,8 +222,8 @@
         + (so.api ? ' · ' + t('so_api_' + so.api) : '') : null],
       ['so_requests', so?.requests ? t('so_requests_value').replace('%1', fmt(so.requests.json_schema)).replace('%2', fmt(so.requests.json_object))
         .replace('%3', fmt(so.requests.none)).replace('%4', fmt(so.rejections)) : null],
-      ['queue', l.queue?.items],
-      ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', lp.calls],
+      ...timingRows(l.timing), ['queue', l.queue?.items],
+      ['done', l.documents?.done], ['failed', l.documents?.failed], ['skipped', l.documents?.skipped], ['calls', lp.calls], ['schedule_started', lp.requestStarts],
       ['llm_accepted', lp.entitiesAccepted == null ? null : [lp.entitiesAccepted, lp.claimsAccepted, lp.valuesAccepted].map(fmt).join(' · ')],
       ['dropped', lp.droppedUngrounded], ['dropped_invalid', lp.droppedInvalid], ['breaker', l.breaker ? t(l.breaker.open ? 'open' : 'closed') : null]]);
     invalidReasonsInto(lp.droppedInvalidByReason);
@@ -1558,6 +1558,12 @@
     const run = ++generation; message(t('loading'));
     const s = await fetch(ROOT + 'status', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.json());
     if (run !== generation) return;
+    const sr = await fetch(ROOT + 'llm-schedule', { credentials: 'same-origin', cache: 'no-store' });
+    const saved = await sr.json(); if (run !== generation) return;
+    if (!sr.ok) throw new Error(t('error') + ' (HTTP ' + sr.status + ')');
+    s.llm ||= {}; s.llm.timing ||= {};
+    Object.assign(s.llm.timing, { plan: saved.plan, valid: saved.valid, validationError: saved.validationError });
+    renderTiming(s);
     const c = s.config || {};
     const kinds = Object.entries(c.llmKinds || {}).map(([k, v]) => k + ': ' + (v.length ? v.join(', ') : t('none'))).join('\n');
     stats('config', [['enabled', t(s.enabled ? 'yes' : 'no')], ['valid', c.valid == null ? null : t(c.valid ? 'yes' : 'no')],
@@ -1579,6 +1585,62 @@
     }
     message(s.enabled ? '' : t('disabled'));
   }
+
+  function timingRows(time) {
+    if (!time) return [];
+    const p = time.plan || {}, m = time.manual || {};
+    const reason = time.waitReason;
+    return [['valid', time.valid == null ? null : t(time.valid ? 'yes' : 'no')], ['problem', time.validationError ? t('schedule_reason_' + time.validationError) : null], ['schedule_mode', t('schedule_' + p.mode)], ['schedule_days', (p.days || []).map(d => t('schedule_' + ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][d - 1])).join(', ')],
+      ['schedule_from', p.from], ['schedule_until', p.until], ['schedule_zone', p.zone], ['schedule_gap', p.minStartSeconds],
+      ['schedule_open', t(time.windowOpen ? 'yes' : 'no')], ['schedule_next', time.nextAllowedStart == null ? t('none') : date(time.nextAllowedStart)],
+      ['schedule_wait', reason ? t('schedule_reason_' + reason) : t('none')], ['schedule_running', time.runningRequests],
+      ['schedule_run', t('schedule_run_' + (m.state || 'not_running')) + ' · ' + fmt(m.documents || 0) + '/' + fmt(m.maxDocuments || 0) + ' · ' + fmt(m.requestStarts || 0) + '/' + fmt(m.maxRequests || 0)]];
+  }
+  function renderTiming(s) {
+    if (!$('schedule-form')) return;
+    const time = s.llm?.timing || { plan: s.config?.llmSchedule || { mode: 'automatic', days: [1, 2, 3, 4, 5, 6, 7], from: '00:00', until: '00:00', zone: 'UTC', minStartSeconds: 0 } };
+    const p = time.plan;
+    for (const [key, value] of [['mode', p.mode], ['from', p.from], ['until', p.until], ['zone', p.zone], ['gap', p.minStartSeconds]]) $('schedule-' + key).value = value;
+    const days = $('schedule-days'); while (days.lastChild && days.lastChild.tagName !== 'LEGEND') days.lastChild.remove();
+    ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].forEach((key, i) => {
+      const label = node('label'), input = node('input'); input.type = 'checkbox'; input.value = i + 1; input.checked = p.days.includes(i + 1);
+      label.append(input, ' ', t('schedule_' + key), ' '); days.append(label);
+    });
+    stats('schedule-status', timingRows(time));
+    const active = ['running', 'stopping'].includes(time.manual?.state) || (time.manual?.runningRequests || 0) > 0;
+    $('schedule-now').disabled = active || s.state !== 'running' || !s.llm?.model || !s.llm?.enabled;
+    $('schedule-stop').disabled = !active;
+  }
+  async function timingChange(path, body, method) {
+    const r = await fetch(ROOT + path, { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const result = await r.json();
+    if (!r.ok) throw new Error(t('error') + ' (HTTP ' + r.status + ', ' + (result.error?.code || 'error') + ', ' + (result.error?.message || '') + ')');
+    await settings(); $('schedule-message').textContent = path === 'llm-schedule' ? t('schedule_saved') : '';
+  }
+  // Poll runtime status without overwriting unsaved form edits.
+  setInterval(async () => {
+    if (view !== 'settings' || document.hidden || !$('schedule-status')) return;
+    const run = generation;
+    try {
+      const r = await fetch(ROOT + 'status', { credentials: 'same-origin', cache: 'no-store' });
+      if (!r.ok) return;
+      const s = await r.json(); if (run !== generation || view !== 'settings') return;
+      stats('schedule-status', timingRows(s.llm?.timing));
+      const m = s.llm?.timing?.manual, active = ['running', 'stopping'].includes(m?.state) || (m?.runningRequests || 0) > 0;
+      $('schedule-now').disabled = active || s.state !== 'running' || !s.llm?.model || !s.llm?.enabled;
+      $('schedule-stop').disabled = !active;
+    } catch (_) { /* next refresh retries; no automatic mutating request */ }
+  }, 3000);
+  $('schedule-form')?.addEventListener('submit', event => {
+    event.preventDefault();
+    guarded(() => timingChange('llm-schedule', { mode: $('schedule-mode').value, days: [...$('schedule-days').querySelectorAll('input:checked')].map(i => Number(i.value)),
+      from: $('schedule-from').value, until: $('schedule-until').value, zone: $('schedule-zone').value, minStartSeconds: Number($('schedule-gap').value) }, 'PUT'));
+  });
+  $('schedule-now')?.addEventListener('click', () => {
+    if (!$('schedule-docs').reportValidity() || !$('schedule-requests').reportValidity()) return;
+    guarded(() => timingChange('llm-run', { action: 'start', maxDocuments: Number($('schedule-docs').value), maxRequests: Number($('schedule-requests').value) }, 'POST'));
+  });
+  $('schedule-stop')?.addEventListener('click', () => guarded(() => timingChange('llm-run', { action: 'stop' }, 'POST')));
 
   // The knowledge graph settings of each collection (package 6.2): on or off (off keeps its graph data), and its vocabulary.
   async function kgCollections(run) {

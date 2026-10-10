@@ -103,6 +103,7 @@ public final class LlmService {
      */
     static final class Counters {
         final AtomicLong calls = new AtomicLong();
+        final AtomicLong requestStarts = new AtomicLong();
         final AtomicLong callFailures = new AtomicLong();
         final AtomicLong timeouts = new AtomicLong();
         final AtomicLong callMillis = new AtomicLong();
@@ -169,18 +170,59 @@ public final class LlmService {
                 }
             }
             final long n = this.calls.get();
-            return KgJson.obj("calls", n, "callFailures", this.callFailures.get(), "timeouts", this.timeouts.get(),
-                    "averageCallMillis", n == 0 ? null : this.callMillis.get() / n,
-                    "answersAccepted", this.answersAccepted.get(), "answersRefused", this.answersRefused.get(), "refusedBy", by,
-                    "entitiesAccepted", this.entities.get(), "claimsAccepted", this.claims.get(), "valuesAccepted", this.values.get(),
-                    "droppedUngrounded", this.droppedUngrounded.get(), "droppedInvalid", invalid,
-                    "droppedInvalidByReason", invalidBy,
-                    "cacheHits", this.cacheHits.get(), "cacheMisses", this.cacheMisses.get(),
-                    "cacheWritesRefused", this.cacheWritesRefused.get(), "published", this.published.get(),
-                    "statements", this.statements.get(), "abortedChanged", this.changedAborts.get(),
-                    "failedDocs", this.failedDocs.get(), "skippedNotCandidate", this.skippedNotCandidate.get(),
-                    "skippedNotSelected", this.skippedNotSelected.get(), "skippedHostCap", this.skippedHostCap.get(),
-                    "queued", this.queued.get(), "growthRefused", this.growthRefused.get());
+            return KgJson.obj(
+                    "calls",
+                    n,
+                    "requestStarts",
+                    this.requestStarts.get(),
+                    "callFailures",
+                    this.callFailures.get(),
+                    "timeouts",
+                    this.timeouts.get(),
+                    "averageCallMillis",
+                    n == 0 ? null : this.callMillis.get() / n,
+                    "answersAccepted",
+                    this.answersAccepted.get(),
+                    "answersRefused",
+                    this.answersRefused.get(),
+                    "refusedBy",
+                    by,
+                    "entitiesAccepted",
+                    this.entities.get(),
+                    "claimsAccepted",
+                    this.claims.get(),
+                    "valuesAccepted",
+                    this.values.get(),
+                    "droppedUngrounded",
+                    this.droppedUngrounded.get(),
+                    "droppedInvalid",
+                    invalid,
+                    "droppedInvalidByReason",
+                    invalidBy,
+                    "cacheHits",
+                    this.cacheHits.get(),
+                    "cacheMisses",
+                    this.cacheMisses.get(),
+                    "cacheWritesRefused",
+                    this.cacheWritesRefused.get(),
+                    "published",
+                    this.published.get(),
+                    "statements",
+                    this.statements.get(),
+                    "abortedChanged",
+                    this.changedAborts.get(),
+                    "failedDocs",
+                    this.failedDocs.get(),
+                    "skippedNotCandidate",
+                    this.skippedNotCandidate.get(),
+                    "skippedNotSelected",
+                    this.skippedNotSelected.get(),
+                    "skippedHostCap",
+                    this.skippedHostCap.get(),
+                    "queued",
+                    this.queued.get(),
+                    "growthRefused",
+                    this.growthRefused.get());
         }
     }
 
@@ -191,6 +233,16 @@ public final class LlmService {
     private final LlmClient client;
     private final LongSupplier clock;
     private final LlmBreaker breaker;
+    private final LlmTiming timing;
+    private static final String LAST_START="llm_last_actual_start";
+    private final Map<String,PendingProgress> pendingProgress=new ConcurrentHashMap<>();
+    private final Object progressLock=new Object();
+    private volatile long pendingDocuments;
+    private volatile long pruneAt;
+    private static final class PendingProgress {
+        LlmQueue.Item item;LlmProgress progress;
+        PendingProgress(LlmQueue.Item item,LlmProgress progress){this.item=item;this.progress=progress;}
+    }
     private final BaseTiers tiers;
     private final Terms terms = new Terms();
     private final Publisher publisher;
@@ -226,6 +278,7 @@ public final class LlmService {
         this.client = client;
         this.clock = clock;
         this.breaker = new LlmBreaker(cfg.llmBreakerFailures, cfg.llmBreakerMaxBackoffMillis, clock);
+        this.timing=new LlmTiming(cfg.llmSchedule,clock);
         this.tiers = new BaseTiers(cfg);
         this.publisher = new Publisher(cfg, this.terms);
     }
@@ -236,6 +289,7 @@ public final class LlmService {
 
     /** New input to look at (the sync published a document of an LLM collection): the next step scans at once. */
     public void wake() {
+        this.countsAt=0L;
         synchronized (this.scanLock) {
             this.scanPausedUntil = 0L;
         }
@@ -248,25 +302,41 @@ public final class LlmService {
      * Start-up work: the vocabulary, claims of the last run, and documents a
      * changed selection (LLM collections, per-host cap) must look at again.
      */
-    private void init() throws KgException {
+    private synchronized void init() throws KgException {
+        if(this.initialized)return;
         final String key = this.cfg.llmSelectionKey();
-        this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
-            this.terms.seed(tx);
-            LlmQueue.resetClaims(tx);
-            final String last = KgStore.getMeta(tx, KgSchema.META_LLM_SELECTION);
-            if (last != null && !last.equals(key)) {
-                final int n = LlmQueue.reopen(tx, LlmQueue.STATUS_SKIPPED);
-                if (n > 0) {
-                    KgStore.event(tx, 1, "llm_selection_changed", n + " skipped documents are examined again", this.clock.getAsLong());
-                }
-            }
-            KgStore.putMeta(tx, KgSchema.META_LLM_SELECTION, key);
-            this.prompt = KnowledgePrompt.fromMeta(KgStore.getMeta(tx, KnowledgePrompt.META_ACTIVE));
-            if (KgStore.getMeta(tx, KgSchema.META_UPGRADE_HOLD) == null) {
-                reexamineIfChanged(tx);
-            } // an upgrade without its copy: the documents are examined again once the hold is released
-            return null;
-        });
+        this.store.write(
+                WriteClass.MAINTENANCE,
+                SMALL,
+                tx -> {
+                    this.terms.seed(tx);
+                    LlmQueue.resetClaims(tx);
+                    LlmProgress.prune(tx);
+                    String lastStart = KgStore.getMeta(tx, LAST_START);
+                    if (lastStart != null) this.timing.restoreLastStart(Long.valueOf(lastStart));
+                    final String last = KgStore.getMeta(tx, KgSchema.META_LLM_SELECTION);
+                    if (last != null && !last.equals(key)) {
+                        final int n = LlmQueue.reopen(tx, LlmQueue.STATUS_SKIPPED);
+                        if (n > 0) {
+                            KgStore.event(
+                                    tx,
+                                    1,
+                                    "llm_selection_changed",
+                                    n + " skipped documents are examined again",
+                                    this.clock.getAsLong());
+                        }
+                    }
+                    KgStore.putMeta(tx, KgSchema.META_LLM_SELECTION, key);
+                    this.prompt =
+                            KnowledgePrompt.fromMeta(
+                                    KgStore.getMeta(tx, KnowledgePrompt.META_ACTIVE));
+                    if (KgStore.getMeta(tx, KgSchema.META_UPGRADE_HOLD) == null) {
+                        reexamineIfChanged(tx);
+                    } // an upgrade without its copy: the documents are examined again once the hold
+                      // is released
+                    return null;
+                });
+        this.pruneAt=this.clock.getAsLong()+60_000L;
         this.initialized = true;
     }
 
@@ -363,16 +433,38 @@ public final class LlmService {
                 // the manual pause (or the budget, disk or integrity): no queue fill, no claim, no model call
                 return idle("paused", growth, GATE_MILLIS);
             }
+            if(now>=this.pruneAt){
+                this.pruneAt=now+60_000L;
+                this.store.write(WriteClass.MAINTENANCE,SMALL,tx->{LlmProgress.prune(tx);return null;});
+            }
+            if(!flushProgress())return idle("waiting","checkpoint_storage",GATE_MILLIS);
+            final String temporal=this.timing.workReason();
+            if (temporal != null)
+                return idle(
+                        "waiting",
+                        this.pendingDocuments == 0 && this.queueSize == 0
+                                ? "backlog_empty"
+                                : temporal,
+                        500L);
             scan(now);
-            final LlmQueue.Item item = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> LlmQueue.claim(tx, now));
+            final Set<String> only=this.timing.claimOnly();
+            final LlmQueue.Item item = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> LlmQueue.claim(tx, now,only));
             if (item == null) {
+                this.countsAt=0;refreshCounts(this.clock.getAsLong());
+                this.timing.empty(this.queueClaimed==0&&this.pendingDocuments==0);
                 return idle("idle", null, IDLE_MILLIS);
             }
             this.state = "running";
             this.reason = null;
-            process(item, m);
+            LlmTiming.Session session;
+            try{session=this.timing.begin(item.docId);}
+            catch(LlmTiming.Deferred e){release(item,now,false);
+                return idle("waiting", e.reason, 500L);
+            }
+            try{process(item,m,session);}
+            finally{boolean complete=this.store.read(c->!queued(c,item.docId));this.timing.finished(session,complete);}
             this.countsAt = 0L; // the status shows the document's outcome at once
-            this.lastError = null;
+            if(this.pendingProgress.isEmpty())this.lastError = null;
             return !this.stopping;
         } catch (final KgException e) {
             this.lastError = e.code() + (e.reason() == null ? "" : ": " + e.reason());
@@ -498,32 +590,37 @@ public final class LlmService {
     }
 
     private DocRow row(final String docId) throws KgException {
-        return this.store.read(c -> {
-            try (PreparedStatement ps = c.prepareStatement("SELECT d.url, d.host_id, d.input_hash, d.state, d.llm_status,"
-                    + " (SELECT group_concat(k.name, ',') FROM kg_doc_collection dc JOIN kg_collection k ON k.coll_id = dc.coll_id"
-                    + " WHERE dc.doc_rowid = d.doc_rowid) FROM kg_doc d WHERE d.doc_id = ?")) {
-                ps.setString(1, docId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) {
-                        return null;
+        return this.store.read(
+                c -> {
+                    try (PreparedStatement ps =
+                            c.prepareStatement(
+                                    "SELECT d.url, d.host_id, d.input_hash, d.state, d.llm_status,"
+                                        + " (SELECT group_concat(k.name, ',') FROM"
+                                        + " kg_doc_collection dc JOIN kg_collection k ON k.coll_id"
+                                        + " = dc.coll_id WHERE dc.doc_rowid = d.doc_rowid) FROM"
+                                        + " kg_doc d WHERE d.doc_id = ?")) {
+                        ps.setString(1, docId);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            if (!rs.next()) {
+                                return null;
+                            }
+                            final DocRow r = new DocRow();
+                            r.url = rs.getString(1);
+                            r.hostId = rs.getString(2);
+                            r.inputHash = rs.getBytes(3);
+                            r.state = rs.getInt(4);
+                            r.llmStatus = rs.getObject(5) == null ? null : rs.getInt(5);
+                            final String colls = rs.getString(6);
+                            if (colls != null && !colls.isEmpty()) {
+                                r.collections = Arrays.asList(colls.split(","));
+                            }
+                            return r;
+                        }
                     }
-                    final DocRow r = new DocRow();
-                    r.url = rs.getString(1);
-                    r.hostId = rs.getString(2);
-                    r.inputHash = rs.getBytes(3);
-                    r.state = rs.getInt(4);
-                    r.llmStatus = rs.getObject(5) == null ? null : rs.getInt(5);
-                    final String colls = rs.getString(6);
-                    if (colls != null && !colls.isEmpty()) {
-                        r.collections = Arrays.asList(colls.split(","));
-                    }
-                    return r;
-                }
-            }
-        });
+                });
     }
 
-    private void process(final LlmQueue.Item item, final String m) throws KgException {
+    private void process(final LlmQueue.Item item, final String m, final LlmTiming.Session session) throws KgException {
         final long now = this.clock.getAsLong();
         final KnowledgePrompt p = this.prompt; // one version for the whole document: text, cache key and extractor
         final DocRow row = row(item.docId);
@@ -577,39 +674,50 @@ public final class LlmService {
         final List<LlmExtractor.Chunk> chunks = LlmExtractor.chunks(text, this.cfg.extractMaxInputChars);
         final List<JSONObject> accepted = new ArrayList<>();
         final List<byte[]> keys = new ArrayList<>();
+        final Set<String> requiredKeys=new java.util.HashSet<>();
+        for(LlmExtractor.Chunk chunk:chunks)requiredKeys.add(LlmProgress.key(LlmExtractor.cacheKey(p.hash,m,chunk,title,domain,d.language,known,kinds)));
+        final LlmProgress progress;
+        try{progress=this.store.read(c->LlmProgress.load(c,item.docId,requiredKeys));}
+        catch(KgException e){
+            this.state = "waiting";
+            this.reason = "checkpoint_storage";
+            release(item,now+REFUSED_MILLIS,false);throw e;}
         for (final LlmExtractor.Chunk chunk : chunks) {
-            if (this.stopping) {
-                release(item, now, false);
-                return;
-            }
+            try {
+                if(this.stopping)throw new LlmTiming.Deferred("stopping");
+                this.timing.chunk(session);
+            }catch(LlmTiming.Deferred e){defer(item,progress,e.reason);return;}
             final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, known, kinds);
             keys.add(key);
-            final ExtractionCache.Entry cached = this.store.read(c -> ExtractionCache.get(c, key));
+            final ExtractionCache.Entry resumed=progress.get(key);
+            final ExtractionCache.Entry cached = resumed!=null?resumed:this.store.read(c -> ExtractionCache.get(c, key));
             if (cached != null) {
-                this.counters.cacheHits.incrementAndGet();
+                if(resumed==null)this.counters.cacheHits.incrementAndGet();
+                progress.put(key,cached.status,cached.value);
                 if (cached.status == ExtractionCache.STATUS_OK) {
                     accepted.add(cached.value);
                 }
                 continue;
             }
             this.counters.cacheMisses.incrementAndGet();
-            if (!this.breaker.allow()) {
-                release(item, now + GATE_MILLIS, false);
-                return;
-            }
             final String answer;
-            final long t0 = this.clock.getAsLong();
+            final java.util.concurrent.atomic.AtomicBoolean breakerLease=new java.util.concurrent.atomic.AtomicBoolean();
+            final java.util.concurrent.atomic.AtomicBoolean logicalCounted=new java.util.concurrent.atomic.AtomicBoolean();
             try {
-                this.counters.calls.incrementAndGet();
                 answer = this.client.complete(p.text,
                         LlmExtractor.userPrompt(new PromptGuard(), chunk, title, domain, d.language, known, kinds),
-                        LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis, this.cfg.llmStructuredOutput);
+                        LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis, this.cfg.llmStructuredOutput,
+                        ()->startRequest(item,row,m,session,breakerLease,logicalCounted));
+            } catch (LlmClient.Deferred e) {
+                if(breakerLease.get())this.breaker.deferred();
+                defer(item,progress,e.reason);return;
             } catch (final IOException e) {
-                this.counters.callMillis.addAndGet(Math.max(0L, this.clock.getAsLong() - t0));
+                try{checkpoint(item,progress);}catch(KgException refused){
+                    defer(item, progress, "checkpoint_storage");
+                }
                 transportFailure(item, row.inputHash, e);
                 return;
             }
-            this.counters.callMillis.addAndGet(Math.max(0L, this.clock.getAsLong() - t0));
             this.breaker.success();
             final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, known, kinds);
             final JSONObject value;
@@ -624,6 +732,10 @@ public final class LlmService {
                 status = ExtractionCache.STATUS_OK;
                 accepted.add(value);
             }
+            progress.put(key,status,value);
+            try{checkpoint(item,progress);}catch(KgException e){
+                defer(item, progress, "checkpoint_storage");
+                return;}
             cachePut(key, m, p.hash, status, value);
         }
         final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
@@ -632,11 +744,149 @@ public final class LlmService {
             LlmExtractor.apply(a, known, ex, ctx);
         }
         ex.ranTier(LlmExtractor.TIER);
-        publish(item, d, row, ex, keys, m, p.hash);
+        try {
+            publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate());
+        } finally {
+            if (this.store.read(c -> queued(c, item.docId)))
+                defer(item, progress, this.reason == null ? "publication_deferred" : this.reason);
+        }
     }
 
-    private void transportFailure(final LlmQueue.Item item, final byte[] inputHash, final IOException e) throws KgException {
-        final String why = e instanceof SocketTimeoutException ? "timeout" : e.getClass().getSimpleName();
+    /** Rechecked for every transport, including the second request after a format rejection. */
+    private LlmClient.RequestPermit startRequest(
+            LlmQueue.Item item,
+            DocRow expected,
+            String model,
+            LlmTiming.Session session,
+            java.util.concurrent.atomic.AtomicBoolean breakerLease,
+            java.util.concurrent.atomic.AtomicBoolean logicalCounted)
+            throws IOException {
+        LlmClient.RequestPermit admitted =
+                this.timing.start(
+                        session,
+                        () -> {
+                            if (this.stopping) throw new LlmTiming.Deferred("stopping");
+                            if (!this.pendingProgress.isEmpty())
+                                throw new LlmTiming.Deferred("checkpoint_storage");
+                            String gate = this.gates.closed(false);
+                            if (gate != null) throw new LlmTiming.Deferred(gate);
+                            try {
+                                String growth = this.store.growthRefusal();
+                                if (growth != null) throw new LlmTiming.Deferred(growth);
+                                if (resetInProgress()) throw new LlmTiming.Deferred("full_reset");
+                                DocRow current = row(item.docId);
+                                if (current == null
+                                        || current.state != 1
+                                        || current.llmStatus != null
+                                        || !selected(current.collections))
+                                    throw new LlmTiming.Deferred("collection_not_selected");
+                                if (!Arrays.equals(current.inputHash, expected.inputHash))
+                                    throw new LlmTiming.Deferred("input_changed");
+                                if (!model.equals(this.client.model()))
+                                    throw new LlmTiming.Deferred("model_changed");
+                                if (!breakerLease.get()) {
+                                    if (!this.breaker.allow())
+                                        throw new LlmTiming.Deferred("circuit_breaker");
+                                    breakerLease.set(true);
+                                }
+                            } catch (KgException e) {
+                                throw new LlmTiming.Deferred(
+                                        e.reason() == null ? e.code() : e.reason());
+                            }
+                        },
+                        at -> {
+                            try {
+                                this.store.write(
+                                        WriteClass.SYSTEM,
+                                        1024,
+                                        tx -> {
+                                            KgStore.putMeta(tx, LAST_START, Long.toString(at));
+                                            return null;
+                                        });
+                            } catch (KgException e) {
+                                throw new LlmTiming.Deferred(
+                                        e.reason() == null ? e.code() : e.reason());
+                            }
+                        });
+        final long started = this.clock.getAsLong();
+        this.counters.requestStarts.incrementAndGet();
+        if (!logicalCounted.getAndSet(true)) this.counters.calls.incrementAndGet();
+        return () -> {
+            this.counters.callMillis.addAndGet(Math.max(0, this.clock.getAsLong() - started));
+            admitted.close();
+        };
+    }
+
+    private void checkpoint(LlmQueue.Item item, LlmProgress progress) throws KgException {
+        if (!progress.entries.isEmpty())
+            this.store.write(
+                    WriteClass.MAINTENANCE,
+                    progress.estimate(),
+                    tx -> {
+                        if (queued(tx, item.docId)) progress.save(tx, item.docId);
+                        return null;
+                    });
+    }
+
+    private void defer(LlmQueue.Item item, LlmProgress progress, String reason) {
+        this.pendingProgress.put(item.docId, new PendingProgress(item, progress));
+        boolean saved = flushProgress();
+        this.state = "waiting";
+        this.reason = saved ? reason : "checkpoint_storage";
+        this.nextAt = this.clock.getAsLong() + 500L;
+    }
+
+    private boolean flushProgress() {
+        synchronized (this.progressLock) {
+            for (PendingProgress p : new ArrayList<>(this.pendingProgress.values())) {
+                try {
+                    this.store.write(
+                            WriteClass.MAINTENANCE,
+                            p.progress.estimate(),
+                            tx -> {
+                                // The queue may have been cleared by lifecycle work while the model
+                                // ran.
+                                if (queued(tx, p.item.docId)) {
+                                    p.progress.save(tx, p.item.docId);
+                                    LlmQueue.release(
+                                            tx, p.item.docId, this.clock.getAsLong(), false);
+                                }
+                                return null;
+                            });
+                    this.pendingProgress.remove(p.item.docId, p);
+                } catch (KgException e) {
+                    this.lastError = e.code();
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    public void updateSchedule(LlmSchedule schedule) {
+        this.timing.update(schedule);
+        this.cfg.llmSchedule = schedule;
+        this.nextAt = 0L;
+    }
+
+    public JSONObject manualRun(int documents, int starts) {
+        JSONObject run = this.timing.run(documents, starts);
+        this.nextAt = 0L;
+        wake();
+        return run;
+    }
+
+    public JSONObject manualStop() {
+        JSONObject run = this.timing.stop();
+        this.nextAt = 0L;
+        return run;
+    }
+
+    private void transportFailure(
+            final LlmQueue.Item item, final byte[] inputHash, final IOException e)
+            throws KgException {
+        final String why =
+                e instanceof SocketTimeoutException ? "timeout" : e.getClass().getSimpleName();
         this.counters.callFailures.incrementAndGet();
         if (e instanceof SocketTimeoutException) {
             this.counters.timeouts.incrementAndGet();
@@ -671,7 +921,7 @@ public final class LlmService {
     }
 
     private void publish(final LlmQueue.Item item, final SolrDoc d, final DocRow row, final Extraction ex, final List<byte[]> keys,
-            final String m, final String promptHash) throws KgException {
+            final String m, final String promptHash,final long estimate) throws KgException {
         final long now = this.clock.getAsLong();
         if (this.stopping) {
             release(item, now, false);
@@ -688,7 +938,7 @@ public final class LlmService {
         doc.accessCollections = d.collections;
         final Publisher.Result[] result = new Publisher.Result[1];
         try {
-            this.store.write(WriteClass.GROWTH, PUBLISH_ESTIMATE, tx -> {
+            this.store.write(WriteClass.GROWTH, estimate, tx -> {
                 if ("1".equals(KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS))) {
                     LlmQueue.release(tx, item.docId, now + GATE_MILLIS, false);
                     return null;
@@ -721,7 +971,8 @@ public final class LlmService {
     }
 
     private void complete(final LlmQueue.Item item) throws KgException {
-        this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+        long estimate=SMALL+this.store.read(c->LlmProgress.storedBytes(c,item.docId));
+        this.store.write(WriteClass.MAINTENANCE, estimate, tx -> {
             LlmQueue.complete(tx, item.docId);
             return null;
         });
@@ -729,9 +980,10 @@ public final class LlmService {
 
     private void markAndComplete(final LlmQueue.Item item, final byte[] inputHash, final int status, final String why)
             throws KgException {
-        this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+        long estimate=SMALL+this.store.read(c->LlmProgress.storedBytes(c,item.docId));
+        this.store.write(WriteClass.MAINTENANCE, estimate, tx -> {
             LlmQueue.mark(tx, item.docId, inputHash, status, why);
-            LlmQueue.complete(tx, item.docId);
+            LlmQueue.complete(tx, item.docId,status==LlmQueue.STATUS_FAILED);
             return null;
         });
     }
@@ -771,6 +1023,7 @@ public final class LlmService {
         try {
             this.store.read(c -> {
                 this.docCounts = LlmQueue.counts(c);
+                this.pendingDocuments=LlmQueue.pending(c,this.cfg::llmFollows);
                 this.queueSize = LlmQueue.size(c);
                 this.queueClaimed = LlmQueue.claimed(c);
                 this.queueOldest = LlmQueue.oldest(c);
@@ -786,19 +1039,85 @@ public final class LlmService {
     // ---------------------------------------------------------------- status
 
     public JSONObject status() {
+        refreshCounts(this.clock.getAsLong());
         final long[] docs = this.docCounts;
-        return KgJson.obj("state", this.state, "reason", this.reason, "model", this.model,
-                "enabled", this.cfg.llmEnabled(), "parallel", this.cfg.llmParallel,
-                "timeoutSeconds", this.cfg.llmTimeoutMillis / 1000L, "maxAttempts", this.cfg.llmMaxAttempts,
-                "maxDocsPerHost", this.cfg.llmMaxDocsPerHost, "maxInputChars", this.cfg.extractMaxInputChars,
-                "queue", KgJson.obj("items", this.queueSize, "claimed", this.queueClaimed, "oldestEnqueuedAt", this.queueOldest,
-                        "max", QUEUE_MAX),
-                "documents", KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2]),
-                "cache", KgJson.obj("entries", this.cacheEntries, "bytes", this.cacheBytes < 0L ? null : this.cacheBytes,
-                        "maxBytes", this.cfg.cacheMaxBytes()),
-                "breaker", this.breaker.status(), "processed", this.counters.json(),
-                "structuredOutput", this.client.structuredOutput(this.cfg.llmStructuredOutput),
-                "prompt", this.prompt.json(), "lastError", this.lastError);
+        return KgJson.obj(
+                "state",
+                this.state,
+                "reason",
+                this.reason,
+                "model",
+                this.model,
+                "enabled",
+                this.cfg.llmEnabled(),
+                "parallel",
+                this.cfg.llmParallel,
+                "timeoutSeconds",
+                this.cfg.llmTimeoutMillis / 1000L,
+                "maxAttempts",
+                this.cfg.llmMaxAttempts,
+                "maxDocsPerHost",
+                this.cfg.llmMaxDocsPerHost,
+                "maxInputChars",
+                this.cfg.extractMaxInputChars,
+                "queue",
+                KgJson.obj(
+                        "items",
+                        this.queueSize,
+                        "claimed",
+                        this.queueClaimed,
+                        "oldestEnqueuedAt",
+                        this.queueOldest,
+                        "max",
+                        QUEUE_MAX),
+                "documents",
+                KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2]),
+                "cache",
+                KgJson.obj(
+                        "entries",
+                        this.cacheEntries,
+                        "bytes",
+                        this.cacheBytes < 0L ? null : this.cacheBytes,
+                        "maxBytes",
+                        this.cfg.cacheMaxBytes()),
+                "breaker",
+                this.breaker.status(),
+                "processed",
+                this.counters.json(),
+                "timing",
+                this.timing.status(actualWaitReason()),
+                "pendingResultCheckpoints",
+                this.pendingProgress.size(),
+                "structuredOutput",
+                this.client.structuredOutput(this.cfg.llmStructuredOutput),
+                "prompt",
+                this.prompt.json(),
+                "lastError",
+                this.lastError);
+    }
+
+    private String actualWaitReason() {
+        if(!this.pendingProgress.isEmpty())return "checkpoint_storage";
+        if(!this.cfg.llmEnabled())return "no_llm_collections";
+        if(this.client.model()==null)return "no_model";
+        String growth=this.store.growthRefusal();if(growth!=null)return growth;
+        String gate=this.gates.closed(false);if(gate!=null)return gate;
+        if(this.breaker.open())return "circuit_breaker";
+        if (this.queueSize == 0 && this.pendingDocuments == 0)
+            return this.queueClaimed > 0 ? "in_flight" : "backlog_empty";
+        String temporal=this.timing.workReason();if(temporal!=null)return temporal;
+        JSONObject time=this.timing.status(null);Long next=time.optLong("nextAllowedStart",0);
+        if(next>this.clock.getAsLong())return "minimum_interval";
+        if(time.optInt("runningRequests")>0)return "in_flight";
+        if (Set.of(
+                        "time_window",
+                        "manual_only",
+                        "minimum_interval",
+                        "manual_stopped",
+                        "manual_request_limit",
+                        "manual_document_limit")
+                .contains(this.reason == null ? "" : this.reason)) return null;
+        return this.reason;
     }
 
     /** True while a call or a step may be running (tests). */

@@ -176,9 +176,28 @@
 
 <section id="skg-settings" hidden aria-labelledby="skg-settings-title">
 <h2 id="skg-settings-title">Settings</h2>
-<p class="sseo-note">Settings are stored in Scoutro's configuration (keys <code>scoutro.kg.*</code>, for example in <a href="ConfigProperties_p.html">Advanced Properties</a>) and take effect at the next start. Invalid values are listed here and keep the graph off.</p>
+<p class="sseo-note">General settings take effect at the next start; collection settings and LLM timing apply immediately. Invalid general settings keep the graph off; an invalid timing plan pauses only LLM calls.</p>
 <dl id="skg-config" class="sseo-stats"></dl>
 <div class="sseo-scroll" id="skg-config-errors"></div>
+<section class="sseo-panel" aria-labelledby="skg-schedule-title">
+<h3 id="skg-schedule-title">Timing of LLM enrichment</h3>
+<p>Allowed starts, not guaranteed completion times. Overnight windows belong to their starting weekday; equal times mean 24 hours. Clock-change gaps have no starts; both repeated times are allowed. Manual runs last at most one hour and keep all safety checks. Completed pages are not reevaluated; failed pages need Retry.</p>
+<form id="skg-schedule-form">
+<label for="skg-schedule-mode">Mode</label> <select id="skg-schedule-mode" class="form-control"><option value="automatic">Automatic as before</option><option value="scheduled">Scheduled</option><option value="manual">Manual only</option></select>
+<fieldset id="skg-schedule-days"><legend>Weekdays (window starts on these days)</legend></fieldset>
+<label for="skg-schedule-from">From</label> <input id="skg-schedule-from" type="time" required value="00:00">
+<label for="skg-schedule-until">Until (exclusive)</label> <input id="skg-schedule-until" type="time" required value="00:00">
+<label for="skg-schedule-zone">Time zone</label> <input id="skg-schedule-zone" type="text" required value="UTC" placeholder="Europe/Berlin">
+<label for="skg-schedule-gap">Minimum seconds between request starts</label> <input id="skg-schedule-gap" type="number" min="0" max="86400" step="1" required value="0">
+<button type="submit" class="btn btn-default">Save timing</button>
+</form>
+<dl id="skg-schedule-status" class="sseo-stats" aria-live="polite"></dl>
+<label for="skg-schedule-docs">Document limit (1–100)</label> <input id="skg-schedule-docs" type="number" min="1" max="100" step="1" value="25" required>
+<label for="skg-schedule-requests">Request-start limit (1–1000)</label> <input id="skg-schedule-requests" type="number" min="1" max="1000" step="1" value="100" required>
+<button id="skg-schedule-now" type="button" class="btn btn-default">Enrich now</button>
+<button id="skg-schedule-stop" type="button" class="btn btn-default">Stop manual run</button>
+<p id="skg-schedule-message" role="status" aria-live="polite"></p>
+</section>
 <section class="sseo-panel" aria-labelledby="skg-kgc-title">
 <h3 id="skg-kgc-title">Collections in the knowledge graph</h3>
 <p class="sseo-note">Every collection of the catalog is listed here, a new one too; YaCy's internal collections never. Switching a collection off keeps its graph data: nothing is deleted and nothing new is read from it. Switching it on reads the pages it already has in the index. A change concerns only this collection and takes effect at once (the graph is reopened). A new vocabulary of a followed collection makes the graph read its pages again in the background. Settings keys:</p>
@@ -193,6 +212,86 @@
 </section>
 
 <div hidden id="skg-labels">
+<span data-skg-label="schedule_reason_manual_expired">Manual run expired; unfinished work retained</span>
+<span data-skg-label="schedule_reason_kg_disabled">Knowledge graph disabled</span>
+<span data-skg-label="schedule_started">Actual model request starts</span>
+<span data-skg-label="schedule_reason_manual">Knowledge graph manually paused</span>
+<span data-skg-label="schedule_reason_indexing_queue">Waiting for indexing load</span>
+<span data-skg-label="schedule_reason_disk_reserve">Waiting for disk reserve</span>
+<span data-skg-label="schedule_reason_disk_critical">Critical disk reserve; writes paused</span>
+<span data-skg-label="schedule_reason_budget">Waiting for storage budget</span>
+<span data-skg-label="schedule_reason_budget_exhausted">Storage budget exhausted</span>
+<span data-skg-label="schedule_reason_integrity_check_pending">Waiting for integrity check</span>
+<span data-skg-label="schedule_reason_integrity_check_failed">Integrity check failed</span>
+<span data-skg-label="schedule_reason_storage_error">Storage error; writes paused</span>
+<span data-skg-label="schedule_reason_wal_limit">Waiting for WAL space</span>
+<span data-skg-label="schedule_reason_wal_checkpoint_blocked">Waiting for WAL checkpoint</span>
+<span data-skg-label="schedule_reason_tmp_limit">Waiting for temporary storage</span>
+<span data-skg-label="schedule_reason_start_not_recorded">Waiting for start-state persistence</span>
+<span data-skg-label="schedule_reason_full_reset">Index reset in progress</span>
+<span data-skg-label="schedule_reason_manual_request_limit">Manual request limit reached</span>
+<span data-skg-label="schedule_reason_manual_document_limit">Manual document limit reached</span>
+<span data-skg-label="schedule_reason_collection_not_selected">Collection no longer eligible</span>
+<span data-skg-label="schedule_reason_input_changed">Waiting for current input</span>
+<span data-skg-label="schedule_reason_model_changed">Selected model changed</span>
+<span data-skg-label="schedule_reason_stopping">Stopping after current request</span>
+<span data-skg-label="schedule_reason_publication_deferred">Waiting to publish retained results</span>
+<span data-skg-label="schedule_reason_write_refused">Storage guard pauses new enrichment</span>
+
+<span data-skg-label="schedule_title">Timing of LLM enrichment</span>
+<span data-skg-label="schedule_mode">Mode</span>
+<span data-skg-label="schedule_automatic">Automatic as before</span>
+<span data-skg-label="schedule_scheduled">Scheduled</span>
+<span data-skg-label="schedule_manual">Manual only</span>
+<span data-skg-label="schedule_days">Weekdays (window starts on these days)</span>
+<span data-skg-label="schedule_from">From</span>
+<span data-skg-label="schedule_until">Until (exclusive)</span>
+<span data-skg-label="schedule_zone">Time zone</span>
+<span data-skg-label="schedule_gap">Minimum seconds between request starts</span>
+<span data-skg-label="schedule_save">Save timing</span>
+<span data-skg-label="schedule_now">Enrich now</span>
+<span data-skg-label="schedule_stop">Stop manual run</span>
+<span data-skg-label="schedule_docs">Document limit (1–100)</span>
+<span data-skg-label="schedule_requests">Request-start limit (1–1000)</span>
+<span data-skg-label="schedule_note">Allowed starts, not guaranteed completion times. Overnight windows belong to their starting weekday; equal times mean 24 hours. Clock-change gaps have no starts; both repeated times are allowed. Manual runs last at most one hour and keep all safety checks. Completed pages are not reevaluated; failed pages need Retry.</span>
+<span data-skg-label="schedule_open">Window open now</span>
+<span data-skg-label="schedule_next">Next temporally allowed start (resources may still block)</span>
+<span data-skg-label="schedule_wait">Current waiting reason</span>
+<span data-skg-label="schedule_running">Running requests</span>
+<span data-skg-label="schedule_run">Manual run</span>
+<span data-skg-label="schedule_saved">Timing saved without restarting the graph</span>
+<span data-skg-label="schedule_mon">Monday</span>
+<span data-skg-label="schedule_tue">Tuesday</span>
+<span data-skg-label="schedule_wed">Wednesday</span>
+<span data-skg-label="schedule_thu">Thursday</span>
+<span data-skg-label="schedule_fri">Friday</span>
+<span data-skg-label="schedule_sat">Saturday</span>
+<span data-skg-label="schedule_sun">Sunday</span>
+<span data-skg-label="schedule_reason_time_window">Waiting for time window</span>
+<span data-skg-label="schedule_reason_manual_only">Manual run required</span>
+<span data-skg-label="schedule_reason_minimum_interval">Waiting for minimum interval</span>
+<span data-skg-label="schedule_reason_backlog_empty">No unfinished work</span>
+<span data-skg-label="schedule_reason_circuit_breaker">Circuit breaker pauses model requests</span>
+<span data-skg-label="schedule_reason_in_flight">Model request running</span>
+<span data-skg-label="schedule_reason_checkpoint_storage">Preserving results; waiting for writable storage</span>
+<span data-skg-label="schedule_reason_manual_pause">Knowledge graph manually paused</span>
+<span data-skg-label="schedule_reason_heap">Waiting for available heap</span>
+<span data-skg-label="schedule_reason_load">Waiting for lower system load</span>
+<span data-skg-label="schedule_reason_indexing">Waiting for indexing load</span>
+<span data-skg-label="schedule_reason_invalid_schedule">Invalid stored schedule; LLM calls paused</span>
+<span data-skg-label="schedule_reason_manual_stopped">Manual run stopped; unfinished work retained</span>
+<span data-skg-label="schedule_reason_no_model">No knowledge model selected</span>
+<span data-skg-label="schedule_reason_llm_off">LLM enrichment disabled</span>
+<span data-skg-label="schedule_reason_no_llm_collections">No collections enabled for LLM enrichment</span>
+<span data-skg-label="schedule_run_not_running">Not running</span>
+<span data-skg-label="schedule_run_running">Running</span>
+<span data-skg-label="schedule_run_stopping">Stopping after current requests</span>
+<span data-skg-label="schedule_run_stopped">Stopped</span>
+<span data-skg-label="schedule_run_expired">One-hour limit reached</span>
+<span data-skg-label="schedule_run_request_limit">Request limit reached</span>
+<span data-skg-label="schedule_run_document_limit">Document limit reached</span>
+<span data-skg-label="schedule_run_completed">No further unfinished work</span>
+
 <span data-skg-label="loading">Loading …</span>
 <span data-skg-label="error">The knowledge graph could not be read</span>
 <span data-skg-label="not_found">Not found in the visible collections.</span>

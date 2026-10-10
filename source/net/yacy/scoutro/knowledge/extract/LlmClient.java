@@ -26,6 +26,26 @@ import org.json.JSONObject;
  * model or key of its own.
  */
 public interface LlmClient {
+    /** Admission refusal, distinct from a failed model transport. */
+    class Deferred extends IOException {
+        private static final long serialVersionUID = 1L;
+        public final String reason;
+
+        public Deferred(final String reason) {
+            super(reason);
+            this.reason = reason;
+        }
+    }
+
+    /** Admission immediately before each actual transport, including format fallbacks. */
+    @FunctionalInterface interface RequestGate { RequestPermit start() throws IOException; }
+    @FunctionalInterface interface RequestPermit extends AutoCloseable { @Override void close(); }
+    RequestGate UNLIMITED=()->()->{};
+
+    /** Simple clients make one request; negotiating clients must override and gate every transport. */
+    default String complete(String system,String user,JSONObject schema,long timeoutMillis,String structuredOutput,RequestGate gate)throws IOException {
+        try(RequestPermit permit=gate.start()){return complete(system,user,schema,timeoutMillis,structuredOutput);}
+    }
 
     /**
      * The selected model as {@code service/model} (no host, no key: it becomes

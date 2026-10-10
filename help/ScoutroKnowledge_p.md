@@ -564,3 +564,15 @@ provider partitions. A deferred work budget resumes later without withdrawing
 unprocessed reasons. A provider above the observation limit remains deferred;
 other providers continue. Operator limits, upgrade/rollback and API/agent/export
 contracts are documented in `docs/SCOUTRO_MATCHING.md`.
+
+## Zeitsteuerung der LLM-Anreicherung
+
+Unter Einstellungen steuert ein globaler Plan ausschließlich die zusätzliche LLM-Stufe: **Wie bisher automatisch** (Standard), **Nach Zeitplan**, **Nur manuell**. Collection-Schalter und Schutzprüfungen bleiben maßgeblich. Regeln/JSON-LD, Crawling, Indexierung und gespeichertes Wissen bleiben verfügbar.
+
+Speichern prüft den ganzen Plan und übernimmt ihn ohne Graph-Neustart oder Neuextraktion. Zeitfenster sind Von einschließlich / Bis ausschließlich; über Mitternacht gilt der Startwochentag, gleiche Zeiten bedeuten 24 Stunden. Die Planzone ist ausdrücklich gespeichert; Sommerzeitlücken erlauben keine Starts, doppelte Zeiten beide. Der optionale Mindestabstand (Standard 0) gilt gemeinsam über Worker und Format-Fallbacks, nicht für Cachetreffer.
+
+**Jetzt anreichern** verarbeitet offene Arbeit mit Standardlimit 25 Dokumente / 100 tatsächliche Aufrufstarts und höchstens einer Stunde; Maxima 100 / 1000. **Stoppen** lässt laufende Anfragen abschließen; unfertige Ergebnisse bleiben erhalten. Manuell übersteuert das Zeitfenster, keine KG-Pause, Rechte/Collection-Auswahl, Ressourcen oder Breaker. Erledigte Seiten werden nicht neu ausgewertet; fehlgeschlagene benötigen Retry. `wake()`/Retry umgehen keinen Zeitplan.
+
+Übersicht/Einstellungen zeigen Modus, Wochentage, Fenster, Zone, aktuellen Fensterstatus, nächsten zeitlich erlaubten Start, tatsächlichen Wartegrund, laufende Anfragen und manuellen Lauf. Der nächste Zeitpunkt garantiert keine freien Ressourcen und kein Fertigstellungsdatum. Ungültige manuell editierte Pläne pausieren nur LLM-Aufrufe.
+
+Admin-API: `GET`/`PUT /scoutro/api/v1/kg/llm-schedule` (vollständiger Plan mit `mode`, `days`, `from`, `until`, `zone`, `minStartSeconds`); `POST /scoutro/api/v1/kg/llm-run` (`action:start`, optional `maxDocuments`/`maxRequests`, oder `action:stop`). Keine Query-Parameter, keine beliebigen Konfigurationsschlüssel, keine Agentenfreigabe. Authentifizierung und Cross-site-Prüfung wie bei bestehenden Admin-Aktionen. Technische Grenzen, Zeitsemantik und Rücknahme: [Zeitsteuerung](../docs/SCOUTRO_LLM_SCHEDULE.md).

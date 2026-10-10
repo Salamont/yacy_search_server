@@ -1139,3 +1139,11 @@ all observation/audit records. Graph JSON/GraphML retain preview and detail link
 completed partitions, `cycle_complete`, and `deferred` (`work_budget` or
 `provider_fact_limit`): an incomplete pass is not refutation. More details and
 concrete upgrade/rollback: `docs/SCOUTRO_MATCHING.md`.
+
+### Global LLM enrichment timing (administrator only)
+
+`GET`/`PUT /scoutro/api/v1/kg/llm-schedule` reads/replaces a fully validated plan: `mode` (`automatic` default, `scheduled`, `manual`), ISO `days` 1–7, `from`/`until` HH:mm, explicit named `zone`, `minStartSeconds` 0–86400 (default 0). No query parameters; atomic single configuration-key update and hot apply without KG reopen or re-extraction. Overnight windows use their starting weekday; equal times mean 24 hours. DST gaps have no starts, overlaps both occurrences. Windows authorize starts, not completion times.
+
+`POST /scoutro/api/v1/kg/llm-run` starts (`action:start`, optional `maxDocuments` 1–100/default 25, `maxRequests` 1–1000/default 100) or stops (`action:stop` only) a manual override lasting at most one hour. Current requests may finish; unfinished chunk results remain independently of optional cache. Manual runs never bypass collections, KG pause, safety gates or circuit breaker; shared request spacing covers both workers and every format-fallback HTTP call. Cache hits consume no start. Done documents are not reexamined; failed documents require existing Retry. Wake/Retry do not override timing. Runs do not resume after process restart.
+
+Status adds `config.llmSchedule`, `llm.timing` (plan, validity, `windowOpen`, `nextAllowedStart`, `lastActualStart`, actual `waitReason`, `runningRequests`, bounded `manual` state/counters) and `pendingResultCheckpoints`. Epoch-ms temporal admission is not a resource guarantee. `processed.calls` keeps logical call counting; additive `processed.requestStarts` counts actual transports including format fallback. New actions are admin-only catalog mappings, excluded from agent capability routes and runnable MCP tools. Same Digest and same-origin JSON protections; no arbitrary configuration writes. See [timing contract and rollback](SCOUTRO_LLM_SCHEDULE.md).
