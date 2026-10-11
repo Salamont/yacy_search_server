@@ -104,7 +104,7 @@ class Client:
         return body.get("error", {}).get("code") if isinstance(body, dict) else None
 
 
-def start_peer(root, port):
+def start_peer(root, port, extra=(), languages=()):
     config = root / "DATA/SETTINGS/yacy.conf"
     config.parent.mkdir(parents=True)
     (root / ".scoutro-dashboard-disposable").touch()
@@ -118,7 +118,10 @@ def start_peer(root, port):
         "autocrawl=false", "server.https=false", "locale.language=default", "upnp.enabled=false", "donation.iframesource=",
         "resource.disk.free.min.steadystate=1", "resource.disk.free.min.undershot=1",
         "resource.disk.used.max.steadystate=1000000000000", "resource.disk.used.max.overshot=1000000000000",
+        *extra,
     ]) + "\n")
+    for language in languages:
+        (root / "DATA/LOCALE/htroot" / language).mkdir(parents=True, exist_ok=True)  # generated at start (LocaleRefresh)
     subprocess.run([JAVA, "-cp", CLASSPATH, str(REPO / "test/scoutro-ui/DashboardFixture.java"), str(root)], cwd=REPO,
                    check=True, timeout=120, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     log = (root / "peer.log").open("w")

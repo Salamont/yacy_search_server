@@ -2,7 +2,9 @@
 
 Design and operator guide for Scoutro's own sign-in, user management,
 permissions and navigation. The baseline it starts from, with file and line
-evidence, is in [SCOUTRO_ACCESS_BASELINE.md](SCOUTRO_ACCESS_BASELINE.md).
+evidence, is in [SCOUTRO_ACCESS_BASELINE.md](SCOUTRO_ACCESS_BASELINE.md); the
+results, tests, known gaps and rollout prerequisites are in
+[SCOUTRO_USERS_ACCESS_REPORT.md](SCOUTRO_USERS_ACCESS_REPORT.md) (German).
 
 > **Rule of thumb.** The role decides which *actions* an identity may take.
 > The collection access decides which *data* it may see. Both are checked on
