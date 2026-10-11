@@ -84,6 +84,37 @@ public interface LlmClient {
         return null;
     }
 
+    /**
+     * The context window the requests of the selected model are budgeted against (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
+     */
+    final class Window {
+        /** Tokens of prompt and answer together. */
+        public final int tokens;
+        /** True if the service's window is configured ({@code ai.service_num_ctx}) and sent with the request. */
+        public final boolean configured;
+        /** The row's output cap ({@code max_tokens}, Ollama's {@code num_predict}). */
+        public final int maxOutputTokens;
+        /** True if the endpoint may put the answer schema into the prompt (OpenAI-compatible); Ollama applies it as a grammar. */
+        public final boolean schemaInPrompt;
+
+        public Window(final int tokens, final boolean configured, final int maxOutputTokens, final boolean schemaInPrompt) {
+            this.tokens = tokens;
+            this.configured = configured;
+            this.maxOutputTokens = maxOutputTokens;
+            this.schemaInPrompt = schemaInPrompt;
+        }
+    }
+
+    /** The window of the selected model, or null if unknown (then Ollama's default of 4096 tokens is assumed). */
+    default Window window() {
+        return null;
+    }
+
+    /** What the endpoint counted for the requests since the start (tokens, answers cut at a limit), or null. */
+    default JSONObject usage() {
+        return null;
+    }
+
     /** No model is ever selected (tests, environments without Scoutro's LLM configuration). */
     LlmClient NONE = new LlmClient() {
         @Override

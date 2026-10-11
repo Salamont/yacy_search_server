@@ -78,8 +78,10 @@ public class OllamaNativeChatTest {
         final String json = nativeApi
                 ? "{\"model\":\"llama3.1:8b\",\"created_at\":\"2026-10-08T00:00:00Z\",\"message\":{\"role\":\"assistant\",\"content\":"
                         + JSONObject.quote(text) + (thinks ? ",\"thinking\":\"Okay, the user wants entities. Let me think about the page...\"" : "")
-                        + "},\"done\":true,\"done_reason\":\"" + ("length".equals(e) || thinks ? "length" : "stop") + "\"}"
-                : "{\"choices\":[{\"message\":{\"content\":" + JSONObject.quote(text) + "},\"finish_reason\":\"stop\"}]}";
+                        + "},\"done\":true,\"done_reason\":\"" + ("length".equals(e) || thinks ? "length" : "stop")
+                        + "\",\"prompt_eval_count\":321,\"eval_count\":45}"
+                : "{\"choices\":[{\"message\":{\"content\":" + JSONObject.quote(text) + "},\"finish_reason\":\"stop\"}],"
+                        + "\"usage\":{\"prompt_tokens\":400,\"completion_tokens\":50}}";
         final byte[] out = status != 200 ? new byte[0] : json.getBytes(StandardCharsets.UTF_8);
         try {
             exchange.sendResponseHeaders(status, out.length == 0 ? -1 : out.length);
@@ -490,5 +492,40 @@ public class OllamaNativeChatTest {
                     .replaceAll("(?s)public static void main\\(.*", ""); // LLM.main: a manual demo of the model list, not a decision
             assertFalse(file + " decides by a model name", java.util.regex.Pattern.compile("(?i)[\"'](qwen|deepseek)|startsWith\\(\"(qwen|deepseek|llama)").matcher(code).find());
         }
+    }
+
+    @Test
+    public void theNativeRequestSendsTheContextWindowOnlyWhereItIsConfiguredAndReportsUsage() throws Exception {
+        // not configured (ai.service_num_ctx has no entry): no num_ctx, the server keeps its own context length
+        final YacyLlmClient plain = ollama("supported");
+        ask(plain, YacyLlmClient.AUTO);
+        assertFalse("unconfigured: no num_ctx", body(0).getJSONObject("options").has("num_ctx"));
+        assertEquals(512, body(0).getJSONObject("options").getInt("num_predict"));
+        final LlmClient.Window w0 = plain.window();
+        assertEquals(LLM.DEFAULT_NUM_CTX, w0.tokens);
+        assertFalse(w0.configured);
+        assertFalse("Ollama applies the schema as a grammar", w0.schemaInPrompt);
+        // configured for the service: sent, and the budget plans against it
+        final LLM.LLMModel m = new LLM.LLMModel(new LLM(stub(), "", 512, 8192, LLM.LLMType.OLLAMA), "llama3.1:8b", false, false);
+        m.formatCapability = "supported";
+        final YacyLlmClient configured = new YacyLlmClient(() -> m);
+        ask(configured, YacyLlmClient.AUTO);
+        assertEquals(8192, body(1).getJSONObject("options").getInt("num_ctx"));
+        assertTrue(configured.window().configured);
+        assertEquals(8192, configured.window().tokens);
+        final JSONObject usage = configured.usage();
+        assertEquals(1L, usage.getLong("answers"));
+        assertEquals(321L, usage.getLong("promptTokensMax"));
+        assertEquals(45L, usage.getLong("answerTokensMax"));
+        assertEquals(0L, usage.getLong("answersCutAtLimit"));
+        this.endpoint.set("length");
+        ask(configured, YacyLlmClient.AUTO);
+        assertEquals("an answer cut at the limit is counted", 1L, configured.usage().getLong("answersCutAtLimit"));
+        // the OpenAI-compatible path reports its usage too and may count the schema as prompt
+        final YacyLlmClient openai = new YacyLlmClient(() -> model(LLM.LLMType.OPENAI, "supported", false));
+        this.endpoint.set("ok");
+        ask(openai, YacyLlmClient.AUTO);
+        assertEquals(400L, openai.usage().getLong("promptTokensMax"));
+        assertTrue(openai.window().schemaInPrompt);
     }
 }

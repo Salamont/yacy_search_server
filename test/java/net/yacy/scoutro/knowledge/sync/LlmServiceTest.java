@@ -72,7 +72,7 @@ public class LlmServiceTest {
             + " bietet Tagespflege an. Die Muster Pflege gGmbH plant ab 2027 das Haus Am See.";
 
     /** A model under the test's control. */
-    static final class Fake implements LlmClient {
+    static class Fake implements LlmClient {
         volatile String name = "TEST/fixture";
         final AtomicInteger calls = new AtomicInteger();
         volatile Function<String, String> answer = Fake::grounded;
@@ -102,6 +102,9 @@ public class LlmServiceTest {
             return net.yacy.scoutro.knowledge.KgJson.obj("setting", setting, "mode", "fake");
         }
 
+        /** Every user message asked, in order. */
+        final List<String> users = new java.util.concurrent.CopyOnWriteArrayList<>();
+
         /** The system prompt of the last call. */
         volatile String system;
 
@@ -110,6 +113,7 @@ public class LlmServiceTest {
                 throws IOException {
             this.calls.incrementAndGet();
             this.system = system;
+            this.users.add(user);
             final CountDownLatch in = this.entered;
             final CountDownLatch out = this.release;
             if (in != null && out != null) {

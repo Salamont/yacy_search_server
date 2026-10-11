@@ -76,6 +76,13 @@ public final class YacyLlmClient implements LlmClient {
     private final AtomicLong requestsWithoutFormat = new AtomicLong();
     private final AtomicLong formatRejections = new AtomicLong();
     private volatile long lastRejectionAt;
+    /** What the endpoints reported (tokens are counted where an answer carries them). */
+    private final AtomicLong usageReports = new AtomicLong();
+    private final AtomicLong promptTokens = new AtomicLong();
+    private final AtomicLong promptTokensMax = new AtomicLong();
+    private final AtomicLong answerTokens = new AtomicLong();
+    private final AtomicLong answerTokensMax = new AtomicLong();
+    private final AtomicLong answersCutAtLimit = new AtomicLong();
 
     /** What one request asks for, and why. */
     static final class Plan {
@@ -117,6 +124,49 @@ public final class YacyLlmClient implements LlmClient {
     public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis)
             throws IOException {
         return complete(system, user, schema, timeoutMillis, AUTO);
+    }
+
+    /**
+     * The service's context window ({@code ai.service_num_ctx}, else Ollama's default 4096 assumed), the row's output
+     * cap, and whether the endpoint may count the schema as prompt: the native Ollama path applies it as a grammar.
+     */
+    @Override
+    public Window window() {
+        final LLM.LLMModel m = this.selection.get();
+        if (name(m) == null) {
+            return null;
+        }
+        return new Window(m.llm.num_ctx, m.llm.num_ctx_configured, m.llm.max_tokens, !API_OLLAMA_NATIVE.equals(api(m)));
+    }
+
+    private void record(final JSONObject u) {
+        this.usageReports.incrementAndGet();
+        if (u.has("promptTokens")) {
+            final long p = u.optLong("promptTokens");
+            this.promptTokens.addAndGet(p);
+            this.promptTokensMax.accumulateAndGet(p, Math::max);
+        }
+        if (u.has("answerTokens")) {
+            final long a = u.optLong("answerTokens");
+            this.answerTokens.addAndGet(a);
+            this.answerTokensMax.accumulateAndGet(a, Math::max);
+        }
+        if ("length".equals(u.optString("stop"))) {
+            this.answersCutAtLimit.incrementAndGet();
+        }
+    }
+
+    /**
+     * Measured since the start, per answer the endpoint reported on: prompt tokens (for Ollama the tokens it evaluated;
+     * a prefix served from its prompt cache is not counted, so this is a lower bound), answer tokens, and answers cut
+     * at the output or context limit ({@code done_reason}/{@code finish_reason} {@code length}).
+     */
+    @Override
+    public JSONObject usage() {
+        final long n = this.usageReports.get();
+        return KgJson.obj("answers", n, "promptTokensMax", this.promptTokensMax.get(), "promptTokensAverage",
+                n == 0 ? null : this.promptTokens.get() / n, "answerTokensMax", this.answerTokensMax.get(), "answerTokensAverage",
+                n == 0 ? null : this.answerTokens.get() / n, "answersCutAtLimit", this.answersCutAtLimit.get());
     }
 
     @Override
@@ -246,10 +296,12 @@ public final class YacyLlmClient implements LlmClient {
         if (API_OLLAMA_NATIVE.equals(api(m))) {
             // the same request natively: never a fallback to /v1/chat/completions
             // think: false unless the native probe found the model does not think: extraction never thinks
+            // num_ctx only where the service's window is configured: the budget is planned against it, and an unconfigured
+            // server keeps its own context length (no blanket change of a production limit)
             return m.llm.chatOllamaNative(m.model, context, ollamaFormat(format), m.llm.max_tokens, m.nativeNoThinking(), timeout,
-                    MAX_RESPONSE_CHARS);
+                    MAX_RESPONSE_CHARS, m.llm.num_ctx_configured ? m.llm.num_ctx : 0, this::record);
         }
-        return m.llm.chatWithResponseFormat(m.model, context, format, m.llm.max_tokens, timeout, MAX_RESPONSE_CHARS);
+        return m.llm.chatWithResponseFormat(m.model, context, format, m.llm.max_tokens, timeout, MAX_RESPONSE_CHARS, this::record);
         }
     }
 

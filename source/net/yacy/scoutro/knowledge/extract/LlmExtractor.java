@@ -240,7 +240,7 @@ public final class LlmExtractor {
         public final String text;
         public final int offset;
 
-        Chunk(final String text, final int offset) {
+        public Chunk(final String text, final int offset) {
             this.text = text;
             this.offset = offset;
         }
@@ -368,6 +368,24 @@ public final class LlmExtractor {
         for (final Mention m : tiers12.mentions()) {
             if (m.name != null && TYPES.contains(m.type) && out.size() < MAX_ITEMS) {
                 out.add(new Known("k" + (out.size() + 1), m));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The known entities the answer for this chunk can use, numbered k1, k2, ... again: those whose name occurs in the
+     * chunk (compared as the validator compares a quote with the names it must contain), and job postings (a value of a
+     * job may be quoted without its title). A claim or value about another known entity cannot pass the validator for
+     * this chunk.
+     */
+    public static List<Known> needed(final List<Known> known, final Chunk chunk) {
+        final String text = " " + nonNull(Normalizers.key(chunk.text)) + " ";
+        final List<Known> out = new ArrayList<>();
+        for (final Known k : known) {
+            final String nk = Normalizers.key(k.mention.name);
+            if (Vocabulary.JOB.equals(k.mention.type) || nk != null && text.contains(" " + nk + " ")) {
+                out.add(new Known("k" + (out.size() + 1), k.mention));
             }
         }
         return out;

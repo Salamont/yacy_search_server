@@ -43,12 +43,17 @@ public abstract class LlmFixture {
     protected SolrSource source;
     protected SyncService sync;
     protected LlmService llm;
-    protected final LlmServiceTest.Fake model = new LlmServiceTest.Fake();
+    protected final LlmServiceTest.Fake model = newModel();
     protected final KgTestSupport.Probe storageProbe = new KgTestSupport.Probe();
     protected final java.util.concurrent.atomic.AtomicLong clock = new java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis());
 
     static final String LD = LlmServiceTest.LD;
     static final String TEXT = LlmServiceTest.TEXT;
+
+    /** The model of the test. */
+    protected LlmServiceTest.Fake newModel() {
+        return new LlmServiceTest.Fake();
+    }
 
     /** The settings of the test (pairs of key and value), on top of an enabled graph. */
     protected String[] settings() {

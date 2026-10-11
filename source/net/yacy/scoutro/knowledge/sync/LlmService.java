@@ -43,6 +43,7 @@ import net.yacy.scoutro.knowledge.extract.KnowledgePrompt;
 import net.yacy.scoutro.knowledge.extract.LlmBreaker;
 import net.yacy.scoutro.knowledge.extract.LlmClient;
 import net.yacy.scoutro.knowledge.extract.LlmExtractor;
+import net.yacy.scoutro.knowledge.extract.RequestBudget;
 import net.yacy.scoutro.knowledge.extract.RuleExtractor;
 import net.yacy.scoutro.knowledge.publish.Publisher;
 import net.yacy.scoutro.knowledge.publish.Terms;
@@ -99,6 +100,8 @@ public final class LlmService {
     static final long CHANGED_RETRY_MILLIS = 60_000L;
     /** Retries beyond {@code llm.maxAttempts} for an input the worker cannot confirm, and their longest backoff. */
     static final int UNCONFIRMED_EXTRA_ATTEMPTS = 6;
+    /** Reason of a document whose request does not fit the model's context window even split. */
+    static final String CONTEXT_BUDGET = "context_budget";
     static final long UNCONFIRMED_MAX_BACKOFF_MILLIS = 30L * 60_000L;
     static final long FIRST_RETRY_MILLIS = 60_000L;
     static final long COUNTS_MILLIS = 30_000L;
@@ -148,6 +151,14 @@ public final class LlmService {
         /** Scan passes that refilled the queue. */
         final AtomicLong scanPasses = new AtomicLong();
         final AtomicLong growthRefused = new AtomicLong();
+        /** Known entities left out of a request because the full list did not fit (not named in the chunk). */
+        final AtomicLong knownTrimmed = new AtomicLong();
+        /** Chunks split so a request fits the context window. */
+        final AtomicLong chunksSplit = new AtomicLong();
+        /** Documents not asked because a request does not fit even split ({@link #CONTEXT_BUDGET}). */
+        final AtomicLong contextRefused = new AtomicLong();
+        /** The largest estimated prompt of a planned request. */
+        final AtomicLong promptTokensEstimatedMax = new AtomicLong();
 
         Counters() {
             for (final String reason : LlmExtractor.INVALID_REASONS) {
@@ -255,7 +266,13 @@ public final class LlmService {
                     "scanPasses",
                     this.scanPasses.get(),
                     "growthRefused",
-                    this.growthRefused.get());
+                    this.growthRefused.get(),
+                    "knownTrimmed",
+                    this.knownTrimmed.get(),
+                    "chunksSplit",
+                    this.chunksSplit.get(),
+                    "contextRefused",
+                    this.contextRefused.get());
         }
     }
 
@@ -899,22 +916,36 @@ public final class LlmService {
         final String domain = Normalizers.registrableDomain(host);
         final String title = d.titles.isEmpty() ? null : d.titles.get(0);
         final List<LlmExtractor.Chunk> chunks = LlmExtractor.chunks(text, this.cfg.extractMaxInputChars);
+        final RequestBudget budget = budget(p);
+        final RequestBudget.Plan plan = budget.plan(chunks, known, title, domain, d.language, kinds);
+        if (plan.refused) {
+            // a request that does not fit the window is never sent (the model would drop the start of the prompt)
+            this.counters.contextRefused.incrementAndGet();
+            markAndComplete(item, row.llmInput(), LlmQueue.STATUS_FAILED, CONTEXT_BUDGET);
+            return;
+        }
+        this.counters.knownTrimmed.addAndGet(plan.knownTrimmed);
+        this.counters.chunksSplit.addAndGet(plan.splits);
+        this.counters.promptTokensEstimatedMax.accumulateAndGet(plan.maxPromptTokens, Math::max);
         final List<JSONObject> accepted = new ArrayList<>();
+        final List<List<LlmExtractor.Known>> acceptedKnown = new ArrayList<>();
         final List<byte[]> keys = new ArrayList<>();
         final Set<String> requiredKeys=new java.util.HashSet<>();
-        for(LlmExtractor.Chunk chunk:chunks)requiredKeys.add(LlmProgress.key(LlmExtractor.cacheKey(p.hash,m,chunk,title,domain,d.language,known,kinds)));
+        for(RequestBudget.Part part:plan.parts)requiredKeys.add(LlmProgress.key(LlmExtractor.cacheKey(p.hash,m,part.chunk,title,domain,d.language,part.known,kinds)));
         final LlmProgress progress;
         try{progress=this.store.read(c->LlmProgress.load(c,item.docId,requiredKeys));}
         catch(KgException e){
             this.state = "waiting";
             this.reason = "checkpoint_storage";
             release(item,now+REFUSED_MILLIS,false);throw e;}
-        for (final LlmExtractor.Chunk chunk : chunks) {
+        for (final RequestBudget.Part part : plan.parts) {
+            final LlmExtractor.Chunk chunk = part.chunk;
+            final List<LlmExtractor.Known> partKnown = part.known;
             try {
                 if(this.stopping)throw new LlmTiming.Deferred("stopping");
                 this.timing.chunk(session);
             }catch(LlmTiming.Deferred e){defer(item,progress,e.reason);return;}
-            final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, known, kinds);
+            final byte[] key = LlmExtractor.cacheKey(p.hash, m, chunk, title, domain, d.language, partKnown, kinds);
             keys.add(key);
             final ExtractionCache.Entry resumed=progress.get(key);
             final ExtractionCache.Entry cached = resumed!=null?resumed:this.store.read(c -> ExtractionCache.get(c, key));
@@ -923,6 +954,7 @@ public final class LlmService {
                 progress.put(key,cached.status,cached.value);
                 if (cached.status == ExtractionCache.STATUS_OK) {
                     accepted.add(cached.value);
+                    acceptedKnown.add(partKnown);
                 }
                 continue;
             }
@@ -932,7 +964,7 @@ public final class LlmService {
             final java.util.concurrent.atomic.AtomicBoolean logicalCounted=new java.util.concurrent.atomic.AtomicBoolean();
             try {
                 answer = this.client.complete(p.text,
-                        LlmExtractor.userPrompt(new PromptGuard(), chunk, title, domain, d.language, known, kinds),
+                        LlmExtractor.userPrompt(new PromptGuard(), chunk, title, domain, d.language, partKnown, kinds),
                         LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis, this.cfg.llmStructuredOutput,
                         ()->startRequest(item,row,m,session,breakerLease,logicalCounted));
             } catch (LlmClient.Deferred e) {
@@ -946,7 +978,7 @@ public final class LlmService {
                 return;
             }
             this.breaker.success();
-            final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, known, kinds);
+            final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, partKnown, kinds);
             final JSONObject value;
             final int status;
             if (r.refused != null) {
@@ -958,6 +990,7 @@ public final class LlmService {
                 value = r.accepted;
                 status = ExtractionCache.STATUS_OK;
                 accepted.add(value);
+                acceptedKnown.add(partKnown);
             }
             progress.put(key,status,value);
             try{checkpoint(item,progress);}catch(KgException e){
@@ -967,8 +1000,8 @@ public final class LlmService {
         }
         final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
         final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d);
-        for (final JSONObject a : accepted) {
-            LlmExtractor.apply(a, known, ex, ctx);
+        for (int i = 0; i < accepted.size(); i++) {
+            LlmExtractor.apply(accepted.get(i), acceptedKnown.get(i), ex, ctx);
         }
         ex.ranTier(LlmExtractor.TIER);
         try {
@@ -977,6 +1010,18 @@ public final class LlmService {
             if (this.store.read(c -> queued(c, item.docId)))
                 defer(item, progress, this.reason == null ? "publication_deferred" : this.reason);
         }
+    }
+
+    /**
+     * The budget of the requests (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): the model's window (the service's configured
+     * {@code ai.service_num_ctx}, else Ollama's default of 4096 assumed), the answer reserve (at most the row's output
+     * cap), the active system prompt and, where the endpoint may count it as prompt, the schema.
+     */
+    private RequestBudget budget(final KnowledgePrompt p) {
+        final LlmClient.Window w = this.client.window();
+        final int window = w == null ? RequestBudget.DEFAULT_WINDOW : w.tokens;
+        final int reserve = w == null ? this.cfg.llmAnswerReserveTokens : Math.min(this.cfg.llmAnswerReserveTokens, w.maxOutputTokens);
+        return new RequestBudget(window, reserve, p.text, w == null || w.schemaInPrompt ? LlmExtractor.SCHEMA : null);
     }
 
     /** Rechecked for every transport, including the second request after a format rejection. */
@@ -1376,6 +1421,8 @@ public final class LlmService {
                         this.cfg.cacheMaxBytes()),
                 "selection",
                 selectionStatus(),
+                "context",
+                contextStatus(),
                 "breaker",
                 this.breaker.status(),
                 "processed",
@@ -1404,6 +1451,21 @@ public final class LlmService {
         }
         return KgJson.obj("collections", out, "revisitBatch", REVISIT_BATCH, "scanBatch", SCAN_BATCH, "agingMinutes",
                 LlmQueue.AGING_MILLIS / 60_000L);
+    }
+
+    /**
+     * The context budget (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): the window the requests are planned against and
+     * whether it is the service's configured one (then it is sent as {@code num_ctx}) or Ollama's assumed default, the
+     * row's output cap ({@code num_predict}), the answer reserve, the fixed part of every request, the largest planned
+     * prompt, and what the endpoint reported.
+     */
+    private JSONObject contextStatus() {
+        final LlmClient.Window w = this.client.window();
+        final RequestBudget b = budget(this.prompt);
+        return KgJson.obj("windowTokens", b.window, "windowSource", w == null || !w.configured ? "assumed_default" : "configured",
+                "numCtxSent", w != null && w.configured, "maxOutputTokens", w == null ? null : w.maxOutputTokens,
+                "answerReserveTokens", b.reserve, "fixedPromptTokens", b.fixedTokens, "schemaCounted", w == null || w.schemaInPrompt,
+                "promptTokensEstimatedMax", this.counters.promptTokensEstimatedMax.get(), "measured", this.client.usage());
     }
 
     private String actualWaitReason() {
