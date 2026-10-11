@@ -876,7 +876,23 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     `mode` `schema_enforced`, `schema_unverified`, `json_mode`,
     `validator_only` or `fallback_after_rejection`, `request`, `reason`,
     `withoutSchema`, `requests` per format, `rejections`, `lastRejection`;
-    in memory since the start; docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3);
+    in memory since the start; docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
+    `selection`: per LLM collection its scan positions (`frontier`,
+    `revisit`, row IDs as of the last refill) and the pages it `queued`
+    since the start, with `scanBatch`, `revisitBatch`, `agingMinutes`.
+    `context`: the window the requests are planned against
+    (`windowTokens`, `windowSource` `configured` or `assumed_default`,
+    `numCtxSent`), `maxOutputTokens`, `answerReserveTokens`,
+    `fixedPromptTokens`, `schemaCounted`, `promptTokensEstimatedMax` and
+    `measured` (what the endpoint reported since the start; null for a
+    client without reports). `continuation`: `chunks`, `maxChars`,
+    `overlapChars`, `pendingDocuments` (reason `more_text`),
+    `textCutDocuments` (reason `text_cut`). Further `processed` counters:
+    `unconfirmedRetries`, `inputUnconfirmed`, `requeuedBehindFrontier`,
+    `scanPasses`, `knownTrimmed`, `chunksSplit`, `contextRefused`,
+    `navigationMoved`, `navigationMovedChars`, `continuationDocs`,
+    `continuationCalls`, `textCutDocs`, `textCutChars`
+    (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27);
   - `store`: schema version, dataset epoch, `uncleanStartDetected`,
     `startRecorded`, `integrity` (state of `PRAGMA quick_check`),
     `manualPause`, `manualPauseSaved`;

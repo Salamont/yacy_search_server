@@ -4,6 +4,26 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- Knowledge graph, LLM tier (follow-up of the 0.10.0 coverage analysis,
+  docs/SCOUTRO_KNOWLEDGE_GRAPH.md 27): a queue item is never dropped while
+  its page is still to do (a page left unconfirmed is retried with a backoff
+  and then shown as `input_unconfirmed`); every LLM collection has its own
+  resumable scan with an equal share of each refill and a revisit behind it,
+  so a late collection is not left behind and pages that became to do again
+  are found without a restart; a queue item waiting two hours is claimed
+  before newer higher-priority ones. Every request is planned against the
+  model's context window with an answer reserve
+  (`scoutro.kg.llm.answerReserveTokens`, 1,200): a large list of known
+  entities is cut to those the chunk names, a chunk is split or the page is
+  shown as `context_budget` instead of sending a request that does not fit;
+  `num_ctx` is sent on Ollama's native path where `ai.service_num_ctx` is
+  configured. A long page reads its own content before navigation that
+  recurs on its host (moved, never removed), and a long content page is
+  continued by at most `scoutro.kg.llm.continuationChunks` (5) further
+  requests at low priority; text still unread shows as `text_cut`. New
+  status blocks `llm.selection`, `llm.context`, `llm.continuation` and
+  counters. No schema change; pages read before are not read again.
+
 - Discovery: an administrator can defer an unconfirmed crawl start that
   blocks all Discovery batches (`needs_review`, `submitted_unknown`, no crawl
   profile with its marker) on the Discovery page (**Defer start (outcome

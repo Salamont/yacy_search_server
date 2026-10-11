@@ -609,6 +609,7 @@ Found on livaid.com (October 2026): the imprint of an architect named the operat
   - every claim needs a quote ≤ 200 characters that occurs **verbatim** (whitespace-normalised) in the input text. Otherwise it is dropped.
   - The counts of invalid answers are visible (see **Counters** below).
 - **Concurrency:** `llm.parallel` (default 1, maximum 2).
+- **Selection, request budget and long pages** (since the coverage analysis of 0.10.0, see [27](#27-llm-tier-coverage-selection-request-budget-and-long-pages)): every LLM collection has its own resumable scan with an equal share of each refill and a revisit behind it; a queue item is never dropped while its page is still to do; every request is planned against the model's context window; a long page reads its own content before recurring navigation and is continued in bounded steps.
 - **As implemented (2b, see [19](#19-package-2b-implementation)):**
   - The model only proposes: no persons, no e-mail addresses, no phone numbers (contact data comes from tiers 1 and 2 only, O7); a known entity of tiers 1 and 2 is referred to by `k1`, `k2`, ...; facility kinds only from the collection's vocabulary (O2).
   - **Id contract** (rule 7 of the prompt and the descriptions of the schema): a known entity (`k1`, `k2`, ... in the DATA block) exists already, is never put into `entities` again and is only referred to, as `subject` or `object` of a claim or `subject` of a value; every new entity gets a new id `e1`, `e2`, ..., once per answer and never a `k` id, and claims and values refer to it by that id. The former rule ("refer to them by these ids instead of repeating them") did not say so: models re-declared known entities with their `k` id or numbered new entities on in the `k` scheme, and the validator dropped them as `entity_duplicate_id` (the same 33 times for Llama 3.1 8B and Qwen3 14B on one test set). The validator is unchanged: such an entity is still dropped; a re-declared known entity under its own `k` id loses nothing (claims on `k1` resolve to the known entity), but a new entity under a known id is lost, and claims on it would point at the known entity or reference themselves. The contract change is a new compiled-in default prompt and schema, so `PROMPT_HASH` changed, and with it the extractor identity and the cache key: no answer of the former prompt is reused. Under the knowledge prompt lifecycle (below) this reads no done document again: new and changed pages are asked with the new contract, the existing evidence stays. A graph whose active prompt is a custom version keeps it; its text should take over rule 7.
@@ -1111,6 +1112,7 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 | `queue.maxItems`, `capture.maxPending` | 200 000, 100 000 | no |
 | `extract.maxStatementsPerDoc`, `extract.maxExcerptChars`, `extract.maxRuleInputChars` (tier 2), `extract.maxInputChars` (LLM, 2b) | 50, 200, 65 536, 12 000 | advanced |
 | `llm.parallel`, `llm.timeoutSeconds`, `llm.maxAttempts`, `llm.breakerFailures`, `llm.breakerMaxBackoffMinutes`, `llm.maxDocsPerHost` | 1, 120, 2, 3, 60, 25 | advanced |
+| `llm.answerReserveTokens` (tokens of the context window kept for the answer, at most the row's output cap), `llm.continuationChunks` (chunks a continuation reads of a long content page; 0: none) ([27](#27-llm-tier-coverage-selection-request-budget-and-long-pages)) | 1 200 (256–32 768), 5 (0–20) | advanced |
 | `llm.structuredOutput` (`auto`, `json_schema`, `json_object`, `none`) | auto | advanced |
 | `gate.maxIndexingQueue`, `gate.maxLoad`, `gate.minFreeHeapMB` | 20, 2.5, 256 | advanced |
 | `source.*`, `changes.*`, `cache.maxPercent` | [7.2](#72-settings) | advanced |
@@ -1531,7 +1533,7 @@ The review of `0b303ac` found five gaps in package 1. Each was reproduced or con
 
 1. The sync publishes tiers 1 and 2 as before and never waits for tier 3. A new input hash deletes the document's tier-3 evidence in the same transaction and resets `llm_status`; it then wakes the LLM tier.
 2. The scan of the LLM tier walks the documents still to do (`llm_status IS NULL`, active; a partial index) and either queues them (priority: imprint and about pages 1, services, locations, contact and team 2, home page 3, others 5) or marks them `skipped` (`not_selected`, `no_host`, `host_cap`). The queue holds at most 10 000 items; the scan fills it only while it holds ≤ 100.
-3. A worker claims one item, reads the document by real-time get and checks that Solr's input hash is the one the graph published (otherwise the item waits for the sync). It runs tiers 1 and 2 again for the page's known entities and skips pages that are no candidates (`not_candidate`). It reads ≤ `extract.maxInputChars` of text in chunks of ≤ 4 000 characters.
+3. A worker claims one item, reads the document by real-time get and checks that Solr holds the input the graph published, as far as the tier reads it: the content hash (schema 4; the input hash for an older page), so a new vocabulary or extractor version does not count as a change (otherwise the item waits for the sync, with a bounded backoff, see [27.1](#271-reliable-processing)). It runs tiers 1 and 2 again for the page's known entities and skips pages that are no candidates (`not_candidate`). It reads ≤ `extract.maxInputChars` of text in chunks of ≤ 4 000 characters.
 4. Per chunk: the cache first; otherwise one call with the read timeout `llm.timeoutSeconds`, ≤ 1 MiB raw response, the configured `max_tokens`. Nothing is locked while the call runs.
 5. Validation ([6.3](#63-llm-use)): the whole answer is refused unless it is one JSON object of the schema (≤ 64 KiB, ≤ 40 entities and claims, known fields only); single items are dropped when a rule fails (types, relation type rules, known IDs, persons) or their quote is not found verbatim in the chunk with the names involved. A hedge word in the quote makes the claim `hedged` whatever the model says.
 6. The validated chunk result (or the refusal reason) goes into the cache; all chunks of the document are applied and published in one growth transaction with a compare-and-set on the input hash; the document is marked `done`.
@@ -2379,3 +2381,71 @@ knowledge, or couple extraction/display/matching to a single jobs switch.
 Existing industry matching remains; additional system/need matching is package C.
 Rebuild carries the authoritative archive at final swap; restore selects the
 chosen snapshot without silently merging newer history.
+
+## 27. LLM tier coverage: selection, request budget and long pages
+
+Follow-up of the read-only coverage analysis of 0.10.0 (11.10.2026, `scoutro-0.10.0-crawl-enrichment-coverage-analysis.md` with the supplement, sections 9 to 13). Its telemetry findings (`claim_employer_unresolved`, `value_signal_context_missing`, the `vocab_counts` label) were already shipped in 0.10.0 and are not part of this. No schema change (schema 6), no new table; the scan positions are rows of `kg_meta`.
+
+### 27.1 Reliable processing
+
+**Found** (section 10: 2,679 pages pending behind the scan, neither marked nor queued; reproduced with isolated fixtures in `LlmStrandedTest`): a worker completed a queue item without a status for its page when
+
+- it could not confirm the input (Solr ahead of the graph, or the page missing in Solr) after `llm.maxAttempts` + 2 tries,
+- the page changed during the call (the compare-and-set of the publication failed), or
+- a new vocabulary or extractor identity, part of the input hash but not of what the tier reads, made every page not yet re-extracted "changed".
+
+The single scan position lived in memory and moved forward only: such a page was found again after the wrap-around (weeks with 115,000 pages pending) or a restart. The same held for a page that became to do again behind the position (a new text, a new extractor).
+
+**Now:**
+
+- The worker compares, marks and publishes on what it reads: `coalesce(content_hash, input_hash)`. A new vocabulary throws no answer away (the publisher already kept a published result across one).
+- An item is completed only when its page got a status or needs nothing any more. An input that cannot be confirmed is retried with a growing backoff (1 to 30 minutes); after `llm.maxAttempts` + 6 tries the page is `failed` with the reason `input_unconfirmed` (visible; `llm_retry` or a new input open it again). A page that changed during the call is due at once for its new input, bounded the same way.
+- Every revisit (27.2) finds a page left unqueued behind a frontier, also one left by 0.10.0, without a restart.
+- Counters (`processed`): `unconfirmedRetries`, `inputUnconfirmed`, `requeuedBehindFrontier`.
+
+### 27.2 Fair, resumable selection
+
+Every collection the LLM tier follows has its own scan with two positions, persisted in `kg_meta` (`llm_scan:<coll_id>` = `frontier:revisit`):
+
+- The **frontier** walks the collection's pages in row order and keeps its position across restarts. A refill pass (when at most 100 items are due within a minute) gives every collection an equal share of 200 pages, minus the revisits; a share a collection cannot use goes to the others; the collection served first rotates. A collection crawled late (CheckTheCoach, median row 101,000 of 127,700) is queued from the first pass on, not after every older row.
+- The **revisit** walks behind the frontier, at most 50 pages per pass over all collections, and queues pages that became to do there; a finished sweep of a collection waits 10 minutes before the next one.
+- **Order and priorities:** within a collection older pages come first. The queue keeps its priorities (imprint and about 1, services, locations and contact 2, home page 3, others 5, continuations 8), but an item waiting longer than two hours is claimed before newer items of a higher priority, so a page is never held back for good.
+- **Unchanged:** the per-host cap (finished plus queued per host), the schedule and manual runs (`LlmTiming`), the gates, the circuit breaker, claims, chunk progress and the cache.
+- A bulk reopening (a changed LLM selection, a new extractor version, `llm_retry`, a full reset) forgets the positions; the frontiers walk again (cheap: only pages to do are queued). Collections the graph follows but the LLM tier does not are still marked `not_selected`, without a model call.
+- Status `llm.selection`: per collection `frontier`, `revisit` (row IDs as of the last pass) and `queued` (pages queued since the start); `scanBatch`, `revisitBatch`, `agingMinutes`. Counter `scanPasses`.
+
+### 27.3 Request budget
+
+The analysis (section 11) measured the parts of a request: system prompt 3,283 characters, schema about 2,200, a chunk of up to 4,000, known entities typically about 200 and at worst 12,831 characters (40 of 300) - about 5,700 tokens against a window of 4,096. **What is passed on** (checked in the code): the knowledge tier calls an `OLLAMA` model natively (`/api/chat`) with `num_predict` = the row's `max_tokens` (262,440 in production) and, before this change, without `num_ctx`: the server's own context length applied, and `ai.service_num_ctx` had no effect on this path. Ollama keeps prompt and answer in one window.
+
+- Every request is planned before it is sent (`RequestBudget`): system prompt; the schema where the endpoint may count it as prompt (OpenAI-compatible; Ollama applies it as a grammar); the user message (site, language, title, facility kinds, known entities, chunk); a frame of 64 tokens for the chat template; and the answer reserve `llm.answerReserveTokens` (1,200 tokens by default: about 15 answer items of a quote of up to 200 characters plus their fields; at most the row's output cap). Characters are converted on the safe side: 4.0 per token for the instructions, 3.5 for page text and data, 3.2 for JSON.
+- The window is the service's configured `ai.service_num_ctx`; without one, Ollama's default of 4,096 tokens is assumed. **`num_ctx` is now sent on the native path only where it is configured**, so an operator's setting takes effect and the budget plans against what the server uses; an unconfigured server is asked exactly as before. No production limit is raised.
+- A chunk that fits with all known entities is asked exactly as before (same cache key). Otherwise it is asked with the known entities its text names, numbered again (`k1`, ...): the validator accepts a claim or value about a known entity only with a verbatim quote that contains its name, so the others cannot be used there; job postings are always kept. If these still do not fit, the chunk is split (at most twice; offsets kept, nothing lost). If a part still does not fit, the document is not sent: it is `failed` with the reason `context_budget` (after a larger window, `llm_retry`).
+- Status `llm.context`: `windowTokens`, `windowSource` (`configured`, `assumed_default`), `numCtxSent`, `maxOutputTokens`, `answerReserveTokens`, `fixedPromptTokens`, `schemaCounted`, `promptTokensEstimatedMax`, and `measured` (what the endpoint reported: answers, prompt and answer tokens, maximum and average, `answersCutAtLimit` for `done_reason`/`finish_reason` `length`; Ollama's prompt count leaves out a prefix served from its prompt cache, so it is a lower bound). Counters `knownTrimmed`, `chunksSplit`, `contextRefused`.
+
+### 27.4 Recurring navigation of long pages
+
+Section 12 measured a menu of 4,166 characters at the start of every page of `www.pta.de`, about 35 % of the 12,000 characters a long page was read with. For a page longer than `extract.maxInputChars`, blocks of lines that recur on up to three other pages of the same host (the first by document ID) move behind the page's own lines:
+
+- A line recurs if it occurs, compared without case, Markdown marks and repeated spaces, on two of the compared pages (on the only one if the host has one other page). Only runs of at least 300 characters move; a single recurring line in the content (a service, the operator's name) stays where it is.
+- **Nothing is removed.** Every line stays verbatim and is read where the input reaches it: services, imprint data and quotes are kept, and the quote check compares against the text the model was given. Quote positions are translated back, so the evidence locator (`text:<position>+<length>`) still points into the stored text.
+- A page that fits the input is read unchanged (same text, same cache key). For a long page with moved navigation the chunks and their cache keys change; this concerns only pages read for the first time or again.
+- The recurring lines of a host are cached (128 hosts). Counters `navigationMoved`, `navigationMovedChars`.
+
+### 27.5 Continuations of long content pages
+
+Section 12: STELLWERK's reference page has 67,173 characters, cut at 12,000 in the middle of its case studies. A long content page is read in two steps:
+
+- The **first reading** is unchanged (the first `extract.maxInputChars` characters). The page is `done` with the reason `more_text` (a continuation follows) or `text_cut` (text stays unread: continuations off, a legal page, or a part refused by the budget).
+- A **continuation** reads up to `llm.continuationChunks` further chunks (5 by default, one request each, about 20,000 characters), from the line or sentence the first reading ended in (at most 400 characters back). It adds its result to the first one: nothing is replaced, a statement the page already supports keeps its one tier-3 evidence (the evidence's primary key), and a compare-and-set on the content and on `more_text` makes a second or stale continuation publish nothing. Text still left is marked `text_cut`.
+- **Bounded:** at most ten continuations are queued at a time, at priority 8, so they wait behind first readings until they aged two hours; they do not count against the per-host cap. Legal pages (privacy, terms, cookies, withdrawal, disclaimer) are not continued.
+- **Resumable:** the cache and the chunk progress keep answered chunks across a stop.
+- **No mass processing:** pages read before this change keep their result and are not continued; a page read again (new text, new extractor) is.
+- Status `llm.continuation`: `chunks`, `maxChars`, `overlapChars`, `pendingDocuments` (`more_text`), `textCutDocuments`. Counters `continuationDocs`, `continuationCalls` (the additional model requests), `textCutDocs`, `textCutChars`.
+
+### 27.6 Costs and limits
+
+- **Additional model requests** come only from continuations, splits by the budget, and an answer re-asked after a page changed during its call. With the default of 5 continuation chunks, a page of 20,000 characters costs 2 to 3 requests more (and is then read whole); STELLWERK's reference page costs 5 more, and about 35,000 of its 67,173 characters stay unread instead of 55,173. In the sample of the analysis 5 to 15 % of the pages are longer than 12,000 characters; with the current backlog of first readings the queue gives continuations at most ten pages per two hours.
+- **Fewer wasted requests:** pages are no longer re-asked after a restart because they were found again, and a vocabulary change no longer throws answers away.
+- **Not addressed here:** pages whose stored text is almost empty (`stellwerk.net/` with 89 characters; the cause, JavaScript or the parser, is not determined), PDF price lists (blacklisted), the crawl's 15 pages per domain, the per-host cap of 25 for large sites, and the model's semantic refusals (`claim_self_reference`, `claim_unresolved_*`). robots.txt, the blacklist and the validator are unchanged.
+
