@@ -168,6 +168,9 @@ class Descriptions(unittest.TestCase):
             "collections.create", "collections.reassign", "discovery.jobs.create",
             "discovery.jobs.update", "discovery.jobs.delete", "discovery.jobs.run",
             "discovery.enable", "discovery.disable", "discovery.pause", "discovery.resume",
+            # sign-in and user management of people (docs/SCOUTRO_USERS_ACCESS.md)
+            "auth.login", "auth.logout", "auth.password", "auth.sessions.revoke", "users.create", "users.update",
+            "users.delete", "users.password.reset", "users.sessions.revoke", "access.update",
         })
 
     def test_mutating_actions_require_admin(self):

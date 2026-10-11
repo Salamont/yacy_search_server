@@ -1566,13 +1566,16 @@ for path, methods in paths.items():
                 params[k] = {**v, "in": "body", "required": k in b.get("required", [])}
         ok_code = [c for c in o["responses"] if c.startswith("2")][0]
         ret = o["responses"][ok_code]["content"]["application/json"]["schema"]["$ref"].split("/")[-1]
-        actions.append(O(
+        action = O(
             name=o["operationId"], description=o["description"], mutating=o["x-scoutro-mutating"],
             auth="admin" if o["security"] else "public",
             http={"method": method.upper(), "path": "/scoutro/api" + path, "successStatus": int(ok_code)},
             parameters=params, returns=ret,
             errors=sorted(int(c) for c in o["responses"] if not c.startswith("2")),
-            cli=cli[o["operationId"]], mcpTool=mcp[o["operationId"]]))
+            cli=cli[o["operationId"]], mcpTool=mcp[o["operationId"]])
+        if action["mcpTool"] is None:
+            del action["mcpTool"]  # no MCP tool (people's sign-in and user management), like the Discovery actions
+        actions.append(action)
 actions.extend([{'name': 'discovery.catalog',
   'description': 'Discovery automation catalog. Administrator only; no agent grants.',
   'mutating': False,

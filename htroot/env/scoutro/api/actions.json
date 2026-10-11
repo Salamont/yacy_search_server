@@ -4518,7 +4518,6 @@
         503
       ],
       "cli": "browser: /scoutro-login.html",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4537,7 +4536,6 @@
       "returns": "AuthSession",
       "errors": [],
       "cli": "HTTP GET /scoutro/api/v1/auth/session",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4558,7 +4556,6 @@
         415
       ],
       "cli": "browser: account menu > Sign out",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4596,7 +4593,6 @@
         415
       ],
       "cli": "browser: /scoutro-account.html",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4617,7 +4613,6 @@
         401
       ],
       "cli": "browser: /scoutro-account.html",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4653,7 +4648,6 @@
         415
       ],
       "cli": "browser: /scoutro-account.html",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4676,7 +4670,6 @@
         503
       ],
       "cli": "browser: Settings > Users (ScoutroUsers_p.html)",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4759,7 +4752,6 @@
         503
       ],
       "cli": "browser: Settings > Users",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4790,7 +4782,6 @@
         404
       ],
       "cli": "HTTP GET /scoutro/api/v1/users/{name} (administrator)",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4868,7 +4859,6 @@
         415
       ],
       "cli": "browser: Settings > Users",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4901,7 +4891,6 @@
         415
       ],
       "cli": "browser: Settings > Users",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4947,7 +4936,6 @@
         415
       ],
       "cli": "browser: Settings > Users",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -4978,7 +4966,6 @@
         404
       ],
       "cli": "HTTP GET /scoutro/api/v1/users/{name}/sessions (administrator)",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -5010,7 +4997,6 @@
         415
       ],
       "cli": "browser: Settings > Users",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -5032,7 +5018,6 @@
         403
       ],
       "cli": "browser: Settings > Users",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -5087,7 +5072,6 @@
         415
       ],
       "cli": "browser: Settings > Users",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -5125,7 +5109,6 @@
         403
       ],
       "cli": "browser: Settings > Users > Audit log",
-      "mcpTool": null,
       "agent": {
         "grantable": false
       }
