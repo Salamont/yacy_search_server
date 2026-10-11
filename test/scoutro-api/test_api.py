@@ -39,6 +39,7 @@ USER = os.environ.get("SCOUTRO_ADMIN_USER", "admin")
 PASSWORD = os.environ.get("SCOUTRO_ADMIN_PASSWORD", "yacy")
 CRAWL_URL = os.environ.get("SCOUTRO_TEST_CRAWL_URL")
 REJECTED_URL = os.environ.get("SCOUTRO_TEST_REJECTED_URL")
+TEST_COLLECTION = "scoutro-api-validation"
 CLI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "scoutro", "scoutroctl")
 
 
@@ -69,6 +70,18 @@ def call(method, path, body=None, auth=True, password=None, headers=None, raw_bo
     except ValueError:
         payload = None
     return status, payload, text
+
+
+def ensure_test_collection():
+    """Create only the test collection on this disposable peer, if absent."""
+    status, data, text = call("GET", "/v1/collections")
+    if status != 200:
+        raise AssertionError(text)
+    if TEST_COLLECTION not in {c["id"] for c in data["collections"]}:
+        status, _, text = call("POST", "/v1/collections", body={
+            "id": TEST_COLLECTION, "name": TEST_COLLECTION})
+        if status != 201:
+            raise AssertionError(text)
 
 
 class PublicEndpoints(unittest.TestCase):
@@ -120,7 +133,7 @@ class Descriptions(unittest.TestCase):
         for path, methods in spec["paths"].items():
             self.assertTrue(path.startswith("/v1/") or path.startswith("/agent/v1/"), path)
             for method, operation in methods.items():
-                self.assertIn(method, ("get", "post", "patch"))
+                self.assertIn(method, ("get", "post", "patch", "put", "delete"))
                 self.assertNotIn(operation["operationId"], operation_ids)
                 operation_ids.add(operation["operationId"])
                 self.assertTrue(any(code.startswith("2") for code in operation["responses"]))
@@ -144,9 +157,18 @@ class Descriptions(unittest.TestCase):
             self.assertEqual(operation["operationId"], action["name"])
             self.assertEqual(operation["x-scoutro-mutating"], action["mutating"])
             self.assertEqual(bool(operation["security"]), action["auth"] == "admin")
-            self.assertTrue(action["mcpTool"].startswith("scoutro_"))
+            if "mcpTool" in action:
+                self.assertTrue(action["mcpTool"].startswith("scoutro_"))
+            else:
+                self.assertFalse(action["agent"]["grantable"], action["name"])
         mutating = {a["name"] for a in self.actions["actions"] if a["mutating"]}
-        self.assertEqual(mutating, {"crawl.start", "crawl.stop", "config.set"})
+        self.assertEqual(mutating, {
+            "crawl.start", "crawl.stop", "config.set", "kg.control", "kg.prompt.change",
+            "kg.collection.update", "kg.llm.schedule.change", "kg.llm.run",
+            "collections.create", "collections.reassign", "discovery.jobs.create",
+            "discovery.jobs.update", "discovery.jobs.delete", "discovery.jobs.run",
+            "discovery.enable", "discovery.disable", "discovery.pause", "discovery.resume",
+        })
 
     def test_mutating_actions_require_admin(self):
         for action in self.actions["actions"]:
@@ -273,6 +295,10 @@ class ReadActions(unittest.TestCase):
 
 class Crawls(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        ensure_test_collection()
+
     def test_list(self):
         status, data, _ = call("GET", "/v1/crawls")
         self.assertEqual(status, 200)
@@ -281,28 +307,34 @@ class Crawls(unittest.TestCase):
     def test_invalid_url(self):
         for url in ("ftp://example.com/", "file:///etc/passwd", "not a url", "https://user:pw@example.com/",
                     "", 42, "https://" + "a" * 2100 + ".com/"):
-            status, data, _ = call("POST", "/v1/crawls", body={"url": url})
+            status, data, _ = call("POST", "/v1/crawls", body={"url": url, "collection": TEST_COLLECTION})
             self.assertEqual(status, 400, url)
             self.assertEqual(data["error"]["details"]["field"], "url", url)
 
     def test_missing_url(self):
-        status, data, _ = call("POST", "/v1/crawls", body={"depth": 2})
+        status, data, _ = call("POST", "/v1/crawls", body={"depth": 2, "collection": TEST_COLLECTION})
         self.assertEqual(status, 400)
+        self.assertEqual(data["error"]["details"]["field"], "url")
 
     def test_invalid_depth(self):
-        for depth in (-1, 11, 99, "3", 2.5, None):
-            body = {"url": "https://example.com/", "depth": depth}
+        for depth in (-1, 11, 99, "3", 2.5):
+            body = {"url": "https://example.invalid/", "depth": depth, "collection": TEST_COLLECTION}
             status, data, _ = call("POST", "/v1/crawls", body=body)
-            if depth is None:
-                continue  # JSON null means "use the default"; this call must not start a crawl here
             self.assertEqual(status, 400, depth)
             self.assertEqual(data["error"]["details"]["field"], "depth", depth)
+        # JSON null uses the default. An invalid URL guarantees no crawl starts.
+        status, data, _ = call("POST", "/v1/crawls", body={
+            "url": "not a url", "depth": None, "collection": TEST_COLLECTION})
+        self.assertEqual(status, 400)
+        self.assertEqual(data["error"]["details"]["field"], "url")
 
     def test_invalid_scope_and_fields(self):
-        status, data, _ = call("POST", "/v1/crawls", body={"url": "https://example.com/", "scope": "everything"})
+        status, data, _ = call("POST", "/v1/crawls", body={
+            "url": "https://example.invalid/", "scope": "everything", "collection": TEST_COLLECTION})
         self.assertEqual(status, 400)
         self.assertEqual(data["error"]["details"]["field"], "scope")
-        status, data, _ = call("POST", "/v1/crawls", body={"url": "https://example.com/", "deleteIndex": True})
+        status, data, _ = call("POST", "/v1/crawls", body={
+            "url": "https://example.invalid/", "deleteIndex": True, "collection": TEST_COLLECTION})
         self.assertEqual(status, 400)
         self.assertEqual(data["error"]["details"]["field"], "deleteIndex")
         status, data, _ = call("POST", "/v1/crawls", raw_body=b"{not json", headers={"Content-Type": "application/json"})
@@ -321,7 +353,7 @@ class Crawls(unittest.TestCase):
     @unittest.skipUnless(CRAWL_URL, "SCOUTRO_TEST_CRAWL_URL not set")
     def test_crawl_lifecycle(self):
         status, crawl, text = call("POST", "/v1/crawls", body={"url": CRAWL_URL, "depth": 1, "scope": "domain",
-                                                               "maxPages": 20})
+                                                               "maxPages": 20, "collection": TEST_COLLECTION})
         self.assertEqual(status, 201, text)
         crawl_id = crawl["id"]
         self.assertIn(crawl["state"], ("running", "paused"))
@@ -348,15 +380,24 @@ class Crawls(unittest.TestCase):
 
 class CrawlRejected(unittest.TestCase):
 
+    @classmethod
+    def setUpClass(cls):
+        if REJECTED_URL:
+            ensure_test_collection()
+
     @unittest.skipUnless(REJECTED_URL, "SCOUTRO_TEST_REJECTED_URL not set")
     def test_rejected_crawl(self):
-        status, data, _ = call("POST", "/v1/crawls", body={"url": REJECTED_URL})
+        status, data, _ = call("POST", "/v1/crawls", body={"url": REJECTED_URL, "collection": TEST_COLLECTION})
         self.assertEqual(status, 422)
         self.assertEqual(data["error"]["code"], "crawl_rejected")
         self.assertIn("failed", data["error"]["message"])
 
 
 class Cli(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        ensure_test_collection()
 
     def run_cli(self, *args):
         env = dict(os.environ, SCOUTRO_URL=BASE, SCOUTRO_USER=USER, SCOUTRO_PASSWORD=PASSWORD)
@@ -373,7 +414,7 @@ class Cli(unittest.TestCase):
         self.assertEqual(data["limit"], 3)
 
     def test_cli_errors(self):
-        code, data = self.run_cli("crawl", "start", "ftp://example.com/")
+        code, data = self.run_cli("crawl", "start", "ftp://example.com/", "--collection", TEST_COLLECTION)
         self.assertEqual(code, 1)
         self.assertEqual(data["error"]["code"], "invalid_request")
         code, data = self.run_cli("crawl", "status", "unknownCrawl1")
