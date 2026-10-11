@@ -1,0 +1,135 @@
+/*
+ * Scoutro sign-in, account and user management pages.
+ * Copyright (C) 2026 Scoutro contributors. GPL-2.0-or-later.
+ * Colours, radii and shadows come from the tokens in brand/brand.css.
+ */
+
+/* ---- login and Digest fallback (standalone pages without the admin header) ---- */
+body.scoutro-auth-page {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--scoutro-page, #eef4fb);
+  color: var(--scoutro-ink, #10233f);
+  font-family: var(--scoutro-font, system-ui, sans-serif);
+}
+.scoutro-auth {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 12vh 16px 32px;
+  box-sizing: border-box;
+}
+.scoutro-auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--scoutro-surface, #fff);
+  border: 1px solid var(--scoutro-border, #d9e3ef);
+  border-radius: var(--scoutro-radius-lg, 22px);
+  box-shadow: var(--scoutro-shadow, 0 8px 24px rgba(16, 35, 63, .08));
+  padding: 28px 24px 20px;
+  box-sizing: border-box;
+}
+.scoutro-auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  font-weight: 700;
+  font-size: 1.15em;
+  color: var(--scoutro-night, #0b1b33);
+}
+.scoutro-auth h1 {
+  font-size: 1.5em;
+  margin: 0 0 6px;
+  color: var(--scoutro-night, #0b1b33);
+}
+.scoutro-auth-lead {
+  margin: 0 0 18px;
+  color: var(--scoutro-ink-2, #34465f);
+}
+.scoutro-auth-form label {
+  display: block;
+  font-weight: 600;
+  margin: 12px 0 4px;
+}
+.scoutro-auth-form input[type="text"],
+.scoutro-auth-form input[type="password"] {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 16px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--scoutro-border-strong, #b9c8da);
+  border-radius: var(--scoutro-radius-sm, 10px);
+  background: #fff;
+}
+.scoutro-auth-form input:focus {
+  outline: none;
+  border-color: var(--scoutro-primary, #1d63d6);
+  box-shadow: 0 0 0 3px var(--scoutro-focus, rgba(41, 182, 246, .35));
+}
+.scoutro-auth-submit {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 18px;
+  border-radius: var(--scoutro-radius-pill, 999px);
+  font-weight: 600;
+}
+.scoutro-auth-hint {
+  margin: 4px 0 0;
+  font-size: .9em;
+  color: var(--scoutro-muted, #5d6f87);
+}
+.scoutro-auth-note {
+  margin: 16px 0 0;
+  font-size: .92em;
+  color: var(--scoutro-muted, #5d6f87);
+}
+.scoutro-auth-warn {
+  color: #7a4b00;
+}
+.scoutro-auth-message {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--scoutro-radius-sm, 10px);
+  border: 1px solid var(--scoutro-border, #d9e3ef);
+  background: var(--scoutro-surface-2, #f5f8fc);
+}
+.scoutro-auth-message-error {
+  border-color: #e3a2a2;
+  background: #fdf1f1;
+  color: #8a1c1c;
+}
+.scoutro-auth-message-warn {
+  border-color: #e8c98a;
+  background: #fff8e8;
+  color: #6b4500;
+}
+.scoutro-auth-message-info {
+  border-color: #a9cbe9;
+  background: #eef6fd;
+  color: #18406b;
+}
+.scoutro-auth-message:focus {
+  outline: 2px solid var(--scoutro-focus, rgba(41, 182, 246, .6));
+  outline-offset: 2px;
+}
+.scoutro-auth-alt {
+  margin: 20px 0 0;
+  font-size: .9em;
+  text-align: center;
+  color: var(--scoutro-muted, #5d6f87);
+}
+.scoutro-auth-alt a {
+  display: inline-block;
+  padding: 6px 2px;
+}
+@media (max-width: 480px) {
+  .scoutro-auth {
+    padding-top: 6vh;
+  }
+  .scoutro-auth-card {
+    padding: 22px 16px 16px;
+  }
+}
