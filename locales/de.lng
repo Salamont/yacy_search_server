@@ -5013,6 +5013,33 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 #-----------------------------
 
 #File: scoutro-dashboard.html
+"New collection"=="Neue Collection"
+"Remove collection"=="Collection entfernen"
+>Remove collection<==>Collection entfernen<
+>Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.<==>Entfernen lässt sich nur eine leere, in Scoutro angelegte Collection, und nur solange kein Konto, kein Agent, kein Gastzugang und kein laufender Crawl sie verwendet. Seiten im Index werden hier nie gelöscht.<
+>Cancel<==>Abbrechen<
+>Choose a collection<==>Collection wählen<
+>Cannot be removed<==>Nicht entfernbar<
+>No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.<==>Keine Collection lässt sich entfernen: Jede enthält Seiten oder stammt aus einem Discovery-Profil oder aus dem Index.<
+>%1 pages<==>%1 Seiten<
+>Discovery profile<==>Discovery-Profil<
+>from the index<==>aus dem Index<
+>Loading the collections …<==>Collections werden geladen …<
+>Collection created:<==>Collection angelegt:<
+>Collection removed:<==>Collection entfernt:<
+>The index holds pages of this collection, so it stays. Pages are never deleted here.<==>Der Index enthält Seiten dieser Collection, daher bleibt sie bestehen. Seiten werden hier nie gelöscht.<
+>A Discovery profile names this collection. Change the profile first.<==>Ein Discovery-Profil nennt diese Collection. Ändern Sie zuerst das Profil.<
+>Only a collection created in Scoutro can be removed.<==>Entfernen lässt sich nur eine in Scoutro angelegte Collection.<
+>This collection does not exist any more. The page is reloaded.<==>Diese Collection gibt es nicht mehr. Die Seite wird neu geladen.<
+>Still in use, remove it there first:<==>Noch in Verwendung, dort zuerst entfernen:<
+>accounts<==>Konten<
+>agents<==>Agenten<
+>guest access<==>Gastzugang<
+>running crawls<==>laufende Crawls<
+>The index cannot be read. Nothing was removed; try again later.<==>Der Index kann nicht gelesen werden. Es wurde nichts entfernt; versuchen Sie es später erneut.<
+>The collection list cannot be written. Nothing was removed.<==>Die Collection-Liste kann nicht geschrieben werden. Es wurde nichts entfernt.<
+>It cannot be checked who uses this collection. Nothing was removed.<==>Es lässt sich nicht prüfen, wer diese Collection verwendet. Es wurde nichts entfernt.<
+>The collection could not be removed.<==>Die Collection konnte nicht entfernt werden.<
 Share of the pages in your collections==Anteil an den Seiten Ihrer Collections
 "Overview of your collections"=="Übersicht Ihrer Collections"
 Your collections at a glance==Ihre Collections auf einen Blick
@@ -5185,6 +5212,13 @@ Idle==Inaktiv
 >Completed<==>Abgeschlossen<
 > Also retry after an unsuccessful crawl result<==> Auch nach einem erfolglosen Crawl-Ergebnis wiederholen<
 >An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>Ein erfolgloses Crawl-Ergebnis bedeutet, dass keine Seite indexiert oder beim Crawl nichts neu geladen wurde. Solche Hosts werden mit dem Backoff anderer Wiederholungen erneut versucht, der sich bis zum Recrawl-Intervall verdoppelt. Setzt Wiederholen voraus.<
+>Unconfirmed crawl start<==>Unbestätigter Crawl-Start<
+>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.<==>Discovery wartet, weil YaCy nicht bestätigt hat, ob dieser Crawl-Start angenommen wurde, und kein Crawl-Profil mit seinem Startmarker existiert. Prüfen Sie zuerst den Crawler-Monitor.<
+>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.<==>Zurückstellen prüft die Crawl-Profile noch einmal, lässt den Ausgang unbekannt, startet diese Website nie wieder von selbst und lässt Discovery weiterarbeiten. Angenommene Crawls bleiben erhalten.<
+>Defer start (outcome stays unknown)<==>Start zurückstellen (Ausgang bleibt unbekannt)<
+>Deferred starts<==>Zurückgestellte Starts<
+>Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.<==>Den unbestätigten Crawl-Start für %1 zurückstellen? Der Ausgang bleibt unbekannt, und die Website wird nicht automatisch erneut gestartet.<
+>Crawl start deferred; Discovery continues.<==>Crawl-Start zurückgestellt; Discovery arbeitet weiter.<
 
 #File: ScoutroSEO_p.html
 Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.==Organisationen, Einrichtungen, Standorte und Leistungen, die der Wissensgraph auf diesem Host gefunden hat, nur aus den Dokumenten der gewählten Collection berechnet. Qualität und Quellen stehen je Objekt; Fakten, die nur die LLM-Stufe gelesen hat, sind unsicher.
@@ -5594,6 +5628,166 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 #-----------------------------
 
 #File: ScoutroKnowledge_p.html
+# the process display of the status (labels, station titles, notes)
+>1 page<==>1 Seite<
+>1 page change<==>1 Seitenänderung<
+>1 document task<==>1 Dokumentaufgabe<
+>1 document<==>1 Dokument<
+>1 model call<==>1 Modellabruf<
+>1 knowledge object<==>1 Wissensobjekt<
+>1 signal<==>1 Signal<
+>1 provider partition<==>1 Anbieterbereich<
+>1 derived relation<==>1 abgeleitete Beziehung<
+>1 detected page change not yet queued<==>1 erkannte Seitenänderung, noch nicht eingereiht<
+>1 page change (page comparison)<==>1 Seitenänderung (Seitenabgleich)<
+>optional: 1 failed document task can be retried (Controls)<==>optional: 1 fehlgeschlagene Dokumentaufgabe lässt sich erneut versuchen (Steuerung)<
+>Detected changes are not queued while the sync task is stopped<==>Erkannte Änderungen werden nicht eingereiht, solange die Sync-Aufgabe beendet ist<
+>Status read at %1<==>Status gelesen: %1<
+>Scope: all collections you may see<==>Geltungsbereich: alle Collections, die Sie sehen dürfen<
+>Scope: collection %1<==>Geltungsbereich: Collection %1<
+>Only pages and knowledge objects follow the selected collection; queues, runs and all other numbers count for the whole knowledge graph.<==>Nur Seiten und Wissensobjekte folgen der gewählten Collection; Warteschlangen, Läufe und alle anderen Zahlen gelten für den ganzen Wissensgraphen.<
+>Working<==>Arbeitet<
+>Up to date<==>Aktuell<
+>Waiting as planned<==>Wartet planmäßig<
+>Waiting for resources<==>Wartet auf Ressourcen<
+>Paused<==>Pausiert<
+>Error<==>Fehler<
+>Switched off<==>Ausgeschaltet<
+>No data<==>Keine Daten<
+>Waiting for you<==>Wartet auf Sie<
+>inspect the server log and the storage of the graph (technical diagnosis)<==>Serverprotokoll und Speicher des Graphen prüfen (technische Diagnose)<
+>free disk space on the data volume (technical diagnosis)<==>Speicherplatz auf dem Datenträger freigeben (technische Diagnose)<
+>per collection; one page can belong to several<==>je Collection; eine Seite kann zu mehreren gehören<
+>since the last start of Scoutro, all collections<==>seit dem letzten Start von Scoutro, alle Collections<
+>Full comparison with the index runs: 1 page checked so far<==>Vollabgleich mit dem Index läuft: bisher 1 Seite geprüft<
+>running: 1 page checked<==>läuft: 1 Seite geprüft<
+>1 page captured<==>1 Seite erfasst<
+>The sync task stopped<==>Die Sync-Aufgabe ist beendet<
+>%1 pages not yet examined by the AI<==>%1 Seiten noch nicht von der KI geprüft<
+>1 page not yet examined by the AI<==>1 Seite noch nicht von der KI geprüft<
+>in the queue: %1, %2 of them in progress<==>in der Warteschlange: %1, davon %2 in Bearbeitung<
+>queue empty<==>Warteschlange leer<
+>pages not yet examined: not reported by this server<==>noch nicht geprüfte Seiten: von diesem Server nicht gemeldet<
+>Ready; no model request runs at this moment<==>Bereit; gerade läuft keine Modellanfrage<
+>Pages not yet examined (queue included)<==>Noch nicht geprüfte Seiten (Warteschlange eingeschlossen)<
+>%1 s (measured over 1 finished model request since the last start)<==>%1 s (gemessen über 1 abgeschlossene Modellanfrage seit dem letzten Start)<
+>not available (the last run was refused)<==>nicht verfügbar (der letzte Lauf wurde abgelehnt)<
+>not available (no run since the last start)<==>nicht verfügbar (seit dem letzten Start kein Lauf)<
+>the graph was busy; the next interval tries again<==>der Graph war beschäftigt; das nächste Intervall versucht es erneut<
+>%1 model requests<==>%1 Modellanfragen<
+>1 model request<==>1 Modellanfrage<
+>Open:<==>Offen:<
+>Waits because:<==>Wartet, weil:<
+>Your action:<==>Ihr Handeln:<
+>none needed<==>nicht nötig<
+>not available<==>nicht verfügbar<
+>Open the technical diagnosis<==>Technische Diagnose öffnen<
+>The knowledge graph is off (%1).<==>Der Wissensgraph ist aus (%1).<
+>The knowledge graph is not running (%1).<==>Der Wissensgraph läuft nicht (%1).<
+>current count<==>aktueller Stand<
+>since the last start of Scoutro<==>seit dem letzten Start von Scoutro<
+>status of the pages now in the graph<==>Stand der Seiten, die jetzt im Wissensgraphen sind<
+>last run<==>letzter Lauf<
+>measured<==>gemessen<
+>Recognises new, changed and deleted pages in the index and reads their structured data.<==>Erkennt neue, geänderte und gelöschte Seiten im Index und liest ihre strukturierten Daten.<
+>%1 detected page changes not yet queued<==>%1 erkannte Seitenänderungen, noch nicht eingereiht<
+>no detected page change waits<==>keine erkannte Seitenänderung wartet<
+>Full comparison with the index runs: %1 pages checked so far<==>Vollabgleich mit dem Index läuft: bisher %1 Seiten geprüft<
+>confirm or reject the deletions the comparison found (Controls)<==>die vom Abgleich gefundenen Löschungen bestätigen oder ablehnen (Steuerung)<
+>Deletions found by the comparison wait for your confirmation<==>Vom Abgleich gefundene Löschungen warten auf Ihre Bestätigung<
+>Pages in the knowledge graph<==>Seiten im Wissensgraphen<
+>Detected page changes, not yet queued<==>Erkannte Seitenänderungen, noch nicht eingereiht<
+>Structured data (JSON-LD) capture<==>Erfassung strukturierter Daten (JSON-LD)<
+>%1 pages captured<==>%1 Seiten erfasst<
+>Full comparison with the index<==>Vollabgleich mit dem Index<
+>running: %1 pages checked<==>läuft: %1 Seiten geprüft<
+>last: %1 at %2<==>zuletzt: %1 am %2<
+>%1 pages<==>%1 Seiten<
+>%1 page changes<==>%1 Seitenänderungen<
+>%1 document tasks<==>%1 Dokumentaufgaben<
+>%1 documents<==>%1 Dokumente<
+>%1 model calls<==>%1 Modellabrufe<
+>%1 knowledge objects<==>%1 Wissensobjekte<
+>%1 signals<==>%1 Signale<
+>%1 provider partitions<==>%1 Anbieterbereiche<
+>%1 derived relations<==>%1 abgeleitete Beziehungen<
+>%1 s<==>%1 s<
+>%1 min<==>%1 min<
+>Extracts facts from queued page changes with rules and structured data.<==>Gewinnt Fakten aus eingereihten Seitenänderungen mit Regeln und strukturierten Daten.<
+>All page changes are processed.<==>Alle Seitenänderungen sind verarbeitet.<
+>%1 page changes (page comparison)<==>%1 Seitenänderungen (Seitenabgleich)<
+>no page change (page comparison)<==>keine Seitenänderung (Seitenabgleich)<
+>This number counts the page comparison only, not the AI queue. Rule processing never waits for the AI.<==>Diese Zahl zählt nur den Seitenabgleich, nicht die KI-Warteschlange. Die Regelverarbeitung wartet nie auf die KI.<
+>inspect the server log; the sync task stopped (technical diagnosis)<==>Serverprotokoll prüfen; die Sync-Aufgabe wurde beendet (technische Diagnose)<
+>Storage guard pauses new facts<==>Der Speicherschutz pausiert neue Fakten<
+>After the upgrade the new extraction waits for a backup<==>Nach dem Upgrade wartet die neue Extraktion auf eine Sicherung<
+>free storage, then create a backup (Controls)<==>Speicher freigeben, dann eine Sicherung anlegen (Steuerung)<
+>Page changes in the queue<==>Seitenänderungen in der Warteschlange<
+>new %1 · changed %2 · deleted %3 · comparison %4<==>neu %1 · geändert %2 · gelöscht %3 · Abgleich %4<
+>Page comparison open in total<==>Seitenabgleich insgesamt offen<
+>%1 (queued + detected)<==>%1 (eingereiht + erkannt)<
+>Oldest open change waits<==>Älteste offene Änderung wartet<
+>Documents published (unchanged ones not counted)<==>Veröffentlichte Dokumente (unveränderte nicht gezählt)<
+>Sync task<==>Sync-Aufgabe<
+>Last tick finished<==>Letzter Takt beendet<
+>Asks the selected model about pages and keeps only statements quoted from the page.<==>Fragt das gewählte Modell zu Seiten und übernimmt nur Aussagen mit Zitat aus der Seite.<
+>Optional enrichment is off: %1<==>Optionale Anreicherung ist aus: %1<
+>no page waits for the AI<==>keine Seite wartet auf die KI<
+>check the model service; requests resume by themselves after %1<==>Modelldienst prüfen; Anfragen laufen nach %1 von selbst wieder an<
+>optional: %1 failed document tasks can be retried (Controls)<==>optional: %1 fehlgeschlagene Dokumentaufgaben lassen sich erneut versuchen (Steuerung)<
+>optional: choose a model for the usage “knowledge” in LLM Selection<==>optional: in der LLM-Auswahl ein Modell für die Nutzung „Wissen“ wählen<
+>fix the LLM schedule (Settings)<==>den LLM-Zeitplan korrigieren (Einstellungen)<
+>The AI examines the pages of the AI collections; its queue is refilled from the pages not yet examined in small portions. One page can need several model requests, so a request is not a page. Skipped pages (not selected, over the per-host limit or without a host) are no backlog.<==>Die KI prüft die Seiten der KI-Collections; ihre Warteschlange wird in kleinen Portionen aus den noch nicht geprüften Seiten nachgefüllt. Eine Seite kann mehrere Modellanfragen brauchen, eine Anfrage ist also keine Seite. Übersprungene Seiten (nicht ausgewählt, über dem Limit je Host oder ohne Host) sind kein Rückstand.<
+>Document tasks in the queue (in progress included)<==>Dokumentaufgaben in der Warteschlange (laufende eingeschlossen)<
+>of them in progress<==>davon in Bearbeitung<
+>Model requests running now<==>Laufende Modellanfragen<
+>Documents done<==>Fertige Dokumente<
+>Documents failed<==>Fehlgeschlagene Dokumente<
+>Documents skipped (no backlog)<==>Übersprungene Dokumente (kein Rückstand)<
+>Model calls<==>Modellabrufe<
+>Average duration of a model request<==>Durchschnittliche Dauer einer Modellanfrage<
+>%1 s (measured over %2 finished model requests since the last start)<==>%1 s (gemessen über %2 abgeschlossene Modellanfragen seit dem letzten Start)<
+>not measured yet (no finished model request since the last start)<==>noch nicht gemessen (seit dem letzten Start keine abgeschlossene Modellanfrage)<
+>Next allowed start<==>Nächster erlaubter Start<
+>Selected model<==>Gewähltes Modell<
+>Holds what rules and the AI found: objects, statements and their evidence.<==>Hält, was Regeln und KI gefunden haben: Objekte, Aussagen und ihre Belege.<
+>no own backlog; it grows with the steps before<==>kein eigener Rückstand; wächst mit den Schritten davor<
+>Growth paused: storage budget at %1<==>Wachstum pausiert: Speicherbudget bei %1<
+>free storage, for example by deleting old backups (technical diagnosis)<==>Speicher freigeben, z. B. alte Sicherungen löschen (technische Diagnose)<
+>Growth was paused by hand<==>Das Wachstum wurde von Hand pausiert<
+>resume when you want growth again (Controls)<==>fortsetzen, sobald Wachstum wieder gewünscht ist (Steuerung)<
+>The integrity check failed; writes are blocked<==>Die Integritätsprüfung ist fehlgeschlagen; Schreibzugriffe sind gesperrt<
+>restore a backup or ask the operator (technical diagnosis)<==>eine Sicherung wiederherstellen oder den Betrieb fragen (technische Diagnose)<
+>Knowledge objects<==>Wissensobjekte<
+>Storage used<==>Belegter Speicher<
+>New facts allowed<==>Neue Fakten erlaubt<
+>Runs every %1 min; last start %2<==>Läuft alle %1 min; letzter Start %2<
+>No run recorded yet, or a new run was requested; runs every %1 min<==>Noch kein Lauf erfasst oder ein neuer Lauf wurde angefordert; läuft alle %1 min<
+>not measured: how many signals are still to match in total is unknown<==>nicht gemessen: Wie viele Signale insgesamt noch abzugleichen sind, ist unbekannt<
+>Waiting for the next interval<==>Wartet auf das nächste Intervall<
+>the matching continues in the next run<==>der Abgleich wird im nächsten Lauf fortgesetzt<
+>The last run was refused: %1<==>Der letzte Lauf wurde abgelehnt: %1<
+>Suggestions are switched off<==>Vorschläge sind ausgeschaltet<
+>Values of the last run only, not overall progress.<==>Nur Werte des letzten Laufs, kein Gesamtfortschritt.<
+>Customer suggestions<==>Kundenvorschläge<
+>Partner suggestions<==>Partnervorschläge<
+>Derived relations in total<==>Abgeleitete Beziehungen insgesamt<
+>Signals examined<==>Geprüfte Signale<
+>Provider partitions completed<==>Vollständig bearbeitete Anbieterbereiche<
+>Matching cycle<==>Abgleichszyklus<
+>Duration<==>Dauer<
+>Interval<==>Intervall<
+>What the knowledge graph is doing<==>Was der Wissensgraph gerade tut<
+>Reload status<==>Status neu laden<
+>Tap a step for details. Nothing here starts work or changes settings.<==>Für Details einen Schritt antippen. Hier wird nichts gestartet und keine Einstellung geändert.<
+>Web pages &amp; structured data<==>Webseiten &amp; strukturierte Daten<
+>in parallel<==>parallel<
+>Rule processing<==>Regelverarbeitung<
+>AI enrichment<==>KI-Anreicherung<
+>Knowledge store<==>Wissensbestand<
+>Customer &amp; partner suggestions<==>Kunden- &amp; Partnervorschläge<
+>Rule processing never waits for the AI enrichment. Both add to the same knowledge independently.<==>Die Regelverarbeitung wartet nie auf die KI-Anreicherung. Beide ergänzen denselben Wissensbestand unabhängig voneinander.<
+>Technical diagnosis<==>Technische Diagnose<
 >Manual run expired; unfinished work retained<==>Manueller Lauf abgelaufen; offene Arbeit bleibt erhalten<
 >Knowledge graph disabled<==>Wissensgraph deaktiviert<
 >Actual model request starts<==>Tatsächliche Modellaufrufstarts<

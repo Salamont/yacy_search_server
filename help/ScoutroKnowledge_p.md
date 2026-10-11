@@ -27,7 +27,7 @@ price comparison, and the evidence behind each fact. Operator guide:
 
 | View | URL | Content |
 | --- | --- | --- |
-| Overview | `ScoutroKnowledge_p.html` | State, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, the collections (see below), controls, backups, identity rebuild, recent events |
+| Overview | `ScoutroKnowledge_p.html` | The process display (see below); under **Technical diagnosis** the state cards, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, vocabulary and derived relations; then the collections (see below), controls, backups, identity rebuild, recent events |
 | Objects | `?view=objects&q=&type=&quality=&host=&industry=&category=&audience=` | Search by name, filter by type, quality, host, industry (NACE code; a section or division finds everything below it), service category and audience; 25 per page. Every hit shows its type, its provider and domain (a service: who offers it; a job: its employer; others: their own domain), its collection, place, quality, sources and last confirmation, with **Open provider**, **Network**, **Sources** and, for a service, **All providers** |
 | Services | `?view=services&q=&category=` · `?view=services&name=SAP` | Services of the same name across providers ("SAP · 133 providers") and, for one name, every provider's service in its own row (see below) |
 | Network of a name | `?view=network&group=SAP&category=&s=current,stale&list=1` | All providers of one service name around the name (see below) |
@@ -36,6 +36,63 @@ price comparison, and the evidence behind each fact. Operator guide:
 | Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published |
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
 | Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary (see below) |
+
+### Status: the process display
+
+The overview starts with what the knowledge graph is doing, as one flow:
+**Web pages & structured data** → **Rule processing** and **AI enrichment** in
+parallel → **Knowledge store** → **Customer & partner suggestions**. Each step
+says in a few lines what works or waits, how much is open, why it waits and
+whether you have to act (a red line; an optional hint is not red); tap or press Enter/Space on a step for
+its details, and **Open the technical diagnosis** for the full status lists.
+The display and its details only read the status: they start no work and
+change no setting. **Reload status** reads it again.
+
+- States: *Working*, *Up to date* (nothing open), *Waiting as planned* (time
+  window, minimum interval, manual-only runs, the next interval of the
+  suggestions, an AI request that is ready but not running yet), *Waiting for
+  resources* (load, heap, indexing, a disk reserve or temporary storage limit,
+  the write-ahead log), *Waiting for you* (deletions found by the comparison
+  wait for your confirmation; the new extraction after an upgrade waits for a
+  backup), *Paused* (by hand, or the storage budget), *Error* (stopped sync
+  task, open circuit breaker, storage error, critical disk, failed integrity
+  check), *Switched off* and *No data*.
+- The storage guard has one meaning on every step: the same reason (for
+  example `budget`, `manual`, `storage_error`) shows the same state and action
+  on rule processing, AI enrichment, the knowledge store and the suggestions.
+- **Web pages & structured data** counts the page changes detected in the index
+  and not yet queued, a running full comparison with the index (pages checked
+  so far, no percentage) and the JSON-LD capture. Its pages row shows the
+  chosen collection, or every collection with its own count: one page can
+  belong to several collections, so no total is added up.
+- **Rule processing** counts the open **page changes of the page comparison**
+  (queued plus detected). "No page change" concerns the page comparison only,
+  never the AI queue; rule processing never waits for the AI. When the queue
+  cannot be read the total is *not available*, never 0.
+- **AI enrichment** counts the **pages not yet examined** by the AI in the AI
+  collections: that is the backlog. Its **queue** is refilled from them in
+  small portions; the queue's **document tasks** include the one in progress,
+  which is never added again. **Model requests** are counted apart (one page
+  can need several). Skipped pages (not selected, over the per-host limit,
+  without a host) are no backlog; a failed page is an optional hint with the
+  retry under Controls, not an error of the whole step. The average duration
+  of a model request is shown only from requests that have ended since the
+  last start, never from one still running.
+- **Knowledge store** shows the **knowledge objects** of the chosen scope and
+  the storage guard.
+- **Customer & partner suggestions** shows the values of the **last run**
+  (suggestions derived, signals examined, provider partitions completed) and
+  the interval; these are no overall progress, and how many signals are still
+  to match in total is not measured, which the display says. The values of the
+  last run are kept in memory: after a restart, or when the last run was
+  refused, they are *not available* instead of 0.
+- Every number carries its unit and time basis: *current count*, *since the
+  last start of Scoutro*, *status of the pages now in the graph* (done, failed
+  and skipped pages of the AI), *per collection*, *last run* or *measured*. The
+  line above the flow names when the status was read and the scope: only pages
+  and knowledge objects follow the chosen collection; queues, runs and every
+  other number count for the whole graph. No percentage or remaining time is
+  estimated.
 
 The synchronisation panel also shows the periodic task's state, last start
 and finish, completed ticks, error class, and the current reconcile's scanned
@@ -413,8 +470,8 @@ active and which model of the LLM selection it uses.
 The overview shows the vocabularies in force (categories per collection, NACE
 codes), the derived relations (last run, interval
 `scoutro.kg.derived.intervalMinutes`, 60) and the upgrade of the last start.
-**Recompute suggestions now** runs the derived layer at the next maintenance
-step. When a graph of Scoutro 0.7 is upgraded, it is first checked
+**Recompute suggestions now** (under Controls) runs the derived layer at the
+next maintenance step. When a graph of Scoutro 0.7 is upgraded, it is first checked
 (`quick_check`) and copied to `graph-<UTC>-before-upgrade.db` in the backup
 folder; that copy is the way back to 0.7 and stays through the backup
 retention. A graph that fails the check is not touched and the graph stays off

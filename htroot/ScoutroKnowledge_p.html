@@ -21,19 +21,32 @@
 
 <section id="skg-overview" hidden aria-labelledby="skg-overview-title">
 <h2 id="skg-overview-title">Status</h2>
-<p class="sseo-note">State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</p>
-<div class="sseo-cards" id="skg-cards"></div>
 <div id="skg-budget-banner" role="alert" hidden></div>
 <p id="skg-upgrade-note" class="skg-banner skg-banner-warning" role="alert" hidden>The graph was upgraded without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.</p>
 <p id="skg-paused-note" class="skg-banner skg-banner-warning" role="status" hidden>Enrichment is paused: new pages, updates and the LLM tier wait; deletions, reconcile and state checks continue.</p>
+<section class="skg-process" id="skg-process" aria-labelledby="skg-process-title">
+<div class="skg-process-head"><h3 id="skg-process-title">What the knowledge graph is doing</h3><button type="button" class="btn btn-default btn-sm" id="skg-process-refresh">Reload status</button></div>
+<p class="skg-process-meta" id="skg-process-meta" aria-live="polite"></p>
+<p class="sseo-note">Tap a step for details. Nothing here starts work or changes settings.</p>
+<ol class="skg-flow" id="skg-flow">
+<li class="skg-station" data-station="sources"><button type="button" class="skg-station-head" id="skg-st-sources" aria-expanded="false" aria-controls="skg-st-sources-detail"><span class="skg-station-top"><span class="skg-station-title">Web pages &amp; structured data</span><span class="skg-station-state" data-kind="unknown"></span></span><span class="skg-station-lines"></span></button><div class="skg-station-detail" id="skg-st-sources-detail" role="region" aria-labelledby="skg-st-sources" hidden></div></li>
+<li class="skg-flow-split"><span class="skg-flow-parallel">in parallel</span><ul class="skg-flow-branches"><li class="skg-station" data-station="rules"><button type="button" class="skg-station-head" id="skg-st-rules" aria-expanded="false" aria-controls="skg-st-rules-detail"><span class="skg-station-top"><span class="skg-station-title">Rule processing</span><span class="skg-station-state" data-kind="unknown"></span></span><span class="skg-station-lines"></span></button><div class="skg-station-detail" id="skg-st-rules-detail" role="region" aria-labelledby="skg-st-rules" hidden></div></li><li class="skg-station" data-station="ai"><button type="button" class="skg-station-head" id="skg-st-ai" aria-expanded="false" aria-controls="skg-st-ai-detail"><span class="skg-station-top"><span class="skg-station-title">AI enrichment</span><span class="skg-station-state" data-kind="unknown"></span></span><span class="skg-station-lines"></span></button><div class="skg-station-detail" id="skg-st-ai-detail" role="region" aria-labelledby="skg-st-ai" hidden></div></li></ul></li>
+<li class="skg-station" data-station="knowledge"><button type="button" class="skg-station-head" id="skg-st-knowledge" aria-expanded="false" aria-controls="skg-st-knowledge-detail"><span class="skg-station-top"><span class="skg-station-title">Knowledge store</span><span class="skg-station-state" data-kind="unknown"></span></span><span class="skg-station-lines"></span></button><div class="skg-station-detail" id="skg-st-knowledge-detail" role="region" aria-labelledby="skg-st-knowledge" hidden></div></li>
+<li class="skg-station" data-station="suggestions"><button type="button" class="skg-station-head" id="skg-st-suggestions" aria-expanded="false" aria-controls="skg-st-suggestions-detail"><span class="skg-station-top"><span class="skg-station-title">Customer &amp; partner suggestions</span><span class="skg-station-state" data-kind="unknown"></span></span><span class="skg-station-lines"></span></button><div class="skg-station-detail" id="skg-st-suggestions-detail" role="region" aria-labelledby="skg-st-suggestions" hidden></div></li>
+</ol>
+<p class="sseo-note">Rule processing never waits for the AI enrichment. Both add to the same knowledge independently.</p>
+</section>
+<details class="skg-diagnosis" id="skg-diagnosis"><summary>Technical diagnosis</summary>
+<p class="sseo-note">State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</p>
+<div class="sseo-cards" id="skg-cards"></div>
 <section class="sseo-panel" aria-labelledby="skg-storage-title"><h3 id="skg-storage-title">Storage</h3><div id="skg-budget" class="skg-budget"></div><dl id="skg-storage" class="sseo-stats"></dl>
 <h4>JSON-LD in the Solr index</h4><div id="skg-jsonld-budget" class="skg-budget"></div>
 <p class="sseo-note">Levels: from 70 % a notice, from 80 % a warning, from 90 % new growth pauses (JSON-LD: the capture pauses, pages are indexed without it), the budget is the hard limit. Crawling and indexing never stop because of these budgets.</p></section>
 <section class="sseo-panel" aria-labelledby="skg-sync-title"><h3 id="skg-sync-title">Synchronisation</h3><dl id="skg-sync" class="sseo-stats"></dl></section>
 <section class="sseo-panel" aria-labelledby="skg-llm-title"><h3 id="skg-llm-title">LLM tier</h3><dl id="skg-llm" class="sseo-stats"></dl><p class="sseo-note">Calls and items count since the last start of Scoutro; every restart resets them.</p><details id="skg-llm-invalid-details" class="skg-llm-invalid"><summary>Invalid items by reason (since the last start)</summary><div id="skg-llm-invalid"></div><p class="sseo-note">Single entities, claims and values the validator dropped, each under the first rule it breaks; not failed calls and not refused answers. Diagnostic counters only; no model answer is stored.</p></details><p class="sseo-note">Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in <a href="LLMSelection_p.html">LLM Selection</a> (usage knowledge).</p></section>
 <section class="sseo-panel" aria-labelledby="skg-vocab-title"><h3 id="skg-vocab-title">Vocabulary and derived relations</h3><dl id="skg-vocab" class="sseo-stats"></dl>
-<div class="sseo-controls"><button class="btn btn-default" type="button" data-skg-action="derive">Recompute suggestions now</button></div>
 <p class="sseo-note">Industries follow NACE Rev. 2.1 / WZ 2025; service categories and audiences come from the Scoutro vocabularies of each collection. Derived relations (same operator, weak link signals, suggested customers and partners) are no facts; they are recomputed every interval and only shown to a viewer of both collections.</p></section>
+</details>
 <section class="sseo-panel" aria-labelledby="skg-colls-title"><h3 id="skg-colls-title">Collections</h3>
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-collections"><thead><tr><th>Collection</th><th>Followed</th><th>Vocabulary</th><th>Jobs</th><th>LLM tier</th><th>Documents in the graph</th><th>Status</th></tr></thead><tbody></tbody></table></div>
 <p class="sseo-note">With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Jobs are read only for the collections named in scoutro.kg.jobs.collections.</p></section>
@@ -44,6 +57,7 @@
 <button class="btn btn-default" type="button" data-skg-action="reconcile">Reconcile now</button>
 <button class="btn btn-default" type="button" data-skg-action="confirm_reconcile" hidden>Confirm deletions</button>
 <button class="btn btn-default" type="button" data-skg-action="llm_retry">Retry failed LLM documents</button>
+<button class="btn btn-default" type="button" data-skg-action="derive">Recompute suggestions now</button>
 <button class="btn btn-default" type="button" data-skg-action="backup">Create backup</button>
 </div>
 <p class="sseo-note">Pausing stops new enrichment (extraction, the LLM tier and a rebuild); deletions, reconcile and state checks continue. Nothing here changes the Solr index.</p></section>
@@ -212,6 +226,155 @@
 </section>
 
 <div hidden id="skg-labels">
+<!-- the process display (Status): steps, states, units and time bases -->
+<span data-skg-label="pr_unit_pages_one">1 page</span>
+<span data-skg-label="pr_unit_changes_one">1 page change</span>
+<span data-skg-label="pr_unit_tasks_one">1 document task</span>
+<span data-skg-label="pr_unit_docs_one">1 document</span>
+<span data-skg-label="pr_unit_calls_one">1 model call</span>
+<span data-skg-label="pr_unit_objects_one">1 knowledge object</span>
+<span data-skg-label="pr_unit_signals_one">1 signal</span>
+<span data-skg-label="pr_unit_partitions_one">1 provider partition</span>
+<span data-skg-label="pr_unit_relations_one">1 derived relation</span>
+<span data-skg-label="pr_src_open_one">1 detected page change not yet queued</span>
+<span data-skg-label="pr_rules_open_one">1 page change (page comparison)</span>
+<span data-skg-label="pr_ai_failed_one">optional: 1 failed document task can be retried (Controls)</span>
+<span data-skg-label="pr_src_blocked">Detected changes are not queued while the sync task is stopped</span>
+<span data-skg-label="pr_updated">Status read at %1</span>
+<span data-skg-label="pr_scope_all">Scope: all collections you may see</span>
+<span data-skg-label="pr_scope_one">Scope: collection %1</span>
+<span data-skg-label="pr_scope_note">Only pages and knowledge objects follow the selected collection; queues, runs and all other numbers count for the whole knowledge graph.</span>
+<span data-skg-label="pr_k_running">Working</span>
+<span data-skg-label="pr_k_idle">Up to date</span>
+<span data-skg-label="pr_k_scheduled">Waiting as planned</span>
+<span data-skg-label="pr_k_waiting">Waiting for resources</span>
+<span data-skg-label="pr_k_paused">Paused</span>
+<span data-skg-label="pr_k_error">Error</span>
+<span data-skg-label="pr_k_off">Switched off</span>
+<span data-skg-label="pr_k_unknown">No data</span>
+<span data-skg-label="pr_k_action">Waiting for you</span>
+<span data-skg-label="pr_act_storage">inspect the server log and the storage of the graph (technical diagnosis)</span>
+<span data-skg-label="pr_act_disk">free disk space on the data volume (technical diagnosis)</span>
+<span data-skg-label="pr_basis_per_collection">per collection; one page can belong to several</span>
+<span data-skg-label="pr_basis_start_all">since the last start of Scoutro, all collections</span>
+<span data-skg-label="pr_src_scan_one">Full comparison with the index runs: 1 page checked so far</span>
+<span data-skg-label="pr_d_compare_running_one">running: 1 page checked</span>
+<span data-skg-label="pr_d_jsonld_docs_one">1 page captured</span>
+<span data-skg-label="pr_rules_stopped">The sync task stopped</span>
+<span data-skg-label="pr_unit_unexamined">%1 pages not yet examined by the AI</span>
+<span data-skg-label="pr_unit_unexamined_one">1 page not yet examined by the AI</span>
+<span data-skg-label="pr_ai_queue">in the queue: %1, %2 of them in progress</span>
+<span data-skg-label="pr_ai_queue_empty">queue empty</span>
+<span data-skg-label="pr_ai_backlog_unknown">pages not yet examined: not reported by this server</span>
+<span data-skg-label="pr_ai_ready">Ready; no model request runs at this moment</span>
+<span data-skg-label="pr_d_pending">Pages not yet examined (queue included)</span>
+<span data-skg-label="pr_d_avg_value_one">%1 s (measured over 1 finished model request since the last start)</span>
+<span data-skg-label="pr_sg_refused_value">not available (the last run was refused)</span>
+<span data-skg-label="pr_sg_last_none">not available (no run since the last start)</span>
+<span data-skg-label="pr_sg_busy">the graph was busy; the next interval tries again</span>
+<span data-skg-label="pr_unit_requests">%1 model requests</span>
+<span data-skg-label="pr_unit_requests_one">1 model request</span>
+<span data-skg-label="pr_q_open">Open:</span>
+<span data-skg-label="pr_q_why">Waits because:</span>
+<span data-skg-label="pr_q_action">Your action:</span>
+<span data-skg-label="pr_action_none">none needed</span>
+<span data-skg-label="pr_open_unknown">not available</span>
+<span data-skg-label="pr_diagnosis_link">Open the technical diagnosis</span>
+<span data-skg-label="pr_graph_off">The knowledge graph is off (%1).</span>
+<span data-skg-label="pr_graph_down">The knowledge graph is not running (%1).</span>
+<span data-skg-label="pr_basis_now">current count</span>
+<span data-skg-label="pr_basis_start">since the last start of Scoutro</span>
+<span data-skg-label="pr_basis_total">status of the pages now in the graph</span>
+<span data-skg-label="pr_basis_run">last run</span>
+<span data-skg-label="pr_basis_measured">measured</span>
+<span data-skg-label="pr_src_doing">Recognises new, changed and deleted pages in the index and reads their structured data.</span>
+<span data-skg-label="pr_src_open">%1 detected page changes not yet queued</span>
+<span data-skg-label="pr_src_open_none">no detected page change waits</span>
+<span data-skg-label="pr_src_scan">Full comparison with the index runs: %1 pages checked so far</span>
+<span data-skg-label="pr_src_confirm">confirm or reject the deletions the comparison found (Controls)</span>
+<span data-skg-label="pr_src_confirm_wait">Deletions found by the comparison wait for your confirmation</span>
+<span data-skg-label="pr_d_pages">Pages in the knowledge graph</span>
+<span data-skg-label="pr_d_captured">Detected page changes, not yet queued</span>
+<span data-skg-label="pr_d_jsonld">Structured data (JSON-LD) capture</span>
+<span data-skg-label="pr_d_jsonld_docs">%1 pages captured</span>
+<span data-skg-label="pr_d_compare">Full comparison with the index</span>
+<span data-skg-label="pr_d_compare_running">running: %1 pages checked</span>
+<span data-skg-label="pr_d_compare_last">last: %1 at %2</span>
+<span data-skg-label="pr_unit_pages">%1 pages</span>
+<span data-skg-label="pr_unit_changes">%1 page changes</span>
+<span data-skg-label="pr_unit_tasks">%1 document tasks</span>
+<span data-skg-label="pr_unit_docs">%1 documents</span>
+<span data-skg-label="pr_unit_calls">%1 model calls</span>
+<span data-skg-label="pr_unit_objects">%1 knowledge objects</span>
+<span data-skg-label="pr_unit_signals">%1 signals</span>
+<span data-skg-label="pr_unit_partitions">%1 provider partitions</span>
+<span data-skg-label="pr_unit_relations">%1 derived relations</span>
+<span data-skg-label="pr_unit_seconds">%1 s</span>
+<span data-skg-label="pr_unit_minutes">%1 min</span>
+<span data-skg-label="pr_rules_doing">Extracts facts from queued page changes with rules and structured data.</span>
+<span data-skg-label="pr_rules_done">All page changes are processed.</span>
+<span data-skg-label="pr_rules_open">%1 page changes (page comparison)</span>
+<span data-skg-label="pr_rules_open_none">no page change (page comparison)</span>
+<span data-skg-label="pr_rules_note">This number counts the page comparison only, not the AI queue. Rule processing never waits for the AI.</span>
+<span data-skg-label="pr_rules_failed">inspect the server log; the sync task stopped (technical diagnosis)</span>
+<span data-skg-label="pr_rules_growth">Storage guard pauses new facts</span>
+<span data-skg-label="pr_rules_upgrade">After the upgrade the new extraction waits for a backup</span>
+<span data-skg-label="pr_rules_upgrade_action">free storage, then create a backup (Controls)</span>
+<span data-skg-label="pr_d_queued">Page changes in the queue</span>
+<span data-skg-label="pr_d_queued_types">new %1 · changed %2 · deleted %3 · comparison %4</span>
+<span data-skg-label="pr_d_comparison_total">Page comparison open in total</span>
+<span data-skg-label="pr_d_comparison_total_value">%1 (queued + detected)</span>
+<span data-skg-label="pr_d_oldest">Oldest open change waits</span>
+<span data-skg-label="pr_d_published">Documents published (unchanged ones not counted)</span>
+<span data-skg-label="pr_d_task">Sync task</span>
+<span data-skg-label="pr_d_last_tick">Last tick finished</span>
+<span data-skg-label="pr_ai_doing">Asks the selected model about pages and keeps only statements quoted from the page.</span>
+<span data-skg-label="pr_ai_off">Optional enrichment is off: %1</span>
+<span data-skg-label="pr_ai_open_none">no page waits for the AI</span>
+<span data-skg-label="pr_ai_breaker">check the model service; requests resume by themselves after %1</span>
+<span data-skg-label="pr_ai_failed">optional: %1 failed document tasks can be retried (Controls)</span>
+<span data-skg-label="pr_ai_model">optional: choose a model for the usage “knowledge” in LLM Selection</span>
+<span data-skg-label="pr_ai_schedule">fix the LLM schedule (Settings)</span>
+<span data-skg-label="pr_ai_note">The AI examines the pages of the AI collections; its queue is refilled from the pages not yet examined in small portions. One page can need several model requests, so a request is not a page. Skipped pages (not selected, over the per-host limit or without a host) are no backlog.</span>
+<span data-skg-label="pr_d_tasks_open">Document tasks in the queue (in progress included)</span>
+<span data-skg-label="pr_d_tasks_claimed">of them in progress</span>
+<span data-skg-label="pr_d_calls_running">Model requests running now</span>
+<span data-skg-label="pr_d_done">Documents done</span>
+<span data-skg-label="pr_d_failed">Documents failed</span>
+<span data-skg-label="pr_d_skipped">Documents skipped (no backlog)</span>
+<span data-skg-label="pr_d_calls">Model calls</span>
+<span data-skg-label="pr_d_avg">Average duration of a model request</span>
+<span data-skg-label="pr_d_avg_value">%1 s (measured over %2 finished model requests since the last start)</span>
+<span data-skg-label="pr_d_avg_none">not measured yet (no finished model request since the last start)</span>
+<span data-skg-label="pr_d_next">Next allowed start</span>
+<span data-skg-label="pr_d_model">Selected model</span>
+<span data-skg-label="pr_kn_doing">Holds what rules and the AI found: objects, statements and their evidence.</span>
+<span data-skg-label="pr_kn_open">no own backlog; it grows with the steps before</span>
+<span data-skg-label="pr_kn_brake">Growth paused: storage budget at %1</span>
+<span data-skg-label="pr_kn_storage_action">free storage, for example by deleting old backups (technical diagnosis)</span>
+<span data-skg-label="pr_kn_manual">Growth was paused by hand</span>
+<span data-skg-label="pr_kn_manual_action">resume when you want growth again (Controls)</span>
+<span data-skg-label="pr_kn_integrity">The integrity check failed; writes are blocked</span>
+<span data-skg-label="pr_kn_integrity_action">restore a backup or ask the operator (technical diagnosis)</span>
+<span data-skg-label="pr_d_objects">Knowledge objects</span>
+<span data-skg-label="pr_d_storage">Storage used</span>
+<span data-skg-label="pr_d_growth">New facts allowed</span>
+<span data-skg-label="pr_sg_schedule">Runs every %1 min; last start %2</span>
+<span data-skg-label="pr_sg_never">No run recorded yet, or a new run was requested; runs every %1 min</span>
+<span data-skg-label="pr_sg_open">not measured: how many signals are still to match in total is unknown</span>
+<span data-skg-label="pr_sg_wait">Waiting for the next interval</span>
+<span data-skg-label="pr_sg_continue">the matching continues in the next run</span>
+<span data-skg-label="pr_sg_refused">The last run was refused: %1</span>
+<span data-skg-label="pr_sg_off">Suggestions are switched off</span>
+<span data-skg-label="pr_sg_note">Values of the last run only, not overall progress.</span>
+<span data-skg-label="pr_d_customers">Customer suggestions</span>
+<span data-skg-label="pr_d_partners">Partner suggestions</span>
+<span data-skg-label="pr_d_relations">Derived relations in total</span>
+<span data-skg-label="pr_d_signals">Signals examined</span>
+<span data-skg-label="pr_d_partitions">Provider partitions completed</span>
+<span data-skg-label="pr_d_cycle">Matching cycle</span>
+<span data-skg-label="pr_d_duration">Duration</span>
+<span data-skg-label="pr_d_interval">Interval</span>
 <span data-skg-label="schedule_reason_manual_expired">Manual run expired; unfinished work retained</span>
 <span data-skg-label="schedule_reason_kg_disabled">Knowledge graph disabled</span>
 <span data-skg-label="schedule_started">Actual model request starts</span>

@@ -18,6 +18,23 @@ public final class DiscoveryStatus {
         if (run.optLong("finished_at", 0) > 0) out.put("phase", "completed");
         final JsonArray attempts = run.optJSONArray("attempts");
         out.put("attempt_count", attempts == null ? run.optInt("attempt_count", 0) : attempts.length());
+        int deferred = run.optInt("deferred_count", 0);
+        if (attempts != null) {
+            deferred = 0;
+            final JsonArray review = new JsonArray();
+            for (final Object value : attempts) {
+                final JsonObject attempt = (JsonObject) value;
+                final String state = attempt.getString("state");
+                if ("deferred".equals(state)) deferred++;
+                // the open crawl starts an administrator can resolve (docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md, section 16)
+                if ("needs_review".equals(run.optString("phase")) && DiscoveryService.UNRESOLVED.contains(state)) {
+                    review.put(new JsonObject().put("attempt_id", attempt.getString("id")).put("domain", attempt.getString("domain"))
+                            .put("state", state).put("submitted_at", attempt.get("submitted_at")));
+                }
+            }
+            if (!review.isEmpty()) out.put("review", review);
+        }
+        if (deferred > 0) out.put("deferred_count", deferred);
         return out;
     }
     public static JsonObject project(final JsonObject root, final JsonObject status) {

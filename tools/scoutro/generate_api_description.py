@@ -406,11 +406,11 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "enabled": {"type": "boolean"}, "parallel": {"type": "integer"}, "timeoutSeconds": {"type": "integer"}, "maxAttempts": {"type": "integer"},
         "maxDocsPerHost": {"type": "integer"}, "maxInputChars": {"type": "integer"},
         "queue": {"type": "object", "properties": {"items": {"type": "integer"}, "claimed": {"type": "integer"}, "oldestEnqueuedAt": {"type": ["integer", "null"]}, "max": {"type": "integer"}}},
-        "documents": {"type": "object", "properties": {"done": {"type": "integer"}, "failed": {"type": "integer"}, "skipped": {"type": "integer"}}},
+        "documents": {"type": "object", "description": "done, failed, skipped: the current LLM status of the pages in the graph; pending: pages of the LLM collections not examined yet, the queue included (the backlog the small queue is refilled from).", "properties": {"done": {"type": "integer"}, "failed": {"type": "integer"}, "skipped": {"type": "integer"}, "pending": {"type": "integer"}}},
         "cache": {"type": "object", "properties": {"entries": {"type": "integer"}, "bytes": {"type": ["integer", "null"]}, "maxBytes": {"type": "integer"}}},
         "breaker": {"type": "object", "properties": {"open": {"type": "boolean"}, "consecutiveFailures": {"type": "integer"}, "failuresToOpen": {"type": "integer"},
             "openUntil": {"type": ["integer", "null"]}, "backoffMillis": {"type": "integer"}, "timesOpened": {"type": "integer"}, "lastFailure": {"type": ["string", "null"]}}},
-        "processed": {"type": "object", "additionalProperties": True, "description": "Counters: calls, callFailures, timeouts, averageCallMillis, answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored."},
+        "processed": {"type": "object", "additionalProperties": True, "description": "Counters: calls, requestStarts, callFailures, timeouts, averageCallMillis (all measured time per counted call, a running call included), requestsFinished, averageRequestMillis (measured time per ended request; null before the first one ends), answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored."},
         "prompt": {"type": "object", "description": "The knowledge prompt the tier asks with (GET /kg/prompt has its text): revision, hash, source, time; no text.", "properties": {
             "activeVersion": {"type": "integer"}, "activeHash": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
             "source": {"type": "string", "enum": ["default", "custom"]}, "modifiedAt": {"type": ["integer", "null"]}, "differsFromDefault": {"type": "boolean"}}},
@@ -1244,6 +1244,18 @@ schemas["DiscoveryJob"] = {'type': 'object',
                                                               'minimum': 10,
                                                               'maximum': 525600,
                                                               'default': 60}}}}}
+# Recovery of an unconfirmed crawl start (docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md, section 16).
+DEFER_DESCRIPTION = ("Administrator only. No agent grants. Recovery of an unconfirmed crawl start: the open batch is in "
+    "needs_review with error submitted_unknown and status().active_batch.review lists the attempt. Re-reads the crawl "
+    "profiles, holds the candidate in the Discovery state (it is never started again by itself), reads the profiles "
+    "again and records the decision with the outcome kept unknown; never resubmits and never records the start as not "
+    "submitted. Accepted crawls stay; when no open start remains the batch waits for them and other jobs continue. "
+    "200 status with decision. 409 attempt_found (a crawl profile carries the marker: reconciled as accepted, nothing "
+    "deferred), worker_busy, revision_conflict, stale_run, run_not_in_review, attempt_unknown, attempt_not_unresolved, "
+    "already_deferred, attempt_accepted_in_state, collection_conflict, state_root_changed; 428 revision_required; "
+    "503 state_unreadable, hold_failed. See help/ScoutroDiscovery_p.md.")
+DEFER_BODY = {'type': 'object', 'additionalProperties': False, 'required': ['run_id'],
+              'properties': {'run_id': {'type': 'string', 'format': 'uuid', 'description': 'Id of the open batch.'}}}
 discovery_legacy = {'/v1/discovery/catalog': {'get': {'operationId': 'discovery.catalog'}},
  '/v1/discovery/export': {'get': {'operationId': 'discovery.export'}},
  '/v1/discovery/jobs': {'get': {'operationId': 'discovery.jobs.list'},
@@ -1302,6 +1314,21 @@ discovery_legacy = {'/v1/discovery/catalog': {'get': {'operationId': 'discovery.
                                                                                                       'required': ['request_id'],
                                                                                                       'properties': {'request_id': {'type': 'string',
                                                                                                                                     'pattern': '^[A-Za-z0-9_-]{1,80}$'}}}}}}}},
+ '/v1/discovery/attempts/{id}/defer': {'post': {'operationId': 'discovery.attempts.defer',
+                                                'description': DEFER_DESCRIPTION,
+                                                'parameters': [{'name': 'id',
+                                                                'in': 'path',
+                                                                'required': True,
+                                                                'description': 'Attempt id of the open batch (its start marker).',
+                                                                'schema': {'type': 'string', 'pattern': '^[a-f0-9]{32}$'}},
+                                                               {'name': 'If-Match',
+                                                                'in': 'header',
+                                                                'required': True,
+                                                                'description': 'Numeric jobstore revision, optionally '
+                                                                               'quoted. Get from status/jobs.',
+                                                                'schema': {'type': 'string'}}],
+                                                'requestBody': {'required': True,
+                                                                'content': {'application/json': {'schema': DEFER_BODY}}}}},
  '/v1/discovery/enable': {'post': {'operationId': 'discovery.enable',
                                    'parameters': [{'name': 'If-Match',
                                                    'in': 'header',
@@ -1350,7 +1377,7 @@ for path, methods in discovery_legacy.items():
         responses = {str(201 if operation.endswith("create") else 200): {"description": "Success", "content": {"application/json": {"schema": {"type": "object"}}}}}
         responses.update({str(code): err("Validation, authorization, revision, conflict or availability error") for code in [400,401,403,404,409,428,503]})
         paths[path][method] = {"operationId":operation,"summary":"Discovery automation " + operation.removeprefix("discovery."),"tags":["discovery"],"security":[{"digest":[]}],"x-scoutro-mutating":mutation,
-            "description":"Administrator only. No agent grants. No Classification/LLM. See help/ScoutroDiscovery_p.md.","responses":responses,**{key:value for key,value in definition.items() if key != "operationId"}}
+            "description":definition.get("description", "Administrator only. No agent grants. No Classification/LLM. See help/ScoutroDiscovery_p.md."),"responses":responses,**{key:value for key,value in definition.items() if key not in ("operationId", "description")}}
 
 # The UI, CLI and agents share these contracts. No action fetches an unknown host.
 schemas["HostResolution"] = {"type": "object", "required": ["host", "url", "indexed", "analysisAvailable", "crawl"], "properties": {
@@ -1377,6 +1404,7 @@ schemas["CollectionCreate"] = {"type": "object", "required": ["name"], "addition
     "id": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){1,63}$", "description": "2–64 lower-case letters, digits and single hyphens; without it the id is derived from the name. Never an existing collection (also not one differing only in case), never robot_… or one of all, none, default, user, any, new."},
     "name": {"type": "string", "minLength": 1, "maxLength": 80}, "description": {"type": "string", "maxLength": 500}}}
 schemas["CollectionCreated"] = {"type": "object", "properties": {"collection": ref("CollectionEntry"), "created": {"const": True}}}
+schemas["CollectionRemoved"] = {"type": "object", "properties": {"collection": ref("CollectionEntry"), "removed": {"const": True}}}
 schemas["CollectionReassign"] = {"type": "object", "required": ["domain"], "additionalProperties": False, "properties": {
     "domain": {"type": "string", "maxLength": 253, "description": "Exactly one registrable domain such as example.com (no scheme, path, subdomain or wildcard); its subdomains' pages are included, never another domain's (also not one of the same name such as example.de, whose pages do not count towards the limit)."},
     "add": {"type": "array", "maxItems": 5, "items": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}, "description": "Collections every moved page gets; existing, selectable ones only."},
@@ -1416,6 +1444,7 @@ for suffix, operation, result_schema, parameters, note in flow_specs:
 
 paths["/v1/collections/reassign"] = {"post": op("collections.reassign", "Move one domain's pages between collections", "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Without confirm a preview: the hosts of the domain, how many pages, the collections before and after, a sample and a token; nothing changes. With confirm set to that token it changes collection_sxt of exactly those pages (and their webgraph edges) by a Solr atomic update with the version of the preview: text, JSON-LD and every other field stay, nothing is crawled, deleted or re-indexed, and the knowledge graph takes the new collections over through its sync (re-scoped; tiers 1 and 2 extracted again only if the extractors changed; LLM evidence is neither asked again nor corrected). A page whose version changed since (a new crawl) is never overwritten; a webgraph edge gets its page's collections only once the page has them (webgraphKept counts the others). Only the domain's pages in a removed collection move (without remove: every page of the domain); other collections stay. 400 invalid_request (domain not one registrable domain, add and remove both empty or overlapping, unknown field), 400 collection_unknown, 409 reassign_preview_stale (the pages changed since the preview; details hold the new preview), 409 host_busy (a crawl of the domain runs), 422 reassign_would_empty (a page would keep no collection), 422 reassign_too_large (more than 5000 pages or 100000 webgraph edges), 503 index_unavailable. A later crawl of the domain writes the collection of that crawl again; Discovery refuses such a crawl while the domain has pages in another collection (collection_conflict), and 'scoutro-discovery exclude' takes the domain out of the wrong profile. Agents cannot use it.", ["crawls"], {**ok("Preview or applied change.", "CollectionReassignResult"), **errs("400", "401", "403", "409", "413", "415", "422", "503")}, body="CollectionReassign", mutating=True)}
 paths["/v1/collections"]["post"] = op("collections.create", "Create a collection", "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Creates an empty collection that every collection choice (crawl start, filters, chat, agent grants) offers at once; a crawl can then write into it. 400 collection_id_invalid, 400 collection_reserved (robot_… or a reserved word), 400 invalid_request (name missing or too long, unknown field), 409 collection_exists (also for a name differing only in case), 503 index_unavailable (duplicates cannot be checked), 503 collection_store_unavailable. Agents cannot create collections.", ["crawls"], {**ok("Created.", "CollectionCreated", "201"), **errs("400", "401", "403", "409", "413", "415", "503")}, body="CollectionCreate", mutating=True)
+paths["/v1/collections/{id}"] = {"delete": op("collections.remove", "Remove an empty collection", "Administrator only, same origin; send an empty JSON object as body (unknown field 400 invalid_request, at most 4 KiB). Removes a collection created with POST /v1/collections from the collection list, nothing else: only while the index holds no page of it (read anew, not from the catalog cache), no Discovery profile names it and no account, agent (not revoked), guest access or crawl that is not terminated names it explicitly. Pages, crawl profiles, knowledge-graph settings and data, and every other store stay as they are; a grant of all collections names none. The same id can be created again later. 400 invalid_request, 404 collection_not_found (unknown or YaCy's own robot_… collection), 409 collection_has_documents (details.documents), 409 collection_from_profile, 409 collection_not_created, 409 collection_in_use (details.uses: accounts, agents, guest, crawls with counts), 503 index_unavailable, 503 collection_uses_unavailable, 503 collection_store_unavailable. Agents cannot remove collections.", ["crawls"], {**ok("Removed.", "CollectionRemoved"), **errs("400", "401", "403", "404", "409", "413", "415", "503")}, params=[{"name": "id", "in": "path", "required": True, "description": "Collection id.", "schema": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}}], mutating=True)}
 
 # ---------------------------------------------------------------------------
 # People: sign-in, own account, user management and access mode
@@ -1512,7 +1541,7 @@ def scoutro_permission(path, method):
         return "collect"
     if resource == "discovery":
         sub = parts[3] if len(parts) > 3 else ""
-        return "admin" if sub in ("enable", "disable", "pause", "resume", "export") else "collect"
+        return "admin" if sub in ("enable", "disable", "pause", "resume", "export", "attempts") else "collect"
     return "admin"
 for _path, _methods in paths.items():
     if not _path.startswith("/v1/"):
@@ -1547,7 +1576,8 @@ cli = {"health": "scoutroctl health", "system.status": "scoutroctl system", "sea
        "crawl.status": "scoutroctl crawl status ID", "crawl.stop": "scoutroctl crawl stop ID", "config.get": "scoutroctl config get",
        "config.set": "scoutroctl config set KEY VALUE", "ui.routes": "scoutroctl ui routes", "ui.route": "scoutroctl ui route NAME"}
 mcp.update({'index.browse': 'scoutro_index_browse', 'host.resolve': 'scoutro_host_resolve', 'collections.list': 'scoutro_collections_list', 'collections.create': 'scoutro_collections_create', 'collections.reassign': 'scoutro_collections_reassign', 'discovery.status': 'scoutro_discovery_status', 'index.metrics': 'scoutro_index_metrics', 'system.questions': 'scoutro_system_questions'})
-cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'collections.reassign': 'scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
+cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME] [--limit N] [--offset N]', 'host.resolve': 'scoutroctl host resolve HOST_OR_URL [--collection NAME]', 'collections.list': 'scoutroctl collections', 'collections.create': 'scoutroctl collections create NAME [--id ID] [--description TEXT] (administrator)', 'collections.reassign': 'scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)', 'collections.remove': 'browser: Dashboard > Scoutro Collections "−" (administrator); HTTP DELETE /scoutro/api/v1/collections/{id}', 'discovery.status': 'scoutroctl automation status', 'index.metrics': 'scoutroctl index metrics [--collection NAME]', 'system.questions': 'scoutroctl ask QUESTION [--collection NAME]'})
+mcp['collections.remove'] = None  # removing a collection is an administrator decision, never an agent or MCP tool
 mcp.update({'kg.llm.schedule':'scoutro_kg_llm_schedule','kg.llm.schedule.change':'scoutro_kg_llm_schedule_change','kg.llm.run':'scoutro_kg_llm_run'})
 cli.update({'kg.llm.schedule':'HTTP GET /scoutro/api/v1/kg/llm-schedule (administrator)','kg.llm.schedule.change':'HTTP PUT /scoutro/api/v1/kg/llm-schedule (administrator)','kg.llm.run':'HTTP POST /scoutro/api/v1/kg/llm-run (administrator)'})
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
@@ -1764,6 +1794,18 @@ actions.extend([{'name': 'discovery.catalog',
                           'required': ['request_id'],
                           'properties': {'request_id': {'type': 'string',
                                                         'pattern': '^[A-Za-z0-9_-]{1,80}$'}}}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.attempts.defer',
+  'description': 'Defer an unconfirmed Discovery crawl start: the outcome stays unknown, the candidate is held and '
+                 'never started again by itself, other jobs continue. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/attempts/{id}/defer', 'successStatus': 200},
+  'parameters': {'id': {'type': 'string', 'pattern': '^[a-f0-9]{32}$', 'in': 'path', 'required': True,
+                        'description': 'Attempt id of the open batch (its start marker).'},
+                 'body': DEFER_BODY},
   'returns': 'object',
   'errors': [400, 401, 403, 404, 409, 428, 503],
   'agent': {'grantable': False}},

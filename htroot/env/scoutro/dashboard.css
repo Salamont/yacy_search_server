@@ -1,5 +1,5 @@
 /* Scoutro dashboard. Uses the existing brand tokens; GPL-2.0-or-later. */
-/* The overview is read-only; Re-Start and Shutdown live on Settings > System only. */
+/* The overview reads only, except the administrator's "+"/"−" of the collection list; Re-Start and Shutdown live on Settings > System only. */
 .scoutro-dash { max-width: 1440px; margin: 0 auto; padding-bottom: 20px; }
 .scoutro-dash-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0 26px; }
 .scoutro-dash-heading h1 { font-size: clamp(26px, 3vw, 36px); margin: 4px 0 8px; letter-spacing: -.7px; }
@@ -66,3 +66,14 @@
 #scoutro-dash-functions {
   margin-top: 28px;
 }
+
+/* Scoutro collections: the administrator's "+" (new) and "−" (remove) next to the section title */
+.scoutro-dash-title-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.scoutro-dash-tools { display: inline-flex; gap: 8px; }
+.scoutro-dash-tools[hidden], .scoutro-dash-tool[hidden] { display: none; }
+.scoutro-dash-tool { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 1px solid var(--scoutro-border); border-radius: 50%; background: var(--scoutro-surface); color: var(--scoutro-primary); font-size: 24px; font-weight: 600; line-height: 1; cursor: pointer; }
+.scoutro-dash-tool:hover { border-color: var(--scoutro-primary); box-shadow: var(--scoutro-shadow-sm); }
+.scoutro-dash-tool:focus-visible { outline: 3px solid var(--scoutro-accent); outline-offset: 2px; }
+#scoutro-dash-collection-status { margin: 0 0 16px; }
+.scoutro-dash-remove-body { display: grid; gap: 12px; }
+.scoutro-collection-dialog select { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; }

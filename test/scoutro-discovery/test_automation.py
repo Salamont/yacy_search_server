@@ -117,6 +117,79 @@ class AutomationTests(unittest.TestCase):
         self.state.profile_entry("firm-0.de", "future_profile")["automation_attempt"] = {"state": "submitted_unknown"}
         self.assertEqual(self.select(), [])
 
+    def hold(self, domain="firm-0.de", attempt="a" * 32):
+        return {"id": attempt, "domain": domain, "profile": "future_profile", "run_id": "run-1",
+                "submitted_at": NOW * 1000, "decided_at": NOW * 1000, "decided_by": "admin-anna"}
+
+    def test_a_deferred_start_holds_its_candidate_with_the_outcome_unknown(self):
+        self.replenish(candidates(2))
+        self.state.put_profile_entry("firm-0.de", "another", {"status": "robots"}, NOW)
+        self.assertEqual(automation.apply_holds(d, self.state, [self.hold()], "future-index"), 1)
+        reloaded = d.State(self.tmp.name)
+        entry = reloaded.profile_entry("firm-0.de", "future_profile")
+        self.assertEqual(entry["automation_attempt"]["state"], "deferred_unknown")
+        self.assertEqual(entry["automation_attempt"]["outcome"], "unknown")
+        self.assertEqual(entry["automation_attempt"]["decided_by"], "admin-anna")
+        self.assertNotIn("status", entry)                      # never recorded as not submitted or crawled
+        self.assertEqual(reloaded.profile_entry("firm-0.de", "another"), {"status": "robots"})
+        self.assertEqual([s[0] for s in self.select()], ["firm-1.de"])
+        before = copy.deepcopy(self.state.data)                # the same decision again changes nothing
+        self.assertEqual(automation.apply_holds(d, self.state, [self.hold()], "future-index"), 0)
+        self.assertEqual(before, self.state.data)
+
+    def test_a_held_candidate_is_never_due_also_not_with_force_and_not_counted_fresh(self):
+        self.replenish(candidates(2))
+        automation.apply_holds(d, self.state, [self.hold()], "future-index")
+        entry = self.state.profile_entry("firm-0.de", "future_profile")
+        self.assertIsNone(d.selection_kind(entry, NOW, 30))
+        self.assertIsNone(d.selection_kind(entry, NOW, 30, force=True))
+        counts = d.state_summary(self.state.data, NOW)["profiles"]["future_profile"]
+        self.assertEqual((counts["held"], counts["fresh"], counts["due"]), (1, 1, 1))
+        snapshot = automation.summary(d, self.state, [job()], {"freeworld": ["Test City"]})
+        self.assertEqual(snapshot["jobs"]["arbitrary-job"]["fresh"], 1)
+
+    def test_a_start_lost_before_python_marked_it_can_still_be_held(self):
+        self.replenish(candidates(1))                         # the worker stopped before saving submitted_unknown
+        self.assertNotIn("automation_attempt", self.state.profile_entry("firm-0.de", "future_profile"))
+        automation.apply_holds(d, self.state, [self.hold()], "future-index")
+        self.assertEqual(self.select(), [])
+        automation.apply_holds(d, self.state, [self.hold("unknown-host.de")], "future-index")
+        self.assertEqual(self.state.profile_entry("unknown-host.de", "future_profile")["collection"], "future-index")
+
+    def test_a_hold_is_refused_when_the_state_saw_the_start_accepted(self):
+        self.replenish(candidates(1))
+        self.state.profile_entry("firm-0.de", "future_profile")["automation_attempt"] = {"id": "a" * 32, "state": "accepted"}
+        with self.assertRaises(ValueError) as refused:
+            automation.apply_holds(d, self.state, [self.hold()], "future-index")
+        self.assertEqual(str(refused.exception), "attempt_accepted_in_state")
+
+    def test_a_hold_never_crosses_collections(self):
+        self.replenish(candidates(1))
+        with self.assertRaises(ValueError):
+            automation.apply_holds(d, self.state, [self.hold()], "other-index")
+
+    def test_a_late_confirmation_replaces_the_hold_with_the_accepted_crawl(self):
+        self.replenish(candidates(1))
+        automation.apply_holds(d, self.state, [self.hold()], "future-index")
+        automation.apply_confirmations(d, self.state, [{"id": "a" * 32, "state": "accepted", "domain": "firm-0.de",
+            "profile": "future_profile", "submitted_at": NOW * 1000, "recrawl_days": 30, "crawl_id": "late-crawl"}])
+        entry = self.state.profile_entry("firm-0.de", "future_profile")
+        self.assertEqual((entry["status"], entry["crawl_id"]), ("crawled", "late-crawl"))
+        self.assertEqual(entry["automation_attempt"], {"id": "a" * 32, "state": "accepted"})
+
+    def test_the_hold_operation_runs_under_the_lock_also_while_paused_and_performs_no_action(self):
+        self.replenish(candidates(1))
+        self.state.set_paused(True)
+        init = {"operation": "hold", "job": job(), "collection": "future-index", "regions": {}, "holds": [self.hold()]}
+        result = subprocess.run([sys.executable, td.DISCOVERY, "--workdir", self.tmp.name, "--config-dir", self.tmp.name,
+                                 "automation"], input=json.dumps(init) + "\n", capture_output=True, text=True, timeout=60)
+        lines = [json.loads(line) for line in result.stdout.splitlines() if line.strip()]
+        self.assertEqual([line["type"] for line in lines], ["done"])   # no request to the parent
+        self.assertEqual(lines[0]["report"]["held"], 1)
+        reloaded = d.State(self.tmp.name)
+        self.assertTrue(reloaded.data["paused"])
+        self.assertEqual(reloaded.profile_entry("firm-0.de", "future_profile")["automation_attempt"]["state"], "deferred_unknown")
+
     def test_lock_is_acquired_before_any_state_read(self):
         self.state.save()
         original = d.State._read

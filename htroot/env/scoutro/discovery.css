@@ -22,6 +22,10 @@
 .scd-region-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); max-height: 280px; overflow: auto; gap: 8px; padding: 12px 0; }
 .scd-region-list label { margin: 0; padding: 8px 4px; font-weight: 400; overflow-wrap: anywhere; }
 .scd-message { white-space: pre-wrap; overflow-wrap: anywhere; color: #9d322b; }
+.scd-review { border: 1px solid #e3b5a8; background: #fdf5f2; border-radius: 10px; padding: 14px 16px; margin-top: 16px; }
+.scd-review h3 { margin-top: 0; font-size: 17px; }
+.scd-review-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 8px; }
+.scd-review-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; overflow-wrap: anywhere; }
 .scd-main [hidden] { display: none !important; }
 @media (max-width: 767px) {
   .scd-main { margin-left: 0; padding: 18px 12px 36px; }

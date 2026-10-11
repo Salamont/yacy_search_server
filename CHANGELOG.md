@@ -2,6 +2,55 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased
+
+- Discovery: an administrator can defer an unconfirmed crawl start that
+  blocks all Discovery batches (`needs_review`, `submitted_unknown`, no crawl
+  profile with its marker) on the Discovery page (**Defer start (outcome
+  stays unknown)**) or with `POST /scoutro/api/v1/discovery/attempts/{id}/defer`.
+  The crawl profiles are checked again first; the outcome stays unknown and
+  is never recorded as not submitted; the website is held and never started
+  again by itself (also not by retry, recrawl or the command line
+  `--force`); accepted crawls of the batch are kept and other jobs continue.
+  The decision (who, when, evidence) stays with the attempt, in the job's
+  `held_attempts` and in the candidate state; a crawl with the marker that
+  turns up while the batch is still open is recorded as accepted after all.
+  The status lists the unconfirmed starts (`active_batch.review`) and counts
+  held candidates (`held`). See the
+  [recovery contract](docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md#161-deferring-an-unconfirmed-start-administrator-decision).
+  Rollback note: a 0.10.0 image refuses the job store while an open batch
+  contains a deferred start (complete the batch first) and does not honour
+  the hold of a deferred website (pause the job after a rollback).
+- Dashboard: the administrator adds and removes collections with **+** and
+  **−** next to *Scoutro Collections*. **+** opens the existing *New
+  collection* dialog. **−** removes a collection created in Scoutro from the
+  collection list (`DELETE /scoutro/api/v1/collections/{id}`), but only while
+  it holds no page (counted anew in the index), no Discovery profile names it
+  and no account, agent, guest access or running crawl uses it; otherwise the
+  dialog says why it stays. No page, crawl, knowledge-graph setting or other
+  data is deleted. Accounts never see the buttons; the API answers them `403`.
+  The pages of the collection are counted exactly before the removal (the
+  catalog facet lists at most 500 collections); an unreadable account file
+  refuses it (`503 collection_uses_unavailable`). `reassign` is now a reserved
+  collection ID. The shared *New collection* dialog contains no form any more,
+  so the dashboard holds none (the site search of the header aside).
+- Knowledge graph status: a process display replaces the long technical status
+  list at the top of the overview: web pages and structured data → rule
+  processing and AI enrichment in parallel → knowledge store → customer and
+  partner suggestions. Each step says what works or waits, how much is open
+  (page changes, document tasks, model calls, knowledge objects and matching
+  signals kept apart, each with unit and time basis), why it waits and whether
+  to act; error, pause, planned waiting, waiting for the viewer and running
+  work are distinguished, and a storage-guard reason means the same on every
+  step. The AI step counts the pages not yet examined (the backlog) apart from
+  its small queue; the average model request time comes only from requests
+  that have ended. Pages are shown per collection (a page can belong to
+  several), values of a refused or unknown run as *not available*, never 0.
+  Details open on tap or Enter/Space; the former lists stay under *Technical
+  diagnosis*. It only reads the status and shows no estimated percentages or
+  remaining times. The status adds `llm.documents.pending`,
+  `llm.processed.requestsFinished` and `llm.processed.averageRequestMillis`.
+
 ## 0.10.0 / 1.942-scoutro.24 — release candidate: users, roles and navigation
 
 Upgrade from 0.9.1 keeps the **compatible access mode**: no account exists and

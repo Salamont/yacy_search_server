@@ -341,6 +341,69 @@ final class ScoutroActions {
     }
 
     /**
+     * collections.remove (administrator): removes a collection created here that is empty and that no Discovery
+     * profile, account, agent, guest access or running crawl names ({@link CollectionCatalog#remove}). Nothing in the
+     * index or another store is deleted.
+     */
+    JSONObject collectionRemove(final String id) throws ApiException {
+        return Json.obj("collection", this.catalog.remove(id, this::collectionUses).json(), "removed", true);
+    }
+
+    /** What names a collection explicitly on the running peer; a store that cannot be read refuses the removal. */
+    private Map<String, Integer> collectionUses(final String id) throws ApiException {
+        final List<net.yacy.scoutro.access.Scope> accounts = new ArrayList<>();
+        List<String> guest = List.of();
+        final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+        if (access == null && net.yacy.search.Switchboard.getSwitchboard() != null) {
+            // the account file cannot be read (sign-in is off, Digest still works): accounts and guest access stay unknown
+            throw new ApiException(503, "collection_uses_unavailable", "It cannot be checked whether accounts or the guest access use this collection; nothing was removed.");
+        }
+        if (access != null) {
+            for (final net.yacy.scoutro.access.Account a : access.accounts.list()) accounts.add(a.scope());
+            guest = access.settings.guestCollections();
+        }
+        final List<net.yacy.scoutro.agents.Agent> agents;
+        try {
+            agents = net.yacy.scoutro.agents.ScoutroAgents.get().store.agents();
+        } catch (final net.yacy.scoutro.agents.AgentException e) {
+            throw new ApiException(503, "collection_uses_unavailable", "It cannot be checked whether agents use this collection; nothing was removed.");
+        }
+        return collectionUses(id, accounts, agents, guest, loadCrawls().values());
+    }
+
+    /**
+     * Who or what names a collection explicitly, as kind → count: accounts and agents with the collection in their
+     * scope (a grant of all collections names none; revoked agents never act again), the guest access, and crawls
+     * that are not terminated. Knowledge-graph settings do not count: they name a collection without granting
+     * anything, stay as they are and apply again if the collection is created anew.
+     */
+    static Map<String, Integer> collectionUses(final String id, final java.util.Collection<net.yacy.scoutro.access.Scope> accounts,
+            final java.util.Collection<net.yacy.scoutro.agents.Agent> agents, final java.util.Collection<String> guest,
+            final java.util.Collection<JSONObject> crawls) {
+        final Map<String, Integer> out = new LinkedHashMap<>();
+        for (final net.yacy.scoutro.access.Scope s : accounts) {
+            if (!s.isAll() && s.collections().contains(id)) out.merge("accounts", 1, Integer::sum);
+        }
+        for (final net.yacy.scoutro.agents.Agent a : agents) {
+            if (a.status != net.yacy.scoutro.agents.Agent.Status.REVOKED && !a.scope.allCollections && a.scope.collections.contains(id)) {
+                out.merge("agents", 1, Integer::sum);
+            }
+        }
+        if (guest.contains(id)) out.put("guest", 1);
+        for (final JSONObject crawl : crawls) {
+            final JSONArray names = crawl.optJSONArray("collections");
+            if ("terminated".equals(crawl.optString("state")) || names == null) continue;
+            for (int i = 0; i < names.length(); i++) {
+                if (id.equals(names.optString(i))) {
+                    out.merge("crawls", 1, Integer::sum);
+                    break;
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
      * collections.reassign (administrator): preview, or apply with the preview's token, a move of one domain's
      * pages between collections without crawling them again ({@link CollectionReassign}).
      */

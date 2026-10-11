@@ -102,6 +102,55 @@ with tempfile.TemporaryDirectory(prefix="scoutro-dashboard-") as temporary:
             shots = os.environ.get("SCOUTRO_SCREENSHOTS", "/tmp/scoutro-dashboard-shots")
             for script in ["dashboard-ui-test.mjs", "scoutro-ui-test.mjs"]:
                 subprocess.run(["node", str(REPO / "test/scoutro-ui" / script), "--screenshots", shots], cwd=REPO, env=env, check=True)
+            # "+" and "−" of the collection list (administrator): the browser flow changes only its own collection
+            index = digests(root / "DATA/INDEX/webportal/SEGMENTS")
+            subprocess.run(["node", str(REPO / "test/scoutro-ui/dashboard-collections-ui-test.mjs"), "--screenshots", shots], cwd=REPO, env=env, check=True)
+
+            def call(method, path, body=None, authenticated=True, headers=None):
+                hs = {"Accept": "application/json", **({"Content-Type": "application/json"} if body is not None else {}), **(headers or {})}
+                request = urllib.request.Request(BASE + "/scoutro/api/v1/" + path, method=method, headers=hs,
+                                                 data=None if body is None else json.dumps(body).encode())
+                opener = client if authenticated else urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                try:
+                    response = opener.open(request, timeout=15)
+                except urllib.error.HTTPError as e:
+                    response = e
+                with response:
+                    raw = response.read().decode()
+                    return response.status, json.loads(raw) if raw.startswith("{") else raw
+
+            def code(result):
+                return result[1]["error"]["code"] if isinstance(result[1], dict) and "error" in result[1] else None
+
+            counted = [0]
+            def check(value, label):
+                assert value, label
+                counted[0] += 1
+            check(call("POST", "collections", {"id": "nutzung-web", "name": "Nutzung"})[0] == 201, "API: create a collection")
+            check(call("PATCH", "access", {"guestCollections": ["nutzung-web"]})[0] == 200, "API: the guest access names it")
+            refused = call("DELETE", "collections/nutzung-web", {})
+            check(refused[0] == 409 and code(refused) == "collection_in_use" and refused[1]["error"]["details"]["uses"] == {"guest": 1},
+                  f"API: a collection the guest access names stays {refused}")
+            check(call("PATCH", "access", {"guestCollections": []})[0] == 200, "API: guest access released")
+            check(call("DELETE", "collections/nutzung-web", None)[0] == 415, "API: removal needs a JSON body")
+            check(code(call("DELETE", "collections/nutzung-web", {"force": True})) == "invalid_request", "API: no field accepted")
+            check(call("DELETE", "collections/nutzung-web", {}, headers={"Origin": "https://foreign.invalid"})[0] in (401, 403), "API: cross origin refused")
+            check(call("DELETE", "collections/nutzung-web", {}, authenticated=False)[0] == 401, "API: anonymous refused")
+            check(code(call("DELETE", "collections/stackfinder-web", {})) == "collection_has_documents", "API: a collection with pages stays")
+            check(code(call("DELETE", "collections/robot_snippet", {})) == "collection_not_found", "API: YaCy's own collections are not removable")
+            removed = call("DELETE", "collections/nutzung-web", {})
+            check(removed[0] == 200 and removed[1]["removed"] and removed[1]["collection"]["id"] == "nutzung-web", f"API: removed {removed}")
+            check(code(call("DELETE", "collections/nutzung-web", {})) == "collection_not_found", "API: a second removal changes nothing")
+            listed = [c["id"] for c in call("GET", "collections")[1]["collections"]]
+            check("nutzung-web" not in listed and "ui-test-portal" not in listed and "stackfinder-web" in listed, f"API: catalog {listed}")
+            registry = json.loads((root / "DATA/SCOUTRO/collections.json").read_text())
+            check(all(c["id"] not in ("nutzung-web", "ui-test-portal") for c in registry["collections"]), "API: the list on disk")
+            audit = [json.loads(line) for line in (root / "DATA/SETTINGS/scoutro-user-audit.jsonl").read_text().splitlines() if line.strip()]
+            removals = [a for a in audit if a.get("action") == "api.collections DELETE" and a.get("result") == "ok"]
+            check(sorted(a.get("target") for a in removals) == ["nutzung-web", "ui-test-portal"] and all(a.get("actor") == "digest:admin" for a in removals),
+                  f"API: removals audited with the collection as target {removals}")
+            check(digests(root / "DATA/INDEX/webportal/SEGMENTS") == index, "API: no page of the index changed")
+            print(f"PASS: {counted[0]} live collection +/− API checks", flush=True)
         finally:
             if process is not None and process.poll() is None:
                 process.terminate()

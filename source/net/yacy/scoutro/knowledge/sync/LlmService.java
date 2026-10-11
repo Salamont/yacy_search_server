@@ -107,6 +107,8 @@ public final class LlmService {
         final AtomicLong callFailures = new AtomicLong();
         final AtomicLong timeouts = new AtomicLong();
         final AtomicLong callMillis = new AtomicLong();
+        /** Model requests that have ended (retries included); {@link #callMillis} holds their measured time. */
+        final AtomicLong requestsFinished = new AtomicLong();
         final AtomicLong answersAccepted = new AtomicLong();
         final AtomicLong answersRefused = new AtomicLong();
         final Map<String, AtomicLong> refusedBy = new ConcurrentHashMap<>();
@@ -170,6 +172,7 @@ public final class LlmService {
                 }
             }
             final long n = this.calls.get();
+            final long finished = this.requestsFinished.get(), millis = this.callMillis.get();
             return KgJson.obj(
                     "calls",
                     n,
@@ -181,6 +184,11 @@ public final class LlmService {
                     this.timeouts.get(),
                     "averageCallMillis",
                     n == 0 ? null : this.callMillis.get() / n,
+                    "requestsFinished",
+                    finished,
+                    // measured: only requests that have ended, never a request still running
+                    "averageRequestMillis",
+                    finished == 0 ? null : millis / finished,
                     "answersAccepted",
                     this.answersAccepted.get(),
                     "answersRefused",
@@ -812,6 +820,8 @@ public final class LlmService {
         this.counters.requestStarts.incrementAndGet();
         if (!logicalCounted.getAndSet(true)) this.counters.calls.incrementAndGet();
         return () -> {
+            // the count first, then its time: a status read in between never divides a time by fewer requests
+            this.counters.requestsFinished.incrementAndGet();
             this.counters.callMillis.addAndGet(Math.max(0, this.clock.getAsLong() - started));
             admitted.close();
         };
@@ -1071,7 +1081,9 @@ public final class LlmService {
                         "max",
                         QUEUE_MAX),
                 "documents",
-                KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2]),
+                // done/failed/skipped: the current LLM status of the pages in the graph; pending: pages of the LLM
+                // collections not examined yet (the queue included), the backlog the queue is refilled from
+                KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2], "pending", this.pendingDocuments),
                 "cache",
                 KgJson.obj(
                         "entries",

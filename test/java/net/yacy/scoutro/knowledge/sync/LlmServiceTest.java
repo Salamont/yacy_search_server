@@ -331,6 +331,16 @@ public class LlmServiceTest {
             assertEquals(reason, 0L, by0.getLong(reason));
         }
         assertTrue("the whole-answer refusals stay apart", zero.getJSONObject("refusedBy").keySet().isEmpty());
+        assertTrue("nothing measured yet", zero.isNull("averageRequestMillis") && zero.isNull("averageCallMillis"));
+        // a first request that is still running: counted as a call, but not measured
+        c.calls.incrementAndGet();
+        c.requestStarts.incrementAndGet();
+        final JSONObject running = c.json();
+        assertEquals(0L, running.getLong("requestsFinished"));
+        assertTrue("no average from a request that has not ended", running.isNull("averageRequestMillis"));
+        c.callMillis.addAndGet(4000L);
+        c.requestsFinished.incrementAndGet();
+        assertEquals(4000L, c.json().getLong("averageRequestMillis"));
         final LlmExtractor.Chunk chunk = LlmExtractor.chunks(TEXT, 12_000).get(0);
         final List<LlmExtractor.Known> known = List.of(new LlmExtractor.Known("k1", mention()));
         final String answer = "{\"entities\":[{\"id\":\"e1\",\"type\":\"facility\",\"name\":\"Haus Lindenhof\",\"quote\":\"betreibt das Haus Lindenhof\"},"
@@ -438,6 +448,13 @@ public class LlmServiceTest {
         assertEquals(1L, p.getLong("droppedInvalid"));
         assertEquals(1L, p.getJSONObject("droppedInvalidByReason").getLong("claim_unresolved_object"));
         assertEquals(p.getLong("droppedInvalid"), sum(p.getJSONObject("droppedInvalidByReason")));
+        // timing is measured over ended requests only; the backlog of pages not yet examined is reported apart from the queue
+        assertEquals("every started request has ended", p.getLong("requestStarts"), p.getLong("requestsFinished"));
+        assertTrue(p.getLong("requestsFinished") >= 1L && !p.isNull("averageRequestMillis"));
+        this.clock.addAndGet(LlmService.COUNTS_MILLIS + 1L);
+        final JSONObject docs = this.llm.status().getJSONObject("documents");
+        assertEquals("nothing left to examine", 0L, docs.getLong("pending"));
+        assertTrue(docs.getLong("done") >= 1L);
         // the same document processed again by the sync (unchanged) keeps the LLM result
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);
         settleSync();

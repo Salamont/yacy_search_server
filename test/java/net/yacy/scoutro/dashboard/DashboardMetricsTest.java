@@ -159,6 +159,21 @@ public class DashboardMetricsTest {
         }
         Assert.assertEquals(35, count); // the administrator's 24 links and the 11 of the account view
         Assert.assertFalse(html.contains("<form"));
+        // nor through an included template (the administrator's "New collection" dialog among them); the one form
+        // allowed is the site search of the shared header, a GET to the search page that exists on every page
+        final java.util.regex.Matcher includes = java.util.regex.Pattern.compile("#%([^%#]+)%#").matcher(html);
+        int included = 0;
+        while (includes.find()) {
+            final String template = read("htroot/" + includes.group(1));
+            final java.util.regex.Matcher forms = java.util.regex.Pattern.compile("<form[^>]*>").matcher(template);
+            while (forms.find()) {
+                final String tag = forms.group();
+                Assert.assertTrue(includes.group(1) + ": " + tag, tag.contains("id=\"header-search-form\"") && tag.contains("method=\"get\"")
+                        && tag.contains("search.html") && !tag.contains("scoutro-dashboard"));
+            }
+            included++;
+        }
+        Assert.assertTrue("the templates of the page are checked", included >= 4);
     }
 
     @Test public void responderNeverCallsMutationOrExternalStateAndIgnoresParameters() throws IOException {

@@ -70,6 +70,8 @@ try {
     const row = await page.evaluate(l => [...document.querySelectorAll('#skg-vocab dt')].find(d => d.textContent === l)?.nextElementSibling?.textContent, want.label);
     check(row === want.value, 'vocabulary sizes row: ' + row + where);
     // invalid-item reasons: most frequent first, zeros left out, a readable label next to the code, an unknown code as its code
+    // the LLM counters live in the technical diagnosis below the process display; open it first, as a viewer does
+    await page.locator('#skg-diagnosis > summary').click();
     await page.locator('#skg-llm-invalid-details summary').click();
     const reasons = await page.locator('#skg-llm-invalid dt').evaluateAll(n => n.map(d => d.dataset.reason));
     check(JSON.stringify(reasons) === JSON.stringify(['claim_self_reference', 'value_signal_context_missing', 'claim_employer_unresolved', 'scoutro_future_code']),

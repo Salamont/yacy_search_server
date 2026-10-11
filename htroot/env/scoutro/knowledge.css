@@ -138,3 +138,50 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 #skg-schedule-form input, #skg-schedule-form select { max-width: 100%; min-width: 0; }
 #skg-schedule-days label { display: inline-block; margin-right: .8rem; }
 @media (max-width: 600px) { #skg-schedule-form { grid-template-columns: minmax(0, 1fr); } }
+
+/* Status: the process display. Web pages and structured data -> rule processing and AI enrichment in parallel ->
+   knowledge -> suggestions; mobile first, one column, the two parallel steps side by side from 640px. */
+.skg-process { margin: 0 0 16px; }
+.skg-process-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.skg-process-head h3 { margin: 0; }
+.skg-process-meta { margin: 6px 0; color: #22324a; overflow-wrap: anywhere; }
+.skg-flow, .skg-flow-branches { list-style: none; margin: 0; padding: 0; }
+.skg-flow { display: grid; gap: 22px; margin-top: 12px; }
+.skg-flow > li { position: relative; min-width: 0; }
+.skg-flow > li + li::before { content: '\2193'; position: absolute; top: -21px; left: 50%; transform: translateX(-50%); color: #61718a; font-size: 16px; line-height: 20px; }
+.skg-flow-split { border: 1px dashed #c7d3df; border-radius: 12px; padding: 22px 8px 8px; }
+.skg-flow-parallel { position: absolute; top: -10px; left: 12px; padding: 0 6px; background: #fff; color: #61718a; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+.skg-flow-branches { display: grid; gap: 10px; }
+@media (min-width: 640px) { .skg-flow-branches { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.skg-station { min-width: 0; border: 1px solid #dce6ef; border-left: 5px solid #8c9bb0; border-radius: 10px; background: #fff; }
+.skg-station[data-kind="running"] { border-left-color: #197bb5; }
+.skg-station[data-kind="idle"] { border-left-color: #2e8b57; }
+.skg-station[data-kind="scheduled"] { border-left-color: #6d7f99; }
+.skg-station[data-kind="waiting"] { border-left-color: #c98a00; }
+.skg-station[data-kind="paused"] { border-left-color: #8a6d00; }
+.skg-station[data-kind="error"] { border-left-color: #b3261e; }
+.skg-station[data-kind="action"] { border-left-color: #7a3db8; }
+.skg-station-head { display: block; width: 100%; padding: 12px 14px; border: 0; background: transparent; text-align: left; color: inherit; font: inherit; cursor: pointer; min-height: 44px; }
+.skg-station-head:focus-visible { outline: 3px solid #f2b705; outline-offset: -3px; border-radius: 8px; }
+.skg-station-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
+.skg-station-title { font-weight: 700; font-size: 16px; }
+.skg-station-title::after { content: ' \25B8'; color: #61718a; font-weight: 400; }
+.skg-station-head[aria-expanded="true"] .skg-station-title::after { content: ' \25BE'; }
+.skg-station-state { padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #eef3f8; color: #22324a; white-space: nowrap; }
+.skg-station-state[data-kind="running"] { background: #e3f1fa; color: #0f4c73; }
+.skg-station-state[data-kind="idle"] { background: #e7f5ec; color: #1d5c34; }
+.skg-station-state[data-kind="waiting"] { background: #fff6e0; color: #6b4b00; }
+.skg-station-state[data-kind="paused"] { background: #f7f0d6; color: #5c4a00; }
+.skg-station-state[data-kind="error"] { background: #fdecea; color: #8a1f17; }
+.skg-station-state[data-kind="action"] { background: #f1e8fa; color: #4e2378; }
+.skg-station-lines { display: grid; gap: 3px; margin-top: 6px; font-size: 14px; }
+.skg-station-line { display: block; overflow-wrap: anywhere; }
+.skg-doing { color: #22324a; }
+.skg-action-needed { color: #8a1f17; font-weight: 600; }
+.skg-station-detail { padding: 0 14px 12px; border-top: 1px solid #e6edf3; }
+.skg-station-facts { margin-top: 10px; }
+.skg-basis { color: #61718a; font-size: 12px; }
+.skg-diagnosis-link { padding-left: 0; }
+.skg-diagnosis { margin: 8px 0 16px; }
+.skg-diagnosis > summary { cursor: pointer; font-weight: 600; padding: 10px 0; min-height: 44px; }
+.skg-diagnosis > summary:focus-visible { outline: 3px solid #f2b705; outline-offset: 2px; }

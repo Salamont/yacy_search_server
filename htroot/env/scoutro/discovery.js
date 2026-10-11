@@ -58,11 +58,29 @@
           button.hidden = !allowed; button.disabled = !allowed;
           if (button.dataset.scdGlobal === 'enable') button.textContent = status.enabled ? text('repair_heartbeat') : enableLabel;
         });
+        renderReview(status);
         jobs = result.jobs; renderJobs();
       } catch(error) { if (ticket === epoch && error.name !== 'AbortError') message(error.message); }
       finally { refreshPromise = null; }
     })();
     return refreshPromise;
+  }
+  // An unconfirmed crawl start an administrator can defer; the panel exists for administrators only.
+  function renderReview(status) {
+    const panel = $('scd-review');
+    if (!panel) return;
+    const batch = status.active_batch, items = batch?.review || [];
+    panel.hidden = items.length === 0;
+    $('scd-review-list').replaceChildren(...items.map(item => {
+      const entry = element('li');
+      entry.append(element('strong', item.domain), document.createTextNode(` · ${date(item.submitted_at)} `),
+        button('defer', async () => {
+          if (!confirm(text('confirm_defer').replace('%1', item.domain))) return;
+          await api(`attempts/${item.attempt_id}/defer`, 'POST', { run_id: batch.id });
+          message(text('deferred')); await refresh();
+        }));
+      return entry;
+    }));
   }
   function renderJobs() {
     $('scd-jobs').replaceChildren(); $('scd-empty').hidden = jobs.length !== 0;
@@ -74,7 +92,10 @@
       detail('profile', job.profile);
       detail('regions', Object.entries(job.sources).map(([id, spec]) => `${text(id)}: ${spec.mode === 'all' ? text('all') : spec.regions.map(region => catalog?.sources.find(s => s.id === id)?.regions.find(r => r.id === region)?.label || region).join(', ')}`).join(' · ') || text('profile_backlog'));
       detail('fresh', row.fresh_backlog === null ? '—' : String(row.fresh_backlog));
-      detail('last', date(row.runtime.last_run?.finished_at)); detail('next', date(row.runtime.next_due)); card.append(dl);
+      detail('last', date(row.runtime.last_run?.finished_at)); detail('next', date(row.runtime.next_due));
+      const held = (row.runtime.held_attempts || []).filter(h => h.state === 'deferred');
+      if (held.length) detail('held', held.map(h => `${h.domain} (${date(h.decision.at)})`).join(', '));
+      card.append(dl);
       if (row.waiting_reason || row.runtime.error) card.append(element('p', text(row.waiting_reason || row.runtime.error), 'scd-message'));
       const actions = element('div', '', 'scd-actions');
       actions.append(button('edit', () => openEditor(job)),

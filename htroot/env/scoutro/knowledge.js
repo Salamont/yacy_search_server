@@ -185,10 +185,12 @@
   async function overview() {
     const run = ++generation; message(t('loading'));
     const s = await fetch(ROOT + 'status', { credentials: 'same-origin', cache: 'no-store' }).then(r => r.json());
+    const readAt = Date.now();
     if (run !== generation) return;
     let objects = null;
     if (s.state === 'running') { try { objects = (await api('entities', { limit: 1 })).total; } catch (_) { objects = null; } }
     if (run !== generation) return;
+    processInto(s, objects, readAt);
     const cards = $('cards'); cards.replaceChildren();
     const card = (k, v) => { const dl = node('dl', null, 'sseo-card'); dl.append(node('dt', t(k)), node('dd', fmt(v))); cards.append(dl); };
     card('state', s.state + (s.reason ? ' · ' + s.reason : ''));
@@ -278,6 +280,241 @@
     } else events.append(node('p', t('none')));
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
   }
+
+  // ------------------------------------------------------------------ process display (Status)
+  // Web pages and structured data -> rule processing and AI enrichment in parallel -> knowledge -> suggestions.
+  // Every step says what works or waits, how much is open (with unit and time basis), why it waits and whether
+  // the viewer has to act. It only reads the status: nothing here starts work or changes a setting.
+  const SCHEDULED_WAITS = ['time_window', 'manual_only', 'minimum_interval', 'manual_stopped', 'manual_request_limit',
+    'manual_document_limit', 'manual_expired'];
+  const OFF_REASONS = ['llm_off', 'no_llm_collections', 'llm_collections_not_followed', 'no_model', 'kg_disabled'];
+  // The storage guard (StorageGuard.refusal) and its codes mean the same on every step: an error, a pause, or a wait
+  // for resources that ends by itself; with the action that helps, if any.
+  const STORAGE = { storage_error: ['error', 'pr_act_storage'], disk_critical: ['error', 'pr_act_disk'],
+    integrity_check_failed: ['error', 'pr_kn_integrity_action'], start_not_recorded: ['error', 'pr_act_storage'],
+    manual: ['paused', 'pr_kn_manual_action'], manual_pause: ['paused', 'pr_kn_manual_action'],
+    budget: ['paused', 'pr_kn_storage_action'], budget_exhausted: ['paused', 'pr_kn_storage_action'], storage_full: ['paused', 'pr_kn_storage_action'],
+    disk_reserve: ['waiting', 'pr_act_disk'], tmp_limit: ['waiting', null], wal_limit: ['waiting', null],
+    wal_checkpoint_blocked: ['waiting', null], integrity_check_pending: ['waiting', null], write_refused: ['waiting', null] };
+  // a refused run of the derived layer that the next interval simply tries again
+  const TRANSIENT = ['busy', 'read_timeout', 'operation_running', 'epoch_changed', 'store_closed'];
+  const num = v => typeof v === 'number' && isFinite(v) ? v : null;
+  // a count with its unit; the singular where the labels have one ("1 document task")
+  const one = (key, v) => v === 1 && labels[key + '_one'] ? labels[key + '_one'] : t(key);
+  const unit = (key, v) => num(v) == null ? t('pr_open_unknown') : one(key, v).replace('%1', fmt(v));
+  const secs = ms => (ms / 1000).toLocaleString(lang, { maximumFractionDigits: 1 });
+  const reasonText = code => labels['schedule_reason_' + code] || code;
+  const expanded = new Set();
+  function storageState(code, st) {
+    const e = STORAGE[code]; if (!e) return null;
+    const why = code === 'manual' || code === 'manual_pause' ? t('pr_kn_manual') : code === 'integrity_check_failed' ? t('pr_kn_integrity')
+      : (code === 'budget' || code === 'budget_exhausted') && num(st?.usedPercent) != null ? t('pr_kn_brake').replace('%1', pct(st.usedPercent / 100))
+      : reasonText(code);
+    return { kind: e[0], why, action: e[1] ? t(e[1]) : null };
+  }
+
+  function stationModel(s, objects) {
+    const running = s.state === 'running';
+    const sy = s.sync || {}, l = s.llm || {}, st = s.storage || {}, jl = s.jsonld || {}, dv = s.derived || {};
+    const lag = sy.lag || {}, bt = lag.byType || {}, scheduler = sy.scheduler || {};
+    // why new facts may not be written now, for the whole graph: the most severe reason of the storage guard
+    // a blocked WAL checkpoint refuses growth only while the WAL is over its limit (StorageGuard.refusal)
+    const walOver = num(st.wal?.bytes) != null && num(st.wal?.maxBytes) != null && st.wal.bytes > st.wal.maxBytes;
+    const guardCode = st.growthAllowed === false ? ((st.reasons || []).find(r => r.code !== 'wal_checkpoint_blocked' || walOver)?.code
+      || (num(st.usedBytes) != null && num(st.pauseAtBytes) != null && st.usedBytes > st.pauseAtBytes ? 'budget' : 'write_refused')) : null;
+    const guard = storageState(guardCode, st);
+    const syncStopped = scheduler.state === 'failed' || ['failed', 'unavailable'].includes(sy.state);
+    // pages: of the selected collection, else per collection (one page can belong to several, so no sum)
+    const rowsOf = s.collections || [];
+    let pages, pagesBasis;
+    if (collection) {
+      const row = rowsOf.find(c => c.collection === collection);
+      pages = unit('pr_unit_pages', row ? num(row.documents) : null); pagesBasis = t('pr_scope_one').replace('%1', collection);
+    } else {
+      const known = rowsOf.filter(c => num(c.documents) != null), filled = known.filter(c => c.documents > 0);
+      pages = filled.length ? filled.map(c => c.collection + ': ' + fmt(c.documents)).join(' · ')
+        : known.length && known.length === rowsOf.length ? unit('pr_unit_pages', 0) : t('pr_open_unknown');
+      pagesBasis = t('pr_basis_per_collection');
+    }
+    const notRunning = { kind: s.state === 'disabled' ? 'off' : 'unknown',
+      doing: t(s.state === 'disabled' ? 'pr_graph_off' : 'pr_graph_down').replace('%1', s.reason || s.state || t('missing')),
+      open: t('pr_open_unknown'), why: null, action: null, rows: [] };
+
+    // 1 web pages and structured data: change detection, full comparison with the index, JSON-LD capture
+    let sources = notRunning;
+    if (running) {
+      const captured = num(bt.captured), scan = sy.reconcile?.current, confirm = !!sy.reconcile?.awaitingConfirmation;
+      const kind = syncStopped ? 'error' : confirm ? 'action' : scan || (captured || 0) > 0 ? 'running' : captured == null ? 'unknown' : 'idle';
+      const scanned = num(scan?.scanned);
+      sources = { kind, doing: t('pr_src_doing'),
+        open: scan ? one('pr_src_scan', scanned).replace('%1', fmt(scanned)) : captured == null ? t('pr_open_unknown')
+          : captured > 0 ? one('pr_src_open', captured).replace('%1', fmt(captured)) : t('pr_src_open_none'),
+        why: syncStopped ? t('pr_src_blocked') : confirm ? t('pr_src_confirm_wait') : null,
+        action: syncStopped ? t('pr_rules_failed') : confirm ? t('pr_src_confirm') : null,
+        rows: [['pr_d_pages', pages, pagesBasis],
+          ['pr_d_captured', unit('pr_unit_changes', captured), t('pr_basis_now')],
+          ['pr_d_jsonld', jl.state ? t('jsonld_' + jl.state) + (num(jl.capture?.capturedDocs) != null
+            ? ' · ' + one('pr_d_jsonld_docs', jl.capture.capturedDocs).replace('%1', fmt(jl.capture.capturedDocs)) : '') : t('pr_open_unknown'), t('pr_basis_start_all')],
+          ['pr_d_compare', scan ? one('pr_d_compare_running', scanned).replace('%1', fmt(scanned)) : sy.reconcile?.last
+            ? t('pr_d_compare_last').replace('%1', sy.reconcile.last.state || t('missing')).replace('%2', date(sy.reconcile.lastCompletedAt || sy.reconcile.last.startedAt)) : t('none'), null]] };
+    }
+
+    // 2a rule processing: the queue of the page comparison (never the AI queue); it never waits for the AI
+    let rules = notRunning;
+    if (running) {
+      // the server adds the detected changes to the queue it could read; without the queue the total is unknown
+      const queued = num(sy.queue?.items), pending = queued == null ? null : num(lag.pending);
+      let kind = 'idle', why = null, action = null;
+      if (syncStopped) { kind = 'error'; why = t('pr_rules_stopped'); action = t('pr_rules_failed'); }
+      else if (guard) ({ kind, why, action } = guard);
+      else if (sy.upgradeHold) { kind = 'action'; why = t('pr_rules_upgrade'); action = t('pr_rules_upgrade_action'); }
+      else if (sy.resetInProgress) { kind = 'running'; why = reasonText('full_reset'); }
+      else if (sy.gate && (pending || 0) > 0) { kind = 'waiting'; why = reasonText(sy.gate); }
+      else if (sy.growthBlocked && (pending || 0) > 0) { kind = 'waiting'; why = t('pr_rules_growth'); }
+      else if (pending == null) kind = 'unknown';
+      else if (pending > 0) kind = 'running';
+      rules = { kind, doing: kind === 'idle' ? t('pr_rules_done') : t('pr_rules_doing'),
+        open: pending == null ? t('pr_open_unknown') : pending > 0 ? one('pr_rules_open', pending).replace('%1', fmt(pending)) : t('pr_rules_open_none'),
+        why, action, note: t('pr_rules_note'),
+        rows: [['pr_d_queued', unit('pr_unit_changes', queued) + (bt.new != null ? ' · ' + t('pr_d_queued_types').replace('%1', fmt(bt.new))
+            .replace('%2', fmt(bt.update)).replace('%3', fmt(bt.delete)).replace('%4', fmt(bt.reconcile)) : ''), t('pr_basis_now')],
+          ['pr_d_captured', unit('pr_unit_changes', num(bt.captured)), t('pr_basis_now')],
+          ['pr_d_comparison_total', pending == null ? t('pr_open_unknown') : t('pr_d_comparison_total_value').replace('%1', fmt(pending)), t('pr_basis_now')],
+          ['pr_d_oldest', num(lag.oldest_pending_age_s) && pending ? t('pr_unit_seconds').replace('%1', fmt(lag.oldest_pending_age_s)) : t('none'), t('pr_basis_measured')],
+          ['pr_d_published', unit('pr_unit_docs', num(sy.processed?.published)), t('pr_basis_start')],
+          ['pr_d_task', scheduler.state ? t('sync_task_' + scheduler.state) + (scheduler.lastError ? ' · ' + scheduler.lastError : '') : t('pr_open_unknown'), null],
+          ['pr_d_last_tick', scheduler.lastFinishedAt ? date(scheduler.lastFinishedAt) : t('none'), null]] };
+    }
+
+    // 2b AI enrichment: pages not yet examined (the backlog), the small queue refilled from them (in progress included,
+    // never added twice), model requests; skipped pages are no backlog
+    let ai = notRunning;
+    if (running && !s.llm) ai = { kind: 'unknown', doing: t('pr_ai_doing'), open: t('pr_open_unknown'), why: null, action: null, rows: [] };
+    else if (running) {
+      const time = l.timing || {}, wait = time.waitReason, q = l.queue || {}, docs = l.documents || {}, pr = l.processed || {};
+      const items = num(q.items), claimed = num(q.claimed) || 0, active = num(time.runningRequests) || 0, pending = num(docs.pending);
+      const offReason = OFF_REASONS.find(r => r === wait || r === l.reason || r === l.state);
+      const storage = storageState(wait, st);
+      let kind = 'idle', why = null, action = null, optional = false;
+      if (l.enabled === false || l.state === 'off' || l.state === 'not_configured' || offReason) {
+        kind = 'off';
+        if (offReason === 'no_model' || l.state === 'not_configured') action = t('pr_ai_model');
+      } else if (l.breaker?.open || wait === 'circuit_breaker') {
+        kind = 'error'; why = reasonText('circuit_breaker');
+        action = t('pr_ai_breaker').replace('%1', l.breaker?.openUntil ? date(l.breaker.openUntil) : t('missing'));
+      } else if (wait === 'invalid_schedule') { kind = 'error'; why = reasonText(wait); action = t('pr_ai_schedule'); }
+      else if (storage) ({ kind, why, action } = storage);
+      else if (active > 0 || wait === 'in_flight') kind = 'running';
+      else if (SCHEDULED_WAITS.includes(wait)) { kind = 'scheduled'; why = reasonText(wait); }
+      else if (wait && wait !== 'backlog_empty') { kind = 'waiting'; why = reasonText(wait); }
+      else if ((items || 0) > 0 || (pending || 0) > 0) { kind = 'scheduled'; why = t('pr_ai_ready'); }
+      if (!action && (num(docs.failed) || 0) > 0 && kind !== 'off') { action = one('pr_ai_failed', docs.failed).replace('%1', fmt(docs.failed)); optional = true; }
+      const queue = items == null ? null : items > 0 ? t('pr_ai_queue').replace('%1', unit('pr_unit_tasks', items)).replace('%2', fmt(claimed)) : t('pr_ai_queue_empty');
+      const open = pending == null ? (queue == null ? t('pr_open_unknown') : queue + ' · ' + t('pr_ai_backlog_unknown'))
+        : pending === 0 && !(items > 0) ? t('pr_ai_open_none') : unit('pr_unit_unexamined', pending) + (queue ? ' · ' + queue : '');
+      // measured: only model requests that have ended (an older server without that count: only while none runs)
+      const finished = num(pr.requestsFinished);
+      const avg = finished != null ? (finished > 0 ? num(pr.averageRequestMillis) : null)
+        : active === 0 && (num(pr.calls) || 0) > 0 && num(pr.averageCallMillis) > 0 ? num(pr.averageCallMillis) : null;
+      const measuredOver = finished != null ? finished : num(pr.calls);
+      ai = { kind, doing: kind === 'off' ? t('pr_ai_off').replace('%1', reasonText(offReason || l.reason || l.state || 'llm_off')) : t('pr_ai_doing'),
+        open, why, action, optional, note: t('pr_ai_note'),
+        rows: [['pr_d_pending', unit('pr_unit_pages', pending), t('pr_basis_now')],
+          ['pr_d_tasks_open', unit('pr_unit_tasks', items), t('pr_basis_now')],
+          ['pr_d_tasks_claimed', unit('pr_unit_tasks', num(q.claimed)), t('pr_basis_now')],
+          ['pr_d_calls_running', unit('pr_unit_requests', num(time.runningRequests)), t('pr_basis_now')],
+          ['pr_d_done', unit('pr_unit_docs', num(docs.done)), t('pr_basis_total')],
+          ['pr_d_failed', unit('pr_unit_docs', num(docs.failed)), t('pr_basis_total')],
+          ['pr_d_skipped', unit('pr_unit_docs', num(docs.skipped)), t('pr_basis_total')],
+          ['pr_d_calls', unit('pr_unit_calls', num(pr.calls)), t('pr_basis_start')],
+          ['pr_d_avg', avg != null ? one('pr_d_avg_value', measuredOver).replace('%1', secs(avg)).replace('%2', fmt(measuredOver)) : t('pr_d_avg_none'),
+            t('pr_basis_measured')],
+          ['pr_d_next', time.nextAllowedStart && time.nextAllowedStart > Date.now() ? date(time.nextAllowedStart) : t('none'), null],
+          ['pr_d_model', l.model || t('kg_no_model'), null]] };
+    }
+
+    // 3 knowledge: objects of the scope, storage and its guard
+    let knowledge = notRunning;
+    if (running) {
+      const integrity = s.store?.integrity?.state === 'failed';
+      const state = guard || (integrity ? storageState('integrity_check_failed', st) : null);
+      let kind = 'idle', why = null, action = null;
+      if (state) ({ kind, why, action } = state);
+      else if (rules.kind === 'running' || ai.kind === 'running') kind = 'running';
+      knowledge = { kind, doing: t('pr_kn_doing') + (objects != null ? ' ' + unit('pr_unit_objects', objects) + '.' : ''),
+        open: t('pr_kn_open'), why, action,
+        rows: [['pr_d_objects', unit('pr_unit_objects', num(objects)), collection ? t('pr_scope_one').replace('%1', collection) : t('pr_scope_all')],
+          ['pr_d_storage', st.usedBytes == null ? t('pr_open_unknown') : bytes(st.usedBytes) + ' / ' + bytes(st.budgetBytes) + (st.level ? ' · ' + t('level_' + st.level) : ''), t('pr_basis_now')],
+          ['pr_d_growth', st.growthAllowed == null ? t('pr_open_unknown') : t(st.growthAllowed ? 'yes' : 'no') + ((st.reasons || []).length ? ' · ' + st.reasons.map(r => r.code).join(', ') : ''), t('pr_basis_now')]] };
+    }
+
+    // 4 suggestions: the derived layer and the matching; run values, never overall progress. The values of the last run
+    // live in memory: after a restart they are not available, a refused run has none.
+    let suggestions = notRunning;
+    if (running) {
+      const last = dv.last || null, refused = last?.refused || null, ran = !!last && !refused;
+      const by = ran ? last.byKind || {} : {}, m = dv.matching || {}, interval = num(dv.intervalMinutes);
+      const total = Object.values(by).filter(v => typeof v === 'number').reduce((a, b) => a + b, 0);
+      const missing = refused ? t('pr_sg_refused_value') : t('pr_sg_last_none');
+      let kind = 'scheduled', why = null, action = null;
+      if (dv.enabled === false) kind = 'off';
+      else if (refused) {
+        const r = storageState(refused, st) || (TRANSIENT.includes(refused) ? { kind: 'waiting', why: t('pr_sg_busy'), action: null }
+          : { kind: 'error', why: reasonText(refused), action: t('pr_act_storage') });
+        kind = r.kind; why = t('pr_sg_refused').replace('%1', r.why); action = r.action;
+      } else if (guard) ({ kind, why, action } = guard);
+      else why = t('pr_sg_wait') + (m.cycle_complete === false && !m.deferred?.startsWith?.('configuration') ? '; ' + t('pr_sg_continue') : '');
+      suggestions = { kind, doing: kind === 'off' ? t('pr_sg_off') : dv.lastRun ? t('pr_sg_schedule').replace('%1', fmt(interval)).replace('%2', date(dv.lastRun))
+          : t('pr_sg_never').replace('%1', fmt(interval)),
+        open: t('pr_sg_open'), why, action, note: t('pr_sg_note'),
+        rows: [['pr_d_customers', ran ? unit('pr_unit_relations', num(by.suggested_customer) || 0) : missing, t('pr_basis_run')],
+          ['pr_d_partners', ran ? unit('pr_unit_relations', num(by.suggested_partner) || 0) : missing, t('pr_basis_run')],
+          ['pr_d_relations', ran ? unit('pr_unit_relations', total) : missing, t('pr_basis_run')],
+          ['pr_d_signals', dv.matching ? unit('pr_unit_signals', num(m.checked)) : t('pr_open_unknown'), t('pr_basis_run')],
+          ['pr_d_partitions', dv.matching ? unit('pr_unit_partitions', num(m.completed_partitions)) : t('pr_open_unknown'), t('pr_basis_run')],
+          ['pr_d_cycle', dv.matching ? t(m.deferred ? 'matching_deferred_' + m.deferred : m.cycle_complete ? 'matching_complete' : 'matching_deferred_work_budget') : t('pr_open_unknown'), t('pr_basis_run')],
+          ['pr_d_duration', ran && num(last.durationMs) != null ? t('pr_unit_seconds').replace('%1', secs(last.durationMs)) : missing, t('pr_basis_measured')],
+          ['pr_d_interval', interval == null ? t('pr_open_unknown') : t('pr_unit_minutes').replace('%1', fmt(interval)), null]] };
+    }
+    return { sources, rules, ai, knowledge, suggestions };
+  }
+
+  const DIAGNOSIS = { sources: 'sync', rules: 'sync', ai: 'llm', knowledge: 'storage', suggestions: 'vocab' };
+  function processInto(s, objects, readAt) {
+    const meta = $('process-meta'); if (!meta) return;
+    meta.replaceChildren(node('span', t('pr_updated').replace('%1', new Date(readAt).toLocaleString(lang))), ' · ',
+      node('span', collection ? t('pr_scope_one').replace('%1', collection) : t('pr_scope_all')), ' · ', node('span', t('pr_scope_note'), 'sseo-note'));
+    const model = stationModel(s, objects);
+    for (const [key, m] of Object.entries(model)) {
+      const head = $('st-' + key), detail = $('st-' + key + '-detail'); if (!head || !detail) continue;
+      const chip = head.querySelector('.skg-station-state');
+      chip.dataset.kind = m.kind; chip.textContent = t('pr_k_' + m.kind);
+      head.closest('.skg-station').dataset.kind = m.kind;
+      const line = (cls, label, text) => { const p = node('span', null, 'skg-station-line ' + cls); if (label) p.append(node('strong', t(label)), ' '); p.append(text); return p; };
+      const lines = [line('skg-doing', null, m.doing), line('skg-open', 'pr_q_open', m.open)];
+      if (m.why) lines.push(line('skg-why', 'pr_q_why', m.why));
+      lines.push(line('skg-action' + (m.action && !m.optional ? ' skg-action-needed' : ''), 'pr_q_action', m.action || t('pr_action_none')));
+      head.querySelector('.skg-station-lines').replaceChildren(...lines);
+      const dl = node('dl', null, 'sseo-stats skg-station-facts');
+      for (const [k, v, basis] of m.rows) {
+        const dd = node('dd'); dd.append(v); if (basis) dd.append(' ', node('span', '(' + basis + ')', 'skg-basis'));
+        dl.append(node('dt', t(k)), dd);
+      }
+      const go = node('button', t('pr_diagnosis_link'), 'btn btn-link btn-sm skg-diagnosis-link'); go.type = 'button';
+      go.addEventListener('click', () => { const d = document.getElementById('skg-diagnosis'); d.open = true;
+        const target = $(DIAGNOSIS[key] + '-title'); if (target) { target.scrollIntoView({ block: 'start' }); target.setAttribute('tabindex', '-1'); target.focus(); } });
+      detail.replaceChildren(dl, ...(m.note ? [node('p', m.note, 'sseo-note')] : []), go);
+      const open = expanded.has(key);
+      head.setAttribute('aria-expanded', String(open)); detail.hidden = !open;
+    }
+  }
+  for (const head of document.querySelectorAll('.skg-station-head')) head.addEventListener('click', () => {
+    const key = head.closest('.skg-station').dataset.station, detail = document.getElementById(head.getAttribute('aria-controls'));
+    const open = head.getAttribute('aria-expanded') !== 'true';
+    if (open) expanded.add(key); else expanded.delete(key);
+    head.setAttribute('aria-expanded', String(open)); detail.hidden = !open;
+  });
+  const refresh = $('process-refresh'); if (refresh) refresh.addEventListener('click', () => guarded(overview)); // reads the status again, nothing else
 
   // droppedInvalid by reason (counters since the start): only the reasons that occurred, the most frequent first; a known
   // code with its readable label (invalid_<code>), every code as the API names it, so an unknown (newer) code stays visible

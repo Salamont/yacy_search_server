@@ -52,6 +52,12 @@ class UnknownStart(Exception):
     pass
 
 
+def held(entry):
+    """A start whose outcome is unknown keeps its candidate out of every automatic selection: while it waits for
+    reconciliation (submitted_unknown) and after an administrator deferred it (deferred_unknown)."""
+    return (entry.get("automation_attempt") or {}).get("state") in ("submitted_unknown", "deferred_unknown")
+
+
 PRECHECK_RESULTS = (("retry:dns", "dns"), ("retry:site_5xx", "site_5xx"), ("robots", "robots"), ("blocked", "blocked"))
 
 
@@ -174,7 +180,7 @@ def select_backlog(engine, state, job, region_catalog, now):
     candidates = []
     for domain, root in state.data["domains"].items():
         entry = (root.get("profiles") or {}).get(job["profile"])
-        if entry is None or entry.get("automation_attempt", {}).get("state") == "submitted_unknown":
+        if entry is None or held(entry):
             continue
         if not in_scope(entry, job, region_catalog):
             continue
@@ -267,7 +273,7 @@ def summary(engine, state, jobs, region_catalog):
         count = 0
         for root in state.data["domains"].values():
             entry = (root.get("profiles") or {}).get(job["profile"])
-            if entry is not None and (not entry.get("status") or engine.legacy_auth_burned(entry)):
+            if entry is not None and not held(entry) and (not entry.get("status") or engine.legacy_auth_burned(entry)):
                 if in_scope(entry, job, region_catalog):
                     count += 1
         result["jobs"][job["id"]] = {"fresh": count}
@@ -288,6 +294,32 @@ def apply_confirmations(engine, state, confirmations):
         state.save()
 
 
+def apply_holds(engine, state, holds, collection):
+    """An administrator deferred a start whose outcome cannot be established (docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md,
+    section 16): the candidate stays out of every automatic selection with the outcome "unknown". Its status, crawl
+    history and other profiles stay untouched; it is never recorded as not submitted. The same decision again
+    changes nothing. Returns the number of candidates newly held."""
+    count = 0
+    for hold in holds:
+        entry = copy.deepcopy(state.profile_entry(hold["domain"], hold["profile"]) or {})
+        current = entry.get("automation_attempt") or {}
+        if current.get("id") == hold["id"]:
+            if current.get("state") == "accepted":
+                raise ValueError("attempt_accepted_in_state")  # this state saw the start accepted: reconcile instead
+            if current.get("state") == "deferred_unknown":
+                continue
+        if entry.get("collection") and entry["collection"] != collection:
+            raise ValueError("collection_conflict")
+        entry.setdefault("collection", collection)
+        entry["automation_attempt"] = {"id": hold["id"], "state": "deferred_unknown", "outcome": "unknown",
+                                       "run_id": hold["run_id"], "submitted_at": hold["submitted_at"],
+                                       "decided_at": hold["decided_at"], "decided_by": hold["decided_by"]}
+        state.put_profile_entry(hold["domain"], hold["profile"], entry, int(time.time()))
+        state.save()
+        count += 1
+    return count
+
+
 def execute(engine, state, init, rpc, config, workdir):
     job = init["job"]
     profile = job["profile"]
@@ -299,6 +331,9 @@ def execute(engine, state, init, rpc, config, workdir):
         entry = (root.get("profiles") or {}).get(profile) or {}
         if entry.get("collection") and entry["collection"] != collection:
             raise ValueError("collection_conflict")
+    if init.get("operation") == "hold":
+        report["held"] = apply_holds(engine, state, init.get("holds", []), collection)
+        return report
     apply_confirmations(engine, state, init.get("confirmations", []))
     if init.get("operation") == "confirm":
         for attempt in init.get("confirmations", []):
@@ -374,7 +409,7 @@ def run(args, engine):
             raise ProtocolError("oversized initialization")
         init = json.loads(line)
         operation = init.get("operation")
-        if operation not in ("status", "run", "confirm"):
+        if operation not in ("status", "run", "confirm", "hold"):
             raise ProtocolError("unknown operation")
         # Automation never falls back to the source-tree examples.
         if not args.workdir or not args.config_dir:
@@ -388,7 +423,7 @@ def run(args, engine):
         rpc = Rpc(engine)
         if operation == "status":
             report = {}
-        elif state.data.get("paused") and operation != "confirm":
+        elif state.data.get("paused") and operation not in ("confirm", "hold"):
             emit({"type": "done", "error": "paused"})
             return
         else:
@@ -400,7 +435,8 @@ def run(args, engine):
     except Exception as exc:
         # No external exception text: it may contain URLs, credentials or payloads.
         code = "state_unreadable" if isinstance(exc, engine.StateError) else "source_or_protocol_error"
-        if isinstance(exc, ValueError) and str(exc) in ("collection_conflict", "state_confirmation_conflict"):
+        if isinstance(exc, ValueError) and str(exc) in ("collection_conflict", "state_confirmation_conflict",
+                                                        "attempt_accepted_in_state"):
             code = str(exc)
         emit({"type": "done", "error": code})
     finally:
