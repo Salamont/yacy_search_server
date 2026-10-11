@@ -174,4 +174,16 @@ public class LlmStrandedTest extends LlmFixture {
         assertEquals("a queued page is read within hours although newer imprint pages keep arriving: " + this.llm.status(), "1:",
                 llmStatus("P00002p00002"));
     }
+
+    @Test
+    public void aPagePublishedBeforeSchema4IsReadWithTheInputItWasPublishedWith() throws Exception {
+        addAll(List.of(imprint('A', 1, "c1")));
+        settleSync();
+        // published by schema 3: no content hash, and the input hash with the extractor versions of schema 3
+        final SolrDoc d = this.source.get(List.of(A), SolrDoc.PROCESS_FIELDS).get(A);
+        exec("UPDATE kg_doc SET content_hash = NULL, input_hash = x'" + java.util.HexFormat.of().formatHex(d.inputHash(SolrDoc.EXTRACTORS_V1))
+                + "' WHERE doc_id = '" + A + "'");
+        crawlSteps(6);
+        assertEquals("the unchanged page is read, not held as unconfirmed: " + strandedMessage(), "1:", llmStatus(A));
+    }
 }

@@ -639,12 +639,15 @@ public final class LlmService {
             final java.util.Set<Integer> aheadDone = new java.util.HashSet<>();
             this.store.read(c -> {
                 final int revisitShare = (REVISIT_BATCH + k - 1) / k;
+                int revisitLeft = REVISIT_BATCH; // over all collections, so the frontiers keep at least SCAN_BATCH - REVISIT_BATCH
                 for (final LlmQueue.Lane lane : order) {
                     lastRow.put(lane.collId, LlmQueue.lastRow(c, lane.collId));
-                    if (lane.frontier > 0L && now >= this.revisitPausedUntil.getOrDefault(lane.collId, 0L)) {
-                        final List<LlmQueue.Todo> t = LlmQueue.laneTodo(c, lane.collId, lane.revisit, lane.frontier, revisitShare);
+                    if (revisitLeft > 0 && lane.frontier > 0L && now >= this.revisitPausedUntil.getOrDefault(lane.collId, 0L)) {
+                        final int ask = Math.min(revisitShare, revisitLeft);
+                        final List<LlmQueue.Todo> t = LlmQueue.laneTodo(c, lane.collId, lane.revisit, lane.frontier, ask);
                         behind.put(lane.collId, t);
-                        if (t.size() < revisitShare) {
+                        revisitLeft -= t.size();
+                        if (t.size() < ask) {
                             behindDone.add(lane.collId);
                         }
                     }
@@ -895,10 +898,12 @@ public final class LlmService {
 
         /**
          * True if Solr holds the input the graph published, as far as the LLM tier reads it: the content hash where the
-         * graph has one (a new vocabulary or extractor version changes the input hash, not the page), else the input hash.
+         * graph has one (a new vocabulary or extractor version changes the input hash, not the page), else the input hash,
+         * which a page published before schema 4 has with the extractor versions of schema 3 (as the sync compares it).
          */
         boolean sameInput(final SolrDoc d) {
-            return this.contentHash != null ? Arrays.equals(d.contentHash(), this.contentHash) : Arrays.equals(d.inputHash(), this.inputHash);
+            return this.contentHash != null ? Arrays.equals(d.contentHash(), this.contentHash)
+                    : Arrays.equals(d.inputHash(), this.inputHash) || Arrays.equals(d.inputHash(SolrDoc.EXTRACTORS_V1), this.inputHash);
         }
     }
 
@@ -1095,11 +1100,13 @@ public final class LlmService {
         // counted once per reading that is published, not per attempt (a deferred document is planned again)
         this.counters.knownTrimmed.addAndGet(plan.knownTrimmed);
         this.counters.chunksSplit.addAndGet(plan.splits);
+        boolean handedBack = false;
         try {
-            publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate(), reason, continuation,
+            handedBack = publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate(), reason, continuation,
                     Math.max(0, pageText.text.length() - readUpTo));
         } finally {
-            if (this.store.read(c -> queued(c, item.docId)))
+            // an item handed back for the page's new input may be claimed by another worker already: not released again
+            if (!handedBack && this.store.read(c -> queued(c, item.docId)))
                 defer(item, progress, this.reason == null ? "publication_deferred" : this.reason);
         }
     }
@@ -1367,14 +1374,15 @@ public final class LlmService {
      * @param reason    the mark's reason: {@link LlmQueue#MORE_TEXT}, {@link LlmQueue#TEXT_CUT} or null
      * @param continuation adds to the first reading's result ({@link Publisher#applyLlmMore}) instead of replacing it
      * @param unread    characters of the page this reading leaves unread
+     * @return true if the page changed during the call and its item was handed back for the new input
      */
-    private void publish(final LlmQueue.Item item, final SolrDoc d, final DocRow row, final Extraction ex, final List<byte[]> keys,
+    private boolean publish(final LlmQueue.Item item, final SolrDoc d, final DocRow row, final Extraction ex, final List<byte[]> keys,
             final String m, final String promptHash,final long estimate, final String reason, final boolean continuation,
             final int unread) throws KgException {
         final long now = this.clock.getAsLong();
         if (this.stopping) {
             release(item, now, false);
-            return;
+            return false;
         }
         final Publisher.Doc doc = new Publisher.Doc();
         doc.docId = d.id;
@@ -1419,12 +1427,12 @@ public final class LlmService {
                 release(item, now + REFUSED_MILLIS, false);
                 this.state = "waiting";
                 this.reason = "write_refused";
-                return;
+                return false;
             }
             throw e;
         }
         if (result[0] == null) {
-            return;
+            return false;
         }
         if (result[0].outcome == Publisher.Outcome.PUBLISHED) {
             // a page is published once; its continuation adds to that publication
@@ -1442,6 +1450,7 @@ public final class LlmService {
                 this.counters.inputUnconfirmed.incrementAndGet();
             }
         }
+        return kept[0];
     }
 
     /**
@@ -1518,8 +1527,9 @@ public final class LlmService {
             this.counters.changedAborts.incrementAndGet();
         }
         if (item.attempts + 1 >= unconfirmedLimit()) {
-            this.counters.inputUnconfirmed.incrementAndGet();
-            markAndComplete(item, row.llmInput(), LlmQueue.STATUS_FAILED, LlmQueue.INPUT_UNCONFIRMED);
+            if (markAndComplete(item, row.llmInput(), LlmQueue.STATUS_FAILED, LlmQueue.INPUT_UNCONFIRMED)) {
+                this.counters.inputUnconfirmed.incrementAndGet();
+            }
             return;
         }
         this.counters.unconfirmedRetries.incrementAndGet();
@@ -1538,17 +1548,20 @@ public final class LlmService {
     /**
      * Marks the document for the input it was examined with and completes its item. If the input changed meanwhile the
      * mark does not apply: the item stays queued (due at once) for the new input instead of being dropped unmarked.
+     *
+     * @return true if the mark applied
      */
-    private void markAndComplete(final LlmQueue.Item item, final byte[] llmInput, final int status, final String why)
+    private boolean markAndComplete(final LlmQueue.Item item, final byte[] llmInput, final int status, final String why)
             throws KgException {
         long estimate=SMALL+this.store.read(c->LlmProgress.storedBytes(c,item.docId));
-        this.store.write(WriteClass.MAINTENANCE, estimate, tx -> {
-            if (!LlmQueue.mark(tx, item.docId, llmInput, status, why) && LlmQueue.toDo(tx, item.docId)) {
+        return this.store.write(WriteClass.MAINTENANCE, estimate, tx -> {
+            final boolean marked = LlmQueue.mark(tx, item.docId, llmInput, status, why);
+            if (!marked && LlmQueue.toDo(tx, item.docId)) {
                 LlmQueue.release(tx, item.docId, this.clock.getAsLong(), false);
-                return null;
+                return false;
             }
             LlmQueue.complete(tx, item.docId,status==LlmQueue.STATUS_FAILED);
-            return null;
+            return marked;
         });
     }
 

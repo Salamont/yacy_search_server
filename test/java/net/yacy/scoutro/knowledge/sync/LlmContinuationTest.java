@@ -59,6 +59,20 @@ public class LlmContinuationTest extends LlmFixture {
     }
 
     @Test
+    public void aQueuedContinuationDoesNotCountAgainstItsHostsCap() throws Exception {
+        addPage(LlmLongPageTest.page());
+        settleLlm();
+        final String host = strings("SELECT host_id FROM kg_doc WHERE doc_id = '" + PAGE + "'").get(0);
+        final long done = this.store.read(c -> LlmQueue.hostLoad(c, host));
+        assertEquals(1L, done);
+        exec("UPDATE kg_doc SET llm_reason = '" + LlmQueue.MORE_TEXT + "' WHERE doc_id = '" + PAGE + "'");
+        this.store.write(net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass.MAINTENANCE, 1024L,
+                tx -> LlmQueue.offer(tx, PAGE, host, LlmQueue.CONTINUATION_PRIORITY, this.clock.get()));
+        assertTrue(queued(PAGE));
+        assertEquals("the page counts once, not as done and as queued", done, (long) this.store.read(c -> LlmQueue.hostLoad(c, host)));
+    }
+
+    @Test
     public void aContinuationReadsTheRestOfAPageWithinItsBound() throws Exception {
         final String text = LlmLongPageTest.page(); // about 20,000 characters
         addPage(text);

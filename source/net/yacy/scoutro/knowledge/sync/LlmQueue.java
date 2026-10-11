@@ -297,28 +297,6 @@ final class LlmQueue {
         }
     }
 
-    /** Up to {@code limit} documents to do after {@code afterRowid}, in row order. */
-    static List<Todo> todo(final Connection c, final long afterRowid, final int limit) throws SQLException {
-        final List<Todo> out = new ArrayList<>();
-        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.host_id, d.url, coalesce(d.content_hash, d.input_hash),"
-                + " (SELECT group_concat(k.name, ',') FROM kg_doc_collection dc JOIN kg_collection k ON k.coll_id = dc.coll_id"
-                + " WHERE dc.doc_rowid = d.doc_rowid)"
-                + " FROM kg_doc d INDEXED BY kg_doc_llm_todo WHERE d.llm_status IS NULL AND d.state = 1 AND d.input_hash IS NOT NULL"
-                + " AND d.doc_rowid > ?"
-                + " ORDER BY d.doc_rowid LIMIT ?")) {
-            ps.setLong(1, afterRowid);
-            ps.setInt(2, limit);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    final String colls = rs.getString(6);
-                    out.add(new Todo(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBytes(5),
-                            colls == null || colls.isEmpty() ? List.of() : Arrays.asList(colls.split(","))));
-                }
-            }
-        }
-        return out;
-    }
-
     static long size(final Connection c) throws SQLException {
         return KgStore.queryLong(c, "SELECT count(*) FROM kg_llm_work");
     }
@@ -332,7 +310,10 @@ final class LlmQueue {
         return v == 0L ? null : v;
     }
 
-    /** Documents of the host the tier has finished plus those queued for it (the per-host cap). */
+    /**
+     * Documents of the host the tier has finished plus those queued for it (the per-host cap). A queued continuation
+     * belongs to a finished page and does not count again.
+     */
     static long hostLoad(final Connection c, final String hostId) throws SQLException {
         long n = 0L;
         try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_doc WHERE host_id = ? AND llm_status = 1")) {
@@ -341,7 +322,8 @@ final class LlmQueue {
                 n += rs.next() ? rs.getLong(1) : 0L;
             }
         }
-        try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_llm_work WHERE host_id = ?")) {
+        try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_llm_work w WHERE w.host_id = ?"
+                + " AND NOT EXISTS (SELECT 1 FROM kg_doc d WHERE d.doc_id = w.doc_id AND d.llm_status = " + STATUS_DONE + ")")) {
             ps.setString(1, hostId);
             try (ResultSet rs = ps.executeQuery()) {
                 n += rs.next() ? rs.getLong(1) : 0L;
