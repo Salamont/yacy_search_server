@@ -2,10 +2,12 @@
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import { withDigestSignIn } from './digest-signin.mjs';
 const require=createRequire(import.meta.url),{chromium}=require('playwright');
 const base=process.env.SCOUTRO_URL;
 if(!/^http:\/\/127\.0\.0\.1:\d+$/.test(base||''))throw Error('Disposable loopback required');
 const browser=await chromium.launch({executablePath:process.env.SCOUTRO_CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-proxy-server']});
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let count=0;const check=(value,label)=>{assert.ok(value,label);count++;};
 const json=(route,data,status=200)=>route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
 try {

@@ -16,7 +16,9 @@ Checked on every viewport:
   Design, Ranking, …) are visible, inside the viewport, not covered by an
   overlay and at least 40px high on mobile;
 - Escape closes the panel, a menu link navigates, page submenus are reachable;
-- desktop keeps the sidebar and the top bar; mobile-only groups are hidden;
+- desktop keeps the sidebar and the top bar with the account menu; the
+  header has no Re-Start/Shutdown links; "Advanced tools" is open on its
+  own pages (`Status.html`);
 - the public search header keeps its menu and the way to the administration;
 - the "Powered by YaCy" attribution footer is present;
 - Status, Accounts, Basic/Network Configuration, Crawl Start, Crawler, Index,

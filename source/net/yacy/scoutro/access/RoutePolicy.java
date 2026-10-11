@@ -81,6 +81,8 @@ public final class RoutePolicy {
     public static final String ACCOUNT_PAGE = "/scoutro-account.html";
     /** Sign-in with the browser's Digest dialog: administrator only, never redirected to the login page. */
     public static final String DIGEST_PAGE = "/scoutro-digest.html";
+    /** "No permission", also the container's error page for 403; shows no data. */
+    public static final String FORBIDDEN_PAGE = "/scoutro-forbidden.html";
 
     /** Scoutro pages with their own rule in both modes. */
     static final Map<String, Rule> PAGES;
@@ -89,6 +91,7 @@ public final class RoutePolicy {
         m.put(LOGIN_PAGE, PUBLIC);
         m.put(ACCOUNT_PAGE, SIGNED_IN);
         m.put(DIGEST_PAGE, ADMIN);
+        m.put(FORBIDDEN_PAGE, PUBLIC);
         PAGES = Collections.unmodifiableMap(m);
     }
 

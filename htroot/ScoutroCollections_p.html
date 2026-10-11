@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Collections</title>
+  #%env/templates/metas.template%#
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-collections">
+  #%env/templates/header.template%#
+  <main class="scoutro-page" aria-labelledby="sco-title">
+    <header class="scoutro-page-heading">
+      <h1 id="sco-title">Collections</h1>
+      <p class="scoutro-page-lead">Collections are logical data areas in the one index. Accounts, agents, crawls, the chat and the knowledge graph use them; they are not separate tenants.</p>
+    </header>
+    <p id="sco-message" class="scoutro-status" role="status" aria-live="polite" tabindex="-1">Loading …</p>
+    <section class="scoutro-card" aria-labelledby="sco-list-title">
+      <h2 id="sco-list-title">Catalog</h2>
+      <div class="scoutro-actions"><button type="button" class="btn btn-primary" id="sco-new" hidden>New collection</button></div>
+      <div class="scoutro-table-wrap">
+        <table class="table scoutro-table scoutro-cards" id="sco-table">
+          <thead><tr><th scope="col">Collection</th><th scope="col">Documents</th><th scope="col">Source</th><th scope="col">Knowledge graph</th><th scope="col">Open</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="scoutro-note">Who may use a collection is set per account under <a href="ScoutroUsers_p.html">Users</a> and per agent under <a href="ScoutroAgents_p.html">Agents</a>. Knowledge-graph settings per collection: <a href="ScoutroKnowledge_p.html?view=settings">Knowledge graph operations</a>.</p>
+    </section>
+  </main>
+  <div hidden>
+    <span data-sco-label="loading">Loading …</span>
+    <span data-sco-label="error">The catalog could not be read.</span>
+    <span data-sco-label="empty">No collections yet. Create one or start a crawl into a new collection.</span>
+    <span data-sco-label="src_index">Index</span>
+    <span data-sco-label="src_created">Created</span>
+    <span data-sco-label="src_profile">Discovery profile</span>
+    <span data-sco-label="kg_on">On</span>
+    <span data-sco-label="kg_off">Off</span>
+    <span data-sco-label="kg_none">—</span>
+    <span data-sco-label="websites">Websites</span>
+    <span data-sco-label="created">Collection created.</span>
+  </div>
+  #%env/templates/scoutro/collection-create.template%#
+  <script src="env/scoutro/collections.js"></script>
+  <script>
+    /* Scoutro: catalog of Settings > Collections (GET /scoutro/api/v1/collections, administrator). */
+    (function () {
+      'use strict';
+      function $(id) { return document.getElementById(id); }
+      function label(key) { var el = document.querySelector('[data-sco-label="' + key + '"]'); return el ? el.textContent : key; }
+      function status(text, kind) {
+        var box = $('sco-message');
+        box.textContent = text || ''; box.hidden = !text;
+        box.className = 'scoutro-status' + (kind ? ' scoutro-status-' + kind : '');
+      }
+      function load() {
+        status(label('loading'));
+        return fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+          .then(function (data) {
+            var items = (data.collections || []).filter(function (c) { return !c.internal; });
+            items.sort(function (a, b) { return a.id.toLowerCase() < b.id.toLowerCase() ? -1 : 1; });
+            var body = $('sco-table').tBodies[0];
+            body.textContent = '';
+            items.forEach(function (c) {
+              var row = body.insertRow();
+              var name = row.insertCell();
+              var strong = document.createElement('strong');
+              strong.textContent = c.name && c.name !== c.id ? c.name : c.id;
+              name.appendChild(strong);
+              if (c.name && c.name !== c.id) { name.appendChild(document.createElement('br')); name.appendChild(document.createTextNode(c.id)); }
+              if (c.description) { var d = document.createElement('div'); d.className = 'scoutro-hint'; d.textContent = c.description; name.appendChild(d); }
+              row.insertCell().textContent = typeof c.documents === 'number' ? c.documents.toLocaleString() : '—';
+              row.insertCell().textContent = (c.sources || []).map(function (s) { return label('src_' + s); }).join(', ');
+              row.insertCell().textContent = c.graph ? label(c.graph.followed ? 'kg_on' : 'kg_off') : label('kg_none');
+              var open = row.insertCell();
+              var link = document.createElement('a');
+              link.href = 'IndexBrowser_p.html?collection=' + encodeURIComponent(c.id);
+              link.textContent = label('websites');
+              open.appendChild(link);
+            });
+            status(items.length ? '' : label('empty'));
+          })
+          .catch(function () { status(label('error'), 'error'); });
+      }
+      if (window.ScoutroCollections) {
+        window.ScoutroCollections.offerCreate($('sco-new'), function () {
+          window.ScoutroCollections.reload();
+          load().then(function () { status(label('created'), 'ok'); });
+        });
+      }
+      load();
+    })();
+  </script>
+  #%env/templates/footer.template%#
+</body>
+</html>

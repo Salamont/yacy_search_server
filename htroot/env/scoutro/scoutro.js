@@ -160,6 +160,7 @@ for the JavaScript code in this page.
   function markCurrentLinks() {
     var here = window.location.pathname.replace(/^.*\//, '') || 'index.html';
     var query = window.location.search;
+    var view = new URLSearchParams(query).get('view') || '';
     var links = document.querySelectorAll('#scoutro-adminnav a[href], ul.SubMenu a[href]');
     for (var i = 0; i < links.length; i++) {
       var href = links[i].getAttribute('href');
@@ -167,11 +168,50 @@ for the JavaScript code in this page.
       var file = (q < 0 ? href : href.substring(0, q)).replace(/^.*\//, '');
       var linkQuery = q < 0 ? '' : href.substring(q);
       var inSidebar = !!links[i].closest('#scoutro-adminnav');
-      if (file === here && (inSidebar || linkQuery === '' || linkQuery === query)) {
+      /* several sidebar entries open views of one page (?view=...): only the matching view is current */
+      var linkView = new URLSearchParams(linkQuery).get('view') || '';
+      var sidebarMatch = inSidebar && linkView === view;
+      if (file === here && (sidebarMatch || (!inSidebar && (linkQuery === '' || linkQuery === query)))) {
         links[i].classList.add('scoutro-current');
         links[i].setAttribute('aria-current', 'page');
+        var advanced = links[i].closest('details');
+        if (advanced) advanced.open = true;
       }
     }
+  }
+
+  /*
+   * Account menu of the header: sign-in with the current page as return
+   * target, sign-out of the session (POST, CSRF header from the fetch
+   * wrapper above), and a menu that closes on Escape or outside clicks.
+   */
+  function setUpAccount() {
+    var signin = document.getElementById('scoutro-signin');
+    if (signin) {
+      signin.setAttribute('href', 'scoutro-login.html?next=' + encodeURIComponent(window.location.pathname + window.location.search));
+    }
+    var signout = document.getElementById('scoutro-signout');
+    if (signout) {
+      signout.addEventListener('click', function () {
+        signout.disabled = true;
+        fetch('/scoutro/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' }, body: '{}' })
+          .catch(function () { return null; })
+          .then(function () { window.location.href = 'scoutro-login.html?signedout=1'; });
+      });
+    }
+    var menu = document.getElementById('scoutro-account-menu');
+    if (!menu) return;
+    document.addEventListener('click', function (event) {
+      if (menu.open && !menu.contains(event.target)) menu.open = false;
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && menu.open) {
+        menu.open = false;
+        var summary = menu.querySelector('summary');
+        if (summary) summary.focus();
+      }
+    });
   }
 
   /*
@@ -230,6 +270,7 @@ for the JavaScript code in this page.
     if (window.MutationObserver) new MutationObserver(labelCards).observe(document.body, {childList: true, subtree: true});
     wrapWideTables();
     markCurrentLinks();
+    setUpAccount();
     watchEmptyResults();
   }
 

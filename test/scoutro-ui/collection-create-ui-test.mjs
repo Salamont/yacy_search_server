@@ -6,10 +6,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 const {chromium} = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL, shots = process.env.SCOUTRO_SCREENSHOTS;
 assert(base && new URL(base).hostname === '127.0.0.1', 'Disposable loopback fixture required');
 const browser = await chromium.launch({executablePath: process.env.SCOUTRO_CHROMIUM_PATH, args: ['--no-proxy-server']});
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks = 0;
 const check = (value, label) => { assert.ok(value, label); checks++; };
 const fits = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);

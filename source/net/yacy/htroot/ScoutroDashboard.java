@@ -142,7 +142,7 @@ public final class ScoutroDashboard {
         }
     }
 
-    private static String scoutroVersion(final Switchboard sb) {
+    static String scoutroVersion(final Switchboard sb) {
         final Properties properties = new Properties();
         try (FileInputStream input = new FileInputStream(new File(sb.getAppPath(), "scoutro.properties"))) {
             properties.load(input);
@@ -158,13 +158,13 @@ public final class ScoutroDashboard {
         return value < 0 ? "—" : String.format(Locale.ROOT, "%,d", value);
     }
 
-    private static String bytes(final long value) {
+    static String bytes(final long value) {
         if (value > 0 && value < 1048576L) return String.format(Locale.ROOT, "%.3f MiB", value / 1048576.0);
         return value >= 1073741824L ? String.format(Locale.ROOT, "%.1f GiB", value / 1073741824.0)
                 : String.format(Locale.ROOT, "%.1f MiB", value / 1048576.0);
     }
 
-    private static String uptime(final long millis) {
+    static String uptime(final long millis) {
         final long minutes = Math.max(0, millis / 60000);
         return String.format(Locale.ROOT, "%dd %02dh %02dm", minutes / 1440, minutes / 60 % 24, minutes % 60);
     }

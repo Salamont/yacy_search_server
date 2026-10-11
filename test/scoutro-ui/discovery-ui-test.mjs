@@ -4,11 +4,13 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { withDigestSignIn } from './digest-signin.mjs';
 const require = createRequire(import.meta.url);
 const {chromium} = require('playwright');
 const base = process.env.SCOUTRO_URL;
 if (!base || !/^http:\/\/127\.0\.0\.1:\d+$/.test(base)) throw new Error('Disposable loopback peer required');
 const browser = await chromium.launch({executablePath:process.env.SCOUTRO_CHROMIUM_PATH || '/usr/bin/chromium',args:['--no-proxy-server']});
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks=0; const check=(value,label)=>{assert.ok(value,label);checks++;};
 try {
   for (const [width,language] of [[1280,'en-US'],[390,'de-DE'],[360,'de-DE'],[768,'de-DE']]) {
