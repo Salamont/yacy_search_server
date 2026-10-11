@@ -54,6 +54,7 @@ python3 test/scoutro-api/test_flow_contract.py -v
 python3 test/scoutro-ui/check-locale-identifiers.py
 python3 test/scoutro-ui/seo-live-smoke.py
 python3 test/scoutro-ui/discovery-live-smoke.py
+python3 test/scoutro-ui/discovery-recovery-live-smoke.py
 python3 test/scoutro-ui/dashboard-live-smoke.py
 ```
 

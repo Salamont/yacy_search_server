@@ -5590,6 +5590,54 @@
       "permission": "collect"
     },
     {
+      "name": "discovery.attempts.defer",
+      "description": "Defer an unconfirmed Discovery crawl start: the outcome stays unknown, the candidate is held and never started again by itself, other jobs continue. Administrator only; no agent grants.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/discovery/attempts/{id}/defer",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{32}$",
+          "in": "path",
+          "required": true,
+          "description": "Attempt id of the open batch (its start marker)."
+        },
+        "body": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run_id"
+          ],
+          "properties": {
+            "run_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Id of the open batch."
+            }
+          }
+        }
+      },
+      "returns": "object",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        428,
+        503
+      ],
+      "agent": {
+        "grantable": false
+      },
+      "permission": "admin"
+    },
+    {
       "name": "discovery.enable",
       "description": "Discovery automation enable. Administrator only; no agent grants.",
       "mutating": true,

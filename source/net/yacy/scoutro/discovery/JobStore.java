@@ -43,6 +43,15 @@ public final class JobStore {
                     for (final String key : java.util.List.of("requested")) if (runtime.has(key)) runtime.getBoolean(key);
                     for (final String key : runtime.getJSONObject("cursors").keySet()) nonnegative(runtime.getJSONObject("cursors"), key);
                     for (final String key : runtime.getJSONObject("source_last_replenish").keySet()) nonnegative(runtime.getJSONObject("source_last_replenish"), key);
+                    if (runtime.has("held_attempts")) {
+                        if (runtime.getJSONArray("held_attempts").length() > DiscoveryService.HELD_LIMIT) throw new IOException("Too many held attempts");
+                        for (final Object value : runtime.getJSONArray("held_attempts")) {
+                            final JsonObject held = (JsonObject) value;
+                            if (!held.getString("attempt_id").matches("[a-f0-9]{32}") || !held.getString("attempt_id").equals(held.getString("marker"))
+                                    || !java.util.Set.of("deferred", "accepted_late").contains(held.getString("state"))) throw new IOException("Invalid held attempt");
+                            decision(held.getJSONObject("decision"));
+                        }
+                    }
                 }
                 if (!this.root.has("active_run")) throw new IOException("Missing active run");
                 if (!this.root.isNull("active_run")) {
@@ -64,7 +73,8 @@ public final class JobStore {
                                 || !attempt.getString("id").equals(attempt.getString("marker"))
                                 || !attempt.getString("profile").equals(run.getJSONObject("job").getString("profile"))
                                 || !attempt.getString("domain").matches("[a-z0-9.-]{3,253}")
-                                || !java.util.Set.of("prepared", "accepted", "not_submitted", "submitted_unknown").contains(attempt.getString("state"))) throw new IOException("Invalid attempt");
+                                || !java.util.Set.of("prepared", "accepted", "not_submitted", "submitted_unknown", "deferred").contains(attempt.getString("state"))) throw new IOException("Invalid attempt");
+                        if (attempt.has("decision") || "deferred".equals(attempt.getString("state"))) decision(attempt.getJSONObject("decision"));
                         attempt.getBoolean("state_applied"); nonnegative(attempt, "submitted_at"); nonnegative(attempt, "recrawl_days");
                         if ("accepted".equals(attempt.getString("state")) && attempt.getString("crawl_id").isBlank()) throw new IOException("Missing crawl id");
                     }
@@ -75,6 +85,13 @@ public final class JobStore {
                         .put("active_run", JsonObject.NULL).put("history", new JsonArray());
             }
         } catch (final Exception e) { throw new IOException("Invalid discovery jobstore; original left intact", e); }
+    }
+
+    /** An administrator's recovery decision: who, when, and that the outcome stays unknown. */
+    private static void decision(final JsonObject decision) throws IOException {
+        if (!"defer".equals(decision.getString("action")) || !"unknown".equals(decision.getString("outcome"))
+                || decision.getString("by").isBlank()) throw new IOException("Invalid recovery decision");
+        nonnegative(decision, "at");
     }
 
     private static void nonnegative(final JsonObject object, final String key) throws IOException {
