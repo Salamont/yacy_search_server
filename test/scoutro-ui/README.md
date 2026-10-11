@@ -169,6 +169,8 @@ After `ant compile`, run `discovery-live-smoke.py` with the same JAVA/NODE_PATH/
 
 `discovery-recovery-live-smoke.py` covers the deferral of an unconfirmed crawl start (docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md, section 16.1). `DiscoveryReviewFixture.java` first builds the production case with the real Discovery classes on a new disposable root: one batch in `needs_review`, `codecamp-n.com` `submitted_unknown`, no crawl profile carries its marker, and automation stays disabled. The peer then serves the API and the page. The smoke verifies the refusals without a change (anonymous, missing or stale `If-Match`, foreign run, unknown field or attempt, cross origin). `discovery-recovery-ui-test.mjs` defers in German after an English mobile check where dismissing the dialog changes nothing. Afterwards the smoke checks the durable decision (`held_attempts`, `digest:admin`), the completed batch, `deferred_unknown` in the worker state, the untouched other candidate, the refused repetition, one audit entry, and an unchanged index, crawl queues and runtime config. It accepts no production URL or DATA root.
 
+`knowledge-process-ui-test.mjs` checks the process display of the knowledge graph status offline with the real localized page (EN/DE, 390 and 1280 px) and status fixtures for running work, empty queues, planned and resource waits, a pause, errors, missing data and a graph that is not running: units and time bases, document tasks without double counting, skipped tasks as no backlog, matching run values, collection scope, keyboard (Enter/Space), the technical diagnosis and that the display only reads (no request other than GET).
+
 ## SEO / Host Analysis smoke
 
 After compiling, run `python3 test/scoutro-ui/seo-live-smoke.py` with `JAVA`,

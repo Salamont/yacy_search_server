@@ -29,6 +29,16 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   and no account, agent, guest access or running crawl uses it; otherwise the
   dialog says why it stays. No page, crawl, knowledge-graph setting or other
   data is deleted. Accounts never see the buttons; the API answers them `403`.
+- Knowledge graph status: a process display replaces the long technical status
+  list at the top of the overview: web pages and structured data → rule
+  processing and AI enrichment in parallel → knowledge store → customer and
+  partner suggestions. Each step says what works or waits, how much is open
+  (page changes, document tasks, model calls, knowledge objects and matching
+  signals kept apart, each with unit and time basis), why it waits and whether
+  to act; error, pause, planned waiting and running work are distinguished.
+  Details open on tap or Enter/Space; the former lists stay under *Technical
+  diagnosis*. It only reads the status and shows no estimated percentages or
+  remaining times.
 
 ## 0.10.0 / 1.942-scoutro.24 — release candidate: users, roles and navigation
 

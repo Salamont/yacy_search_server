@@ -27,7 +27,7 @@ price comparison, and the evidence behind each fact. Operator guide:
 
 | View | URL | Content |
 | --- | --- | --- |
-| Overview | `ScoutroKnowledge_p.html` | State, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, the collections (see below), controls, backups, identity rebuild, recent events |
+| Overview | `ScoutroKnowledge_p.html` | The process display (see below); under **Technical diagnosis** the state cards, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, vocabulary and derived relations; then the collections (see below), controls, backups, identity rebuild, recent events |
 | Objects | `?view=objects&q=&type=&quality=&host=&industry=&category=&audience=` | Search by name, filter by type, quality, host, industry (NACE code; a section or division finds everything below it), service category and audience; 25 per page. Every hit shows its type, its provider and domain (a service: who offers it; a job: its employer; others: their own domain), its collection, place, quality, sources and last confirmation, with **Open provider**, **Network**, **Sources** and, for a service, **All providers** |
 | Services | `?view=services&q=&category=` · `?view=services&name=SAP` | Services of the same name across providers ("SAP · 133 providers") and, for one name, every provider's service in its own row (see below) |
 | Network of a name | `?view=network&group=SAP&category=&s=current,stale&list=1` | All providers of one service name around the name (see below) |
@@ -36,6 +36,46 @@ price comparison, and the evidence behind each fact. Operator guide:
 | Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published |
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
 | Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary (see below) |
+
+### Status: the process display
+
+The overview starts with what the knowledge graph is doing, as one flow:
+**Web pages & structured data** → **Rule processing** and **AI enrichment** in
+parallel → **Knowledge store** → **Customer & partner suggestions**. Each step
+says in a few lines what works or waits, how much is open, why it waits and
+whether you have to act (a red line); tap or press Enter/Space on a step for
+its details, and **Open the technical diagnosis** for the full status lists.
+The display and its details only read the status: they start no work and
+change no setting. **Reload status** reads it again.
+
+- States: *Working*, *Up to date* (nothing open), *Waiting as planned* (time
+  window, minimum interval, manual-only runs, the next interval of the
+  suggestions), *Waiting for resources* (load, heap, indexing, storage),
+  *Paused* (by hand or by the storage guard), *Error* (stopped sync task, open
+  circuit breaker, failed integrity check), *Switched off* and *No data*.
+- **Web pages & structured data** counts the page changes detected in the index
+  and not yet queued, a running full comparison with the index (pages checked
+  so far, no percentage) and the JSON-LD capture.
+- **Rule processing** counts the open **page changes of the page comparison**
+  (queued plus detected). "No page change" concerns the page comparison only,
+  never the AI queue; rule processing never waits for the AI.
+- **AI enrichment** counts **document tasks** (pages waiting for the model);
+  a task in progress is part of that number and never added again. Model
+  calls are counted apart (one page can need several calls). Skipped tasks
+  were not selected and are no backlog; a failed task is a hint with the retry
+  under Controls, not an error of the whole step. The average duration of a
+  model call is shown only when it was measured since the last start.
+- **Knowledge store** shows the **knowledge objects** of the chosen scope and
+  the storage guard.
+- **Customer & partner suggestions** shows the values of the **last run**
+  (suggestions derived, signals examined, provider partitions completed) and
+  the interval; these are no overall progress, and how many signals are still
+  to match in total is not measured, which the display says.
+- Every number carries its unit and time basis: *current count*, *since the
+  last start of Scoutro*, *all time, in the knowledge graph*, *last run* or
+  *measured*. The line above the flow names when the status was read and the
+  scope: queues and runs count for the whole graph, pages and knowledge objects
+  follow the chosen collection. No percentage or remaining time is estimated.
 
 The synchronisation panel also shows the periodic task's state, last start
 and finish, completed ticks, error class, and the current reconcile's scanned
