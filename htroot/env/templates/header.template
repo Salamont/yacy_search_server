@@ -170,9 +170,11 @@
       #(scoutroAdmin)#::<li><a href="ViewProfile.html?hash=localhash" class="MenuItemLink">About This Page</a></li>#(/scoutroAdmin)#
       <li><a href="jslicense.html" data-jslicense="1" class="MenuItemLink">JavaScript information</a></li>
       <li><a href="https://yacy.net" target="_blank" rel="noopener" class="MenuItemLink">YaCy project</a></li>
+      <li><a href="https://www.youtube.com/user/YaCyTutorials/videos" target="_blank" rel="noopener" class="MenuItemLink">YaCy Tutorials</a></li>
       <li><a href="https://community.searchlab.eu" target="_blank" rel="noopener" class="MenuItemLink">YaCy Community (Web Forums)</a></li>
       <li><a href="https://github.com/yacy/yacy_search_server" target="_blank" rel="noopener" class="MenuItemLink">YaCy Git Repository</a></li>
       <li><a href="https://github.com/users/Orbiter/sponsorship" target="_blank" rel="noopener" class="MenuItemLink">Sponsor YaCy</a></li>
+      <li><a href="https://www.patreon.com/bePatron?u=185903" target="_blank" rel="noopener" class="MenuItemLink">YaCy Patreon</a></li>
     </ul>
     </nav>
 

@@ -122,7 +122,11 @@ One header for every administration page (`header.template`):
   | Data collection | Crawls, Discovery, Reports | collect |
   | Settings | Collections, Users, Agents, Models, Knowledge graph operations, System | admin |
   | Advanced tools (collapsed) | AI Lab, First Steps, Monitoring, Production, Administration, Search Portal Integration, Configuration: YaCy's own pages, unchanged | admin |
-  | Help | About, About This Page (admin), JavaScript information, YaCy links | everyone |
+  | Help | About, About This Page (admin), JavaScript information, YaCy project, tutorials, forum, repository, sponsoring | everyone |
+
+  Every page of the previous navigation stays reachable; `NavigationCoverageTest`
+  checks the list (YaCy's groups under "Advanced tools", Re-Start and Shutdown
+  on Settings → System).
 
 - **Re-Start and Shutdown** are no longer in the header; they are on
   Settings → System, with a confirmation dialog and the transaction token of

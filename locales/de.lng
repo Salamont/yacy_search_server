@@ -3594,6 +3594,8 @@ YaCy Identifier==YaCy-Identifizierer
 
 #File: env/templates/header.template
 #---------------------------
+>YaCy Tutorials<==>YaCy-Tutorials<
+>YaCy Patreon<==>YaCy-Patreon<
 Toggle navigation==Navigation umschalten
 "Search..."=="Suchen..."
 Account menu==Kontomenü

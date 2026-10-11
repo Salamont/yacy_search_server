@@ -46,4 +46,5 @@ grafic_examples
 /ir/mediawiki/_statistics/
 /test/scoutro-api/__pycache__/
 /test/scoutro-ui/__pycache__/
+/test/scoutro-access/__pycache__/
 /junit*.properties

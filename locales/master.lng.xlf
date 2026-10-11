@@ -12227,6 +12227,9 @@
     <trans-unit id="4b132b7" xml:space="preserve" approved="no" translate="yes">
        <source>YaCy project</source>
     </trans-unit>
+    <trans-unit id="af17d8d3" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Tutorials</source>
+    </trans-unit>
     <trans-unit id="eea8185c" xml:space="preserve" approved="no" translate="yes">
        <source>YaCy Community (Web Forums)</source>
     </trans-unit>
@@ -12235,6 +12238,9 @@
     </trans-unit>
     <trans-unit id="a256bb24" xml:space="preserve" approved="no" translate="yes">
        <source>Sponsor YaCy</source>
+    </trans-unit>
+    <trans-unit id="4b3181f3" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy Patreon</source>
     </trans-unit>
   </body>
 </file>
