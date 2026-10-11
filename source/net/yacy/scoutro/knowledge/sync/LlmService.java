@@ -1422,11 +1422,9 @@ public final class LlmService {
             return;
         }
         if (result[0].outcome == Publisher.Outcome.PUBLISHED) {
-            this.counters.published.incrementAndGet();
+            // a page is published once; its continuation adds to that publication
+            (continuation ? this.counters.continuationDocs : this.counters.published).incrementAndGet();
             this.counters.statements.addAndGet(result[0].statements);
-            if (continuation) {
-                this.counters.continuationDocs.incrementAndGet();
-            }
             if (LlmQueue.TEXT_CUT.equals(reason)) {
                 this.counters.textCutDocs.incrementAndGet();
                 this.counters.textCutChars.addAndGet(unread);
