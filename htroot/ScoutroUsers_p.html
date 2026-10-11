@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Users</title>
+  #%env/templates/metas.template%#
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-users">
+  #%env/templates/header.template%#
+  <main class="scoutro-page" aria-labelledby="su-title">
+    <header class="scoutro-page-heading">
+      <h1 id="su-title">Users</h1>
+      <p class="scoutro-page-lead">People who sign in to Scoutro, their roles and their collections. Agents have their own identities under <a href="ScoutroAgents_p.html">Agents</a>.</p>
+    </header>
+    <p id="su-message" class="scoutro-status" role="status" aria-live="polite" tabindex="-1">Loading …</p>
+
+    <section class="scoutro-card" aria-labelledby="su-mode-title" id="su-mode" hidden>
+      <h2 id="su-mode-title">Access</h2>
+      <ul class="scoutro-note" id="su-warnings"></ul>
+      <div class="scoutro-switch-row">
+        <div>
+          <h3>Protected access mode</h3>
+          <p>Only listed Scoutro pages are reachable without the administrator role. Native search, Solr, MCP, suggestions, chat and the YaCy pages need an administrator. Required for Research and Operator accounts.</p>
+        </div>
+        <span class="scoutro-badge-state" id="su-protected-state"></span>
+        <button type="button" class="btn btn-default" id="su-protected-toggle"></button>
+      </div>
+      <div class="scoutro-switch-row">
+        <div>
+          <h3>Guest access</h3>
+          <p>Without sign-in, guests may only search the collections released here. Off by default; needs the protected mode.</p>
+          <div id="su-guest-collections" class="scoutro-collection-list" hidden></div>
+        </div>
+        <span class="scoutro-badge-state" id="su-guest-state"></span>
+        <button type="button" class="btn btn-default" id="su-guest-toggle"></button>
+        <button type="button" class="btn btn-default" id="su-guest-save" hidden>Save guest collections</button>
+      </div>
+      <div class="scoutro-switch-row">
+        <div>
+          <h3>Built-in administrator on the login page</h3>
+          <p>The YaCy administrator (<strong id="su-builtin-name"></strong>) may sign in on the login page with its password. HTTP Digest for tools stays available either way.</p>
+        </div>
+        <span class="scoutro-badge-state" id="su-builtin-state"></span>
+        <button type="button" class="btn btn-default" id="su-builtin-toggle"></button>
+      </div>
+    </section>
+
+    <section class="scoutro-card" aria-labelledby="su-list-title" id="su-list" hidden>
+      <h2 id="su-list-title">Accounts</h2>
+      <div class="scoutro-actions"><button type="button" class="btn btn-primary" id="su-new">New account</button></div>
+      <p class="scoutro-note" id="su-empty" hidden>No accounts yet. Create a personal administrator account first.</p>
+      <div class="scoutro-table-wrap">
+        <table class="table scoutro-table scoutro-cards" id="su-table">
+          <thead><tr><th scope="col">Name</th><th scope="col">Role</th><th scope="col">Collections</th><th scope="col">Export</th><th scope="col">Status</th><th scope="col">Last sign-in</th><th scope="col">Sessions</th><th scope="col">Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="scoutro-card" aria-labelledby="su-audit-title" id="su-audit" hidden>
+      <h2 id="su-audit-title">Audit log</h2>
+      <p class="scoutro-note">Sign-ins, account and access changes and every changing Scoutro action of a person. Passwords, tokens and search texts are never logged.</p>
+      <form id="su-audit-filter" class="scoutro-form" role="search">
+        <label for="su-audit-who">Person or target</label>
+        <input id="su-audit-who" type="text" autocomplete="off" maxlength="64" />
+        <div class="scoutro-actions"><button type="submit" class="btn btn-default">Show</button></div>
+      </form>
+      <div class="scoutro-table-wrap">
+        <table class="table scoutro-table scoutro-cards" id="su-audit-table">
+          <thead><tr><th scope="col">Time</th><th scope="col">Who</th><th scope="col">Action</th><th scope="col">Target</th><th scope="col">Result</th><th scope="col">Details</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="scoutro-dialog" id="su-editor" aria-labelledby="su-editor-title">
+    <form method="dialog" id="su-editor-form" class="scoutro-form" novalidate>
+      <h2 id="su-editor-title">New account</h2>
+      <p class="scoutro-status scoutro-status-error" id="su-editor-message" role="alert" hidden></p>
+      <label for="su-username">User name</label>
+      <input id="su-username" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="64" required aria-describedby="su-username-hint" />
+      <p class="scoutro-hint" id="su-username-hint">Lower-case letters, digits, '.', '_', '-' and '@'; cannot be changed later.</p>
+      <label for="su-displayname">Name</label>
+      <input id="su-displayname" type="text" autocomplete="off" maxlength="80" />
+      <label for="su-role">Role</label>
+      <select id="su-role" class="form-control">
+        <option value="research">Research: search, chat, analyses and knowledge</option>
+        <option value="operator">Operator: also crawls and discovery in the allowed collections</option>
+        <option value="administrator">Administrator: everything, including users and system</option>
+      </select>
+      <fieldset id="su-scope">
+        <legend>Collections</legend>
+        <label class="scoutro-check"><input type="radio" name="su-scope" value="all" id="su-scope-all" /> All collections (also future ones)</label>
+        <label class="scoutro-check"><input type="radio" name="su-scope" value="some" id="su-scope-some" checked /> Only these collections</label>
+        <div id="su-collections" class="scoutro-collection-list"></div>
+      </fieldset>
+      <label class="scoutro-check"><input type="checkbox" id="su-export" /> May export and download data of the allowed collections</label>
+      <div id="su-password-block">
+        <label for="su-password">Temporary password</label>
+        <input id="su-password" type="text" autocomplete="off" spellcheck="false" maxlength="256" aria-describedby="su-password-hint" />
+        <p class="scoutro-hint" id="su-password-hint">At least 10 characters. Hand it over in person or through a secure channel; the person sets an own password at the first sign-in.</p>
+        <div class="scoutro-actions"><button type="button" class="btn btn-default" id="su-generate">Generate password</button></div>
+      </div>
+      <div class="scoutro-actions">
+        <button type="submit" class="btn btn-primary" id="su-editor-save">Save</button>
+        <button type="button" class="btn btn-default" id="su-editor-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="scoutro-dialog" id="su-reset" aria-labelledby="su-reset-title">
+    <form method="dialog" id="su-reset-form" class="scoutro-form" novalidate>
+      <h2 id="su-reset-title">Reset password</h2>
+      <p>New temporary password for <strong id="su-reset-name"></strong>. All sessions of the account end; the person must set an own password at the next sign-in.</p>
+      <code class="scoutro-secret" id="su-reset-secret"></code>
+      <p class="scoutro-hint">Copy it now. It is not shown again and never stored in clear text.</p>
+      <p class="scoutro-status scoutro-status-error" id="su-reset-message" role="alert" hidden></p>
+      <div class="scoutro-actions">
+        <button type="submit" class="btn btn-primary" id="su-reset-save">Reset password</button>
+        <button type="button" class="btn btn-default" id="su-reset-cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="scoutro-dialog" id="su-confirm" aria-labelledby="su-confirm-title">
+    <form method="dialog" class="scoutro-form">
+      <h2 id="su-confirm-title"></h2>
+      <p id="su-confirm-text"></p>
+      <div class="scoutro-actions">
+        <button type="submit" class="btn btn-primary" id="su-confirm-ok" value="ok">Confirm</button>
+        <button type="submit" class="btn btn-default" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div hidden>
+    <span data-su-label="loading">Loading …</span>
+    <span data-su-label="error">The users could not be loaded.</span>
+    <span data-su-label="failed">That did not work.</span>
+    <span data-su-label="saved">Saved.</span>
+    <span data-su-label="on">On</span>
+    <span data-su-label="off">Off</span>
+    <span data-su-label="switch_on">Switch on</span>
+    <span data-su-label="switch_off">Switch off</span>
+    <span data-su-label="role_research">Research</span>
+    <span data-su-label="role_operator">Operator</span>
+    <span data-su-label="role_administrator">Administrator</span>
+    <span data-su-label="all_collections">All collections</span>
+    <span data-su-label="yes">Yes</span>
+    <span data-su-label="no">No</span>
+    <span data-su-label="active">Active</span>
+    <span data-su-label="locked">Locked</span>
+    <span data-su-label="must_change">Must set a password</span>
+    <span data-su-label="never">Never</span>
+    <span data-su-label="edit">Edit</span>
+    <span data-su-label="lock">Lock</span>
+    <span data-su-label="unlock">Unlock</span>
+    <span data-su-label="reset">Reset password</span>
+    <span data-su-label="end_sessions">End sessions</span>
+    <span data-su-label="remove">Remove</span>
+    <span data-su-label="new_title">New account</span>
+    <span data-su-label="edit_title">Edit account</span>
+    <span data-su-label="created">Account created.</span>
+    <span data-su-label="updated">Account saved.</span>
+    <span data-su-label="sessions_ended">Sessions ended: %1</span>
+    <span data-su-label="removed">Account removed.</span>
+    <span data-su-label="locked_done">Account locked; its sessions have ended.</span>
+    <span data-su-label="unlocked_done">Account unlocked.</span>
+    <span data-su-label="reset_done">Password reset; the sessions of the account have ended.</span>
+    <span data-su-label="confirm_remove_title">Remove account?</span>
+    <span data-su-label="confirm_remove">The account %1 is removed and its sessions end. The audit log keeps its entries.</span>
+    <span data-su-label="confirm_lock_title">Lock account?</span>
+    <span data-su-label="confirm_lock">%1 can no longer sign in; open sessions end now.</span>
+    <span data-su-label="confirm_protected_on_title">Switch on the protected access mode?</span>
+    <span data-su-label="confirm_protected_on">Without sign-in, nobody can use the search, Solr, MCP, suggestions, chat or YaCy pages any more; only listed Scoutro pages remain. Tools with the administrator password (HTTP Digest) and agents with tokens keep working.</span>
+    <span data-su-label="confirm_protected_off_title">Switch off the protected access mode?</span>
+    <span data-su-label="confirm_protected_off">YaCy's previous rules apply again; public search can then be reachable without sign-in.</span>
+    <span data-su-label="confirm_guest_on_title">Switch on guest access?</span>
+    <span data-su-label="confirm_guest_on">Without sign-in, everyone who reaches Scoutro can search the released collections.</span>
+    <span data-su-label="confirm_builtin_off_title">Switch off the built-in administrator on the login page?</span>
+    <span data-su-label="confirm_builtin_off">Its sessions end. HTTP Digest for tools stays available.</span>
+    <span data-su-label="warn_p2p_not_private">This peer takes part in the YaCy network: other peers can search the whole index. Collection rights do not apply to peers. Use private Robinson mode if accounts must stay within their collections.</span>
+    <span data-su-label="warn_builtin_default_password">The built-in administrator still uses YaCy's default password. Change it on the Accounts page.</span>
+    <span data-su-label="warn_protected_enforced">Active Research or Operator accounts keep the protected rules although the setting is off.</span>
+    <span data-su-label="no_collections_available">No collections are known yet.</span>
+    <span data-su-label="audit_empty">No entries.</span>
+    <span data-su-label="result_ok">OK</span>
+    <span data-su-label="result_denied">Denied</span>
+    <span data-su-label="result_failed">Failed</span>
+    <span data-su-label="protected_mode_required">Research and Operator accounts need the protected access mode. Switch it on first.</span>
+    <span data-su-label="restricted_accounts_active">Lock or remove the active Research and Operator accounts before leaving the protected mode.</span>
+    <span data-su-label="last_admin">This is the last administrator who can sign in. Create or activate another administrator first.</span>
+    <span data-su-label="own_account">You cannot lock, remove or demote your own account here.</span>
+    <span data-su-label="username_taken">An account with this name already exists.</span>
+    <span data-su-label="username_reserved">This name belongs to the built-in administrator.</span>
+    <span data-su-label="password_too_short">The password must have at least 10 characters.</span>
+    <span data-su-label="password_too_long">The password must not have more than 256 characters.</span>
+    <span data-su-label="password_equals_username">The password must not be the user name.</span>
+    <span data-su-label="password_too_common">This password is too common.</span>
+    <span data-su-label="invalid_request">Please check the highlighted entries.</span>
+    <span data-su-label="collections_required">Choose at least one collection or all collections.</span>
+  </div>
+  <script src="env/scoutro/collections.js"></script>
+  <script src="env/scoutro/users.js"></script>
+  #%env/templates/footer.template%#
+</body>
+</html>

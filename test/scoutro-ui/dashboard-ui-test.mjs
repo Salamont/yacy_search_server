@@ -8,6 +8,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 const require = createRequire(import.meta.url);
 let playwright;
@@ -21,6 +22,7 @@ const browser = await playwright.chromium.launch({
   ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
   args: ['--no-proxy-server'],
 });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks = 0;
 function check(value, label) { assert.ok(value, label); checks++; }
 try {

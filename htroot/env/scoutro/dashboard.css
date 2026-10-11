@@ -1,8 +1,5 @@
 /* Scoutro dashboard. Uses the existing brand tokens; GPL-2.0-or-later. */
-/* Keep the overview read-only, including the shared admin header/mobile panel. */
-#scoutro-dashboard #header_restart,
-#scoutro-dashboard #header_shutdown,
-#scoutro-dashboard #scoutro-system a[href="Steering.html"] { display: none; }
+/* The overview is read-only; Re-Start and Shutdown live on Settings > System only. */
 .scoutro-dash { max-width: 1440px; margin: 0 auto; padding-bottom: 20px; }
 .scoutro-dash-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 12px 0 26px; }
 .scoutro-dash-heading h1 { font-size: clamp(26px, 3vw, 36px); margin: 4px 0 8px; letter-spacing: -.7px; }

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>No permission</title>
+  #%env/templates/metas.template%#
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-forbidden-page">
+  #%env/templates/header.template%#
+  <main class="scoutro-page scoutro-forbidden" aria-labelledby="sf-title">
+    <img src="env/scoutro/brand/pose-question.webp" width="120" height="140" alt="" />
+    <h1 id="sf-title">No permission</h1>
+    <p class="scoutro-page-lead">Your account may not open this page or use this function. If you need it, ask an administrator to change your role or your collections.</p>
+    <div class="scoutro-actions" style="justify-content:center">
+      #(scoutroRead)#<a class="btn btn-default" href="index.html">Search</a>::<a class="btn btn-primary" href="scoutro-dashboard.html">Overview</a>#(/scoutroRead)#
+      #(scoutroAccount)#<a class="btn btn-default" href="scoutro-login.html">Sign in with another account</a>::<a class="btn btn-default" href="scoutro-account.html">My account</a>::<a class="btn btn-default" href="scoutro-account.html">My account</a>#(/scoutroAccount)#
+    </div>
+  </main>
+  #%env/templates/footer.template%#
+</body>
+</html>

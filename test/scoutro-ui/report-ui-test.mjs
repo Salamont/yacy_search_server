@@ -2,10 +2,12 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import { withDigestSignIn } from './digest-signin.mjs';
 const require = createRequire(import.meta.url), { chromium } = require('playwright');
 const base = process.env.SCOUTRO_URL, shots = process.argv.includes('--screenshots') ? process.argv[process.argv.indexOf('--screenshots') + 1] : null;
 const JOB = '5b0f4c1e-7a2d-4c6b-9f1e-2d3c4b5a6f70';
 const browser = await chromium.launch({ executablePath: process.env.SCOUTRO_CHROMIUM_PATH, args: ['--no-proxy-server'] });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 const text = { en: { title: 'Crawl report', indexed: 'Indexed', partial: 'Partially indexed', unavailable: 'Crawl reports are unavailable', stale: 'Yes', host: 'Host analysis', absent: 'No crawl of this host has been recorded in this collection yet.', need: 'Enter a collection to read the crawl status of this host.',
     elsewhere: 'Canonical points to another URL', untitled: 'Pages without title', sharing: 'Pages sharing a title', directories: 'Directories', disabled: 'Not enabled in the index schema:' },
   de: { title: 'Crawl-Bericht', indexed: 'Indexiert', partial: 'Teilweise indexiert', unavailable: 'Crawl-Berichte sind nicht verfügbar', stale: 'Ja', host: 'Host-Analyse', absent: 'Für diesen Host wurde in dieser Collection noch kein Crawl erfasst.', need: 'Geben Sie eine Collection ein, um den Crawl-Status dieses Hosts zu lesen.',

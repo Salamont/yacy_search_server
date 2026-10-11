@@ -80,6 +80,21 @@ final class UiRoutes {
         route("knowledge.graph", "administration", "Knowledge graph", "/ScoutroKnowledge_p.html", true,
                 "Entities, facts, relations and their sources from the knowledge graph, per collection; status and controls.");
         route("ranking", "administration", "Ranking and Heuristics", "/RankingSolr_p.html", true, "Search ranking settings.");
+        // Scoutro navigation and accounts (docs/SCOUTRO_USERS_ACCESS.md); "auth" names the minimum, roles decide the rest
+        route("overview", "overview", "Overview", "/scoutro-dashboard.html", true,
+                "Collections, data state and hints of the signed-in identity's collections.");
+        route("chat", "research", "Chat", "/yacychat.html", false, "Chat with sources from the index and graph facts.");
+        route("account.login", "account", "Sign in", "/scoutro-login.html?next={path}", false,
+                "Scoutro login page; next is a path on this server.");
+        route("account.my", "account", "My account", "/scoutro-account.html", false,
+                "Signed-in identity, password change and own sessions (needs a sign-in).");
+        route("settings.users", "settings", "Users", "/ScoutroUsers_p.html", true,
+                "Accounts of people, roles, collections, export right, access mode, guest access and audit log.");
+        route("settings.collections", "settings", "Collections", "/ScoutroCollections_p.html", true,
+                "Collection catalog with sources, document counts and knowledge-graph state; new collection.");
+        route("settings.system", "settings", "System", "/ScoutroSystem_p.html", true,
+                "Versions, running time, memory, Re-Start and Shutdown.");
+        route("settings.models", "settings", "Models", "/LLMSelection_p.html", true, "Language models for chat, search queries and knowledge.");
         route("api.openapi", "api", "Scoutro API description", "/scoutro/api/openapi.json", false, "OpenAPI description of this API.");
         route("api.actions", "api", "Scoutro action catalog", "/scoutro/api/actions.json", false, "Machine-readable list of actions.");
     }

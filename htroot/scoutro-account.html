@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>My account</title>
+  #%env/templates/metas.template%#
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-account-page">
+  #%env/templates/header.template%#
+  <main class="scoutro-page" aria-labelledby="sac-title">
+    <header class="scoutro-page-heading">
+      <h1 id="sac-title">My account</h1>
+      <p class="scoutro-page-lead">Your sign-in, your rights and your sessions.</p>
+    </header>
+    <p id="sac-message" class="scoutro-status" role="status" aria-live="polite" tabindex="-1">Loading …</p>
+
+    <section class="scoutro-card" aria-labelledby="sac-profile-title" id="sac-profile" hidden>
+      <h2 id="sac-profile-title">Profile</h2>
+      <dl class="scoutro-facts">
+        <div><dt>User name</dt><dd id="sac-username"></dd></div>
+        <div><dt>Name</dt><dd id="sac-displayname"></dd></div>
+        <div><dt>Role</dt><dd id="sac-role"></dd></div>
+        <div><dt>Collections</dt><dd id="sac-collections"></dd></div>
+        <div><dt>Export</dt><dd id="sac-export"></dd></div>
+        <div><dt>Sign-in</dt><dd id="sac-method"></dd></div>
+      </dl>
+      <p class="scoutro-note">Your role decides what you may do; your collections decide which data you see. Ask an administrator to change them.</p>
+    </section>
+
+    <section class="scoutro-card" aria-labelledby="sac-password-title" id="sac-password" hidden>
+      <h2 id="sac-password-title">Change password</h2>
+      <form id="sac-password-form" class="scoutro-form" novalidate>
+        <input type="text" name="username" id="sac-password-username" autocomplete="username" hidden />
+        <label for="sac-current">Current password</label>
+        <input id="sac-current" type="password" autocomplete="current-password" maxlength="1024" required />
+        <label for="sac-new">New password</label>
+        <input id="sac-new" type="password" autocomplete="new-password" minlength="10" maxlength="256" required aria-describedby="sac-new-hint" />
+        <p class="scoutro-hint" id="sac-new-hint">At least 10 characters, not your user name. Your other sessions end.</p>
+        <label for="sac-repeat">Repeat new password</label>
+        <input id="sac-repeat" type="password" autocomplete="new-password" maxlength="256" required />
+        <div class="scoutro-actions"><button type="submit" class="btn btn-primary" id="sac-password-submit">Save password</button></div>
+      </form>
+    </section>
+
+    <section class="scoutro-card" aria-labelledby="sac-builtin-title" id="sac-builtin" hidden>
+      <h2 id="sac-builtin-title">Password of the built-in administrator</h2>
+      <p>The built-in YaCy administrator changes its password on the <a href="ConfigAccounts_p.html">Accounts</a> page. HTTP Digest tools then need the new password as well.</p>
+    </section>
+
+    <section class="scoutro-card" aria-labelledby="sac-sessions-title" id="sac-sessions" hidden>
+      <h2 id="sac-sessions-title">Sessions</h2>
+      <p class="scoutro-note">Sessions end after <span id="sac-idle"></span> minutes without use and after 12 hours at the latest.</p>
+      <div class="scoutro-table-wrap">
+        <table class="table scoutro-table scoutro-cards" id="sac-session-table">
+          <thead><tr><th scope="col">Started</th><th scope="col">Last used</th><th scope="col">Address</th><th scope="col">Browser</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="scoutro-actions">
+        <button type="button" class="btn btn-default" id="sac-end-others">End all other sessions</button>
+        <button type="button" class="btn btn-default" id="sac-signout">Sign out</button>
+      </div>
+    </section>
+  </main>
+
+  <div hidden>
+    <span data-sac-label="loading">Loading …</span>
+    <span data-sac-label="error">The account could not be loaded. Please reload the page.</span>
+    <span data-sac-label="role_research">Research</span>
+    <span data-sac-label="role_operator">Operator</span>
+    <span data-sac-label="role_administrator">Administrator</span>
+    <span data-sac-label="all_collections">All collections</span>
+    <span data-sac-label="no_collections">No collections</span>
+    <span data-sac-label="yes">Yes</span>
+    <span data-sac-label="no">No</span>
+    <span data-sac-label="method_session">Scoutro sign-in</span>
+    <span data-sac-label="method_builtin">Scoutro sign-in as built-in administrator</span>
+    <span data-sac-label="method_digest">Browser sign-in (HTTP Digest); it ends when the browser is closed</span>
+    <span data-sac-label="current">This session</span>
+    <span data-sac-label="end">End</span>
+    <span data-sac-label="ended">Session ended.</span>
+    <span data-sac-label="ended_others">Other sessions ended: %1</span>
+    <span data-sac-label="saved">Password saved. Your other sessions have ended.</span>
+    <span data-sac-label="saving">Saving …</span>
+    <span data-sac-label="save">Save password</span>
+    <span data-sac-label="mismatch">The new passwords do not match.</span>
+    <span data-sac-label="password_too_short">The password must have at least 10 characters.</span>
+    <span data-sac-label="password_too_long">The password must not have more than 256 characters.</span>
+    <span data-sac-label="password_equals_username">The password must not be your user name.</span>
+    <span data-sac-label="password_too_common">This password is too common. Choose another one.</span>
+    <span data-sac-label="password_unchanged">Choose a password that differs from the current one.</span>
+    <span data-sac-label="wrong_password">The current password is wrong.</span>
+    <span data-sac-label="too_many_attempts">Too many failed attempts. Please try again later.</span>
+    <span data-sac-label="failed">That did not work. Please try again.</span>
+  </div>
+  <script src="env/scoutro/account.js"></script>
+  #%env/templates/footer.template%#
+</body>
+</html>

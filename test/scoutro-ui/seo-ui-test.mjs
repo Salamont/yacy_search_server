@@ -2,9 +2,11 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
+import { withDigestSignIn } from './digest-signin.mjs';
 const require = createRequire(import.meta.url), { chromium } = require('playwright');
 const base = process.env.SCOUTRO_URL, shots = process.argv.includes('--screenshots') ? process.argv[process.argv.indexOf('--screenshots') + 1] : null;
 const browser = await chromium.launch({ executablePath: process.env.SCOUTRO_CHROMIUM_PATH, args: ['--no-proxy-server'] });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks = 0;
 const check = (v, m) => { assert.ok(v, m); checks++; };
 try {

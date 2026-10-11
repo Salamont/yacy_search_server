@@ -3593,70 +3593,76 @@ YaCy Identifier==YaCy-Identifizierer
 #-----------------------------
 
 #File: env/templates/header.template
->Knowledge graph<==>Wissensgraph<
+#---------------------------
+Toggle navigation==Navigation umschalten
+"Search..."=="Suchen..."
+Account menu==Kontomenü
+Main navigation==Hauptnavigation
+>Sign in<==>Anmelden<
+>Administrator (browser sign-in)<==>Administrator (Browser-Anmeldung)<
+>My account<==>Mein Konto<
+>Sign out<==>Abmelden<
+>The browser keeps this sign-in until it is closed.<==>Der Browser behält diese Anmeldung, bis er geschlossen wird.<
+Guest::Research::Operator::Administrator==Gast::Recherche::Operator::Administrator
+>Knowledge graph operations<==>Wissensgraph-Betrieb<
+>Knowledge overview<==>Wissensübersicht<
+>Knowledge<==>Wissen<
+>Overview<==>Übersicht<
+>Research<==>Recherche<
+>Websites<==>Websites<
+>Host analysis<==>Host-Analyse<
+>Organisations<==>Organisationen<
+>Services<==>Leistungen<
+>Comparisons<==>Vergleiche<
+>History<==>Verlauf<
+>Data collection<==>Datenerfassung<
+>Reports<==>Berichte<
+>Settings<==>Einstellungen<
+>Users<==>Nutzer<
+>Agents<==>Agenten<
+>Models<==>Modelle<
+>Advanced tools<==>Erweiterte Werkzeuge<
+>Search<==>Suche<
+### ADVANCED TOOLS (YaCy) ###
 AI Lab overview==KI-Labor-Übersicht
 Chat tools==Chat-Werkzeuge
->SEO / Host Analysis<==>SEO / Host-Analyse<
->Discovery Automation<==>Discovery-Automatisierung<
->Dashboard<==>Dashboard<
-#---------------------------
-Agents &amp; Access==Agenten &amp; Zugriffe
-Toggle navigation==Navigation umschalten
-About This Page==Über diese Seite
-Portal Configuration==Portal-Konfiguration
-Portal Design==Portal-Design
-Index Browser==Index-Browser
-"Search..."=="Suchen..."
-Forum==Forum
-Help==Hilfe
-JavaScript information==JavaScript-Informationen
-Please help! We need financial help to move on with the development!==Bitte helfen Sie! Wir brauchen finanzielle Unterstützung, um die Entwicklung fortzusetzen!
-Re-Start==Neu starten
-Shutdown==Herunterfahren
-### FIRST STEPS ###
+AI Lab==KI-Labor
 First Steps==Erste Schritte
 Use Case &amp; Account==Anwendungsfall &amp; Zugangsdaten
-RAM/Disk Usage &amp; Updates==RAM+Disk Belegung &amp; Updates
-### MONITORING ###
+Grab a whole site==Eine ganze Website erfassen
 Monitoring==Überwachung
 System Status==Systemstatus
 Peer-to-Peer Network==Peer-to-Peer Netzwerk
+Index Browser==Index-Browser
 Network Access==Netzwerkzugriff
 Crawler Monitor==Crawler Überwachung
-### PRODUCTION ###
 Production==Produktion
+Automation==Automatisierung
+YaCy Packs &amp; Import/Export==YaCy-Packs &amp; Import/Export
+Content Semantic==Inhalt Semantik
 Target Analysis==Ziel Analyse
-### ADMINISTRATION ###
 System Administration==Systemverwaltung
 Index Administration==Indexverwaltung
 Filter &amp; Blacklists==Filter &amp; Sperrlisten
-Content Semantic==Inhalt Semantik
-### SEARCH PORTAL INTEGRATION ###
+RAM/Disk Usage &amp; Updates==RAM+Disk Belegung &amp; Updates
 Search Portal Integration==Suchmaskenintegration
+Portal Configuration==Portal-Konfiguration
+Portal Design==Portal-Design
 Ranking and Heuristics==Ranking und Heuristiken
-"Chat"=="Chat"
-"Community"=="Community"
-"Help"=="Hilfe"
-"Restart"=="Neustart"
-"Search"=="Suche"
-"Shutdown"=="Herunterfahren"
-"YaCy"=="YaCy"
-<i>external</i>&nbsp;&nbsp;&nbsp;<b>become a Github Sponsor</b>==<i>extern</i>&nbsp;&nbsp;&nbsp;<b>GitHub-Sponsor werden</b>
-<i>external</i>&nbsp;&nbsp;&nbsp;<b>become a YaCy Patreon</b>==<i>extern</i>&nbsp;&nbsp;&nbsp;<b>YaCy-Patreon werden</b>
-<i>external</i>&nbsp;&nbsp;&nbsp;Community (Web Forums)==<i>extern</i>&nbsp;&nbsp;&nbsp;Community (Web-Foren)
-<i>external</i>&nbsp;&nbsp;&nbsp;Download YaCy==<i>extern</i>&nbsp;&nbsp;&nbsp;YaCy herunterladen
-<i>external</i>&nbsp;&nbsp;&nbsp;Git Repository==<i>extern</i>&nbsp;&nbsp;&nbsp;Git-Repository
-<i>external</i>&nbsp;&nbsp;&nbsp;YaCy Tutorials==<i>extern</i>&nbsp;&nbsp;&nbsp;YaCy-Tutorials
-AI Lab==KI-Labor
-Administration==Administration
-Automation==Automatisierung
-Chat==Chat
-Crawler==Crawler
-Grab a whole site==Eine ganze Website erfassen
-Search==Suche
-Sponsor==Sponsor
-YaCy Packs &amp; Import/Export==YaCy-Packs &amp; Import/Export
-YaCy is free software, so we need the help of many to support the development.<br/><b>You</b> can help by joining a sponsoring plan:==YaCy ist freie Software, deshalb brauchen wir die Hilfe vieler, um die Entwicklung zu unterstützen.<br/><b>Sie</b> können helfen, indem Sie einem Sponsoring-Plan beitreten:
+>Configuration<==>Konfiguration<
+>Accounts<==>Konten<
+Network Configuration==Netzwerk Einstellungen
+Search Page Layout==Suchseitenlayout
+>Language<==>Sprache<
+### HELP ###
+>Help<==>Hilfe<
+About #%env/templates/scoutro/productname.template%#==Über #%env/templates/scoutro/productname.template%#
+About This Page==Über diese Seite
+JavaScript information==JavaScript-Informationen
+>YaCy project<==>YaCy-Projekt<
+YaCy Community (Web Forums)==YaCy-Community (Web-Foren)
+YaCy Git Repository==YaCy-Git-Repository
+Sponsor YaCy==YaCy unterstützen
 #-----------------------------
 >Crawls<==>Crawls<
 
@@ -6387,4 +6393,231 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >You are signed in as administrator<==>Sie sind als Administrator angemeldet<
 >The browser keeps the administrator sign-in until it is closed.<==>Der Browser behält die Administrator-Anmeldung, bis er geschlossen wird.<
 >Continue<==>Weiter<
+#-----------------------------
+
+#File: scoutro-account.html
+#---------------------------
+>My account<==>Mein Konto<
+>Your sign-in, your rights and your sessions.<==>Ihre Anmeldung, Ihre Rechte und Ihre Sitzungen.<
+>Loading …<==>Wird geladen …<
+>Profile<==>Profil<
+>User name<==>Benutzername<
+>Name<==>Name<
+>Role<==>Rolle<
+>Collections<==>Collections<
+>Export<==>Export<
+>Sign-in<==>Anmeldung<
+>Your role decides what you may do; your collections decide which data you see. Ask an administrator to change them.<==>Ihre Rolle bestimmt, was Sie tun dürfen; Ihre Collections bestimmen, welche Daten Sie sehen. Änderungen nimmt ein Administrator vor.<
+>Change password<==>Passwort ändern<
+>Current password<==>Aktuelles Passwort<
+>New password<==>Neues Passwort<
+>At least 10 characters, not your user name. Your other sessions end.<==>Mindestens 10 Zeichen, nicht Ihr Benutzername. Ihre anderen Sitzungen werden beendet.<
+>Repeat new password<==>Neues Passwort wiederholen<
+>Save password<==>Passwort speichern<
+>Password of the built-in administrator<==>Passwort des eingebauten Administrators<
+The built-in YaCy administrator changes its password on the <a href="ConfigAccounts_p.html">Accounts</a> page. HTTP Digest tools then need the new password as well.==Der eingebaute YaCy-Administrator ändert sein Passwort auf der Seite <a href="ConfigAccounts_p.html">Konten</a>. Werkzeuge mit HTTP Digest benötigen danach ebenfalls das neue Passwort.
+>Sessions<==>Sitzungen<
+Sessions end after <span id="sac-idle"></span> minutes without use and after 12 hours at the latest.==Sitzungen enden nach <span id="sac-idle"></span> Minuten ohne Nutzung und spätestens nach 12 Stunden.
+>Started<==>Begonnen<
+>Last used<==>Zuletzt genutzt<
+>Address<==>Adresse<
+>Browser<==>Browser<
+>Action<==>Aktion<
+>End all other sessions<==>Alle anderen Sitzungen beenden<
+>Sign out<==>Abmelden<
+>The account could not be loaded. Please reload the page.<==>Das Konto konnte nicht geladen werden. Bitte laden Sie die Seite neu.<
+>Research<==>Recherche<
+>Operator<==>Operator<
+>Administrator<==>Administrator<
+>All collections<==>Alle Collections<
+>No collections<==>Keine Collections<
+>Yes<==>Ja<
+>No<==>Nein<
+>Scoutro sign-in as built-in administrator<==>Scoutro-Anmeldung als eingebauter Administrator<
+>Scoutro sign-in<==>Scoutro-Anmeldung<
+>Browser sign-in (HTTP Digest); it ends when the browser is closed<==>Browser-Anmeldung (HTTP Digest); sie endet, wenn der Browser geschlossen wird<
+>This session<==>Diese Sitzung<
+>End<==>Beenden<
+>Session ended.<==>Sitzung beendet.<
+>Other sessions ended: %1<==>Andere Sitzungen beendet: %1<
+>Password saved. Your other sessions have ended.<==>Passwort gespeichert. Ihre anderen Sitzungen wurden beendet.<
+>Saving …<==>Wird gespeichert …<
+>The new passwords do not match.<==>Die neuen Passwörter stimmen nicht überein.<
+>The password must have at least 10 characters.<==>Das Passwort muss mindestens 10 Zeichen haben.<
+>The password must not have more than 256 characters.<==>Das Passwort darf höchstens 256 Zeichen haben.<
+>The password must not be your user name.<==>Das Passwort darf nicht Ihr Benutzername sein.<
+>This password is too common. Choose another one.<==>Dieses Passwort ist zu verbreitet. Bitte wählen Sie ein anderes.<
+>Choose a password that differs from the current one.<==>Wählen Sie ein Passwort, das sich vom aktuellen unterscheidet.<
+>The current password is wrong.<==>Das aktuelle Passwort ist falsch.<
+>Too many failed attempts. Please try again later.<==>Zu viele Fehlversuche. Bitte versuchen Sie es später erneut.<
+>That did not work. Please try again.<==>Das hat nicht geklappt. Bitte versuchen Sie es erneut.<
+#-----------------------------
+
+#File: ScoutroUsers_p.html
+#---------------------------
+>Users<==>Nutzer<
+People who sign in to Scoutro, their roles and their collections. Agents have their own identities under <a href="ScoutroAgents_p.html">Agents</a>.==Personen, die sich bei Scoutro anmelden, ihre Rollen und ihre Collections. Agenten haben eigene Identitäten unter <a href="ScoutroAgents_p.html">Agenten</a>.
+>Loading …<==>Wird geladen …<
+>Access<==>Zugriff<
+>Protected access mode<==>Geschützter Zugriffsmodus<
+>Only listed Scoutro pages are reachable without the administrator role. Native search, Solr, MCP, suggestions, chat and the YaCy pages need an administrator. Required for Research and Operator accounts.<==>Ohne Administratorrolle sind nur die freigegebenen Scoutro-Seiten erreichbar. Native Suche, Solr, MCP, Vorschläge, Chat und die YaCy-Seiten erfordern einen Administrator. Voraussetzung für Recherche- und Operator-Konten.<
+>Guest access<==>Gastzugang<
+>Without sign-in, guests may only search the collections released here. Off by default; needs the protected mode.<==>Ohne Anmeldung dürfen Gäste nur die hier freigegebenen Collections durchsuchen. Standardmäßig aus; erfordert den geschützten Modus.<
+>Save guest collections<==>Gast-Collections speichern<
+>Built-in administrator on the login page<==>Eingebauter Administrator auf der Anmeldeseite<
+The YaCy administrator (<strong id="su-builtin-name"></strong>) may sign in on the login page with its password. HTTP Digest for tools stays available either way.==Der YaCy-Administrator (<strong id="su-builtin-name"></strong>) darf sich mit seinem Passwort auf der Anmeldeseite anmelden. HTTP Digest für Werkzeuge bleibt in jedem Fall verfügbar.
+>Accounts<==>Konten<
+>New account<==>Neues Konto<
+>No accounts yet. Create a personal administrator account first.<==>Noch keine Konten. Legen Sie zuerst ein persönliches Administratorkonto an.<
+>Last sign-in<==>Letzte Anmeldung<
+>Sessions<==>Sitzungen<
+>Actions<==>Aktionen<
+>Action<==>Aktion<
+>Audit log<==>Protokoll<
+>Sign-ins, account and access changes and every changing Scoutro action of a person. Passwords, tokens and search texts are never logged.<==>Anmeldungen, Konto- und Zugriffsänderungen und jede ändernde Scoutro-Aktion einer Person. Passwörter, Tokens und Suchtexte werden nie protokolliert.<
+>Person or target<==>Person oder Ziel<
+>Show<==>Anzeigen<
+>Time<==>Zeit<
+>Who<==>Wer<
+>Target<==>Ziel<
+>Result<==>Ergebnis<
+>Details<==>Details<
+>User name<==>Benutzername<
+>Lower-case letters, digits, '.', '_', '-' and '@'; cannot be changed later.<==>Kleinbuchstaben, Ziffern, '.', '_', '-' und '@'; später nicht änderbar.<
+>Role<==>Rolle<
+>Research: search, chat, analyses and knowledge<==>Recherche: Suche, Chat, Analysen und Wissen<
+>Operator: also crawls and discovery in the allowed collections<==>Operator: zusätzlich Crawls und Discovery in den erlaubten Collections<
+>Administrator: everything, including users and system<==>Administrator: alles, einschließlich Nutzer und System<
+>Collections<==>Collections<
+> All collections (also future ones)<==> Alle Collections (auch künftige)<
+> Only these collections<==> Nur diese Collections<
+> May export and download data of the allowed collections<==> Darf Daten der erlaubten Collections exportieren und herunterladen<
+>Temporary password<==>Vorläufiges Passwort<
+>At least 10 characters. Hand it over in person or through a secure channel; the person sets an own password at the first sign-in.<==>Mindestens 10 Zeichen. Persönlich oder über einen sicheren Weg übergeben; die Person legt bei der ersten Anmeldung ein eigenes Passwort fest.<
+>Generate password<==>Passwort erzeugen<
+>Save<==>Speichern<
+>Cancel<==>Abbrechen<
+>Reset password<==>Passwort zurücksetzen<
+New temporary password for <strong id="su-reset-name"></strong>. All sessions of the account end; the person must set an own password at the next sign-in.==Neues vorläufiges Passwort für <strong id="su-reset-name"></strong>. Alle Sitzungen des Kontos enden; die Person muss bei der nächsten Anmeldung ein eigenes Passwort festlegen.
+>Copy it now. It is not shown again and never stored in clear text.<==>Kopieren Sie es jetzt. Es wird nicht erneut angezeigt und nie im Klartext gespeichert.<
+>Confirm<==>Bestätigen<
+>The users could not be loaded.<==>Die Nutzer konnten nicht geladen werden.<
+>That did not work.<==>Das hat nicht geklappt.<
+>Saved.<==>Gespeichert.<
+>On<==>An<
+>Off<==>Aus<
+>Switch on<==>Einschalten<
+>Switch off<==>Ausschalten<
+>Research<==>Recherche<
+>Operator<==>Operator<
+>Administrator<==>Administrator<
+>All collections<==>Alle Collections<
+>Yes<==>Ja<
+>No<==>Nein<
+>Active<==>Aktiv<
+>Locked<==>Gesperrt<
+>Must set a password<==>Muss Passwort festlegen<
+>Never<==>Nie<
+>Edit<==>Bearbeiten<
+>Lock<==>Sperren<
+>Unlock<==>Entsperren<
+>End sessions<==>Sitzungen beenden<
+>Remove<==>Entfernen<
+>Edit account<==>Konto bearbeiten<
+>Account created.<==>Konto angelegt.<
+>Account saved.<==>Konto gespeichert.<
+>Sessions ended: %1<==>Beendete Sitzungen: %1<
+>Account removed.<==>Konto entfernt.<
+>Account locked; its sessions have ended.<==>Konto gesperrt; seine Sitzungen wurden beendet.<
+>Account unlocked.<==>Konto entsperrt.<
+>Password reset; the sessions of the account have ended.<==>Passwort zurückgesetzt; die Sitzungen des Kontos wurden beendet.<
+>Remove account?<==>Konto entfernen?<
+>The account %1 is removed and its sessions end. The audit log keeps its entries.<==>Das Konto %1 wird entfernt und seine Sitzungen enden. Das Protokoll behält seine Einträge.<
+>Lock account?<==>Konto sperren?<
+>%1 can no longer sign in; open sessions end now.<==>%1 kann sich nicht mehr anmelden; offene Sitzungen enden sofort.<
+>Switch on the protected access mode?<==>Geschützten Zugriffsmodus einschalten?<
+>Without sign-in, nobody can use the search, Solr, MCP, suggestions, chat or YaCy pages any more; only listed Scoutro pages remain. Tools with the administrator password (HTTP Digest) and agents with tokens keep working.<==>Ohne Anmeldung kann niemand mehr Suche, Solr, MCP, Vorschläge, Chat oder YaCy-Seiten nutzen; nur freigegebene Scoutro-Seiten bleiben erreichbar. Werkzeuge mit dem Administratorpasswort (HTTP Digest) und Agenten mit Token funktionieren weiter.<
+>Switch off the protected access mode?<==>Geschützten Zugriffsmodus ausschalten?<
+>YaCy's previous rules apply again; public search can then be reachable without sign-in.<==>Es gelten wieder die bisherigen YaCy-Regeln; die öffentliche Suche kann dann ohne Anmeldung erreichbar sein.<
+>Switch on guest access?<==>Gastzugang einschalten?<
+>Without sign-in, everyone who reaches Scoutro can search the released collections.<==>Ohne Anmeldung kann jeder, der Scoutro erreicht, die freigegebenen Collections durchsuchen.<
+>Switch off the built-in administrator on the login page?<==>Eingebauten Administrator auf der Anmeldeseite ausschalten?<
+>Its sessions end. HTTP Digest for tools stays available.<==>Seine Sitzungen enden. HTTP Digest für Werkzeuge bleibt verfügbar.<
+>This peer takes part in the YaCy network: other peers can search the whole index. Collection rights do not apply to peers. Use private Robinson mode if accounts must stay within their collections.<==>Dieser Peer nimmt am YaCy-Netzwerk teil: Andere Peers können den gesamten Index durchsuchen. Collection-Rechte gelten nicht für Peers. Verwenden Sie den privaten Robinson-Modus, wenn Konten auf ihre Collections beschränkt bleiben müssen.<
+>The built-in administrator still uses YaCy's default password. Change it on the Accounts page.<==>Der eingebaute Administrator verwendet noch das YaCy-Standardpasswort. Ändern Sie es auf der Seite „Konten“.<
+>Active Research or Operator accounts keep the protected rules although the setting is off.<==>Aktive Recherche- oder Operator-Konten halten die geschützten Regeln aufrecht, obwohl die Einstellung aus ist.<
+>No collections are known yet.<==>Es sind noch keine Collections bekannt.<
+>No entries.<==>Keine Einträge.<
+>OK<==>OK<
+>Denied<==>Abgelehnt<
+>Failed<==>Fehlgeschlagen<
+>Research and Operator accounts need the protected access mode. Switch it on first.<==>Recherche- und Operator-Konten erfordern den geschützten Zugriffsmodus. Schalten Sie ihn zuerst ein.<
+>Lock or remove the active Research and Operator accounts before leaving the protected mode.<==>Sperren oder entfernen Sie die aktiven Recherche- und Operator-Konten, bevor Sie den geschützten Modus verlassen.<
+>This is the last administrator who can sign in. Create or activate another administrator first.<==>Dies ist der letzte Administrator, der sich anmelden kann. Legen Sie zuerst einen weiteren Administrator an oder aktivieren Sie ihn.<
+>You cannot lock, remove or demote your own account here.<==>Ihr eigenes Konto können Sie hier nicht sperren, entfernen oder herabstufen.<
+>An account with this name already exists.<==>Ein Konto mit diesem Namen existiert bereits.<
+>This name belongs to the built-in administrator.<==>Dieser Name gehört dem eingebauten Administrator.<
+>The password must have at least 10 characters.<==>Das Passwort muss mindestens 10 Zeichen haben.<
+>The password must not have more than 256 characters.<==>Das Passwort darf höchstens 256 Zeichen haben.<
+>The password must not be the user name.<==>Das Passwort darf nicht der Benutzername sein.<
+>This password is too common.<==>Dieses Passwort ist zu verbreitet.<
+>Please check the highlighted entries.<==>Bitte prüfen Sie die markierten Angaben.<
+>Choose at least one collection or all collections.<==>Wählen Sie mindestens eine Collection oder alle Collections.<
+#-----------------------------
+
+#File: ScoutroSystem_p.html
+#---------------------------
+>System<==>System<
+>Versions, running time and memory of this Scoutro instance, and the actions that affect everyone.<==>Versionen, Laufzeit und Speicher dieser Scoutro-Instanz sowie die Aktionen, die alle betreffen.<
+>Instance<==>Instanz<
+>Running for<==>Läuft seit<
+>Memory in use<==>Belegter Speicher<
+>System status<==>Systemstatus<
+>RAM/Disk usage &amp; updates<==>RAM/Disk-Belegung &amp; Updates<
+>System administration<==>Systemverwaltung<
+>Built-in administrator account<==>Konto des eingebauten Administrators<
+>Language<==>Sprache<
+>Re-Start and Shutdown<==>Neustart und Herunterfahren<
+>Both end every running crawl step, search and session of all users. A restart needs a process supervisor (container or service) to bring Scoutro back; Shutdown stops it until it is started again.<==>Beides beendet laufende Crawl-Schritte, Suchen und Sitzungen aller Nutzer. Ein Neustart braucht einen Prozessverwalter (Container oder Dienst), der Scoutro wieder startet; Herunterfahren stoppt Scoutro, bis es erneut gestartet wird.<
+>Re-Start<==>Neu starten<
+>Shutdown<==>Herunterfahren<
+>Confirm<==>Bestätigen<
+>Cancel<==>Abbrechen<
+>Re-Start Scoutro?<==>Scoutro neu starten?<
+>Scoutro stops and starts again. All users are signed out.<==>Scoutro stoppt und startet erneut. Alle Nutzer werden abgemeldet.<
+>Shut down Scoutro?<==>Scoutro herunterfahren?<
+>Scoutro stops completely and stays off until it is started again.<==>Scoutro stoppt vollständig und bleibt aus, bis es wieder gestartet wird.<
+>The server did not confirm the request. Please reload the page and try again.<==>Der Server hat die Anfrage nicht bestätigt. Bitte laden Sie die Seite neu und versuchen Sie es erneut.<
+#-----------------------------
+
+#File: ScoutroCollections_p.html
+#---------------------------
+>Collections are logical data areas in the one index. Accounts, agents, crawls, the chat and the knowledge graph use them; they are not separate tenants.<==>Collections sind logische Datenbereiche im gemeinsamen Index. Konten, Agenten, Crawls, Chat und Wissensgraph nutzen sie; sie sind keine getrennten Mandanten.<
+>Loading …<==>Wird geladen …<
+>Catalog<==>Katalog<
+>New collection<==>Neue Collection<
+>Documents<==>Dokumente<
+>Source<==>Quelle<
+>Knowledge graph<==>Wissensgraph<
+>Open<==>Öffnen<
+Who may use a collection is set per account under <a href="ScoutroUsers_p.html">Users</a> and per agent under <a href="ScoutroAgents_p.html">Agents</a>. Knowledge-graph settings per collection: <a href="ScoutroKnowledge_p.html?view=settings">Knowledge graph operations</a>.==Wer eine Collection nutzen darf, wird pro Konto unter <a href="ScoutroUsers_p.html">Nutzer</a> und pro Agent unter <a href="ScoutroAgents_p.html">Agenten</a> festgelegt. Wissensgraph-Einstellungen je Collection: <a href="ScoutroKnowledge_p.html?view=settings">Wissensgraph-Betrieb</a>.
+>The catalog could not be read.<==>Der Katalog konnte nicht gelesen werden.<
+>No collections yet. Create one or start a crawl into a new collection.<==>Noch keine Collections. Legen Sie eine an oder starten Sie einen Crawl in eine neue Collection.<
+>Index<==>Index<
+>Created<==>Angelegt<
+>Discovery profile<==>Discovery-Profil<
+>On<==>An<
+>Off<==>Aus<
+>Websites<==>Websites<
+>Collection created.<==>Collection angelegt.<
+#-----------------------------
+
+#File: scoutro-forbidden.html
+#---------------------------
+>No permission<==>Keine Berechtigung<
+>Your account may not open this page or use this function. If you need it, ask an administrator to change your role or your collections.<==>Ihr Konto darf diese Seite nicht öffnen oder diese Funktion nicht nutzen. Wenn Sie sie benötigen, bitten Sie einen Administrator, Ihre Rolle oder Ihre Collections anzupassen.<
+>Search<==>Suche<
+>Overview<==>Übersicht<
+>Sign in with another account<==>Mit anderem Konto anmelden<
+>My account<==>Mein Konto<
 #-----------------------------

@@ -28,7 +28,10 @@ what Scoutro changes.
   `env/bootstrap-base.css` (navbar, sidebar), `env/base.css` (legacy layout),
   and the selected skin (`DATA/SKINS/<skin>.css`, copied to `env/style.css`).
 - **Access control** is server-side: pages ending in `_p` require the admin
-  login (HTTP Digest). The UI only shows lock icons.
+  login (HTTP Digest) or a Scoutro sign-in with the matching permission
+  ([SCOUTRO_USERS_ACCESS.md](SCOUTRO_USERS_ACCESS.md)). The navigation only
+  shows what the signed-in identity may open; hiding an entry is never the
+  protection.
 
 ## Why the mobile navigation was incomplete (YaCy 1.942)
 
@@ -70,7 +73,14 @@ get small hooks marked with `Scoutro:`.
 | `htroot/env/scoutro/brand/` | logo, favicon, icons, color tokens (`brand.css`) |
 | `htroot/env/templates/scoutro/` | product name, attribution footer, start page hero |
 | `htroot/scoutro-about.html` | static About page (origin, license, sources) |
-| `htroot/ScoutroAgents_p.html`, `htroot/ScoutroAgentWizard_p.html` | Administration → Agents & Access: agent list and management, six-step wizard (`help/ScoutroAgents_p.md`) |
+| `htroot/ScoutroAgents_p.html`, `htroot/ScoutroAgentWizard_p.html` | Settings → Agents: agent list and management, six-step wizard (`help/ScoutroAgents_p.md`) |
+| `htroot/env/scoutro/access.css` | shared page styles of the account pages: cards, facts, forms, status lines (loading, empty, error, success), tables, badges, dialogs |
+| `htroot/scoutro-login.html`, `htroot/scoutro-digest.html` | sign-in page and the browser sign-in for the built-in administrator (`help/scoutro-login.md`) |
+| `htroot/scoutro-account.html` + `env/scoutro/account.js` | My account: profile, password change, own sessions |
+| `htroot/ScoutroUsers_p.html` + `env/scoutro/users.js` | Settings → Users: access mode, guest access, accounts, audit log |
+| `htroot/ScoutroCollections_p.html` | Settings → Collections: catalog and "New collection" |
+| `htroot/ScoutroSystem_p.html` | Settings → System: version, running time, memory, Re-Start, Shutdown |
+| `htroot/scoutro-forbidden.html` | 403 page for a signed-in identity without the right |
 
 Load order (in `metas.template`): Bootstrap → `bootstrap-base.css` →
 `base.css` → skin (`style.css`) → `brand/brand.css` → `scoutro.css` →
@@ -82,28 +92,52 @@ Hooks in upstream files:
 | File | Hook |
 |---|---|
 | `metas.template` | favicon/icons, `brand.css`, `scoutro.css`, `theme.css`, `scoutro.js` |
-| `header.template` | `scoutro-adminbar` class, toggle id, sidebar id, mobile-only groups (Configuration, System, Help), brand, Help and Sponsor as `type="button"`, "Agents & Access" in Administration and in the mobile Configuration group |
+| `header.template` | replaced by the Scoutro header: brand, search, account menu, toggle; navigation groups of [SCOUTRO_USERS_ACCESS.md](SCOUTRO_USERS_ACCESS.md) section 7 with the YaCy tools under "Advanced tools" |
+| `YaCyDefaultServlet.java` | fills the header switches (`scoutroAccount`, `scoutroRole`, `scoutroSearch`, `scoutroChat`, `scoutroRead`, `scoutroCollect`, `scoutroAdmin`) and the CSRF meta from `PageNav` |
+| `Jetty12HttpServer.java` | 403 answers of HTML pages show `scoutro-forbidden.html` |
 | `submenuUseCaseAccount.template` | "Agents & Access" next to Accounts |
 | `simpleSearchHeader.template` | brand logo and name, About link |
 | `footer.template`, `simplefooter.template` | attribution include |
 | `index.html` | hero include, search icon in the button |
 | `jslicense.html` | entry for `scoutro.js` |
 
+### Header and navigation
+
+One header for every administration page (`header.template`):
+
+- **Top bar:** brand (links to the Overview, or to the search page without
+  the read right), header search, account menu, navigation toggle.
+- **Account menu:** "Sign in" without a sign-in; otherwise name, role,
+  "My account" and "Sign out" (`POST /scoutro/api/v1/auth/logout`, then the
+  sign-in page). A browser Digest sign-in shows "Administrator (browser
+  sign-in)"; it ends when the browser is closed.
+- **Navigation groups**, each shown by the server only with its right
+  (docs/SCOUTRO_USERS_ACCESS.md, section 7):
+
+  | Group | Entries | Right |
+  |---|---|---|
+  | Overview | Overview | read |
+  | Research | Search, Chat, Websites, Host analysis | search; chat; read |
+  | Knowledge | Knowledge overview, Organisations, Services, Comparisons, History | read |
+  | Data collection | Crawls, Discovery, Reports | collect |
+  | Settings | Collections, Users, Agents, Models, Knowledge graph operations, System | admin |
+  | Advanced tools (collapsed) | AI Lab, First Steps, Monitoring, Production, Administration, Search Portal Integration, Configuration: YaCy's own pages, unchanged | admin |
+  | Help | About, About This Page (admin), JavaScript information, YaCy links | everyone |
+
+- **Re-Start and Shutdown** are no longer in the header; they are on
+  Settings → System, with a confirmation dialog and the transaction token of
+  `Steering.html`.
+- "Advanced tools" opens by itself when the current page is one of its
+  entries; `scoutro.js` marks the current entry, also for `?view=` links.
+
 ### Mobile navigation (below 768px)
 
-- The toggle opens the **existing YaCy sidebar** as a full-height, scrollable
-  panel below the navbar. The information architecture stays YaCy's; no new
-  menu was invented.
-- Additional groups in the panel only: **Configuration** (Accounts, Network
-  Configuration, Search Page Layout, Language: pages that desktop users reach
-  via page submenus), **System** (Search, Chat if enabled, Re-Start,
-  Shutdown with the upstream confirmation) and **Help** (About Scoutro, About
-  This Page, JavaScript information, YaCy forum, repository, sponsoring).
+- The toggle opens the **same groups** as a full-height, scrollable panel
+  below the top bar; there are no mobile-only groups any more.
+- Brand, search, account menu and toggle share one row (search wraps below
+  on narrow screens).
 - Touch targets ≥ 44px, no hover dependency, Escape closes, choosing an entry
   closes the panel, `aria-expanded` is maintained.
-- Toggle and header search share one row. On mobile, the top-bar button row
-  is replaced by the panel groups.
-- Desktop (≥ 768px) is unchanged: sidebar, top bar, dropdowns.
 
 ### Responsive foundation
 
@@ -211,6 +245,11 @@ the search APIs are unchanged.
   pass (the script aborts two sections on it). Scoutro: 332/332.
 - `test/scoutro-ui/scan-admin-pages.mjs`: overflow and JavaScript scan of
   all 102 admin pages.
+- Browser navigations without a sign-in go to the sign-in page. The tests
+  that use Digest credentials (`httpCredentials`) therefore call
+  `withDigestSignIn(browser)` from `test/scoutro-ui/digest-signin.mjs`: every
+  new context with credentials opens `scoutro-digest.html` once, then the
+  browser sends Digest itself.
 
   | Width | YaCy 1.942 | Scoutro |
   |---|---|---|

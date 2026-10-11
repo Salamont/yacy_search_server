@@ -458,8 +458,18 @@ public class Jetty12HttpServer implements YaCyHttpServer {
         }
     }
 
-    /** YaCy-branded EE8 error page for Jetty 12. */
-    static final class ErrorPageHandler extends org.eclipse.jetty.ee8.nested.ErrorHandler {
+    /**
+     * YaCy-branded EE8 error page for Jetty 12. Scoutro: a refused request of a signed-in
+     * identity (403) shows the localized Scoutro page "no permission" (scoutro-forbidden.html,
+     * still with status 403); every other status keeps this page.
+     */
+    static final class ErrorPageHandler extends org.eclipse.jetty.ee8.servlet.ErrorPageErrorHandler {
+
+        static final String FORBIDDEN_PAGE = "/scoutro-forbidden.html";
+
+        ErrorPageHandler() {
+            addErrorPage(HttpServletResponse.SC_FORBIDDEN, FORBIDDEN_PAGE);
+        }
 
         @Override
         protected void writeErrorPageBody(final HttpServletRequest request, final Writer writer,

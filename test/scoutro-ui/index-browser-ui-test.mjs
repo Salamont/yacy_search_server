@@ -3,10 +3,12 @@
  * SeoFixture: a.example has 28 pages in "visible" and 2 in "secret" (one page in both), b.example 1 in "secret". */
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 const {chromium} = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL;
 assert(base && new URL(base).hostname === '127.0.0.1', 'Disposable loopback fixture required');
 const browser = await chromium.launch({executablePath:process.env.SCOUTRO_CHROMIUM_PATH, args:['--no-proxy-server']});
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks = 0;
 function check(value, label) { assert(value, label); checks++; }
 const CSV_HEADER = 'host,domain,scheme,website,start_url,collection,indexed_pages,title,description,last_loaded,last_crawled,crawl_status,http_status,classification_verdict,classification_confidence,classification_profile,discovery_profile,discovery_source,discovery_job,discovery_region,entity_name,entity_street,entity_postal_code,entity_city,entity_region,entity_country,entity_phone,entity_email,evidence_entity_url,evidence_contact_url,entity_name_candidate,entity_name_confidence';

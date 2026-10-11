@@ -8201,6 +8201,172 @@
   </body>
 </file>
 
+<file original="scoutro-account.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="4468a3d9" xml:space="preserve" approved="no" translate="yes">
+       <source>My account</source>
+    </trans-unit>
+    <trans-unit id="c7a70705" xml:space="preserve" approved="no" translate="yes">
+       <source>Your sign-in, your rights and your sessions.</source>
+    </trans-unit>
+    <trans-unit id="cacfc622" xml:space="preserve" approved="no" translate="yes">
+       <source>Loading …</source>
+    </trans-unit>
+    <trans-unit id="50c72189" xml:space="preserve" approved="no" translate="yes">
+       <source>Profile</source>
+    </trans-unit>
+    <trans-unit id="883445a0" xml:space="preserve" approved="no" translate="yes">
+       <source>User name</source>
+    </trans-unit>
+    <trans-unit id="24eeab" xml:space="preserve" approved="no" translate="yes">
+       <source>Name</source>
+    </trans-unit>
+    <trans-unit id="26f496" xml:space="preserve" approved="no" translate="yes">
+       <source>Role</source>
+    </trans-unit>
+    <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections</source>
+    </trans-unit>
+    <trans-unit id="7c8dffd4" xml:space="preserve" approved="no" translate="yes">
+       <source>Export</source>
+    </trans-unit>
+    <trans-unit id="dfb03b15" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign-in</source>
+    </trans-unit>
+    <trans-unit id="def4284f" xml:space="preserve" approved="no" translate="yes">
+       <source>Your role decides what you may do; your collections decide which data you see. Ask an administrator to change them.</source>
+    </trans-unit>
+    <trans-unit id="e9664eb" xml:space="preserve" approved="no" translate="yes">
+       <source>Change password</source>
+    </trans-unit>
+    <trans-unit id="6b4b3982" xml:space="preserve" approved="no" translate="yes">
+       <source>Current password</source>
+    </trans-unit>
+    <trans-unit id="7596193b" xml:space="preserve" approved="no" translate="yes">
+       <source>New password</source>
+    </trans-unit>
+    <trans-unit id="fc7cd826" xml:space="preserve" approved="no" translate="yes">
+       <source>At least 10 characters, not your user name. Your other sessions end.</source>
+    </trans-unit>
+    <trans-unit id="57cd6360" xml:space="preserve" approved="no" translate="yes">
+       <source>Repeat new password</source>
+    </trans-unit>
+    <trans-unit id="124665be" xml:space="preserve" approved="no" translate="yes">
+       <source>Save password</source>
+    </trans-unit>
+    <trans-unit id="e8bad854" xml:space="preserve" approved="no" translate="yes">
+       <source>Password of the built-in administrator</source>
+    </trans-unit>
+    <trans-unit id="579a34bd" xml:space="preserve" approved="no" translate="yes">
+       <source>Sessions</source>
+    </trans-unit>
+    <trans-unit id="1141a2b4" xml:space="preserve" approved="no" translate="yes">
+       <source>Sessions end after</source>
+    </trans-unit>
+    <trans-unit id="b0fe4c3c" xml:space="preserve" approved="no" translate="yes">
+       <source>minutes without use and after 12 hours at the latest.</source>
+    </trans-unit>
+    <trans-unit id="f223d861" xml:space="preserve" approved="no" translate="yes">
+       <source>Started</source>
+    </trans-unit>
+    <trans-unit id="ebfb96e7" xml:space="preserve" approved="no" translate="yes">
+       <source>Last used</source>
+    </trans-unit>
+    <trans-unit id="1ed033d4" xml:space="preserve" approved="no" translate="yes">
+       <source>Address</source>
+    </trans-unit>
+    <trans-unit id="6c37c308" xml:space="preserve" approved="no" translate="yes">
+       <source>Browser</source>
+    </trans-unit>
+    <trans-unit id="74946a56" xml:space="preserve" approved="no" translate="yes">
+       <source>Action</source>
+    </trans-unit>
+    <trans-unit id="4a211b91" xml:space="preserve" approved="no" translate="yes">
+       <source>End all other sessions</source>
+    </trans-unit>
+    <trans-unit id="1651568b" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign out</source>
+    </trans-unit>
+    <trans-unit id="922db099" xml:space="preserve" approved="no" translate="yes">
+       <source>The account could not be loaded. Please reload the page.</source>
+    </trans-unit>
+    <trans-unit id="eef025bb" xml:space="preserve" approved="no" translate="yes">
+       <source>Research</source>
+    </trans-unit>
+    <trans-unit id="e6048cc4" xml:space="preserve" approved="no" translate="yes">
+       <source>Operator</source>
+    </trans-unit>
+    <trans-unit id="8bef2ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Administrator</source>
+    </trans-unit>
+    <trans-unit id="1e429976" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections</source>
+    </trans-unit>
+    <trans-unit id="a11811d6" xml:space="preserve" approved="no" translate="yes">
+       <source>No collections</source>
+    </trans-unit>
+    <trans-unit id="15ac7" xml:space="preserve" approved="no" translate="yes">
+       <source>Yes</source>
+    </trans-unit>
+    <trans-unit id="9e1" xml:space="preserve" approved="no" translate="yes">
+       <source>No</source>
+    </trans-unit>
+    <trans-unit id="6c8791b0" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro sign-in</source>
+    </trans-unit>
+    <trans-unit id="dca4a7bf" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro sign-in as built-in administrator</source>
+    </trans-unit>
+    <trans-unit id="deb8369f" xml:space="preserve" approved="no" translate="yes">
+       <source>Browser sign-in (HTTP Digest); it ends when the browser is closed</source>
+    </trans-unit>
+    <trans-unit id="42864334" xml:space="preserve" approved="no" translate="yes">
+       <source>This session</source>
+    </trans-unit>
+    <trans-unit id="110bb" xml:space="preserve" approved="no" translate="yes">
+       <source>End</source>
+    </trans-unit>
+    <trans-unit id="1a0e499e" xml:space="preserve" approved="no" translate="yes">
+       <source>Session ended.</source>
+    </trans-unit>
+    <trans-unit id="f6502f79" xml:space="preserve" approved="no" translate="yes">
+       <source>Other sessions ended: %1</source>
+    </trans-unit>
+    <trans-unit id="21fb59d2" xml:space="preserve" approved="no" translate="yes">
+       <source>Password saved. Your other sessions have ended.</source>
+    </trans-unit>
+    <trans-unit id="889524a0" xml:space="preserve" approved="no" translate="yes">
+       <source>Saving …</source>
+    </trans-unit>
+    <trans-unit id="40efe0f4" xml:space="preserve" approved="no" translate="yes">
+       <source>The new passwords do not match.</source>
+    </trans-unit>
+    <trans-unit id="d61fd5d0" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must have at least 10 characters.</source>
+    </trans-unit>
+    <trans-unit id="7aaf5f39" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must not have more than 256 characters.</source>
+    </trans-unit>
+    <trans-unit id="9a435f6c" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must not be your user name.</source>
+    </trans-unit>
+    <trans-unit id="621c1252" xml:space="preserve" approved="no" translate="yes">
+       <source>This password is too common. Choose another one.</source>
+    </trans-unit>
+    <trans-unit id="9a9c45b9" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose a password that differs from the current one.</source>
+    </trans-unit>
+    <trans-unit id="6c15cbc8" xml:space="preserve" approved="no" translate="yes">
+       <source>The current password is wrong.</source>
+    </trans-unit>
+    <trans-unit id="e1ea2497" xml:space="preserve" approved="no" translate="yes">
+       <source>Too many failed attempts. Please try again later.</source>
+    </trans-unit>
+    <trans-unit id="b497e9bf" xml:space="preserve" approved="no" translate="yes">
+       <source>That did not work. Please try again.</source>
+    </trans-unit>
+  </body>
+</file>
 <file original="scoutro-digest.html"  source-language="en"  datatype="html">
   <body>
     <trans-unit id="80857a1d" xml:space="preserve" approved="no" translate="yes">
@@ -8214,6 +8380,28 @@
     </trans-unit>
     <trans-unit id="e20b90c7" xml:space="preserve" approved="no" translate="yes">
        <source>Continue</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="scoutro-forbidden.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="7faecd6e" xml:space="preserve" approved="no" translate="yes">
+       <source>No permission</source>
+    </trans-unit>
+    <trans-unit id="55f55f8" xml:space="preserve" approved="no" translate="yes">
+       <source>Your account may not open this page or use this function. If you need it, ask an administrator to change your role or your collections.</source>
+    </trans-unit>
+    <trans-unit id="935f51c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Search</source>
+    </trans-unit>
+    <trans-unit id="23735199" xml:space="preserve" approved="no" translate="yes">
+       <source>Overview</source>
+    </trans-unit>
+    <trans-unit id="1bddfd8e" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign in with another account</source>
+    </trans-unit>
+    <trans-unit id="4468a3d9" xml:space="preserve" approved="no" translate="yes">
+       <source>My account</source>
     </trans-unit>
   </body>
 </file>
@@ -8335,6 +8523,474 @@
     </trans-unit>
     <trans-unit id="4ca45a49" xml:space="preserve" approved="no" translate="yes">
        <source>The built-in administrator still uses the default password. Change it on the Accounts page.</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="ScoutroCollections_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections</source>
+    </trans-unit>
+    <trans-unit id="e6c1db32" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections are logical data areas in the one index. Accounts, agents, crawls, the chat and the knowledge graph use them; they are not separate tenants.</source>
+    </trans-unit>
+    <trans-unit id="cacfc622" xml:space="preserve" approved="no" translate="yes">
+       <source>Loading …</source>
+    </trans-unit>
+    <trans-unit id="8457f7f9" xml:space="preserve" approved="no" translate="yes">
+       <source>Catalog</source>
+    </trans-unit>
+    <trans-unit id="b3a4e53e" xml:space="preserve" approved="no" translate="yes">
+       <source>New collection</source>
+    </trans-unit>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="afaf7298" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents</source>
+    </trans-unit>
+    <trans-unit id="93f5543b" xml:space="preserve" approved="no" translate="yes">
+       <source>Source</source>
+    </trans-unit>
+    <trans-unit id="62131f0c" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="259a6a" xml:space="preserve" approved="no" translate="yes">
+       <source>Open</source>
+    </trans-unit>
+    <trans-unit id="67739b7d" xml:space="preserve" approved="no" translate="yes">
+       <source>The catalog could not be read.</source>
+    </trans-unit>
+    <trans-unit id="3d917576" xml:space="preserve" approved="no" translate="yes">
+       <source>No collections yet. Create one or start a crawl into a new collection.</source>
+    </trans-unit>
+    <trans-unit id="43838b2" xml:space="preserve" approved="no" translate="yes">
+       <source>Index</source>
+    </trans-unit>
+    <trans-unit id="a08716c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Created</source>
+    </trans-unit>
+    <trans-unit id="23f63b19" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery profile</source>
+    </trans-unit>
+    <trans-unit id="9ff" xml:space="preserve" approved="no" translate="yes">
+       <source>On</source>
+    </trans-unit>
+    <trans-unit id="1354f" xml:space="preserve" approved="no" translate="yes">
+       <source>Off</source>
+    </trans-unit>
+    <trans-unit id="da1c9758" xml:space="preserve" approved="no" translate="yes">
+       <source>Websites</source>
+    </trans-unit>
+    <trans-unit id="c364e968" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection created.</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="ScoutroSystem_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="112264" xml:space="preserve" approved="no" translate="yes">
+       <source>"ok"</source>
+    </trans-unit>
+    <trans-unit id="ecb39686" xml:space="preserve" approved="no" translate="yes">
+       <source>"cancel"</source>
+    </trans-unit>
+    <trans-unit id="94815e4f" xml:space="preserve" approved="no" translate="yes">
+       <source>System</source>
+    </trans-unit>
+    <trans-unit id="5cf47e1c" xml:space="preserve" approved="no" translate="yes">
+       <source>Versions, running time and memory of this Scoutro instance, and the actions that affect everyone.</source>
+    </trans-unit>
+    <trans-unit id="24f0f8b5" xml:space="preserve" approved="no" translate="yes">
+       <source>Instance</source>
+    </trans-unit>
+    <trans-unit id="d5e81d9b" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro</source>
+    </trans-unit>
+    <trans-unit id="29e9be" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy</source>
+    </trans-unit>
+    <trans-unit id="25e582" xml:space="preserve" approved="no" translate="yes">
+       <source>Peer</source>
+    </trans-unit>
+    <trans-unit id="22d9dec8" xml:space="preserve" approved="no" translate="yes">
+       <source>Running for</source>
+    </trans-unit>
+    <trans-unit id="8db1abeb" xml:space="preserve" approved="no" translate="yes">
+       <source>Memory in use</source>
+    </trans-unit>
+    <trans-unit id="537fcf77" xml:space="preserve" approved="no" translate="yes">
+       <source>Re-Start and Shutdown</source>
+    </trans-unit>
+    <trans-unit id="fe822e95" xml:space="preserve" approved="no" translate="yes">
+       <source>Both end every running crawl step, search and session of all users. A restart needs a process supervisor (container or service) to bring Scoutro back; Shutdown stops it until it is started again.</source>
+    </trans-unit>
+    <trans-unit id="7687a848" xml:space="preserve" approved="no" translate="yes">
+       <source>Re-Start</source>
+    </trans-unit>
+    <trans-unit id="f9c26a76" xml:space="preserve" approved="no" translate="yes">
+       <source>Shutdown</source>
+    </trans-unit>
+    <trans-unit id="9be97ea0" xml:space="preserve" approved="no" translate="yes">
+       <source>Confirm</source>
+    </trans-unit>
+    <trans-unit id="77df1a9a" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel</source>
+    </trans-unit>
+    <trans-unit id="47e69edc" xml:space="preserve" approved="no" translate="yes">
+       <source>Re-Start Scoutro?</source>
+    </trans-unit>
+    <trans-unit id="4cfff181" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro stops and starts again. All users are signed out.</source>
+    </trans-unit>
+    <trans-unit id="a9daa876" xml:space="preserve" approved="no" translate="yes">
+       <source>Shut down Scoutro?</source>
+    </trans-unit>
+    <trans-unit id="b001de96" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro stops completely and stays off until it is started again.</source>
+    </trans-unit>
+    <trans-unit id="160068b7" xml:space="preserve" approved="no" translate="yes">
+       <source>The server did not confirm the request. Please reload the page and try again.</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="ScoutroUsers_p.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="112264" xml:space="preserve" approved="no" translate="yes">
+       <source>"ok"</source>
+    </trans-unit>
+    <trans-unit id="ecb39686" xml:space="preserve" approved="no" translate="yes">
+       <source>"cancel"</source>
+    </trans-unit>
+    <trans-unit id="4e39de8" xml:space="preserve" approved="no" translate="yes">
+       <source>Users</source>
+    </trans-unit>
+    <trans-unit id="cacfc622" xml:space="preserve" approved="no" translate="yes">
+       <source>Loading …</source>
+    </trans-unit>
+    <trans-unit id="748ca184" xml:space="preserve" approved="no" translate="yes">
+       <source>Access</source>
+    </trans-unit>
+    <trans-unit id="1792854d" xml:space="preserve" approved="no" translate="yes">
+       <source>Protected access mode</source>
+    </trans-unit>
+    <trans-unit id="5a4c991b" xml:space="preserve" approved="no" translate="yes">
+       <source>Only listed Scoutro pages are reachable without the administrator role. Native search, Solr, MCP, suggestions, chat and the YaCy pages need an administrator. Required for Research and Operator accounts.</source>
+    </trans-unit>
+    <trans-unit id="847980cc" xml:space="preserve" approved="no" translate="yes">
+       <source>Guest access</source>
+    </trans-unit>
+    <trans-unit id="26c68401" xml:space="preserve" approved="no" translate="yes">
+       <source>Without sign-in, guests may only search the collections released here. Off by default; needs the protected mode.</source>
+    </trans-unit>
+    <trans-unit id="cca7278a" xml:space="preserve" approved="no" translate="yes">
+       <source>Save guest collections</source>
+    </trans-unit>
+    <trans-unit id="defde897" xml:space="preserve" approved="no" translate="yes">
+       <source>Built-in administrator on the login page</source>
+    </trans-unit>
+    <trans-unit id="9bc0a419" xml:space="preserve" approved="no" translate="yes">
+       <source>The YaCy administrator (&lt;strong id="su-builtin-name"&gt;&lt;/strong&gt;) may sign in on the login page with its password. HTTP Digest for tools stays available either way.</source>
+    </trans-unit>
+    <trans-unit id="84782006" xml:space="preserve" approved="no" translate="yes">
+       <source>Accounts</source>
+    </trans-unit>
+    <trans-unit id="6070d78d" xml:space="preserve" approved="no" translate="yes">
+       <source>New account</source>
+    </trans-unit>
+    <trans-unit id="8e76aca0" xml:space="preserve" approved="no" translate="yes">
+       <source>No accounts yet. Create a personal administrator account first.</source>
+    </trans-unit>
+    <trans-unit id="24eeab" xml:space="preserve" approved="no" translate="yes">
+       <source>Name</source>
+    </trans-unit>
+    <trans-unit id="26f496" xml:space="preserve" approved="no" translate="yes">
+       <source>Role</source>
+    </trans-unit>
+    <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections</source>
+    </trans-unit>
+    <trans-unit id="7c8dffd4" xml:space="preserve" approved="no" translate="yes">
+       <source>Export</source>
+    </trans-unit>
+    <trans-unit id="9432bc12" xml:space="preserve" approved="no" translate="yes">
+       <source>Status</source>
+    </trans-unit>
+    <trans-unit id="18022fcb" xml:space="preserve" approved="no" translate="yes">
+       <source>Last sign-in</source>
+    </trans-unit>
+    <trans-unit id="579a34bd" xml:space="preserve" approved="no" translate="yes">
+       <source>Sessions</source>
+    </trans-unit>
+    <trans-unit id="1df8e0dd" xml:space="preserve" approved="no" translate="yes">
+       <source>Actions</source>
+    </trans-unit>
+    <trans-unit id="82d8855f" xml:space="preserve" approved="no" translate="yes">
+       <source>Audit log</source>
+    </trans-unit>
+    <trans-unit id="466ef7e1" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign-ins, account and access changes and every changing Scoutro action of a person. Passwords, tokens and search texts are never logged.</source>
+    </trans-unit>
+    <trans-unit id="78779383" xml:space="preserve" approved="no" translate="yes">
+       <source>Person or target</source>
+    </trans-unit>
+    <trans-unit id="274f1d" xml:space="preserve" approved="no" translate="yes">
+       <source>Show</source>
+    </trans-unit>
+    <trans-unit id="27c6ed" xml:space="preserve" approved="no" translate="yes">
+       <source>Time</source>
+    </trans-unit>
+    <trans-unit id="1539e" xml:space="preserve" approved="no" translate="yes">
+       <source>Who</source>
+    </trans-unit>
+    <trans-unit id="74946a56" xml:space="preserve" approved="no" translate="yes">
+       <source>Action</source>
+    </trans-unit>
+    <trans-unit id="94e35db1" xml:space="preserve" approved="no" translate="yes">
+       <source>Target</source>
+    </trans-unit>
+    <trans-unit id="91b2b43d" xml:space="preserve" approved="no" translate="yes">
+       <source>Result</source>
+    </trans-unit>
+    <trans-unit id="c0118a22" xml:space="preserve" approved="no" translate="yes">
+       <source>Details</source>
+    </trans-unit>
+    <trans-unit id="883445a0" xml:space="preserve" approved="no" translate="yes">
+       <source>User name</source>
+    </trans-unit>
+    <trans-unit id="f46d5d13" xml:space="preserve" approved="no" translate="yes">
+       <source>Lower-case letters, digits, '.', '_', '-' and '@'; cannot be changed later.</source>
+    </trans-unit>
+    <trans-unit id="2205723e" xml:space="preserve" approved="no" translate="yes">
+       <source>Research: search, chat, analyses and knowledge</source>
+    </trans-unit>
+    <trans-unit id="a4201011" xml:space="preserve" approved="no" translate="yes">
+       <source>Operator: also crawls and discovery in the allowed collections</source>
+    </trans-unit>
+    <trans-unit id="58d7e05" xml:space="preserve" approved="no" translate="yes">
+       <source>Administrator: everything, including users and system</source>
+    </trans-unit>
+    <trans-unit id="173191da" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections (also future ones)</source>
+    </trans-unit>
+    <trans-unit id="5dc9824" xml:space="preserve" approved="no" translate="yes">
+       <source>Only these collections</source>
+    </trans-unit>
+    <trans-unit id="cdf08dfd" xml:space="preserve" approved="no" translate="yes">
+       <source>May export and download data of the allowed collections</source>
+    </trans-unit>
+    <trans-unit id="537563aa" xml:space="preserve" approved="no" translate="yes">
+       <source>Temporary password</source>
+    </trans-unit>
+    <trans-unit id="5bb94843" xml:space="preserve" approved="no" translate="yes">
+       <source>At least 10 characters. Hand it over in person or through a secure channel; the person sets an own password at the first sign-in.</source>
+    </trans-unit>
+    <trans-unit id="e0cc18c6" xml:space="preserve" approved="no" translate="yes">
+       <source>Generate password</source>
+    </trans-unit>
+    <trans-unit id="27359d" xml:space="preserve" approved="no" translate="yes">
+       <source>Save</source>
+    </trans-unit>
+    <trans-unit id="77df1a9a" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel</source>
+    </trans-unit>
+    <trans-unit id="2822d26c" xml:space="preserve" approved="no" translate="yes">
+       <source>Reset password</source>
+    </trans-unit>
+    <trans-unit id="e4622164" xml:space="preserve" approved="no" translate="yes">
+       <source>New temporary password for &lt;strong id="su-reset-name"&gt;&lt;/strong&gt;. All sessions of the account end; the person must set an own password at the next sign-in.</source>
+    </trans-unit>
+    <trans-unit id="89a41b8" xml:space="preserve" approved="no" translate="yes">
+       <source>Copy it now. It is not shown again and never stored in clear text.</source>
+    </trans-unit>
+    <trans-unit id="9be97ea0" xml:space="preserve" approved="no" translate="yes">
+       <source>Confirm</source>
+    </trans-unit>
+    <trans-unit id="7b5b5adf" xml:space="preserve" approved="no" translate="yes">
+       <source>The users could not be loaded.</source>
+    </trans-unit>
+    <trans-unit id="ab9352b6" xml:space="preserve" approved="no" translate="yes">
+       <source>That did not work.</source>
+    </trans-unit>
+    <trans-unit id="93304ea7" xml:space="preserve" approved="no" translate="yes">
+       <source>Saved.</source>
+    </trans-unit>
+    <trans-unit id="9ff" xml:space="preserve" approved="no" translate="yes">
+       <source>On</source>
+    </trans-unit>
+    <trans-unit id="1354f" xml:space="preserve" approved="no" translate="yes">
+       <source>Off</source>
+    </trans-unit>
+    <trans-unit id="d9df322b" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch on</source>
+    </trans-unit>
+    <trans-unit id="620712a3" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch off</source>
+    </trans-unit>
+    <trans-unit id="eef025bb" xml:space="preserve" approved="no" translate="yes">
+       <source>Research</source>
+    </trans-unit>
+    <trans-unit id="e6048cc4" xml:space="preserve" approved="no" translate="yes">
+       <source>Operator</source>
+    </trans-unit>
+    <trans-unit id="8bef2ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Administrator</source>
+    </trans-unit>
+    <trans-unit id="1e429976" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections</source>
+    </trans-unit>
+    <trans-unit id="15ac7" xml:space="preserve" approved="no" translate="yes">
+       <source>Yes</source>
+    </trans-unit>
+    <trans-unit id="9e1" xml:space="preserve" approved="no" translate="yes">
+       <source>No</source>
+    </trans-unit>
+    <trans-unit id="74946b26" xml:space="preserve" approved="no" translate="yes">
+       <source>Active</source>
+    </trans-unit>
+    <trans-unit id="87fb1f2a" xml:space="preserve" approved="no" translate="yes">
+       <source>Locked</source>
+    </trans-unit>
+    <trans-unit id="6b142ccf" xml:space="preserve" approved="no" translate="yes">
+       <source>Must set a password</source>
+    </trans-unit>
+    <trans-unit id="47ada6c" xml:space="preserve" approved="no" translate="yes">
+       <source>Never</source>
+    </trans-unit>
+    <trans-unit id="20e22a" xml:space="preserve" approved="no" translate="yes">
+       <source>Edit</source>
+    </trans-unit>
+    <trans-unit id="24394b" xml:space="preserve" approved="no" translate="yes">
+       <source>Lock</source>
+    </trans-unit>
+    <trans-unit id="974ccb64" xml:space="preserve" approved="no" translate="yes">
+       <source>Unlock</source>
+    </trans-unit>
+    <trans-unit id="56244262" xml:space="preserve" approved="no" translate="yes">
+       <source>End sessions</source>
+    </trans-unit>
+    <trans-unit id="91afe4a4" xml:space="preserve" approved="no" translate="yes">
+       <source>Remove</source>
+    </trans-unit>
+    <trans-unit id="53523e37" xml:space="preserve" approved="no" translate="yes">
+       <source>Edit account</source>
+    </trans-unit>
+    <trans-unit id="ee441af9" xml:space="preserve" approved="no" translate="yes">
+       <source>Account created.</source>
+    </trans-unit>
+    <trans-unit id="f26baffa" xml:space="preserve" approved="no" translate="yes">
+       <source>Account saved.</source>
+    </trans-unit>
+    <trans-unit id="87150869" xml:space="preserve" approved="no" translate="yes">
+       <source>Sessions ended: %1</source>
+    </trans-unit>
+    <trans-unit id="6331b081" xml:space="preserve" approved="no" translate="yes">
+       <source>Account removed.</source>
+    </trans-unit>
+    <trans-unit id="32adce63" xml:space="preserve" approved="no" translate="yes">
+       <source>Account locked; its sessions have ended.</source>
+    </trans-unit>
+    <trans-unit id="30cd0b58" xml:space="preserve" approved="no" translate="yes">
+       <source>Account unlocked.</source>
+    </trans-unit>
+    <trans-unit id="2e783166" xml:space="preserve" approved="no" translate="yes">
+       <source>Password reset; the sessions of the account have ended.</source>
+    </trans-unit>
+    <trans-unit id="d428afae" xml:space="preserve" approved="no" translate="yes">
+       <source>Remove account?</source>
+    </trans-unit>
+    <trans-unit id="9dc90787" xml:space="preserve" approved="no" translate="yes">
+       <source>The account %1 is removed and its sessions end. The audit log keeps its entries.</source>
+    </trans-unit>
+    <trans-unit id="dd3ba6e7" xml:space="preserve" approved="no" translate="yes">
+       <source>Lock account?</source>
+    </trans-unit>
+    <trans-unit id="64d1ae7b" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 can no longer sign in; open sessions end now.</source>
+    </trans-unit>
+    <trans-unit id="4bced416" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch on the protected access mode?</source>
+    </trans-unit>
+    <trans-unit id="89261bf6" xml:space="preserve" approved="no" translate="yes">
+       <source>Without sign-in, nobody can use the search, Solr, MCP, suggestions, chat or YaCy pages any more; only listed Scoutro pages remain. Tools with the administrator password (HTTP Digest) and agents with tokens keep working.</source>
+    </trans-unit>
+    <trans-unit id="abb6689e" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch off the protected access mode?</source>
+    </trans-unit>
+    <trans-unit id="b94c7d46" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy's previous rules apply again; public search can then be reachable without sign-in.</source>
+    </trans-unit>
+    <trans-unit id="b10b27de" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch on guest access?</source>
+    </trans-unit>
+    <trans-unit id="62aacacf" xml:space="preserve" approved="no" translate="yes">
+       <source>Without sign-in, everyone who reaches Scoutro can search the released collections.</source>
+    </trans-unit>
+    <trans-unit id="b54e72fc" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch off the built-in administrator on the login page?</source>
+    </trans-unit>
+    <trans-unit id="c8f487cd" xml:space="preserve" approved="no" translate="yes">
+       <source>Its sessions end. HTTP Digest for tools stays available.</source>
+    </trans-unit>
+    <trans-unit id="a20381a9" xml:space="preserve" approved="no" translate="yes">
+       <source>This peer takes part in the YaCy network: other peers can search the whole index. Collection rights do not apply to peers. Use private Robinson mode if accounts must stay within their collections.</source>
+    </trans-unit>
+    <trans-unit id="7c94f25a" xml:space="preserve" approved="no" translate="yes">
+       <source>The built-in administrator still uses YaCy's default password. Change it on the Accounts page.</source>
+    </trans-unit>
+    <trans-unit id="87f48811" xml:space="preserve" approved="no" translate="yes">
+       <source>Active Research or Operator accounts keep the protected rules although the setting is off.</source>
+    </trans-unit>
+    <trans-unit id="2781f9d9" xml:space="preserve" approved="no" translate="yes">
+       <source>No collections are known yet.</source>
+    </trans-unit>
+    <trans-unit id="554270fd" xml:space="preserve" approved="no" translate="yes">
+       <source>No entries.</source>
+    </trans-unit>
+    <trans-unit id="9dc" xml:space="preserve" approved="no" translate="yes">
+       <source>OK</source>
+    </trans-unit>
+    <trans-unit id="79cc67bb" xml:space="preserve" approved="no" translate="yes">
+       <source>Denied</source>
+    </trans-unit>
+    <trans-unit id="7cfb805d" xml:space="preserve" approved="no" translate="yes">
+       <source>Failed</source>
+    </trans-unit>
+    <trans-unit id="1e749604" xml:space="preserve" approved="no" translate="yes">
+       <source>Research and Operator accounts need the protected access mode. Switch it on first.</source>
+    </trans-unit>
+    <trans-unit id="e026fa52" xml:space="preserve" approved="no" translate="yes">
+       <source>Lock or remove the active Research and Operator accounts before leaving the protected mode.</source>
+    </trans-unit>
+    <trans-unit id="72805294" xml:space="preserve" approved="no" translate="yes">
+       <source>This is the last administrator who can sign in. Create or activate another administrator first.</source>
+    </trans-unit>
+    <trans-unit id="715dfdd4" xml:space="preserve" approved="no" translate="yes">
+       <source>You cannot lock, remove or demote your own account here.</source>
+    </trans-unit>
+    <trans-unit id="9566f0e3" xml:space="preserve" approved="no" translate="yes">
+       <source>An account with this name already exists.</source>
+    </trans-unit>
+    <trans-unit id="5916fa58" xml:space="preserve" approved="no" translate="yes">
+       <source>This name belongs to the built-in administrator.</source>
+    </trans-unit>
+    <trans-unit id="d61fd5d0" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must have at least 10 characters.</source>
+    </trans-unit>
+    <trans-unit id="7aaf5f39" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must not have more than 256 characters.</source>
+    </trans-unit>
+    <trans-unit id="c2a1546c" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must not be the user name.</source>
+    </trans-unit>
+    <trans-unit id="d0cf8fa4" xml:space="preserve" approved="no" translate="yes">
+       <source>This password is too common.</source>
+    </trans-unit>
+    <trans-unit id="17d8aa08" xml:space="preserve" approved="no" translate="yes">
+       <source>Please check the highlighted entries.</source>
+    </trans-unit>
+    <trans-unit id="841bfc68" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose at least one collection or all collections.</source>
     </trans-unit>
   </body>
 </file>
@@ -11355,98 +12011,110 @@
     <trans-unit id="12c686de" xml:space="preserve" approved="no" translate="yes">
        <source>"Search..."</source>
     </trans-unit>
-    <trans-unit id="a0da4635" xml:space="preserve" approved="no" translate="yes">
-       <source>"Restart"</source>
+    <trans-unit id="a3db15ee" xml:space="preserve" approved="no" translate="yes">
+       <source>"Account menu"</source>
     </trans-unit>
-    <trans-unit id="b04bea8a" xml:space="preserve" approved="no" translate="yes">
-       <source>"Shutdown"</source>
-    </trans-unit>
-    <trans-unit id="8e12671b" xml:space="preserve" approved="no" translate="yes">
-       <source>"Community"</source>
-    </trans-unit>
-    <trans-unit id="3e2aedff" xml:space="preserve" approved="no" translate="yes">
-       <source>"Help"</source>
-    </trans-unit>
-    <trans-unit id="3de5acc8" xml:space="preserve" approved="no" translate="yes">
-       <source>"Chat"</source>
-    </trans-unit>
-    <trans-unit id="a472dcf8" xml:space="preserve" approved="no" translate="yes">
-       <source>"Search"</source>
-    </trans-unit>
-    <trans-unit id="f1f4c7e" xml:space="preserve" approved="no" translate="yes">
-       <source>Administration</source>
-    </trans-unit>
-    <trans-unit id="1794a40" xml:space="preserve" approved="no" translate="yes">
-       <source>Toggle navigation</source>
-    </trans-unit>
-    <trans-unit id="7687a848" xml:space="preserve" approved="no" translate="yes">
-       <source>Re-Start</source>
-    </trans-unit>
-    <trans-unit id="f9c26a76" xml:space="preserve" approved="no" translate="yes">
-       <source>Shutdown</source>
-    </trans-unit>
-    <trans-unit id="40e9d01" xml:space="preserve" approved="no" translate="yes">
-       <source>Forum</source>
-    </trans-unit>
-    <trans-unit id="224361" xml:space="preserve" approved="no" translate="yes">
-       <source>Help</source>
-    </trans-unit>
-    <trans-unit id="3c2336d" xml:space="preserve" approved="no" translate="yes">
-       <source>About</source>
-    </trans-unit>
-    <trans-unit id="89efbdde" xml:space="preserve" approved="no" translate="yes">
-       <source>About This Page</source>
-    </trans-unit>
-    <trans-unit id="e5a7a739" xml:space="preserve" approved="no" translate="yes">
-       <source>JavaScript information</source>
-    </trans-unit>
-    <trans-unit id="cb27d223" xml:space="preserve" approved="no" translate="yes">
-       <source>&lt;i&gt;external&lt;/i&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;YaCy Tutorials</source>
-    </trans-unit>
-    <trans-unit id="1e64f2e6" xml:space="preserve" approved="no" translate="yes">
-       <source>&lt;i&gt;external&lt;/i&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;Download YaCy</source>
-    </trans-unit>
-    <trans-unit id="d4f6990a" xml:space="preserve" approved="no" translate="yes">
-       <source>&lt;i&gt;external&lt;/i&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;Community (Web Forums)</source>
-    </trans-unit>
-    <trans-unit id="987e8de8" xml:space="preserve" approved="no" translate="yes">
-       <source>&lt;i&gt;external&lt;/i&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;Git Repository</source>
-    </trans-unit>
-    <trans-unit id="ec13eafa" xml:space="preserve" approved="no" translate="yes">
-       <source>Sponsor</source>
-    </trans-unit>
-    <trans-unit id="d654c21a" xml:space="preserve" approved="no" translate="yes">
-       <source>YaCy is free software, so we need the help of many to support the development.&lt;br/&gt;&lt;b&gt;You&lt;/b&gt; can help by joining a sponsoring plan:</source>
-    </trans-unit>
-    <trans-unit id="7856ffc" xml:space="preserve" approved="no" translate="yes">
-       <source>&lt;i&gt;external&lt;/i&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;b&gt;become a Github Sponsor&lt;/b&gt;</source>
-    </trans-unit>
-    <trans-unit id="2d74cf12" xml:space="preserve" approved="no" translate="yes">
-       <source>&lt;i&gt;external&lt;/i&gt;&amp;nbsp;&amp;nbsp;&amp;nbsp;&lt;b&gt;become a YaCy Patreon&lt;/b&gt;</source>
-    </trans-unit>
-    <trans-unit id="5149d912" xml:space="preserve" approved="no" translate="yes">
-       <source>Please help! We need financial help to move on with the development!</source>
-    </trans-unit>
-    <trans-unit id="200778" xml:space="preserve" approved="no" translate="yes">
-       <source>Chat</source>
+    <trans-unit id="23c6dce9" xml:space="preserve" approved="no" translate="yes">
+       <source>"Main navigation"</source>
     </trans-unit>
     <trans-unit id="935f51c8" xml:space="preserve" approved="no" translate="yes">
        <source>Search</source>
     </trans-unit>
-    <trans-unit id="d5e81d9b" xml:space="preserve" approved="no" translate="yes">
-       <source>Scoutro</source>
+    <trans-unit id="dfb00a48" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign in</source>
     </trans-unit>
-    <trans-unit id="38fd0a74" xml:space="preserve" approved="no" translate="yes">
-       <source>Dashboard</source>
+    <trans-unit id="41f3db8" xml:space="preserve" approved="no" translate="yes">
+       <source>Guest</source>
     </trans-unit>
-    <trans-unit id="b83789c7" xml:space="preserve" approved="no" translate="yes">
-       <source>Discovery Automation</source>
+    <trans-unit id="eef025bb" xml:space="preserve" approved="no" translate="yes">
+       <source>Research</source>
+    </trans-unit>
+    <trans-unit id="e6048cc4" xml:space="preserve" approved="no" translate="yes">
+       <source>Operator</source>
+    </trans-unit>
+    <trans-unit id="8bef2ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Administrator</source>
+    </trans-unit>
+    <trans-unit id="4468a3d9" xml:space="preserve" approved="no" translate="yes">
+       <source>My account</source>
+    </trans-unit>
+    <trans-unit id="1651568b" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign out</source>
+    </trans-unit>
+    <trans-unit id="90f6fb01" xml:space="preserve" approved="no" translate="yes">
+       <source>Administrator (browser sign-in)</source>
+    </trans-unit>
+    <trans-unit id="57df42b" xml:space="preserve" approved="no" translate="yes">
+       <source>The browser keeps this sign-in until it is closed.</source>
+    </trans-unit>
+    <trans-unit id="1794a40" xml:space="preserve" approved="no" translate="yes">
+       <source>Toggle navigation</source>
+    </trans-unit>
+    <trans-unit id="23735199" xml:space="preserve" approved="no" translate="yes">
+       <source>Overview</source>
+    </trans-unit>
+    <trans-unit id="200778" xml:space="preserve" approved="no" translate="yes">
+       <source>Chat</source>
+    </trans-unit>
+    <trans-unit id="da1c9758" xml:space="preserve" approved="no" translate="yes">
+       <source>Websites</source>
+    </trans-unit>
+    <trans-unit id="4a622a34" xml:space="preserve" approved="no" translate="yes">
+       <source>Host analysis</source>
+    </trans-unit>
+    <trans-unit id="d3d3885e" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge</source>
+    </trans-unit>
+    <trans-unit id="28c3cefb" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge overview</source>
+    </trans-unit>
+    <trans-unit id="3fac4ab9" xml:space="preserve" approved="no" translate="yes">
+       <source>Organisations</source>
+    </trans-unit>
+    <trans-unit id="560f747e" xml:space="preserve" approved="no" translate="yes">
+       <source>Services</source>
+    </trans-unit>
+    <trans-unit id="4b1c3d6a" xml:space="preserve" approved="no" translate="yes">
+       <source>Comparisons</source>
+    </trans-unit>
+    <trans-unit id="9a787c74" xml:space="preserve" approved="no" translate="yes">
+       <source>History</source>
+    </trans-unit>
+    <trans-unit id="a5cc40b4" xml:space="preserve" approved="no" translate="yes">
+       <source>Data collection</source>
     </trans-unit>
     <trans-unit id="78c90d4c" xml:space="preserve" approved="no" translate="yes">
        <source>Crawls</source>
     </trans-unit>
-    <trans-unit id="c9752640" xml:space="preserve" approved="no" translate="yes">
-       <source>SEO / Host Analysis</source>
+    <trans-unit id="7038a590" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery</source>
+    </trans-unit>
+    <trans-unit id="a476e99f" xml:space="preserve" approved="no" translate="yes">
+       <source>Reports</source>
+    </trans-unit>
+    <trans-unit id="595d2043" xml:space="preserve" approved="no" translate="yes">
+       <source>Settings</source>
+    </trans-unit>
+    <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
+       <source>Collections</source>
+    </trans-unit>
+    <trans-unit id="4e39de8" xml:space="preserve" approved="no" translate="yes">
+       <source>Users</source>
+    </trans-unit>
+    <trans-unit id="74c60a2e" xml:space="preserve" approved="no" translate="yes">
+       <source>Agents</source>
+    </trans-unit>
+    <trans-unit id="89b0568a" xml:space="preserve" approved="no" translate="yes">
+       <source>Models</source>
+    </trans-unit>
+    <trans-unit id="203d7180" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph operations</source>
+    </trans-unit>
+    <trans-unit id="94815e4f" xml:space="preserve" approved="no" translate="yes">
+       <source>System</source>
+    </trans-unit>
+    <trans-unit id="ac05f07d" xml:space="preserve" approved="no" translate="yes">
+       <source>Advanced tools</source>
     </trans-unit>
     <trans-unit id="72ff6975" xml:space="preserve" approved="no" translate="yes">
        <source>AI Lab</source>
@@ -11502,14 +12170,14 @@
     <trans-unit id="1eb4f08b" xml:space="preserve" approved="no" translate="yes">
        <source>Target Analysis</source>
     </trans-unit>
+    <trans-unit id="f1f4c7e" xml:space="preserve" approved="no" translate="yes">
+       <source>Administration</source>
+    </trans-unit>
     <trans-unit id="f49a1ac" xml:space="preserve" approved="no" translate="yes">
        <source>Index Administration</source>
     </trans-unit>
     <trans-unit id="2f66ee6f" xml:space="preserve" approved="no" translate="yes">
        <source>System Administration</source>
-    </trans-unit>
-    <trans-unit id="7f8aa399" xml:space="preserve" approved="no" translate="yes">
-       <source>Agents &amp;amp; Access</source>
     </trans-unit>
     <trans-unit id="3a75a81" xml:space="preserve" approved="no" translate="yes">
        <source>Filter &amp;amp; Blacklists</source>
@@ -11544,8 +12212,20 @@
     <trans-unit id="a3acf778" xml:space="preserve" approved="no" translate="yes">
        <source>Language</source>
     </trans-unit>
-    <trans-unit id="94815e4f" xml:space="preserve" approved="no" translate="yes">
-       <source>System</source>
+    <trans-unit id="224361" xml:space="preserve" approved="no" translate="yes">
+       <source>Help</source>
+    </trans-unit>
+    <trans-unit id="3c2336d" xml:space="preserve" approved="no" translate="yes">
+       <source>About</source>
+    </trans-unit>
+    <trans-unit id="89efbdde" xml:space="preserve" approved="no" translate="yes">
+       <source>About This Page</source>
+    </trans-unit>
+    <trans-unit id="e5a7a739" xml:space="preserve" approved="no" translate="yes">
+       <source>JavaScript information</source>
+    </trans-unit>
+    <trans-unit id="4b132b7" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy project</source>
     </trans-unit>
     <trans-unit id="eea8185c" xml:space="preserve" approved="no" translate="yes">
        <source>YaCy Community (Web Forums)</source>
@@ -11555,9 +12235,6 @@
     </trans-unit>
     <trans-unit id="a256bb24" xml:space="preserve" approved="no" translate="yes">
        <source>Sponsor YaCy</source>
-    </trans-unit>
-    <trans-unit id="62131f0c" xml:space="preserve" approved="no" translate="yes">
-       <source>Knowledge graph</source>
     </trans-unit>
   </body>
 </file>

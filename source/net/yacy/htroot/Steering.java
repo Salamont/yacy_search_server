@@ -82,6 +82,7 @@ public class Steering {
         if (post.containsKey("shutdown")) {
         	TransactionManager.checkPostTransaction(header, post);
             ConcurrentLog.info("STEERING", "shutdown request from " + requestIP);
+            scoutroAudit(header, "system.shutdown", requestIP); // Scoutro: audit log of people
             sb.terminate(10, "shutdown request from Steering; ip = " + requestIP);
             prop.put("info", "3");
 
@@ -91,6 +92,7 @@ public class Steering {
         if (post.containsKey("restart")) {
         	TransactionManager.checkPostTransaction(header, post);
             ConcurrentLog.info("STEERING", "restart request from " + requestIP);
+            scoutroAudit(header, "system.restart", requestIP); // Scoutro: audit log of people
             yacyRelease.restart();
             prop.put("info", "4");
 
@@ -123,6 +125,20 @@ public class Steering {
         }
 
         return prop;
+    }
+
+    /** Scoutro: restart and shutdown are written to the audit log of people (docs/SCOUTRO_USERS_ACCESS.md). */
+    private static void scoutroAudit(final RequestHeader header, final String action, final String client) {
+        final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+        if (access == null) {
+            return;
+        }
+        final String user = header.getRemoteUser();
+        final java.security.Principal p = header.getUserPrincipal();
+        final String actor = p instanceof net.yacy.scoutro.access.ScoutroPrincipal
+                ? ((net.yacy.scoutro.access.ScoutroPrincipal) p).actor()
+                : user == null ? "local" : "digest:" + user;
+        access.audit.record(actor, action, "", "ok", "", client);
     }
 
 }

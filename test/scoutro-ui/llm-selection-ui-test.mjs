@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL;
@@ -20,6 +21,7 @@ const browser = await chromium.launch({
   ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
   args: ['--no-proxy-server'],
 });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 try {
   const languages = ['en', ...fs.readdirSync('locales').filter(name => name.endsWith('.lng')).map(name => name.slice(0, -4))];
   for (const language of languages) {

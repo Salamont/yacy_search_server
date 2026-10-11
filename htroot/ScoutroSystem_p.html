@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>System</title>
+  #%env/templates/metas.template%#
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-system-page">
+  #%env/templates/header.template%#
+  <main class="scoutro-page" aria-labelledby="ss-title">
+    <header class="scoutro-page-heading">
+      <h1 id="ss-title">System</h1>
+      <p class="scoutro-page-lead">Versions, running time and memory of this Scoutro instance, and the actions that affect everyone.</p>
+    </header>
+    <p id="ss-message" class="scoutro-status" role="status" aria-live="polite" tabindex="-1" hidden></p>
+
+    <section class="scoutro-card" aria-labelledby="ss-info-title">
+      <h2 id="ss-info-title">Instance</h2>
+      <dl class="scoutro-facts">
+        <div><dt>Scoutro</dt><dd>#[scoutroVersion]#</dd></div>
+        <div><dt>YaCy</dt><dd>#[yacyVersion]#</dd></div>
+        <div><dt>Peer</dt><dd>#[peerName]#</dd></div>
+        <div><dt>Running for</dt><dd>#[uptime]#</dd></div>
+        <div><dt>Memory in use</dt><dd>#[heapUsed]# / #[heapMax]#</dd></div>
+      </dl>
+      <p class="scoutro-note"><a href="Status.html?noforward=">System status</a> · <a href="Performance_p.html">RAM/Disk usage &amp; updates</a> · <a href="Settings_p.html">System administration</a> · <a href="ConfigAccounts_p.html">Built-in administrator account</a> · <a href="ConfigLanguage_p.html">Language</a></p>
+    </section>
+
+    <section class="scoutro-card" aria-labelledby="ss-actions-title">
+      <h2 id="ss-actions-title">Re-Start and Shutdown</h2>
+      <p>Both end every running crawl step, search and session of all users. A restart needs a process supervisor (container or service) to bring Scoutro back; Shutdown stops it until it is started again.</p>
+      <form action="Steering.html" method="post" id="ss-restart-form">
+        <input type="hidden" name="transactionToken" value="" id="ss-restart-token"/>
+        <input type="hidden" name="restart" value="" />
+      </form>
+      <form action="Steering.html" method="post" id="ss-shutdown-form">
+        <input type="hidden" name="transactionToken" value="" id="ss-shutdown-token"/>
+        <input type="hidden" name="shutdown" value="" />
+      </form>
+      <div class="scoutro-actions">
+        <button type="button" class="btn btn-default" id="ss-restart">Re-Start</button>
+        <button type="button" class="btn btn-default scoutro-danger" id="ss-shutdown">Shutdown</button>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="scoutro-dialog" id="ss-confirm" aria-labelledby="ss-confirm-title">
+    <form method="dialog" class="scoutro-form">
+      <h2 id="ss-confirm-title"></h2>
+      <p id="ss-confirm-text"></p>
+      <div class="scoutro-actions">
+        <button type="submit" class="btn btn-primary" value="ok">Confirm</button>
+        <button type="submit" class="btn btn-default" value="cancel">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div hidden>
+    <span data-ss-label="restart_title">Re-Start Scoutro?</span>
+    <span data-ss-label="restart_text">Scoutro stops and starts again. All users are signed out.</span>
+    <span data-ss-label="shutdown_title">Shut down Scoutro?</span>
+    <span data-ss-label="shutdown_text">Scoutro stops completely and stays off until it is started again.</span>
+    <span data-ss-label="token_failed">The server did not confirm the request. Please reload the page and try again.</span>
+  </div>
+  <script>
+    /* Scoutro: Re-Start and Shutdown through YaCy's Steering.html with its transaction token (moved from the header). */
+    (function () {
+      'use strict';
+      function label(key) { var el = document.querySelector('[data-ss-label="' + key + '"]'); return el ? el.textContent : key; }
+      function ask(titleKey, textKey) {
+        var dialog = document.getElementById('ss-confirm');
+        document.getElementById('ss-confirm-title').textContent = label(titleKey);
+        document.getElementById('ss-confirm-text').textContent = label(textKey);
+        return new Promise(function (resolve) {
+          dialog.addEventListener('close', function done() { dialog.removeEventListener('close', done); resolve(dialog.returnValue === 'ok'); });
+          dialog.returnValue = '';
+          dialog.showModal();
+        });
+      }
+      function steer(tokenId, formId) {
+        fetch('Steering.html', { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+          var token = r.ok ? r.headers.get('X-YaCy-Transaction-Token') : null;
+          if (!token) throw new Error('token');
+          document.getElementById(tokenId).value = token;
+          document.getElementById(formId).submit();
+        }).catch(function () {
+          var box = document.getElementById('ss-message');
+          box.textContent = label('token_failed');
+          box.className = 'scoutro-status scoutro-status-error';
+          box.hidden = false;
+          box.focus();
+        });
+      }
+      document.getElementById('ss-restart').addEventListener('click', function () {
+        ask('restart_title', 'restart_text').then(function (ok) { if (ok) steer('ss-restart-token', 'ss-restart-form'); });
+      });
+      document.getElementById('ss-shutdown').addEventListener('click', function () {
+        ask('shutdown_title', 'shutdown_text').then(function (ok) { if (ok) steer('ss-shutdown-token', 'ss-shutdown-form'); });
+      });
+    })();
+  </script>
+  #%env/templates/footer.template%#
+</body>
+</html>

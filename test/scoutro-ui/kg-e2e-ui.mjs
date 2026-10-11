@@ -5,6 +5,7 @@
  * the overview with the storage levels and the rebuild panel, in English and German, at 390 and 1280. */
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL;
@@ -16,6 +17,7 @@ const browser = await chromium.launch({
   ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
   args: ['--no-proxy-server'],
 });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 try {
   for (const [language, width] of [['en', 1280], ['de', 390]]) {
     const where = ` (${language}/${width})`;

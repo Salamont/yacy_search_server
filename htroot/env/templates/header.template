@@ -1,281 +1,179 @@
 <!-- top navigation -->
+<!-- Scoutro: one header for every page: brand, search, account menu and the
+     navigation of docs/SCOUTRO_USERS_ACCESS.md (section 7). Entries follow the
+     server-side permissions of the signed-in identity (YaCyDefaultServlet);
+     hiding an entry is never the protection. -->
 <div class="navbar navbar-inverse navbar-fixed-top scoutro-adminbar" role="navigation">
-  <div class="container-fluid">
-    <div class="collapse navbar-collapse navbar-header">
-      <a class="navbar-brand" id="navbar-brand" href="./">
-        <!-- Scoutro: brand, see env/templates/scoutro/ and env/scoutro/brand/ -->
-        <span><img id="header-greeting-icon" class="yacylogo scoutro-brand-logo" src="env/scoutro/brand/mascot-64.png" alt=""></span>
-        <span>&nbsp;#%env/templates/scoutro/productname.template%# Administration</span>
+  <div class="container-fluid scoutro-topbar">
+    <a class="navbar-brand" id="navbar-brand" href="#(scoutroRead)#index.html::scoutro-dashboard.html#(/scoutroRead)#">
+      <!-- Scoutro: brand, see env/templates/scoutro/ and env/scoutro/brand/ -->
+      <span><img id="header-greeting-icon" class="yacylogo scoutro-brand-logo" src="env/scoutro/brand/mascot-64.png" alt=""></span>
+      <span class="scoutro-brand-name">&nbsp;#%env/templates/scoutro/productname.template%#</span>
+    </a>
+    <form id="header-search-form" class="navbar-form scoutro-header-search" method="get" accept-charset="UTF-8" action="yacysearch.html" role="search">
+      <label class="sr-only" for="header-search-input">Search</label>
+      <input id="header-search-input" name="query" placeholder="Search..." class="form-control" type="text" size="21" maxlength="200" value=""/>
+      <input type="hidden" name="resource" value="local" />
+      <input type="hidden" name="urlmaskfilter" value=".*" />
+      <input type="hidden" name="prefermaskfilter" value="" />
+      <input type="hidden" name="nav" value="all" />
+      #(authorized)#::
+      <input type="hidden" name="auth" value=""/>
+      #(/authorized)#
+    </form>
+    <div class="scoutro-account" id="scoutro-account">
+      #(scoutroAccount)#
+      <a class="scoutro-account-signin" id="scoutro-signin" href="scoutro-login.html">
+        <span class="glyphicon glyphicon-log-in" aria-hidden="true"></span><span class="scoutro-account-label">Sign in</span>
       </a>
+      ::
+      <details class="scoutro-account-menu" id="scoutro-account-menu">
+        <summary aria-label="Account menu">
+          <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
+          <span class="scoutro-account-label">#[scoutroUser]#</span>
+        </summary>
+        <div class="scoutro-account-panel">
+          <p class="scoutro-account-who"><strong>#[scoutroUser]#</strong>
+            <span class="scoutro-account-role">#(scoutroRole)#Guest::Research::Operator::Administrator#(/scoutroRole)#</span></p>
+          <a href="scoutro-account.html" id="scoutro-account-link">My account</a>
+          <button type="button" class="scoutro-account-signout" id="scoutro-signout">Sign out</button>
+        </div>
+      </details>
+      ::
+      <details class="scoutro-account-menu" id="scoutro-account-menu">
+        <summary aria-label="Account menu">
+          <span class="glyphicon glyphicon-user" aria-hidden="true"></span>
+          <span class="scoutro-account-label">#[scoutroUser]#</span>
+        </summary>
+        <div class="scoutro-account-panel">
+          <p class="scoutro-account-who"><strong>#[scoutroUser]#</strong>
+            <span class="scoutro-account-role">Administrator (browser sign-in)</span></p>
+          <a href="scoutro-account.html" id="scoutro-account-link">My account</a>
+          <p class="scoutro-account-hint">The browser keeps this sign-in until it is closed.</p>
+        </div>
+      </details>
+      #(/scoutroAccount)#
     </div>
-    <div class="navbar-header">
-      <!-- Scoutro: the toggle opens the complete admin navigation (#scoutro-adminnav) on small screens, see env/scoutro/scoutro.js -->
-      <button type="button" class="navbar-toggle collapsed" id="scoutro-nav-toggle" aria-controls="scoutro-adminnav" aria-expanded="false">
-        <span class="sr-only">Toggle navigation</span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-        <span class="icon-bar"></span>
-      </button>
-      <form id="header-search-form" class="navbar-form" method="get" accept-charset="UTF-8" action="yacysearch.html">
-        <input name="query" placeholder="Search..." class="form-control" type="text" size="21" maxlength="200" value=""/>
-        <input type="hidden" name="resource" value="global" />
-        <input type="hidden" name="urlmaskfilter" value=".*" />
-        <input type="hidden" name="prefermaskfilter" value="" />
-        <input type="hidden" name="nav" value="all" />
-    	#(authorized)#::
-  		<input type="hidden" name="auth" value=""/>
-  		#(/authorized)#
-      </form>
-    </div>
-	<script type="text/javascript">
-	    /**
-	    * Request the server for a valid transaction token and then send a steering request
-	    * @param tokenInputId HTML identifier of the transaction token input field
-	    * @param formId identifier of the form
-	    */
-		function sendSteeringRequest(tokenInputId, formId) {
-			var xhr = new XMLHttpRequest();
-			xhr.onreadystatechange = function() {
-				if (xhr.readyState == XMLHttpRequest.DONE) {
-					if(xhr.status != 200) {
-						if(xhr.status == 401) {
-							alert("Please authenticate with administrator credentials.");
-						} else {
-							alert("The server rejected the request or is not responding!");
-						}
-					} else {
-						var requestSent = false;
-						var transactionTokenInput = document.getElementById(tokenInputId);
-						if(transactionTokenInput) {
-							transactionTokenInput.value = xhr.getResponseHeader("X-YaCy-Transaction-Token")
-							var restartForm = document.getElementById(formId);
-							if(restartForm) {
-								requestSent = true;
-								restartForm.submit();
-							}
-						}
-						if(!requestSent) {
-							alert("Could not send the request to the server!");
-						}
-					}
-				}
-			};
-			xhr.open("get", "Steering.html", true);
-			xhr.send();
-		}
-		
-		/** Trigger the server restart after asking for user confirm */
-		function confirmRestart() {
-			if(confirm('Confirm Re-Start')) {
-				sendSteeringRequest("restartTransactionToken", "restartForm");
-			}
-		}
-		
-		/** Trigger the server restart after asking for user confirm */
-		function confirmShutdown() {
-			if(confirm('Confirm Shutdown')) {
-				sendSteeringRequest("shutdownTransactionToken", "shutdownForm");
-			}
-		}
-	</script>
-    <div class="navbar-collapse collapse">
-      <ul class="nav navbar-nav navbar-right">
-        <li id="header_restart">
-          <form action="Steering.html" method="post" id="restartForm">
-			<input type="hidden" name="transactionToken" value="" id="restartTransactionToken"/>
-            <input type="hidden" name="restart" value="" />
-          </form>
-          <form action="Steering.html" method="get">
-            <button accesskey="s" type="submit" class="btn btn-inverse navbar-btn label-warning" onclick="confirmRestart(); return false;" title="Restart">
-            	<span class="glyphicon glyphicon-fire"></span>
-            	<span class="hidden-sm"> Re-Start</span>
-            </button>
-          </form>
-        </li>
-        <li>&nbsp;</li>
-        <li id="header_shutdown">
-          <form action="Steering.html" method="post" id="shutdownForm">
-			<input type="hidden" name="transactionToken" value="" id="shutdownTransactionToken"/>
-            <input type="hidden" name="shutdown" value="" />
-          </form>
-          <form action="Steering.html" method="get">
-            <button accesskey="h" type="submit" class="btn btn-inverse navbar-btn label-danger" onclick="confirmShutdown(); return false;" title="Shutdown">
-            	<span class="glyphicon glyphicon-off"></span>
-            	<span class="hidden-sm"> Shutdown</span>
-            </button>
-          </form>
-        </li>
-        <li>&nbsp;</li>
-        <li id="header_community">
-          <form action="https://community.searchlab.eu" target="_blank" method="get">
-            <button accesskey="f" type="submit" class="btn btn-inverse navbar-btn label-primary" title="Community">
-                <span class="glyphicon glyphicon-user"></span>
-                <span class="hidden-sm"> Forum</span>
-            </button>
-          </form>
-        </li>
-        <li>&nbsp;</li>
-        <li id="header_help" class="dropdown">
-          <div href="#" data-toggle="dropdown" class="dropdown-toggle" aria-label="Help" role="button" aria-haspopup="true" aria-expanded="false">
-          <form action="#" method="get">
-            <button accesskey="f" type="button" class="btn btn-inverse navbar-btn label-success" title="Help">
-                <span class="glyphicon glyphicon-question-sign"></span>
-                <span class="hidden-sm"> Help</span>
-            </button>
-          </form>
-          </div>
-          <ul class="dropdown-menu">
-          <li id="header_scoutro_about"><a href="scoutro-about.html">About #%env/templates/scoutro/productname.template%#</a></li>
-          <li id="header_profile"><a href="ViewProfile.html?hash=localhash">About This Page</a></li>
-          <li id="header_jslicense"><a href="jslicense.html" data-jslicense="1">JavaScript information</a></li>
-          <li class="divider" role="separator"></li>
-          <li id="header_tutorial"><a href="https://www.youtube.com/user/YaCyTutorials/videos" target="_blank"><i>external</i>&nbsp;&nbsp;&nbsp;YaCy Tutorials</a></li>
-          <li id="header_download"><a href="https://yacy.net" target="_blank"><i>external</i>&nbsp;&nbsp;&nbsp;Download YaCy</a></li>
-          <li id="header_community"><a href="https://community.searchlab.eu" target="_blank"><i>external</i>&nbsp;&nbsp;&nbsp;Community (Web Forums)</a></li>
-          <li id="header_git"><a href="https://github.com/yacy/yacy_search_server" target="_blank"><i>external</i>&nbsp;&nbsp;&nbsp;Git Repository</a></li>
-          </ul>
-        </li>
-        <li>&nbsp;</li>
-        <li id="header_sponsor" class="dropdown">
-          <div href="#" data-toggle="dropdown" class="dropdown-toggle" aria-label="Help" role="button" aria-haspopup="true" aria-expanded="false">
-          <form action="#" method="get">
-            <button accesskey="f" type="button" class="btn btn-inverse navbar-btn label-warning" title="Help">
-                <span class="glyphicon glyphicon-heart"></span>
-                <span class="hidden-sm"> Sponsor</span>
-            </button>
-          </form>
-          </div>
-          <ul class="dropdown-menu">
-          <li><a href="#">YaCy is free software, so we need the help of many to support the development.<br/><b>You</b> can help by joining a sponsoring plan:</a></li>
-          <li><a href="https://github.com/users/Orbiter/sponsorship" target="_blank"><i>external</i>&nbsp;&nbsp;&nbsp;<b>become a Github Sponsor</b></a></li>
-          <li><a href="https://www.patreon.com/bePatron?u=185903" target="_blank"><i>external</i>&nbsp;&nbsp;&nbsp;<b>become a YaCy Patreon</b></a></li>
-          <li><a href="#">Please help! We need financial help to move on with the development!</a></li>
-          </ul>
-        </li>
-        <li>&nbsp;</li>
-        <li id="header_chat">
-          <form action="yacychat.html" method="get">
-            <button accesskey="c" type="submit" class="btn btn-inverse navbar-btn label-info" title="Chat">
-            	<span class="glyphicon glyphicon-console"></span>
-            	<span class="hidden-sm"> Chat</span>
-            </button>
-          </form>
-        </li>
-        <li>&nbsp;</li>
-        <li id="header_search">
-          <form action="index.html" method="get">
-    		#(authorized)#::
-  				<input type="hidden" name="auth" value=""/>
-  			#(/authorized)#
-            <button accesskey="s" type="submit" class="btn btn-inverse navbar-btn label-info" title="Search">
-            	<span class="glyphicon glyphicon-search"></span>
-            	<span class="hidden-sm"> Search</span>
-            </button>
-          </form>
-        </li>
-      </ul>
-    </div>
+    <!-- Scoutro: the toggle opens the navigation (#scoutro-adminnav) on small screens, see env/scoutro/scoutro.js -->
+    <button type="button" class="navbar-toggle collapsed" id="scoutro-nav-toggle" aria-controls="scoutro-adminnav" aria-expanded="false">
+      <span class="sr-only">Toggle navigation</span>
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+      <span class="icon-bar"></span>
+    </button>
   </div>
 </div>
 
-<!-- left navigation -->
+<!-- left navigation: the same groups on desktop and in the mobile panel -->
 <div class="container-fluid">
   <div class="row">
-    <div class="col-sm-3 col-md-2 sidebar scoutro-adminnav" id="scoutro-adminnav">
-    <ul class="nav nav-sidebar menugroup" id="scoutro-overview">
-      <li><h3>Scoutro</h3></li>
-      <li><a href="scoutro-dashboard.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Dashboard</a></li>
-      <li><a href="ScoutroDiscovery_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Discovery Automation</a></li>
-      <li><a href="ScoutroCrawls_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Crawls</a></li>
-      <li><a href="ScoutroSEO_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">SEO / Host Analysis</a></li>
-      <li><a href="ScoutroKnowledge_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Knowledge graph</a></li>
+    <nav class="col-sm-3 col-md-2 sidebar scoutro-adminnav" id="scoutro-adminnav" aria-label="Main navigation">
+    #(scoutroRead)#::
+    <ul class="nav nav-sidebar menugroup" id="scoutro-nav-overview">
+      <li><h3>Overview</h3></li>
+      <li><a href="scoutro-dashboard.html" class="MenuItemLink">Overview</a></li>
     </ul>
-    <!-- Scoutro: the AI Lab with the chat, always visible; access is still decided by the AI Shield -->
-    <ul class="nav nav-sidebar menugroup" id="scoutro-ai">
-      <li><h3>AI Lab</h3></li>
-      <li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>
-      <li><a href="AILab.html" class="MenuItemLink">AI Lab overview</a></li>
-      <li><a href="ToolsConfig_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Chat tools</a></li>
+    #(/scoutroRead)#
+    #(scoutroSearch)#::
+    <ul class="nav nav-sidebar menugroup" id="scoutro-nav-research">
+      <li><h3>Research</h3></li>
+      <li><a href="index.html" class="MenuItemLink">Search</a></li>
+      #(scoutroChat)#::<li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>#(/scoutroChat)#
+      #(scoutroRead)#::<li><a href="IndexBrowser_p.html" class="MenuItemLink">Websites</a></li>
+      <li><a href="ScoutroSEO_p.html" class="MenuItemLink">Host analysis</a></li>#(/scoutroRead)#
     </ul>
-    
-    <ul class="nav nav-sidebar menugroup" id="first-steps"
-      data-trigger="hover" data-placement="right" data-container="body"
-      data-original-title="You just started a YaCy peer!"
-      data-content="As a first-time-user you see only basic functions. Set a use case or name your peer to see more options. Start a first web crawl to see all monitoring options."
-    >
-      <li><h3>First Steps</h3></li>
-      <li><a href="ConfigBasic.html" class="MenuItemLink">Use Case &amp; Account</a></li>
-      <li><a href="CrawlStartSite.html" class="MenuItemLink">Grab a whole site</a></li>
+    #(/scoutroSearch)#
+    #(scoutroRead)#::
+    <ul class="nav nav-sidebar menugroup" id="scoutro-nav-knowledge">
+      <li><h3>Knowledge</h3></li>
+      <li><a href="ScoutroKnowledge_p.html" class="MenuItemLink">Knowledge overview</a></li>
+      <li><a href="ScoutroKnowledge_p.html?view=objects" class="MenuItemLink">Organisations</a></li>
+      <li><a href="ScoutroKnowledge_p.html?view=services" class="MenuItemLink">Services</a></li>
+      <li><a href="ScoutroKnowledge_p.html?view=compare" class="MenuItemLink">Comparisons</a></li>
+      <li><a href="ScoutroKnowledge_p.html?view=history" class="MenuItemLink">History</a></li>
     </ul>
-    #(navigation-advanced)#<script>$("#first-steps").popover();</script>::#(/navigation-advanced)#
-
-    <ul class="nav nav-sidebar menugroup" id="monitoring"
-      data-trigger="hover" data-placement="right" data-container="body"
-      data-original-title="You did not yet start a web crawl!"
-      data-content="You do not see all monitoring options here, because some belong to crawl result monitoring. Start a web crawl to see that!"
-    >
-      <li><h3>Monitoring</h3></li>
-      <li><a href="Status.html?noforward=" class="MenuItemLink">System Status</a></li>
-      #(navigation-p2p)#::<li><a href="Network.html" accesskey="w" class="MenuItemLink">Peer-to-Peer Network</a></li>#(/navigation-p2p)#
-      #(navigation-crawlmonitor)#::<li><a href="IndexBrowser_p.html?admin=true&hosts=" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Index Browser</a></li>#(/navigation-crawlmonitor)#
-      <li><a href="AccessGrid_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Network Access</a></li>
-      #(navigation-crawlmonitor)#::<li><a href="Crawler_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Crawler Monitor</a></li>#(/navigation-crawlmonitor)#
-      <!-- <li><a href="terminal_p.html" accesskey="t" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Terminal</a></li> -->
+    #(/scoutroRead)#
+    #(scoutroCollect)#::
+    <ul class="nav nav-sidebar menugroup" id="scoutro-nav-collect">
+      <li><h3>Data collection</h3></li>
+      <li><a href="ScoutroCrawls_p.html" class="MenuItemLink">Crawls</a></li>
+      <li><a href="ScoutroDiscovery_p.html" class="MenuItemLink">Discovery</a></li>
+      <li><a href="ScoutroSEO_p.html?view=report" class="MenuItemLink">Reports</a></li>
     </ul>
-    #(navigation-crawlmonitor)#<script>$("#monitoring").popover();</script>::#(/navigation-crawlmonitor)#
-    
-    #(navigation-advanced)#::
-    <ul class="nav nav-sidebar menugroup">
-      <li><h3>Production</h3></li>
-      <li><a href="CrawlStartExpert.html" class="MenuItemLink">Crawler</a></li>
-      <li><a href="Automation_p.html?sort=-date_recording" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Automation</a></li>
-      <li><a href="IndexPackGenerator_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">YaCy Packs &amp; Import/Export</a></li>
-      <li><a href="Vocabulary_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Content Semantic</a></li>
-      <li><a href="CrawlCheck_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Target Analysis</a></li>
-    </ul>
-    <ul class="nav nav-sidebar menugroup">
-      <li><h3>Administration</h3></li>
-      <li><a href="IndexControlURLs_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Index Administration</a></li>
-      <li><a href="Settings_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">System Administration</a></li>
-      <li><a href="ScoutroAgents_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Agents &amp; Access</a></li>
-      <li><a href="Blacklist_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Filter &amp; Blacklists</a></li>
-      <li><a href="Performance_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">RAM/Disk Usage &amp; Updates</a></li>
-    </ul>
-    <ul class="nav nav-sidebar menugroup">
-      <li><h3>Search Portal Integration</h3></li>
-      <li><a href="ConfigPortal_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Portal Configuration</a></li>
-      <li><a href="ConfigAppearance_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Portal Design</a></li>
-      <li><a href="RankingSolr_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Ranking and Heuristics</a></li>
-    </ul>
-    #(/navigation-advanced)#
-
-    <!-- Scoutro: shortcuts to pages that desktop users reach through the page submenus -->
-    <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-configuration">
-      <li><h3>Configuration</h3></li>
-      <li><a href="ConfigAccounts_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Accounts</a></li>
-      <li><a href="ScoutroAgents_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Agents &amp; Access</a></li>
-      <li><a href="ConfigNetwork_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Network Configuration</a></li>
-      <li><a href="ConfigSearchPage_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Search Page Layout</a></li>
-      <li><a href="ConfigLanguage_p.html" class="MenuItemLink #(authorized)#lock::unlock#(/authorized)#">Language</a></li>
+    #(/scoutroCollect)#
+    #(scoutroAdmin)#::
+    <ul class="nav nav-sidebar menugroup" id="scoutro-nav-settings">
+      <li><h3>Settings</h3></li>
+      <li><a href="ScoutroCollections_p.html" class="MenuItemLink">Collections</a></li>
+      <li><a href="ScoutroUsers_p.html" class="MenuItemLink">Users</a></li>
+      <li><a href="ScoutroAgents_p.html" class="MenuItemLink">Agents</a></li>
+      <li><a href="LLMSelection_p.html" class="MenuItemLink">Models</a></li>
+      <li><a href="ScoutroKnowledge_p.html?view=operations" class="MenuItemLink">Knowledge graph operations</a></li>
+      <li><a href="ScoutroSystem_p.html" class="MenuItemLink">System</a></li>
     </ul>
 
-    <!-- Scoutro: functions of the top bar, shown inside the mobile navigation panel only -->
-    <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-system">
-      <li><h3>System</h3></li>
-      <li><a href="index.html#(authorized)#::?auth#(/authorized)#" class="MenuItemLink">Search</a></li>
-      <li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>
-      <li><a href="Steering.html" class="MenuItemLink" onclick="confirmRestart(); return false;">Re-Start</a></li>
-      <li><a href="Steering.html" class="MenuItemLink" onclick="confirmShutdown(); return false;">Shutdown</a></li>
-    </ul>
-    <ul class="nav nav-sidebar menugroup scoutro-mobile-only" id="scoutro-help">
+    <!-- Scoutro: YaCy's own tools, unchanged, for administrators only -->
+    <details class="scoutro-nav-advanced" id="scoutro-nav-advanced">
+      <summary>Advanced tools</summary>
+      <ul class="nav nav-sidebar menugroup" id="scoutro-ai">
+        <li><h3>AI Lab</h3></li>
+        <li><a href="AILab.html" class="MenuItemLink">AI Lab overview</a></li>
+        <li><a href="ToolsConfig_p.html" class="MenuItemLink">Chat tools</a></li>
+      </ul>
+      <ul class="nav nav-sidebar menugroup" id="first-steps">
+        <li><h3>First Steps</h3></li>
+        <li><a href="ConfigBasic.html" class="MenuItemLink">Use Case &amp; Account</a></li>
+        <li><a href="CrawlStartSite.html" class="MenuItemLink">Grab a whole site</a></li>
+      </ul>
+      <ul class="nav nav-sidebar menugroup" id="monitoring">
+        <li><h3>Monitoring</h3></li>
+        <li><a href="Status.html?noforward=" class="MenuItemLink">System Status</a></li>
+        #(navigation-p2p)#::<li><a href="Network.html" accesskey="w" class="MenuItemLink">Peer-to-Peer Network</a></li>#(/navigation-p2p)#
+        <li><a href="IndexBrowser_p.html?admin=true&hosts=" class="MenuItemLink">Index Browser</a></li>
+        <li><a href="AccessGrid_p.html" class="MenuItemLink">Network Access</a></li>
+        <li><a href="Crawler_p.html" class="MenuItemLink">Crawler Monitor</a></li>
+      </ul>
+      <ul class="nav nav-sidebar menugroup" id="scoutro-nav-production">
+        <li><h3>Production</h3></li>
+        <li><a href="CrawlStartExpert.html" class="MenuItemLink">Crawler</a></li>
+        <li><a href="Automation_p.html?sort=-date_recording" class="MenuItemLink">Automation</a></li>
+        <li><a href="IndexPackGenerator_p.html" class="MenuItemLink">YaCy Packs &amp; Import/Export</a></li>
+        <li><a href="Vocabulary_p.html" class="MenuItemLink">Content Semantic</a></li>
+        <li><a href="CrawlCheck_p.html" class="MenuItemLink">Target Analysis</a></li>
+      </ul>
+      <ul class="nav nav-sidebar menugroup" id="scoutro-nav-administration">
+        <li><h3>Administration</h3></li>
+        <li><a href="IndexControlURLs_p.html" class="MenuItemLink">Index Administration</a></li>
+        <li><a href="Settings_p.html" class="MenuItemLink">System Administration</a></li>
+        <li><a href="Blacklist_p.html" class="MenuItemLink">Filter &amp; Blacklists</a></li>
+        <li><a href="Performance_p.html" class="MenuItemLink">RAM/Disk Usage &amp; Updates</a></li>
+      </ul>
+      <ul class="nav nav-sidebar menugroup" id="scoutro-nav-portal">
+        <li><h3>Search Portal Integration</h3></li>
+        <li><a href="ConfigPortal_p.html" class="MenuItemLink">Portal Configuration</a></li>
+        <li><a href="ConfigAppearance_p.html" class="MenuItemLink">Portal Design</a></li>
+        <li><a href="RankingSolr_p.html" class="MenuItemLink">Ranking and Heuristics</a></li>
+      </ul>
+      <ul class="nav nav-sidebar menugroup" id="scoutro-configuration">
+        <li><h3>Configuration</h3></li>
+        <li><a href="ConfigAccounts_p.html" class="MenuItemLink">Accounts</a></li>
+        <li><a href="ConfigNetwork_p.html" class="MenuItemLink">Network Configuration</a></li>
+        <li><a href="ConfigSearchPage_p.html" class="MenuItemLink">Search Page Layout</a></li>
+        <li><a href="ConfigLanguage_p.html" class="MenuItemLink">Language</a></li>
+      </ul>
+    </details>
+    #(/scoutroAdmin)#
+
+    <ul class="nav nav-sidebar menugroup" id="scoutro-help">
       <li><h3>Help</h3></li>
       <li><a href="scoutro-about.html" class="MenuItemLink">About #%env/templates/scoutro/productname.template%#</a></li>
-      <li><a href="ViewProfile.html?hash=localhash" class="MenuItemLink">About This Page</a></li>
+      #(scoutroAdmin)#::<li><a href="ViewProfile.html?hash=localhash" class="MenuItemLink">About This Page</a></li>#(/scoutroAdmin)#
       <li><a href="jslicense.html" data-jslicense="1" class="MenuItemLink">JavaScript information</a></li>
-      <li><a href="https://community.searchlab.eu" target="_blank" class="MenuItemLink">YaCy Community (Web Forums)</a></li>
-      <li><a href="https://github.com/yacy/yacy_search_server" target="_blank" class="MenuItemLink">YaCy Git Repository</a></li>
-      <li><a href="https://github.com/users/Orbiter/sponsorship" target="_blank" class="MenuItemLink">Sponsor YaCy</a></li>
+      <li><a href="https://yacy.net" target="_blank" rel="noopener" class="MenuItemLink">YaCy project</a></li>
+      <li><a href="https://community.searchlab.eu" target="_blank" rel="noopener" class="MenuItemLink">YaCy Community (Web Forums)</a></li>
+      <li><a href="https://github.com/yacy/yacy_search_server" target="_blank" rel="noopener" class="MenuItemLink">YaCy Git Repository</a></li>
+      <li><a href="https://github.com/users/Orbiter/sponsorship" target="_blank" rel="noopener" class="MenuItemLink">Sponsor YaCy</a></li>
     </ul>
-    </div>
-  
+    </nav>
+
     <div class="col-sm-9 col-sm-offset-3 col-md-10 col-md-offset-2 main">

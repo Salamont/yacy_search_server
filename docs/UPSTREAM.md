@@ -133,8 +133,12 @@ marked with `Scoutro:`.
 
 | File | Scoutro change | Upstream change rate |
 |---|---|---|
-| `htroot/env/templates/header.template` | toggle id, sidebar id, mobile-only groups, brand | medium (5 changes since 2023) |
-| `htroot/env/templates/metas.template` | include `brand/brand.css`, `scoutro.css`, `theme.css`, `scoutro.js`, favicon | low (1 change since 2023) |
+| `htroot/env/templates/header.template` | Scoutro header: brand, search, account menu, permission-driven groups; YaCy's groups unchanged inside "Advanced tools" (merge upstream menu changes there) | medium (5 changes since 2023) |
+| `htroot/env/templates/metas.template` | include `brand/brand.css`, `scoutro.css`, `theme.css`, `scoutro.js`, favicon; CSRF meta of the Scoutro sign-in | low (1 change since 2023) |
+| `source/net/yacy/http/Jetty12HttpServer.java` | session authenticator, route classification by `RoutePolicy`, 403 page (docs/SCOUTRO_USERS_ACCESS.md) | low |
+| `source/net/yacy/http/servlets/YaCyDefaultServlet.java` | Scoutro page class mapping, header switches and CSRF meta from `PageNav` | low |
+| `source/net/yacy/http/AdminSecurity.java`, `source/net/yacy/search/Switchboard.java` | localhost bypass rule as one method; a Scoutro session counts as signed in without an `Authorization` header | low |
+| `source/net/yacy/htroot/Steering.java` | audit entry for Re-Start/Shutdown | low |
 | `htroot/env/templates/footer.template`, `simplefooter.template` | attribution include | low |
 | `htroot/env/templates/simpleSearchHeader.template` | brand logo | low (2 changes since 2023) |
 | `htroot/index.html` | Scoutro start page markup | low (2 changes since 2023) |

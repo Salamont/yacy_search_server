@@ -4,10 +4,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createRequire} from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 const {chromium} = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL, shots = process.env.SCOUTRO_SCREENSHOTS;
 assert(base && new URL(base).hostname === '127.0.0.1', 'Disposable loopback fixture required');
 const browser = await chromium.launch({executablePath:process.env.SCOUTRO_CHROMIUM_PATH, args:['--no-proxy-server']});
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks = 0;
 function check(value, label) { assert(value, label); checks++; }
 const TOOLS = ['datetime','date_math','calculator','number_parser','unit_converter','http_json','table_ops','update_plan','self_reflect','chitchat','prompt_to_mermaid','mermaid_to_ascii','search','wikipedia_link_creator','webfetch'];
@@ -68,15 +70,17 @@ try {
     const page = await context.newPage(); const errors = [];
     page.on('pageerror', e => errors.push(e.message));
 
-    // navigation: the chat is in the AI Lab group although the front page link is off
+    // navigation: the chat is in the Research group although the front page link is off;
+    // the AI Lab is one of the advanced tools (docs/UI.md)
     await page.goto(base + '/IndexBrowser_p.html');
     if (mobile) { await page.locator('#scoutro-nav-toggle').click(); await page.locator('#scoutro-adminnav').waitFor({state:'visible'}); }
+    check(await page.locator('#scoutro-nav-research a[href="yacychat.html"]').isVisible(), 'Chat visible in the Research navigation' + where);
+    await page.locator('#scoutro-nav-advanced > summary').click();
     const group = page.locator('#scoutro-ai');
     check((await group.locator('h3').textContent()).trim() === T.lab, 'AI Lab group' + where);
-    check(await group.locator('a[href="yacychat.html"]').isVisible(), 'Chat visible in the AI Lab navigation' + where);
     check((await group.locator('a[href="AILab.html"]').textContent()).trim() === T.overview, 'AI Lab overview entry' + where);
     check((await group.locator('a[href="ToolsConfig_p.html"]').textContent()).trim() === T.tools, 'Chat tools entry' + where);
-    check(await page.locator('#header_chat').count() === 1, 'Chat button in the admin bar' + where);
+    check(await page.locator('#scoutro-nav-research a[href="yacychat.html"]').count() === 1, 'Chat in the Research navigation' + where);
     if (mobile) await page.keyboard.press('Escape');
 
     // chat surface: title, scope, collection list, mobile composer
