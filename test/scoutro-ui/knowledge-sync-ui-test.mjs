@@ -20,7 +20,8 @@ try {
     await page.route(base + '/**', async route => {
       const u = new URL(route.request().url());
       if (u.pathname === '/ScoutroKnowledge_p.html') {
-        let html = fs.readFileSync(path.join(root, 'htroot/ScoutroKnowledge_p.html'), 'utf8').replace(/#\(\).*?#\(\//gs, '');
+        let html = fs.readFileSync(path.join(root, 'htroot/ScoutroKnowledge_p.html'), 'utf8').replace(/#\(\).*?#\(\//gs, '')
+          .replace('#[scoutroAdmin]#', '1').replace('#[scoutroExport]#', '1'); // operations views need the server's admin flag (accounts, docs/SCOUTRO_USERS_ACCESS.md)
         if (language === 'de') {
           html = html.replace('lang="en"', 'lang="de"');
           const section = fs.readFileSync(path.join(root, 'locales/de.lng'), 'utf8').split('#File: ScoutroKnowledge_p.html\n')[1].split('#File: ')[0];

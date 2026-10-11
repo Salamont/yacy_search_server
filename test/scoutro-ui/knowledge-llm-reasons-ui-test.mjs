@@ -45,7 +45,7 @@ try {
     await page.route(base + '/**', async route => {
       const u = new URL(route.request().url());
       if (u.pathname === '/ScoutroKnowledge_p.html') {
-        let html = page0.replace(/#%[^\n]*?%#/g, '');
+        let html = page0.replace(/#%[^\n]*?%#/g, '').replace('#[scoutroAdmin]#', '1').replace('#[scoutroExport]#', '1'); // operations views need the server's admin flag (accounts, docs/SCOUTRO_USERS_ACCESS.md)
         if (language === 'de') {
           html = html.replace('lang="en"', 'lang="de"');
           for (const [key, value] of section.split('\n').filter(l => l.includes('==') && !l.startsWith('#')).map(l => l.split('==')).sort((a, b) => b[0].length - a[0].length))
