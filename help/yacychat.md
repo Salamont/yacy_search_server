@@ -116,5 +116,9 @@ lists only its collections; without *all collections* there is no "All
 collections" entry and a request without a collection uses its only
 collection or answers `400 collection_required`; a foreign collection
 answers `403 collection_not_allowed`. Accounts never use the peer-to-peer
-network search, and system questions answer `403 system_forbidden`.
+network search, and system questions answer `403 system_forbidden`. The
+model's `search` tool (released with `ai.tools.search.enabled`) searches the
+whole index and the network: it is neither offered to nor run for a chat
+without all collections (also an AI Shield guest); the other released tools
+stay available.
 See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

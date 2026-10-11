@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -106,6 +107,8 @@ public class PeopleRoutesTest {
         assertEquals("edelsenior-web", yacy.last("yacysearch.json").get("collection"));
 
         refused("query_modifier_not_allowed", 400, () -> anna.search(actions, q("q", "test collection:stackfinder-web")));
+        refused("query_modifier_not_allowed", 400, () -> anna.search(actions, q("q", "test /heuristic")));
+        refused("query_modifier_not_allowed", 400, () -> research(Scope.ALL).search(actions, q("q", "test /Heuristic")));
         refused("forbidden", 403, () -> anna.search(actions, q("q", "test", "source", "network")));
         refused("collection_not_allowed", 403, () -> anna.search(actions, q("q", "test", "collection", "stackfinder-web")));
 
@@ -150,6 +153,31 @@ public class PeopleRoutesTest {
         final JSONObject elsewhere = Json.obj("url", "https://example.com/", "collection", "edelsenior-web", "scope", "domain");
         refused("host_indexed_elsewhere", 409, () -> otto.crawlStart(actions, elsewhere, null));
         assertTrue("nothing reached YaCy's crawler", yacy.calls("Crawler_p.json").isEmpty());
+    }
+
+    @Test
+    public void operatorCrawlsStayOnTheExactHost() throws Exception {
+        final FakeUpstream yacy = new FakeUpstream();
+        final ScoutroActions actions = new ScoutroActions(yacy);
+        operator(MINE).crawlStart(actions, Json.obj("url", "https://www.example.com/", "collection", "edelsenior-web",
+                "scope", "domain"), null);
+        final String filter = yacy.last("Crawler_p.json").get("mustnotmatch");
+        assertTrue("the start marker stays readable", ScoutroActions.startMarker(filter) != null);
+        final Pattern outside = Pattern.compile(filter);
+        assertFalse("pages of the host are crawled", outside.matcher("https://www.example.com/scoutro-start-x").matches());
+        // YaCy's domain filter is a host prefix: these would be crawled and re-indexed into the operator's collection
+        for (final String url : new String[] {"https://example.com.au/a", "https://www.example.company/", "https://example.com@evil.example/",
+                "https://evil.example/?u=https://example.com/", "https://sub.example.com/"}) {
+            assertTrue(url, outside.matcher(url).matches());
+        }
+        for (final String url : new String[] {"https://example.com/", "https://www.example.com/a?b=1", "http://example.com:8080/x",
+                "https://example.com", "https://example.com#top"}) {
+            assertFalse(url, outside.matcher(url).matches());
+        }
+        // the administrator keeps YaCy's domain crawl
+        new PeopleRoutes(Caller.admin("admin")).crawlStart(actions, Json.obj("url", "https://other.example/", "collection", "research",
+                "scope", "domain"), null);
+        assertFalse(yacy.last("Crawler_p.json").get("mustnotmatch").contains("(?!"));
     }
 
     @Test

@@ -250,6 +250,8 @@ public class RAGProxyServlet extends HttpServlet {
                     return;
                 }
             }
+            // tools that search the whole index (every collection, the peer-to-peer network) only with all collections
+            llm4Chat.indexTools = allCollections;
             if (member != null ? collection != null && !member.allows(collection)
                     : !ChatCollections.permits(allCollections, collection, releasedCollections)) {
                 ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=collection-not-allowed shield=" + shield + " durationMs=" + elapsed(requestStart));

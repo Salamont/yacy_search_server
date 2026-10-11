@@ -70,4 +70,6 @@ delete and *Run now*. A job of another collection answers like a missing one
 (`403 collection_not_allowed`). The status shows a batch of another
 collection only as busy, and offers no global action: enabling, disabling,
 pausing and resuming the automation and the job export stay with the
-administrator (`403 forbidden`). See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.
+administrator (`403 forbidden`). Every Discovery crawl stays on exactly
+its candidate host (with or without `www.`), the host whose collections the
+start checks. See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

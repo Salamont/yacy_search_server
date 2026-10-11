@@ -42,7 +42,10 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   Discovery's global switches, collections, users and system stay with the
   administrator. The overview is built from the collection catalog instead of
   a fixed list. A collection context in the navigation presets search and
-  function pages.
+  function pages. The model's index `search` tool is not offered to chats
+  without all collections, crawls of such accounts and Discovery crawls stay
+  on exactly their host, and `/heuristic` in a search needs the
+  administrator.
 - Design and permission matrix: [SCOUTRO_USERS_ACCESS.md](docs/SCOUTRO_USERS_ACCESS.md);
   baseline with evidence: [SCOUTRO_ACCESS_BASELINE.md](docs/SCOUTRO_ACCESS_BASELINE.md).
 

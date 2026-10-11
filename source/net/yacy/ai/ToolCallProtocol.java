@@ -89,15 +89,20 @@ public final class ToolCallProtocol {
      * @return prepared request body clone
      */
     public static JSONObject prepareToolRequestBody(JSONObject body, boolean forceStream, boolean toolingEnabled) {
+        return prepareToolRequestBody(body, forceStream, toolingEnabled, true);
+    }
+
+    /** As {@link #prepareToolRequestBody(JSONObject, boolean, boolean)}; without {@code indexTools} no tool that reads the whole index. */
+    public static JSONObject prepareToolRequestBody(JSONObject body, boolean forceStream, boolean toolingEnabled, boolean indexTools) {
         try {
             final JSONObject prepared = body == null ? new JSONObject(true) : new JSONObject(body.toString());
             if (forceStream) prepared.put("stream", true);
             // only server-released tools, never client-supplied definitions
-            net.yacy.ai.ToolProvider.applyReleasedTools(prepared, toolingEnabled);
+            net.yacy.ai.ToolProvider.applyReleasedTools(prepared, toolingEnabled, indexTools);
             return prepared;
         } catch (JSONException e) {
             final JSONObject fallback = new JSONObject(true);
-            net.yacy.ai.ToolProvider.applyReleasedTools(fallback, toolingEnabled);
+            net.yacy.ai.ToolProvider.applyReleasedTools(fallback, toolingEnabled, indexTools);
             return fallback;
         }
     }
@@ -167,7 +172,8 @@ public final class ToolCallProtocol {
 
     public static int proxyToolLifecycle(ServletOutputStream out, LLM.LLMModel llm4Chat, JSONObject originalBody, JSONArray messages, JSONObject initialMetadata, final String runId, final AnswerHook hook) throws IOException {
         final long start = System.currentTimeMillis();
-        final JSONObject preparedBody = prepareToolRequestBody(originalBody, false, llm4Chat != null && llm4Chat.tooling);
+        final JSONObject preparedBody = prepareToolRequestBody(originalBody, false, llm4Chat != null && llm4Chat.tooling,
+                llm4Chat == null || llm4Chat.indexTools);
         if (llm4Chat != null && llm4Chat.thinking) {
             LLM.applyNoThinkingParameters(preparedBody);
         }
@@ -355,7 +361,8 @@ public final class ToolCallProtocol {
 
             for (int round = 0; round < MAX_TOOL_ROUNDS; round++) {
                 // Convert captured tool calls into assistant/tool messages and execute tools.
-                ToolRoundData roundData = appendAssistantAndToolMessages(newMessages, roundAssistantContent, roundToolCalls, toolCallCounters, runId, round);
+                ToolRoundData roundData = appendAssistantAndToolMessages(newMessages, roundAssistantContent, roundToolCalls, toolCallCounters, runId, round,
+                        llm4Chat == null || llm4Chat.indexTools);
                 if (roundData == null || roundData.toolResults.length() == 0) {
                     // No executable tool calls; terminate stream cleanly.
                     log.info(prefix(runId) + "event=tool-round phase=end round=" + round + " result=no-executable-tool-calls requested=" + (roundToolCalls == null ? 0 : roundToolCalls.size()));
@@ -366,7 +373,8 @@ public final class ToolCallProtocol {
                 }
 
                 // Build follow-up completion request from original body template.
-                final JSONObject followup = prepareToolRequestBody(originalBody, true, llm4Chat != null && llm4Chat.tooling);
+                final JSONObject followup = prepareToolRequestBody(originalBody, true, llm4Chat != null && llm4Chat.tooling,
+                        llm4Chat == null || llm4Chat.indexTools);
                 if (llm4Chat != null && llm4Chat.thinking) {
                     LLM.applyNoThinkingParameters(followup);
                 }
@@ -538,10 +546,11 @@ public final class ToolCallProtocol {
      *         results, or {@code null} when JSON assembly fails
      */
     private static ToolRoundData appendAssistantAndToolMessages(JSONArray messages, String assistantContent, Map<Integer, ToolCall> toolCalls, Map<String, Integer> toolCallCounters) {
-        return appendAssistantAndToolMessages(messages, assistantContent, toolCalls, toolCallCounters, null, -1);
+        return appendAssistantAndToolMessages(messages, assistantContent, toolCalls, toolCallCounters, null, -1, true);
     }
 
-    private static ToolRoundData appendAssistantAndToolMessages(JSONArray messages, String assistantContent, Map<Integer, ToolCall> toolCalls, Map<String, Integer> toolCallCounters, final String runId, final int round) {
+    private static ToolRoundData appendAssistantAndToolMessages(JSONArray messages, String assistantContent, Map<Integer, ToolCall> toolCalls, Map<String, Integer> toolCallCounters, final String runId, final int round,
+            final boolean indexTools) {
         try {
             // Keep original model call order stable by sorting call indices.
             List<Integer> indices = new ArrayList<>(toolCalls.keySet());
@@ -559,7 +568,7 @@ public final class ToolCallProtocol {
                 // Enforce per-tool max calls for the complete tool turn lifecycle;
                 // unknown and not released tools have no calls at all.
                 final String toolName = call.name == null ? "" : call.name.trim();
-                final int maxCalls = net.yacy.ai.ToolProvider.allowedCallsPerTurn(toolName);
+                final int maxCalls = net.yacy.ai.ToolProvider.allowedCallsPerTurn(toolName, indexTools);
                 final int usedCalls = toolCallCounters.getOrDefault(toolName, Integer.valueOf(0)).intValue();
                 if (usedCalls >= maxCalls) {
                     log.warn(prefix(runId) + "event=tool-execution phase=skip round=" + round + " tool=" + LogRedaction.redact(toolName) + " reason=max-calls used=" + usedCalls + " max=" + maxCalls);
@@ -579,7 +588,7 @@ public final class ToolCallProtocol {
                 // Execute tool locally and create "tool" role response message.
                 final long toolStart = System.currentTimeMillis();
                 log.info(prefix(runId) + "event=tool-execution phase=start round=" + round + " tool=" + LogRedaction.redact(call.name) + " argumentChars=" + (call.arguments == null ? 0 : call.arguments.length()));
-                String result = net.yacy.ai.ToolProvider.executeTool(call.name, call.arguments);
+                String result = net.yacy.ai.ToolProvider.executeTool(call.name, call.arguments, indexTools);
                 log.info(prefix(runId) + "event=tool-execution phase=end round=" + round + " tool=" + LogRedaction.redact(call.name) + " resultChars=" + (result == null ? 0 : result.length()) + " durationMs=" + (System.currentTimeMillis() - toolStart));
                 JSONObject toolMessage = new JSONObject(true);
                 toolMessage.put("role", "tool");

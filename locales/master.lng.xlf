@@ -8579,8 +8579,8 @@
     <trans-unit id="a623407a" xml:space="preserve" approved="no" translate="yes">
        <source>This collection is not available to you.</source>
     </trans-unit>
-    <trans-unit id="a58c45c4" xml:space="preserve" approved="no" translate="yes">
-       <source>Choose the collection in the list instead of writing collection: in the search words.</source>
+    <trans-unit id="f7054ca3" xml:space="preserve" approved="no" translate="yes">
+       <source>Remove collection: or /heuristic from the search words; choose the collection in the list.</source>
     </trans-unit>
     <trans-unit id="23429ac1" xml:space="preserve" approved="no" translate="yes">
        <source>The search words or the collection are not valid.</source>

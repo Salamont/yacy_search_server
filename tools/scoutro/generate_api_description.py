@@ -31,7 +31,7 @@ E = {
 }
 def errs(*codes): return {c: E[c] for c in codes}
 EA = {
- "400": err("Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url)."),
+ "400": err("Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url)."),
  "401": err("Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here."),
  "403": err("Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>."),
  "404": err("Not found; for crawls also every crawl this agent did not start (crawl_not_found)."),

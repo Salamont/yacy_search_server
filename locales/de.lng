@@ -6667,7 +6667,7 @@ Who may use a collection is set per account under <a href="ScoutroUsers_p.html">
 #File: scoutro-search.html
 #---------------------------
 Only your collections are searched; the server checks every request.==Es werden nur Ihre Collections durchsucht; der Server prüft jede Anfrage.
-Choose the collection in the list instead of writing collection: in the search words.==Wählen Sie die Collection in der Liste, statt collection: in die Suchwörter zu schreiben.
+Remove collection: or /heuristic from the search words; choose the collection in the list.==Entfernen Sie collection: oder /heuristic aus den Suchwörtern; wählen Sie die Collection in der Liste.
 No collection is available to you. Ask an administrator.==Ihnen steht keine Collection zur Verfügung. Wenden Sie sich an einen Administrator.
 No pages found. Try other words or another collection.==Keine Seiten gefunden. Versuchen Sie andere Wörter oder eine andere Collection.
 Your session has ended. Please sign in again.==Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.

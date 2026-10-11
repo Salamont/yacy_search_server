@@ -19,7 +19,7 @@ accounts here, while the native YaCy search stays with the administrator.
 
 | Element | What it does |
 |---|---|
-| Search words | Up to 200 characters. Write no `collection:`; choose the collection in the list. |
+| Search words | Up to 200 characters. Write no `collection:` (choose the collection in the list) and no `/heuristic`. |
 | Collection | *All my collections* or one of them. The list comes from `GET /scoutro/api/v1/collections` and shows only the identity's collections. |
 | Results | Title (link to the page), address and snippet; 10 per page with *Previous* and *Next*. With several collections the number is approximate and paging ends after 100 results. |
 
@@ -34,7 +34,9 @@ The server decides the scope of every request
 identity's collections are searched (never the whole index unless it has all
 collections); a foreign or unknown collection answers
 `403 collection_not_allowed`, `collection:` in the words
-`400 query_modifier_not_allowed`, and the peer-to-peer search
+`400 query_modifier_not_allowed` (also `/heuristic`, which would search other
+services and index their pages with the administrator's rights; for every
+caller without the administrator role), and the peer-to-peer search
 (`source=network`) `403`. The page stores nothing; the collection context of
 the navigation lasts for the browser tab.
 

@@ -4,6 +4,7 @@ package net.yacy.scoutro.api;
 import java.net.URI;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import net.yacy.scoutro.agents.CrawlRecord;
 import org.json.JSONObject;
 
@@ -12,9 +13,27 @@ final class CrawlRequest {
     final String url, collection, scope, host;
     final int depth;
     final Integer maxPages;
+    /** Only pages of the start host (with or without www.): for callers without every collection. */
+    final boolean hostOnly;
     private CrawlRequest(final String url, final String collection, final String scope, final int depth, final Integer pages) {
+        this(url, collection, scope, depth, pages, false);
+    }
+    private CrawlRequest(final String url, final String collection, final String scope, final int depth, final Integer pages,
+            final boolean hostOnly) {
         this.url = url; this.collection = collection; this.scope = scope; this.depth = depth; this.maxPages = pages;
         this.host = URI.create(url).getHost().toLowerCase(Locale.ROOT);
+        this.hostOnly = hostOnly;
+    }
+    CrawlRequest hostOnly() {
+        return new CrawlRequest(this.url, this.collection, this.scope, this.depth, this.maxPages, true);
+    }
+    /**
+     * A must-not-match filter for every URL outside the start host. YaCy's domain filter is a prefix
+     * ({@code (www.)?host.*}) and would also follow {@code host.com.au} or {@code host.dental.example}.
+     */
+    String outsideHostFilter() {
+        final String h = this.host.startsWith("www.") ? this.host.substring(4) : this.host;
+        return "(?!https?://(www\\.)?" + Pattern.quote(h) + "(:[0-9]+)?([/?#].*)?$).*";
     }
     static CrawlRequest parse(final JSONObject body) throws ApiException {
         return parse(body, ScoutroActions.DEFAULT_DEPTH, null);

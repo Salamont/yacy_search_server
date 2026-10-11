@@ -65,5 +65,8 @@ collection answers like a missing one (`404 crawl_not_found`).
 refuses a foreign collection (`403 collection_not_allowed`), the scope
 `wide` (`403 scope_not_allowed`) and a host that already has documents in
 collections outside its scope (`409 host_indexed_elsewhere`), because YaCy
-re-indexes crawled pages into the collection of the new crawl. Research
+re-indexes crawled pages into the collection of the new crawl. Such a crawl
+stays on exactly its host (with or without `www.`): YaCy's domain filter
+alone is a prefix and would also follow `host.com.au` or `host.dental…`.
+Research
 accounts get `403`. See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

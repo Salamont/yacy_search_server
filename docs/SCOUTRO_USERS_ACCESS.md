@@ -213,7 +213,8 @@ re-validates it on every request.
 |---|---|
 | Container (page and route rules of both modes) | `RoutePolicy` (`PROTECTED_PAGES`, `GUEST_API`), `Jetty12HttpServer.scoutroConstraint` |
 | Scoutro API (permission and scope of every route) | `ScoutroApiServlet.route` with `PeopleRoutes`; `DiscoveryApi` (jobs by profile collection); `KnowledgeRead` (restricted reader) |
-| Chat | `RAGProxyServlet` with `ChatCollections.member` (`LLMAccess.Shield.ACCOUNT`), `SystemQuestionChat` |
+| Chat | `RAGProxyServlet` with `ChatCollections.member` (`LLMAccess.Shield.ACCOUNT`), `SystemQuestionChat`; `LLM.LLMModel.indexTools` (the index `search` tool only with all collections: `ToolProvider.readsIndex`, `ToolCallProtocol`) |
+| Crawls | `PeopleRoutes.crawlStart` and `DiscoveryGateway.start`: `CrawlRequest.hostOnly` (a must-not-match filter for every URL outside the exact host) |
 | Pages | `ScoutroSEO_p`, `ScoutroKnowledge_p`, `ScoutroCrawls_p`, `ScoutroDiscovery_p` (`Caller`), `IndexBrowser_p` (maintenance stays with the administrator), `ScoutroDashboard` (catalog ∩ scope), `index.java` (redirect to `scoutro-search.html`), `yacychat.java` (collection list) |
 | Navigation | `PageNav` and `header.template` (display only) |
 

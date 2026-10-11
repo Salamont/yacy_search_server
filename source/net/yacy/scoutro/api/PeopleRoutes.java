@@ -154,6 +154,11 @@ final class PeopleRoutes {
             throw new ApiException(400, "query_modifier_not_allowed", "The query must not contain 'collection:'; "
                     + "use the parameter 'collection' with one of your collections.", Json.obj("field", "q"));
         }
+        if (q != null && q.toLowerCase(Locale.ROOT).contains("/heuristic")) {
+            // the search runs through the administrator's loopback: no search on other services for accounts and guests
+            throw new ApiException(400, "query_modifier_not_allowed", "The query must not contain '/heuristic'.",
+                    Json.obj("field", "q"));
+        }
         return ScopedActions.searchWithin(actions, query, view(query), "You have more than "
                 + ScopedActions.MAX_SEARCH_COLLECTIONS + " collections; choose one with the parameter 'collection'.");
     }
@@ -242,8 +247,9 @@ final class PeopleRoutes {
 
     /**
      * crawl.start into an allowed collection. Without all collections a crawl stays on its host (no
-     * "wide" scope) and must not touch a host with documents outside the identity's collections:
-     * YaCy re-indexes crawled pages into the collection of the new crawl (the agents' rule).
+     * "wide" scope, and a filter for exactly this host instead of YaCy's host prefix) and must not touch
+     * a host with documents outside the identity's collections: YaCy re-indexes crawled pages into the
+     * collection of the new crawl (the agents' rule).
      */
     JSONObject crawlStart(final ScoutroActions actions, final JSONObject body, final String idempotencyKey) throws ApiException {
         if (!allCollections()) {
@@ -262,6 +268,6 @@ final class PeopleRoutes {
                         + "collection. Ask an administrator.", Json.obj("host", request.host));
             }
         }
-        return actions.crawlStartAdmin(body, idempotencyKey);
+        return actions.crawlStartAdmin(body, idempotencyKey, !allCollections());
     }
 }

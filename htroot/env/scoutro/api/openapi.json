@@ -5703,7 +5703,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -5843,7 +5843,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6074,7 +6074,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6167,7 +6167,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6270,7 +6270,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6397,7 +6397,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6535,7 +6535,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6737,7 +6737,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6890,7 +6890,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7003,7 +7003,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7284,7 +7284,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7555,7 +7555,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7776,7 +7776,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8143,7 +8143,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8364,7 +8364,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8541,7 +8541,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8782,7 +8782,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8983,7 +8983,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9272,7 +9272,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9493,7 +9493,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9869,7 +9869,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10221,7 +10221,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10355,7 +10355,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10548,7 +10548,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10682,7 +10682,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10840,7 +10840,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10998,7 +10998,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11156,7 +11156,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11314,7 +11314,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11460,7 +11460,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11628,7 +11628,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11870,7 +11870,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12017,7 +12017,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12190,7 +12190,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12359,7 +12359,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12528,7 +12528,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12709,7 +12709,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12833,7 +12833,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13001,7 +13001,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13159,7 +13159,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13293,7 +13293,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13451,7 +13451,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13611,7 +13611,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13778,7 +13778,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15433,7 +15433,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15689,7 +15689,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15845,7 +15845,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -17208,7 +17208,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {

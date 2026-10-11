@@ -410,6 +410,17 @@ def scopes(base, admin, anna):
         status, body, _ = otto.call("POST", "/scoutro/api/v1/crawls", crawl)
         check(otto.code(body) == code, "operator crawl refused: " + code, str(status) + " " + str(body)[:160])
     check(otto.call("GET", "/scoutro/api/v1/crawls")[0] == 200, "operator lists its crawls")
+    status, body, _ = otto.call("POST", "/scoutro/api/v1/crawls", {"url": "https://neu-ui.example/", "collection": "edelsenior-web",
+                                                                  "scope": "domain", "depth": 1, "maxPages": 2})
+    crawl = body.get("id") if isinstance(body, dict) and status == 201 else None
+    # offline the start page cannot load and YaCy refuses after creating the profile; online the crawl starts
+    check(crawl or (status == 422 and otto.code(body) == "crawl_rejected"), "operator crawl start of a new host reaches YaCy",
+          str(status) + " " + str(body)[:200])
+    status, text = Client(base, digest=("admin", "yacy")).page("/CrawlProfileEditor_p.xml")
+    check("(?!https?://(www\\.)?\\Qneu-ui.example\\E" in text, "the crawl stays on exactly this host (not neu-ui.example.com)")
+    if crawl:
+        check(otto.call("GET", "/scoutro/api/v1/crawls/" + crawl)[0] == 200, "the operator's crawl is found by its start marker")
+        check(otto.call("POST", "/scoutro/api/v1/crawls/" + crawl + "/stop", {})[0] == 200, "operator stops its crawl")
     check(otto.call("GET", "/scoutro/api/v1/reports/jobs")[0] == 200, "operator reads crawl reports")
     for method, path in (("POST", "/scoutro/api/v1/discovery/enable"), ("GET", "/scoutro/api/v1/discovery/export"),
                          ("GET", "/scoutro/api/v1/kg/status"), ("GET", "/scoutro/api/v1/kg/backups"), ("POST", "/scoutro/api/v1/collections/reassign")):
