@@ -953,6 +953,24 @@ public final class LlmExtractor {
         return at;
     }
 
+    /**
+     * End of the quote in {@code raw} if it starts exactly at {@code at} (whitespace may differ); -1 if it cannot be
+     * located there.
+     */
+    public static int rawEnd(final String raw, final int at, final String quote) {
+        final String q = normal(quote);
+        if (q.isEmpty() || at < 0 || at > raw.length()) {
+            return -1;
+        }
+        final StringBuilder p = new StringBuilder();
+        for (final String token : q.split(" ")) {
+            p.append(p.length() == 0 ? "" : "\\s+").append(Pattern.quote(token));
+        }
+        final Matcher m = Pattern.compile(p.toString()).matcher(raw);
+        m.region(at, raw.length());
+        return m.lookingAt() ? m.end() : -1;
+    }
+
     /** Offset of the quote in the raw chunk text (whitespace may differ); 0 if it cannot be located exactly. */
     static int rawOffset(final String raw, final String quote) {
         final String q = normal(quote);

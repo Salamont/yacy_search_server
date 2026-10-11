@@ -49,17 +49,33 @@ final class PageText {
     final int moved;
     /** Segments: start in {@link #text}, start in the stored text, length. */
     private final int[][] segments;
+    /** The other pages of the host the layout compared (document IDs, comma-separated); null if none were asked. */
+    final String siblings;
 
-    private PageText(final String text, final int moved, final int[][] segments) {
+    private PageText(final String text, final int moved, final int[][] segments, final String siblings) {
         this.text = text;
         this.moved = moved;
         this.segments = segments;
+        this.siblings = siblings;
     }
 
     /** The stored text unchanged. */
     static PageText of(final String text) {
         final String t = text == null ? "" : text;
-        return new PageText(t, 0, new int[][] {{0, 0, t.length()}});
+        return new PageText(t, 0, new int[][] {{0, 0, t.length()}}, null);
+    }
+
+    /** This layout, made with the given other pages of the host. */
+    PageText comparedWith(final String siblingIds) {
+        return new PageText(this.text, this.moved, this.segments, siblingIds);
+    }
+
+    /**
+     * True if the characters {@code [start, end)} of {@link #text} are as contiguous in the stored text: no moved block
+     * lies between them, so a quote there is verbatim in the stored page too.
+     */
+    boolean contiguous(final int start, final int end) {
+        return end <= start || origin(end - 1) - origin(start) == end - 1 - start;
     }
 
     /** The position in the stored text of a position in {@link #text}. */
@@ -196,6 +212,6 @@ final class PageText {
             segs.add(new int[] {base + s[0], s[1], s[2]});
         }
         content.append(tail);
-        return new PageText(content.toString(), moved, segs.toArray(new int[0][]));
+        return new PageText(content.toString(), moved, segs.toArray(new int[0][]), null);
     }
 }

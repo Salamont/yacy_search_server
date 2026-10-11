@@ -133,6 +133,11 @@ final class LlmQueue {
 
     /** Prefix of the persisted scan position of a collection ({@code llm_scan:<coll_id>} = {@code frontier:revisit}). */
     static final String CURSOR_PREFIX = "llm_scan:";
+    /**
+     * Per page whose first reading left text for a continuation ({@link #MORE_TEXT}): the other pages of its host the
+     * reading's layout compared, so the continuation lays the page out the same way ({@code kg_meta}).
+     */
+    static final String LAYOUT_PREFIX = "llm_layout:";
 
     /**
      * The scan of one LLM collection (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): its frontier walks the collection's pages in
@@ -263,6 +268,7 @@ final class LlmQueue {
         final List<String[]> out = new ArrayList<>();
         try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_id, d.host_id FROM kg_doc d INDEXED BY kg_doc_llm_status"
                 + " WHERE d.llm_status = 1 AND d.llm_reason = '" + MORE_TEXT + "' AND d.state = 1 AND d.host_id IS NOT NULL"
+                + " AND d.input_hash IS NOT NULL"
                 + " AND NOT EXISTS (SELECT 1 FROM kg_llm_work w WHERE w.doc_id = d.doc_id) ORDER BY d.doc_rowid LIMIT ?")) {
             ps.setInt(1, limit);
             try (ResultSet rs = ps.executeQuery()) {
@@ -487,8 +493,21 @@ final class LlmQueue {
     }
 
     /** Empties the queue and forgets the scan positions (full reset). */
+    /** Removes up to 16 layouts of pages no longer waiting for a continuation (changed, deleted or reset meanwhile). */
+    static void pruneLayouts(final Connection tx) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_meta WHERE key IN (SELECT m.key FROM kg_meta m WHERE m.key GLOB '"
+                + LAYOUT_PREFIX + "*' AND NOT EXISTS (SELECT 1 FROM kg_doc d WHERE d.doc_id = substr(m.key, " + (LAYOUT_PREFIX.length() + 1)
+                + ") AND d.llm_status = " + STATUS_DONE + " AND d.llm_reason = '" + MORE_TEXT + "') LIMIT 16)")) {
+            ps.executeUpdate();
+        }
+    }
+
     static int clear(final Connection tx) throws SQLException {
         resetCursors(tx);
+        try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_meta WHERE key GLOB ?")) {
+            ps.setString(1, LAYOUT_PREFIX + "*");
+            ps.executeUpdate();
+        }
         try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_llm_work")) {
             return ps.executeUpdate();
         }

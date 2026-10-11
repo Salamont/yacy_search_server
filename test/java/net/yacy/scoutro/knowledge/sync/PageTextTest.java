@@ -1,6 +1,7 @@
 package net.yacy.scoutro.knowledge.sync;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
@@ -60,6 +61,24 @@ public class PageTextTest {
         }
         final String quote = "Leistungen: Data Warehouse und Reporting.";
         assertEquals(page.indexOf(quote), pt.origin(pt.text.indexOf(quote)));
+    }
+
+    @Test
+    public void aQuoteAcrossAMovedBlockIsNotContiguousInTheStoredText() {
+        final String m = menu();
+        final Set<String> rec = PageText.recurring(List.of(PageText.keys(m + "A"), PageText.keys(m + "B")));
+        final String page = "PTA GmbH\n" + m + "Business Intelligence\n" + content("BI", 14_000);
+        final PageText pt = PageText.layout(page, rec, 12_000);
+        // the model reads "PTA GmbH" and "Business Intelligence" on adjacent lines: the stored page has the menu between
+        final String across = "PTA GmbH Business Intelligence";
+        final int at = 0;
+        final int end = net.yacy.scoutro.knowledge.extract.LlmExtractor.rawEnd(pt.text, at, across);
+        assertEquals("PTA GmbH\nBusiness Intelligence".length(), end);
+        assertFalse(pt.contiguous(at, end));
+        // a quote within the content is contiguous
+        final int in = pt.text.indexOf("BI Absatz 3");
+        assertTrue(pt.contiguous(in, net.yacy.scoutro.knowledge.extract.LlmExtractor.rawEnd(pt.text, in, "BI Absatz 3: Wir beraten")));
+        assertEquals("not located there", -1, net.yacy.scoutro.knowledge.extract.LlmExtractor.rawEnd(pt.text, in + 1, "BI Absatz 3"));
     }
 
     @Test

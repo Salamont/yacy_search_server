@@ -106,9 +106,22 @@ public final class LlmService {
     static final int CONTINUATION_QUEUED = 10;
     /** A continuation starts this many characters at most before the first reading's end: at the line or sentence it cut. */
     static final int CONTINUATION_OVERLAP = 400;
-    /** Legal pages are not continued: their length is legal text, not the business information the tier extracts. */
+    /**
+     * Legal pages are not continued: their length is legal text, not the business information the tier extracts. Only
+     * the URL's path counts (a host named after one of the words is no legal page).
+     */
     private static final java.util.regex.Pattern LEGAL = java.util.regex.Pattern.compile(
-            "(?i)(?:datenschutz|privacy|agb|terms|cookie|nutzungsbedingungen|widerruf|disclaimer|haftungsausschluss)");
+            "(?i)(?:datenschutz|dsgvo|privacy|agb|terms|cookie|nutzungsbedingungen|widerruf|disclaimer|haftungsausschluss)");
+
+    static boolean legal(final String url) {
+        String path;
+        try {
+            path = url == null ? null : new java.net.URI(url).getRawPath();
+        } catch (final Exception e) {
+            path = null;
+        }
+        return path != null && LEGAL.matcher(path).find();
+    }
     static final long UNCONFIRMED_MAX_BACKOFF_MILLIS = 30L * 60_000L;
     static final long FIRST_RETRY_MILLIS = 60_000L;
     static final long COUNTS_MILLIS = 30_000L;
@@ -408,6 +421,7 @@ public final class LlmService {
                     this.terms.seed(tx);
                     LlmQueue.resetClaims(tx);
                     LlmProgress.prune(tx);
+                    LlmQueue.pruneLayouts(tx);
                     String lastStart = KgStore.getMeta(tx, LAST_START);
                     if (lastStart != null) this.timing.restoreLastStart(Long.valueOf(lastStart));
                     final String last = KgStore.getMeta(tx, KgSchema.META_LLM_SELECTION);
@@ -533,7 +547,7 @@ public final class LlmService {
             }
             if(now>=this.pruneAt){
                 this.pruneAt=now+60_000L;
-                this.store.write(WriteClass.MAINTENANCE,SMALL,tx->{LlmProgress.prune(tx);return null;});
+                this.store.write(WriteClass.MAINTENANCE,SMALL,tx->{LlmProgress.prune(tx);LlmQueue.pruneLayouts(tx);return null;});
             }
             if(!flushProgress())return idle("waiting","checkpoint_storage",GATE_MILLIS);
             final String temporal=this.timing.workReason();
@@ -964,7 +978,13 @@ public final class LlmService {
             return;
         }
         if (continuation && (d == null || !row.sameInput(d))) {
-            complete(item); // a changed page: the sync resets the mark and the new text is read from the start
+            // Solr lacks the page or holds another input: the sync removes the page or resets its mark (the new text is
+            // read from the start); until then the continuation waits as an unconfirmed input does, and ends as text_cut
+            if (item.attempts + 1 >= unconfirmedLimit()) {
+                finishContinuation(item, row, LlmQueue.TEXT_CUT, 0);
+            } else {
+                release(item, now + Math.min(UNCONFIRMED_MAX_BACKOFF_MILLIS, CHANGED_RETRY_MILLIS << Math.min(6, item.attempts)), true);
+            }
             return;
         }
         if (d == null) {
@@ -986,7 +1006,7 @@ public final class LlmService {
                 markAndComplete(item, row.llmInput(), LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_CANDIDATE);
                 return;
             }
-            pageText = layout(item.docId, row.hostId, page.get());
+            pageText = layout(item.docId, row.hostId, page.get(), continuation);
         } catch (final IOException e) {
             this.lastError = "solr: " + e.getMessage();
             release(item, now + SOLR_RETRY_MILLIS, false);
@@ -1002,7 +1022,7 @@ public final class LlmService {
         final int readUpTo = continuation && !chunks.isEmpty() ? chunks.get(chunks.size() - 1).offset + chunks.get(chunks.size() - 1).text.length()
                 : Math.min(pageText.text.length(), this.cfg.extractMaxInputChars);
         final String reason = pageText.text.length() <= readUpTo ? null
-                : !continuation && this.cfg.llmContinuationChunks > 0 && !LEGAL.matcher(d.url == null ? "" : d.url).find() ? LlmQueue.MORE_TEXT
+                : !continuation && this.cfg.llmContinuationChunks > 0 && !legal(d.url) ? LlmQueue.MORE_TEXT
                 : LlmQueue.TEXT_CUT;
         final RequestBudget budget = budget(p);
         final RequestBudget.Plan plan = budget.plan(chunks, known, title, domain, d.language, kinds);
@@ -1067,7 +1087,7 @@ public final class LlmService {
                 try{checkpoint(item,progress);}catch(KgException refused){
                     defer(item, progress, "checkpoint_storage");
                 }
-                transportFailure(item, row.llmInput(), e);
+                transportFailure(item, row, continuation, pageText.text.length() - this.cfg.extractMaxInputChars, e);
                 return;
             }
             this.breaker.success();
@@ -1096,6 +1116,10 @@ public final class LlmService {
         for (int i = 0; i < accepted.size(); i++) {
             LlmExtractor.apply(atOrigin(accepted.get(i), pageText), acceptedKnown.get(i), ex, ctx);
         }
+        if (!continuation && pageText.moved > 0) {
+            this.counters.navigationMoved.incrementAndGet();
+            this.counters.navigationMovedChars.addAndGet(pageText.moved);
+        }
         ex.ranTier(LlmExtractor.TIER);
         // counted once per reading that is published, not per attempt (a deferred document is planned again)
         this.counters.knownTrimmed.addAndGet(plan.knownTrimmed);
@@ -1103,7 +1127,7 @@ public final class LlmService {
         boolean handedBack = false;
         try {
             handedBack = publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate(), reason, continuation,
-                    Math.max(0, pageText.text.length() - readUpTo));
+                    Math.max(0, pageText.text.length() - readUpTo), pageText.siblings);
         } finally {
             // an item handed back for the page's new input may be claimed by another worker already: not released again
             if (!handedBack && this.store.read(c -> queued(c, item.docId)))
@@ -1132,11 +1156,14 @@ public final class LlmService {
      * recur on up to three other pages of its host (the first by document ID, so the same page is read the same way)
      * gets them behind its own content; every other page is read unchanged.
      */
-    private PageText layout(final String docId, final String hostId, final String text) throws IOException, KgException {
+    private PageText layout(final String docId, final String hostId, final String text, final boolean continuation)
+            throws IOException, KgException {
         if (text == null || text.length() <= this.cfg.extractMaxInputChars || hostId == null) {
             return PageText.of(text);
         }
-        final List<String> ids = this.store.read(c -> {
+        // a continuation lays the page out as its first reading did: the host's pages may have changed since
+        final String first = continuation ? this.store.read(c -> KgStore.getMeta(c, LlmQueue.LAYOUT_PREFIX + docId)) : null;
+        final List<String> ids = first != null ? (first.isEmpty() ? List.of() : Arrays.asList(first.split(","))) : this.store.read(c -> {
             final List<String> out = new ArrayList<>();
             try (PreparedStatement ps = c.prepareStatement("SELECT doc_id FROM kg_doc WHERE host_id = ? AND state = 1 AND doc_id <> ?"
                     + " ORDER BY doc_id LIMIT " + PageText.SIBLINGS)) {
@@ -1151,7 +1178,7 @@ public final class LlmService {
             return out;
         });
         if (ids.isEmpty()) {
-            return PageText.of(text);
+            return PageText.of(text).comparedWith("");
         }
         final String key = hostId + "|" + String.join(",", ids);
         Set<String> recurring = this.recurringLines.get(key);
@@ -1163,16 +1190,15 @@ public final class LlmService {
             recurring = PageText.recurring(sets);
             this.recurringLines.put(key, recurring);
         }
-        final PageText pt = PageText.layout(text, recurring, this.cfg.extractMaxInputChars);
-        if (pt.moved > 0) {
-            this.counters.navigationMoved.incrementAndGet();
-            this.counters.navigationMovedChars.addAndGet(pt.moved);
-        }
-        return pt;
+        return PageText.layout(text, recurring, this.cfg.extractMaxInputChars).comparedWith(String.join(",", ids));
     }
 
-    /** The accepted items with their quote positions in the stored text (the cached answer keeps those of the input). */
-    private static JSONObject atOrigin(final JSONObject accepted, final PageText pt) {
+    /**
+     * The accepted items with their quote positions in the stored text (the cached answer keeps those of the input). An
+     * item whose quote runs across a block moved from between its parts is left out: the quote is verbatim in the text
+     * the model read, not in the stored page (a claim about a left-out entity goes with it).
+     */
+    private JSONObject atOrigin(final JSONObject accepted, final PageText pt) {
         if (pt.moved == 0) {
             return accepted;
         }
@@ -1183,12 +1209,21 @@ public final class LlmService {
                 if (items == null) {
                     continue;
                 }
+                final org.json.JSONArray kept = new org.json.JSONArray();
                 for (int i = 0; i < items.length(); i++) {
                     final JSONObject item = items.optJSONObject(i);
                     if (item != null && item.has("at")) {
-                        item.put("at", pt.origin(item.optInt("at")));
+                        final int at = item.optInt("at");
+                        final int end = LlmExtractor.rawEnd(pt.text, at, item.optString("quote"));
+                        if (end > at && !pt.contiguous(at, end)) {
+                            this.counters.droppedUngrounded.incrementAndGet();
+                            continue;
+                        }
+                        item.put("at", pt.origin(at));
                     }
+                    kept.put(item);
                 }
+                out.put(field, kept);
             }
             return out;
         } catch (final org.json.JSONException e) {
@@ -1332,8 +1367,12 @@ public final class LlmService {
         return run;
     }
 
+    /**
+     * A failed call: retried with a backoff, after {@code llm.maxAttempts} the page is failed; a continuation leaves the
+     * page's first reading as it is and the rest unread ({@code text_cut}, {@code unread} characters).
+     */
     private void transportFailure(
-            final LlmQueue.Item item, final byte[] llmInput, final IOException e)
+            final LlmQueue.Item item, final DocRow row, final boolean continuation, final int unread, final IOException e)
             throws KgException {
         final String why =
                 e instanceof SocketTimeoutException ? "timeout" : e.getClass().getSimpleName();
@@ -1343,9 +1382,11 @@ public final class LlmService {
         }
         this.breaker.failure(why);
         this.lastError = "llm: " + why;
-        if (item.attempts + 1 >= this.cfg.llmMaxAttempts) {
+        if (item.attempts + 1 >= this.cfg.llmMaxAttempts && continuation) {
+            finishContinuation(item, row, LlmQueue.TEXT_CUT, unread);
+        } else if (item.attempts + 1 >= this.cfg.llmMaxAttempts) {
             this.counters.failedDocs.incrementAndGet();
-            markAndComplete(item, llmInput, LlmQueue.STATUS_FAILED, LlmQueue.FAILED);
+            markAndComplete(item, row.llmInput(), LlmQueue.STATUS_FAILED, LlmQueue.FAILED);
         } else {
             release(item, this.clock.getAsLong() + (FIRST_RETRY_MILLIS << Math.min(6, item.attempts)), true);
         }
@@ -1374,11 +1415,13 @@ public final class LlmService {
      * @param reason    the mark's reason: {@link LlmQueue#MORE_TEXT}, {@link LlmQueue#TEXT_CUT} or null
      * @param continuation adds to the first reading's result ({@link Publisher#applyLlmMore}) instead of replacing it
      * @param unread    characters of the page this reading leaves unread
+     * @param siblings  the other pages of the host the layout compared ({@link PageText#siblings}), kept for the
+     *                  continuation of a first reading marked {@link LlmQueue#MORE_TEXT}
      * @return true if the page changed during the call and its item was handed back for the new input
      */
     private boolean publish(final LlmQueue.Item item, final SolrDoc d, final DocRow row, final Extraction ex, final List<byte[]> keys,
             final String m, final String promptHash,final long estimate, final String reason, final boolean continuation,
-            final int unread) throws KgException {
+            final int unread, final String siblings) throws KgException {
         final long now = this.clock.getAsLong();
         if (this.stopping) {
             release(item, now, false);
@@ -1405,6 +1448,11 @@ public final class LlmService {
                         ? this.publisher.applyLlmMore(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), reason, now)
                         : this.publisher.applyLlm(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), reason, now);
                 ExtractionCache.touch(tx, keys, now);
+                if (continuation) {
+                    KgStore.deleteMeta(tx, LlmQueue.LAYOUT_PREFIX + item.docId);
+                } else if (result[0].outcome == Publisher.Outcome.PUBLISHED && LlmQueue.MORE_TEXT.equals(reason) && siblings != null) {
+                    KgStore.putMeta(tx, LlmQueue.LAYOUT_PREFIX + item.docId, siblings);
+                }
                 if (!continuation && result[0].outcome != Publisher.Outcome.PUBLISHED && LlmQueue.toDo(tx, item.docId)) {
                     // the page changed during the call and is still to do: never dropped from the queue without a mark
                     if (item.attempts + 1 >= unconfirmedLimit()) {
@@ -1491,6 +1539,7 @@ public final class LlmService {
                 ps.setString(2, item.docId);
                 set[0] = ps.executeUpdate() > 0;
             }
+            KgStore.deleteMeta(tx, LlmQueue.LAYOUT_PREFIX + item.docId);
             LlmQueue.complete(tx, item.docId);
             return null;
         });
