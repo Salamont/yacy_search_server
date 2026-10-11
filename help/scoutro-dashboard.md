@@ -13,8 +13,10 @@ backend_java: source/net/yacy/htroot/ScoutroDashboard.java
 `scoutro-dashboard.html` is an overview. It uses
 YaCy's existing administrator authentication and configured localhost policy,
 even when public search is enabled. The page itself has no request parameters,
-forms or state-changing actions; the only changes are the administrator's "+"
-and "−" of the collection list (below), which call the collection API. Unknown
+forms or state-changing actions (the site search of the shared header, a GET
+to the search page, aside); the only changes are the administrator's "+"
+and "−" of the collection list (below), which call the collection API; their
+dialogs contain no form either. Unknown
 query/form parameters are ignored. Responses use `Cache-Control: no-store`.
 The shared template servlet also skips its usual called/submitted-page
 registration for this route, so even ignored query parameters cannot write the

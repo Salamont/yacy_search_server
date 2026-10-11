@@ -5640,13 +5640,12 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 >1 derived relation<==>1 abgeleitete Beziehung<
 >1 detected page change not yet queued<==>1 erkannte Seitenänderung, noch nicht eingereiht<
 >1 page change (page comparison)<==>1 Seitenänderung (Seitenabgleich)<
->1 document task, %2 of them in progress<==>1 Dokumentaufgabe, davon %2 in Bearbeitung<
 >optional: 1 failed document task can be retried (Controls)<==>optional: 1 fehlgeschlagene Dokumentaufgabe lässt sich erneut versuchen (Steuerung)<
 >Detected changes are not queued while the sync task is stopped<==>Erkannte Änderungen werden nicht eingereiht, solange die Sync-Aufgabe beendet ist<
->Status read at %1<==>Status gelesen um %1<
+>Status read at %1<==>Status gelesen: %1<
 >Scope: all collections you may see<==>Geltungsbereich: alle Collections, die Sie sehen dürfen<
 >Scope: collection %1<==>Geltungsbereich: Collection %1<
->Queues and runs count for the whole knowledge graph; pages and knowledge objects follow the collection.<==>Warteschlangen und Läufe gelten für den ganzen Wissensgraphen; Seiten und Wissensobjekte folgen der Collection.<
+>Only pages and knowledge objects follow the selected collection; queues, runs and all other numbers count for the whole knowledge graph.<==>Nur Seiten und Wissensobjekte folgen der gewählten Collection; Warteschlangen, Läufe und alle anderen Zahlen gelten für den ganzen Wissensgraphen.<
 >Working<==>Arbeitet<
 >Up to date<==>Aktuell<
 >Waiting as planned<==>Wartet planmäßig<
@@ -5655,18 +5654,36 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 >Error<==>Fehler<
 >Switched off<==>Ausgeschaltet<
 >No data<==>Keine Daten<
+>Waiting for you<==>Wartet auf Sie<
+>inspect the server log and the storage of the graph (technical diagnosis)<==>Serverprotokoll und Speicher des Graphen prüfen (technische Diagnose)<
+>free disk space on the data volume (technical diagnosis)<==>Speicherplatz auf dem Datenträger freigeben (technische Diagnose)<
+>per collection; one page can belong to several<==>je Collection; eine Seite kann zu mehreren gehören<
+>since the last start of Scoutro, all collections<==>seit dem letzten Start von Scoutro, alle Collections<
+>Full comparison with the index runs: 1 page checked so far<==>Vollabgleich mit dem Index läuft: bisher 1 Seite geprüft<
+>running: 1 page checked<==>läuft: 1 Seite geprüft<
+>1 page captured<==>1 Seite erfasst<
+>The sync task stopped<==>Die Sync-Aufgabe ist beendet<
+>%1 pages not yet examined by the AI<==>%1 Seiten noch nicht von der KI geprüft<
+>1 page not yet examined by the AI<==>1 Seite noch nicht von der KI geprüft<
+>in the queue: %1, %2 of them in progress<==>in der Warteschlange: %1, davon %2 in Bearbeitung<
+>queue empty<==>Warteschlange leer<
+>pages not yet examined: not reported by this server<==>noch nicht geprüfte Seiten: von diesem Server nicht gemeldet<
+>Ready; no model request runs at this moment<==>Bereit; gerade läuft keine Modellanfrage<
+>Pages not yet examined (queue included)<==>Noch nicht geprüfte Seiten (Warteschlange eingeschlossen)<
+>%1 s (measured over 1 finished model request since the last start)<==>%1 s (gemessen über 1 abgeschlossene Modellanfrage seit dem letzten Start)<
+>not available (the last run was refused)<==>nicht verfügbar (der letzte Lauf wurde abgelehnt)<
+>not available (no run since the last start)<==>nicht verfügbar (seit dem letzten Start kein Lauf)<
 >Open:<==>Offen:<
 >Waits because:<==>Wartet, weil:<
 >Your action:<==>Ihr Handeln:<
 >none needed<==>nicht nötig<
 >not available<==>nicht verfügbar<
->Show details<==>Details anzeigen<
 >Open the technical diagnosis<==>Technische Diagnose öffnen<
 >The knowledge graph is off (%1).<==>Der Wissensgraph ist aus (%1).<
 >The knowledge graph is not running (%1).<==>Der Wissensgraph läuft nicht (%1).<
 >current count<==>aktueller Stand<
 >since the last start of Scoutro<==>seit dem letzten Start von Scoutro<
->all time, in the knowledge graph<==>insgesamt im Wissensgraphen<
+>status of the pages now in the graph<==>Stand der Seiten, die jetzt im Wissensgraphen sind<
 >last run<==>letzter Lauf<
 >measured<==>gemessen<
 >Recognises new, changed and deleted pages in the index and reads their structured data.<==>Erkennt neue, geänderte und gelöschte Seiten im Index und liest ihre strukturierten Daten.<
@@ -5707,29 +5724,27 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 >Page comparison open in total<==>Seitenabgleich insgesamt offen<
 >%1 (queued + detected)<==>%1 (eingereiht + erkannt)<
 >Oldest open change waits<==>Älteste offene Änderung wartet<
->Documents processed<==>Verarbeitete Dokumente<
+>Documents published (unchanged ones not counted)<==>Veröffentlichte Dokumente (unveränderte nicht gezählt)<
 >Sync task<==>Sync-Aufgabe<
 >Last tick finished<==>Letzter Takt beendet<
 >Asks the selected model about pages and keeps only statements quoted from the page.<==>Fragt das gewählte Modell zu Seiten und übernimmt nur Aussagen mit Zitat aus der Seite.<
 >Optional enrichment is off: %1<==>Optionale Anreicherung ist aus: %1<
->%1 document tasks, %2 of them in progress<==>%1 Dokumentaufgaben, davon %2 in Bearbeitung<
->no document task<==>keine Dokumentaufgabe<
+>no page waits for the AI<==>keine Seite wartet auf die KI<
 >check the model service; requests resume by themselves after %1<==>Modelldienst prüfen; Anfragen laufen nach %1 von selbst wieder an<
 >optional: %1 failed document tasks can be retried (Controls)<==>optional: %1 fehlgeschlagene Dokumentaufgaben lassen sich erneut versuchen (Steuerung)<
 >optional: choose a model for the usage “knowledge” in LLM Selection<==>optional: in der LLM-Auswahl ein Modell für die Nutzung „Wissen“ wählen<
->free storage in the knowledge graph (technical diagnosis)<==>Speicher im Wissensgraphen freigeben (technische Diagnose)<
 >fix the LLM schedule (Settings)<==>den LLM-Zeitplan korrigieren (Einstellungen)<
->A document task is one page waiting for the model; one page can need several model calls, so a call is not a document. Skipped tasks were not selected and are no backlog.<==>Eine Dokumentaufgabe ist eine Seite, die auf das Modell wartet; eine Seite kann mehrere Modellabrufe brauchen, ein Abruf ist also kein Dokument. Übersprungene Aufgaben wurden nicht ausgewählt und sind kein Rückstand.<
->Document tasks open (in progress included)<==>Offene Dokumentaufgaben (laufende eingeschlossen)<
+>The AI examines the pages of the AI collections; its queue is refilled from the pages not yet examined in small portions. One page can need several model requests, so a request is not a page. Skipped pages (not selected, over the per-host limit or without a host) are no backlog.<==>Die KI prüft die Seiten der KI-Collections; ihre Warteschlange wird in kleinen Portionen aus den noch nicht geprüften Seiten nachgefüllt. Eine Seite kann mehrere Modellanfragen brauchen, eine Anfrage ist also keine Seite. Übersprungene Seiten (nicht ausgewählt, über dem Limit je Host oder ohne Host) sind kein Rückstand.<
+>Document tasks in the queue (in progress included)<==>Dokumentaufgaben in der Warteschlange (laufende eingeschlossen)<
 >of them in progress<==>davon in Bearbeitung<
 >Model calls running now<==>Laufende Modellabrufe<
 >Documents done<==>Fertige Dokumente<
 >Documents failed<==>Fehlgeschlagene Dokumente<
 >Documents skipped (no backlog)<==>Übersprungene Dokumente (kein Rückstand)<
 >Model calls<==>Modellabrufe<
->Average duration of a model call<==>Durchschnittliche Dauer eines Modellabrufs<
->%1 s (measured over %2 calls since the last start)<==>%1 s (gemessen über %2 Abrufe seit dem letzten Start)<
->not measured yet (no model call since the last start)<==>noch nicht gemessen (kein Modellabruf seit dem letzten Start)<
+>Average duration of a model request<==>Durchschnittliche Dauer einer Modellanfrage<
+>%1 s (measured over %2 finished model requests since the last start)<==>%1 s (gemessen über %2 abgeschlossene Modellanfragen seit dem letzten Start)<
+>not measured yet (no finished model request since the last start)<==>noch nicht gemessen (seit dem letzten Start keine abgeschlossene Modellanfrage)<
 >Next allowed start<==>Nächster erlaubter Start<
 >Selected model<==>Gewähltes Modell<
 >Holds what rules and the AI found: objects, statements and their evidence.<==>Hält, was Regeln und KI gefunden haben: Objekte, Aussagen und ihre Belege.<
@@ -5743,9 +5758,8 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 >Knowledge objects<==>Wissensobjekte<
 >Storage used<==>Belegter Speicher<
 >New facts allowed<==>Neue Fakten erlaubt<
->Derives customer and partner suggestions from offers and needs at a fixed interval.<==>Leitet in festem Abstand Kunden- und Partnervorschläge aus Angeboten und Bedarfen ab.<
->Runs every %1 min; last run %2<==>Läuft alle %1 min; letzter Lauf %2<
->No run since the last start yet; runs every %1 min<==>Seit dem letzten Start noch kein Lauf; läuft alle %1 min<
+>Runs every %1 min; last start %2<==>Läuft alle %1 min; letzter Start %2<
+>No run recorded yet, or a new run was requested; runs every %1 min<==>Noch kein Lauf erfasst oder ein neuer Lauf wurde angefordert; läuft alle %1 min<
 >not measured: how many signals are still to match in total is unknown<==>nicht gemessen: Wie viele Signale insgesamt noch abzugleichen sind, ist unbekannt<
 >Waiting for the next interval<==>Wartet auf das nächste Intervall<
 >the matching continues in the next run<==>der Abgleich wird im nächsten Lauf fortgesetzt<

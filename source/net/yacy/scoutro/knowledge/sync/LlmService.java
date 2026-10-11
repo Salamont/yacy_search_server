@@ -107,6 +107,8 @@ public final class LlmService {
         final AtomicLong callFailures = new AtomicLong();
         final AtomicLong timeouts = new AtomicLong();
         final AtomicLong callMillis = new AtomicLong();
+        /** Model requests that have ended (retries included); {@link #callMillis} holds their measured time. */
+        final AtomicLong requestsFinished = new AtomicLong();
         final AtomicLong answersAccepted = new AtomicLong();
         final AtomicLong answersRefused = new AtomicLong();
         final Map<String, AtomicLong> refusedBy = new ConcurrentHashMap<>();
@@ -181,6 +183,11 @@ public final class LlmService {
                     this.timeouts.get(),
                     "averageCallMillis",
                     n == 0 ? null : this.callMillis.get() / n,
+                    "requestsFinished",
+                    this.requestsFinished.get(),
+                    // measured: only requests that have ended, never a request still running
+                    "averageRequestMillis",
+                    this.requestsFinished.get() == 0 ? null : this.callMillis.get() / this.requestsFinished.get(),
                     "answersAccepted",
                     this.answersAccepted.get(),
                     "answersRefused",
@@ -813,6 +820,7 @@ public final class LlmService {
         if (!logicalCounted.getAndSet(true)) this.counters.calls.incrementAndGet();
         return () -> {
             this.counters.callMillis.addAndGet(Math.max(0, this.clock.getAsLong() - started));
+            this.counters.requestsFinished.incrementAndGet();
             admitted.close();
         };
     }
@@ -1071,7 +1079,9 @@ public final class LlmService {
                         "max",
                         QUEUE_MAX),
                 "documents",
-                KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2]),
+                // done/failed/skipped: the current LLM status of the pages in the graph; pending: pages of the LLM
+                // collections not examined yet (the queue included), the backlog the queue is refilled from
+                KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2], "pending", this.pendingDocuments),
                 "cache",
                 KgJson.obj(
                         "entries",

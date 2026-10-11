@@ -25,15 +25,30 @@ const busy = () => ({ enabled: true, state: 'running', config: { valid: true, co
     lag: { pending: 1200, oldest_pending_age_s: 42, byType: { new: 700, update: 300, delete: 20, reconcile: 80, captured: 100 } },
     scheduler: { state: 'running', lastFinishedAt: NOW - 30000 }, reconcile: { pending: false, awaitingConfirmation: false, last: { state: 'completed', startedAt: NOW - 86400000 } } },
   llm: { state: 'running', enabled: true, model: 'ollama/qwen3:14b', queue: { items: 181, claimed: 1 },
-    documents: { done: 3093, failed: 1, skipped: 8988 }, breaker: { open: false },
-    processed: { calls: 188, averageCallMillis: 41234 }, timing: { waitReason: 'in_flight', runningRequests: 1, windowOpen: true } },
+    documents: { done: 3093, failed: 1, skipped: 8988, pending: 30212 }, breaker: { open: false },
+    processed: { calls: 188, requestStarts: 189, requestsFinished: 187, averageCallMillis: 41012, averageRequestMillis: 41234 },
+    timing: { waitReason: 'in_flight', runningRequests: 1, windowOpen: true } },
   derived: { enabled: true, intervalMinutes: 60, lastRun: NOW - 1800000, last: { byKind: { suggested_customer: 12430, suggested_partner: 71, same_operator: 18, linked_to: 381 }, durationMs: 9100 },
     matching: { checked: 50000, completed_partitions: 89, cycle_complete: false, deferred: 'work_budget' } },
   collections, backup: { state: 'idle', files: 0, bytes: 0 }, rebuild: { phase: 'none' }, events: [] });
 const SCENARIOS = {
   busy,
   empty: () => { const s = busy(); s.sync.queue.items = 0; s.sync.lag = { pending: 0, oldest_pending_age_s: 0, byType: { new: 0, update: 0, delete: 0, reconcile: 0, captured: 0 } };
-    s.llm.queue = { items: 0, claimed: 0 }; s.llm.timing = { waitReason: 'backlog_empty', runningRequests: 0 }; s.llm.processed = { calls: 0, averageCallMillis: null }; return s; },
+    s.llm.queue = { items: 0, claimed: 0 }; s.llm.documents.pending = 0; s.llm.timing = { waitReason: 'backlog_empty', runningRequests: 0 };
+    s.llm.processed = { calls: 0, requestStarts: 0, requestsFinished: 0, averageCallMillis: null, averageRequestMillis: null }; return s; },
+  // the first model request still runs: counted, not measured (the server's old average reads 0 then)
+  firstcall: () => { const s = busy(); s.llm.processed = { calls: 1, requestStarts: 1, requestsFinished: 0, averageCallMillis: 0, averageRequestMillis: null }; return s; },
+  // work queued, nothing running, no wait reason: ready, not working
+  ready: () => { const s = busy(); s.llm.timing = { waitReason: null, runningRequests: 0 }; s.llm.queue = { items: 181, claimed: 0 }; return s; },
+  // the same storage reason on every step
+  storage: () => { const s = busy(); s.storage.growthAllowed = false; s.storage.reasons = [{ code: 'storage_error', detail: 'SQLITE_IOERR' }];
+    s.sync.growthRefusal = 'storage_error'; s.sync.growthBlocked = true; s.llm.timing = { waitReason: 'storage_error', runningRequests: 0 }; return s; },
+  budget: () => { const s = busy(); s.storage.growthAllowed = false; s.storage.usedPercent = 91; s.storage.level = 'brake'; s.storage.reasons = [{ code: 'budget' }];
+    s.llm.timing = { waitReason: 'budget', runningRequests: 0 }; return s; },
+  confirm: () => { const s = busy(); s.sync.reconcile.awaitingConfirmation = true; return s; },
+  noqueue: () => { const s = busy(); s.sync.queue = { items: null }; s.sync.lag = { pending: 100, byType: { captured: 100 } }; return s; },
+  refused: () => { const s = busy(); s.derived.last = { byKind: {}, refused: 'manual', durationMs: 0 }; return s; },
+  nollm: () => { const s = busy(); delete s.llm; return s; },
   waiting: () => { const s = busy(); s.sync.gate = 'load'; s.llm.timing = { waitReason: 'time_window', runningRequests: 0, nextAllowedStart: NOW + 3600000 };
     s.llm.queue = { items: 181, claimed: 0 }; return s; },
   paused: () => { const s = busy(); s.storage.reasons = [{ code: 'manual' }]; s.storage.growthAllowed = false; s.llm.timing = { waitReason: 'manual_pause', runningRequests: 0 }; return s; },
@@ -90,9 +105,12 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
   check(meta.includes((await L('pr_updated')).split('%1')[0].trim()) && meta.includes(await L('pr_scope_all')), 'read time and scope shown' + where);
   check(await chip('rules') === await L('pr_k_running') && await chip('ai') === await L('pr_k_running'), 'rules and AI work' + where);
   check((await lines('rules')).includes((await L('pr_rules_open')).replace('%1', n(1200))), 'page comparison counted in page changes' + where);
-  check((await lines('ai')).includes((await L('pr_ai_open')).replace('%1', n(181)).replace('%2', n(1))), 'document tasks with the running one inside, not added' + where);
-  check(!(await lines('ai')).includes(n(182)) && !(await lines('ai')).includes(n(8988)), 'no sum with running or skipped tasks' + where);
-  check((await lines('ai')).includes(await L('pr_ai_failed_one')) && await chip('ai') !== await L('pr_k_error'), 'one failed task is a hint in the singular, not a red state' + where);
+  check((await lines('ai')).includes((await L('pr_unit_unexamined')).replace('%1', n(30212))), 'the AI backlog: pages not yet examined, not the small queue' + where);
+  check((await lines('ai')).includes((await L('pr_ai_queue')).replace('%1', (await L('pr_unit_tasks')).replace('%1', n(181))).replace('%2', n(1))),
+    'the queue with the running task inside, not added' + where);
+  check(!(await lines('ai')).includes(n(182)) && !(await lines('ai')).includes(n(8988)) && !(await lines('ai')).includes(n(30393)), 'no sum with running, skipped or queued tasks' + where);
+  check((await lines('ai')).includes(await L('pr_ai_failed_one')) && await chip('ai') !== await L('pr_k_error')
+    && await station('ai').locator('.skg-action-needed').count() === 0, 'one failed task is an optional hint in the singular, not red' + where);
   check((await lines('sources')).includes((await L('pr_src_open')).replace('%1', n(100))), 'detected changes at the sources' + where);
   check(await chip('suggestions') === await L('pr_k_scheduled'), 'suggestions wait as planned' + where);
   check((await lines('suggestions')).includes(await L('pr_sg_open')), 'no invented overall progress of the matching' + where);
@@ -102,8 +120,14 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
   const ai = await detail('ai');
   check(ai.includes((await L('pr_unit_tasks')).replace('%1', n(181))) && ai.includes(await L('pr_basis_now')), 'tasks with unit and basis' + where);
   check(ai.includes((await L('pr_unit_docs')).replace('%1', n(8988))) && ai.includes(await L('pr_d_skipped')), 'skipped shown apart as no backlog' + where);
-  check(ai.includes((await L('pr_d_avg_value')).replace('%1', (41.2).toLocaleString(language)).replace('%2', n(188))), 'measured average call duration' + where);
-  check(ai.includes(await L('pr_basis_total')) && ai.includes(await L('pr_basis_start')), 'all-time and since-start bases kept apart' + where);
+  check(ai.includes((await L('pr_d_avg_value')).replace('%1', (41.2).toLocaleString(language)).replace('%2', n(187))), 'average over the ended requests only' + where);
+  check(ai.includes(await L('pr_d_pending')) && ai.includes((await L('pr_unit_pages')).replace('%1', n(30212))), 'pages not yet examined in the details' + where);
+  check(ai.includes(await L('pr_basis_total')) && ai.includes(await L('pr_basis_start')), 'status and since-start bases kept apart' + where);
+  await station('sources').locator('.skg-station-head').click();
+  const src = await detail('sources');
+  check(src.includes('kga: ' + n(41857)) && src.includes('kgb: ' + n(2767)) && src.includes(await L('pr_basis_per_collection')) && !src.includes(n(44624)),
+    'all collections: pages per collection, never a sum that counts a page twice' + where);
+  await station('sources').locator('.skg-station-head').click();
   await station('suggestions').locator('.skg-station-head').click();
   const sg = await detail('suggestions');
   check(sg.includes((await L('pr_unit_signals')).replace('%1', n(50000))) && sg.includes((await L('pr_unit_partitions')).replace('%1', n(89)))
@@ -137,6 +161,14 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
   await station('ai').locator('.skg-station-head').click();
   check((await detail('ai')).includes(await L('pr_d_avg_none')), 'no average without a measured call' + where);
 
+  // the first request still runs: no average, never "0 s"
+  await load('firstcall');
+  await station('ai').locator('.skg-station-head').click();
+  check((await detail('ai')).includes(await L('pr_d_avg_none')) && !(await detail('ai')).includes((await L('pr_unit_seconds')).replace('%1', n(0))),
+    'a running request is not measured' + where);
+  await load('ready');
+  check(await chip('ai') === await L('pr_k_scheduled') && (await lines('ai')).includes(await L('pr_ai_ready')), 'queued work with nothing running is ready, not working' + where);
+
   // waiting reasons: planned versus resources
   await load('waiting');
   check(await chip('ai') === await L('pr_k_scheduled') && (await lines('ai')).includes(await L('schedule_reason_time_window')), 'time window is a planned wait' + where);
@@ -145,7 +177,8 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
 
   // pause
   await load('paused');
-  check(await chip('rules') === await L('pr_k_paused') && await chip('ai') === await L('pr_k_paused') && await chip('knowledge') === await L('pr_k_paused'), 'manual pause is a pause' + where);
+  check(await chip('rules') === await L('pr_k_paused') && await chip('ai') === await L('pr_k_paused') && await chip('knowledge') === await L('pr_k_paused')
+    && await chip('suggestions') === await L('pr_k_paused'), 'manual pause is a pause on every step' + where);
   check((await lines('knowledge')).includes(await L('pr_kn_manual_action')), 'the pause says how to resume' + where);
 
   // errors
@@ -153,10 +186,33 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
   check(await chip('rules') === await L('pr_k_error') && (await lines('rules')).includes(await L('pr_rules_failed')), 'a stopped sync task is an error with an action' + where);
   check(await chip('ai') === await L('pr_k_error') && (await lines('ai')).includes(await L('schedule_reason_circuit_breaker')), 'an open breaker is an error' + where);
   check(await chip('knowledge') === await L('pr_k_error'), 'a failed integrity check is an error' + where);
-  check(await chip('sources') === await L('pr_k_waiting') && (await lines('sources')).includes(await L('pr_src_blocked')), 'detected changes wait while the sync task is stopped' + where);
+  check(await chip('sources') === await L('pr_k_error') && (await lines('sources')).includes(await L('pr_src_blocked')), 'detected changes are blocked while the sync task is stopped' + where);
+  check((await lines('knowledge')).includes(await L('pr_kn_integrity_action')), 'a failed integrity check asks for a backup' + where);
   await station('ai').locator('.skg-station-head').click();
   check((await detail('ai')).includes(await L('pr_unit_calls_one')) || (await detail('ai')).includes((await L('pr_unit_calls')).replace('%1', n(0))), 'singular units in the details' + where);
   if (shots) await page.locator('#skg-process').screenshot({ path: path.join(shots, `knowledge-process-errors-${language}-${width}.png`) });
+
+  // the storage guard means the same on every step
+  await load('storage');
+  for (const key of ['rules', 'ai', 'knowledge', 'suggestions']) {
+    check(await chip(key) === await L('pr_k_error') && (await lines(key)).includes(await L('pr_act_storage')), 'storage error is an error with one action at ' + key + where);
+  }
+  await load('budget');
+  for (const key of ['rules', 'ai', 'knowledge', 'suggestions']) {
+    check(await chip(key) === await L('pr_k_paused') && (await lines(key)).includes((await L('pr_kn_brake')).replace('%1', '91 %')), 'storage budget pauses ' + key + where);
+  }
+  await load('confirm');
+  check(await chip('sources') === await L('pr_k_action') && (await lines('sources')).includes(await L('pr_src_confirm')), 'deletions to confirm wait for the viewer' + where);
+  await load('noqueue');
+  check(await chip('rules') === await L('pr_k_unknown') && (await lines('rules')).includes(await L('pr_open_unknown')), 'an unreadable queue is unknown, not up to date' + where);
+  await load('refused');
+  check(await chip('suggestions') === await L('pr_k_paused') && (await lines('suggestions')).includes((await L('pr_sg_refused')).replace('%1', await L('pr_kn_manual'))),
+    'a refused run says why' + where);
+  await station('suggestions').locator('.skg-station-head').click();
+  check((await detail('suggestions')).includes(await L('pr_sg_refused_value')) && !(await detail('suggestions')).includes((await L('pr_unit_relations')).replace('%1', n(0))),
+    'a refused run shows no values as 0' + where);
+  await load('nollm');
+  check(await chip('ai') === await L('pr_k_unknown') && await chip('rules') === await L('pr_k_running'), 'no AI status: no data, rules unaffected' + where);
 
   // missing data
   objects = null; await load('missing');
@@ -166,6 +222,7 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
   check((await detail('knowledge')).includes(await L('pr_open_unknown')), 'missing object count said so' + where);
   await station('suggestions').locator('.skg-station-head').click();
   check((await lines('suggestions')).includes((await L('pr_sg_never')).replace('%1', n(60))), 'no run yet said so' + where);
+  check((await detail('suggestions')).includes(await L('pr_sg_last_none')), 'values of a run not available, not 0' + where);
   await load('down');
   for (const key of ['sources', 'rules', 'ai', 'knowledge', 'suggestions']) check(await chip(key) === await L('pr_k_unknown'), 'graph down: no data at ' + key + where);
   check((await lines('rules')).includes((await L('pr_graph_down')).replace('%1', 'kg_unavailable')), 'graph down named' + where);

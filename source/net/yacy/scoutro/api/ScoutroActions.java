@@ -354,6 +354,10 @@ final class ScoutroActions {
         final List<net.yacy.scoutro.access.Scope> accounts = new ArrayList<>();
         List<String> guest = List.of();
         final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+        if (access == null && net.yacy.search.Switchboard.getSwitchboard() != null) {
+            // the account file cannot be read (sign-in is off, Digest still works): accounts and guest access stay unknown
+            throw new ApiException(503, "collection_uses_unavailable", "It cannot be checked whether accounts or the guest access use this collection; nothing was removed.");
+        }
         if (access != null) {
             for (final net.yacy.scoutro.access.Account a : access.accounts.list()) accounts.add(a.scope());
             guest = access.settings.guestCollections();

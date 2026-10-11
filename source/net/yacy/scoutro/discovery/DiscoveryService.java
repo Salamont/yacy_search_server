@@ -620,7 +620,7 @@ public final class DiscoveryService implements AutoCloseable {
                 throw e;
             } catch (final Exception e) {
                 ConcurrentLog.warn("ScoutroDiscovery", "candidate hold failed: " + e.getClass().getSimpleName());
-                throw new ApiException(503, "hold_failed", "The candidate could not be held; nothing was changed.");
+                throw new ApiException(503, "hold_failed", "The hold of the candidate could not be confirmed; the job store was not changed. Retry once: holding again is safe.");
             }
             if (answer.has("error")) throw holdRefused(answer.getString("error"));
             final int checked = markerAbsent(intent); // again, right before the decision
@@ -692,7 +692,7 @@ public final class DiscoveryService implements AutoCloseable {
             case "attempt_accepted_in_state": return new ApiException(409, "attempt_accepted_in_state", "The candidate state records this start as accepted; reconcile instead.");
             case "collection_conflict": return new ApiException(409, "collection_conflict", "The candidate belongs to another collection.");
             case "state_unreadable": return new ApiException(503, "state_unreadable", "The candidate state cannot be read; nothing was changed.");
-            default: return new ApiException(503, "hold_failed", "The candidate could not be held; nothing was changed.");
+            default: return new ApiException(503, "hold_failed", "The hold of the candidate could not be confirmed; the job store was not changed. Retry once: holding again is safe.");
         }
     }
     /** Applies a change to the job's deferral record of an attempt, if it is still kept. */

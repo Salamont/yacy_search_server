@@ -16819,9 +16819,6 @@
     <trans-unit id="cabc75a9" xml:space="preserve" approved="no" translate="yes">
        <source>1 page change (page comparison)</source>
     </trans-unit>
-    <trans-unit id="d1517f29" xml:space="preserve" approved="no" translate="yes">
-       <source>1 document task, %2 of them in progress</source>
-    </trans-unit>
     <trans-unit id="773bc5d" xml:space="preserve" approved="no" translate="yes">
        <source>optional: 1 failed document task can be retried (Controls)</source>
     </trans-unit>
@@ -16837,8 +16834,8 @@
     <trans-unit id="8cf62b54" xml:space="preserve" approved="no" translate="yes">
        <source>Scope: collection %1</source>
     </trans-unit>
-    <trans-unit id="97146f25" xml:space="preserve" approved="no" translate="yes">
-       <source>Queues and runs count for the whole knowledge graph; pages and knowledge objects follow the collection.</source>
+    <trans-unit id="14e22a01" xml:space="preserve" approved="no" translate="yes">
+       <source>Only pages and knowledge objects follow the selected collection; queues, runs and all other numbers count for the whole knowledge graph.</source>
     </trans-unit>
     <trans-unit id="be20c311" xml:space="preserve" approved="no" translate="yes">
        <source>Working</source>
@@ -16864,6 +16861,63 @@
     <trans-unit id="dd81da89" xml:space="preserve" approved="no" translate="yes">
        <source>No data</source>
     </trans-unit>
+    <trans-unit id="f35dad55" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for you</source>
+    </trans-unit>
+    <trans-unit id="3b97c6f4" xml:space="preserve" approved="no" translate="yes">
+       <source>inspect the server log and the storage of the graph (technical diagnosis)</source>
+    </trans-unit>
+    <trans-unit id="58abfdec" xml:space="preserve" approved="no" translate="yes">
+       <source>free disk space on the data volume (technical diagnosis)</source>
+    </trans-unit>
+    <trans-unit id="efc6c5b7" xml:space="preserve" approved="no" translate="yes">
+       <source>per collection; one page can belong to several</source>
+    </trans-unit>
+    <trans-unit id="3522acfd" xml:space="preserve" approved="no" translate="yes">
+       <source>since the last start of Scoutro, all collections</source>
+    </trans-unit>
+    <trans-unit id="2912f92f" xml:space="preserve" approved="no" translate="yes">
+       <source>Full comparison with the index runs: 1 page checked so far</source>
+    </trans-unit>
+    <trans-unit id="d8007b0a" xml:space="preserve" approved="no" translate="yes">
+       <source>running: 1 page checked</source>
+    </trans-unit>
+    <trans-unit id="80ef9aa0" xml:space="preserve" approved="no" translate="yes">
+       <source>1 page captured</source>
+    </trans-unit>
+    <trans-unit id="baa69188" xml:space="preserve" approved="no" translate="yes">
+       <source>The sync task stopped</source>
+    </trans-unit>
+    <trans-unit id="ba211e58" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages not yet examined by the AI</source>
+    </trans-unit>
+    <trans-unit id="52c17bca" xml:space="preserve" approved="no" translate="yes">
+       <source>1 page not yet examined by the AI</source>
+    </trans-unit>
+    <trans-unit id="420bb7a7" xml:space="preserve" approved="no" translate="yes">
+       <source>in the queue: %1, %2 of them in progress</source>
+    </trans-unit>
+    <trans-unit id="729fe17e" xml:space="preserve" approved="no" translate="yes">
+       <source>queue empty</source>
+    </trans-unit>
+    <trans-unit id="58a9f892" xml:space="preserve" approved="no" translate="yes">
+       <source>pages not yet examined: not reported by this server</source>
+    </trans-unit>
+    <trans-unit id="4b75c30e" xml:space="preserve" approved="no" translate="yes">
+       <source>Ready; no model request runs at this moment</source>
+    </trans-unit>
+    <trans-unit id="c887dd92" xml:space="preserve" approved="no" translate="yes">
+       <source>Pages not yet examined (queue included)</source>
+    </trans-unit>
+    <trans-unit id="e1eb3e4e" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 s (measured over 1 finished model request since the last start)</source>
+    </trans-unit>
+    <trans-unit id="5e0929bc" xml:space="preserve" approved="no" translate="yes">
+       <source>not available (the last run was refused)</source>
+    </trans-unit>
+    <trans-unit id="cd0c2a0c" xml:space="preserve" approved="no" translate="yes">
+       <source>not available (no run since the last start)</source>
+    </trans-unit>
     <trans-unit id="48db310" xml:space="preserve" approved="no" translate="yes">
        <source>Open:</source>
     </trans-unit>
@@ -16878,9 +16932,6 @@
     </trans-unit>
     <trans-unit id="a7642dbc" xml:space="preserve" approved="no" translate="yes">
        <source>not available</source>
-    </trans-unit>
-    <trans-unit id="2c27703f" xml:space="preserve" approved="no" translate="yes">
-       <source>Show details</source>
     </trans-unit>
     <trans-unit id="38fc8009" xml:space="preserve" approved="no" translate="yes">
        <source>Open the technical diagnosis</source>
@@ -16897,8 +16948,8 @@
     <trans-unit id="22d06b45" xml:space="preserve" approved="no" translate="yes">
        <source>since the last start of Scoutro</source>
     </trans-unit>
-    <trans-unit id="415e0e62" xml:space="preserve" approved="no" translate="yes">
-       <source>all time, in the knowledge graph</source>
+    <trans-unit id="318d2a54" xml:space="preserve" approved="no" translate="yes">
+       <source>status of the pages now in the graph</source>
     </trans-unit>
     <trans-unit id="a8eb9e01" xml:space="preserve" approved="no" translate="yes">
        <source>last run</source>
@@ -17020,8 +17071,8 @@
     <trans-unit id="5734f83" xml:space="preserve" approved="no" translate="yes">
        <source>Oldest open change waits</source>
     </trans-unit>
-    <trans-unit id="a84083c6" xml:space="preserve" approved="no" translate="yes">
-       <source>Documents processed</source>
+    <trans-unit id="5dcec088" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents published (unchanged ones not counted)</source>
     </trans-unit>
     <trans-unit id="917493ca" xml:space="preserve" approved="no" translate="yes">
        <source>Sync task</source>
@@ -17035,11 +17086,8 @@
     <trans-unit id="8e29308" xml:space="preserve" approved="no" translate="yes">
        <source>Optional enrichment is off: %1</source>
     </trans-unit>
-    <trans-unit id="f271f7ab" xml:space="preserve" approved="no" translate="yes">
-       <source>%1 document tasks, %2 of them in progress</source>
-    </trans-unit>
-    <trans-unit id="7993694b" xml:space="preserve" approved="no" translate="yes">
-       <source>no document task</source>
+    <trans-unit id="e7fb7982" xml:space="preserve" approved="no" translate="yes">
+       <source>no page waits for the AI</source>
     </trans-unit>
     <trans-unit id="6d3e4d94" xml:space="preserve" approved="no" translate="yes">
        <source>check the model service; requests resume by themselves after %1</source>
@@ -17050,17 +17098,14 @@
     <trans-unit id="a189d4a1" xml:space="preserve" approved="no" translate="yes">
        <source>optional: choose a model for the usage “knowledge” in LLM Selection</source>
     </trans-unit>
-    <trans-unit id="ace373e" xml:space="preserve" approved="no" translate="yes">
-       <source>free storage in the knowledge graph (technical diagnosis)</source>
-    </trans-unit>
     <trans-unit id="ea5f003a" xml:space="preserve" approved="no" translate="yes">
        <source>fix the LLM schedule (Settings)</source>
     </trans-unit>
-    <trans-unit id="ca480d3c" xml:space="preserve" approved="no" translate="yes">
-       <source>A document task is one page waiting for the model; one page can need several model calls, so a call is not a document. Skipped tasks were not selected and are no backlog.</source>
+    <trans-unit id="4e2399a1" xml:space="preserve" approved="no" translate="yes">
+       <source>The AI examines the pages of the AI collections; its queue is refilled from the pages not yet examined in small portions. One page can need several model requests, so a request is not a page. Skipped pages (not selected, over the per-host limit or without a host) are no backlog.</source>
     </trans-unit>
-    <trans-unit id="b974b7cc" xml:space="preserve" approved="no" translate="yes">
-       <source>Document tasks open (in progress included)</source>
+    <trans-unit id="4ab9b90f" xml:space="preserve" approved="no" translate="yes">
+       <source>Document tasks in the queue (in progress included)</source>
     </trans-unit>
     <trans-unit id="423579ed" xml:space="preserve" approved="no" translate="yes">
        <source>of them in progress</source>
@@ -17080,14 +17125,14 @@
     <trans-unit id="2890c5fe" xml:space="preserve" approved="no" translate="yes">
        <source>Model calls</source>
     </trans-unit>
-    <trans-unit id="a4148bf4" xml:space="preserve" approved="no" translate="yes">
-       <source>Average duration of a model call</source>
+    <trans-unit id="53a77139" xml:space="preserve" approved="no" translate="yes">
+       <source>Average duration of a model request</source>
     </trans-unit>
-    <trans-unit id="a1db09f7" xml:space="preserve" approved="no" translate="yes">
-       <source>%1 s (measured over %2 calls since the last start)</source>
+    <trans-unit id="d33beb" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 s (measured over %2 finished model requests since the last start)</source>
     </trans-unit>
-    <trans-unit id="7e2f1d6d" xml:space="preserve" approved="no" translate="yes">
-       <source>not measured yet (no model call since the last start)</source>
+    <trans-unit id="d62e3222" xml:space="preserve" approved="no" translate="yes">
+       <source>not measured yet (no finished model request since the last start)</source>
     </trans-unit>
     <trans-unit id="90a2d19d" xml:space="preserve" approved="no" translate="yes">
        <source>Next allowed start</source>
@@ -17128,14 +17173,11 @@
     <trans-unit id="2bd3e36f" xml:space="preserve" approved="no" translate="yes">
        <source>New facts allowed</source>
     </trans-unit>
-    <trans-unit id="e41b2230" xml:space="preserve" approved="no" translate="yes">
-       <source>Derives customer and partner suggestions from offers and needs at a fixed interval.</source>
+    <trans-unit id="51e5afb5" xml:space="preserve" approved="no" translate="yes">
+       <source>Runs every %1 min; last start %2</source>
     </trans-unit>
-    <trans-unit id="b642b76c" xml:space="preserve" approved="no" translate="yes">
-       <source>Runs every %1 min; last run %2</source>
-    </trans-unit>
-    <trans-unit id="a61b56ed" xml:space="preserve" approved="no" translate="yes">
-       <source>No run since the last start yet; runs every %1 min</source>
+    <trans-unit id="40879550" xml:space="preserve" approved="no" translate="yes">
+       <source>No run recorded yet, or a new run was requested; runs every %1 min</source>
     </trans-unit>
     <trans-unit id="1bb232dc" xml:space="preserve" approved="no" translate="yes">
        <source>not measured: how many signals are still to match in total is unknown</source>

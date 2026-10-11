@@ -80,15 +80,20 @@
     function close() { if (dialog.open) dialog.close(); if (dialogTarget) dialogTarget.button.focus(); }
     dialog.openFor = function (target) {
       dialogTarget = target;
-      $('form').reset(); edited = false; error('');
+      $('name').value = ''; $('id').value = ''; $('description').value = ''; edited = false; error('');
       if (dialog.showModal) dialog.showModal(); else dialog.setAttribute('open', '');
       $('name').focus();
     };
     $('name').addEventListener('input', function () { if (!edited) $('id').value = suggest($('name').value); });
     $('id').addEventListener('input', function () { edited = true; });
     $('cancel').addEventListener('click', close);
-    $('form').addEventListener('submit', function (event) {
-      event.preventDefault();
+    // no <form>: the dialog is also part of pages that must not contain one (the dashboard); Save and Enter in a
+    // field create, Enter never reaches a surrounding page form
+    ['name', 'id'].forEach(function (field) {
+      $(field).addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); save(); } });
+    });
+    $('save').addEventListener('click', save);
+    function save() {
       if (busy || !dialogTarget) return;
       var name = $('name').value.trim(), id = $('id').value.trim();
       if (!name) { error(labels.name_required); $('name').focus(); return; }
@@ -115,7 +120,7 @@
         })
         .catch(function (e) { error(e.message); })
         .then(function () { busy = false; $('save').disabled = false; });
-    });
+    }
   }
   function offerCreate(button, onCreated) {
     var dialog = document.getElementById('scoutro-collection-dialog');

@@ -43,39 +43,56 @@ The overview starts with what the knowledge graph is doing, as one flow:
 **Web pages & structured data** → **Rule processing** and **AI enrichment** in
 parallel → **Knowledge store** → **Customer & partner suggestions**. Each step
 says in a few lines what works or waits, how much is open, why it waits and
-whether you have to act (a red line); tap or press Enter/Space on a step for
+whether you have to act (a red line; an optional hint is not red); tap or press Enter/Space on a step for
 its details, and **Open the technical diagnosis** for the full status lists.
 The display and its details only read the status: they start no work and
 change no setting. **Reload status** reads it again.
 
 - States: *Working*, *Up to date* (nothing open), *Waiting as planned* (time
   window, minimum interval, manual-only runs, the next interval of the
-  suggestions), *Waiting for resources* (load, heap, indexing, storage),
-  *Paused* (by hand or by the storage guard), *Error* (stopped sync task, open
-  circuit breaker, failed integrity check), *Switched off* and *No data*.
+  suggestions, an AI request that is ready but not running yet), *Waiting for
+  resources* (load, heap, indexing, a disk reserve or temporary storage limit,
+  the write-ahead log), *Waiting for you* (deletions found by the comparison
+  wait for your confirmation; the new extraction after an upgrade waits for a
+  backup), *Paused* (by hand, or the storage budget), *Error* (stopped sync
+  task, open circuit breaker, storage error, critical disk, failed integrity
+  check), *Switched off* and *No data*.
+- The storage guard has one meaning on every step: the same reason (for
+  example `budget`, `manual`, `storage_error`) shows the same state and action
+  on rule processing, AI enrichment, the knowledge store and the suggestions.
 - **Web pages & structured data** counts the page changes detected in the index
   and not yet queued, a running full comparison with the index (pages checked
-  so far, no percentage) and the JSON-LD capture.
+  so far, no percentage) and the JSON-LD capture. Its pages row shows the
+  chosen collection, or every collection with its own count: one page can
+  belong to several collections, so no total is added up.
 - **Rule processing** counts the open **page changes of the page comparison**
   (queued plus detected). "No page change" concerns the page comparison only,
-  never the AI queue; rule processing never waits for the AI.
-- **AI enrichment** counts **document tasks** (pages waiting for the model);
-  a task in progress is part of that number and never added again. Model
-  calls are counted apart (one page can need several calls). Skipped tasks
-  were not selected and are no backlog; a failed task is a hint with the retry
-  under Controls, not an error of the whole step. The average duration of a
-  model call is shown only when it was measured since the last start.
+  never the AI queue; rule processing never waits for the AI. When the queue
+  cannot be read the total is *not available*, never 0.
+- **AI enrichment** counts the **pages not yet examined** by the AI in the AI
+  collections: that is the backlog. Its **queue** is refilled from them in
+  small portions; the queue's **document tasks** include the one in progress,
+  which is never added again. **Model requests** are counted apart (one page
+  can need several). Skipped pages (not selected, over the per-host limit,
+  without a host) are no backlog; a failed page is an optional hint with the
+  retry under Controls, not an error of the whole step. The average duration
+  of a model request is shown only from requests that have ended since the
+  last start, never from one still running.
 - **Knowledge store** shows the **knowledge objects** of the chosen scope and
   the storage guard.
 - **Customer & partner suggestions** shows the values of the **last run**
   (suggestions derived, signals examined, provider partitions completed) and
   the interval; these are no overall progress, and how many signals are still
-  to match in total is not measured, which the display says.
+  to match in total is not measured, which the display says. The values of the
+  last run are kept in memory: after a restart, or when the last run was
+  refused, they are *not available* instead of 0.
 - Every number carries its unit and time basis: *current count*, *since the
-  last start of Scoutro*, *all time, in the knowledge graph*, *last run* or
-  *measured*. The line above the flow names when the status was read and the
-  scope: queues and runs count for the whole graph, pages and knowledge objects
-  follow the chosen collection. No percentage or remaining time is estimated.
+  last start of Scoutro*, *status of the pages now in the graph* (done, failed
+  and skipped pages of the AI), *per collection*, *last run* or *measured*. The
+  line above the flow names when the status was read and the scope: only pages
+  and knowledge objects follow the chosen collection; queues, runs and every
+  other number count for the whole graph. No percentage or remaining time is
+  estimated.
 
 The synchronisation panel also shows the periodic task's state, last start
 and finish, completed ticks, error class, and the current reconcile's scanned

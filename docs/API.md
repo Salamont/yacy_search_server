@@ -387,7 +387,7 @@ filters, crawl starts and agent grants all take their choices from it.
   `201 {"collection":{...entry...},"created":true}`. `id` (derived from the
   name when it is left out): 2 to 64 lower-case letters, digits and single hyphens, starting and ending with a letter or digit
   (`400 collection_id_invalid`); not reserved (`robot_*`, `all`, `none`,
-  `default`, `user`, `any`, `new`: `400 collection_reserved`); not in the
+  `default`, `user`, `any`, `new`, `reassign`: `400 collection_reserved`); not in the
   catalog in any case (`409 collection_exists`, nothing is overwritten). `name`
   (required, at most 80 characters, no control characters) and `description`
   (at most 500) otherwise `400 invalid_request`, as is any other field. `503

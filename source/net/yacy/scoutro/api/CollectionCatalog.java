@@ -47,7 +47,8 @@ public final class CollectionCatalog {
     /** Prefixes of YaCy's internal collections. */
     static final List<String> INTERNAL_PREFIXES = List.of("robot_");
     /** Names a new collection may not take: words with a meaning of their own in filters and YaCy's default crawl collection. */
-    static final Set<String> RESERVED = Set.of("all", "none", "default", "user", "any", "new");
+    // "reassign" is a path of the collections API (POST /v1/collections/reassign), never a collection
+    static final Set<String> RESERVED = Set.of("all", "none", "default", "user", "any", "new", "reassign");
     public static final int MAX_NAME = 80;
     public static final int MAX_DESCRIPTION = 500;
     /** Alphabetical regardless of case, then by code point. */
@@ -59,6 +60,11 @@ public final class CollectionCatalog {
     /** The collections of the index with their document counts. */
     public interface Index {
         Map<String, Long> counts() throws ApiException;
+
+        /** The pages of one collection, counted exactly (the facet of {@link #counts()} may leave small ones out). */
+        default long count(final String id) throws ApiException {
+            return counts().getOrDefault(id, 0L);
+        }
     }
 
     /** One collection as the catalog knows it. */
@@ -137,7 +143,10 @@ public final class CollectionCatalog {
                 if (c == null) {
                     final Switchboard sb = Switchboard.getSwitchboard();
                     c = new CollectionCatalog(sb == null ? null : registryPath(sb.getDataPath().toPath()),
-                            CollectionCatalog::loopbackCounts, AgentAdmin::profilePrimaryCollections);
+                            new Index() {
+                                @Override public Map<String, Long> counts() throws ApiException { return loopbackCounts(); }
+                                @Override public long count(final String id) throws ApiException { return loopbackCount(id); }
+                            }, AgentAdmin::profilePrimaryCollections);
                     current = c;
                 }
             }
@@ -288,9 +297,16 @@ public final class CollectionCatalog {
             if (found == null || found.internal()) {
                 throw new ApiException(404, "collection_not_found", "This collection does not exist.", Json.obj("field", "id"));
             }
-            if (found.documents > 0) {
+            // the facet lists at most 500 collections: the pages of this one are counted exactly before anything changes
+            final long documents;
+            try {
+                documents = Math.max(found.documents, this.index.count(id));
+            } catch (final RuntimeException e) {
+                throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was removed.");
+            }
+            if (documents > 0) {
                 throw new ApiException(409, "collection_has_documents",
-                        "The index holds pages of this collection; it stays. Pages are never deleted here.", Json.obj("documents", found.documents));
+                        "The index holds pages of this collection; it stays. Pages are never deleted here.", Json.obj("documents", documents));
             }
             if (found.profile) {
                 throw new ApiException(409, "collection_from_profile", "A Discovery profile names this collection; change the profile first.");
@@ -345,6 +361,20 @@ public final class CollectionCatalog {
             return facetCounts(new JSONObject(body));
         } catch (final JSONException e) {
             throw new ApiException(503, "index_unavailable", "Collection catalog is unavailable.");
+        }
+    }
+
+    /** The pages of one collection in the embedded Solr core, counted exactly (no facet limit). */
+    static long loopbackCount(final String id) throws ApiException {
+        if (id == null || !ID.matcher(id).matches()) throw ApiException.invalid("id", "Unknown collection id.");
+        try {
+            final String body = new YaCyLoopback().getAdmin("solr/select", new YaCyLoopback.Params()
+                    .add("q", "*:*").add("fq", "collection_sxt:\"" + id + "\"").add("rows", 0).add("wt", "json"));
+            final JSONObject response = new JSONObject(body).optJSONObject("response");
+            if (response == null || !response.has("numFound")) throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was removed.");
+            return response.getLong("numFound");
+        } catch (final JSONException e) {
+            throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was removed.");
         }
     }
 

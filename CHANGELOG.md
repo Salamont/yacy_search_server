@@ -29,16 +29,27 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   and no account, agent, guest access or running crawl uses it; otherwise the
   dialog says why it stays. No page, crawl, knowledge-graph setting or other
   data is deleted. Accounts never see the buttons; the API answers them `403`.
+  The pages of the collection are counted exactly before the removal (the
+  catalog facet lists at most 500 collections); an unreadable account file
+  refuses it (`503 collection_uses_unavailable`). `reassign` is now a reserved
+  collection ID. The shared *New collection* dialog contains no form any more,
+  so the dashboard holds none (the site search of the header aside).
 - Knowledge graph status: a process display replaces the long technical status
   list at the top of the overview: web pages and structured data → rule
   processing and AI enrichment in parallel → knowledge store → customer and
   partner suggestions. Each step says what works or waits, how much is open
   (page changes, document tasks, model calls, knowledge objects and matching
   signals kept apart, each with unit and time basis), why it waits and whether
-  to act; error, pause, planned waiting and running work are distinguished.
+  to act; error, pause, planned waiting, waiting for the viewer and running
+  work are distinguished, and a storage-guard reason means the same on every
+  step. The AI step counts the pages not yet examined (the backlog) apart from
+  its small queue; the average model request time comes only from requests
+  that have ended. Pages are shown per collection (a page can belong to
+  several), values of a refused or unknown run as *not available*, never 0.
   Details open on tap or Enter/Space; the former lists stay under *Technical
   diagnosis*. It only reads the status and shows no estimated percentages or
-  remaining times.
+  remaining times. The status adds `llm.documents.pending`,
+  `llm.processed.requestsFinished` and `llm.processed.averageRequestMillis`.
 
 ## 0.10.0 / 1.942-scoutro.24 — release candidate: users, roles and navigation
 

@@ -66,6 +66,31 @@ public class CollectionRemoveTest {
     }
 
     @Test
+    public void pagesMissingFromTheFacetAreCountedExactlyBeforeRemoval() throws Exception {
+        // more than 500 collections: the facet leaves a small one out, the exact count still finds its pages
+        final CollectionCatalog c = new CollectionCatalog(file(), new CollectionCatalog.Index() {
+            @Override public Map<String, Long> counts() { return Map.of(); }
+            @Override public long count(final String id) { return "klein-web".equals(id) ? 3L : 0L; }
+        }, List::of);
+        c.create(new JSONObject().put("id", "klein-web").put("name", "Klein"));
+        c.create(new JSONObject().put("id", "leer-web").put("name", "Leer"));
+        final ApiException e = refused(c, "klein-web", id -> Map.of(), 409, "collection_has_documents");
+        assertEquals(3L, e.toJson().getJSONObject("error").getJSONObject("details").getLong("documents"));
+        assertTrue(ids(c).contains("klein-web"));
+        assertEquals("leer-web", c.remove("leer-web", id -> Map.of()).id);
+    }
+
+    @Test
+    public void reassignIsAPathOfTheApiNotACollection() throws Exception {
+        try {
+            catalog(file()).create(new JSONObject().put("id", "reassign").put("name", "Reassign"));
+            fail("created");
+        } catch (final ApiException e) {
+            assertEquals("collection_reserved", e.code());
+        }
+    }
+
+    @Test
     public void anEmptyUnusedCreatedCollectionGoesFromTheListAndCanBeCreatedAgain() throws Exception {
         final CollectionCatalog c = catalog(file());
         c.create(new JSONObject().put("id", "neu-web").put("name", "Neues Portal"));
