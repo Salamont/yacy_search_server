@@ -2,7 +2,15 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased — users, roles and navigation (development, not released)
+## 0.10.0 / 1.942-scoutro.24 — release candidate: users, roles and navigation
+
+Upgrade from 0.9.1 keeps the **compatible access mode**: no account exists and
+`scoutro.access.protected` stays off, so YaCy's previous rules apply. Browsers
+see the Scoutro login page instead of the Digest dialog (the built-in
+administrator signs in with the existing password); Digest and Bearer access
+for tools and agents are unchanged. Knowledge graph schema stays **6**; no
+extractor identity, re-extraction, rebuild or reset. Agent crawls stay on their
+start host (see below). See the [release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.0.md).
 
 - Scoutro accounts for people with the roles Research, Operator and
   Administrator, collection access per account and a separate export right;
@@ -52,6 +60,23 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   domain allowlist), and `/heuristic` in a search needs the administrator.
 - Design and permission matrix: [SCOUTRO_USERS_ACCESS.md](docs/SCOUTRO_USERS_ACCESS.md);
   baseline with evidence: [SCOUTRO_ACCESS_BASELINE.md](docs/SCOUTRO_ACCESS_BASELINE.md).
+- Knowledge graph telemetry: the vocabulary row is labelled without raw
+  placeholders, `claim_employer_unresolved` and `value_signal_context_missing`
+  are registered LLM invalid-item reasons (shown with 0 before they occur), and
+  every reason has a readable, translated label next to its API code.
+- Context classification of customer suggestions (shared parser
+  `BusinessSignals` 3, no extractor-version change): markers are whole words
+  ("SAP In-House Cash" is no own use), an organization's competence statement
+  outside a posting is `stated_competence` (no need), and reference, case-study
+  and client pages describe client work, never needs. Matching re-reads the
+  stored quote as a veto, counts competence only from postings and treats a
+  posting for a product the employer offers itself as delivery capacity.
+  Existing wrong contributions (such as the two reference-page suggestions of
+  STELLWERK) disappear on read right after the update; the regular matching
+  cycles delete their cache rows with a delete notice. `MatchingRules.VERSION`
+  stays 1, observations and history are unchanged; no rebuild or
+  re-extraction. Details: [SCOUTRO_MATCHING.md](docs/SCOUTRO_MATCHING.md),
+  "Context correction".
 
 ## 0.9.1 / 1.942-scoutro.23 — patch release candidate
 

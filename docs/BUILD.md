@@ -69,7 +69,7 @@ the root `.dockerignore`: the root file excludes `test/`, but `build.xml`
 needs `test/jetty` for the Solr 9 bridge (`build-solr9-bridge`).
 
 ```sh
-VERSION=1.942-scoutro.22
+VERSION=1.942-scoutro.24
 docker build -f docker/Dockerfile.scoutro \
   --build-arg SCOUTRO_VERSION=$VERSION \
   --build-arg SCOUTRO_REVISION=$(git rev-parse HEAD) \
@@ -91,9 +91,9 @@ session CA with BuildKit rather than modifying or retagging the upstream base:
 ```sh
 docker build --secret id=proxy_ca,src="$CODEX_PROXY_CERT" \
   -f docker/Dockerfile.scoutro \
-  --build-arg SCOUTRO_VERSION=1.942-scoutro.22 \
+  --build-arg SCOUTRO_VERSION=1.942-scoutro.24 \
   --build-arg SCOUTRO_REVISION="$(git rev-parse HEAD)" \
-  -t scoutro:0.9.0-rc-local .
+  -t scoutro:0.10.0-rc-local .
 ```
 
 The optional secret and temporary Java trust store exist only during the build;
@@ -104,10 +104,12 @@ file referring to a path outside the build context cannot provide the revision.
 
 ## Release candidate and DATA upgrades
 
-[Scoutro 0.9.0 release/upgrade notes](SCOUTRO_RELEASE_0.9.0.md) are the current
-operator contract. [Changelog](../CHANGELOG.md) describes the user-facing changes.
+[Scoutro 0.10.0 release/upgrade notes](SCOUTRO_RELEASE_0.10.0.md) are the current
+operator contract; the schema migrations below come from
+[0.9.0](SCOUTRO_RELEASE_0.9.0.md) and still apply to installations older than 0.9.0.
+[Changelog](../CHANGELOG.md) describes the user-facing changes.
 The pre-existing main publication workflow will publish **both** immutable
-image tags `1.942-scoutro.22` and `0.9.0` after a separately authorized merge;
+image tags `1.942-scoutro.24` and `0.10.0` after a separately authorized merge;
 its existing-tag refusal must remain enabled. A branch push/Draft PR does not
 publish the image. Do not manually dispatch the workflow in addition to the
 merge-triggered run, or race two publications of the same version.
