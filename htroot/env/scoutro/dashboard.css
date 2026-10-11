@@ -61,3 +61,8 @@
   .scoutro-dash-links .scoutro-dash-card { padding: 14px 12px; font-size: 12px; }
 }
 .scoutro-kg-alert { color: #b3261e; font-weight: 600; }
+
+/* Scoutro accounts: the functions of the signed-in identity below the collection overview */
+#scoutro-dash-functions {
+  margin-top: 28px;
+}

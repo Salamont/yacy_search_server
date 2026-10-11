@@ -170,6 +170,10 @@ in the network are unchanged.
   are allowed (existing rule in `BusinessView.visibleDerived`).
 - Operators cannot crawl hosts that already have documents outside their
   scope (the agents' rule), because a recrawl would change those documents.
+  Their crawls, Discovery crawls and agent crawls stay on exactly their
+  start host: YaCy's domain filter is only a host prefix (`example.com` also
+  matches `example.com.au`), so this check of the start host would not cover
+  the hosts the crawl follows.
 
 ## 7. Navigation
 
@@ -180,12 +184,15 @@ permissions of the signed-in identity.
 |---|---|---|
 | Overview | Overview (`scoutro-dashboard.html`) | `read` |
 | Research | Search (`scoutro-search.html`), Chat (`yacychat.html`), Websites (`IndexBrowser_p.html`), Host analysis (`ScoutroSEO_p.html`) | `search` / `chat` / `read` |
-| Knowledge | Overview, Organisations, Services, Comparisons, History (`ScoutroKnowledge_p.html` views) | `read` |
+| Knowledge | Organisations, Services, Comparisons, History (`ScoutroKnowledge_p.html` views) | `read` |
 | Data collection | Crawls (`ScoutroCrawls_p.html`), Discovery (`ScoutroDiscovery_p.html`), Reports (`ScoutroSEO_p.html` report view) | `collect` |
 | Settings | Collections, Users, Agents, Models (`LLMSelection_p.html`), Knowledge graph operations, System (restart/shutdown), Advanced tools (YaCy menu) | `admin` |
 
 Adjustments to the proposed structure, and why:
 
+- The knowledge *overview* of YaCy's page is its operations status; it is the
+  administrator entry *Settings → Knowledge graph operations*
+  (`?view=operations`). Accounts start on *Organisations*.
 - *Relations* and *Sources* are not separate menu entries: in the existing
   knowledge pages they belong to an organisation (network view) or a
   document (source view) and are reached from there.
@@ -196,9 +203,24 @@ Adjustments to the proposed structure, and why:
   Portal) are kept unchanged under *Settings → Advanced tools* for
   administrators.
 
-Header: brand, search field (Scoutro search), collection context (allowed
-collections; the server re-validates it on every request), account menu
-(name, role, my account, sign out).
+Header: brand, search field (Scoutro search in protected mode, YaCy's search
+for the administrator), account menu (name, role, my account, sign out). The
+collection context sits at the top of the navigation, the same on desktop
+and phone: the identity's collections from `GET /v1/collections`, kept for
+the browser tab (sessionStorage, a name, never a token), added as
+`collection=` to the header search and to the function pages; the server
+re-validates it on every request.
+
+### Where it is enforced
+
+| Layer | Code |
+|---|---|
+| Container (page and route rules of both modes) | `RoutePolicy` (`PROTECTED_PAGES`, `GUEST_API`), `Jetty12HttpServer.scoutroConstraint` |
+| Scoutro API (permission and scope of every route) | `ScoutroApiServlet.route` with `PeopleRoutes`; `DiscoveryApi` (jobs by profile collection); `KnowledgeRead` (restricted reader) |
+| Chat | `RAGProxyServlet` with `ChatCollections.member` (`LLMAccess.Shield.ACCOUNT`), `SystemQuestionChat`; `LLM.LLMModel.indexTools` (the index `search` tool only with all collections: `ToolProvider.readsIndex`, `ToolCallProtocol`) |
+| Crawls | `PeopleRoutes.crawlStart`, `DiscoveryGateway.start` and the agent route `ScopedActions.crawlStart`: `CrawlRequest.hostOnly` (a must-not-match filter for every URL outside the exact host, after the start marker) |
+| Pages | `ScoutroSEO_p`, `ScoutroKnowledge_p`, `ScoutroCrawls_p`, `ScoutroDiscovery_p` (`Caller`), `IndexBrowser_p` (maintenance stays with the administrator), `ScoutroDashboard` (catalog ∩ scope), `index.java` (redirect to `scoutro-search.html`), `yacychat.java` (collection list) |
+| Navigation | `PageNav` and `header.template` (display only) |
 
 ## 8. Audit log
 

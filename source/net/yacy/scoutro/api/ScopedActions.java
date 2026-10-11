@@ -198,18 +198,28 @@ class ScopedActions {
                     + "use the parameter 'collection' with one of your granted collections.");
         }
         final List<String> collections = filterCollections(agent, q.get("collection"));
+        return searchWithin(this.actions, q, collections, "This agent has more than " + MAX_SEARCH_COLLECTIONS
+                + " collections; name one with the parameter 'collection'.");
+    }
+
+    /**
+     * The local search within {@code collections} (null: the complete local index), shared by agents and
+     * Scoutro accounts. The caller has resolved and checked the collections and refused 'collection:'.
+     */
+    static JSONObject searchWithin(final ScoutroActions actions, final Map<String, String> q, final List<String> collections,
+            final String tooMany) throws ApiException {
+        final String query = q.get("q");
         final Map<String, String> local = new HashMap<>(q);
         local.remove("collection");
         local.put("source", "local");
         if (collections == null) {
-            return this.actions.search(local, null); // complete local index was granted explicitly
+            return actions.search(local, null); // complete local index was granted explicitly
         }
         if (collections.size() > MAX_SEARCH_COLLECTIONS) {
-            throw ApiException.invalid("collection", "This agent has more than " + MAX_SEARCH_COLLECTIONS
-                    + " collections; name one with the parameter 'collection'.");
+            throw ApiException.invalid("collection", tooMany);
         }
         if (collections.size() == 1) {
-            final JSONObject r = this.actions.search(local, collections.get(0));
+            final JSONObject r = actions.search(local, collections.get(0));
             Json.put(r, "collections", new JSONArray(collections));
             return r;
         }
@@ -228,7 +238,7 @@ class ScopedActions {
         long total = 0;
         JSONObject first = null;
         for (final String c : collections) {
-            final JSONObject r = this.actions.search(each, c);
+            final JSONObject r = actions.search(each, c);
             if (first == null) {
                 first = r;
             }
@@ -391,7 +401,9 @@ class ScopedActions {
                     "collection", collection);
             final JSONObject created;
             try {
-                created = this.actions.crawlStart(start, marker);
+                // YaCy's domain filter is a host prefix (example.com also matches example.com.au): keep the crawl
+                // on its start host, so it reaches no host outside the allowlist and no foreign documents
+                created = this.actions.crawlStart(start, marker, true);
             } catch (final ApiException e) {
                 // The answer alone does not tell whether a crawl runs: Crawler_p reports "failed" also after it
                 // has activated the profile (e.g. when start URLs cannot be stacked). Decide by the marker.

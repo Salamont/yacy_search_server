@@ -215,6 +215,104 @@ for the JavaScript code in this page.
   }
 
   /*
+   * Collection context of the navigation: the collections of the signed-in
+   * identity (GET /scoutro/api/v1/collections). The choice lasts for this
+   * browser tab (sessionStorage, a collection name, never a token) and is
+   * added as ?collection= to the header search and to the function pages
+   * that read it; a link's own collection wins. The server checks the scope
+   * of every request, so the list only helps choosing.
+   */
+  var CONTEXT_KEY = 'scoutro.context.collection';
+  var CONTEXT_PAGES = ['scoutro-search.html', 'yacychat.html', 'IndexBrowser_p.html', 'ScoutroSEO_p.html',
+    'ScoutroKnowledge_p.html', 'ScoutroCrawls_p.html'];
+
+  function storedContext() {
+    try { return window.sessionStorage.getItem(CONTEXT_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function storeContext(value) {
+    try {
+      if (value) window.sessionStorage.setItem(CONTEXT_KEY, value);
+      else window.sessionStorage.removeItem(CONTEXT_KEY);
+    } catch (e) {
+      /* the choice then lasts for this page only */
+    }
+  }
+
+  var contextValue = '';
+
+  /* The header search adds the context to its target when it is sent; the form gets no extra field,
+     so pages with their own collection field (YaCy's crawl forms) keep exactly one. */
+  function sendHeaderSearch(event) {
+    var form = event.currentTarget;
+    if (!contextValue || !window.URLSearchParams) return;
+    event.preventDefault();
+    var params = new URLSearchParams();
+    for (var i = 0; i < form.elements.length; i++) {
+      var field = form.elements[i];
+      if (field.name && !field.disabled && field.type !== 'submit') params.append(field.name, field.value);
+    }
+    params.set('collection', contextValue);
+    window.location.href = form.getAttribute('action') + '?' + params.toString();
+  }
+
+  function applyContext(value) {
+    contextValue = value;
+    var links = document.querySelectorAll('#scoutro-adminnav a[href]');
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute('href');
+      var q = href.indexOf('?');
+      var file = (q < 0 ? href : href.substring(0, q)).replace(/^.*\//, '');
+      if (CONTEXT_PAGES.indexOf(file) < 0 || links[i].closest('details')) continue;
+      var params = new URLSearchParams(q < 0 ? '' : href.substring(q + 1));
+      if (value) params.set('collection', value); else params.delete('collection');
+      var query = params.toString();
+      links[i].setAttribute('href', file + (query ? '?' + query : ''));
+    }
+  }
+
+  function setUpContext() {
+    var box = document.getElementById('scoutro-context');
+    var select = document.getElementById('scoutro-context-select');
+    if (!box || !select || !window.fetch) return;
+    fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (json) {
+        var list = json && json.collections ? json.collections.filter(function (c) { return c.selectable !== false && !c.internal; }) : [];
+        if (!list.length) return;
+        list.forEach(function (c) {
+          var option = document.createElement('option');
+          option.value = c.id;
+          option.textContent = c.name && c.name !== c.id ? c.name : c.id;
+          select.appendChild(option);
+        });
+        var known = function (v) { return list.some(function (c) { return c.id === v; }); };
+        var fromLink = new URLSearchParams(window.location.search).get('collection') || '';
+        var here = window.location.pathname.replace(/^.*\//, '');
+        var value = fromLink && known(fromLink) && CONTEXT_PAGES.indexOf(here) >= 0 ? fromLink : storedContext();
+        if (!known(value)) value = '';
+        select.value = value;
+        storeContext(value);
+        applyContext(value);
+        var form = document.getElementById('header-search-form');
+        if (form) form.addEventListener('submit', sendHeaderSearch);
+        box.hidden = false;
+        select.addEventListener('change', function () {
+          storeContext(select.value);
+          applyContext(select.value);
+          if (CONTEXT_PAGES.indexOf(here) >= 0) {
+            var params = new URLSearchParams(window.location.search);
+            if (select.value) params.set('collection', select.value); else params.delete('collection');
+            params.delete('offset');
+            var query = params.toString();
+            window.location.href = here + (query ? '?' + query : '');
+          }
+        });
+      })
+      .catch(function () { /* without the list the pages keep their own choice */ });
+  }
+
+  /*
    * Search results are loaded asynchronously, so the server cannot know in
    * advance that a search ends without results. Show the empty state
    * (#scoutro-empty-results in yacysearch.html) once the result feed has
@@ -271,6 +369,7 @@ for the JavaScript code in this page.
     wrapWideTables();
     markCurrentLinks();
     setUpAccount();
+    setUpContext();
     watchEmptyResults();
   }
 

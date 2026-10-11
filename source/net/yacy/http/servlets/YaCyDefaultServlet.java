@@ -1148,11 +1148,15 @@ public class YaCyDefaultServlet extends HttpServlet  {
                 templatePatterns.put("scoutroRead", scoutroNav.read ? 1 : 0);
                 templatePatterns.put("scoutroCollect", scoutroNav.collect ? 1 : 0);
                 templatePatterns.put("scoutroAdmin", scoutroNav.admin ? 1 : 0);
+                templatePatterns.put("scoutroExport", scoutroNav.export ? 1 : 0);
+                templatePatterns.put("scoutroSearchPage", scoutroNav.searchPage ? 1 : 0);
+                templatePatterns.put("scoutroContext", scoutroNav.account > 0 && scoutroNav.search ? 1 : 0);
                 // fields used inside #(...)# blocks of header.template carry the block name as prefix
                 templatePatterns.putHTML("scoutroAccount_scoutroUser", scoutroNav.user);
                 templatePatterns.put("scoutroAccount_scoutroRole", scoutroNav.role);
                 templatePatterns.put("scoutroSearch_scoutroChat", scoutroNav.chat ? 1 : 0);
                 templatePatterns.put("scoutroSearch_scoutroRead", scoutroNav.read ? 1 : 0);
+                templatePatterns.put("scoutroSearch_scoutroSearchPage", scoutroNav.searchPage ? 1 : 0);
                 templatePatterns.put("scoutroAdmin_navigation-p2p",
                         sb.getConfigBool(SwitchboardConstants.NETWORK_UNIT_DHT, true) || !sb.isRobinsonMode() ? 1 : 0);
 

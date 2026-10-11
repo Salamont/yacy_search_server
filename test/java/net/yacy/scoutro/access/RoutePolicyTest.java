@@ -2,6 +2,7 @@
 package net.yacy.scoutro.access;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -29,8 +30,9 @@ public class RoutePolicyTest {
     @Test
     public void protectedModeIsAnAllowlist() {
         for (final String p : new String[] {"/yacysearch.html", "/yacysearch.json", "/solr/select", "/solr/collection1/select",
-                "/gsa/search", "/suggest.json", "/tools", "/tools/call", "/v1/chat/completions", "/v1/models", "/api/tags",
-                "/Status.html", "/ViewFile.html", "/yacydoc.html", "/api/version.xml", "/index.html", "/",
+                "/gsa/search", "/suggest.json", "/tools", "/tools/call", "/v1/models", "/api/tags",
+                "/Status.html", "/ViewFile.html", "/yacydoc.html", "/api/version.xml", "/ScoutroAgents_p.html",
+                "/ScoutroUsers_p.html", "/LLMSelection_p.html", "/IndexControlURLs_p.html", "/Crawler_p.html",
                 "/CrawlResults.html", "/ViewImage.png", "/env/templates/header.template", "/portalsearch/yacy-portalsearch.js",
                 "/scoutro/api/whatever"}) {
             assertEquals(p, RoutePolicy.Kind.ADMIN, kind(p, true));
@@ -67,6 +69,33 @@ public class RoutePolicyTest {
                 "/yacy/hello.html;/../urls.xml"}) {
             assertEquals(p, RoutePolicy.Kind.ADMIN, kind(p, true));
         }
+    }
+
+    @Test
+    public void protectedModeOpensFunctionPagesByPermission() {
+        final String[][] expected = {
+            {"/", "search+guest"}, {"/index.html", "search+guest"}, {"/scoutro-search.html", "search+guest"},
+            {"/scoutro-dashboard.html", "read"}, {"/IndexBrowser_p.html", "read"}, {"/ScoutroSEO_p.html", "read"},
+            {"/ScoutroKnowledge_p.html", "read"}, {"/yacychat.html", "chat"}, {"/v1/chat/completions", "chat"},
+            {"/ScoutroCrawls_p.html", "collect"}, {"/ScoutroDiscovery_p.html", "collect"}};
+        for (final String[] e : expected) {
+            final RoutePolicy.Rule rule = RoutePolicy.classify(e[0], true);
+            assertEquals(e[0], RoutePolicy.Kind.PERMISSION, rule.kind);
+            assertEquals(e[0], e[1], rule.permission.id() + (rule.guest ? "+guest" : ""));
+            // compatible mode keeps YaCy's rules: restricted accounts cannot exist there
+            assertEquals(e[0], RoutePolicy.Kind.LEGACY, kind(e[0], false));
+        }
+        for (final boolean protectedMode : new boolean[] {false, true}) {
+            for (final String p : new String[] {"/scoutro/api/v1/search", "/scoutro/api/v1/collections"}) {
+                final RoutePolicy.Rule rule = RoutePolicy.classify(p, protectedMode);
+                assertEquals(p, RoutePolicy.Kind.PERMISSION, rule.kind);
+                assertEquals(p, Permission.SEARCH, rule.permission);
+                assertTrue(p, rule.guest);
+            }
+        }
+        // a sub path is not the page
+        assertEquals(RoutePolicy.Kind.ADMIN, kind("/IndexBrowser_p.html/x", true));
+        assertEquals(RoutePolicy.Kind.SIGNED_IN, kind("/scoutro/api/v1/collections/reassign", true));
     }
 
     @Test

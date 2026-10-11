@@ -19,7 +19,7 @@
 <label for="scc-pages">Maximum pages per domain<input id="scc-pages" class="form-control" type="number" required min="1" max="1000000" step="1" value="15" /></label>
 <label for="scc-depth">Crawl depth<input id="scc-depth" class="form-control" type="number" required min="0" max="10" step="1" value="2" /></label>
 </div>
-<p class="scc-note">Choose an existing collection or create a new one with New collection. There is no default collection.</p>
+<p class="scc-note">#(scoutroAdmin)#Choose one of your collections. There is no default collection.::Choose an existing collection or create a new one with New collection. There is no default collection.#(/scoutroAdmin)#</p>
 <button id="scc-start" class="btn btn-primary" type="submit">Start crawl</button>
 <p id="scc-locked" class="scc-note" hidden>This request has started its crawl. Change the URL or a setting to start another crawl.</p>
 </form>
@@ -33,7 +33,7 @@
 </section>
 </section>
 <section class="scc-panel" aria-labelledby="scc-list-title">
-<div class="scc-heading"><h2 id="scc-list-title">Crawl status</h2><button class="btn btn-default" id="scc-refresh" type="button">Refresh</button><a href="Crawler_p.html">YaCy Crawler Monitor</a></div>
+<div class="scc-heading"><h2 id="scc-list-title">Crawl status</h2><button class="btn btn-default" id="scc-refresh" type="button">Refresh</button>#(scoutroAdmin)#::<a href="Crawler_p.html">YaCy Crawler Monitor</a>#(/scoutroAdmin)#</div>
 <p class="scc-note">Profile status does not prove successful indexing. Missing values are unknown; no percentage is estimated.</p>
 <div id="scc-crawls" class="scc-cards"></div>
 </section>

@@ -95,6 +95,33 @@ public final class RoutePolicy {
         PAGES = Collections.unmodifiableMap(m);
     }
 
+    /** Scoutro search page: the collections of the signed-in identity or the guest's released ones. */
+    public static final String SEARCH_PAGE = "/scoutro-search.html";
+
+    /**
+     * Function pages and their entry points in protected mode (section 4): opened by a permission instead
+     * of the administrator. In compatible mode they keep YaCy's rules; restricted accounts do not exist there.
+     */
+    static final Map<String, Rule> PROTECTED_PAGES;
+    static {
+        final Map<String, Rule> m = new HashMap<>();
+        m.put("/", permissionOrGuest(Permission.SEARCH));
+        m.put("/index.html", permissionOrGuest(Permission.SEARCH));
+        m.put(SEARCH_PAGE, permissionOrGuest(Permission.SEARCH));
+        m.put("/scoutro-dashboard.html", permission(Permission.READ));
+        m.put("/IndexBrowser_p.html", permission(Permission.READ));
+        m.put("/ScoutroSEO_p.html", permission(Permission.READ));
+        m.put("/ScoutroKnowledge_p.html", permission(Permission.READ));
+        m.put("/yacychat.html", permission(Permission.CHAT));
+        m.put("/v1/chat/completions", permission(Permission.CHAT));
+        m.put("/ScoutroCrawls_p.html", permission(Permission.COLLECT));
+        m.put("/ScoutroDiscovery_p.html", permission(Permission.COLLECT));
+        PROTECTED_PAGES = Collections.unmodifiableMap(m);
+    }
+
+    /** API routes a guest may use as well (the servlet limits them to the released collections). */
+    static final Set<String> GUEST_API = Set.of("/scoutro/api/v1/search", "/scoutro/api/v1/collections");
+
     /** Sign-in routes of the API that answer anonymous callers themselves. */
     static final Set<String> PUBLIC_API = Set.of("/scoutro/api/v1/auth/login", "/scoutro/api/v1/auth/session",
             "/scoutro/api/v1/auth/logout", "/scoutro/api/v1/health", "/scoutro/api/openapi.json", "/scoutro/api/actions.json");
@@ -140,6 +167,9 @@ public final class RoutePolicy {
         if (path.startsWith("/scoutro/api/agent/")) {
             return PUBLIC; // authenticated by the servlet with agent tokens, never with a session
         }
+        if (GUEST_API.contains(path)) {
+            return permissionOrGuest(Permission.SEARCH); // ScoutroApiServlet: the caller's collections only
+        }
         if (path.startsWith("/scoutro/api/v1/")) {
             return SIGNED_IN; // ScoutroApiServlet checks every route (deny by default)
         }
@@ -148,6 +178,10 @@ public final class RoutePolicy {
         }
         if (STATIC_FILES.contains(path) || staticAsset(path)) {
             return PUBLIC;
+        }
+        final Rule function = PROTECTED_PAGES.get(path);
+        if (function != null) {
+            return function;
         }
         if (path.startsWith("/yacy/") && (peerToPeer || PEER_HANDSHAKE.contains(path))) {
             return LEGACY; // peer-to-peer protocol: YaCy's network rules decide

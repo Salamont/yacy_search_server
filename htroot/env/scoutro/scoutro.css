@@ -865,3 +865,31 @@ body#index form.search div.yacysearch label {
 .scoutro-adminbar .scoutro-topbar > #header-search-form { order: 1; }
 .scoutro-adminbar .scoutro-topbar > #scoutro-account { order: 2; }
 .scoutro-adminbar .scoutro-topbar > #scoutro-nav-toggle { order: 3; }
+
+/* Collection context at the top of the navigation (desktop sidebar and mobile panel alike) */
+.scoutro-context {
+  margin: 4px 0 14px;
+  padding: 10px 12px;
+  border-radius: var(--scoutro-radius-sm, 10px);
+  background: var(--scoutro-primary-soft, #e8f1ff);
+}
+
+.scoutro-context[hidden] {
+  display: none;
+}
+
+.scoutro-context label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--scoutro-muted, #5d6f87);
+}
+
+.scoutro-context select {
+  width: 100%;
+  min-height: 40px;
+  font-size: 14px;
+}

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Search</title>
+  #%env/templates/metas.template%#
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-search-page">
+  #%env/templates/header.template%#
+  <main class="scoutro-page" aria-labelledby="ssr-title">
+    <header class="scoutro-page-heading">
+      <h1 id="ssr-title">Search</h1>
+      <p class="scoutro-page-lead">Searches the pages of your collections in this index.</p>
+    </header>
+
+    <form id="ssr-form" class="scoutro-card scoutro-search-form" role="search">
+      <div class="scoutro-search-row">
+        <label class="sr-only" for="ssr-q">Search words</label>
+        <input id="ssr-q" name="q" type="search" class="form-control" maxlength="200" autocomplete="off" placeholder="Search words" value="#[query]#" />
+        <label class="sr-only" for="ssr-collection">Collection</label>
+        <select id="ssr-collection" name="collection" class="form-control" aria-describedby="ssr-scope">
+          <option value="">All my collections</option>
+        </select>
+        <button id="ssr-submit" type="submit" class="btn btn-primary">Search</button>
+      </div>
+      <p id="ssr-scope" class="scoutro-note">Only your collections are searched; the server checks every request.</p>
+    </form>
+
+    <p id="ssr-message" class="scoutro-status" role="status" aria-live="polite" tabindex="-1" hidden></p>
+
+    <section id="ssr-results" class="scoutro-card" aria-labelledby="ssr-results-title" hidden>
+      <h2 id="ssr-results-title">Results</h2>
+      <p id="ssr-count" class="scoutro-note"></p>
+      <ol id="ssr-list" class="scoutro-results"></ol>
+      <div class="scoutro-pager">
+        <button id="ssr-prev" type="button" class="btn btn-default">Previous</button>
+        <button id="ssr-next" type="button" class="btn btn-default">Next</button>
+      </div>
+    </section>
+  </main>
+
+  <div hidden>
+    <span data-ssr-label="loading">Searching …</span>
+    <span data-ssr-label="empty">No pages found. Try other words or another collection.</span>
+    <span data-ssr-label="count">%1 results</span>
+    <span data-ssr-label="count_approx">about %1 results</span>
+    <span data-ssr-label="no_collections">No collection is available to you. Ask an administrator.</span>
+    <span data-ssr-label="enter_words">Enter search words.</span>
+    <span data-ssr-label="collection_not_allowed">This collection is not available to you.</span>
+    <span data-ssr-label="query_modifier_not_allowed">Remove collection: or /heuristic from the search words; choose the collection in the list.</span>
+    <span data-ssr-label="invalid_request">The search words or the collection are not valid.</span>
+    <span data-ssr-label="unauthorized">Your session has ended. Please sign in again.</span>
+    <span data-ssr-label="forbidden">Your account may not search.</span>
+    <span data-ssr-label="failed">The search did not work. Please try again.</span>
+    <span data-ssr-label="all_mine">All my collections</span>
+    <span data-ssr-label="whole_index">All collections</span>
+  </div>
+  <script src="env/scoutro/search.js"></script>
+  #%env/templates/footer.template%#
+</body>
+</html>

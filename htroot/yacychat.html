@@ -915,7 +915,7 @@
           <div class="collection-control">
             <label for="collectionSelect">Collection:</label>
             <select id="collectionSelect" aria-describedby="collectionHint collectionCurrent">
-              <option value="">All collections</option>
+              #(collectionAll)#::<option value="">All collections</option>#(/collectionAll)#
               #{collections}#<option value="#[id]#">#[label]#</option>
               #{/collections}#
             </select>
@@ -1556,7 +1556,11 @@
     }
 
     function applyCollectionSetting(value, persist) {
-        const clean = allowedCollections().includes(value) ? value : '';
+        let clean = allowedCollections().includes(value) ? value : '';
+        // Scoutro: an account without all collections has no "all collections" option and always names one
+        if (!clean && dom.collectionSelect && !Array.from(dom.collectionSelect.options).some(option => option.value === '')) {
+            clean = allowedCollections()[0] || '';
+        }
         state.config.collection = clean;
         if (dom.collectionSelect) dom.collectionSelect.value = clean;
         showCollectionScope();

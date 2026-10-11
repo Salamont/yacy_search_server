@@ -35,7 +35,9 @@ public class DashboardFixture {
                     return result.getValues();
                 }
             };
-            final DashboardMetrics.Snapshot empty = DashboardMetrics.read(query);
+            // the cards come from the collection catalog; these are the fixture's collections
+            final List<String> ids = List.of("edelsenior-web", "checkthecoach-web", "stackfinder-web", "bauteamcheck-web");
+            final DashboardMetrics.Snapshot empty = DashboardMetrics.read(query, ids, null);
             require(empty.index.pages == 0 && empty.index.hosts == 0, "empty index counts");
             for (int i = 0; i < 7; i++) {
                 final String host = i < 4 ? "edel.example" : "bau.example";
@@ -45,7 +47,7 @@ public class DashboardFixture {
             instance.getDefaultServer().add(document("https://failed.example/missing", "edelsenior-web", 404, "fail"));
             instance.getDefaultServer().add(document("https://excluded.example/blocked", "edelsenior-web", 200, "excl"));
             instance.getDefaultServer().commit();
-            final DashboardMetrics.Snapshot data = DashboardMetrics.read(query);
+            final DashboardMetrics.Snapshot data = DashboardMetrics.read(query, ids, null);
             require(data.index.pages == 7, "successful indexed documents");
             require(data.index.hosts == 2, "distinct indexed hosts");
             require(data.collections.get("edelsenior-web").pages == 3, "EdelSenior pages");
@@ -55,7 +57,13 @@ public class DashboardFixture {
             require(data.collections.get("stackfinder-web").hosts == 2, "StackFinder hosts");
             require(data.collections.get("bauteamcheck-web").pages == 2, "Bauteamcheck pages");
             require(connector.getSize() == 9, "read-only aggregates retain failure records");
-            System.out.println("PASS: 10 real embedded-Solr checks; seeded 7 pages / 2 hosts and 2 excluded error records");
+            // an account's scope: the totals count only its collections
+            final DashboardMetrics.Snapshot scoped = DashboardMetrics.read(query, List.of("stackfinder-web"), List.of("stackfinder-web"));
+            require(scoped.index.pages == 2 && scoped.index.hosts == 2, "scoped totals");
+            require(scoped.collections.keySet().equals(java.util.Set.of("stackfinder-web")), "scoped cards");
+            final DashboardMetrics.Snapshot two = DashboardMetrics.read(query, ids, List.of("edelsenior-web", "bauteamcheck-web"));
+            require(two.index.pages == 5 && two.index.hosts == 2, "scoped totals of two collections");
+            System.out.println("PASS: 13 real embedded-Solr checks; seeded 7 pages / 2 hosts and 2 excluded error records");
         } finally {
             instance.close();
             net.yacy.cora.protocol.Domains.close();

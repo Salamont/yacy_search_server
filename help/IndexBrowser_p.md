@@ -7,3 +7,15 @@ Read-only URL browsing through `GET /scoutro/api/v1/index/browse`; administrator
 Each domain card links to **Knowledge** (`ScoutroKnowledge_p.html?view=objects&host=…&collection=…`, the objects the knowledge graph found on the domain) and each URL row to the page's source view (`?view=source&doc=<id>`, what the graph holds from that page). Both views compute everything only from documents of the chosen collection; while the graph is disabled they say so.
 
 Machine clients use `scoutroctl index browse [QUERY] --collection NAME`, or the Bearer agent path `/scoutro/api/agent/v1/index/browse` with the explicit `index.browse` grant. Collection scope always applies, including membership labels. Existing presets are unchanged. Index maintenance remains on the index administration pages; filtered browsing rejects legacy global mutation parameters.
+
+## Scoutro accounts (protected access mode)
+
+In the protected access mode accounts with the **read** right (Research,
+Operator) open this page as *Research → Websites*. Every list, count and
+domain comes from `/scoutro/api/v1/index/*` and is limited to the account's
+collections; a `collection` parameter outside them answers
+`403 collection_not_allowed`. The domain export (`/index/domains/export`)
+also needs the **export** right; without it the *Export* button is hidden.
+The legacy maintenance actions of this page (`load`, `delete`,
+`deleteLoadErrors`, `reload404`, `addtoblacklist`) stay with the
+administrator. See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

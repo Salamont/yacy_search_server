@@ -146,3 +146,11 @@ catalogs and [crawl report](../docs/SCOUTRO_CRAWL_REPORT.md).
 Accepts a host or HTTP/HTTPS URL. Unknown hosts display **Not yet indexed**, with an explicit **Start crawl** link to Scoutro Crawls. A Collection is required there. The page rechecks the index when returning; finished crawl status is not proof of indexing.
 
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
+
+## Scoutro accounts (protected access mode)
+
+Host analysis (`/scoutro/api/v1/seo/*`) needs the **read** right and is
+limited to the account's collections; the crawl reports
+(`?view=report`, `/scoutro/api/v1/reports/*`) need the **collect** right and
+show only jobs whose collections are all allowed. A `collection` outside the
+scope answers `403 collection_not_allowed`. See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.
