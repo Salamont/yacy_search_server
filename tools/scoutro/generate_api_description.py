@@ -1244,6 +1244,18 @@ schemas["DiscoveryJob"] = {'type': 'object',
                                                               'minimum': 10,
                                                               'maximum': 525600,
                                                               'default': 60}}}}}
+# Recovery of an unconfirmed crawl start (docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md, section 16).
+DEFER_DESCRIPTION = ("Administrator only. No agent grants. Recovery of an unconfirmed crawl start: the open batch is in "
+    "needs_review with error submitted_unknown and status().active_batch.review lists the attempt. Re-reads the crawl "
+    "profiles, holds the candidate in the Discovery state (it is never started again by itself), reads the profiles "
+    "again and records the decision with the outcome kept unknown; never resubmits and never records the start as not "
+    "submitted. Accepted crawls stay; when no open start remains the batch waits for them and other jobs continue. "
+    "200 status with decision. 409 attempt_found (a crawl profile carries the marker: reconciled as accepted, nothing "
+    "deferred), worker_busy, revision_conflict, stale_run, run_not_in_review, attempt_unknown, attempt_not_unresolved, "
+    "already_deferred, attempt_accepted_in_state, collection_conflict, state_root_changed; 428 revision_required; "
+    "503 state_unreadable, hold_failed. See help/ScoutroDiscovery_p.md.")
+DEFER_BODY = {'type': 'object', 'additionalProperties': False, 'required': ['run_id'],
+              'properties': {'run_id': {'type': 'string', 'format': 'uuid', 'description': 'Id of the open batch.'}}}
 discovery_legacy = {'/v1/discovery/catalog': {'get': {'operationId': 'discovery.catalog'}},
  '/v1/discovery/export': {'get': {'operationId': 'discovery.export'}},
  '/v1/discovery/jobs': {'get': {'operationId': 'discovery.jobs.list'},
@@ -1302,6 +1314,21 @@ discovery_legacy = {'/v1/discovery/catalog': {'get': {'operationId': 'discovery.
                                                                                                       'required': ['request_id'],
                                                                                                       'properties': {'request_id': {'type': 'string',
                                                                                                                                     'pattern': '^[A-Za-z0-9_-]{1,80}$'}}}}}}}},
+ '/v1/discovery/attempts/{id}/defer': {'post': {'operationId': 'discovery.attempts.defer',
+                                                'description': DEFER_DESCRIPTION,
+                                                'parameters': [{'name': 'id',
+                                                                'in': 'path',
+                                                                'required': True,
+                                                                'description': 'Attempt id of the open batch (its start marker).',
+                                                                'schema': {'type': 'string', 'pattern': '^[a-f0-9]{32}$'}},
+                                                               {'name': 'If-Match',
+                                                                'in': 'header',
+                                                                'required': True,
+                                                                'description': 'Numeric jobstore revision, optionally '
+                                                                               'quoted. Get from status/jobs.',
+                                                                'schema': {'type': 'string'}}],
+                                                'requestBody': {'required': True,
+                                                                'content': {'application/json': {'schema': DEFER_BODY}}}}},
  '/v1/discovery/enable': {'post': {'operationId': 'discovery.enable',
                                    'parameters': [{'name': 'If-Match',
                                                    'in': 'header',
@@ -1350,7 +1377,7 @@ for path, methods in discovery_legacy.items():
         responses = {str(201 if operation.endswith("create") else 200): {"description": "Success", "content": {"application/json": {"schema": {"type": "object"}}}}}
         responses.update({str(code): err("Validation, authorization, revision, conflict or availability error") for code in [400,401,403,404,409,428,503]})
         paths[path][method] = {"operationId":operation,"summary":"Discovery automation " + operation.removeprefix("discovery."),"tags":["discovery"],"security":[{"digest":[]}],"x-scoutro-mutating":mutation,
-            "description":"Administrator only. No agent grants. No Classification/LLM. See help/ScoutroDiscovery_p.md.","responses":responses,**{key:value for key,value in definition.items() if key != "operationId"}}
+            "description":definition.get("description", "Administrator only. No agent grants. No Classification/LLM. See help/ScoutroDiscovery_p.md."),"responses":responses,**{key:value for key,value in definition.items() if key not in ("operationId", "description")}}
 
 # The UI, CLI and agents share these contracts. No action fetches an unknown host.
 schemas["HostResolution"] = {"type": "object", "required": ["host", "url", "indexed", "analysisAvailable", "crawl"], "properties": {
@@ -1512,7 +1539,7 @@ def scoutro_permission(path, method):
         return "collect"
     if resource == "discovery":
         sub = parts[3] if len(parts) > 3 else ""
-        return "admin" if sub in ("enable", "disable", "pause", "resume", "export") else "collect"
+        return "admin" if sub in ("enable", "disable", "pause", "resume", "export", "attempts") else "collect"
     return "admin"
 for _path, _methods in paths.items():
     if not _path.startswith("/v1/"):
@@ -1764,6 +1791,18 @@ actions.extend([{'name': 'discovery.catalog',
                           'required': ['request_id'],
                           'properties': {'request_id': {'type': 'string',
                                                         'pattern': '^[A-Za-z0-9_-]{1,80}$'}}}},
+  'returns': 'object',
+  'errors': [400, 401, 403, 404, 409, 428, 503],
+  'agent': {'grantable': False}},
+ {'name': 'discovery.attempts.defer',
+  'description': 'Defer an unconfirmed Discovery crawl start: the outcome stays unknown, the candidate is held and '
+                 'never started again by itself, other jobs continue. Administrator only; no agent grants.',
+  'mutating': True,
+  'auth': 'admin',
+  'http': {'method': 'POST', 'path': '/scoutro/api/v1/discovery/attempts/{id}/defer', 'successStatus': 200},
+  'parameters': {'id': {'type': 'string', 'pattern': '^[a-f0-9]{32}$', 'in': 'path', 'required': True,
+                        'description': 'Attempt id of the open batch (its start marker).'},
+                 'body': DEFER_BODY},
   'returns': 'object',
   'errors': [400, 401, 403, 404, 409, 428, 503],
   'agent': {'grantable': False}},

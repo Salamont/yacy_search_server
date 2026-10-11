@@ -109,7 +109,23 @@ Ordinary YaCy crawl profiles have `startMarker: null` in the existing Scoutro cr
 
 Unexpected coordinator exceptions are logged server-side at SEVERE by `ScoutroDiscovery`, including exception types, cause types (bounded to eight nested causes) and original stack frames. Exception messages are redacted because they can contain credentials, URLs or external payloads. API responses and the durable ledger retain only the generic `coordinator_error` code, with no internal stack traces. Logging does not alter dispatch or recovery decisions.
 
-Missing markers/crawl IDs leave `needs_review`, blocking additional batches. There is no exactly-once claim and no blind retry. Operator resolution is deliberately conservative: restore original profile visibility and reconcile, or pause and investigate a backed-up ledger. V1 has no destructive "clear unknown and retry" button.
+Missing markers/crawl IDs leave `needs_review`, blocking additional batches. There is no exactly-once claim and no blind retry. A missing profile, a missing start entry or elapsed time never turns an open start into `not_submitted`: the profile may have been deleted after an accepted start, or the reply lost during a stop.
+
+### 16.1 Deferring an unconfirmed start (administrator decision)
+
+Production finding (0.10.0, job "Prod StackFinder Sued-West"): one start submitted right before a maintenance stop stayed `submitted_unknown` with no crawl profile carrying its marker. `advance()` only reconciles while a batch is open, and `reconcile()` returns at the first open start, so the whole Discovery dispatch stayed blocked; nothing in V1 could end the batch without editing the ledger.
+
+`POST /scoutro/api/v1/discovery/attempts/{id}/defer` (administrator, `If-Match`, body `{"run_id"}`) is the supported way out. Contract:
+
+1. **Scope.** Only the open batch, in `needs_review` with error `submitted_unknown`, and only an attempt in `prepared` or `submitted_unknown`. Stale batch or attempt ids, another phase, a known outcome or a repeated decision are refused (`stale_run`, `run_not_in_review`, `attempt_unknown`, `attempt_not_unresolved`, `already_deferred`).
+2. **Exclusion.** The request takes the coordinator's own guard (`worker_busy` otherwise): no wakeup, reconciliation or dispatch runs while it decides, and two decisions never overlap. The store revision the administrator saw is checked before and atomically with the write (`revision_conflict`).
+3. **Fresh evidence.** The crawl profiles are read immediately before the hold and again immediately before the decision. A profile with the marker ends the request (`attempt_found`); the next reconciliation records the start as accepted.
+4. **Candidate first.** The Python worker (operation `hold`, under its run lock, also while the CLI pause is set, no RPC) sets the candidate's `automation_attempt` to `deferred_unknown` with outcome `unknown`, batch, submitted time, who and when. Status, crawl history and other profiles stay. Selection (`selection_kind`, automation backlog, CLI incl. `--force`) never takes a held candidate; the summary counts it as `held`, not fresh. A hold for the same attempt again is a no-op; a candidate whose state already records this start as accepted is refused (`attempt_accepted_in_state`). Only then does Java write, so a crash between both steps leaves the batch in review with the candidate already held; repeating the request completes it.
+5. **Decision.** The attempt becomes `deferred` with `decision` (`action=defer`, `outcome=unknown`, `by`, `at`, `run_id`, `profiles_checked`, `marker_found=false`, `candidate_held`). The job keeps the record in `runtime.held_attempts` (newest 100). When no open start remains, the batch leaves review (`waiting_for_crawler`, error cleared) and reconciliation continues with its accepted crawls; the batch completes as usual (history `deferred_count`) and other jobs continue.
+6. **Late confirmation.** While the batch is still open, a crawl that turns up with a deferred marker makes the attempt `accepted` (`decision.superseded`, record `accepted_late`); the normal confirm path applies the crawled state to the candidate, which ends its hold. After completion a late crawl starts nothing; the candidate stays held until an administrator crawls it deliberately.
+7. **Persistence.** The jobstore validates `deferred` attempts, their decision and `held_attempts`; a restart keeps everything. The people audit log records the call (`api.discovery.attempts.defer POST`, actor, target, result). An older image (0.10.0) refuses a jobstore whose *open* batch holds a `deferred` attempt (file kept intact); after the batch completed it reads the store as before. It does **not** honour a `deferred_unknown` hold (it skips only `submitted_unknown`): after a rollback, pause Discovery or the job before the held website could be selected again.
+
+No path deletes or edits ledger or state entries by hand, resubmits, or records `not_submitted`.
 
 Restart during discovery/reservation with no submitted attempts closes the interrupted run without replay; next scheduled discovery can replenish. Already accepted YaCy work continues. Corrupt jobstore/state is retained, never replaced by an empty store. Changed config blocks new batches but recovery uses the reserved snapshot. Changed state root blocks recovery. Store mutations are synchronized, schema-versioned, fsynced, atomically renamed and revision checked; persistence failure poisons further writes until reload.
 
@@ -185,7 +201,7 @@ Screenshots from the disposable smoke are outside Git under `scoutro-discovery-a
 
 - Robots redirects now validate every target in both Discovery and YaCy's public/global robots loader, with bounded chains. Explicit YaCy local/any modes retain intranet access. DNS checks do not pin transport connections; non-robots paths and DNS rebinding remain outside this narrow fix. See [robots redirect security](ROBOTS_REDIRECT_SECURITY.md).
 - Profile termination and existing queue counters are conservative proxies; they do not measure all in-flight indexing work.
-- Unknown start outcomes can intentionally stall automation until investigated; no destructive recovery shortcut.
+- Unknown start outcomes stall automation until an administrator checks the crawler and defers the start (section 16.1); there is no automatic or destructive shortcut. A deferred candidate stays held: crawling that website again is a deliberate manual crawl start (no release action in V1).
 - Multi-file config updates are not proven atomic by a double read; pause for coordinated replacement. Snapshot/cache retention is manual in V1; old successful snapshots/PBFs are not automatically pruned.
 - Germany Geofabrik provider only. Freeworld search results depend on network/source availability. Existing registrable-domain heuristics and TLD policy are reused.
 - Worker deadline can end a very large/slow source turn; accepted intents still reconcile. No provider checkpoint within a GDAL extraction.
@@ -198,7 +214,7 @@ Screenshots from the disposable smoke are outside Git under `scoutro-discovery-a
 
 1. Additional non-robots request-path and DNS-rebinding hardening, with explicit review of any necessary Core changes.
 2. Bounded cache/snapshot retention, provider resumability/metrics and more detailed in-flight completion evidence if production operation demonstrates a need.
-3. Explicit audited reconciliation tooling for missing/deleted Crawl Profiles, without enabling duplicate starts.
+3. Done for unconfirmed starts: the audited deferral of section 16.1. Open: an accepted start whose crawl profile was deleted (`crawl_status_unknown`) still blocks in review; a supported release of a held candidate.
 4. Safe cross-profile collection preservation before permitting overlapping host recrawls; current refusal remains the safe V1 boundary.
 5. Additional providers/regions through the registry, further translations and optional import UX.
 6. Optional separate Classification worker with independently scoped configuration/credentials. No LLM dependency in discovery/scheduler/retry/monitoring.
@@ -254,11 +270,15 @@ Screenshots from the disposable smoke are outside Git under `scoutro-discovery-a
 - `test/java/net/yacy/scoutro/api/DiscoveryGatewayTest.java`
 - `test/java/net/yacy/scoutro/dashboard/DashboardMetricsTest.java`
 - `test/java/net/yacy/scoutro/discovery/DiscoveryAutomationTest.java`
+- `test/java/net/yacy/scoutro/discovery/DiscoveryRecoveryTest.java`
 - `test/scoutro-discovery/test_automation.py`
 - `test/scoutro-discovery/verify-runtime-gdal.py`
+- `test/scoutro-ui/DiscoveryReviewFixture.java`
 - `test/scoutro-ui/README.md`
 - `test/scoutro-ui/dashboard-ui-test.mjs`
 - `test/scoutro-ui/discovery-live-smoke.py`
+- `test/scoutro-ui/discovery-recovery-live-smoke.py`
+- `test/scoutro-ui/discovery-recovery-ui-test.mjs`
 - `test/scoutro-ui/discovery-ui-test.mjs`
 - `tools/scoutro/scoutro-discovery`
 - `tools/scoutro/scoutro_automation.py`

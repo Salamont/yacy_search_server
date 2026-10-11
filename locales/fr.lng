@@ -4616,6 +4616,13 @@ YaCy System Terminal Monitor==Moniteur terminal du système YaCy
 >Completed<==>Completed<
 > Also retry after an unsuccessful crawl result<==> Also retry after an unsuccessful crawl result<
 >An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<
+>Unconfirmed crawl start<==>Unconfirmed crawl start<
+>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.<==>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.<
+>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.<==>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.<
+>Defer start (outcome stays unknown)<==>Defer start (outcome stays unknown)<
+>Deferred starts<==>Deferred starts<
+>Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.<==>Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.<
+>Crawl start deferred; Discovery continues.<==>Crawl start deferred; Discovery continues.<
 
 #File: scoutro-dashboard.html
 >Discovery Automation<==>Automatisation de la découverte<

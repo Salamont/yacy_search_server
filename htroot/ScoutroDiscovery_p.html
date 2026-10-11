@@ -33,6 +33,12 @@
           <a href="Crawler_p.html">Crawler Monitor</a>
         </div>
         <p class="scd-note">Pausing prevents new seeds. Crawls already accepted by YaCy continue.</p>
+        #(scoutroAdmin)#::<div class="scd-review" id="scd-review" hidden role="region" aria-labelledby="scd-review-title">
+          <h3 id="scd-review-title">Unconfirmed crawl start</h3>
+          <p>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.</p>
+          <p>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.</p>
+          <ul class="scd-review-list" id="scd-review-list"></ul>
+        </div>#(/scoutroAdmin)#
       </section>
       <section aria-labelledby="scd-jobs-title">
         <div class="scd-heading"><h2 id="scd-jobs-title">Discovery jobs</h2>
@@ -97,6 +103,9 @@
         <span data-scd-label="missing">Unavailable</span><span data-scd-label="minutes">minutes</span>
         <span data-scd-label="confirm_delete">Delete this job? Candidate state and existing crawls are retained.</span>
         <span data-scd-label="saved">Job saved</span><span data-scd-label="no_jobs">No discovery jobs configured.</span>
+        <span data-scd-label="defer">Defer start (outcome stays unknown)</span><span data-scd-label="held">Deferred starts</span>
+        <span data-scd-label="confirm_defer">Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.</span>
+        <span data-scd-label="deferred">Crawl start deferred; Discovery continues.</span>
         <span data-scd-label="profile_backlog">Entire profile backlog</span><span data-scd-label="osm">OpenStreetMap / Geofabrik</span><span data-scd-label="freeworld">YaCy Network Search</span>
       </div>
     </main>

@@ -2,6 +2,26 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased
+
+- Discovery: an administrator can defer an unconfirmed crawl start that
+  blocks all Discovery batches (`needs_review`, `submitted_unknown`, no crawl
+  profile with its marker) on the Discovery page (**Defer start (outcome
+  stays unknown)**) or with `POST /scoutro/api/v1/discovery/attempts/{id}/defer`.
+  The crawl profiles are checked again first; the outcome stays unknown and
+  is never recorded as not submitted; the website is held and never started
+  again by itself (also not by retry, recrawl or the command line
+  `--force`); accepted crawls of the batch are kept and other jobs continue.
+  The decision (who, when, evidence) stays with the attempt, in the job's
+  `held_attempts` and in the candidate state; a crawl with the marker that
+  turns up while the batch is still open is recorded as accepted after all.
+  The status lists the unconfirmed starts (`active_batch.review`) and counts
+  held candidates (`held`). See the
+  [recovery contract](docs/SCOUTRO_DISCOVERY_AUTOMATION_V1.md#161-deferring-an-unconfirmed-start-administrator-decision).
+  Rollback note: a 0.10.0 image refuses the job store while an open batch
+  contains a deferred start (complete the batch first) and does not honour
+  the hold of a deferred website (pause the job after a rollback).
+
 ## 0.10.0 / 1.942-scoutro.24 — release candidate: users, roles and navigation
 
 Upgrade from 0.9.1 keeps the **compatible access mode**: no account exists and

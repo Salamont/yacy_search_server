@@ -5185,6 +5185,13 @@ Idle==Inaktiv
 >Completed<==>Abgeschlossen<
 > Also retry after an unsuccessful crawl result<==> Auch nach einem erfolglosen Crawl-Ergebnis wiederholen<
 >An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>Ein erfolgloses Crawl-Ergebnis bedeutet, dass keine Seite indexiert oder beim Crawl nichts neu geladen wurde. Solche Hosts werden mit dem Backoff anderer Wiederholungen erneut versucht, der sich bis zum Recrawl-Intervall verdoppelt. Setzt Wiederholen voraus.<
+>Unconfirmed crawl start<==>Unbestätigter Crawl-Start<
+>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.<==>Discovery wartet, weil YaCy nicht bestätigt hat, ob dieser Crawl-Start angenommen wurde, und kein Crawl-Profil mit seinem Startmarker existiert. Prüfen Sie zuerst den Crawler-Monitor.<
+>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.<==>Zurückstellen prüft die Crawl-Profile noch einmal, lässt den Ausgang unbekannt, startet diese Website nie wieder von selbst und lässt Discovery weiterarbeiten. Angenommene Crawls bleiben erhalten.<
+>Defer start (outcome stays unknown)<==>Start zurückstellen (Ausgang bleibt unbekannt)<
+>Deferred starts<==>Zurückgestellte Starts<
+>Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.<==>Den unbestätigten Crawl-Start für %1 zurückstellen? Der Ausgang bleibt unbekannt, und die Website wird nicht automatisch erneut gestartet.<
+>Crawl start deferred; Discovery continues.<==>Crawl-Start zurückgestellt; Discovery arbeitet weiter.<
 
 #File: ScoutroSEO_p.html
 Organisations, facilities, sites and services the knowledge graph found on this host, computed only from the documents of the selected collection. Quality and sources are shown per object; facts only the LLM tier read are uncertain.==Organisationen, Einrichtungen, Standorte und Leistungen, die der Wissensgraph auf diesem Host gefunden hat, nur aus den Dokumenten der gewählten Collection berechnet. Qualität und Quellen stehen je Objekt; Fakten, die nur die LLM-Stufe gelesen hat, sind unsicher.

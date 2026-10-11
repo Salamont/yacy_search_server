@@ -26,11 +26,25 @@ The existing Python Multi-Profile State V2 remains the sole candidate-state owne
 
 ## Recovery and boundaries
 
-Before Crawl API dispatch, the Java run ledger fsyncs a unique intent and marker. Confirmed crawl ID follows; Python saves the accepted result before acknowledging it. Lost replies are reconciled using the marker reported by the existing Crawl Profiles API. Unknown or removed profiles block in `needs_review`; there is no blind resubmission or exactly-once claim. Restart during discovery with no starts ends the reserved run without replaying it; the next scheduled run replenishes again. Corrupt stores/state remain untouched and block work. Changing the state root with an open run blocks reconciliation.
+Before Crawl API dispatch, the Java run ledger fsyncs a unique intent and marker. Confirmed crawl ID follows; Python saves the accepted result before acknowledging it. Lost replies are reconciled using the marker reported by the existing Crawl Profiles API. Unknown or removed profiles block in `needs_review` until an administrator decides (below); there is no blind resubmission or exactly-once claim. Restart during discovery with no starts ends the reserved run without replaying it; the next scheduled run replenishes again. Corrupt stores/state remain untouched and block work. Changing the state root with an open run blocks reconciliation.
 
 For the crawl report, finished Discovery crawls and precheck refusals (DNS, robots.txt, blocked address, robots.txt 5xx) are recorded per host and collection in the `scoutro_domains` table; this never changes a Discovery decision unless a job enables `processing.outcome_retry`, and nothing is added to the Discovery state file. See [Crawl Report](../docs/SCOUTRO_CRAWL_REPORT.md).
 
-There is no automatic destructive resolution of `needs_review` in V1. Restore visibility of the original marked Crawl Profile and trigger a tick, or leave automation paused and investigate from a backed-up ledger. Do not clear an unknown intent to force a retry.
+### Unconfirmed crawl start (`needs_review`, `submitted_unknown`)
+
+A batch whose crawl start YaCy did not confirm, and whose start marker no crawl profile carries, stays in `needs_review` and blocks every further Discovery batch. Nothing resolves it by itself: a missing profile or a missing confirmation does not prove that the start was never accepted (the profile may have been deleted, or the reply lost during a stop), and time passing proves nothing either.
+
+The page shows such a start in **Unconfirmed crawl start** (administrators only): the website, the time it was submitted and **Defer start (outcome stays unknown)**. Before you use it:
+
+1. Look in the **Crawler Monitor** (and the active and finished crawl profiles) for a crawl of that website around the submitted time. If one carries the start marker, Discovery records it as accepted by itself at its next wakeup; no decision is needed.
+2. If there is none, defer the start. Discovery then
+   - reads the crawl profiles again; if a profile with the marker turned up, nothing is deferred (`409 attempt_found`) and the start is recorded as accepted;
+   - holds the candidate in its state (`automation_attempt.state = deferred_unknown`, with the batch, the submitted time, who decided and when): this website is **never started again by itself**, also not with retry, recrawl or the command line `--force`;
+   - reads the crawl profiles once more and records the decision with the attempt (`deferred`, outcome `unknown`, who, when, how many profiles were checked) and in the job's `runtime.held_attempts` (newest 100; the candidate's hold stays in the state regardless);
+   - keeps every accepted crawl of the batch: the batch waits for them as usual, completes, and the other jobs continue.
+3. If a crawl with that marker shows up while the batch still waits for its crawls, the start is recorded as accepted after all (`decision.superseded`, `held_attempts[].state = accepted_late`) and the candidate gets the usual crawled state. A crawl that shows up after the batch completed starts nothing; the candidate stays held.
+
+The decision is never a "not submitted" and never a retry. A deferred website is crawled again only through a deliberate crawl start by an administrator. The decision needs the store revision (`If-Match`), the id of the open batch and of the attempt; it is refused while the coordinator works (`worker_busy`), for a changed revision (`revision_conflict`), another batch (`stale_run`), a batch not in review (`run_not_in_review`), a start with a known outcome (`attempt_not_unresolved`) or one already deferred (`already_deferred`). The candidate is held before the decision is recorded; a refused or failed decision leaves the batch unchanged and can be repeated. Every call is in the user audit log (`api.discovery.attempts.defer POST`). Do not edit or delete `scoutro-discovery-jobs.json` or the candidate state to clear an unknown start.
 
 Capacity uses existing queue/stacker/indexing/loader counts, pause status, connector presence and resource observer. Conservative defaults: queue threshold 100, indexing threshold 20, minimum free heap/disk 20 MiB; settings `scoutro.discovery.queueThreshold`, `indexingThreshold`, `minimumFreeMemory`, `minimumFreeDisk`. Limits: `maxDomains=100`, `maxPages=100`, `maxDepth=5` (absolute maxima 500/10000/10); worker timeout `workerTimeoutSeconds=3600`, bounded to 60–7200 seconds. These are YaCy settings, not container-specific logic.
 
@@ -43,7 +57,7 @@ Base: `/scoutro/api/v1/discovery/`, HTTP Digest administrator only. Agent tokens
 | Method | Endpoint | Input / result / side effects |
 | --- | --- | --- |
 | GET | `catalog` | Profile IDs/collections/capabilities, source IDs/labels/regions, fingerprint, limits. Missing/invalid runtime config: 503. |
-| GET | `status` | Store revision, enabled/paused, worker, capacity, heartbeat/next execution, current run summary, cached state counts, config error. |
+| GET | `status` | Store revision, enabled/paused, worker, capacity, heartbeat/next execution, current run summary (in `needs_review` with `review`: the unconfirmed starts with `attempt_id`, `domain`, `state`, `submitted_at`; `deferred_count`), cached state counts (`held` per profile), config error. |
 | GET | `jobs` / `jobs/{id}` | Revision and rows: definition, runtime, status, waiting reason, fresh backlog (null until available). |
 | GET | `export` | Schema version and definitions only; no internal run/state data. |
 | POST | `jobs` | Definition; server assigns UUID and defaults; creates disabled unless explicitly enabled; 201 + Location. Optional If-Match. |
@@ -52,6 +66,7 @@ Base: `/scoutro/api/v1/discovery/`, HTTP Digest administrator only. Agent tokens
 | POST | `jobs/{id}/run` | `{"request_id":"unique-id"}`; 202 wakeup response. Requires global enabled/resumed. |
 | POST | `enable` / `disable` | `{}`, required If-Match; explicitly controls global flag and owned heartbeat. |
 | POST | `pause` / `resume` | `{}`, required If-Match; updates global pause flag only. |
+| POST | `attempts/{id}/defer` | `{"run_id":"<open batch id>"}`, required If-Match. Defers the unconfirmed crawl start `id` (from `status.active_batch.review`) with the outcome kept unknown and holds its candidate; 200 status with `decision`. Errors above (`attempt_found`, `worker_busy`, `revision_conflict`, `stale_run`, `run_not_in_review`, `attempt_unknown`, `attempt_not_unresolved`, `already_deferred`, `attempt_accepted_in_state`, `collection_conflict`, `state_root_changed`; 503 `state_unreadable`, `hold_failed`). |
 
 Common errors: 400 validation, 401/403 authentication/origin, 404 missing job/path, 409 stale revision/config reference/busy/paused, 428 missing revision, 503 unavailable/corrupt persistence/config. See `openapi.json` and `actions.json`. Machine error codes appear as waiting reasons; unknown future codes remain visible.
 
@@ -70,6 +85,7 @@ delete and *Run now*. A job of another collection answers like a missing one
 (`403 collection_not_allowed`). The status shows a batch of another
 collection only as busy, and offers no global action: enabling, disabling,
 pausing and resuming the automation and the job export stay with the
-administrator (`403 forbidden`). Every Discovery crawl stays on exactly
+administrator (`403 forbidden`), and so does deferring an unconfirmed crawl
+start. Every Discovery crawl stays on exactly
 its candidate host (with or without `www.`), the host whose collections the
 start checks. See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

@@ -15075,6 +15075,15 @@
     <trans-unit id="bf1bc615" xml:space="preserve" approved="no" translate="yes">
        <source>Pausing prevents new seeds. Crawls already accepted by YaCy continue.</source>
     </trans-unit>
+    <trans-unit id="db8e2ecf" xml:space="preserve" approved="no" translate="yes">
+       <source>Unconfirmed crawl start</source>
+    </trans-unit>
+    <trans-unit id="56734fa5" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery waits because YaCy did not confirm whether this crawl start was accepted, and no crawl profile with its start marker exists. Check the Crawler Monitor first.</source>
+    </trans-unit>
+    <trans-unit id="a1c3548b" xml:space="preserve" approved="no" translate="yes">
+       <source>Deferring checks the crawl profiles once more, keeps the outcome unknown, never starts this website again by itself and lets Discovery continue. Accepted crawls are kept.</source>
+    </trans-unit>
     <trans-unit id="7a1520e6" xml:space="preserve" approved="no" translate="yes">
        <source>Discovery jobs</source>
     </trans-unit>
@@ -15266,6 +15275,18 @@
     </trans-unit>
     <trans-unit id="63aabc44" xml:space="preserve" approved="no" translate="yes">
        <source>Job saved</source>
+    </trans-unit>
+    <trans-unit id="5695c3ef" xml:space="preserve" approved="no" translate="yes">
+       <source>Defer start (outcome stays unknown)</source>
+    </trans-unit>
+    <trans-unit id="9d2a1792" xml:space="preserve" approved="no" translate="yes">
+       <source>Deferred starts</source>
+    </trans-unit>
+    <trans-unit id="b17331a5" xml:space="preserve" approved="no" translate="yes">
+       <source>Defer the unconfirmed crawl start for %1? The outcome stays unknown and the website is not started again automatically.</source>
+    </trans-unit>
+    <trans-unit id="ed0c3aed" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawl start deferred; Discovery continues.</source>
     </trans-unit>
     <trans-unit id="df0904dc" xml:space="preserve" approved="no" translate="yes">
        <source>OpenStreetMap / Geofabrik</source>

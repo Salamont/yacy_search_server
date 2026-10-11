@@ -1049,6 +1049,7 @@ def state_summary(data, now=None):
     def prof(p):
         return profiles.setdefault(p, {"domains": 0, "crawled": 0, "retry": 0, "legacy_auth_retry": 0,
                                        "rejected": 0, "robots": 0, "blocked": 0, "fresh": 0, "excluded": 0, "other": 0,
+                                       "held": 0,
                                        "due": 0, "classified": {"PASS": 0, "FAIL": 0, "UNSURE": 0}})
     pairs = unassigned = 0
     for e in doms.values():
@@ -1061,7 +1062,9 @@ def state_summary(data, now=None):
             c = prof(p)
             c["domains"] += 1
             status = pe.get("status") or ""
-            if legacy_auth_burned(pe):
+            if held_attempt(pe):
+                c["held"] += 1
+            elif legacy_auth_burned(pe):
                 c["legacy_auth_retry"] += 1
             elif status == "crawled":
                 c["crawled"] += 1
@@ -1235,11 +1238,22 @@ def legacy_auth_burned(entry):
         and str(entry.get("last_error", "")).split(" ", 1)[0] == "401"
 
 
+HELD_ATTEMPT_STATES = ("submitted_unknown", "deferred_unknown")
+
+
+def held_attempt(pentry):
+    """The last automation start of this pair has an unknown outcome (waiting for reconciliation, or deferred by an
+    administrator): the pair is held out of every selection."""
+    return (pentry.get("automation_attempt") or {}).get("state") in HELD_ATTEMPT_STATES
+
+
 def selection_kind(pentry, now, recrawl_days, force=False):
     """Selection reason of one (domain, profile) crawl state (KIND_*), or None when not due.
 
     force: everything is due; the reason is still reported.
     """
+    if pentry and held_attempt(pentry):
+        return None                         # a start with an unknown outcome: never started again by itself, also not with force
     if not pentry or not pentry.get("status"):
         return KIND_FRESH
     if pentry.get("status") == STATUS_EXCLUDED:

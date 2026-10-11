@@ -27,11 +27,18 @@ final class DiscoveryApi {
      */
     static JsonObject route(final String method, final String[] parts, final HttpServletRequest request,
             final HttpServletResponse response, final JsonObject body, final Predicate<String> allowed) throws ApiException {
-        return route(DiscoveryService.get(), method, parts, revision(request.getHeader("If-Match")), response, body, allowed);
+        return route(DiscoveryService.get(), method, parts, revision(request.getHeader("If-Match")), response, body, allowed,
+                net.yacy.scoutro.access.Caller.of(request).actor());
     }
 
     static JsonObject route(final DiscoveryService service, final String method, final String[] parts, final Long revision,
             final HttpServletResponse response, final JsonObject body, final Predicate<String> allowed) throws ApiException {
+        return route(service, method, parts, revision, response, body, allowed, "admin");
+    }
+
+    /** @param actor the acting identity recorded with a recovery decision (as in the people audit log) */
+    static JsonObject route(final DiscoveryService service, final String method, final String[] parts, final Long revision,
+            final HttpServletResponse response, final JsonObject body, final Predicate<String> allowed, final String actor) throws ApiException {
         final String path = parts.length > 3 ? parts[3] : "";
         if (allowed != null) {
             return restricted(service, method, parts, path, revision, response, body, allowed);
@@ -72,6 +79,11 @@ final class DiscoveryApi {
             response.setStatus(202);
             return service.requestRun(parts[4], id);
         }
+        // recovery of an unconfirmed crawl start: defer it, outcome stays unknown (administrator only)
+        if (parts.length == 6 && "attempts".equals(path) && "defer".equals(parts[5]) && "POST".equals(method)) {
+            net.yacy.scoutro.discovery.JobSchema.keys(body, "run_id");
+            return service.deferAttempt(parts[4], body.optString("run_id", null), revision, actor);
+        }
         throw new ApiException(404, "not_found", "Unknown discovery endpoint or method.");
     }
     /** The routes of a caller without the administrator role, limited to the jobs of its collections. */
@@ -98,6 +110,7 @@ final class DiscoveryApi {
             }
             if (java.util.Set.of("enable", "disable", "pause", "resume").contains(path)) throw adminOnly();
         }
+        if ("attempts".equals(path)) throw adminOnly();
         if (parts.length == 5 && "jobs".equals(path)) {
             requireJob(service, parts[4], profiles, allowed);
             if ("GET".equals(method)) return service.jobs(parts[4]);

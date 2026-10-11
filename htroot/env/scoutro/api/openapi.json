@@ -14820,6 +14820,147 @@
         "x-scoutro-permission": "collect"
       }
     },
+    "/v1/discovery/attempts/{id}/defer": {
+      "post": {
+        "operationId": "discovery.attempts.defer",
+        "summary": "Discovery automation attempts.defer",
+        "tags": [
+          "discovery"
+        ],
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "description": "Administrator only. No agent grants. Recovery of an unconfirmed crawl start: the open batch is in needs_review with error submitted_unknown and status().active_batch.review lists the attempt. Re-reads the crawl profiles, holds the candidate in the Discovery state (it is never started again by itself), reads the profiles again and records the decision with the outcome kept unknown; never resubmits and never records the start as not submitted. Accepted crawls stay; when no open start remains the batch waits for them and other jobs continue. 200 status with decision. 409 attempt_found (a crawl profile carries the marker: reconciled as accepted, nothing deferred), worker_busy, revision_conflict, stale_run, run_not_in_review, attempt_unknown, attempt_not_unresolved, already_deferred, attempt_accepted_in_state, collection_conflict, state_root_changed; 428 revision_required; 503 state_unreadable, hold_failed. See help/ScoutroDiscovery_p.md.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation, authorization, revision, conflict or availability error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Validation, authorization, revision, conflict or availability error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Validation, authorization, revision, conflict or availability error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Validation, authorization, revision, conflict or availability error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Validation, authorization, revision, conflict or availability error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Validation, authorization, revision, conflict or availability error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Validation, authorization, revision, conflict or availability error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Attempt id of the open batch (its start marker).",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{32}$"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "Numeric jobstore revision, optionally quoted. Get from status/jobs.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "run_id"
+                ],
+                "properties": {
+                  "run_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Id of the open batch."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-scoutro-permission": "admin"
+      }
+    },
     "/v1/discovery/enable": {
       "post": {
         "operationId": "discovery.enable",
