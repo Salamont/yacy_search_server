@@ -22,6 +22,15 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   administrator in this mode and the index distribution (DHT) pauses, unless
   peer-to-peer in protected mode (`scoutro.access.p2p`, off by default) is
   switched on.
+- One header and navigation for all administration pages: search, account
+  menu (My account, sign-out) and the groups Overview, Research, Knowledge,
+  Data collection and Settings, shown by the rights of the signed-in identity;
+  YaCy's own pages unchanged under "Advanced tools" for administrators, the
+  same groups on phones. Re-Start and Shutdown moved from the header to
+  Settings → System (with confirmation and an audit entry).
+- New pages: My account (profile, password, own sessions), Settings → Users
+  (access mode, guest access, accounts, audit log), Settings → Collections
+  (catalog, "New collection") and Settings → System; a branded 403 page.
 - Design and permission matrix: [SCOUTRO_USERS_ACCESS.md](docs/SCOUTRO_USERS_ACCESS.md);
   baseline with evidence: [SCOUTRO_ACCESS_BASELINE.md](docs/SCOUTRO_ACCESS_BASELINE.md).
 

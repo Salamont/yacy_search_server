@@ -1135,11 +1135,26 @@ public class YaCyDefaultServlet extends HttpServlet  {
                 templatePatterns.putHTML("newpeer_peerhash", myPeer.hash);
                 final boolean authorized = sb.adminAuthenticated(legacyRequestHeader) >= 2;
                 templatePatterns.put("authorized", authorized ? 1 : 0); // used in templates and other html (e.g. to display lock/unlock symbol)
-                // Scoutro: CSRF token of a signed-in Scoutro session for metas.template (empty otherwise)
-                final net.yacy.scoutro.access.ScoutroPrincipal scoutroPrincipal =
-                        request.getUserPrincipal() instanceof net.yacy.scoutro.access.ScoutroPrincipal
-                                ? (net.yacy.scoutro.access.ScoutroPrincipal) request.getUserPrincipal() : null;
-                templatePatterns.put("scoutroCsrf", scoutroPrincipal == null ? "" : scoutroPrincipal.session().csrf);
+                // Scoutro: the signed-in identity and its navigation groups for header.template, and the
+                // CSRF token of a Scoutro session for metas.template (empty otherwise)
+                final net.yacy.scoutro.access.PageNav scoutroNav = net.yacy.scoutro.access.PageNav.of(request, authorized,
+                        sb.getConfigBool(SwitchboardConstants.PUBLIC_SEARCHPAGE, true));
+                templatePatterns.put("scoutroCsrf", scoutroNav.csrf);
+                templatePatterns.put("scoutroAccount", scoutroNav.account);
+                templatePatterns.putHTML("scoutroUser", scoutroNav.user);
+                templatePatterns.put("scoutroRole", scoutroNav.role);
+                templatePatterns.put("scoutroSearch", scoutroNav.search ? 1 : 0);
+                templatePatterns.put("scoutroChat", scoutroNav.chat ? 1 : 0);
+                templatePatterns.put("scoutroRead", scoutroNav.read ? 1 : 0);
+                templatePatterns.put("scoutroCollect", scoutroNav.collect ? 1 : 0);
+                templatePatterns.put("scoutroAdmin", scoutroNav.admin ? 1 : 0);
+                // fields used inside #(...)# blocks of header.template carry the block name as prefix
+                templatePatterns.putHTML("scoutroAccount_scoutroUser", scoutroNav.user);
+                templatePatterns.put("scoutroAccount_scoutroRole", scoutroNav.role);
+                templatePatterns.put("scoutroSearch_scoutroChat", scoutroNav.chat ? 1 : 0);
+                templatePatterns.put("scoutroSearch_scoutroRead", scoutroNav.read ? 1 : 0);
+                templatePatterns.put("scoutroAdmin_navigation-p2p",
+                        sb.getConfigBool(SwitchboardConstants.NETWORK_UNIT_DHT, true) || !sb.isRobinsonMode() ? 1 : 0);
 
                 templatePatterns.put("simpleheadernavbar", sb.getConfig("decoration.simpleheadernavbar", "navbar-default"));
 
@@ -1180,7 +1195,10 @@ public class YaCyDefaultServlet extends HttpServlet  {
 
                 // set response header
                 response.setContentType(mimeType);
-                response.setStatus(HttpServletResponse.SC_OK);
+                if (request.getDispatcherType() != javax.servlet.DispatcherType.ERROR) {
+                    // Scoutro: an error page (e.g. scoutro-forbidden.html for 403) keeps the error status
+                    response.setStatus(HttpServletResponse.SC_OK);
+                }
                 final ByteArrayOutputStream bas = new ByteArrayOutputStream(4096);
                 try {
                     // apply templates

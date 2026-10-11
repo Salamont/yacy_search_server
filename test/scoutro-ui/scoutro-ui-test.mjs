@@ -33,6 +33,7 @@ import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 function loadPlaywright() {
   const require = createRequire(import.meta.url);
@@ -59,18 +60,21 @@ const VIEWPORTS = [
   { name: 'desktop-1280', width: 1280, height: 800, mobile: false },
 ];
 
-/* navigation entries that must be reachable on every viewport */
+/*
+ * Navigation entries that must be reachable on every viewport: the Scoutro groups
+ * (docs/SCOUTRO_USERS_ACCESS.md, section 7) and, for administrators, YaCy's tools under
+ * "Advanced tools". Desktop and phone have the same entries; Re-Start and Shutdown live
+ * on Settings > System (ScoutroSystem_p.html), not in the navigation.
+ */
 const REQUIRED_NAV = [
-  'scoutro-dashboard.html',
-  'ConfigBasic.html', 'CrawlStartSite.html', 'Status.html', 'IndexBrowser_p.html',
+  'scoutro-dashboard.html', 'index.html', 'yacychat.html', 'IndexBrowser_p.html', 'ScoutroSEO_p.html',
+  'ScoutroKnowledge_p.html', 'ScoutroCrawls_p.html', 'ScoutroDiscovery_p.html',
+  'ScoutroCollections_p.html', 'ScoutroUsers_p.html', 'ScoutroAgents_p.html', 'LLMSelection_p.html', 'ScoutroSystem_p.html',
+  'ConfigBasic.html', 'CrawlStartSite.html', 'Status.html',
   'AccessGrid_p.html', 'Crawler_p.html', 'CrawlStartExpert.html', 'IndexControlURLs_p.html',
   'Settings_p.html', 'Blacklist_p.html', 'Performance_p.html', 'ConfigPortal_p.html',
   'ConfigAppearance_p.html', 'RankingSolr_p.html',
-];
-/* additionally required inside the mobile panel (top-bar functions and shortcuts) */
-const REQUIRED_MOBILE_NAV = [
-  'index.html', 'Steering.html', 'ViewProfile.html', 'jslicense.html',
-  'ConfigAccounts_p.html', 'ConfigNetwork_p.html', 'ConfigSearchPage_p.html',
+  'ConfigAccounts_p.html', 'ConfigNetwork_p.html', 'ConfigSearchPage_p.html', 'ViewProfile.html', 'jslicense.html',
 ];
 
 /* pages checked for layout problems (Status / Accounts / Crawl Start / Crawler / Network / Search config / search) */
@@ -128,7 +132,7 @@ async function checkNavigation(page, vp) {
   /* generic selectors, so that the script also reports on an unmodified YaCy */
   const toggle = page.locator('.navbar-fixed-top .navbar-toggle').first();
   const nav = '.sidebar';
-  const required = vp.mobile ? REQUIRED_NAV.concat(REQUIRED_MOBILE_NAV) : REQUIRED_NAV;
+  const required = REQUIRED_NAV;
 
   if (vp.mobile) {
     const tb = await toggle.boundingBox({ timeout: 5000 }).catch(() => null);
@@ -142,9 +146,12 @@ async function checkNavigation(page, vp) {
   } else {
     check(!(await toggle.isVisible()), vp.name, 'no hamburger on desktop');
     check(await page.locator(nav).first().isVisible(), vp.name, 'sidebar visible on desktop');
-    check(await page.locator('#header_shutdown').isVisible(), vp.name, 'top bar visible on desktop');
-    check(!(await page.locator('#scoutro-system').isVisible()), vp.name, 'mobile-only groups hidden on desktop');
+    check(await page.locator('#scoutro-account').isVisible(), vp.name, 'account menu in the top bar on desktop');
   }
+  check(await page.locator('.scoutro-adminbar a[href^="Steering.html"], .scoutro-adminbar form[action="Steering.html"]').count() === 0,
+    vp.name, 'no Re-Start/Shutdown in the header');
+  /* Status.html belongs to the advanced tools, so that group is open on this page */
+  check(await page.locator('#scoutro-nav-advanced[open]').count() === 1, vp.name, 'advanced tools open on one of their pages');
 
   const missing = [];
   const tooSmall = [];
@@ -281,6 +288,7 @@ const browser = await chromium.launch({
   ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
   args: ['--no-proxy-server'],
 });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 try {
   if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true });
   await checkAuth(browser);

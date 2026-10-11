@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL;
@@ -24,6 +25,7 @@ const browser = await chromium.launch({
   ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
   args: ['--no-proxy-server'],
 });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
 // package 6.1: no technical ID in any visible name (links, headings, network cards); the technical ID field is no name
 const noIdAsName = page => page.evaluate(() => ![...document.querySelectorAll('#skg-main a, main a, main h2, main h3, #skg-net-svg text, #skg-net-svg title')]

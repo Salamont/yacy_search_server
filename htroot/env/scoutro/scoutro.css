@@ -626,3 +626,242 @@ body#index form.search div.yacysearch label {
 .scoutro-collection-error[hidden] { display:none; }
 .scoutro-collection-actions { display:flex; flex-wrap:wrap; gap:8px; }
 .scoutro-collection-actions .btn { min-height:44px; }
+
+/* ------------------------------------------------------------------ */
+/* Scoutro header: brand | search | account menu | navigation toggle    */
+/* (docs/SCOUTRO_USERS_ACCESS.md, section 7)                            */
+/* ------------------------------------------------------------------ */
+
+.scoutro-adminbar .scoutro-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.scoutro-adminbar .scoutro-topbar > .navbar-brand {
+  flex: none;
+  float: none;
+  display: flex;
+  align-items: center;
+  height: auto;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.scoutro-adminbar .scoutro-header-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 560px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.scoutro-adminbar .scoutro-header-search .form-control {
+  width: 100%;
+  height: 38px;
+}
+
+.scoutro-account {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+}
+
+.scoutro-account-signin,
+.scoutro-account-menu > summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 7px 14px;
+  color: #fff;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(255, 255, 255, .18);
+  border-radius: var(--scoutro-radius-pill, 999px);
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.scoutro-account-signin:hover,
+.scoutro-account-signin:focus,
+.scoutro-account-menu > summary:hover,
+.scoutro-account-menu > summary:focus-visible {
+  color: #fff;
+  text-decoration: none;
+  background: rgba(255, 255, 255, .18);
+  border-color: rgba(255, 255, 255, .32);
+}
+
+.scoutro-account-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.scoutro-account-label {
+  max-width: 18ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.scoutro-account-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 1040;
+  min-width: 250px;
+  padding: 8px;
+  color: var(--scoutro-ink, #10233f);
+  background: var(--scoutro-surface, #fff);
+  border: 1px solid var(--scoutro-border, #d9e3ef);
+  border-radius: var(--scoutro-radius, 14px);
+  box-shadow: var(--scoutro-shadow-lg, 0 12px 32px rgba(11, 27, 58, .2));
+}
+
+.scoutro-account-who {
+  margin: 4px 8px 8px;
+  line-height: 1.35;
+}
+
+.scoutro-account-who strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.scoutro-account-role,
+.scoutro-account-hint {
+  color: var(--scoutro-muted, #5d6f87);
+  font-size: .9em;
+}
+
+.scoutro-account-hint {
+  margin: 6px 8px 4px;
+}
+
+.scoutro-account-panel > a,
+.scoutro-account-panel > button {
+  display: block;
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 10px;
+  color: var(--scoutro-ink-2, #34465f);
+  text-align: left;
+  background: none;
+  border: 0;
+  border-radius: var(--scoutro-radius-sm, 10px);
+}
+
+.scoutro-account-panel > a:hover,
+.scoutro-account-panel > a:focus,
+.scoutro-account-panel > button:hover,
+.scoutro-account-panel > button:focus {
+  color: var(--scoutro-primary-dark, #0b4fc4);
+  text-decoration: none;
+  background: var(--scoutro-primary-soft, #e8f1ff);
+}
+
+.scoutro-adminbar .scoutro-topbar > .navbar-toggle {
+  flex: none;
+  float: none;
+  margin: 0;
+}
+
+/* Advanced tools: YaCy's own menu groups, collapsed unless the current page is one of them */
+.scoutro-nav-advanced {
+  margin: 0 0 14px;
+}
+
+.scoutro-nav-advanced > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--scoutro-muted, #5d6f87);
+  list-style: none;
+  cursor: pointer;
+  border-radius: var(--scoutro-radius-sm, 10px);
+}
+
+.scoutro-nav-advanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.scoutro-nav-advanced > summary::after {
+  content: "+";
+  font-size: 14px;
+  line-height: 1;
+}
+
+.scoutro-nav-advanced[open] > summary::after {
+  content: "\2212";
+}
+
+.scoutro-nav-advanced > summary:hover,
+.scoutro-nav-advanced > summary:focus-visible {
+  color: var(--scoutro-primary-dark, #0b4fc4);
+  background: var(--scoutro-surface-2, #f5f8fc);
+}
+
+.scoutro-nav-advanced .nav-sidebar h3 {
+  padding-left: 18px;
+}
+
+@media (max-width: 767px) {
+  .scoutro-adminbar .scoutro-topbar {
+    gap: 8px;
+  }
+
+  .scoutro-adminbar .scoutro-brand-name,
+  .scoutro-adminbar .scoutro-account-label {
+    display: none;
+  }
+
+  .scoutro-adminbar .scoutro-header-search .form-control {
+    height: 40px;
+    font-size: 16px; /* avoids zoom-on-focus */
+  }
+
+  .scoutro-account-signin,
+  .scoutro-account-menu > summary {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
+    padding: 8px 12px;
+  }
+
+  .scoutro-account-panel {
+    position: fixed;
+    top: var(--scoutro-nav-top, 64px);
+    right: 8px;
+    left: auto;
+    max-width: calc(100vw - 16px);
+  }
+
+  .scoutro-nav-advanced > summary {
+    min-height: 44px;
+    padding: 14px 12px 8px;
+  }
+}
+
+.scoutro-adminbar .navbar-brand,
+.scoutro-adminbar .navbar-brand:hover,
+.scoutro-adminbar .navbar-brand:focus,
+.scoutro-actions .btn,
+.scoutro-actions .btn:hover,
+.scoutro-actions .btn:focus {
+  text-decoration: none;
+}
+
+/* header order on every width: brand, search, account, navigation toggle */
+.scoutro-adminbar .scoutro-topbar > .navbar-brand { order: 0; }
+.scoutro-adminbar .scoutro-topbar > #header-search-form { order: 1; }
+.scoutro-adminbar .scoutro-topbar > #scoutro-account { order: 2; }
+.scoutro-adminbar .scoutro-topbar > #scoutro-nav-toggle { order: 3; }
