@@ -16375,9 +16375,6 @@
     <trans-unit id="2080ae11" xml:space="preserve" approved="no" translate="yes">
        <source>Vocabulary and derived relations</source>
     </trans-unit>
-    <trans-unit id="320a9c89" xml:space="preserve" approved="no" translate="yes">
-       <source>Recompute suggestions now</source>
-    </trans-unit>
     <trans-unit id="77b271dd" xml:space="preserve" approved="no" translate="yes">
        <source>Industries follow NACE Rev. 2.1 / WZ 2025; service categories and audiences come from the Scoutro vocabularies of each collection. Derived relations (same operator, weak link signals, suggested customers and partners) are no facts; they are recomputed every interval and only shown to a viewer of both collections.</source>
     </trans-unit>
@@ -16416,6 +16413,9 @@
     </trans-unit>
     <trans-unit id="f7273d1a" xml:space="preserve" approved="no" translate="yes">
        <source>Retry failed LLM documents</source>
+    </trans-unit>
+    <trans-unit id="320a9c89" xml:space="preserve" approved="no" translate="yes">
+       <source>Recompute suggestions now</source>
     </trans-unit>
     <trans-unit id="9bd59946" xml:space="preserve" approved="no" translate="yes">
        <source>Create backup</source>

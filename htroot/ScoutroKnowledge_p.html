@@ -45,7 +45,6 @@
 <section class="sseo-panel" aria-labelledby="skg-sync-title"><h3 id="skg-sync-title">Synchronisation</h3><dl id="skg-sync" class="sseo-stats"></dl></section>
 <section class="sseo-panel" aria-labelledby="skg-llm-title"><h3 id="skg-llm-title">LLM tier</h3><dl id="skg-llm" class="sseo-stats"></dl><p class="sseo-note">Calls and items count since the last start of Scoutro; every restart resets them.</p><details id="skg-llm-invalid-details" class="skg-llm-invalid"><summary>Invalid items by reason (since the last start)</summary><div id="skg-llm-invalid"></div><p class="sseo-note">Single entities, claims and values the validator dropped, each under the first rule it breaks; not failed calls and not refused answers. Diagnostic counters only; no model answer is stored.</p></details><p class="sseo-note">Optional. Statements only the LLM tier supports are shown as uncertain; every one carries a quote from the page. The model is chosen in <a href="LLMSelection_p.html">LLM Selection</a> (usage knowledge).</p></section>
 <section class="sseo-panel" aria-labelledby="skg-vocab-title"><h3 id="skg-vocab-title">Vocabulary and derived relations</h3><dl id="skg-vocab" class="sseo-stats"></dl>
-<div class="sseo-controls"><button class="btn btn-default" type="button" data-skg-action="derive">Recompute suggestions now</button></div>
 <p class="sseo-note">Industries follow NACE Rev. 2.1 / WZ 2025; service categories and audiences come from the Scoutro vocabularies of each collection. Derived relations (same operator, weak link signals, suggested customers and partners) are no facts; they are recomputed every interval and only shown to a viewer of both collections.</p></section>
 </details>
 <section class="sseo-panel" aria-labelledby="skg-colls-title"><h3 id="skg-colls-title">Collections</h3>
@@ -58,6 +57,7 @@
 <button class="btn btn-default" type="button" data-skg-action="reconcile">Reconcile now</button>
 <button class="btn btn-default" type="button" data-skg-action="confirm_reconcile" hidden>Confirm deletions</button>
 <button class="btn btn-default" type="button" data-skg-action="llm_retry">Retry failed LLM documents</button>
+<button class="btn btn-default" type="button" data-skg-action="derive">Recompute suggestions now</button>
 <button class="btn btn-default" type="button" data-skg-action="backup">Create backup</button>
 </div>
 <p class="sseo-note">Pausing stops new enrichment (extraction, the LLM tier and a rebuild); deletions, reconcile and state checks continue. Nothing here changes the Solr index.</p></section>

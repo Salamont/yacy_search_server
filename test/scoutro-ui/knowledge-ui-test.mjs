@@ -52,6 +52,9 @@ try {
         check(response.status() === 200, 'page' + where);
         await page.waitForFunction(() => document.querySelector('#skg-cards').children.length >= 3);
         check(await page.locator('#skg-overview').isVisible(), 'overview visible' + where);
+        // the process display leads the overview; the technical diagnosis stays reachable, folded
+        check(await page.locator('#skg-flow .skg-station-head').count() === 5 && await page.locator('#skg-st-ai').isVisible()
+          && !(await page.locator('#skg-diagnosis').evaluate(d => d.open)), 'process display with five stations, diagnosis folded' + where);
         check((await page.locator('#skg-cards').textContent()).includes('running'), 'state running' + where);
         // package 6.3: the two layers and the model of the LLM selection; never no_llm_collections with a model and an LLM collection
         const lbl = k => page.evaluate(k => document.querySelector(`[data-skg-label="${k}"]`).textContent, k);
@@ -103,6 +106,7 @@ try {
               body: JSON.stringify({ ...liveStatus, llm: { ...liveStatus.llm, processed: variant } }) }));
             await page.goto(base + '/ScoutroKnowledge_p.html', { waitUntil: 'networkidle' });
             await page.waitForFunction(() => document.querySelector('#skg-llm').children.length > 0);
+            await page.locator('#skg-diagnosis > summary').click(); // the panels sit in the folded technical diagnosis
             await page.locator('#skg-llm-invalid-details summary').click();
             const shown = await page.locator('#skg-llm-invalid dt').evaluateAll(n => n.map(d => d.dataset.reason)); // the API code of each row
             if (name === 'reasons') {

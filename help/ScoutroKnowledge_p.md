@@ -453,8 +453,8 @@ active and which model of the LLM selection it uses.
 The overview shows the vocabularies in force (categories per collection, NACE
 codes), the derived relations (last run, interval
 `scoutro.kg.derived.intervalMinutes`, 60) and the upgrade of the last start.
-**Recompute suggestions now** runs the derived layer at the next maintenance
-step. When a graph of Scoutro 0.7 is upgraded, it is first checked
+**Recompute suggestions now** (under Controls) runs the derived layer at the
+next maintenance step. When a graph of Scoutro 0.7 is upgraded, it is first checked
 (`quick_check`) and copied to `graph-<UTC>-before-upgrade.db` in the backup
 folder; that copy is the way back to 0.7 and stays through the backup
 retention. A graph that fails the check is not touched and the graph stays off
