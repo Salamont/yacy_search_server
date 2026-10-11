@@ -125,6 +125,138 @@ final class LlmQueue {
         return path.isEmpty() || HOME.matcher(path).matches() ? 3 : 5;
     }
 
+    /** Prefix of the persisted scan position of a collection ({@code llm_scan:<coll_id>} = {@code frontier:revisit}). */
+    static final String CURSOR_PREFIX = "llm_scan:";
+
+    /**
+     * The scan of one LLM collection (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): its frontier walks the collection's pages in
+     * row order and is never reset by a restart; the revisit walks behind the frontier and finds pages that became to do
+     * again there (a new text, a new extractor, a retry) or that were left unqueued by an earlier version.
+     */
+    static final class Lane {
+        final int collId;
+        final String name;
+        /** False for a collection the graph follows but the LLM tier does not: its pages are only marked not selected. */
+        final boolean followed;
+        /** The last row the frontier examined. */
+        long frontier;
+        /** The last row the current revisit examined (0: a new sweep starts from the beginning). */
+        long revisit;
+
+        Lane(final int collId, final String name, final boolean followed, final long frontier, final long revisit) {
+            this.collId = collId;
+            this.name = name;
+            this.followed = followed;
+            this.frontier = frontier;
+            this.revisit = revisit;
+        }
+
+        String key() {
+            return CURSOR_PREFIX + this.collId;
+        }
+
+        String value() {
+            return this.frontier + ":" + this.revisit;
+        }
+    }
+
+    /**
+     * The collections of the graph with their persisted positions, in collection order, each with whether the LLM tier
+     * follows it. A position beyond the last row of the graph (a full reset or a rebuilt graph) starts again from the
+     * beginning.
+     */
+    static List<Lane> lanes(final Connection c, final java.util.function.Predicate<String> follows) throws SQLException {
+        final List<Lane> out = new ArrayList<>();
+        final long last = KgStore.queryLong(c, "SELECT coalesce(max(doc_rowid), 0) FROM kg_doc");
+        try (PreparedStatement ps = c.prepareStatement("SELECT coll_id, name FROM kg_collection ORDER BY coll_id");
+                ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                final String name = rs.getString(2);
+                final Lane lane = new Lane(rs.getInt(1), name, follows.test(name), 0L, 0L);
+                final String v = KgStore.getMeta(c, lane.key());
+                if (v != null) {
+                    try {
+                        final String[] p = v.split(":");
+                        lane.frontier = Long.parseLong(p[0]);
+                        lane.revisit = p.length > 1 ? Long.parseLong(p[1]) : 0L;
+                    } catch (final NumberFormatException e) {
+                        lane.frontier = 0L;
+                        lane.revisit = 0L;
+                    }
+                }
+                if (lane.frontier > last || lane.revisit > lane.frontier) {
+                    lane.frontier = 0L;
+                    lane.revisit = 0L;
+                }
+                out.add(lane);
+            }
+        }
+        return out;
+    }
+
+    /** Forgets every scan position: the frontiers walk their collections again (pages made to do again in bulk). */
+    static int resetCursors(final Connection tx) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_meta WHERE key GLOB ?")) {
+            ps.setString(1, CURSOR_PREFIX + "*");
+            return ps.executeUpdate();
+        }
+    }
+
+    private static final String LANE_TODO = "SELECT d.doc_rowid, d.doc_id, d.host_id, d.url, coalesce(d.content_hash, d.input_hash),"
+            + " (SELECT group_concat(k.name, ',') FROM kg_doc_collection x JOIN kg_collection k ON k.coll_id = x.coll_id"
+            + " WHERE x.doc_rowid = d.doc_rowid)"
+            + " FROM kg_doc_collection dc INDEXED BY kg_doc_collection_coll JOIN kg_doc d ON d.doc_rowid = dc.doc_rowid"
+            + " WHERE dc.coll_id = ? AND dc.doc_rowid > ? AND dc.doc_rowid <= ?"
+            + " AND d.llm_status IS NULL AND d.state = 1 AND d.input_hash IS NOT NULL"
+            + " AND NOT EXISTS (SELECT 1 FROM kg_llm_work w WHERE w.doc_id = d.doc_id)"
+            + " ORDER BY dc.doc_rowid LIMIT ?";
+
+    /**
+     * Up to {@code limit} unqueued documents to do of one collection with a row in ({@code after}, {@code upTo}], in row
+     * order: the frontier asks with {@code upTo} = {@link Long#MAX_VALUE}, the revisit with its frontier.
+     */
+    static List<Todo> laneTodo(final Connection c, final int collId, final long after, final long upTo, final int limit)
+            throws SQLException {
+        final List<Todo> out = new ArrayList<>();
+        if (limit <= 0) {
+            return out;
+        }
+        try (PreparedStatement ps = c.prepareStatement(LANE_TODO)) {
+            ps.setInt(1, collId);
+            ps.setLong(2, after);
+            ps.setLong(3, upTo);
+            ps.setInt(4, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    final String colls = rs.getString(6);
+                    out.add(new Todo(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4), rs.getBytes(5),
+                            colls == null || colls.isEmpty() ? List.of() : Arrays.asList(colls.split(","))));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** The last row of a collection (0 if it has none). */
+    static long lastRow(final Connection c, final int collId) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT coalesce(max(doc_rowid), 0) FROM kg_doc_collection WHERE coll_id = ?")) {
+            ps.setInt(1, collId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : 0L;
+            }
+        }
+    }
+
+    /** Items that are not claimed and due within {@code horizon}: what the worker has to do soon (the refill measure). */
+    static long ready(final Connection c, final long horizon) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT count(*) FROM kg_llm_work WHERE claimed_at IS NULL AND not_before <= ?")) {
+            ps.setLong(1, horizon);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getLong(1) : 0L;
+            }
+        }
+    }
+
     /** Up to {@code limit} documents to do after {@code afterRowid}, in row order. */
     static List<Todo> todo(final Connection c, final long afterRowid, final int limit) throws SQLException {
         final List<Todo> out = new ArrayList<>();
@@ -192,6 +324,12 @@ final class LlmQueue {
         }
     }
 
+    /**
+     * A queued item waiting longer than this is claimed before newer items of a higher priority: the page priorities
+     * order the queue, but never hold an older page back for good (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
+     */
+    static final long AGING_MILLIS = 2L * 60L * 60_000L;
+
     /** Claims the next due item; null if none. */
     static Item claim(final Connection tx, final long now) throws SQLException {
         return claim(tx,now,null);
@@ -201,9 +339,12 @@ final class LlmQueue {
         String scope=only==null?"":" AND doc_id IN ("+String.join(",",java.util.Collections.nCopies(only.size(),"?"))+")";
         final Item item;
         try (PreparedStatement ps = tx.prepareStatement("SELECT doc_id, host_id, attempts FROM kg_llm_work"
-                + " WHERE claimed_at IS NULL AND not_before <= ?"+scope+" ORDER BY priority, not_before, doc_id LIMIT 1")) {
+                + " WHERE claimed_at IS NULL AND not_before <= ?"+scope
+                + " ORDER BY CASE WHEN enqueued_at <= ? THEN 0 ELSE priority END, not_before, doc_id LIMIT 1")) {
             ps.setLong(1, now);
-            if(only!=null){int i=2;for(String doc:only)ps.setString(i++,doc);}
+            int i=2;
+            if(only!=null){for(String doc:only)ps.setString(i++,doc);}
+            ps.setLong(i, now - AGING_MILLIS);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return null;
@@ -323,8 +464,9 @@ final class LlmQueue {
         return out;
     }
 
-    /** Empties the queue (full reset). */
+    /** Empties the queue and forgets the scan positions (full reset). */
     static int clear(final Connection tx) throws SQLException {
+        resetCursors(tx);
         try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_llm_work")) {
             return ps.executeUpdate();
         }

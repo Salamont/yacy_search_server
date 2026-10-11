@@ -84,6 +84,12 @@ public final class LlmService {
     static final int QUEUE_MAX = 10_000;
     static final int QUEUE_LOW = 100;
     static final int SCAN_BATCH = 200;
+    /** Of every scan pass, at most this many pages come from the revisits behind the frontiers. */
+    static final int REVISIT_BATCH = 50;
+    /** After a revisit swept up to its frontier, the next sweep of that collection waits this long. */
+    static final long REVISIT_PAUSE_MILLIS = 10L * 60_000L;
+    /** The refill counts items due within this time; items waiting in a longer backoff do not hold it back. */
+    static final long READY_HORIZON_MILLIS = 60_000L;
     static final long SCAN_PAUSE_MILLIS = 10_000L;
     static final long IDLE_MILLIS = 5_000L;
     static final long NOT_CONFIGURED_MILLIS = 30_000L;
@@ -137,6 +143,10 @@ public final class LlmService {
         final AtomicLong skippedNotSelected = new AtomicLong();
         final AtomicLong skippedHostCap = new AtomicLong();
         final AtomicLong queued = new AtomicLong();
+        /** Pages the revisits found to do again behind a frontier, without a restart. */
+        final AtomicLong requeuedBehindFrontier = new AtomicLong();
+        /** Scan passes that refilled the queue. */
+        final AtomicLong scanPasses = new AtomicLong();
         final AtomicLong growthRefused = new AtomicLong();
 
         Counters() {
@@ -240,6 +250,10 @@ public final class LlmService {
                     this.skippedHostCap.get(),
                     "queued",
                     this.queued.get(),
+                    "requeuedBehindFrontier",
+                    this.requeuedBehindFrontier.get(),
+                    "scanPasses",
+                    this.scanPasses.get(),
                     "growthRefused",
                     this.growthRefused.get());
         }
@@ -276,8 +290,15 @@ public final class LlmService {
     /** The active knowledge prompt (kg_meta, else the compiled-in default); a document is asked with one version throughout. */
     private volatile KnowledgePrompt prompt = KnowledgePrompt.defaults();
     private final Object scanLock = new Object();
-    private long scanCursor;
     private long scanPausedUntil;
+    /** Rotates the collection that is served first, so the shares are fair over the passes. */
+    private long scanRound;
+    /** When the next revisit sweep of a collection (by coll_id) may start. */
+    private final Map<Integer, Long> revisitPausedUntil = new ConcurrentHashMap<>();
+    /** Pages queued per collection since the start (the fair shares in the status). */
+    private final Map<String, AtomicLong> queuedByCollection = new ConcurrentHashMap<>();
+    /** The scan positions as of the last pass (status). */
+    private volatile List<LlmQueue.Lane> lanes = Collections.emptyList();
     private volatile long nextAt;
     private volatile long countsAt;
     private volatile long[] docCounts = new long[3];
@@ -336,6 +357,7 @@ public final class LlmService {
                     final String last = KgStore.getMeta(tx, KgSchema.META_LLM_SELECTION);
                     if (last != null && !last.equals(key)) {
                         final int n = LlmQueue.reopen(tx, LlmQueue.STATUS_SKIPPED);
+                        LlmQueue.resetCursors(tx);
                         if (n > 0) {
                             KgStore.event(
                                     tx,
@@ -375,6 +397,7 @@ public final class LlmService {
         if (upgraded || lastExtractor != null && !lastExtractor.startsWith(version)) {
             final int n = LlmQueue.reexamine(tx, LlmQueue.STATUS_DONE) + LlmQueue.reexamine(tx, LlmQueue.STATUS_FAILED);
             if (n > 0) {
+                LlmQueue.resetCursors(tx);
                 KgStore.event(tx, 1, "llm_extractor_changed", n + " documents are examined again by " + extractor,
                         this.clock.getAsLong());
             }
@@ -512,70 +535,244 @@ public final class LlmService {
 
     // ------------------------------------------------------------------ scan
 
-    /** Fills the queue from the documents to do while it is short; one batch per call, one thread at a time. */
+    /**
+     * Fills the queue while few items are due; one pass per call, one thread at a time (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
+     * 6.3). Every followed collection has its own scan: a frontier that walks its pages in row order and keeps its
+     * position across restarts, and a revisit that walks behind the frontier for pages that became to do again there.
+     * A pass gives the revisits up to {@link #REVISIT_BATCH} pages and every collection an equal share of the rest;
+     * a share a collection cannot use goes to the others. The page priorities, the per-host cap, the schedule and the
+     * gates are those of the queue and the worker, as before.
+     */
     private void scan(final long now) throws KgException {
         synchronized (this.scanLock) {
-            if (now < this.scanPausedUntil || this.queueSize > QUEUE_LOW) {
+            if (now < this.scanPausedUntil) {
                 return;
             }
-            final long after = this.scanCursor;
-            final List<LlmQueue.Todo> todo = this.store.read(c -> LlmQueue.todo(c, after, SCAN_BATCH));
-            if (todo.isEmpty()) {
-                this.scanCursor = 0L;
+            if (this.store.read(c -> LlmQueue.ready(c, now + READY_HORIZON_MILLIS)) > QUEUE_LOW) {
+                return;
+            }
+            final List<LlmQueue.Lane> lanesNow = this.store.read(c -> LlmQueue.lanes(c, this.cfg::llmFollows));
+            final List<LlmQueue.Lane> all = new ArrayList<>();
+            final List<LlmQueue.Lane> others = new ArrayList<>();
+            for (final LlmQueue.Lane lane : lanesNow) {
+                (lane.followed ? all : others).add(lane);
+            }
+            if (!others.isEmpty()) {
+                markOthers(others, now);
+            }
+            if (all.isEmpty()) {
+                this.lanes = all;
                 this.scanPausedUntil = now + SCAN_PAUSE_MILLIS;
                 return;
             }
-            final long[] added = new long[4];
-            final long last = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
-                long size = LlmQueue.size(tx);
-                long cursor = after;
-                final Map<String, Long> load = new java.util.HashMap<>();
-                for (final LlmQueue.Todo t : todo) {
-                    if (size >= QUEUE_MAX) {
+            final int k = all.size();
+            final List<LlmQueue.Lane> order = new ArrayList<>(k);
+            final int first = (int) (this.scanRound++ % k);
+            for (int i = 0; i < k; i++) {
+                order.add(all.get((first + i) % k));
+            }
+            // the pages of this pass, per collection: revisit first (older work), then the frontier
+            final Map<Integer, List<LlmQueue.Todo>> behind = new java.util.HashMap<>();
+            final Map<Integer, List<LlmQueue.Todo>> ahead = new java.util.HashMap<>();
+            final Map<Integer, Long> lastRow = new java.util.HashMap<>();
+            // true if a query returned fewer pages than it asked for: nothing more (unqueued and to do) in that range
+            final java.util.Set<Integer> behindDone = new java.util.HashSet<>();
+            final java.util.Set<Integer> aheadDone = new java.util.HashSet<>();
+            this.store.read(c -> {
+                final int revisitShare = (REVISIT_BATCH + k - 1) / k;
+                for (final LlmQueue.Lane lane : order) {
+                    lastRow.put(lane.collId, LlmQueue.lastRow(c, lane.collId));
+                    if (lane.frontier > 0L && now >= this.revisitPausedUntil.getOrDefault(lane.collId, 0L)) {
+                        final List<LlmQueue.Todo> t = LlmQueue.laneTodo(c, lane.collId, lane.revisit, lane.frontier, revisitShare);
+                        behind.put(lane.collId, t);
+                        if (t.size() < revisitShare) {
+                            behindDone.add(lane.collId);
+                        }
+                    }
+                }
+                final int frontierBatch = SCAN_BATCH - behind.values().stream().mapToInt(List::size).sum();
+                final int share = Math.max(1, (frontierBatch + k - 1) / k);
+                int left = frontierBatch;
+                final List<LlmQueue.Lane> full = new ArrayList<>();
+                for (final LlmQueue.Lane lane : order) {
+                    final int ask = Math.min(share, Math.max(0, left));
+                    final List<LlmQueue.Todo> t = LlmQueue.laneTodo(c, lane.collId, lane.frontier, Long.MAX_VALUE, ask);
+                    ahead.put(lane.collId, new ArrayList<>(t));
+                    left -= t.size();
+                    if (ask > 0 && t.size() < ask) {
+                        aheadDone.add(lane.collId);
+                    } else if (ask > 0) {
+                        full.add(lane);
+                    }
+                }
+                // a share a collection could not use goes to those that had more
+                for (final LlmQueue.Lane lane : full) {
+                    if (left <= 0) {
                         break;
                     }
-                    cursor = t.rowid;
-                    if (!selected(t.collections)) {
-                        LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_SELECTED);
-                        added[1]++;
-                        continue;
+                    final List<LlmQueue.Todo> mine = ahead.get(lane.collId);
+                    final int ask = Math.min(left, (left + full.size() - 1) / full.size());
+                    final List<LlmQueue.Todo> more = LlmQueue.laneTodo(c, lane.collId, mine.get(mine.size() - 1).rowid, Long.MAX_VALUE, ask);
+                    mine.addAll(more);
+                    left -= more.size();
+                    if (more.size() < ask) {
+                        aheadDone.add(lane.collId);
                     }
-                    if (t.hostId == null) {
-                        LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NO_HOST);
-                        added[1]++;
-                        continue;
-                    }
-                    Long n = load.get(t.hostId);
-                    if (n == null) {
-                        n = LlmQueue.hostLoad(tx, t.hostId);
-                    }
-                    if (n >= this.cfg.llmMaxDocsPerHost) {
-                        // queued documents of the host are kept; the cap counts them
-                        if (!queued(tx, t.docId)) {
-                            LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_HOST_CAP);
-                            added[2]++;
-                        }
-                        load.put(t.hostId, n);
-                        continue;
-                    }
-                    if (LlmQueue.offer(tx, t.docId, t.hostId, LlmQueue.priority(t.url), now)) {
-                        size++;
-                        n++;
-                        added[0]++;
-                    }
-                    load.put(t.hostId, n);
                 }
-                return cursor;
+                return null;
             });
-            this.scanCursor = last;
+            final long[] added = new long[4];
+            final boolean[] any = new boolean[1];
+            this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+                long size = LlmQueue.size(tx);
+                final Map<String, Long> load = new java.util.HashMap<>();
+                for (final LlmQueue.Lane lane : order) {
+                    final List<LlmQueue.Todo> b = behind.get(lane.collId);
+                    if (b != null) {
+                        final long[] r = offer(tx, b, lane, load, size, now, added);
+                        size = r[0];
+                        if (r[1] >= 0L) {
+                            lane.revisit = r[1];
+                        }
+                        this.counters.requeuedBehindFrontier.addAndGet(r[2]);
+                        if (r[3] == 1L && behindDone.contains(lane.collId)) {
+                            // the sweep reached the frontier: the next one starts from the beginning, after a pause
+                            lane.revisit = 0L;
+                            this.revisitPausedUntil.put(lane.collId, now + REVISIT_PAUSE_MILLIS);
+                        }
+                        any[0] |= !b.isEmpty();
+                    }
+                    final List<LlmQueue.Todo> a = ahead.get(lane.collId);
+                    final long[] r = offer(tx, a, lane, load, size, now, added);
+                    size = r[0];
+                    if (r[1] >= 0L) {
+                        lane.frontier = r[1];
+                    }
+                    if (r[3] == 1L && aheadDone.contains(lane.collId)) {
+                        // the collection has nothing more ahead: rows added later get higher row IDs
+                        lane.frontier = Math.max(lane.frontier, lastRow.getOrDefault(lane.collId, 0L));
+                    }
+                    any[0] |= !a.isEmpty();
+                    KgStore.putMeta(tx, lane.key(), lane.value());
+                }
+                return null;
+            });
+            this.lanes = order;
+            if (!any[0]) {
+                this.scanPausedUntil = now + SCAN_PAUSE_MILLIS;
+            }
             if (added[0] + added[1] + added[2] > 0L) {
                 this.countsAt = 0L;
+                this.counters.scanPasses.incrementAndGet();
             }
             this.counters.queued.addAndGet(added[0]);
             this.counters.skippedNotSelected.addAndGet(added[1]);
             this.counters.skippedHostCap.addAndGet(added[2]);
             this.queueSize += added[0];
         }
+    }
+
+    /**
+     * The collections the graph follows but the LLM tier does not: their pages are marked skipped (not selected), as the
+     * single scan of earlier versions did, so they show as such and a later selection reopens them. No model call, no
+     * share: a bounded batch per collection and pass, frontier and revisit as for the followed collections.
+     */
+    private void markOthers(final List<LlmQueue.Lane> others, final long now) throws KgException {
+        final Map<Integer, List<LlmQueue.Todo>> todo = new java.util.HashMap<>();
+        final java.util.Set<Integer> done = new java.util.HashSet<>();
+        final Map<Integer, Long> lastRow = new java.util.HashMap<>();
+        this.store.read(c -> {
+            for (final LlmQueue.Lane lane : others) {
+                lastRow.put(lane.collId, LlmQueue.lastRow(c, lane.collId));
+                final boolean revisit = lane.frontier > 0L && now >= this.revisitPausedUntil.getOrDefault(lane.collId, 0L);
+                final List<LlmQueue.Todo> t = revisit ? LlmQueue.laneTodo(c, lane.collId, lane.revisit, lane.frontier, SCAN_BATCH)
+                        : LlmQueue.laneTodo(c, lane.collId, lane.frontier, Long.MAX_VALUE, SCAN_BATCH);
+                todo.put(lane.collId, t);
+                if (t.size() < SCAN_BATCH) {
+                    done.add(lane.collId);
+                }
+            }
+            return null;
+        });
+        final long[] marked = new long[1];
+        this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+            for (final LlmQueue.Lane lane : others) {
+                final boolean revisit = lane.frontier > 0L && now >= this.revisitPausedUntil.getOrDefault(lane.collId, 0L);
+                long last = -1L;
+                for (final LlmQueue.Todo t : todo.get(lane.collId)) {
+                    last = t.rowid;
+                    if (!selected(t.collections) && LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_SELECTED)) {
+                        marked[0]++;
+                    } // a page also in a followed collection is that collection's
+                }
+                if (revisit) {
+                    lane.revisit = done.contains(lane.collId) ? 0L : Math.max(lane.revisit, last);
+                    if (done.contains(lane.collId)) {
+                        this.revisitPausedUntil.put(lane.collId, now + REVISIT_PAUSE_MILLIS);
+                    }
+                } else {
+                    lane.frontier = done.contains(lane.collId) ? Math.max(Math.max(lane.frontier, last), lastRow.get(lane.collId))
+                            : Math.max(lane.frontier, last);
+                }
+                KgStore.putMeta(tx, lane.key(), lane.value());
+            }
+            return null;
+        });
+        this.counters.skippedNotSelected.addAndGet(marked[0]);
+        if (marked[0] > 0L) {
+            this.countsAt = 0L;
+        }
+    }
+
+    /**
+     * Queues or marks the pages of one collection in row order, as the scan always did (selection, host, per-host cap,
+     * priority). Stops at the queue's maximum.
+     *
+     * @return {new queue size, the last row handled or -1, pages queued, 1 if every page was handled}
+     */
+    private long[] offer(final java.sql.Connection tx, final List<LlmQueue.Todo> todo, final LlmQueue.Lane lane,
+            final Map<String, Long> load, final long sizeBefore, final long now, final long[] added) throws java.sql.SQLException {
+        long size = sizeBefore;
+        long last = -1L;
+        long queuedHere = 0L;
+        for (final LlmQueue.Todo t : todo) {
+            if (size >= QUEUE_MAX) {
+                return new long[] {size, last, queuedHere, 0L};
+            }
+            last = t.rowid;
+            if (!selected(t.collections)) {
+                LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_SELECTED);
+                added[1]++;
+                continue;
+            }
+            if (t.hostId == null) {
+                LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NO_HOST);
+                added[1]++;
+                continue;
+            }
+            Long n = load.get(t.hostId);
+            if (n == null) {
+                n = LlmQueue.hostLoad(tx, t.hostId);
+            }
+            if (n >= this.cfg.llmMaxDocsPerHost) {
+                // queued documents of the host are kept; the cap counts them
+                if (!queued(tx, t.docId)) {
+                    LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_HOST_CAP);
+                    added[2]++;
+                }
+                load.put(t.hostId, n);
+                continue;
+            }
+            if (LlmQueue.offer(tx, t.docId, t.hostId, LlmQueue.priority(t.url), now)) {
+                size++;
+                n++;
+                added[0]++;
+                queuedHere++;
+                this.queuedByCollection.computeIfAbsent(lane.name, x -> new AtomicLong()).incrementAndGet();
+            }
+            load.put(t.hostId, n);
+        }
+        return new long[] {size, last, queuedHere, 1L};
     }
 
     private boolean selected(final List<String> collections) {
@@ -1095,11 +1292,13 @@ public final class LlmService {
         final long now = this.clock.getAsLong();
         final int n = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
             final int reopened = LlmQueue.reopen(tx, LlmQueue.STATUS_FAILED);
+            if (reopened > 0) {
+                LlmQueue.resetCursors(tx); // the frontiers walk again: faster than the revisits for pages reopened in bulk
+            }
             KgStore.event(tx, 1, "llm_retry", reopened + " failed documents are examined again", now);
             return reopened;
         });
         synchronized (this.scanLock) {
-            this.scanCursor = 0L;
             this.scanPausedUntil = 0L;
         }
         this.breaker.success();
@@ -1175,6 +1374,8 @@ public final class LlmService {
                         this.cacheBytes < 0L ? null : this.cacheBytes,
                         "maxBytes",
                         this.cfg.cacheMaxBytes()),
+                "selection",
+                selectionStatus(),
                 "breaker",
                 this.breaker.status(),
                 "processed",
@@ -1189,6 +1390,20 @@ public final class LlmService {
                 this.prompt.json(),
                 "lastError",
                 this.lastError);
+    }
+
+    /**
+     * The fair, resumable selection (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): per followed collection its frontier and
+     * revisit positions (row IDs, as of the last scan pass) and the pages it queued since the start.
+     */
+    private JSONObject selectionStatus() {
+        final org.json.JSONArray out = new org.json.JSONArray();
+        for (final LlmQueue.Lane lane : this.lanes) {
+            final AtomicLong q = this.queuedByCollection.get(lane.name);
+            out.put(KgJson.obj("collection", lane.name, "frontier", lane.frontier, "revisit", lane.revisit, "queued", q == null ? 0L : q.get()));
+        }
+        return KgJson.obj("collections", out, "revisitBatch", REVISIT_BATCH, "scanBatch", SCAN_BATCH, "agingMinutes",
+                LlmQueue.AGING_MILLIS / 60_000L);
     }
 
     private String actualWaitReason() {

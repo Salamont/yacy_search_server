@@ -4,6 +4,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.apache.solr.common.SolrInputDocument;
@@ -108,5 +109,69 @@ public class LlmStrandedTest extends LlmFixture {
         } finally {
             SolrDoc.configure(this.cfg);
         }
+    }
+
+    @Test
+    public void aReopenedPageBehindTheScanIsReadAgainWithoutARestart() throws Exception {
+        addAll(List.of(imprint('A', 1, "c1")));
+        settleSync();
+        crawlSteps(2);
+        assertEquals("1:", llmStatus(A));
+        // a recrawl with a new text: the publisher makes the page to do again
+        final SolrInputDocument changed = imprint('A', 1, "c1");
+        changed.setField("text_t", "Impressum. Die Muster Pflege gGmbH betreibt das Haus Sonnenhof.");
+        changed.setField("exact_signature_l", 43L);
+        addAll(List.of(changed));
+        settleSync();
+        assertEquals("null:", llmStatus(A));
+        crawlSteps(20);
+        assertEquals(strandedMessage(), "1:", llmStatus(A));
+        assertEquals(strandedMessage(), 0L, stranded());
+    }
+
+    @Test
+    public void everyCollectionGetsWorkFromTheFirstScan() throws Exception {
+        final List<SolrInputDocument> early = new ArrayList<>();
+        for (int i = 1; i <= LlmService.SCAN_BATCH + 20; i++) {
+            early.add(imprint('B', i, "c1"));
+        }
+        addAll(early);
+        settleSync();
+        addAll(List.of(imprint('Z', 1, "c2"), imprint('Z', 2, "c2"), imprint('Z', 3, "c2")));
+        settleSync();
+        assertTrue("the late collection has higher row IDs", count("SELECT min(doc_rowid) FROM kg_doc WHERE doc_id GLOB 'Z*'")
+                > count("SELECT max(doc_rowid) FROM kg_doc WHERE doc_id GLOB 'B*'"));
+        this.llm.step();
+        assertEquals("the late collection is not left behind the early one: " + this.llm.status(), 3L,
+                count("SELECT count(*) FROM kg_llm_work WHERE doc_id GLOB 'Z*'"));
+    }
+
+    @Test
+    public void anOlderQueuedPageIsNotStarvedByNewerPriorityPages() throws Exception {
+        // a reference page (priority 5) queued first, then a steady stream of imprint pages (priority 1)
+        add("P00001p00001", "https://www.p1-pflege.de/referenzen/projekt-beispiele/", "c1", LD.replace("muster-pflege", "p1-pflege"), TEXT,
+                "Projekt-Beispiele");
+        settleSync();
+        this.llm.step(); // the scan queues it; nothing else is queued, so it is read now
+        assertEquals("1:", llmStatus("P00001p00001"));
+        add("P00002p00002", "https://www.p2-pflege.de/referenzen/", "c1", LD.replace("muster-pflege", "p2-pflege"), TEXT,
+                "Referenzen");
+        settleSync();
+        final List<SolrInputDocument> first = new ArrayList<>();
+        for (int i = 100; i < 110; i++) {
+            first.add(imprint('N', i, "c1"));
+        }
+        addAll(first);
+        settleSync();
+        this.llm.step(); // queues the reference page and ten imprints, reads one imprint
+        assertTrue(queued("P00002p00002"));
+        for (int i = 0; i < 40 && queued("P00002p00002"); i++) {
+            addAll(List.of(imprint('N', 200 + i, "c1"), imprint('N', 300 + i, "c1")));
+            settleSync();
+            this.llm.step();
+            this.clock.addAndGet(10 * 60_000L);
+        }
+        assertEquals("a queued page is read within hours although newer imprint pages keep arriving: " + this.llm.status(), "1:",
+                llmStatus("P00002p00002"));
     }
 }
