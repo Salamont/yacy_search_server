@@ -50,6 +50,17 @@ final class LlmQueue {
     static final String SKIP_HOST_CAP = "host_cap";
     static final String SKIP_NO_HOST = "no_host";
     static final String FAILED = "llm_failed";
+    /**
+     * The worker could not confirm the input it was to read (Solr lacked the page or stayed ahead of the graph) within
+     * its bounded retries; a new input or the admin retry makes the page to do again.
+     */
+    static final String INPUT_UNCONFIRMED = "input_unconfirmed";
+    /**
+     * What the LLM tier read: the content hash (schema 4), the input hash for a page published before it. A new
+     * vocabulary or extractor version changes the input hash, not what the tier reads; the comparisons, the marks and
+     * the publication use this identity, so such a change neither throws an answer away nor leaves a page unmarked.
+     */
+    static final String LLM_INPUT = "coalesce(content_hash, input_hash)";
 
     private static final Pattern P1 = Pattern.compile(
             "(?i)(?:^|/)(?:impressum|imprint|legal-?notice|anbieterkennzeichnung|about|about-us|ueber-uns|uber-uns|über-uns|wir)(?:[./_\\-]|$)");
@@ -77,16 +88,17 @@ final class LlmQueue {
         final String docId;
         final String hostId;
         final String url;
-        final byte[] inputHash;
+        /** {@link #LLM_INPUT} of the document. */
+        final byte[] llmInput;
         final List<String> collections;
 
-        Todo(final long rowid, final String docId, final String hostId, final String url, final byte[] inputHash,
+        Todo(final long rowid, final String docId, final String hostId, final String url, final byte[] llmInput,
                 final List<String> collections) {
             this.rowid = rowid;
             this.docId = docId;
             this.hostId = hostId;
             this.url = url;
-            this.inputHash = inputHash;
+            this.llmInput = llmInput;
             this.collections = collections;
         }
     }
@@ -116,7 +128,7 @@ final class LlmQueue {
     /** Up to {@code limit} documents to do after {@code afterRowid}, in row order. */
     static List<Todo> todo(final Connection c, final long afterRowid, final int limit) throws SQLException {
         final List<Todo> out = new ArrayList<>();
-        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.host_id, d.url, d.input_hash,"
+        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_rowid, d.doc_id, d.host_id, d.url, coalesce(d.content_hash, d.input_hash),"
                 + " (SELECT group_concat(k.name, ',') FROM kg_doc_collection dc JOIN kg_collection k ON k.coll_id = dc.coll_id"
                 + " WHERE dc.doc_rowid = d.doc_rowid)"
                 + " FROM kg_doc d INDEXED BY kg_doc_llm_todo WHERE d.llm_status IS NULL AND d.state = 1 AND d.input_hash IS NOT NULL"
@@ -235,21 +247,32 @@ final class LlmQueue {
     }
 
     /**
-     * Marks a document for the input hash it was examined with; nothing
-     * happens if the input changed meanwhile.
+     * Marks a document for the input ({@link #LLM_INPUT}) it was examined with; nothing happens if the input changed
+     * meanwhile.
      *
      * @return true if the mark was set
      */
-    static boolean mark(final Connection tx, final String docId, final byte[] inputHash, final int status, final String reason)
+    static boolean mark(final Connection tx, final String docId, final byte[] llmInput, final int status, final String reason)
             throws SQLException {
         // the mark is the content hash (schema 4): a new vocabulary alone does not make the document to do again
-        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = ?, llm_hash = coalesce(content_hash, input_hash),"
-                + " llm_reason = ? WHERE doc_id = ? AND input_hash = ? AND state = 1")) {
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = ?, llm_hash = " + LLM_INPUT + ","
+                + " llm_reason = ? WHERE doc_id = ? AND " + LLM_INPUT + " = ? AND state = 1")) {
             ps.setInt(1, status);
             ps.setString(2, reason);
             ps.setString(3, docId);
-            ps.setBytes(4, inputHash);
+            ps.setBytes(4, llmInput);
             return ps.executeUpdate() > 0;
+        }
+    }
+
+    /** True while the document still needs the LLM tier: active, with an input and not marked. */
+    static boolean toDo(final Connection c, final String docId) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT 1 FROM kg_doc WHERE doc_id = ? AND state = 1 AND input_hash IS NOT NULL"
+                + " AND llm_status IS NULL")) {
+            ps.setString(1, docId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next();
+            }
         }
     }
 

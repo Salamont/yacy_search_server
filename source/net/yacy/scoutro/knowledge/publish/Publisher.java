@@ -354,13 +354,15 @@ public final class Publisher {
      *
      * @param extId the extractor row of the tier (name, version, model, prompt)
      */
-    public Result applyLlm(final Connection tx, final Doc doc, final byte[] inputHash, final Extraction extraction, final int extId,
+    public Result applyLlm(final Connection tx, final Doc doc, final byte[] llmInput, final Extraction extraction, final int extId,
             final long now) throws SQLException {
         final long rowid;
-        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_rowid FROM kg_doc WHERE doc_id = ? AND state = 1 AND input_hash = ?"
-                + " AND llm_status IS NULL")) {
+        // compare-and-set on what the LLM tier read (the content hash; the input hash before schema 4): a new vocabulary
+        // published meanwhile keeps the result, as it keeps a published one (update)
+        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_rowid FROM kg_doc WHERE doc_id = ? AND state = 1"
+                + " AND coalesce(content_hash, input_hash) = ? AND llm_status IS NULL")) {
             ps.setString(1, doc.docId);
-            ps.setBytes(2, inputHash);
+            ps.setBytes(2, llmInput);
             try (ResultSet rs = ps.executeQuery()) {
                 if (!rs.next()) {
                     return new Result(Outcome.ABORT_GENERATION);

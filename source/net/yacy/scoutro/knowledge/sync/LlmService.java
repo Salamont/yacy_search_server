@@ -91,6 +91,9 @@ public final class LlmService {
     static final long REFUSED_MILLIS = 60_000L;
     static final long SOLR_RETRY_MILLIS = 30_000L;
     static final long CHANGED_RETRY_MILLIS = 60_000L;
+    /** Retries beyond {@code llm.maxAttempts} for an input the worker cannot confirm, and their longest backoff. */
+    static final int UNCONFIRMED_EXTRA_ATTEMPTS = 6;
+    static final long UNCONFIRMED_MAX_BACKOFF_MILLIS = 30L * 60_000L;
     static final long FIRST_RETRY_MILLIS = 60_000L;
     static final long COUNTS_MILLIS = 30_000L;
     static final long EVICT_MILLIS = 60_000L;
@@ -125,6 +128,10 @@ public final class LlmService {
         final AtomicLong published = new AtomicLong();
         final AtomicLong statements = new AtomicLong();
         final AtomicLong changedAborts = new AtomicLong();
+        /** Items kept in the queue with a backoff because the input could not be confirmed (never dropped unmarked). */
+        final AtomicLong unconfirmedRetries = new AtomicLong();
+        /** Documents marked failed ({@link LlmQueue#INPUT_UNCONFIRMED}) after the bounded retries. */
+        final AtomicLong inputUnconfirmed = new AtomicLong();
         final AtomicLong failedDocs = new AtomicLong();
         final AtomicLong skippedNotCandidate = new AtomicLong();
         final AtomicLong skippedNotSelected = new AtomicLong();
@@ -219,6 +226,10 @@ public final class LlmService {
                     this.statements.get(),
                     "abortedChanged",
                     this.changedAborts.get(),
+                    "unconfirmedRetries",
+                    this.unconfirmedRetries.get(),
+                    "inputUnconfirmed",
+                    this.inputUnconfirmed.get(),
                     "failedDocs",
                     this.failedDocs.get(),
                     "skippedNotCandidate",
@@ -525,12 +536,12 @@ public final class LlmService {
                     }
                     cursor = t.rowid;
                     if (!selected(t.collections)) {
-                        LlmQueue.mark(tx, t.docId, t.inputHash, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_SELECTED);
+                        LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_SELECTED);
                         added[1]++;
                         continue;
                     }
                     if (t.hostId == null) {
-                        LlmQueue.mark(tx, t.docId, t.inputHash, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NO_HOST);
+                        LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NO_HOST);
                         added[1]++;
                         continue;
                     }
@@ -541,7 +552,7 @@ public final class LlmService {
                     if (n >= this.cfg.llmMaxDocsPerHost) {
                         // queued documents of the host are kept; the cap counts them
                         if (!queued(tx, t.docId)) {
-                            LlmQueue.mark(tx, t.docId, t.inputHash, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_HOST_CAP);
+                            LlmQueue.mark(tx, t.docId, t.llmInput, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_HOST_CAP);
                             added[2]++;
                         }
                         load.put(t.hostId, n);
@@ -592,9 +603,24 @@ public final class LlmService {
         String url;
         String hostId;
         byte[] inputHash;
+        /** What tiers 1 and 2 read without the extractor versions (schema 4); null for a page published before. */
+        byte[] contentHash;
         int state;
         Integer llmStatus;
         List<String> collections = Collections.emptyList();
+
+        /** {@link LlmQueue#LLM_INPUT}: the identity of what the LLM tier reads. */
+        byte[] llmInput() {
+            return this.contentHash != null ? this.contentHash : this.inputHash;
+        }
+
+        /**
+         * True if Solr holds the input the graph published, as far as the LLM tier reads it: the content hash where the
+         * graph has one (a new vocabulary or extractor version changes the input hash, not the page), else the input hash.
+         */
+        boolean sameInput(final SolrDoc d) {
+            return this.contentHash != null ? Arrays.equals(d.contentHash(), this.contentHash) : Arrays.equals(d.inputHash(), this.inputHash);
+        }
     }
 
     private DocRow row(final String docId) throws KgException {
@@ -602,7 +628,7 @@ public final class LlmService {
                 c -> {
                     try (PreparedStatement ps =
                             c.prepareStatement(
-                                    "SELECT d.url, d.host_id, d.input_hash, d.state, d.llm_status,"
+                                    "SELECT d.url, d.host_id, d.input_hash, d.state, d.llm_status, d.content_hash,"
                                         + " (SELECT group_concat(k.name, ',') FROM"
                                         + " kg_doc_collection dc JOIN kg_collection k ON k.coll_id"
                                         + " = dc.coll_id WHERE dc.doc_rowid = d.doc_rowid) FROM"
@@ -618,7 +644,8 @@ public final class LlmService {
                             r.inputHash = rs.getBytes(3);
                             r.state = rs.getInt(4);
                             r.llmStatus = rs.getObject(5) == null ? null : rs.getInt(5);
-                            final String colls = rs.getString(6);
+                            r.contentHash = rs.getBytes(6);
+                            final String colls = rs.getString(7);
                             if (colls != null && !colls.isEmpty()) {
                                 r.collections = Arrays.asList(colls.split(","));
                             }
@@ -645,17 +672,12 @@ public final class LlmService {
             return;
         }
         if (d == null) {
-            complete(item); // the sync removes it
+            unconfirmed(item, row, false); // Solr lacks the page: the sync removes it, or it is not visible yet
             return;
         }
-        if (!Arrays.equals(d.inputHash(), row.inputHash)) {
+        if (!row.sameInput(d)) {
             // Solr is ahead of the graph: the sync publishes the new input first, which resets the mark
-            this.counters.changedAborts.incrementAndGet();
-            if (item.attempts + 1 >= this.cfg.llmMaxAttempts + 2) {
-                complete(item); // the scan finds it again once the graph has caught up
-            } else {
-                release(item, now + CHANGED_RETRY_MILLIS, true);
-            }
+            unconfirmed(item, row, true);
             return;
         }
         final BaseTiers.Text page = new BaseTiers.Text(this.solr, item.docId);
@@ -665,7 +687,7 @@ public final class LlmService {
             base = this.tiers.extract(d, page);
             if (!RuleExtractor.candidate(d.url, d.titles, base)) {
                 this.counters.skippedNotCandidate.incrementAndGet();
-                markAndComplete(item, row.inputHash, LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_CANDIDATE);
+                markAndComplete(item, row.llmInput(), LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_CANDIDATE);
                 return;
             }
             text = page.get();
@@ -723,7 +745,7 @@ public final class LlmService {
                 try{checkpoint(item,progress);}catch(KgException refused){
                     defer(item, progress, "checkpoint_storage");
                 }
-                transportFailure(item, row.inputHash, e);
+                transportFailure(item, row.llmInput(), e);
                 return;
             }
             this.breaker.success();
@@ -788,7 +810,7 @@ public final class LlmService {
                                         || current.llmStatus != null
                                         || !selected(current.collections))
                                     throw new LlmTiming.Deferred("collection_not_selected");
-                                if (!Arrays.equals(current.inputHash, expected.inputHash))
+                                if (!Arrays.equals(current.llmInput(), expected.llmInput()))
                                     throw new LlmTiming.Deferred("input_changed");
                                 if (!model.equals(this.client.model()))
                                     throw new LlmTiming.Deferred("model_changed");
@@ -893,7 +915,7 @@ public final class LlmService {
     }
 
     private void transportFailure(
-            final LlmQueue.Item item, final byte[] inputHash, final IOException e)
+            final LlmQueue.Item item, final byte[] llmInput, final IOException e)
             throws KgException {
         final String why =
                 e instanceof SocketTimeoutException ? "timeout" : e.getClass().getSimpleName();
@@ -905,7 +927,7 @@ public final class LlmService {
         this.lastError = "llm: " + why;
         if (item.attempts + 1 >= this.cfg.llmMaxAttempts) {
             this.counters.failedDocs.incrementAndGet();
-            markAndComplete(item, inputHash, LlmQueue.STATUS_FAILED, LlmQueue.FAILED);
+            markAndComplete(item, llmInput, LlmQueue.STATUS_FAILED, LlmQueue.FAILED);
         } else {
             release(item, this.clock.getAsLong() + (FIRST_RETRY_MILLIS << Math.min(6, item.attempts)), true);
         }
@@ -947,14 +969,27 @@ public final class LlmService {
         doc.contentHash = d.contentHash();
         doc.accessCollections = d.collections;
         final Publisher.Result[] result = new Publisher.Result[1];
+        final boolean[] kept = new boolean[2];
         try {
             this.store.write(WriteClass.GROWTH, estimate, tx -> {
                 if ("1".equals(KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS))) {
                     LlmQueue.release(tx, item.docId, now + GATE_MILLIS, false);
                     return null;
                 }
-                result[0] = this.publisher.applyLlm(tx, doc, row.inputHash, ex, this.terms.llmExtractor(tx, m, promptHash), now);
+                result[0] = this.publisher.applyLlm(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), now);
                 ExtractionCache.touch(tx, keys, now);
+                if (result[0].outcome != Publisher.Outcome.PUBLISHED && LlmQueue.toDo(tx, item.docId)) {
+                    // the page changed during the call and is still to do: never dropped from the queue without a mark
+                    if (item.attempts + 1 >= unconfirmedLimit()) {
+                        kept[1] = LlmQueue.mark(tx, item.docId, currentInput(tx, item.docId), LlmQueue.STATUS_FAILED,
+                                LlmQueue.INPUT_UNCONFIRMED);
+                        LlmQueue.complete(tx, item.docId);
+                    } else {
+                        LlmQueue.release(tx, item.docId, now, true);
+                        kept[0] = true;
+                    }
+                    return null;
+                }
                 LlmQueue.complete(tx, item.docId);
                 return null;
             });
@@ -977,7 +1012,48 @@ public final class LlmService {
             this.counters.statements.addAndGet(result[0].statements);
         } else {
             this.counters.changedAborts.incrementAndGet();
+            if (kept[0]) {
+                this.counters.unconfirmedRetries.incrementAndGet();
+            } else if (kept[1]) {
+                this.counters.inputUnconfirmed.incrementAndGet();
+            }
         }
+    }
+
+    /** {@link LlmQueue#LLM_INPUT} of the document as the graph holds it now; null if it is not tracked. */
+    private static byte[] currentInput(final java.sql.Connection c, final String docId) throws java.sql.SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT " + LlmQueue.LLM_INPUT + " FROM kg_doc WHERE doc_id = ?")) {
+            ps.setString(1, docId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getBytes(1) : null;
+            }
+        }
+    }
+
+    /** Tries for an input the worker cannot confirm (attempts of transport failures included). */
+    private int unconfirmedLimit() {
+        return this.cfg.llmMaxAttempts + UNCONFIRMED_EXTRA_ATTEMPTS;
+    }
+
+    /**
+     * Solr lacks the page or holds another input than the graph published. The item is never dropped while its page is
+     * still to do (the scan would have to find it again behind its position): it stays queued with a growing backoff
+     * until the sync has caught up, and after {@link #unconfirmedLimit()} tries the page is marked failed
+     * ({@link LlmQueue#INPUT_UNCONFIRMED}) so it shows in the status instead of waiting unseen. A new input resets the
+     * mark (the publisher), the admin retry too.
+     */
+    private void unconfirmed(final LlmQueue.Item item, final DocRow row, final boolean changed) throws KgException {
+        if (changed) {
+            this.counters.changedAborts.incrementAndGet();
+        }
+        if (item.attempts + 1 >= unconfirmedLimit()) {
+            this.counters.inputUnconfirmed.incrementAndGet();
+            markAndComplete(item, row.llmInput(), LlmQueue.STATUS_FAILED, LlmQueue.INPUT_UNCONFIRMED);
+            return;
+        }
+        this.counters.unconfirmedRetries.incrementAndGet();
+        release(item, this.clock.getAsLong() + Math.min(UNCONFIRMED_MAX_BACKOFF_MILLIS, CHANGED_RETRY_MILLIS << Math.min(6, item.attempts)),
+                true);
     }
 
     private void complete(final LlmQueue.Item item) throws KgException {
@@ -988,11 +1064,18 @@ public final class LlmService {
         });
     }
 
-    private void markAndComplete(final LlmQueue.Item item, final byte[] inputHash, final int status, final String why)
+    /**
+     * Marks the document for the input it was examined with and completes its item. If the input changed meanwhile the
+     * mark does not apply: the item stays queued (due at once) for the new input instead of being dropped unmarked.
+     */
+    private void markAndComplete(final LlmQueue.Item item, final byte[] llmInput, final int status, final String why)
             throws KgException {
         long estimate=SMALL+this.store.read(c->LlmProgress.storedBytes(c,item.docId));
         this.store.write(WriteClass.MAINTENANCE, estimate, tx -> {
-            LlmQueue.mark(tx, item.docId, inputHash, status, why);
+            if (!LlmQueue.mark(tx, item.docId, llmInput, status, why) && LlmQueue.toDo(tx, item.docId)) {
+                LlmQueue.release(tx, item.docId, this.clock.getAsLong(), false);
+                return null;
+            }
             LlmQueue.complete(tx, item.docId,status==LlmQueue.STATUS_FAILED);
             return null;
         });
