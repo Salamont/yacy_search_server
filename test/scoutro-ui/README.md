@@ -259,3 +259,15 @@ per role, collection context, overview cards, pages by permission and the
 sign-out and the guest search. As administrator it opens every internal page
 of the navigation, YaCy's own pages under "Advanced tools" included, on
 desktop and phone. No credential is written to a file.
+
+`test/scoutro-access/chat-rag-live-smoke.py` checks the RAG chat of
+accounts with a deterministic local model stub (OpenAI-compatible on
+127.0.0.1, no external model, no key) that records every request: two
+collections with distinct pages and knowledge-graph facts, a Research
+account of one collection and an account of both. It asserts which search
+context, graph facts and tool results reach the model and which sources the
+client gets, also for a foreign or invalid collection, `collection:` in the
+question, the global search, client tools and system messages, a search-tool
+call of the model (released as an administrator could do it), system
+questions and the administrator's model mirror. `SCOUTRO_RAG_DUMP=FILE`
+writes what the model received.

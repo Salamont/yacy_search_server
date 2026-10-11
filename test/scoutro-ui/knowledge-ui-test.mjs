@@ -251,8 +251,11 @@ try {
         if (shots) await page.screenshot({ path: path.join(shots, `kg-business-${language}-${width}.png`), fullPage: true });
         await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${operator}&collection=kga`, { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-sec-prices');
-        check(await page.locator('#skg-sec-matches').count() === 0 && !(await page.locator('#skg-object').textContent()).includes('PflegeSoft'),
-          'kga sees no suggestion that needs kgb' + where);
+        // since 08a42db suggestions use the viewer's full permission scope: the administrator may read kgb and gets the
+        // authorized suggestion also in the kga view (an account of kga only gets none: knowledge-live-smoke.py)
+        const kgaMatches = await page.locator('#skg-sec-matches').textContent();
+        check(kgaMatches.includes('PflegeSoft UI GmbH') && kgaMatches.includes(L('suggestion', 'Vorschlag')),
+          'kga view of the administrator shows the authorized kgb suggestion' + where);
 
         // the network: SVG and list from the same data, filters, keyboard, export
         await page.locator('#skg-object-network').click();
