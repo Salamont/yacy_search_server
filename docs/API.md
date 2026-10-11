@@ -52,7 +52,7 @@ forms, historic YaCy form parameters or browser automation.
 |---|---|
 | `GET /v1/health`, `GET /v1/ui/routes[/{name}]`, `GET /openapi.json`, `GET /actions.json` | public (no personal or index data) |
 | `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | public; they answer for the caller only |
-| everything else in `/v1`, including search | Scoutro/YaCy administrator account (HTTP Digest or an administrator session) |
+| everything else in `/v1` | the administrator (HTTP Digest or an administrator session) without restriction; a Scoutro account the routes of its role, within its collections ([Routes for accounts](#routes-for-accounts)) |
 
 - Enforced by the servlet container (security constraints in
   `defaults/web.xml` and `net.yacy.scoutro.access.RoutePolicy`, roles
@@ -79,9 +79,11 @@ forms, historic YaCy form parameters or browser automation.
   otherwise). The API never answers CORS preflights. YaCy's transaction
   tokens are therefore not needed on this API.
 - Read-only and mutating actions are marked in `actions.json` (`mutating`) and
-  in `openapi.json` (`x-scoutro-mutating`). All mutating actions require the
-  admin account, except sign-in, sign-out and the own password (`auth.*`),
-  which act only on the caller's own session.
+  in `openapi.json` (`x-scoutro-mutating`). All mutating actions require a
+  sign-in, except sign-in, sign-out and the own password (`auth.*`), which act
+  only on the caller's own session. The right an account needs is
+  `x-scoutro-permission` (`openapi.json`) and `permission` (`actions.json`);
+  sessions are the security scheme `scoutroSession`.
 
 ## People: sign-in and accounts
 
@@ -103,6 +105,26 @@ calls):
 | `GET /v1/users/{name}/sessions`, `POST /v1/users/{name}/sessions/revoke` | administrator | Sessions of an account; end them. |
 | `GET\|PATCH /v1/access` | administrator | Protected mode, guest access and its collections, peer-to-peer in protected mode (`peerToPeer`, off by default), form sign-in of the built-in administrator; warnings (`p2p_open`, `p2p_closed`, `localhost_admin`, `builtin_default_password`, `protected_enforced`). |
 | `GET /v1/access/audit?limit=&who=` | administrator | Audit log of people (sign-ins, account changes, changing Scoutro API calls). |
+
+### Routes for accounts
+
+The administrator uses every route as before. A Scoutro account (protected
+access mode) uses the routes of its role and gets only data of its
+collections (docs/SCOUTRO_USERS_ACCESS.md, sections 3 and 6). The scope comes
+from the session, never from a parameter: without `collection` a read covers
+all of the account's collections (never the whole index unless it has all
+collections); a foreign or unknown collection answers
+`403 collection_not_allowed` (the same answer, no existence oracle), an
+invalid name `400`.
+
+| Permission | Routes | Within the collections |
+|---|---|---|
+| `search` (also guests with released collections) | `GET /v1/search`, `GET /v1/collections` | Search: `collection:` in `q` → `400 query_modifier_not_allowed`, `source=network` → `403`; several collections are searched one by one and merged (as for agents). Collections: only the account's, `canCreate` false. |
+| `read` | `/v1/index`, `/v1/index/{browse,domains,metrics,lookup,evidence}`, `/v1/hosts/resolve`, `/v1/seo/*`, the knowledge reads `/v1/kg/{entities,statements,hosts,sources,services,compare,derived,facets,history,observations}` | `GET /v1/index` returns the documents per own collection only (no queues). Knowledge reads use the agents' view (no model names, no graph-wide backlog). |
+| `export` | `/v1/index/domains/export`, `/v1/kg/export`, `/v1/kg/export/download`, `/v1/kg/changes` | Also needs `read`. |
+| `collect` | `/v1/crawls*`, `/v1/reports/*`, `/v1/discovery/{catalog,status,jobs*}` | Crawls: only crawls of own collections (others `404 crawl_not_found`); a start needs an own collection, refuses `scope=wide` (`403 scope_not_allowed`) and hosts with documents outside the scope (`409 host_indexed_elsewhere`). Discovery: only jobs whose profile writes into an own collection (others `404 job_not_found`), no global action in `status`. Reports: as for agents. |
+| `chat` | `POST /v1/chat/completions` | One own collection (the only one, or `400 collection_required`); a foreign one `403 collection_not_allowed`; no peer-to-peer search; system questions `403 system_forbidden`. The account's session decides, not its address. |
+| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `/v1/collections/reassign`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}` | `403 forbidden` for accounts. |
 
 Tools keep using HTTP Digest; the login page never answers them. Every
 changing `/v1` call of a person is written to the audit log

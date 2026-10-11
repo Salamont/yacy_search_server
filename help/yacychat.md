@@ -106,3 +106,15 @@ graph is slow or off, the answer uses the search results alone. Settings:
 Scoutro system questions (DE/EN) use authorized structured Actions before RAG or model selection. Host/page counts, crawls, Discovery, collections and host analysis work without Function Calling. System data needs the administrator role or an explicitly granted agent token; missing rights/data produce a clear error without substitute web results. `collection` in the chat JSON scopes index/SEO reads. Details, API parameters, JSON/SSE replies and automation: [System questions and MCP](../docs/SCOUTRO_SYSTEM_QUESTIONS_MCP.md).
 
 System answers retain structured facts in API metadata and show a concise readable summary in the chat. Mobile fieldsets/composer wrap without widening the page; no conversation storage logic changes.
+
+## Scoutro accounts (protected access mode)
+
+`/v1/chat/completions` and this page need the **chat** right. A signed-in
+account without the administrator role chats only within its collections,
+whatever the AI Shield admits for its address (also on localhost): the page
+lists only its collections; without *all collections* there is no "All
+collections" entry and a request without a collection uses its only
+collection or answers `400 collection_required`; a foreign collection
+answers `403 collection_not_allowed`. Accounts never use the peer-to-peer
+network search, and system questions answer `403 system_forbidden`.
+See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

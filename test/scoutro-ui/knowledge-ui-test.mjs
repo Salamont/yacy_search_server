@@ -62,7 +62,8 @@ try {
         check(/^[A-Z_]+\/fixture$/.test(await cardValue(lModel) || ''), 'the model of the LLM selection (service/model): ' + await cardValue(lModel) + where);
         check(!(await page.locator('#skg-overview').textContent()).includes('no_llm_collections'), 'no no_llm_collections with a model and an LLM collection' + where);
         if (language === 'de') check((await page.locator('h1').textContent()).trim() === 'Wissensgraph', 'German heading' + where);
-        check(await page.locator('#scoutro-adminnav a[href="ScoutroKnowledge_p.html"]').count() === 1, 'navigation entry' + where);
+        check(await page.locator('#scoutro-adminnav a[href="ScoutroKnowledge_p.html?view=operations"]').count() === 1
+          && await page.locator('#scoutro-nav-knowledge a[href="ScoutroKnowledge_p.html?view=objects"]').count() === 1, 'navigation entries (operations, organisations)' + where);
         await page.waitForFunction(() => document.querySelector('#skg-vocab').children.length > 0);
         const vocab = await page.locator('#skg-vocab').textContent();
         check(vocab.includes('kga: care') && vocab.includes('kgb: software') && /1[.,]?047/.test(vocab), 'vocabularies per collection and NACE codes' + where);

@@ -3607,7 +3607,7 @@ Main navigation==Hauptnavigation
 >The browser keeps this sign-in until it is closed.<==>Der Browser behält diese Anmeldung, bis er geschlossen wird.<
 Guest::Research::Operator::Administrator==Gast::Recherche::Operator::Administrator
 >Knowledge graph operations<==>Wissensgraph-Betrieb<
->Knowledge overview<==>Wissensübersicht<
+>All my collections<==>Alle meine Collections<
 >Knowledge<==>Wissen<
 >Overview<==>Übersicht<
 >Research<==>Recherche<
@@ -5013,6 +5013,25 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 #-----------------------------
 
 #File: scoutro-dashboard.html
+Share of the pages in your collections==Anteil an den Seiten Ihrer Collections
+"Overview of your collections"=="Übersicht Ihrer Collections"
+Your collections at a glance==Ihre Collections auf einen Blick
+>hosts in your collections<==>Hosts in Ihren Collections<
+>pages in your collections<==>Seiten in Ihren Collections<
+>System Administration <==>Systemverwaltung <
+>Index Administration <==>Indexverwaltung <
+>RAM / Disk / Updates <==>RAM / Datenträger / Updates <
+>Crawler Monitor <==>Crawler-Monitor <
+>System Status <==>Systemstatus <
+>Start Crawl <==>Crawl starten <
+>Automation <==>Automatisierung <
+>Your functions<==>Ihre Funktionen<
+>Host analysis <==>Host-Analyse <
+</span> websites<==></span> Websites<
+>Organisations <==>Organisationen <
+>My account <==>Mein Konto <
+>Reports <==>Berichte <
+>Search <==>Suche <
 >Knowledge graph<==>Wissensgraph<
 >Pending changes<==>Ausstehende Änderungen<
 >Growth paused<==>Wachstum pausiert<
@@ -5030,12 +5049,12 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 >Index statistics refresh within 30 seconds. Hosts are counted separately from pages.<==>Indexstatistiken werden innerhalb von 30 Sekunden aktualisiert. Hosts werden getrennt von Seiten gezählt.<
 >Collections can overlap. Links open the standard Index Browser.<==>Collections können sich überschneiden. Die Links öffnen den normalen Index Browser.<
 >Retained profiles are not necessarily running.<==>Gespeicherte Profile laufen nicht zwingend.<
->Search &amp; Index Overview<==>Suche &amp; Indexübersicht<
+Search &amp; Index Overview==Suche &amp; Indexübersicht
 "Index and system overview"=="Index- und Systemübersicht"
 >successfully indexed URLs<==>erfolgreich indexierte URLs<
 >local Solr index on disk<==>lokaler Solr-Index auf Datenträger<
->Scoutro Administration<==>Scoutro Administration<
->Share of indexed pages<==>Anteil der indexierten Seiten<
+Scoutro Administration==Scoutro Administration
+Share of indexed pages==Anteil der indexierten Seiten
 >active crawl profiles<==>aktive Crawl-Profile<
 >unique indexed hosts<==>eindeutige indexierte Hosts<
 >Scoutro Collections<==>Scoutro Collections<
@@ -5442,7 +5461,8 @@ aria-label="Views"==aria-label="Ansichten"
 >Subpath<==>Unterpfad<
 >Maximum pages per domain<==>Maximale Seiten pro Domain<
 >Crawl depth<==>Crawl-Tiefe<
->Choose an existing collection or create a new one with New collection. There is no default collection.<==>Eine bestehende Collection wählen oder mit „Neue Collection“ eine neue anlegen. Es gibt keine Standard-Collection.<
+Choose an existing collection or create a new one with New collection. There is no default collection.==Eine bestehende Collection wählen oder mit „Neue Collection“ eine neue anlegen. Es gibt keine Standard-Collection.
+Choose one of your collections. There is no default collection.==Wählen Sie eine Ihrer Collections. Es gibt keine Standard-Collection.
 >Choose a collection<==>Collection wählen<
 >New collection<==>Neue Collection<
 >Start crawl<==>Crawl starten<
@@ -6642,4 +6662,32 @@ Who may use a collection is set per account under <a href="ScoutroUsers_p.html">
 >Overview<==>Übersicht<
 >Sign in with another account<==>Mit anderem Konto anmelden<
 >My account<==>Mein Konto<
+#-----------------------------
+
+#File: scoutro-search.html
+#---------------------------
+Only your collections are searched; the server checks every request.==Es werden nur Ihre Collections durchsucht; der Server prüft jede Anfrage.
+Choose the collection in the list instead of writing collection: in the search words.==Wählen Sie die Collection in der Liste, statt collection: in die Suchwörter zu schreiben.
+No collection is available to you. Ask an administrator.==Ihnen steht keine Collection zur Verfügung. Wenden Sie sich an einen Administrator.
+No pages found. Try other words or another collection.==Keine Seiten gefunden. Versuchen Sie andere Wörter oder eine andere Collection.
+Your session has ended. Please sign in again.==Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.
+The search words or the collection are not valid.==Die Suchwörter oder die Collection sind ungültig.
+Searches the pages of your collections in this index.==Durchsucht die Seiten Ihrer Collections in diesem Index.
+This collection is not available to you.==Diese Collection steht Ihnen nicht zur Verfügung.
+The search did not work. Please try again.==Die Suche hat nicht funktioniert. Bitte versuchen Sie es erneut.
+Your account may not search.==Ihr Konto darf nicht suchen.
+>All my collections<==>Alle meine Collections<
+>about %1 results<==>etwa %1 Ergebnisse<
+>Enter search words.<==>Geben Sie Suchwörter ein.<
+placeholder="Search words"==placeholder="Suchwörter"
+>All collections<==>Alle Collections<
+>Search words<==>Suchwörter<
+>Searching …<==>Suche läuft …<
+>%1 results<==>%1 Ergebnisse<
+>Collection<==>Collection<
+>Previous<==>Zurück<
+>Results<==>Ergebnisse<
+<html lang="en">==<html lang="de">
+>Search<==>Suche<
+>Next<==>Weiter<
 #-----------------------------

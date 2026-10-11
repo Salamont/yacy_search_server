@@ -81,6 +81,7 @@ get small hooks marked with `Scoutro:`.
 | `htroot/ScoutroCollections_p.html` | Settings → Collections: catalog and "New collection" |
 | `htroot/ScoutroSystem_p.html` | Settings → System: version, running time, memory, Re-Start, Shutdown |
 | `htroot/scoutro-forbidden.html` | 403 page for a signed-in identity without the right |
+| `htroot/scoutro-search.html` + `env/scoutro/search.js` | Scoutro search within the identity's collections (`help/scoutro-search.md`) |
 
 Load order (in `metas.template`): Bootstrap → `bootstrap-base.css` →
 `base.css` → skin (`style.css`) → `brand/brand.css` → `scoutro.css` →
@@ -116,9 +117,10 @@ One header for every administration page (`header.template`):
 
   | Group | Entries | Right |
   |---|---|---|
+  | Collection context | the identity's collections (sessionStorage per tab) | signed in with search |
   | Overview | Overview | read |
-  | Research | Search, Chat, Websites, Host analysis | search; chat; read |
-  | Knowledge | Knowledge overview, Organisations, Services, Comparisons, History | read |
+  | Research | Search (Scoutro search in protected mode), Chat, Websites, Host analysis | search; chat; read |
+  | Knowledge | Organisations, Services, Comparisons, History | read |
   | Data collection | Crawls, Discovery, Reports | collect |
   | Settings | Collections, Users, Agents, Models, Knowledge graph operations, System | admin |
   | Advanced tools (collapsed) | AI Lab, First Steps, Monitoring, Production, Administration, Search Portal Integration, Configuration: YaCy's own pages, unchanged | admin |
@@ -128,6 +130,16 @@ One header for every administration page (`header.template`):
   checks the list (YaCy's groups under "Advanced tools", Re-Start and Shutdown
   on Settings → System).
 
+- **Header search** goes to `scoutro-search.html` (the identity's
+  collections) in the protected access mode and to YaCy's `yacysearch.html`
+  for the administrator; `index.html` sends accounts and guests to the
+  Scoutro search there.
+- **Function pages follow the rights**: the overview is built from the
+  catalog and the identity's collections (system figures and YaCy tools only
+  for the administrator); the knowledge page opens *Organisations* for
+  accounts and hides its operations and settings tabs; export buttons need
+  the export right; Discovery offers global actions only to the
+  administrator.
 - **Re-Start and Shutdown** are no longer in the header; they are on
   Settings → System, with a confirmation dialog and the transaction token of
   `Steering.html`.

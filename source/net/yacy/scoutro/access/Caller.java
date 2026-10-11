@@ -69,14 +69,25 @@ public final class Caller {
     }
 
     public static Caller of(final HttpServletRequest request, final ScoutroAccess access) {
-        final Principal p = request == null ? null : request.getUserPrincipal();
+        return request == null ? of(null, false, access)
+                : of(request.getUserPrincipal(), request.isUserInRole(ADMIN_ROLE), access);
+    }
+
+    /** The caller of a YaCy page servlet (the request header wraps the container's request). */
+    public static Caller of(final net.yacy.cora.protocol.RequestHeader header) {
+        final ScoutroAccess access = ScoutroAccess.current();
+        return header == null ? of(null, false, access)
+                : of(header.getUserPrincipal(), header.isUserInRole(ADMIN_ROLE), access);
+    }
+
+    private static Caller of(final Principal p, final boolean adminRole, final ScoutroAccess access) {
         if (p instanceof ScoutroPrincipal) {
             final ScoutroPrincipal sp = (ScoutroPrincipal) p;
             return new Caller(sp.builtin() ? Kind.BUILTIN : Kind.ACCOUNT, sp.getName(), sp.role(), sp.permissions(),
                     sp.scope(), sp);
         }
         // the administrator role comes solely from container authentication (Digest), as before for requireAdmin
-        if (request != null && request.isUserInRole(ADMIN_ROLE)) {
+        if (adminRole) {
             return new Caller(Kind.DIGEST_ADMIN, p == null ? "admin" : p.getName(), Role.ADMINISTRATOR,
                     Collections.unmodifiableSet(EnumSet.allOf(Permission.class)), Scope.ALL, null);
         }
@@ -94,6 +105,11 @@ public final class Caller {
     public static Caller admin(final String name) {
         return new Caller(Kind.DIGEST_ADMIN, name, Role.ADMINISTRATOR,
                 Collections.unmodifiableSet(EnumSet.allOf(Permission.class)), Scope.ALL, null);
+    }
+
+    /** For tests and internal callers: a signed-in account with the role's permissions and the scope. */
+    public static Caller account(final String name, final Role role, final Scope scope, final boolean export) {
+        return new Caller(Kind.ACCOUNT, name, role, Collections.unmodifiableSet(role.permissions(export)), scope, null);
     }
 
     public boolean signedIn() {

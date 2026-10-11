@@ -8526,6 +8526,79 @@
     </trans-unit>
   </body>
 </file>
+<file original="scoutro-search.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="887d070f" xml:space="preserve" approved="no" translate="yes">
+       <source>"Search words"</source>
+    </trans-unit>
+    <trans-unit id="935f51c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Search</source>
+    </trans-unit>
+    <trans-unit id="b0f78aa7" xml:space="preserve" approved="no" translate="yes">
+       <source>Searches the pages of your collections in this index.</source>
+    </trans-unit>
+    <trans-unit id="ba190a51" xml:space="preserve" approved="no" translate="yes">
+       <source>Search words</source>
+    </trans-unit>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="a1bcb1a0" xml:space="preserve" approved="no" translate="yes">
+       <source>All my collections</source>
+    </trans-unit>
+    <trans-unit id="71c16427" xml:space="preserve" approved="no" translate="yes">
+       <source>Only your collections are searched; the server checks every request.</source>
+    </trans-unit>
+    <trans-unit id="a4a3d3d6" xml:space="preserve" approved="no" translate="yes">
+       <source>Results</source>
+    </trans-unit>
+    <trans-unit id="b7ee1f17" xml:space="preserve" approved="no" translate="yes">
+       <source>Previous</source>
+    </trans-unit>
+    <trans-unit id="24ff13" xml:space="preserve" approved="no" translate="yes">
+       <source>Next</source>
+    </trans-unit>
+    <trans-unit id="43cfd6a0" xml:space="preserve" approved="no" translate="yes">
+       <source>Searching …</source>
+    </trans-unit>
+    <trans-unit id="e1ba129b" xml:space="preserve" approved="no" translate="yes">
+       <source>No pages found. Try other words or another collection.</source>
+    </trans-unit>
+    <trans-unit id="ed477082" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 results</source>
+    </trans-unit>
+    <trans-unit id="d5acdaf5" xml:space="preserve" approved="no" translate="yes">
+       <source>about %1 results</source>
+    </trans-unit>
+    <trans-unit id="c9372e57" xml:space="preserve" approved="no" translate="yes">
+       <source>No collection is available to you. Ask an administrator.</source>
+    </trans-unit>
+    <trans-unit id="9f838b5" xml:space="preserve" approved="no" translate="yes">
+       <source>Enter search words.</source>
+    </trans-unit>
+    <trans-unit id="a623407a" xml:space="preserve" approved="no" translate="yes">
+       <source>This collection is not available to you.</source>
+    </trans-unit>
+    <trans-unit id="a58c45c4" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose the collection in the list instead of writing collection: in the search words.</source>
+    </trans-unit>
+    <trans-unit id="23429ac1" xml:space="preserve" approved="no" translate="yes">
+       <source>The search words or the collection are not valid.</source>
+    </trans-unit>
+    <trans-unit id="5d38572d" xml:space="preserve" approved="no" translate="yes">
+       <source>Your session has ended. Please sign in again.</source>
+    </trans-unit>
+    <trans-unit id="7e9fb83e" xml:space="preserve" approved="no" translate="yes">
+       <source>Your account may not search.</source>
+    </trans-unit>
+    <trans-unit id="baf0a04f" xml:space="preserve" approved="no" translate="yes">
+       <source>The search did not work. Please try again.</source>
+    </trans-unit>
+    <trans-unit id="1e429976" xml:space="preserve" approved="no" translate="yes">
+       <source>All collections</source>
+    </trans-unit>
+  </body>
+</file>
 <file original="ScoutroCollections_p.html"  source-language="en"  datatype="html">
   <body>
     <trans-unit id="d1e9cd75" xml:space="preserve" approved="no" translate="yes">
@@ -12071,6 +12144,12 @@
     <trans-unit id="1794a40" xml:space="preserve" approved="no" translate="yes">
        <source>Toggle navigation</source>
     </trans-unit>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="a1bcb1a0" xml:space="preserve" approved="no" translate="yes">
+       <source>All my collections</source>
+    </trans-unit>
     <trans-unit id="23735199" xml:space="preserve" approved="no" translate="yes">
        <source>Overview</source>
     </trans-unit>
@@ -12085,9 +12164,6 @@
     </trans-unit>
     <trans-unit id="d3d3885e" xml:space="preserve" approved="no" translate="yes">
        <source>Knowledge</source>
-    </trans-unit>
-    <trans-unit id="28c3cefb" xml:space="preserve" approved="no" translate="yes">
-       <source>Knowledge overview</source>
     </trans-unit>
     <trans-unit id="3fac4ab9" xml:space="preserve" approved="no" translate="yes">
        <source>Organisations</source>
@@ -14435,6 +14511,9 @@
 </file>
 <file original="scoutro-dashboard.html"  source-language="en"  datatype="html">
   <body>
+    <trans-unit id="ac385536" xml:space="preserve" approved="no" translate="yes">
+       <source>"Overview of your collections"</source>
+    </trans-unit>
     <trans-unit id="6c9f6c91" xml:space="preserve" approved="no" translate="yes">
        <source>"Index and system overview"</source>
     </trans-unit>
@@ -14444,8 +14523,14 @@
     <trans-unit id="64cb462f" xml:space="preserve" approved="no" translate="yes">
        <source>Scoutro Dashboard</source>
     </trans-unit>
+    <trans-unit id="d5e81d9b" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro</source>
+    </trans-unit>
     <trans-unit id="1182da3" xml:space="preserve" approved="no" translate="yes">
        <source>Scoutro Administration</source>
+    </trans-unit>
+    <trans-unit id="833a2ac8" xml:space="preserve" approved="no" translate="yes">
+       <source>Your collections at a glance</source>
     </trans-unit>
     <trans-unit id="e04d1b02" xml:space="preserve" approved="no" translate="yes">
        <source>Search &amp;amp; Index Overview</source>
@@ -14453,11 +14538,17 @@
     <trans-unit id="da1c9758" xml:space="preserve" approved="no" translate="yes">
        <source>Websites</source>
     </trans-unit>
-    <trans-unit id="4cb721cd" xml:space="preserve" approved="no" translate="yes">
-       <source>unique indexed hosts</source>
+    <trans-unit id="2e6a86ee" xml:space="preserve" approved="no" translate="yes">
+       <source>hosts in your collections</source>
     </trans-unit>
     <trans-unit id="3d0b5395" xml:space="preserve" approved="no" translate="yes">
        <source>Indexed Pages</source>
+    </trans-unit>
+    <trans-unit id="2bae0067" xml:space="preserve" approved="no" translate="yes">
+       <source>pages in your collections</source>
+    </trans-unit>
+    <trans-unit id="4cb721cd" xml:space="preserve" approved="no" translate="yes">
+       <source>unique indexed hosts</source>
     </trans-unit>
     <trans-unit id="cdb9f4ac" xml:space="preserve" approved="no" translate="yes">
        <source>successfully indexed URLs</source>
@@ -14488,6 +14579,9 @@
     </trans-unit>
     <trans-unit id="9f0ec78d" xml:space="preserve" approved="no" translate="yes">
        <source>Share of indexed pages</source>
+    </trans-unit>
+    <trans-unit id="4323cd30" xml:space="preserve" approved="no" translate="yes">
+       <source>Share of the pages in your collections</source>
     </trans-unit>
     <trans-unit id="657efc4" xml:space="preserve" approved="no" translate="yes">
        <source>pages</source>
@@ -14522,17 +14616,77 @@
     <trans-unit id="ec80deb9" xml:space="preserve" approved="no" translate="yes">
        <source>Batch running</source>
     </trans-unit>
-    <trans-unit id="a0589af4" xml:space="preserve" approved="no" translate="yes">
-       <source>Crawler</source>
+    <trans-unit id="43c0440e" xml:space="preserve" approved="no" translate="yes">
+       <source>Your functions</source>
+    </trans-unit>
+    <trans-unit id="935f51c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Search</source>
+    </trans-unit>
+    <trans-unit id="c3bc662a" xml:space="preserve" approved="no" translate="yes">
+       <source>&amp;rsaquo;</source>
+    </trans-unit>
+    <trans-unit id="200778" xml:space="preserve" approved="no" translate="yes">
+       <source>Chat</source>
+    </trans-unit>
+    <trans-unit id="4a622a34" xml:space="preserve" approved="no" translate="yes">
+       <source>Host analysis</source>
+    </trans-unit>
+    <trans-unit id="3fac4ab9" xml:space="preserve" approved="no" translate="yes">
+       <source>Organisations</source>
+    </trans-unit>
+    <trans-unit id="78c90d4c" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawls</source>
+    </trans-unit>
+    <trans-unit id="7038a590" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery</source>
+    </trans-unit>
+    <trans-unit id="a476e99f" xml:space="preserve" approved="no" translate="yes">
+       <source>Reports</source>
+    </trans-unit>
+    <trans-unit id="4468a3d9" xml:space="preserve" approved="no" translate="yes">
+       <source>My account</source>
+    </trans-unit>
+    <trans-unit id="62131f0c" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="4c7d471" xml:space="preserve" approved="no" translate="yes">
+       <source>State</source>
+    </trans-unit>
+    <trans-unit id="3bd24262" xml:space="preserve" approved="no" translate="yes">
+       <source>Storage used</source>
+    </trans-unit>
+    <trans-unit id="87d8b91a" xml:space="preserve" approved="no" translate="yes">
+       <source>Pending changes</source>
+    </trans-unit>
+    <trans-unit id="bfa7ad9f" xml:space="preserve" approved="no" translate="yes">
+       <source>Running</source>
     </trans-unit>
     <trans-unit id="3bbf8030" xml:space="preserve" approved="no" translate="yes">
        <source>Unavailable</source>
     </trans-unit>
+    <trans-unit id="f2e829ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Stopped</source>
+    </trans-unit>
+    <trans-unit id="74b01187" xml:space="preserve" approved="no" translate="yes">
+       <source>Growth paused</source>
+    </trans-unit>
+    <trans-unit id="c20796d8" xml:space="preserve" approved="no" translate="yes">
+       <source>notice</source>
+    </trans-unit>
+    <trans-unit id="4305af9c" xml:space="preserve" approved="no" translate="yes">
+       <source>warning</source>
+    </trans-unit>
+    <trans-unit id="4510e1a7" xml:space="preserve" approved="no" translate="yes">
+       <source>growth paused</source>
+    </trans-unit>
+    <trans-unit id="2eb88b77" xml:space="preserve" approved="no" translate="yes">
+       <source>budget reached</source>
+    </trans-unit>
+    <trans-unit id="a0589af4" xml:space="preserve" approved="no" translate="yes">
+       <source>Crawler</source>
+    </trans-unit>
     <trans-unit id="22b3f4" xml:space="preserve" approved="no" translate="yes">
        <source>Idle</source>
-    </trans-unit>
-    <trans-unit id="bfa7ad9f" xml:space="preserve" approved="no" translate="yes">
-       <source>Running</source>
     </trans-unit>
     <trans-unit id="b3eb4ba4" xml:space="preserve" approved="no" translate="yes">
        <source>Active profiles</source>
@@ -14588,9 +14742,6 @@
     <trans-unit id="c472c59a" xml:space="preserve" approved="no" translate="yes">
        <source>Index Browser</source>
     </trans-unit>
-    <trans-unit id="c3bc662a" xml:space="preserve" approved="no" translate="yes">
-       <source>&amp;rsaquo;</source>
-    </trans-unit>
     <trans-unit id="ed67580e" xml:space="preserve" approved="no" translate="yes">
        <source>Crawler Monitor</source>
     </trans-unit>
@@ -14617,36 +14768,6 @@
     </trans-unit>
     <trans-unit id="8b55f137" xml:space="preserve" approved="no" translate="yes">
        <source>Automation</source>
-    </trans-unit>
-    <trans-unit id="62131f0c" xml:space="preserve" approved="no" translate="yes">
-       <source>Knowledge graph</source>
-    </trans-unit>
-    <trans-unit id="4c7d471" xml:space="preserve" approved="no" translate="yes">
-       <source>State</source>
-    </trans-unit>
-    <trans-unit id="3bd24262" xml:space="preserve" approved="no" translate="yes">
-       <source>Storage used</source>
-    </trans-unit>
-    <trans-unit id="87d8b91a" xml:space="preserve" approved="no" translate="yes">
-       <source>Pending changes</source>
-    </trans-unit>
-    <trans-unit id="f2e829ad" xml:space="preserve" approved="no" translate="yes">
-       <source>Stopped</source>
-    </trans-unit>
-    <trans-unit id="74b01187" xml:space="preserve" approved="no" translate="yes">
-       <source>Growth paused</source>
-    </trans-unit>
-    <trans-unit id="c20796d8" xml:space="preserve" approved="no" translate="yes">
-       <source>notice</source>
-    </trans-unit>
-    <trans-unit id="4305af9c" xml:space="preserve" approved="no" translate="yes">
-       <source>warning</source>
-    </trans-unit>
-    <trans-unit id="4510e1a7" xml:space="preserve" approved="no" translate="yes">
-       <source>growth paused</source>
-    </trans-unit>
-    <trans-unit id="2eb88b77" xml:space="preserve" approved="no" translate="yes">
-       <source>budget reached</source>
     </trans-unit>
   </body>
 </file>
@@ -14694,6 +14815,9 @@
     </trans-unit>
     <trans-unit id="c595f16a" xml:space="preserve" approved="no" translate="yes">
        <source>Crawl depth</source>
+    </trans-unit>
+    <trans-unit id="dafdfb0c" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose one of your collections. There is no default collection.</source>
     </trans-unit>
     <trans-unit id="5489fdf9" xml:space="preserve" approved="no" translate="yes">
        <source>Choose an existing collection or create a new one with New collection. There is no default collection.</source>
@@ -16050,8 +16174,14 @@
     <trans-unit id="7b5ec53a" xml:space="preserve" approved="no" translate="yes">
        <source>"Sections of this object"</source>
     </trans-unit>
+    <trans-unit id="95b8fdf5" xml:space="preserve" approved="no" translate="yes">
+       <source>"Europe/Berlin"</source>
+    </trans-unit>
     <trans-unit id="62131f0c" xml:space="preserve" approved="no" translate="yes">
        <source>Knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="d8214864" xml:space="preserve" approved="no" translate="yes">
+       <source>System and need history</source>
     </trans-unit>
     <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
        <source>Collection</source>
@@ -16062,8 +16192,8 @@
     <trans-unit id="9bf8867f" xml:space="preserve" approved="no" translate="yes">
        <source>The collection of the link is not available; all collections are shown.</source>
     </trans-unit>
-    <trans-unit id="c86780a2" xml:space="preserve" approved="no" translate="yes">
-       <source>Every number, name and source on this page is computed only from the documents of the selected collection. Without a collection, all followed collections are shown.</source>
+    <trans-unit id="c5e3080b" xml:space="preserve" approved="no" translate="yes">
+       <source>The selected collection filters the origin and its facts. Customer and partner suggestions may reach other authorized collections; their target context and evidence are shown separately. Without a collection, all authorized collections are shown.</source>
     </trans-unit>
     <trans-unit id="9432bc12" xml:space="preserve" approved="no" translate="yes">
        <source>Status</source>
@@ -16071,8 +16201,8 @@
     <trans-unit id="1d3bfc15" xml:space="preserve" approved="no" translate="yes">
        <source>State, storage, queues and events describe the whole graph; the number of objects follows the selected collection.</source>
     </trans-unit>
-    <trans-unit id="c793adb5" xml:space="preserve" approved="no" translate="yes">
-       <source>The graph was upgraded to vocabulary 2 without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.</source>
+    <trans-unit id="e726432" xml:space="preserve" approved="no" translate="yes">
+       <source>The graph was upgraded without a copy of the old graph (no room). The new extraction of every page waits until a backup succeeds: free storage, then create a backup.</source>
     </trans-unit>
     <trans-unit id="52995669" xml:space="preserve" approved="no" translate="yes">
        <source>Enrichment is paused: new pages, updates and the LLM tier wait; deletions, reconcile and state checks continue.</source>
@@ -16170,8 +16300,8 @@
     <trans-unit id="19913dbc" xml:space="preserve" approved="no" translate="yes">
        <source>Swap in the rebuilt graph</source>
     </trans-unit>
-    <trans-unit id="77277410" xml:space="preserve" approved="no" translate="yes">
-       <source>Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split, every fact keeps its evidence. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</source>
+    <trans-unit id="29cab82a" xml:space="preserve" approved="no" translate="yes">
+       <source>Builds the whole graph anew from the Solr index with the current identity rules, in DATA/SCOUTRO/knowledge/rebuild and within the remaining storage budget, while the current graph keeps serving: wrong merges are split. Durable observations, corrections and current access classifications are carried at the final swap; live facts are reconstructed from the current index. Before the swap the rebuilt graph is checked; if it would lose many documents, it waits for your confirmation like a reconcile. The current graph is kept as a backup (before a rebuild), stored entity IDs keep leading to their objects, and export consumers sync again. Cancelling, or stopping Scoutro, before the swap deletes the rebuilt graph and changes nothing.</source>
     </trans-unit>
     <trans-unit id="7bb8665e" xml:space="preserve" approved="no" translate="yes">
        <source>Recent events</source>
@@ -16274,6 +16404,15 @@
     </trans-unit>
     <trans-unit id="8f11cb3e" xml:space="preserve" approved="no" translate="yes">
        <source>Referenced by</source>
+    </trans-unit>
+    <trans-unit id="7c7962a8" xml:space="preserve" approved="no" translate="yes">
+       <source>Source availability, vacancy status and system statements are separate. Historical evidence survives live object cleanup. A competence requirement does not confirm internal system use. Assessments are not measured probabilities.</source>
+    </trans-unit>
+    <trans-unit id="139b9325" xml:space="preserve" approved="no" translate="yes">
+       <source>Download complete authorized history (NDJSON)</source>
+    </trans-unit>
+    <trans-unit id="5ab1eae9" xml:space="preserve" approved="no" translate="yes">
+       <source>More history</source>
     </trans-unit>
     <trans-unit id="d119f20e" xml:space="preserve" approved="no" translate="yes">
        <source>Network</source>
@@ -16431,6 +16570,54 @@
     <trans-unit id="595d2043" xml:space="preserve" approved="no" translate="yes">
        <source>Settings</source>
     </trans-unit>
+    <trans-unit id="47c476a0" xml:space="preserve" approved="no" translate="yes">
+       <source>General settings take effect at the next start; collection settings and LLM timing apply immediately. Invalid general settings keep the graph off; an invalid timing plan pauses only LLM calls.</source>
+    </trans-unit>
+    <trans-unit id="2c36e49" xml:space="preserve" approved="no" translate="yes">
+       <source>Timing of LLM enrichment</source>
+    </trans-unit>
+    <trans-unit id="992ef880" xml:space="preserve" approved="no" translate="yes">
+       <source>Allowed starts, not guaranteed completion times. Overnight windows belong to their starting weekday; equal times mean 24 hours. Clock-change gaps have no starts; both repeated times are allowed. Manual runs last at most one hour and keep all safety checks. Completed pages are not reevaluated; failed pages need Retry.</source>
+    </trans-unit>
+    <trans-unit id="24adc3" xml:space="preserve" approved="no" translate="yes">
+       <source>Mode</source>
+    </trans-unit>
+    <trans-unit id="bc4e8358" xml:space="preserve" approved="no" translate="yes">
+       <source>Automatic as before</source>
+    </trans-unit>
+    <trans-unit id="6ddde08d" xml:space="preserve" approved="no" translate="yes">
+       <source>Scheduled</source>
+    </trans-unit>
+    <trans-unit id="4d6dbba6" xml:space="preserve" approved="no" translate="yes">
+       <source>Manual only</source>
+    </trans-unit>
+    <trans-unit id="8b6edec6" xml:space="preserve" approved="no" translate="yes">
+       <source>Weekdays (window starts on these days)</source>
+    </trans-unit>
+    <trans-unit id="161f5191" xml:space="preserve" approved="no" translate="yes">
+       <source>Until (exclusive)</source>
+    </trans-unit>
+    <trans-unit id="762c98ff" xml:space="preserve" approved="no" translate="yes">
+       <source>Time zone</source>
+    </trans-unit>
+    <trans-unit id="3f363b4d" xml:space="preserve" approved="no" translate="yes">
+       <source>Minimum seconds between request starts</source>
+    </trans-unit>
+    <trans-unit id="9210082d" xml:space="preserve" approved="no" translate="yes">
+       <source>Save timing</source>
+    </trans-unit>
+    <trans-unit id="eb5b9f8" xml:space="preserve" approved="no" translate="yes">
+       <source>Document limit (1–100)</source>
+    </trans-unit>
+    <trans-unit id="c7c8aca1" xml:space="preserve" approved="no" translate="yes">
+       <source>Request-start limit (1–1000)</source>
+    </trans-unit>
+    <trans-unit id="30a1015b" xml:space="preserve" approved="no" translate="yes">
+       <source>Enrich now</source>
+    </trans-unit>
+    <trans-unit id="8c772def" xml:space="preserve" approved="no" translate="yes">
+       <source>Stop manual run</source>
+    </trans-unit>
     <trans-unit id="44fbd0d" xml:space="preserve" approved="no" translate="yes">
        <source>Collections in the knowledge graph</source>
     </trans-unit>
@@ -16443,14 +16630,200 @@
     <trans-unit id="3535ff9" xml:space="preserve" approved="no" translate="yes">
        <source>LLM selection</source>
     </trans-unit>
+    <trans-unit id="6f9a9833" xml:space="preserve" approved="no" translate="yes">
+       <source>Job extraction, job display and use of stored job signals for matching are independent policies, not permissions. Switching them off deletes no knowledge. New matching rules belong to a later package.</source>
+    </trans-unit>
     <trans-unit id="a36f4624" xml:space="preserve" approved="no" translate="yes">
        <source>Pages in the index</source>
     </trans-unit>
     <trans-unit id="83b4e316" xml:space="preserve" approved="no" translate="yes">
        <source>LLM enrichment</source>
     </trans-unit>
+    <trans-unit id="f5c76e73" xml:space="preserve" approved="no" translate="yes">
+       <source>Job policies</source>
+    </trans-unit>
     <trans-unit id="27359d" xml:space="preserve" approved="no" translate="yes">
        <source>Save</source>
+    </trans-unit>
+    <trans-unit id="773bf959" xml:space="preserve" approved="no" translate="yes">
+       <source>Manual run expired; unfinished work retained</source>
+    </trans-unit>
+    <trans-unit id="34252910" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph disabled</source>
+    </trans-unit>
+    <trans-unit id="2b08980b" xml:space="preserve" approved="no" translate="yes">
+       <source>Actual model request starts</source>
+    </trans-unit>
+    <trans-unit id="c17ec507" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge graph manually paused</source>
+    </trans-unit>
+    <trans-unit id="35d63eec" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for indexing load</source>
+    </trans-unit>
+    <trans-unit id="71b9ecc3" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for disk reserve</source>
+    </trans-unit>
+    <trans-unit id="80e523fb" xml:space="preserve" approved="no" translate="yes">
+       <source>Critical disk reserve; writes paused</source>
+    </trans-unit>
+    <trans-unit id="d61f8d94" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for storage budget</source>
+    </trans-unit>
+    <trans-unit id="6a5d8753" xml:space="preserve" approved="no" translate="yes">
+       <source>Storage budget exhausted</source>
+    </trans-unit>
+    <trans-unit id="f7a542ab" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for integrity check</source>
+    </trans-unit>
+    <trans-unit id="99bd6068" xml:space="preserve" approved="no" translate="yes">
+       <source>Integrity check failed</source>
+    </trans-unit>
+    <trans-unit id="2cf52cd2" xml:space="preserve" approved="no" translate="yes">
+       <source>Storage error; writes paused</source>
+    </trans-unit>
+    <trans-unit id="c8d152de" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for WAL space</source>
+    </trans-unit>
+    <trans-unit id="436b5ab0" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for WAL checkpoint</source>
+    </trans-unit>
+    <trans-unit id="b3e3fe62" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for temporary storage</source>
+    </trans-unit>
+    <trans-unit id="95cf731b" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for start-state persistence</source>
+    </trans-unit>
+    <trans-unit id="2634d89" xml:space="preserve" approved="no" translate="yes">
+       <source>Index reset in progress</source>
+    </trans-unit>
+    <trans-unit id="78ffe962" xml:space="preserve" approved="no" translate="yes">
+       <source>Manual request limit reached</source>
+    </trans-unit>
+    <trans-unit id="96b51d22" xml:space="preserve" approved="no" translate="yes">
+       <source>Manual document limit reached</source>
+    </trans-unit>
+    <trans-unit id="6f234431" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection no longer eligible</source>
+    </trans-unit>
+    <trans-unit id="2f70b819" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for current input</source>
+    </trans-unit>
+    <trans-unit id="7ac16818" xml:space="preserve" approved="no" translate="yes">
+       <source>Selected model changed</source>
+    </trans-unit>
+    <trans-unit id="15835618" xml:space="preserve" approved="no" translate="yes">
+       <source>Stopping after current request</source>
+    </trans-unit>
+    <trans-unit id="eb8c8dbd" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting to publish retained results</source>
+    </trans-unit>
+    <trans-unit id="e3c39426" xml:space="preserve" approved="no" translate="yes">
+       <source>Storage guard pauses new enrichment</source>
+    </trans-unit>
+    <trans-unit id="32e95210" xml:space="preserve" approved="no" translate="yes">
+       <source>Window open now</source>
+    </trans-unit>
+    <trans-unit id="60e6f558" xml:space="preserve" approved="no" translate="yes">
+       <source>Next temporally allowed start (resources may still block)</source>
+    </trans-unit>
+    <trans-unit id="7053991e" xml:space="preserve" approved="no" translate="yes">
+       <source>Current waiting reason</source>
+    </trans-unit>
+    <trans-unit id="b8657525" xml:space="preserve" approved="no" translate="yes">
+       <source>Running requests</source>
+    </trans-unit>
+    <trans-unit id="2387b751" xml:space="preserve" approved="no" translate="yes">
+       <source>Manual run</source>
+    </trans-unit>
+    <trans-unit id="c7374b39" xml:space="preserve" approved="no" translate="yes">
+       <source>Timing saved without restarting the graph</source>
+    </trans-unit>
+    <trans-unit id="89b4dd30" xml:space="preserve" approved="no" translate="yes">
+       <source>Monday</source>
+    </trans-unit>
+    <trans-unit id="28f7822d" xml:space="preserve" approved="no" translate="yes">
+       <source>Tuesday</source>
+    </trans-unit>
+    <trans-unit id="ca81b736" xml:space="preserve" approved="no" translate="yes">
+       <source>Wednesday</source>
+    </trans-unit>
+    <trans-unit id="618e0dfa" xml:space="preserve" approved="no" translate="yes">
+       <source>Thursday</source>
+    </trans-unit>
+    <trans-unit id="7deaf17f" xml:space="preserve" approved="no" translate="yes">
+       <source>Friday</source>
+    </trans-unit>
+    <trans-unit id="85d63bd9" xml:space="preserve" approved="no" translate="yes">
+       <source>Saturday</source>
+    </trans-unit>
+    <trans-unit id="94467df0" xml:space="preserve" approved="no" translate="yes">
+       <source>Sunday</source>
+    </trans-unit>
+    <trans-unit id="e56fe3d9" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for time window</source>
+    </trans-unit>
+    <trans-unit id="2091ff8e" xml:space="preserve" approved="no" translate="yes">
+       <source>Manual run required</source>
+    </trans-unit>
+    <trans-unit id="555b321" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for minimum interval</source>
+    </trans-unit>
+    <trans-unit id="e50c83c7" xml:space="preserve" approved="no" translate="yes">
+       <source>No unfinished work</source>
+    </trans-unit>
+    <trans-unit id="e34a32d3" xml:space="preserve" approved="no" translate="yes">
+       <source>Circuit breaker pauses model requests</source>
+    </trans-unit>
+    <trans-unit id="463b3a17" xml:space="preserve" approved="no" translate="yes">
+       <source>Model request running</source>
+    </trans-unit>
+    <trans-unit id="c417c4e9" xml:space="preserve" approved="no" translate="yes">
+       <source>Preserving results; waiting for writable storage</source>
+    </trans-unit>
+    <trans-unit id="ac81f1ed" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for available heap</source>
+    </trans-unit>
+    <trans-unit id="ee6e284e" xml:space="preserve" approved="no" translate="yes">
+       <source>Waiting for lower system load</source>
+    </trans-unit>
+    <trans-unit id="93e87afc" xml:space="preserve" approved="no" translate="yes">
+       <source>Invalid stored schedule; LLM calls paused</source>
+    </trans-unit>
+    <trans-unit id="d5776201" xml:space="preserve" approved="no" translate="yes">
+       <source>Manual run stopped; unfinished work retained</source>
+    </trans-unit>
+    <trans-unit id="b73f2ef3" xml:space="preserve" approved="no" translate="yes">
+       <source>No knowledge model selected</source>
+    </trans-unit>
+    <trans-unit id="1d1e5046" xml:space="preserve" approved="no" translate="yes">
+       <source>LLM enrichment disabled</source>
+    </trans-unit>
+    <trans-unit id="9c7c1f16" xml:space="preserve" approved="no" translate="yes">
+       <source>No collections enabled for LLM enrichment</source>
+    </trans-unit>
+    <trans-unit id="d11d8152" xml:space="preserve" approved="no" translate="yes">
+       <source>Not running</source>
+    </trans-unit>
+    <trans-unit id="bfa7ad9f" xml:space="preserve" approved="no" translate="yes">
+       <source>Running</source>
+    </trans-unit>
+    <trans-unit id="9ae76d5b" xml:space="preserve" approved="no" translate="yes">
+       <source>Stopping after current requests</source>
+    </trans-unit>
+    <trans-unit id="f2e829ad" xml:space="preserve" approved="no" translate="yes">
+       <source>Stopped</source>
+    </trans-unit>
+    <trans-unit id="6cff3398" xml:space="preserve" approved="no" translate="yes">
+       <source>One-hour limit reached</source>
+    </trans-unit>
+    <trans-unit id="ef9aa1fc" xml:space="preserve" approved="no" translate="yes">
+       <source>Request limit reached</source>
+    </trans-unit>
+    <trans-unit id="f37177c8" xml:space="preserve" approved="no" translate="yes">
+       <source>Document limit reached</source>
+    </trans-unit>
+    <trans-unit id="b0b88cb" xml:space="preserve" approved="no" translate="yes">
+       <source>No further unfinished work</source>
     </trans-unit>
     <trans-unit id="cacfc622" xml:space="preserve" approved="no" translate="yes">
        <source>Loading …</source>
@@ -16520,6 +16893,45 @@
     </trans-unit>
     <trans-unit id="b271cb2e" xml:space="preserve" approved="no" translate="yes">
        <source>Reconcile</source>
+    </trans-unit>
+    <trans-unit id="59368596" xml:space="preserve" approved="no" translate="yes">
+       <source>Sync scheduler</source>
+    </trans-unit>
+    <trans-unit id="49a1562e" xml:space="preserve" approved="no" translate="yes">
+       <source>Scheduled; waiting for next tick</source>
+    </trans-unit>
+    <trans-unit id="67b50e1c" xml:space="preserve" approved="no" translate="yes">
+       <source>Sync task executing</source>
+    </trans-unit>
+    <trans-unit id="f9fd6031" xml:space="preserve" approved="no" translate="yes">
+       <source>Sync task terminated; inspect server log</source>
+    </trans-unit>
+    <trans-unit id="bccfbd43" xml:space="preserve" approved="no" translate="yes">
+       <source>Sync scheduler stopped</source>
+    </trans-unit>
+    <trans-unit id="c5242c7b" xml:space="preserve" approved="no" translate="yes">
+       <source>Sync task cancelled</source>
+    </trans-unit>
+    <trans-unit id="cc06bc24" xml:space="preserve" approved="no" translate="yes">
+       <source>No background sync task scheduled</source>
+    </trans-unit>
+    <trans-unit id="b0d89379" xml:space="preserve" approved="no" translate="yes">
+       <source>Last sync tick started</source>
+    </trans-unit>
+    <trans-unit id="f395cc7a" xml:space="preserve" approved="no" translate="yes">
+       <source>Last sync tick finished</source>
+    </trans-unit>
+    <trans-unit id="28098c4c" xml:space="preserve" approved="no" translate="yes">
+       <source>Completed sync ticks (including idle)</source>
+    </trans-unit>
+    <trans-unit id="9c523c63" xml:space="preserve" approved="no" translate="yes">
+       <source>Sync error</source>
+    </trans-unit>
+    <trans-unit id="760f0fe4" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents scanned in current reconcile</source>
+    </trans-unit>
+    <trans-unit id="de36c44f" xml:space="preserve" approved="no" translate="yes">
+       <source>Current reconcile cursor</source>
     </trans-unit>
     <trans-unit id="e884afbf" xml:space="preserve" approved="no" translate="yes">
        <source>Waiting for confirmation</source>
@@ -16995,6 +17407,156 @@
     <trans-unit id="4763ca04" xml:space="preserve" approved="no" translate="yes">
        <source>suggestion</source>
     </trans-unit>
+    <trans-unit id="1d56d0be" xml:space="preserve" approved="no" translate="yes">
+       <source>Sorting score (not a probability)</source>
+    </trans-unit>
+    <trans-unit id="d122c1ce" xml:space="preserve" approved="no" translate="yes">
+       <source>Other collection</source>
+    </trans-unit>
+    <trans-unit id="db133af4" xml:space="preserve" approved="no" translate="yes">
+       <source>Reasons and supporting facts</source>
+    </trans-unit>
+    <trans-unit id="60a9298d" xml:space="preserve" approved="no" translate="yes">
+       <source>Matching offered service</source>
+    </trans-unit>
+    <trans-unit id="1d6b03ca" xml:space="preserve" approved="no" translate="yes">
+       <source>Evidence strength</source>
+    </trans-unit>
+    <trans-unit id="113f1" xml:space="preserve" approved="no" translate="yes">
+       <source>Fit</source>
+    </trans-unit>
+    <trans-unit id="2a4e75fc" xml:space="preserve" approved="no" translate="yes">
+       <source>Time qualification</source>
+    </trans-unit>
+    <trans-unit id="8bfd2194" xml:space="preserve" approved="no" translate="yes">
+       <source>Project phase</source>
+    </trans-unit>
+    <trans-unit id="63debd04" xml:space="preserve" approved="no" translate="yes">
+       <source>More reasons</source>
+    </trans-unit>
+    <trans-unit id="5a89fd63" xml:space="preserve" approved="no" translate="yes">
+       <source>Product support, training or introduction</source>
+    </trans-unit>
+    <trans-unit id="47a4b513" xml:space="preserve" approved="no" translate="yes">
+       <source>Architecture and planning</source>
+    </trans-unit>
+    <trans-unit id="6ea38aad" xml:space="preserve" approved="no" translate="yes">
+       <source>Construction services</source>
+    </trans-unit>
+    <trans-unit id="b7c2b427" xml:space="preserve" approved="no" translate="yes">
+       <source>Energy or specialist planning</source>
+    </trans-unit>
+    <trans-unit id="830a9d1b" xml:space="preserve" approved="no" translate="yes">
+       <source>Leadership or organizational development</source>
+    </trans-unit>
+    <trans-unit id="c0d6aab3" xml:space="preserve" approved="no" translate="yes">
+       <source>Team or organizational development</source>
+    </trans-unit>
+    <trans-unit id="d0d27d7a" xml:space="preserve" approved="no" translate="yes">
+       <source>Outpatient care</source>
+    </trans-unit>
+    <trans-unit id="9a03be14" xml:space="preserve" approved="no" translate="yes">
+       <source>Short-term care</source>
+    </trans-unit>
+    <trans-unit id="2a30d021" xml:space="preserve" approved="no" translate="yes">
+       <source>Service and signal matching</source>
+    </trans-unit>
+    <trans-unit id="6e255061" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 signals examined; %2 provider partitions completed</source>
+    </trans-unit>
+    <trans-unit id="21b89604" xml:space="preserve" approved="no" translate="yes">
+       <source>Disabled by the matching budget setting</source>
+    </trans-unit>
+    <trans-unit id="f2bd5dde" xml:space="preserve" approved="no" translate="yes">
+       <source>Changed matching settings apply to reads; change-feed notices wait for writable storage</source>
+    </trans-unit>
+    <trans-unit id="b35c1c1a" xml:space="preserve" approved="no" translate="yes">
+       <source>Calculation cycle completed</source>
+    </trans-unit>
+    <trans-unit id="85a66f19" xml:space="preserve" approved="no" translate="yes">
+       <source>Continues in the next pass; incomplete partitions keep their existing reasons</source>
+    </trans-unit>
+    <trans-unit id="ea71a4dc" xml:space="preserve" approved="no" translate="yes">
+       <source>A provider exceeds the observation limit; its reconciliation is deferred</source>
+    </trans-unit>
+    <trans-unit id="c6e82489" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible customer for IT system support</source>
+    </trans-unit>
+    <trans-unit id="e0514d42" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible customer for CAD/BIM support</source>
+    </trans-unit>
+    <trans-unit id="1ae3fd55" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible customer for construction or planning</source>
+    </trans-unit>
+    <trans-unit id="292d717c" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible customer for energy renovation planning</source>
+    </trans-unit>
+    <trans-unit id="6b9cc80a" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible customer for leadership development</source>
+    </trans-unit>
+    <trans-unit id="2bc27b22" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible customer for team development</source>
+    </trans-unit>
+    <trans-unit id="dac96c43" xml:space="preserve" approved="no" translate="yes">
+       <source>Possible care cooperation partner</source>
+    </trans-unit>
+    <trans-unit id="bafb2c36" xml:space="preserve" approved="no" translate="yes">
+       <source>Explicit assertion</source>
+    </trans-unit>
+    <trans-unit id="ef6397b" xml:space="preserve" approved="no" translate="yes">
+       <source>Qualified evidence</source>
+    </trans-unit>
+    <trans-unit id="15393c57" xml:space="preserve" approved="no" translate="yes">
+       <source>Weak competence signal</source>
+    </trans-unit>
+    <trans-unit id="e8e004d" xml:space="preserve" approved="no" translate="yes">
+       <source>Explicit service and signal match</source>
+    </trans-unit>
+    <trans-unit id="badd87f0" xml:space="preserve" approved="no" translate="yes">
+       <source>Explicit service, process and region match</source>
+    </trans-unit>
+    <trans-unit id="bdcf18d" xml:space="preserve" approved="no" translate="yes">
+       <source>Historically evidenced; current situation not reconfirmed</source>
+    </trans-unit>
+    <trans-unit id="59e045e6" xml:space="preserve" approved="no" translate="yes">
+       <source>Planned need; current plan not reconfirmed</source>
+    </trans-unit>
+    <trans-unit id="404211cb" xml:space="preserve" approved="no" translate="yes">
+       <source>Observed program or process; current situation not reconfirmed</source>
+    </trans-unit>
+    <trans-unit id="ef05ac4a" xml:space="preserve" approved="no" translate="yes">
+       <source>unknown</source>
+    </trans-unit>
+    <trans-unit id="e28fe1c4" xml:space="preserve" approved="no" translate="yes">
+       <source>planned</source>
+    </trans-unit>
+    <trans-unit id="46a566b7" xml:space="preserve" approved="no" translate="yes">
+       <source>approved</source>
+    </trans-unit>
+    <trans-unit id="fe61fd19" xml:space="preserve" approved="no" translate="yes">
+       <source>under construction</source>
+    </trans-unit>
+    <trans-unit id="edcb2ba8" xml:space="preserve" approved="no" translate="yes">
+       <source>The employer's business role is unclear; weaker assessment.</source>
+    </trans-unit>
+    <trans-unit id="88aeabeb" xml:space="preserve" approved="no" translate="yes">
+       <source>External purchasing need or cooperation has not been confirmed.</source>
+    </trans-unit>
+    <trans-unit id="ca109a2f" xml:space="preserve" approved="no" translate="yes">
+       <source>Organizational conditions and care capacity need verification.</source>
+    </trans-unit>
+    <trans-unit id="2df4acf2" xml:space="preserve" approved="no" translate="yes">
+       <source>The source observation date is unknown.</source>
+    </trans-unit>
+    <trans-unit id="116bd6e3" xml:space="preserve" approved="no" translate="yes">
+       <source>External procurement and execution phase are not confirmed.</source>
+    </trans-unit>
+    <trans-unit id="104fe84e" xml:space="preserve" approved="no" translate="yes">
+       <source>Supporting statements are no longer fully available.</source>
+    </trans-unit>
+    <trans-unit id="e76c857b" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 suggestions</source>
+    </trans-unit>
     <trans-unit id="791afaa6" xml:space="preserve" approved="no" translate="yes">
        <source>stated by the source</source>
     </trans-unit>
@@ -17066,6 +17628,231 @@
     </trans-unit>
     <trans-unit id="5c2caba" xml:space="preserve" approved="no" translate="yes">
        <source>ended</source>
+    </trans-unit>
+    <trans-unit id="eb19a42d" xml:space="preserve" approved="no" translate="yes">
+       <source>current search status unknown</source>
+    </trans-unit>
+    <trans-unit id="51871a6" xml:space="preserve" approved="no" translate="yes">
+       <source>application deadline passed; position status unknown</source>
+    </trans-unit>
+    <trans-unit id="c41aae33" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement assessment</source>
+    </trans-unit>
+    <trans-unit id="c26ced28" xml:space="preserve" approved="no" translate="yes">
+       <source>Text location</source>
+    </trans-unit>
+    <trans-unit id="10767176" xml:space="preserve" approved="no" translate="yes">
+       <source>Last evidenced on %1; the current situation has not been reconfirmed.</source>
+    </trans-unit>
+    <trans-unit id="ef887265" xml:space="preserve" approved="no" translate="yes">
+       <source>Vacancy search status</source>
+    </trans-unit>
+    <trans-unit id="35603c94" xml:space="preserve" approved="no" translate="yes">
+       <source>SAP family (specific product unknown)</source>
+    </trans-unit>
+    <trans-unit id="182b7386" xml:space="preserve" approved="no" translate="yes">
+       <source>SAP S/4HANA</source>
+    </trans-unit>
+    <trans-unit id="915b1173" xml:space="preserve" approved="no" translate="yes">
+       <source>SAP BW</source>
+    </trans-unit>
+    <trans-unit id="41a93304" xml:space="preserve" approved="no" translate="yes">
+       <source>SAP BW/4HANA</source>
+    </trans-unit>
+    <trans-unit id="86a3507d" xml:space="preserve" approved="no" translate="yes">
+       <source>SAP Analytics Cloud</source>
+    </trans-unit>
+    <trans-unit id="dda0e57f" xml:space="preserve" approved="no" translate="yes">
+       <source>Salesforce</source>
+    </trans-unit>
+    <trans-unit id="8104449d" xml:space="preserve" approved="no" translate="yes">
+       <source>Microsoft Azure</source>
+    </trans-unit>
+    <trans-unit id="4b338ee" xml:space="preserve" approved="no" translate="yes">
+       <source>Revit</source>
+    </trans-unit>
+    <trans-unit id="9d8d5433" xml:space="preserve" approved="no" translate="yes">
+       <source>Archicad</source>
+    </trans-unit>
+    <trans-unit id="58cf5ccb" xml:space="preserve" approved="no" translate="yes">
+       <source>Own new construction</source>
+    </trans-unit>
+    <trans-unit id="f70dea10" xml:space="preserve" approved="no" translate="yes">
+       <source>Own conversion</source>
+    </trans-unit>
+    <trans-unit id="5f6d3b20" xml:space="preserve" approved="no" translate="yes">
+       <source>Own site expansion</source>
+    </trans-unit>
+    <trans-unit id="924238eb" xml:space="preserve" approved="no" translate="yes">
+       <source>Energy renovation</source>
+    </trans-unit>
+    <trans-unit id="37e26880" xml:space="preserve" approved="no" translate="yes">
+       <source>Leadership development</source>
+    </trans-unit>
+    <trans-unit id="830f2c18" xml:space="preserve" approved="no" translate="yes">
+       <source>Team development</source>
+    </trans-unit>
+    <trans-unit id="dc702a62" xml:space="preserve" approved="no" translate="yes">
+       <source>Organizational care transition</source>
+    </trans-unit>
+    <trans-unit id="47ecacf8" xml:space="preserve" approved="no" translate="yes">
+       <source>IT/SAP consulting</source>
+    </trans-unit>
+    <trans-unit id="ccf48183" xml:space="preserve" approved="no" translate="yes">
+       <source>System integration</source>
+    </trans-unit>
+    <trans-unit id="99306b7c" xml:space="preserve" approved="no" translate="yes">
+       <source>Personnel recruitment</source>
+    </trans-unit>
+    <trans-unit id="d51f24f" xml:space="preserve" approved="no" translate="yes">
+       <source>Job portal</source>
+    </trans-unit>
+    <trans-unit id="4776d81" xml:space="preserve" approved="no" translate="yes">
+       <source>Advertisement publisher</source>
+    </trans-unit>
+    <trans-unit id="b7f5dc4b" xml:space="preserve" approved="no" translate="yes">
+       <source>Recruiter</source>
+    </trans-unit>
+    <trans-unit id="7b42428e" xml:space="preserve" approved="no" translate="yes">
+       <source>Deployment organization</source>
+    </trans-unit>
+    <trans-unit id="21671930" xml:space="preserve" approved="no" translate="yes">
+       <source>Last evidenced on %1; present use has not been reconfirmed.</source>
+    </trans-unit>
+    <trans-unit id="221a4fbf" xml:space="preserve" approved="no" translate="yes">
+       <source>Historical observation date unknown; processing time is not evidence of freshness.</source>
+    </trans-unit>
+    <trans-unit id="1df2279e" xml:space="preserve" approved="no" translate="yes">
+       <source>Employer or organization identity unresolved</source>
+    </trans-unit>
+    <trans-unit id="e6b7b47e" xml:space="preserve" approved="no" translate="yes">
+       <source>The legacy evidence has no original text quotation.</source>
+    </trans-unit>
+    <trans-unit id="5de18920" xml:space="preserve" approved="no" translate="yes">
+       <source>Source availability</source>
+    </trans-unit>
+    <trans-unit id="9ecbdef0" xml:space="preserve" approved="no" translate="yes">
+       <source>Assertion status</source>
+    </trans-unit>
+    <trans-unit id="80e82411" xml:space="preserve" approved="no" translate="yes">
+       <source>Processed on</source>
+    </trans-unit>
+    <trans-unit id="eeb8d620" xml:space="preserve" approved="no" translate="yes">
+       <source>Source revision</source>
+    </trans-unit>
+    <trans-unit id="d924a777" xml:space="preserve" approved="no" translate="yes">
+       <source>Qualified statement; not a measured probability</source>
+    </trans-unit>
+    <trans-unit id="3df13f4f" xml:space="preserve" approved="no" translate="yes">
+       <source>Explicit statement; not a measured probability</source>
+    </trans-unit>
+    <trans-unit id="21daba12" xml:space="preserve" approved="no" translate="yes">
+       <source>A later scoped migration or shutdown is evidenced; the original statement remains historical.</source>
+    </trans-unit>
+    <trans-unit id="c62fe96" xml:space="preserve" approved="no" translate="yes">
+       <source>Access classification changed</source>
+    </trans-unit>
+    <trans-unit id="e4b75644" xml:space="preserve" approved="no" translate="yes">
+       <source>Observation recorded</source>
+    </trans-unit>
+    <trans-unit id="470bcc38" xml:space="preserve" approved="no" translate="yes">
+       <source>Source, assertion or identity status changed</source>
+    </trans-unit>
+    <trans-unit id="d4418ac9" xml:space="preserve" approved="no" translate="yes">
+       <source>available</source>
+    </trans-unit>
+    <trans-unit id="d855d850" xml:space="preserve" approved="no" translate="yes">
+       <source>unavailable</source>
+    </trans-unit>
+    <trans-unit id="1ae98caf" xml:space="preserve" approved="no" translate="yes">
+       <source>gone (not evidence of a filled vacancy or system shutdown)</source>
+    </trans-unit>
+    <trans-unit id="9bf14c77" xml:space="preserve" approved="no" translate="yes">
+       <source>live source object removed; reachability unknown (no vacancy or shutdown conclusion)</source>
+    </trans-unit>
+    <trans-unit id="cf7ffd59" xml:space="preserve" approved="no" translate="yes">
+       <source>internal system use</source>
+    </trans-unit>
+    <trans-unit id="d21a9aea" xml:space="preserve" approved="no" translate="yes">
+       <source>required competence</source>
+    </trans-unit>
+    <trans-unit id="12301c34" xml:space="preserve" approved="no" translate="yes">
+       <source>desirable competence</source>
+    </trans-unit>
+    <trans-unit id="5e251f0" xml:space="preserve" approved="no" translate="yes">
+       <source>work in customer projects</source>
+    </trans-unit>
+    <trans-unit id="9267d472" xml:space="preserve" approved="no" translate="yes">
+       <source>planned migration</source>
+    </trans-unit>
+    <trans-unit id="6d8a2c39" xml:space="preserve" approved="no" translate="yes">
+       <source>completed migration</source>
+    </trans-unit>
+    <trans-unit id="b57927" xml:space="preserve" approved="no" translate="yes">
+       <source>system shutdown</source>
+    </trans-unit>
+    <trans-unit id="71f15e4e" xml:space="preserve" approved="no" translate="yes">
+       <source>offered support capability</source>
+    </trans-unit>
+    <trans-unit id="e14cd67c" xml:space="preserve" approved="no" translate="yes">
+       <source>planned organizational need</source>
+    </trans-unit>
+    <trans-unit id="2b42c2ec" xml:space="preserve" approved="no" translate="yes">
+       <source>explicit organizational need</source>
+    </trans-unit>
+    <trans-unit id="f6c8c9d3" xml:space="preserve" approved="no" translate="yes">
+       <source>organizational care transition; possible cooperation</source>
+    </trans-unit>
+    <trans-unit id="bbcf083d" xml:space="preserve" approved="no" translate="yes">
+       <source>own offered services</source>
+    </trans-unit>
+    <trans-unit id="19aee63e" xml:space="preserve" approved="no" translate="yes">
+       <source>historical source metadata</source>
+    </trans-unit>
+    <trans-unit id="2f17ecb5" xml:space="preserve" approved="no" translate="yes">
+       <source>Extract jobs</source>
+    </trans-unit>
+    <trans-unit id="66963114" xml:space="preserve" approved="no" translate="yes">
+       <source>Display jobs</source>
+    </trans-unit>
+    <trans-unit id="664ed050" xml:space="preserve" approved="no" translate="yes">
+       <source>Use stored job signals for matching</source>
+    </trans-unit>
+    <trans-unit id="2017ea7b" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement date (when evidenced)</source>
+    </trans-unit>
+    <trans-unit id="79479bba" xml:space="preserve" approved="no" translate="yes">
+       <source>Organization assignment</source>
+    </trans-unit>
+    <trans-unit id="da6bfa04" xml:space="preserve" approved="no" translate="yes">
+       <source>unresolved; defer job matching</source>
+    </trans-unit>
+    <trans-unit id="93d6bb2" xml:space="preserve" approved="no" translate="yes">
+       <source>employer declared by the source</source>
+    </trans-unit>
+    <trans-unit id="4def9e3a" xml:space="preserve" approved="no" translate="yes">
+       <source>organization declared by the source</source>
+    </trans-unit>
+    <trans-unit id="3391770b" xml:space="preserve" approved="no" translate="yes">
+       <source>historical statement retained</source>
+    </trans-unit>
+    <trans-unit id="f1013256" xml:space="preserve" approved="no" translate="yes">
+       <source>corrected; original statement retained</source>
+    </trans-unit>
+    <trans-unit id="7f99b81b" xml:space="preserve" approved="no" translate="yes">
+       <source>withdrawn; original statement retained</source>
+    </trans-unit>
+    <trans-unit id="d6f90313" xml:space="preserve" approved="no" translate="yes">
+       <source>System or competence signal</source>
+    </trans-unit>
+    <trans-unit id="cbe35d10" xml:space="preserve" approved="no" translate="yes">
+       <source>Organizational need signal</source>
+    </trans-unit>
+    <trans-unit id="c087c182" xml:space="preserve" approved="no" translate="yes">
+       <source>Own offered services and role</source>
+    </trans-unit>
+    <trans-unit id="d90c32ea" xml:space="preserve" approved="no" translate="yes">
+       <source>Evidenced vacancy status</source>
     </trans-unit>
     <trans-unit id="8ab77024" xml:space="preserve" approved="no" translate="yes">
        <source>%1 ended jobs older than the visibility window are hidden.</source>
@@ -17670,8 +18457,8 @@
     <trans-unit id="d60e8d4" xml:space="preserve" approved="no" translate="yes">
        <source>directions</source>
     </trans-unit>
-    <trans-unit id="1676a5c4" xml:space="preserve" approved="no" translate="yes">
-       <source>is advertised by</source>
+    <trans-unit id="45cbfd0d" xml:space="preserve" approved="no" translate="yes">
+       <source>actual employer</source>
     </trans-unit>
     <trans-unit id="dcf76eee" xml:space="preserve" approved="no" translate="yes">
        <source>employment type</source>

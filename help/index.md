@@ -108,3 +108,11 @@ Expect rendered search or content output: result lists, snippets, previews, redi
 
 - `CrawlStartSite.html`
 - `ConfigBasic.html`
+
+## Scoutro: protected access mode
+
+In the protected access mode the native search (`yacysearch.html`,
+`yacysearch.json`, `/solr/`, suggestions) belongs to the administrator.
+Signed-in accounts and released guests are sent from `index.html` to the
+Scoutro search (`scoutro-search.html`), which searches only their
+collections. See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

@@ -66,6 +66,22 @@ public final class ChatCollections {
         return new ArrayList<>(out);
     }
 
+    /**
+     * Scoutro: the collections of a signed-in Scoutro account without the administrator role. They decide its
+     * chat scope whatever the AI Shield admits for its address (also on localhost); without the chat right the
+     * scope is empty. Null for everyone else (administrators, Digest, AI Shield guests, local access).
+     */
+    public static net.yacy.scoutro.access.Scope member(final HttpServletRequest request) {
+        final java.security.Principal p = request == null ? null : request.getUserPrincipal();
+        if (p instanceof net.yacy.scoutro.access.ScoutroPrincipal) {
+            final net.yacy.scoutro.access.ScoutroPrincipal account = (net.yacy.scoutro.access.ScoutroPrincipal) p;
+            if (!account.has(net.yacy.scoutro.access.Permission.ADMIN)) {
+                return account.has(net.yacy.scoutro.access.Permission.CHAT) ? account.scope() : net.yacy.scoutro.access.Scope.NONE;
+            }
+        }
+        return null;
+    }
+
     /** Whether the client may scope a question to the collection (null: the whole index, always). */
     public static boolean permits(final boolean privileged, final String collection, final String setting) {
         return collection == null || privileged || released(setting).contains(collection);

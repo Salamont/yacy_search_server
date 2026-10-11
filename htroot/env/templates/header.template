@@ -10,7 +10,7 @@
       <span><img id="header-greeting-icon" class="yacylogo scoutro-brand-logo" src="env/scoutro/brand/mascot-64.png" alt=""></span>
       <span class="scoutro-brand-name">&nbsp;#%env/templates/scoutro/productname.template%#</span>
     </a>
-    <form id="header-search-form" class="navbar-form scoutro-header-search" method="get" accept-charset="UTF-8" action="yacysearch.html" role="search">
+    <form id="header-search-form" class="navbar-form scoutro-header-search" method="get" accept-charset="UTF-8" action="#(scoutroSearchPage)#yacysearch.html::scoutro-search.html#(/scoutroSearchPage)#" role="search">
       <label class="sr-only" for="header-search-input">Search</label>
       <input id="header-search-input" name="query" placeholder="Search..." class="form-control" type="text" size="21" maxlength="200" value=""/>
       <input type="hidden" name="resource" value="local" />
@@ -68,6 +68,16 @@
 <div class="container-fluid">
   <div class="row">
     <nav class="col-sm-3 col-md-2 sidebar scoutro-adminnav" id="scoutro-adminnav" aria-label="Main navigation">
+    #(scoutroContext)#::
+    <!-- Scoutro: collection context of the signed-in identity, filled from /scoutro/api/v1/collections (scoutro.js);
+         it presets the header search and the collection of the function pages, the server checks every request -->
+    <div class="scoutro-context" id="scoutro-context" hidden>
+      <label for="scoutro-context-select">Collection</label>
+      <select id="scoutro-context-select" class="form-control">
+        <option value="">All my collections</option>
+      </select>
+    </div>
+    #(/scoutroContext)#
     #(scoutroRead)#::
     <ul class="nav nav-sidebar menugroup" id="scoutro-nav-overview">
       <li><h3>Overview</h3></li>
@@ -77,7 +87,7 @@
     #(scoutroSearch)#::
     <ul class="nav nav-sidebar menugroup" id="scoutro-nav-research">
       <li><h3>Research</h3></li>
-      <li><a href="index.html" class="MenuItemLink">Search</a></li>
+      <li><a href="#(scoutroSearchPage)#index.html::scoutro-search.html#(/scoutroSearchPage)#" class="MenuItemLink">Search</a></li>
       #(scoutroChat)#::<li><a href="yacychat.html" class="MenuItemLink">Chat</a></li>#(/scoutroChat)#
       #(scoutroRead)#::<li><a href="IndexBrowser_p.html" class="MenuItemLink">Websites</a></li>
       <li><a href="ScoutroSEO_p.html" class="MenuItemLink">Host analysis</a></li>#(/scoutroRead)#
@@ -86,7 +96,6 @@
     #(scoutroRead)#::
     <ul class="nav nav-sidebar menugroup" id="scoutro-nav-knowledge">
       <li><h3>Knowledge</h3></li>
-      <li><a href="ScoutroKnowledge_p.html" class="MenuItemLink">Knowledge overview</a></li>
       <li><a href="ScoutroKnowledge_p.html?view=objects" class="MenuItemLink">Organisations</a></li>
       <li><a href="ScoutroKnowledge_p.html?view=services" class="MenuItemLink">Services</a></li>
       <li><a href="ScoutroKnowledge_p.html?view=compare" class="MenuItemLink">Comparisons</a></li>

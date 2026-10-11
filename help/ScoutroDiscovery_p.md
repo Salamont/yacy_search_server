@@ -60,3 +60,14 @@ Common errors: 400 validation, 401/403 authentication/origin, 404 missing job/pa
 Active, Paused and Disabled describe automation independently of an existing batch. Batch status shows the job name, collection, phase and start time. Worker activity alone is not a running batch. Buttons follow allowed_actions; heartbeat repair is explicit. Polling rejects overlapping/stale snapshots.
 
 Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl flow](../docs/SCOUTRO_CRAWL_FLOW.md).
+
+## Scoutro accounts (protected access mode)
+
+Operators (the **collect** right) see and change only the jobs whose profile
+writes into one of their collections: catalog, job list, create, edit,
+delete and *Run now*. A job of another collection answers like a missing one
+(`404 job_not_found`); a profile of another collection is refused
+(`403 collection_not_allowed`). The status shows a batch of another
+collection only as busy, and offers no global action: enabling, disabling,
+pausing and resuming the automation and the job export stay with the
+administrator (`403 forbidden`). See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

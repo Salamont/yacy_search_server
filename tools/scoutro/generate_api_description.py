@@ -17,8 +17,8 @@ def ref(n): return {"$ref": "#/components/schemas/" + n}
 err = lambda desc: {"description": desc, "content": {"application/json": {"schema": ref("Error")}}}
 E = {
  "400": err("Invalid request (validation error; details.field names the parameter)."),
- "401": {"description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."},
- "403": err("Forbidden (cross-origin request or setting not on the allowlist)."),
+ "401": {"description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."},
+ "403": err("Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed)."),
  "404": err("Not found."),
  "405": err("Method not allowed."),
  "409": err("Conflict (e.g. the crawl is not running)."),
@@ -1483,12 +1483,54 @@ paths["/v1/access/audit"] = {"get": op("access.audit", "Audit log of people", _a
 openapi = O()
 openapi["openapi"] = "3.1.0"
 openapi["info"] = {"title": "Scoutro API", "version": "1.0.0",
-    "description": "Stable, machine-readable action layer of Scoutro (an independent community project based on YaCy). Every action is translated into existing YaCy functions. Mutating and administrative actions require the Scoutro/YaCy administrator account (HTTP Digest). See docs/API.md.",
+    "description": "Stable, machine-readable action layer of Scoutro (an independent community project based on YaCy). Every action is translated into existing YaCy functions. Mutating and administrative actions require the Scoutro/YaCy administrator account (HTTP Digest or an administrator session); Scoutro accounts use the routes of their role (x-scoutro-permission) within their collections. See docs/API.md.",
     "license": {"name": "GPL-2.0-or-later", "identifier": "GPL-2.0-or-later"}}
 openapi["servers"] = [{"url": "/scoutro/api", "description": "Relative to the Scoutro base URL, e.g. http://scoutro:8090/scoutro/api"}]
+# Scoutro accounts (docs/SCOUTRO_USERS_ACCESS.md, section 3): the permission of each /v1 route for people.
+# The administrator (HTTP Digest or an administrator session) may use every route unchanged; an account uses
+# the routes of its role and gets only the data of its collections (x-scoutro-permission).
+KG_READS = ("entities", "statements", "hosts", "sources", "compare", "derived", "facets", "services", "history", "observations")
+def scoutro_permission(path, method):
+    parts = path.split("/")
+    resource = parts[2] if len(parts) > 2 else ""
+    if resource in ("auth", "health", "ui"):
+        return None
+    if resource == "search" or (path == "/v1/collections" and method == "get"):
+        return "search"
+    if path == "/v1/chat/completions":
+        return "chat"
+    if path == "/v1/index/domains/export":
+        return "export"
+    if resource in ("index", "hosts", "seo"):
+        return "read"
+    if resource == "kg":
+        sub = parts[3] if len(parts) > 3 else ""
+        if sub in ("export", "changes"):
+            return "export"
+        return "read" if sub in KG_READS else "admin"
+    if resource in ("reports", "crawls"):
+        return "collect"
+    if resource == "discovery":
+        sub = parts[3] if len(parts) > 3 else ""
+        return "admin" if sub in ("enable", "disable", "pause", "resume", "export") else "collect"
+    return "admin"
+for _path, _methods in paths.items():
+    if not _path.startswith("/v1/"):
+        continue
+    for _method, _o in _methods.items():
+        _perm = scoutro_permission(_path, _method)
+        if _perm is None or not isinstance(_o, dict) or not _o.get("security"):
+            continue
+        _o["x-scoutro-permission"] = _perm
+        if _perm != "admin":
+            _o["security"] = [s for s in _o["security"] if s != {}] + [{"scoutroSession": []}]
+            if _o["security"][0] != {"digest": []} and {"digest": []} not in _o["security"]:
+                _o["security"].insert(0, {"digest": []})
 openapi["paths"] = paths
 openapi["components"] = {"schemas": schemas, "securitySchemes": {
     "digest": {"type": "http", "scheme": "digest", "description": "YaCy administrator account (user 'admin' by default)."},
+    "scoutroSession": {"type": "apiKey", "in": "cookie", "name": "scoutro_session",
+                       "description": "Sign-in of people on scoutro-login.html (POST /v1/auth/login). Changing calls need the header X-Scoutro-CSRF. The account's role decides the routes (x-scoutro-permission: search, chat, read, export, collect, admin), its collections the data; administrators may use every route."},
     "agentBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "sca_<publicId>.<secret>",
                     "description": "Agent token issued in Administration > Agents & Access. Only valid on /scoutro/api/agent/v1/*; never an administrator credential."}}}
 openapi["tags"] = [{"name": t} for t in ["system", "search", "index", "crawls", "config", "ui", "agent", "seo", "reports", "discovery", "knowledge"]]
@@ -1568,7 +1610,7 @@ for path, methods in paths.items():
         ret = o["responses"][ok_code]["content"]["application/json"]["schema"]["$ref"].split("/")[-1]
         action = O(
             name=o["operationId"], description=o["description"], mutating=o["x-scoutro-mutating"],
-            auth="admin" if o["security"] else "public",
+            auth="admin" if o["security"] else "public", permission=o.get("x-scoutro-permission", "admin" if o["security"] else None),
             http={"method": method.upper(), "path": "/scoutro/api" + path, "successStatus": int(ok_code)},
             parameters=params, returns=ret,
             errors=sorted(int(c) for c in o["responses"] if not c.startswith("2")),
@@ -1789,7 +1831,8 @@ catalog = O(service="scoutro", apiVersion="1",
     openapi="/scoutro/api/openapi.json",
     mcpAdapter={"transport":"stdio", "command":"tools/scoutro/scoutro-mcp", "authentication":"agent Bearer only", "readOnly":True,
                 "description":"mcpTool names are mappings. The adapter exposes only catalogued GET actions authorized by current agent capabilities; admin-only mappings are not runnable tools."},
-    authentication={"type": "http-digest", "account": "Scoutro/YaCy administrator", "publicActions": [a["name"] for a in actions if a["auth"] == "public"]},
+    authentication={"type": "http-digest", "account": "Scoutro/YaCy administrator", "publicActions": [a["name"] for a in actions if a["auth"] == "public"],
+                    "accounts": "People sign in on scoutro-login.html (cookie scoutro_session, X-Scoutro-CSRF for changes). 'permission' names the right an account needs (search, chat, read, export, collect, admin); its collections limit the data. See docs/SCOUTRO_USERS_ACCESS.md."},
     errorFormat={"error": {"code": "string", "message": "string", "details": "object (optional)"}},
     agentAccess=O(
         description="Agents created in Administration > Agents & Access call /scoutro/api/agent/v1 with their own token. Every call is authorized against the agent's fixed action list, its collections (data scope) and its limits; GET /scoutro/api/agent/v1/capabilities lists what the agent may use.",
@@ -1812,11 +1855,19 @@ paths["/v1/chat/completions"] = {"post":{
     "operationId":"chat.completions", "x-scoutro-mutating":False, "servers":[{"url":"/","description":"Root chat servlet, outside /scoutro/api."}],
     "summary":"Chat with structured Scoutro system questions", "tags":["system"],
     "description":"Content chat retains existing AIShield/model/RAG behavior. Supported DE/EN system questions run authorized Actions before model/search/tool selection and work without Function Calling. No missing-rights/data web fallback. System questions require Digest admin role or authorized agent Bearer; no localhost bypass. Agent rights, collection scopes, crawl ownership, audit and limits remain enforced. Metadata attributes exact facts/action/time; stream=true sends OpenAI SSE chunks and terminal [DONE].",
-    "security":[{}, {"digest":[]}, {"agentBearer":[]}], "requestBody":{"required":True,"content":{"application/json":{"schema":ref("ChatRequest")}}},
+    "security":[{}, {"digest":[]}, {"agentBearer":[]}, {"scoutroSession":[]}], "x-scoutro-permission":"chat",
+    "requestBody":{"required":True,"content":{"application/json":{"schema":ref("ChatRequest")}}},
     "responses":{"200":{"description":"Existing content completion or structured system completion/SSE.","content":{
         "application/json":{"schema":ref("SystemChatCompletion")},"text/event-stream":{"schema":{"type":"string"}}}},
         **aerrs("400","401","403","429","503")}}}
 openapi["components"]["securitySchemes"]["agentBearer"]["description"] += " Also accepted by root /v1/chat/completions for structured system questions only, with the same selected action authorization."
+# Scoutro accounts: a session with the chat right chats within its collections only (never the whole index without
+# all collections, no peer-to-peer search, no system questions: 403 system_forbidden)
+paths["/v1/chat/completions"]["post"]["description"] += " Scoutro accounts without the administrator role (session with the chat right) chat only within their collections whatever the AI Shield admits for their address: a foreign collection answers 403 collection_not_allowed, no collection with several collections 400 collection_required, system questions 403 system_forbidden; no peer-to-peer search."
+for _action in catalog.get("actions", []) if isinstance(catalog, dict) else []:
+    if "permission" not in _action and isinstance(_action.get("http"), dict) and _action["http"].get("path", "").startswith("/scoutro/api/v1/"):
+        _action["permission"] = scoutro_permission(_action["http"]["path"][len("/scoutro/api"):], _action["http"]["method"].lower()) \
+            if _action.get("auth") == "admin" else None
 for name, value in [("openapi",openapi),("actions",catalog)]:
     with open(out + "/" + name + ".json", "w", encoding="utf-8") as file:
         json.dump(value, file, indent=2, ensure_ascii=False)

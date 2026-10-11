@@ -210,31 +210,30 @@ final class KnowledgeApi {
      * a trailer {@code complete:false}.
      */
     void download(final java.util.Map<String, String> q, final Download target) throws ApiException, IOException {
-        for (final String k : q.keySet()) {
-            if (!java.util.Set.of("format", "include", "collection").contains(k)) {
-                throw ApiException.invalid(k, "Unknown parameter '" + k + "'. Allowed: format, include, collection.");
-            }
-        }
+        checkDownload(q);
+        download(q, SeoAnalysis.adminCollections(q), false, target);
+    }
+
+    /**
+     * The download within {@code collections} (null: the whole graph, administrator only); a reader that is not
+     * the administrator gets the agents' view (no model names). The caller has checked the collections.
+     */
+    void download(final java.util.Map<String, String> q, final java.util.List<String> collections, final boolean restricted,
+            final Download target) throws ApiException, IOException {
+        checkDownload(q);
         final String format = q.get("format") == null || q.get("format").isEmpty() ? "ndjson" : q.get("format");
-        if (!"ndjson".equals(format) && !"json".equals(format)) {
-            throw ApiException.invalid("format", "Field 'format' must be one of: json, ndjson.");
-        }
         final String include = q.get("include");
-        if (include != null && !include.isEmpty() && !"evidence".equals(include)&&!"history".equals(include)) {
-            throw ApiException.invalid("include", "Field 'include' must be one of: evidence, history.");
-        }
-        final java.util.List<String> collections = SeoAnalysis.adminCollections(q);
         final KgRuntime r = this.runtime.get();
         if (r == null) {
             throw toApi(new KgException(KgException.DISABLED, "not started"));
         }
-        final String collection = collections == null ? null : collections.get(0);
+        final String collection = collections == null || collections.size() != 1 ? null : collections.get(0);
         final String filename = "scoutro-knowledge-" + (collection == null ? "all" : collection) + "-"
                 + java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'").withZone(java.time.ZoneOffset.UTC)
                         .format(java.time.Instant.now()) + "." + format;
         final boolean json = "json".equals(format);
         try {
-            final KgReader reader = r.reader();
+            final KgReader reader = restricted ? r.reader().forAgents() : r.reader();
             final KgExport.Sink sink=new KgExport.Sink() {
                 private java.io.Writer out;
                 private long n;
@@ -263,6 +262,22 @@ final class KnowledgeApi {
             else new KgExport(reader).stream(reader.viewer(collections),"evidence".equals(include),collection,DOWNLOAD_PAGE,sink);
         } catch (final KgException e) {
             throw toApi(e);
+        }
+    }
+
+    private static void checkDownload(final java.util.Map<String, String> q) throws ApiException {
+        for (final String k : q.keySet()) {
+            if (!java.util.Set.of("format", "include", "collection").contains(k)) {
+                throw ApiException.invalid(k, "Unknown parameter '" + k + "'. Allowed: format, include, collection.");
+            }
+        }
+        final String format = q.get("format") == null || q.get("format").isEmpty() ? "ndjson" : q.get("format");
+        if (!"ndjson".equals(format) && !"json".equals(format)) {
+            throw ApiException.invalid("format", "Field 'format' must be one of: json, ndjson.");
+        }
+        final String include = q.get("include");
+        if (include != null && !include.isEmpty() && !"evidence".equals(include)&&!"history".equals(include)) {
+            throw ApiException.invalid("include", "Field 'include' must be one of: evidence, history.");
         }
     }
 

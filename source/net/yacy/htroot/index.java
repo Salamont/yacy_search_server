@@ -58,6 +58,13 @@ public class index {
         final String authenticatedUserName = adminAuthenticated
                 ? sb.getConfig(SwitchboardConstants.ADMIN_ACCOUNT_USER_NAME, "admin") : null;
         final boolean authenticated = adminAuthenticated;
+        // Scoutro: in protected mode the native search belongs to the administrator; signed-in accounts and
+        // guests search their collections on the Scoutro search page (docs/SCOUTRO_USERS_ACCESS.md)
+        final net.yacy.scoutro.access.ScoutroAccess scoutroAccess = net.yacy.scoutro.access.ScoutroAccess.current();
+        if (!adminAuthenticated && scoutroAccess != null && scoutroAccess.protectedMode()) {
+            prop.put(serverObjects.ACTION_LOCATION, "scoutro-search.html");
+            return prop;
+        }
 		if (post != null) {
 			if (post.containsKey("publicPage") && !adminAuthenticated) { // Old style parameter : still in use ?
 				prop.authenticationRequired();

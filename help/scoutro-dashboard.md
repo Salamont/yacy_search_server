@@ -3,7 +3,7 @@ page: htroot/scoutro-dashboard.html
 help: help/scoutro-dashboard.md
 title: Scoutro Dashboard
 package: monitoring
-access: admin
+access: admin; read right (protected access mode)
 kind: admin-page
 backend_java: source/net/yacy/htroot/ScoutroDashboard.java
 ---
@@ -107,3 +107,17 @@ Contract, endpoints, permissions, errors, persistence and CLI: [Scoutro crawl fl
 
 Scoutro responsive layout: existing navigation and controls are reused at 360/390/412/768 pixels and desktop. Tables display the original rows as labelled cards on narrow screens; control names, values, events and save paths are unchanged.
 Dashboard collection links open the Index Browser with the exact `collection` URL parameter.
+
+## Built from the catalog and the rights
+
+The collection cards come from the collection catalog (every selectable
+collection, in catalog order), no longer from a fixed list. The
+administrator sees all of them with the index, crawler and system figures
+and YaCy's tools. An account with the **read** right (protected access
+mode) sees only its collections: the totals count only their pages and
+hosts, the share refers to its own pages, and instead of system figures it
+gets the links to its functions (search, chat, websites, host analysis,
+organisations; crawls, Discovery and reports with the **collect** right).
+The Discovery card needs the collect right, the knowledge graph card the
+administrator. Figures are cached for 30 seconds per set of collections.
+See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.

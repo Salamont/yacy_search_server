@@ -14,8 +14,20 @@
   const pct = v => v == null ? t('missing') : Math.round(v * 100) + ' %';
   const ROOT = '/scoutro/api/v1/kg/';
   const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'source', 'history', 'settings'];
+  // Scoutro accounts (docs/SCOUTRO_USERS_ACCESS.md): status, controls and settings ("Knowledge graph operations",
+  // ?view=operations) are for administrators; downloads need the export right. The API refuses them anyway.
+  const ADMIN = document.body.dataset.scoutroAdmin === '1';
+  const EXPORT = document.body.dataset.scoutroExport === '1';
+  const OPERATIONS = ['overview', 'settings'];
+  function viewOf(requested) {
+    const v = requested === 'operations' ? 'overview' : requested;
+    if (!ADMIN) return VIEWS.includes(v) && !OPERATIONS.includes(v) ? v : 'objects';
+    return VIEWS.includes(v) ? v : 'overview';
+  }
+  if (!ADMIN) for (const v of OPERATIONS) { const tab = document.getElementById('skg-view-' + v); if (tab) tab.hidden = true; }
+  if (!EXPORT) for (const id of ['skg-history-download', 'skg-net-graphml', 'skg-net-json']) { const el = document.getElementById(id); if (el) el.hidden = true; }
   const params = new URLSearchParams(location.search);
-  let view = VIEWS.includes(params.get('view')) ? params.get('view') : 'overview';
+  let view = viewOf(params.get('view'));
   let collection = params.get('collection') || '';
   let offset = Math.max(0, parseInt(params.get('offset') || '0', 10) || 0);
   let generation = 0;
@@ -1731,7 +1743,7 @@
   // ---------------------------------------------------------------------- views
   function load() {
     const p = new URLSearchParams(location.search);
-    view = VIEWS.includes(p.get('view')) ? p.get('view') : 'overview';
+    view = viewOf(p.get('view'));
     collection = p.get('collection') || '';
     // a collection of the link (or of history) counts only if it is one of the listed ones; else all collections
     const unknown = collection !== '' && !allowed.includes(collection);
@@ -1746,7 +1758,7 @@
     const nav = view === 'network' && p.get('group') ? 'services' : view === 'object' || view === 'source' || view === 'network' ? 'objects' : view;
     for (const a of document.querySelectorAll('[data-skg-view]')) {
       if (a.dataset.skgView === nav) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
-      const q = new URLSearchParams(a.dataset.skgView === 'overview' ? {} : { view: a.dataset.skgView }); if (collection) q.set('collection', collection);
+      const q = new URLSearchParams(a.dataset.skgView === (ADMIN ? 'overview' : 'objects') ? {} : { view: a.dataset.skgView }); if (collection) q.set('collection', collection);
       a.href = 'ScoutroKnowledge_p.html' + (q.toString() ? '?' + q : '');
     }
     if (view === 'overview') guarded(overview);

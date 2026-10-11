@@ -31,6 +31,18 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 - New pages: My account (profile, password, own sessions), Settings → Users
   (access mode, guest access, accounts, audit log), Settings → Collections
   (catalog, "New collection") and Settings → System; a branded 403 page.
+- Pages and data follow the rights (protected access mode): Research and
+  Operator accounts use the Scoutro search (`scoutro-search.html`), chat,
+  overview, websites, host analysis and the knowledge views within their
+  collections; Operators also crawls, Discovery jobs and crawl reports of
+  their collections. Every Scoutro API route has a permission and a
+  collection scope; foreign collections, `collection:` in queries,
+  peer-to-peer search, a wide crawl or a host of other collections are
+  refused. Exports need the export right; knowledge-graph operations,
+  Discovery's global switches, collections, users and system stay with the
+  administrator. The overview is built from the collection catalog instead of
+  a fixed list. A collection context in the navigation presets search and
+  function pages.
 - Design and permission matrix: [SCOUTRO_USERS_ACCESS.md](docs/SCOUTRO_USERS_ACCESS.md);
   baseline with evidence: [SCOUTRO_ACCESS_BASELINE.md](docs/SCOUTRO_ACCESS_BASELINE.md).
 

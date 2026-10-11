@@ -37,10 +37,14 @@ public final class PageNav {
     public final boolean read;
     public final boolean collect;
     public final boolean admin;
+    public final boolean export;
+    /** true when searches go to the Scoutro search page (protected mode without the administrator) */
+    public final boolean searchPage;
     public final String csrf;
 
     private PageNav(final int account, final String user, final int role, final boolean search, final boolean chat,
-            final boolean read, final boolean collect, final boolean admin, final String csrf) {
+            final boolean read, final boolean collect, final boolean admin, final boolean export, final boolean searchPage,
+            final String csrf) {
         this.account = account;
         this.user = user;
         this.role = role;
@@ -49,6 +53,8 @@ public final class PageNav {
         this.read = read;
         this.collect = collect;
         this.admin = admin;
+        this.export = export;
+        this.searchPage = searchPage;
         this.csrf = csrf;
     }
 
@@ -61,17 +67,19 @@ public final class PageNav {
         final ScoutroAccess access = ScoutroAccess.current();
         final Caller caller = Caller.of(request, access);
         final ScoutroPrincipal p = caller.principal();
+        final boolean protectedMode = access != null && access.protectedMode();
         if (p != null) {
+            final boolean admin = p.has(Permission.ADMIN);
             return new PageNav(1, p.displayName(), roleIndex(p.role()), p.has(Permission.SEARCH), p.has(Permission.CHAT),
-                    p.has(Permission.READ), p.has(Permission.COLLECT), p.has(Permission.ADMIN), p.session().csrf);
+                    p.has(Permission.READ), p.has(Permission.COLLECT), admin, p.has(Permission.EXPORT),
+                    protectedMode && !admin, p.session().csrf);
         }
         if (authorized || caller.admin()) {
             final String name = request.getRemoteUser() == null ? "admin" : request.getRemoteUser();
-            return new PageNav(2, name, 3, true, true, true, true, true, "");
+            return new PageNav(2, name, 3, true, true, true, true, true, true, false, "");
         }
-        final boolean protectedMode = access != null && access.protectedMode();
         final boolean search = caller.has(Permission.SEARCH) || (!protectedMode && publicSearch);
-        return new PageNav(0, "", 0, search, false, false, false, false, "");
+        return new PageNav(0, "", 0, search, false, false, false, false, false, protectedMode, "");
     }
 
     static int roleIndex(final Role role) {

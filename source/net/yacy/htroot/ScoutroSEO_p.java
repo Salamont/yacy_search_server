@@ -13,7 +13,10 @@ public final class ScoutroSEO_p {
     public static serverObjects respond(
             final RequestHeader header, final serverObjects post, final serverSwitch env) {
         final serverObjects prop = new serverObjects();
-        if (!((Switchboard) env).verifyAuthentication(header)) prop.authenticationRequired();
+        // Scoutro: YaCy's administrator or a signed-in identity with the read right (docs/SCOUTRO_USERS_ACCESS.md);
+        // the API limits the data to the identity's collections
+        if (!((Switchboard) env).verifyAuthentication(header)
+                && !net.yacy.scoutro.access.Caller.of(header).has(net.yacy.scoutro.access.Permission.READ)) prop.authenticationRequired();
         return prop;
     }
 }

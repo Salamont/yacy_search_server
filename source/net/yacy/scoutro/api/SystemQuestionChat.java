@@ -43,6 +43,13 @@ public final class SystemQuestionChat {
                 for (final Map.Entry<String, String> header : r.headers.entrySet()) response.setHeader(header.getKey(), header.getValue());
             } else {
                 // No localhost bypass and no implied admin role. Use the container's existing Digest boundary.
+                // A signed-in Scoutro account without the administrator role gets a plain refusal (no challenge).
+                if (request.getUserPrincipal() instanceof net.yacy.scoutro.access.ScoutroPrincipal
+                        && !request.isUserInRole(net.yacy.search.SwitchboardConstants.ADMIN_ACCOUNT_ROLE)) {
+                    write(response, 403, new ApiException(403, "system_forbidden",
+                            "System data requires the administrator role; no web answer is substituted.").toJson());
+                    return true;
+                }
                 if (!request.isUserInRole(net.yacy.search.SwitchboardConstants.ADMIN_ACCOUNT_ROLE) && !(request.authenticate(response) && request.isUserInRole(net.yacy.search.SwitchboardConstants.ADMIN_ACCOUNT_ROLE))) {
                     if (!response.isCommitted()) write(response, 401, new ApiException(401, "system_auth_required",
                             "System data requires administrator authentication or an authorized agent token; no web answer is substituted.").toJson());

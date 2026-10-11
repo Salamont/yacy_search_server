@@ -9,7 +9,10 @@ public final class ScoutroCrawls_p {
     private ScoutroCrawls_p() { }
     public static serverObjects respond(final RequestHeader header, final serverObjects post, final serverSwitch env) {
         final serverObjects properties = new serverObjects();
-        if (!((Switchboard) env).verifyAuthentication(header)) properties.authenticationRequired();
+        // Scoutro: YaCy's administrator or a signed-in identity with the collect right (docs/SCOUTRO_USERS_ACCESS.md);
+        // the API limits the data to the identity's collections
+        if (!((Switchboard) env).verifyAuthentication(header)
+                && !net.yacy.scoutro.access.Caller.of(header).has(net.yacy.scoutro.access.Permission.COLLECT)) properties.authenticationRequired();
         return properties;
     }
 }

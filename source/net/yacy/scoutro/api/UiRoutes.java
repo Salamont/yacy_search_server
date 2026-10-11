@@ -84,6 +84,10 @@ final class UiRoutes {
         route("overview", "overview", "Overview", "/scoutro-dashboard.html", true,
                 "Collections, data state and hints of the signed-in identity's collections.");
         route("chat", "research", "Chat", "/yacychat.html", false, "Chat with sources from the index and graph facts.");
+        route("research.search", "research", "Search", "/scoutro-search.html?q={query}", false,
+                "Search within the collections of the signed-in identity (protected access mode).");
+        route("knowledge.operations", "settings", "Knowledge graph operations", "/ScoutroKnowledge_p.html?view=operations", true,
+                "Status, controls, backups, re-resolution and collection settings of the knowledge graph.");
         route("account.login", "account", "Sign in", "/scoutro-login.html?next={path}", false,
                 "Scoutro login page; next is a path on this server.");
         route("account.my", "account", "My account", "/scoutro-account.html", false,

@@ -212,6 +212,9 @@ def run(base):
     check(digest.call("GET", "/Status.html")[0] == 200, "digest admin pages unchanged")
     peer_routes(admin, digest, anna, anon)
 
+    # --- function pages and data within the collections (package 4) ---
+    scopes(base, admin, anna)
+
     # --- rights changes and locking end sessions ---
     status, body, _ = admin.call("PATCH", "/scoutro/api/v1/users/anna", {"collections": ["stackfinder-web", "edelsenior-web"]})
     check(status == 200 and body["sessionsEnded"] >= 1, "scope change ends sessions", str(body)[:200])
@@ -329,6 +332,97 @@ def peer_routes(admin, digest, anna, anon):
     status, body, _ = digest.call("GET", "/scoutro/api/v1/access/audit?limit=20")
     check(any(e.get("action") == "access.changed" and e.get("target") == "peerToPeer" for e in body.get("entries", [])),
           "peer-to-peer changes are audited")
+
+
+def ids(body, key="collections", field="id"):
+    return sorted(item.get(field) for item in body.get(key, [])) if isinstance(body, dict) else body
+
+
+def scopes(base, admin, anna):
+    """Research (stackfinder-web) and Operator (edelsenior-web, bauteamcheck-web, export) see and change only their collections."""
+    status, body, _ = admin.call("PATCH", "/scoutro/api/v1/users/otto", {"export": True})
+    check(status == 200 and body.get("export") is True, "operator gets the export right", str(body)[:200])
+    otto = Client(base)
+    status, body = otto.login("otto", "otto-password-1")
+    check(status == 200 and "export" in body["user"]["permissions"], "operator login", str(body)[:200])
+    html = {"Accept": "text/html"}
+
+    # pages by permission: read, chat, collect; the native search and YaCy pages stay closed
+    for client, name, allowed, refused in (
+            (anna, "research", ("/scoutro-dashboard.html", "/IndexBrowser_p.html", "/ScoutroSEO_p.html", "/ScoutroKnowledge_p.html",
+                                "/yacychat.html", "/scoutro-search.html", "/scoutro-account.html"),
+             ("/ScoutroCrawls_p.html", "/ScoutroDiscovery_p.html", "/ScoutroUsers_p.html", "/ScoutroSystem_p.html",
+              "/ScoutroCollections_p.html", "/ScoutroAgents_p.html", "/yacysearch.html?query=a", "/Status.html")),
+            (otto, "operator", ("/scoutro-dashboard.html", "/ScoutroCrawls_p.html", "/ScoutroDiscovery_p.html", "/ScoutroSEO_p.html?view=report"),
+             ("/ScoutroUsers_p.html", "/ScoutroSystem_p.html", "/Crawler_p.html", "/LLMSelection_p.html"))):
+        for path in allowed:
+            check(client.call("GET", path, headers=html)[0] == 200, name + " page " + path)
+        for path in refused:
+            check(client.call("GET", path, headers=html)[0] == 403, name + " refused page " + path)
+    status, _, headers = anna.call("GET", "/index.html", headers=html)
+    check(status == 302 and headers.get("Location", "").endswith("scoutro-search.html"), "start page leads accounts to the Scoutro search", str(status))
+    status, page = anna.page("/scoutro-dashboard.html")
+    check("stackfinder-web" in page and "edelsenior-web" not in page and "JVM" not in page and "Crawler_p.html" not in page,
+          "research overview shows only its collection and no system figures")
+    status, page = otto.page("/scoutro-dashboard.html")
+    check("edelsenior-web" in page and "bauteamcheck-web" in page and "stackfinder-web" not in page, "operator overview: its two collections")
+    status, page = admin.page("/scoutro-dashboard.html")
+    check(status == 200 and "JVM" in page and "stackfinder-web" in page, "administrator overview unchanged")
+
+    # collections, search and manipulated parameters
+    check(ids(anna.call("GET", "/scoutro/api/v1/collections")[1]) == ["stackfinder-web"], "research lists only its collection")
+    status, body, _ = anna.call("GET", "/scoutro/api/v1/collections")
+    check(body.get("canCreate") is False, "research cannot create collections")
+    status, body, _ = anna.call("POST", "/scoutro/api/v1/collections", {"id": "new-web"})
+    check(status == 403, "research cannot create a collection", str(status))
+    status, body, _ = anna.call("GET", "/scoutro/api/v1/search?q=page")
+    check(status == 200 and body.get("collections") == ["stackfinder-web"], "search defaults to the own collection", str(body)[:200])
+    for query, code in (("q=page&collection=edelsenior-web", "collection_not_allowed"), ("q=page&collection=nope-web", "collection_not_allowed"),
+                        ("q=page%20collection:edelsenior-web", "query_modifier_not_allowed"), ("q=page&source=network", "forbidden")):
+        status, body, _ = anna.call("GET", "/scoutro/api/v1/search?" + query)
+        check(anna.code(body) == code, "search refuses " + query, str(status))
+    for path in ("/scoutro/api/v1/index/browse?collection=edelsenior-web", "/scoutro/api/v1/index/domains?collection=edelsenior-web",
+                 "/scoutro/api/v1/seo/hosts?collection=edelsenior-web", "/scoutro/api/v1/index/metrics?collection=edelsenior-web",
+                 "/scoutro/api/v1/kg/entities?collection=edelsenior-web"):
+        status, body, _ = anna.call("GET", path)
+        check(status == 403 and anna.code(body) == "collection_not_allowed", "foreign collection refused: " + path, str(status))
+    status, body, _ = anna.call("GET", "/scoutro/api/v1/index/browse")
+    urls = [d.get("url", "") for d in body.get("documents", [])] if isinstance(body, dict) else []
+    check(status == 200 and urls and all(("/page-3" in u or "/page-4" in u) for u in urls), "browse shows only the own pages", str(urls)[:200])
+    status, body, _ = anna.call("GET", "/scoutro/api/v1/index")
+    check(status == 200 and [c["name"] for c in body.get("collections", [])] == ["stackfinder-web"] and "crawler" not in body,
+          "index status of the own collection only", str(body)[:200])
+
+    # exports need the export right and stay in the collections
+    status, body, _ = anna.call("GET", "/scoutro/api/v1/index/domains/export?format=json")
+    check(status == 403, "research without export right cannot export", str(status))
+    status, body, _ = otto.call("GET", "/scoutro/api/v1/index/domains/export?format=json")
+    hosts = sorted({i.get("host") for i in body.get("items", [])}) if isinstance(body, dict) else []
+    collections = sorted({c for i in body.get("items", []) for c in ([i.get("collection")] if i.get("collection") else i.get("collections", []))}) if isinstance(body, dict) else []
+    check(status == 200 and "stackfinder-web" not in collections, "operator export stays in its collections", str(collections))
+    status, body, _ = otto.call("GET", "/scoutro/api/v1/index/domains/export?format=json&collection=stackfinder-web")
+    check(status == 403, "operator export of a foreign collection refused", str(status))
+
+    # crawls, reports and discovery of the operator
+    for crawl, code in (({"url": "https://example.org/", "collection": "stackfinder-web"}, "collection_not_allowed"),
+                        ({"url": "https://example.org/", "collection": "edelsenior-web", "scope": "wide"}, "scope_not_allowed"),
+                        ({"url": "https://bau.example/", "collection": "edelsenior-web", "scope": "domain"}, "host_indexed_elsewhere")):
+        status, body, _ = otto.call("POST", "/scoutro/api/v1/crawls", crawl)
+        check(otto.code(body) == code, "operator crawl refused: " + code, str(status) + " " + str(body)[:160])
+    check(otto.call("GET", "/scoutro/api/v1/crawls")[0] == 200, "operator lists its crawls")
+    check(otto.call("GET", "/scoutro/api/v1/reports/jobs")[0] == 200, "operator reads crawl reports")
+    for method, path in (("POST", "/scoutro/api/v1/discovery/enable"), ("GET", "/scoutro/api/v1/discovery/export"),
+                         ("GET", "/scoutro/api/v1/kg/status"), ("GET", "/scoutro/api/v1/kg/backups"), ("POST", "/scoutro/api/v1/collections/reassign")):
+        status, body, _ = otto.call(method, path, {} if method == "POST" else None)
+        check(status == 403, "operator refused on system function " + path, str(status))
+    status, body, _ = otto.call("GET", "/scoutro/api/v1/discovery/status")
+    check(status == 200 and body.get("allowed_actions") == [], "operator sees Discovery without global actions", str(body)[:160])
+
+    # chat: admitted by the session, never the whole index without all collections
+    status, body, _ = anna.call("POST", "/v1/chat/completions", {"messages": [{"role": "user", "content": "Hallo"}], "collection": "edelsenior-web"})
+    check(status in (403, 503), "chat refuses a foreign collection or has no model", str(status) + " " + str(body)[:160])
+    status, body, _ = anna.call("POST", "/v1/chat/completions", {"messages": [{"role": "user", "content": "Wie viele Dokumente hat der Index?"}]})
+    check(status in (403, 503) and status != 401, "chat admits the session but no system question", str(status) + " " + str(body)[:160])
 
 
 def main():

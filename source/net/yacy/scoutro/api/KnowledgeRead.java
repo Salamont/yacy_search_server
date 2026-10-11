@@ -71,6 +71,8 @@ final class KnowledgeRead {
 
     private final Supplier<KgRuntime> runtime;
     private final String base;
+    /** agents and people without the administrator role: no model names, no graph-wide backlog */
+    private final boolean restricted;
 
     KnowledgeRead(final Supplier<KgRuntime> runtime) {
         this(runtime, ADMIN_BASE);
@@ -78,8 +80,17 @@ final class KnowledgeRead {
 
     /** @param base the route base, for the full-sync hint of an expired cursor */
     KnowledgeRead(final Supplier<KgRuntime> runtime, final String base) {
+        this(runtime, base, AGENT_BASE.equals(base));
+    }
+
+    /**
+     * @param restricted true for every reader that is not the administrator (agents, Scoutro accounts
+     *        with the read right): the same reads without model names and without graph-wide counts
+     */
+    KnowledgeRead(final Supplier<KgRuntime> runtime, final String base, final boolean restricted) {
         this.runtime = runtime;
         this.base = base;
+        this.restricted = restricted || AGENT_BASE.equals(base);
     }
 
     /** True for the read resources ({@code parts[0]} after {@code kg}). */
@@ -119,8 +130,8 @@ final class KnowledgeRead {
             if (r == null) {
                 throw new KgException(KgException.DISABLED, "not started");
             }
-            final boolean agent = AGENT_BASE.equals(this.base);
-            // agents: evidence without model names, and no graph-wide backlog (it counts every collection)
+            final boolean agent = this.restricted;
+            // agents and restricted people: evidence without model names, and no graph-wide backlog (it counts every collection)
             final KgReader reader = agent ? r.reader().forAgents() : r.reader();
             final Viewer permitted = reader.viewer(permittedCollections);
             final Viewer viewer = KgReader.within(reader.viewer(collections), permitted);

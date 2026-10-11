@@ -134,7 +134,16 @@ public class RAGProxyServlet extends HttpServlet {
         }
         final ClientAddress client = LLMAccess.client(hrequest);
         final String clientIP = client.effective();
-        final LLMAccess.Shield shield = LLMAccess.shield(sb.getConfigBool("ai.shield.allow-nonlocalhost", false), client,
+        // Scoutro: a signed-in account without the administrator role chats only within its collections
+        // (docs/SCOUTRO_USERS_ACCESS.md); its session, not its address, decides
+        final net.yacy.scoutro.access.Scope member = ChatCollections.member(hrequest);
+        if (member != null && member.isEmpty()) {
+            LLMAccess.error(hresponse, HttpServletResponse.SC_FORBIDDEN, LLMAccess.COLLECTION_NOT_ALLOWED,
+                    "Your account has no collection for the chat; ask an administrator.");
+            return;
+        }
+        final LLMAccess.Shield shield = member != null ? LLMAccess.Shield.ACCOUNT
+                : LLMAccess.shield(sb.getConfigBool("ai.shield.allow-nonlocalhost", false), client,
                 LLMAccess.crossSite(hrequest, client), LLMAccess.bearerToken(hrequest),
                 () -> LLMAccess.admin(hrequest, hresponse, true));
         ConcurrentLog.info("RAGProxy", "runId=" + runId + " event=rag-request phase=start method=" + hrequest.getMethod() + " localhost=" + client.isLocal() + " " + client + " shield=" + shield);
@@ -230,8 +239,19 @@ public class RAGProxyServlet extends HttpServlet {
             // the scope a client may choose (package 6.1): local and administrator access every collection, an AI Shield
             // guest only the released ones; the chat page lists exactly these, a name outside them is refused and never echoed
             final String releasedCollections = sb.getConfig(ChatCollections.GUEST_SETTING, "");
-            final boolean allCollections = shield.privileged || ChatCollections.privileged(client, hrequest);
-            if (!ChatCollections.permits(allCollections, collection, releasedCollections)) {
+            final boolean allCollections = member != null ? member.isAll() : shield.privileged || ChatCollections.privileged(client, hrequest);
+            if (member != null && !member.isAll() && collection == null) {
+                // an account never chats with the whole index unless it has all collections: its only one, or a choice
+                if (member.collections().size() == 1) {
+                    collection = member.collections().get(0);
+                } else {
+                    LLMAccess.error(hresponse, HttpServletResponse.SC_BAD_REQUEST, "collection_required",
+                            "Choose one of your collections for this chat.");
+                    return;
+                }
+            }
+            if (member != null ? collection != null && !member.allows(collection)
+                    : !ChatCollections.permits(allCollections, collection, releasedCollections)) {
                 ConcurrentLog.warn("RAGProxy", "runId=" + runId + " event=rag-request phase=reject reason=collection-not-allowed shield=" + shield + " durationMs=" + elapsed(requestStart));
                 LLMAccess.error(hresponse, HttpServletResponse.SC_FORBIDDEN, LLMAccess.COLLECTION_NOT_ALLOWED,
                         "This collection is not available for this chat; choose one of the listed collections or the whole index.");
@@ -320,7 +340,8 @@ public class RAGProxyServlet extends HttpServlet {
                 // a collection: modifier of the question counts only within the client's collections, else the whole index
                 final String scope = collection != null ? collection
                         : ChatCollections.permits(allCollections, query.questionCollection, releasedCollections) ? query.questionCollection : null;
-                final boolean global = "global".equals(ragMode) && scope == null;
+                // Scoutro: the peer-to-peer network search stays with administrators and the AI Shield's own rules
+                final boolean global = "global".equals(ragMode) && scope == null && member == null;
                 final RagRetriever retriever = new RagRetriever((q, c, n, g) -> RAGAugmentor.searchCandidates(q, c, n, g, runId));
                 RagRetriever.Result result = retriever.retrieve(query, scope, global, ragSettings.maxSources);
                 if (result.selected.isEmpty() && countWords(question) > DIRECT_SEARCH_WORD_LIMIT && llm4tldr != null) {
@@ -336,7 +357,8 @@ public class RAGProxyServlet extends HttpServlet {
                 // Scoutro knowledge graph: facts of the entities the question names or the found pages hold, as further
                 // numbered sources after the search results; local and administrator access only (guests by setting)
                 final GraphFacts.Selected graphSelection = GraphFacts.collect(GraphFacts.runtime(),
-                        shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN, shield == LLMAccess.Shield.GUEST,
+                        shield == LLMAccess.Shield.LOCAL || shield == LLMAccess.Shield.ADMIN || shield == LLMAccess.Shield.ACCOUNT,
+                        shield == LLMAccess.Shield.GUEST,
                         scope, global, result.selected, query, sourceChars);
                 final RagContext.Built built = RagContext.build(result.selected, query, Math.max(0, sourceChars - graphSelection.reservedChars()),
                         ragSettings.documentMaxLength, ragSettings.maxSources, scope);

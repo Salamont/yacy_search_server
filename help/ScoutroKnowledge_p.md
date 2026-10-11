@@ -3,7 +3,7 @@ page: htroot/ScoutroKnowledge_p.html
 help: help/ScoutroKnowledge_p.md
 title: Knowledge graph
 package: scoutro
-access: admin
+access: admin; read right (protected access mode)
 kind: admin-page
 backend_java: source/net/yacy/htroot/ScoutroKnowledge_p.java
 ---
@@ -588,3 +588,17 @@ Speichern prüft den ganzen Plan und übernimmt ihn ohne Graph-Neustart oder Neu
 Übersicht/Einstellungen zeigen Modus, Wochentage, Fenster, Zone, aktuellen Fensterstatus, nächsten zeitlich erlaubten Start, tatsächlichen Wartegrund, laufende Anfragen und manuellen Lauf. Der nächste Zeitpunkt garantiert keine freien Ressourcen und kein Fertigstellungsdatum. Ungültige manuell editierte Pläne pausieren nur LLM-Aufrufe.
 
 Admin-API: `GET`/`PUT /scoutro/api/v1/kg/llm-schedule` (vollständiger Plan mit `mode`, `days`, `from`, `until`, `zone`, `minStartSeconds`); `POST /scoutro/api/v1/kg/llm-run` (`action:start`, optional `maxDocuments`/`maxRequests`, oder `action:stop`). Keine Query-Parameter, keine beliebigen Konfigurationsschlüssel, keine Agentenfreigabe. Authentifizierung und Cross-site-Prüfung wie bei bestehenden Admin-Aktionen. Technische Grenzen, Zeitsemantik und Rücknahme: [Zeitsteuerung](../docs/SCOUTRO_LLM_SCHEDULE.md).
+
+## Scoutro accounts (protected access mode)
+
+Accounts with the **read** right open the knowledge views (*Knowledge →
+Organisations, Services, Comparisons, History*) within their collections;
+without a request the view covers all of their collections, never the whole
+graph. Status, controls, backups, re-resolution, the LLM tier and the
+collection settings form the administrator view *Settings → Knowledge graph
+operations* (`?view=operations`, an alias of the overview); for accounts the
+page opens the objects view and hides the overview and settings tabs, and
+the API refuses those routes (`403`). Downloads (`/kg/export`,
+`/kg/export/download`, `/kg/changes`, the network as GraphML or JSON) need
+the **export** right. Accounts read like agents: no model names and no
+graph-wide backlog figures. See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.
