@@ -293,9 +293,11 @@
   const STORAGE = { storage_error: ['error', 'pr_act_storage'], disk_critical: ['error', 'pr_act_disk'],
     integrity_check_failed: ['error', 'pr_kn_integrity_action'], start_not_recorded: ['error', 'pr_act_storage'],
     manual: ['paused', 'pr_kn_manual_action'], manual_pause: ['paused', 'pr_kn_manual_action'],
-    budget: ['paused', 'pr_kn_storage_action'], budget_exhausted: ['paused', 'pr_kn_storage_action'],
+    budget: ['paused', 'pr_kn_storage_action'], budget_exhausted: ['paused', 'pr_kn_storage_action'], storage_full: ['paused', 'pr_kn_storage_action'],
     disk_reserve: ['waiting', 'pr_act_disk'], tmp_limit: ['waiting', null], wal_limit: ['waiting', null],
     wal_checkpoint_blocked: ['waiting', null], integrity_check_pending: ['waiting', null], write_refused: ['waiting', null] };
+  // a refused run of the derived layer that the next interval simply tries again
+  const TRANSIENT = ['busy', 'read_timeout', 'operation_running', 'epoch_changed', 'store_closed'];
   const num = v => typeof v === 'number' && isFinite(v) ? v : null;
   // a count with its unit; the singular where the labels have one ("1 document task")
   const one = (key, v) => v === 1 && labels[key + '_one'] ? labels[key + '_one'] : t(key);
@@ -316,7 +318,9 @@
     const sy = s.sync || {}, l = s.llm || {}, st = s.storage || {}, jl = s.jsonld || {}, dv = s.derived || {};
     const lag = sy.lag || {}, bt = lag.byType || {}, scheduler = sy.scheduler || {};
     // why new facts may not be written now, for the whole graph: the most severe reason of the storage guard
-    const guardCode = st.growthAllowed === false ? ((st.reasons || [])[0]?.code
+    // a blocked WAL checkpoint refuses growth only while the WAL is over its limit (StorageGuard.refusal)
+    const walOver = num(st.wal?.bytes) != null && num(st.wal?.maxBytes) != null && st.wal.bytes > st.wal.maxBytes;
+    const guardCode = st.growthAllowed === false ? ((st.reasons || []).find(r => r.code !== 'wal_checkpoint_blocked' || walOver)?.code
       || (num(st.usedBytes) != null && num(st.pauseAtBytes) != null && st.usedBytes > st.pauseAtBytes ? 'budget' : 'write_refused')) : null;
     const guard = storageState(guardCode, st);
     const syncStopped = scheduler.state === 'failed' || ['failed', 'unavailable'].includes(sy.state);
@@ -418,7 +422,7 @@
         rows: [['pr_d_pending', unit('pr_unit_pages', pending), t('pr_basis_now')],
           ['pr_d_tasks_open', unit('pr_unit_tasks', items), t('pr_basis_now')],
           ['pr_d_tasks_claimed', unit('pr_unit_tasks', num(q.claimed)), t('pr_basis_now')],
-          ['pr_d_calls_running', unit('pr_unit_calls', num(time.runningRequests)), t('pr_basis_now')],
+          ['pr_d_calls_running', unit('pr_unit_requests', num(time.runningRequests)), t('pr_basis_now')],
           ['pr_d_done', unit('pr_unit_docs', num(docs.done)), t('pr_basis_total')],
           ['pr_d_failed', unit('pr_unit_docs', num(docs.failed)), t('pr_basis_total')],
           ['pr_d_skipped', unit('pr_unit_docs', num(docs.skipped)), t('pr_basis_total')],
@@ -455,7 +459,8 @@
       let kind = 'scheduled', why = null, action = null;
       if (dv.enabled === false) kind = 'off';
       else if (refused) {
-        const r = storageState(refused, st) || { kind: 'error', why: reasonText(refused), action: t('pr_act_storage') };
+        const r = storageState(refused, st) || (TRANSIENT.includes(refused) ? { kind: 'waiting', why: t('pr_sg_busy'), action: null }
+          : { kind: 'error', why: reasonText(refused), action: t('pr_act_storage') });
         kind = r.kind; why = t('pr_sg_refused').replace('%1', r.why); action = r.action;
       } else if (guard) ({ kind, why, action } = guard);
       else why = t('pr_sg_wait') + (m.cycle_complete === false && !m.deferred?.startsWith?.('configuration') ? '; ' + t('pr_sg_continue') : '');

@@ -16918,6 +16918,15 @@
     <trans-unit id="cd0c2a0c" xml:space="preserve" approved="no" translate="yes">
        <source>not available (no run since the last start)</source>
     </trans-unit>
+    <trans-unit id="ffdb1326" xml:space="preserve" approved="no" translate="yes">
+       <source>the graph was busy; the next interval tries again</source>
+    </trans-unit>
+    <trans-unit id="e6dc98cf" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 model requests</source>
+    </trans-unit>
+    <trans-unit id="a72bdae9" xml:space="preserve" approved="no" translate="yes">
+       <source>1 model request</source>
+    </trans-unit>
     <trans-unit id="48db310" xml:space="preserve" approved="no" translate="yes">
        <source>Open:</source>
     </trans-unit>
@@ -17110,8 +17119,8 @@
     <trans-unit id="423579ed" xml:space="preserve" approved="no" translate="yes">
        <source>of them in progress</source>
     </trans-unit>
-    <trans-unit id="36b9d3" xml:space="preserve" approved="no" translate="yes">
-       <source>Model calls running now</source>
+    <trans-unit id="6474ef50" xml:space="preserve" approved="no" translate="yes">
+       <source>Model requests running now</source>
     </trans-unit>
     <trans-unit id="537a800a" xml:space="preserve" approved="no" translate="yes">
        <source>Documents done</source>

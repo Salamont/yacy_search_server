@@ -90,7 +90,7 @@
     // no <form>: the dialog is also part of pages that must not contain one (the dashboard); Save and Enter in a
     // field create, Enter never reaches a surrounding page form
     ['name', 'id'].forEach(function (field) {
-      $(field).addEventListener('keydown', function (event) { if (event.key === 'Enter') { event.preventDefault(); save(); } });
+      $(field).addEventListener('keydown', function (event) { if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); save(); } });
     });
     $('save').addEventListener('click', save);
     function save() {

@@ -48,6 +48,10 @@ const SCENARIOS = {
   confirm: () => { const s = busy(); s.sync.reconcile.awaitingConfirmation = true; return s; },
   noqueue: () => { const s = busy(); s.sync.queue = { items: null }; s.sync.lag = { pending: 100, byType: { captured: 100 } }; return s; },
   refused: () => { const s = busy(); s.derived.last = { byKind: {}, refused: 'manual', durationMs: 0 }; return s; },
+  // a blocked WAL checkpoint is listed first, but refuses nothing while the WAL is under its limit
+  walpause: () => { const s = busy(); s.storage.growthAllowed = false; s.storage.wal = { bytes: 1000, maxBytes: 64000000 };
+    s.storage.reasons = [{ code: 'wal_checkpoint_blocked' }, { code: 'manual' }]; s.llm.timing = { waitReason: 'manual', runningRequests: 0 }; return s; },
+  busyrun: () => { const s = busy(); s.derived.last = { byKind: {}, refused: 'busy', durationMs: 0 }; return s; },
   nollm: () => { const s = busy(); delete s.llm; return s; },
   waiting: () => { const s = busy(); s.sync.gate = 'load'; s.llm.timing = { waitReason: 'time_window', runningRequests: 0, nextAllowedStart: NOW + 3600000 };
     s.llm.queue = { items: 181, claimed: 0 }; return s; },
@@ -189,7 +193,8 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
   check(await chip('sources') === await L('pr_k_error') && (await lines('sources')).includes(await L('pr_src_blocked')), 'detected changes are blocked while the sync task is stopped' + where);
   check((await lines('knowledge')).includes(await L('pr_kn_integrity_action')), 'a failed integrity check asks for a backup' + where);
   await station('ai').locator('.skg-station-head').click();
-  check((await detail('ai')).includes(await L('pr_unit_calls_one')) || (await detail('ai')).includes((await L('pr_unit_calls')).replace('%1', n(0))), 'singular units in the details' + where);
+  check((await detail('ai')).includes((await L('pr_unit_requests')).replace('%1', n(0))) && (await detail('ai')).includes((await L('pr_unit_calls')).replace('%1', n(188))),
+    'running requests and counted calls in their own units' + where);
   if (shots) await page.locator('#skg-process').screenshot({ path: path.join(shots, `knowledge-process-errors-${language}-${width}.png`) });
 
   // the storage guard means the same on every step
@@ -211,6 +216,13 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
   await station('suggestions').locator('.skg-station-head').click();
   check((await detail('suggestions')).includes(await L('pr_sg_refused_value')) && !(await detail('suggestions')).includes((await L('pr_unit_relations')).replace('%1', n(0))),
     'a refused run shows no values as 0' + where);
+  await load('walpause');
+  for (const key of ['rules', 'ai', 'knowledge', 'suggestions']) {
+    check(await chip(key) === await L('pr_k_paused') && (await lines(key)).includes(await L('pr_kn_manual_action')), 'the pause, not the blocked checkpoint, at ' + key + where);
+  }
+  await load('busyrun');
+  check(await chip('suggestions') === await L('pr_k_waiting') && (await lines('suggestions')).includes(await L('pr_sg_busy'))
+    && !(await lines('suggestions')).includes(await L('pr_act_storage')), 'a run refused while the graph was busy waits, no error' + where);
   await load('nollm');
   check(await chip('ai') === await L('pr_k_unknown') && await chip('rules') === await L('pr_k_running'), 'no AI status: no data, rules unaffected' + where);
 

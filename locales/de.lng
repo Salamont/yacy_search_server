@@ -5673,6 +5673,9 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 >%1 s (measured over 1 finished model request since the last start)<==>%1 s (gemessen über 1 abgeschlossene Modellanfrage seit dem letzten Start)<
 >not available (the last run was refused)<==>nicht verfügbar (der letzte Lauf wurde abgelehnt)<
 >not available (no run since the last start)<==>nicht verfügbar (seit dem letzten Start kein Lauf)<
+>the graph was busy; the next interval tries again<==>der Graph war beschäftigt; das nächste Intervall versucht es erneut<
+>%1 model requests<==>%1 Modellanfragen<
+>1 model request<==>1 Modellanfrage<
 >Open:<==>Offen:<
 >Waits because:<==>Wartet, weil:<
 >Your action:<==>Ihr Handeln:<
@@ -5737,7 +5740,7 @@ Search. Crawl. Discover.==Suchen. Crawlen. Entdecken.
 >The AI examines the pages of the AI collections; its queue is refilled from the pages not yet examined in small portions. One page can need several model requests, so a request is not a page. Skipped pages (not selected, over the per-host limit or without a host) are no backlog.<==>Die KI prüft die Seiten der KI-Collections; ihre Warteschlange wird in kleinen Portionen aus den noch nicht geprüften Seiten nachgefüllt. Eine Seite kann mehrere Modellanfragen brauchen, eine Anfrage ist also keine Seite. Übersprungene Seiten (nicht ausgewählt, über dem Limit je Host oder ohne Host) sind kein Rückstand.<
 >Document tasks in the queue (in progress included)<==>Dokumentaufgaben in der Warteschlange (laufende eingeschlossen)<
 >of them in progress<==>davon in Bearbeitung<
->Model calls running now<==>Laufende Modellabrufe<
+>Model requests running now<==>Laufende Modellanfragen<
 >Documents done<==>Fertige Dokumente<
 >Documents failed<==>Fehlgeschlagene Dokumente<
 >Documents skipped (no backlog)<==>Übersprungene Dokumente (kein Rückstand)<

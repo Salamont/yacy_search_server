@@ -172,6 +172,7 @@ public final class LlmService {
                 }
             }
             final long n = this.calls.get();
+            final long finished = this.requestsFinished.get(), millis = this.callMillis.get();
             return KgJson.obj(
                     "calls",
                     n,
@@ -184,10 +185,10 @@ public final class LlmService {
                     "averageCallMillis",
                     n == 0 ? null : this.callMillis.get() / n,
                     "requestsFinished",
-                    this.requestsFinished.get(),
+                    finished,
                     // measured: only requests that have ended, never a request still running
                     "averageRequestMillis",
-                    this.requestsFinished.get() == 0 ? null : this.callMillis.get() / this.requestsFinished.get(),
+                    finished == 0 ? null : millis / finished,
                     "answersAccepted",
                     this.answersAccepted.get(),
                     "answersRefused",
@@ -819,8 +820,9 @@ public final class LlmService {
         this.counters.requestStarts.incrementAndGet();
         if (!logicalCounted.getAndSet(true)) this.counters.calls.incrementAndGet();
         return () -> {
-            this.counters.callMillis.addAndGet(Math.max(0, this.clock.getAsLong() - started));
+            // the count first, then its time: a status read in between never divides a time by fewer requests
             this.counters.requestsFinished.incrementAndGet();
+            this.counters.callMillis.addAndGet(Math.max(0, this.clock.getAsLong() - started));
             admitted.close();
         };
     }

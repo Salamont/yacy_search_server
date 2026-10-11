@@ -300,7 +300,7 @@ public final class CollectionCatalog {
             // the facet lists at most 500 collections: the pages of this one are counted exactly before anything changes
             final long documents;
             try {
-                documents = Math.max(found.documents, this.index.count(id));
+                documents = found.documents > 0 ? found.documents : this.index.count(id);
             } catch (final RuntimeException e) {
                 throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was removed.");
             }
