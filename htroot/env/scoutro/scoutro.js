@@ -19,6 +19,60 @@ for the JavaScript code in this page.
 */
 
 /*
+ * Session CSRF protection: changing same-origin calls to the Scoutro API carry
+ * the session's token in X-Scoutro-CSRF (docs/SCOUTRO_USERS_ACCESS.md, section 5).
+ * The token comes from <meta name="scoutro-csrf"> or, on pages rendered without
+ * it, once from /scoutro/api/v1/auth/session. It is never stored in localStorage.
+ */
+(function () {
+  'use strict';
+  if (typeof window.fetch !== 'function' || window.fetch.scoutroCsrf) return;
+  var original = window.fetch;
+  var pending = null;
+  function metaToken() {
+    var m = document.querySelector('meta[name="scoutro-csrf"]');
+    var value = m && m.getAttribute('content') ? m.getAttribute('content') : '';
+    return /^[A-Za-z0-9_-]{32}$/.test(value) ? value : ''; // a session token; ignores an unresolved template field
+  }
+  function sessionToken() {
+    if (!pending) {
+      pending = original.call(window, '/scoutro/api/v1/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : {}; })
+        .then(function (j) { return (j && j.csrf) || ''; })
+        .catch(function () { return ''; });
+    }
+    return pending;
+  }
+  function needsToken(input, init) {
+    var method = ((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase();
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+    try {
+      var url = new URL(typeof input === 'string' ? input : (input && input.url) || String(input), window.location.href);
+      return url.origin === window.location.origin && url.pathname.indexOf('/scoutro/') === 0;
+    } catch (e) {
+      return false;
+    }
+  }
+  function withToken(input, init, token) {
+    if (!token) return original.call(window, input, init);
+    var options = Object.assign({}, init || {});
+    var headers = new Headers(options.headers || (input && typeof input === 'object' && input.headers) || {});
+    if (!headers.has('X-Scoutro-CSRF')) headers.set('X-Scoutro-CSRF', token);
+    options.headers = headers;
+    return original.call(window, input, options);
+  }
+  var wrapped = function (input, init) {
+    if (!needsToken(input, init)) return original.call(window, input, init);
+    var token = metaToken();
+    if (token) return withToken(input, init, token);
+    return sessionToken().then(function (t) { return withToken(input, init, t); });
+  };
+  wrapped.scoutroCsrf = true;
+  window.fetch = wrapped;
+  window.ScoutroCsrf = { token: function () { return metaToken() || ''; }, refresh: function () { pending = null; return sessionToken(); } };
+})();
+
+/*
  * Mobile navigation: on small screens the navbar toggle opens the complete
  * administration menu (#scoutro-adminnav, the YaCy sidebar) as a scrollable
  * panel. Event delegation on document, so this works without waiting for
@@ -106,6 +160,7 @@ for the JavaScript code in this page.
   function markCurrentLinks() {
     var here = window.location.pathname.replace(/^.*\//, '') || 'index.html';
     var query = window.location.search;
+    var view = new URLSearchParams(query).get('view') || '';
     var links = document.querySelectorAll('#scoutro-adminnav a[href], ul.SubMenu a[href]');
     for (var i = 0; i < links.length; i++) {
       var href = links[i].getAttribute('href');
@@ -113,11 +168,148 @@ for the JavaScript code in this page.
       var file = (q < 0 ? href : href.substring(0, q)).replace(/^.*\//, '');
       var linkQuery = q < 0 ? '' : href.substring(q);
       var inSidebar = !!links[i].closest('#scoutro-adminnav');
-      if (file === here && (inSidebar || linkQuery === '' || linkQuery === query)) {
+      /* several sidebar entries open views of one page (?view=...): only the matching view is current */
+      var linkView = new URLSearchParams(linkQuery).get('view') || '';
+      var sidebarMatch = inSidebar && linkView === view;
+      if (file === here && (sidebarMatch || (!inSidebar && (linkQuery === '' || linkQuery === query)))) {
         links[i].classList.add('scoutro-current');
         links[i].setAttribute('aria-current', 'page');
+        var advanced = links[i].closest('details');
+        if (advanced) advanced.open = true;
       }
     }
+  }
+
+  /*
+   * Account menu of the header: sign-in with the current page as return
+   * target, sign-out of the session (POST, CSRF header from the fetch
+   * wrapper above), and a menu that closes on Escape or outside clicks.
+   */
+  function setUpAccount() {
+    var signin = document.getElementById('scoutro-signin');
+    if (signin) {
+      signin.setAttribute('href', 'scoutro-login.html?next=' + encodeURIComponent(window.location.pathname + window.location.search));
+    }
+    var signout = document.getElementById('scoutro-signout');
+    if (signout) {
+      signout.addEventListener('click', function () {
+        signout.disabled = true;
+        fetch('/scoutro/api/v1/auth/logout', { method: 'POST', credentials: 'same-origin', cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' }, body: '{}' })
+          .catch(function () { return null; })
+          .then(function () { window.location.href = 'scoutro-login.html?signedout=1'; });
+      });
+    }
+    var menu = document.getElementById('scoutro-account-menu');
+    if (!menu) return;
+    document.addEventListener('click', function (event) {
+      if (menu.open && !menu.contains(event.target)) menu.open = false;
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && menu.open) {
+        menu.open = false;
+        var summary = menu.querySelector('summary');
+        if (summary) summary.focus();
+      }
+    });
+  }
+
+  /*
+   * Collection context of the navigation: the collections of the signed-in
+   * identity (GET /scoutro/api/v1/collections). The choice lasts for this
+   * browser tab (sessionStorage, a collection name, never a token) and is
+   * added as ?collection= to the header search and to the function pages
+   * that read it; a link's own collection wins. The server checks the scope
+   * of every request, so the list only helps choosing.
+   */
+  var CONTEXT_KEY = 'scoutro.context.collection';
+  var CONTEXT_PAGES = ['scoutro-search.html', 'yacychat.html', 'IndexBrowser_p.html', 'ScoutroSEO_p.html',
+    'ScoutroKnowledge_p.html', 'ScoutroCrawls_p.html'];
+
+  function storedContext() {
+    try { return window.sessionStorage.getItem(CONTEXT_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function storeContext(value) {
+    try {
+      if (value) window.sessionStorage.setItem(CONTEXT_KEY, value);
+      else window.sessionStorage.removeItem(CONTEXT_KEY);
+    } catch (e) {
+      /* the choice then lasts for this page only */
+    }
+  }
+
+  var contextValue = '';
+
+  /* The header search adds the context to its target when it is sent; the form gets no extra field,
+     so pages with their own collection field (YaCy's crawl forms) keep exactly one. */
+  function sendHeaderSearch(event) {
+    var form = event.currentTarget;
+    if (!contextValue || !window.URLSearchParams) return;
+    event.preventDefault();
+    var params = new URLSearchParams();
+    for (var i = 0; i < form.elements.length; i++) {
+      var field = form.elements[i];
+      if (field.name && !field.disabled && field.type !== 'submit') params.append(field.name, field.value);
+    }
+    params.set('collection', contextValue);
+    window.location.href = form.getAttribute('action') + '?' + params.toString();
+  }
+
+  function applyContext(value) {
+    contextValue = value;
+    var links = document.querySelectorAll('#scoutro-adminnav a[href]');
+    for (var i = 0; i < links.length; i++) {
+      var href = links[i].getAttribute('href');
+      var q = href.indexOf('?');
+      var file = (q < 0 ? href : href.substring(0, q)).replace(/^.*\//, '');
+      if (CONTEXT_PAGES.indexOf(file) < 0 || links[i].closest('details')) continue;
+      var params = new URLSearchParams(q < 0 ? '' : href.substring(q + 1));
+      if (value) params.set('collection', value); else params.delete('collection');
+      var query = params.toString();
+      links[i].setAttribute('href', file + (query ? '?' + query : ''));
+    }
+  }
+
+  function setUpContext() {
+    var box = document.getElementById('scoutro-context');
+    var select = document.getElementById('scoutro-context-select');
+    if (!box || !select || !window.fetch) return;
+    fetch('/scoutro/api/v1/collections', { credentials: 'same-origin', cache: 'no-store', headers: { 'Accept': 'application/json' } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (json) {
+        var list = json && json.collections ? json.collections.filter(function (c) { return c.selectable !== false && !c.internal; }) : [];
+        if (!list.length) return;
+        list.forEach(function (c) {
+          var option = document.createElement('option');
+          option.value = c.id;
+          option.textContent = c.name && c.name !== c.id ? c.name : c.id;
+          select.appendChild(option);
+        });
+        var known = function (v) { return list.some(function (c) { return c.id === v; }); };
+        var fromLink = new URLSearchParams(window.location.search).get('collection') || '';
+        var here = window.location.pathname.replace(/^.*\//, '');
+        var value = fromLink && known(fromLink) && CONTEXT_PAGES.indexOf(here) >= 0 ? fromLink : storedContext();
+        if (!known(value)) value = '';
+        select.value = value;
+        storeContext(value);
+        applyContext(value);
+        var form = document.getElementById('header-search-form');
+        if (form) form.addEventListener('submit', sendHeaderSearch);
+        box.hidden = false;
+        select.addEventListener('change', function () {
+          storeContext(select.value);
+          applyContext(select.value);
+          if (CONTEXT_PAGES.indexOf(here) >= 0) {
+            var params = new URLSearchParams(window.location.search);
+            if (select.value) params.set('collection', select.value); else params.delete('collection');
+            params.delete('offset');
+            var query = params.toString();
+            window.location.href = here + (query ? '?' + query : '');
+          }
+        });
+      })
+      .catch(function () { /* without the list the pages keep their own choice */ });
   }
 
   /*
@@ -176,6 +368,8 @@ for the JavaScript code in this page.
     if (window.MutationObserver) new MutationObserver(labelCards).observe(document.body, {childList: true, subtree: true});
     wrapWideTables();
     markCurrentLinks();
+    setUpAccount();
+    setUpContext();
     watchEmptyResults();
   }
 

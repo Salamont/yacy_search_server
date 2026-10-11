@@ -16,7 +16,9 @@ Checked on every viewport:
   Design, Ranking, …) are visible, inside the viewport, not covered by an
   overlay and at least 40px high on mobile;
 - Escape closes the panel, a menu link navigates, page submenus are reachable;
-- desktop keeps the sidebar and the top bar; mobile-only groups are hidden;
+- desktop keeps the sidebar and the top bar with the account menu; the
+  header has no Re-Start/Shutdown links; "Advanced tools" is open on its
+  own pages (`Status.html`);
 - the public search header keeps its menu and the way to the administration;
 - the "Powered by YaCy" attribution footer is present;
 - Status, Accounts, Basic/Network Configuration, Crawl Start, Crawler, Index,
@@ -234,3 +236,48 @@ Clocks, DST, simultaneous workers, actual HTTP format fallbacks, retry and
 checkpoint-write refusal are exercised by the Java target. The write refusal is
 simulated through the existing integrity/storage guard; it is not a host disk-full
 test. [Timing semantics and limits](../../docs/SCOUTRO_LLM_SCHEDULE.md).
+
+## Accounts and permissions (multi-user)
+
+`test/scoutro-access/access-live-smoke.py` checks the sign-in, sessions,
+protected access mode, rights changes and the scope of every API route for a
+Research and an Operator account (HTTP only). The browser check runs through
+
+```sh
+NODE_PATH=/path/to/node_modules SCOUTRO_CHROMIUM_PATH=/usr/bin/chromium \
+SCOUTRO_SCREENSHOTS=/tmp/scoutro-accounts \
+python3 test/scoutro-access/accounts-ui-live-smoke.py
+```
+
+It starts a disposable peer (four seeded collections, German by browser
+language), switches on the protected access mode, creates a Research, an
+Operator and an Administrator account with passwords generated for the run,
+releases one collection for guests and runs `accounts-ui-test.mjs` in English
+and German at 1280 and 390 px: sign-in with return target, navigation groups
+per role, collection context, overview cards, pages by permission and the
+403 page, the Scoutro search, the knowledge page without operations,
+sign-out and the guest search. As administrator it opens every internal page
+of the navigation, YaCy's own pages under "Advanced tools" included, on
+desktop and phone. No credential is written to a file.
+
+`test/scoutro-access/chat-rag-live-smoke.py` checks the RAG chat of
+accounts with a deterministic local model stub (OpenAI-compatible on
+127.0.0.1, no external model, no key) that records every request: two
+collections with distinct pages and knowledge-graph facts, a Research
+account of one collection and an account of both. It asserts which search
+context, graph facts and tool results reach the model and which sources the
+client gets, also for a foreign or invalid collection, `collection:` in the
+question, the global search, client tools and system messages, a search-tool
+call of the model (released as an administrator could do it), system
+questions and the administrator's model mirror. `SCOUTRO_RAG_DUMP=FILE`
+writes what the model received.
+
+`test/scoutro-api/agent-crawl-host-live-smoke.py` checks that an agent's
+crawl stays on exactly its start host. YaCy's domain filter is a host prefix,
+so a crawl of `agent-host.example` would also follow `agent-host.example.test`.
+The smoke starts two local HTTP servers for these names (resolved only inside
+the disposable peer through a temporary `jdk.net.hosts.file`), a peer in the
+intranet network and a collection-limited agent with the allowlist
+`agent-host.example`. It asserts that the look-alike host is never requested
+and none of its pages lands in the agent's collection, and that the start
+marker, the idempotent replay, the crawl status and the stop keep working.

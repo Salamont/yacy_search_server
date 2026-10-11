@@ -4,11 +4,13 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
+import { withDigestSignIn } from './digest-signin.mjs';
 const require = createRequire(import.meta.url);
 const {chromium} = require('playwright');
 const base = process.env.SCOUTRO_URL;
 if (!base || !/^http:\/\/127\.0\.0\.1:\d+$/.test(base)) throw new Error('Disposable loopback peer required');
 const browser = await chromium.launch({executablePath:process.env.SCOUTRO_CHROMIUM_PATH || '/usr/bin/chromium',args:['--no-proxy-server']});
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks=0; const check=(value,label)=>{assert.ok(value,label);checks++;};
 try {
   for (const [width,language] of [[1280,'en-US'],[390,'de-DE'],[360,'de-DE'],[768,'de-DE']]) {
@@ -19,7 +21,7 @@ try {
     const nav=page.locator('#scoutro-adminnav a[href="ScoutroDiscovery_p.html"]');
     if(width<768) await page.locator('[aria-controls="scoutro-adminnav"]').click();
     check(await nav.isVisible(),`${width}: shared navigation visible`);
-    check(await nav.textContent().then(t=>t.includes(language==='de-DE'?'Discovery-Automatisierung':'Discovery Automation')),`${width}: localized navigation`);
+    check(await nav.textContent().then(t=>t.trim()==='Discovery') && await page.locator('#scoutro-nav-collect a[href="ScoutroDiscovery_p.html"]').count()===1,`${width}: Discovery in the Data collection navigation`);
     if(width<768)await page.keyboard.press('Escape');
     check(await page.locator('#scd-global-status').textContent()===(language==='de-DE'?'Deaktiviert':'Disabled'),`${width}: disabled/localized status`);
     await page.locator('#scd-add').click(); await page.locator('#scd-editor').waitFor({state:'visible'});

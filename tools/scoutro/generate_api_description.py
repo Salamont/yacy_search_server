@@ -17,8 +17,8 @@ def ref(n): return {"$ref": "#/components/schemas/" + n}
 err = lambda desc: {"description": desc, "content": {"application/json": {"schema": ref("Error")}}}
 E = {
  "400": err("Invalid request (validation error; details.field names the parameter)."),
- "401": {"description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."},
- "403": err("Forbidden (cross-origin request or setting not on the allowlist)."),
+ "401": {"description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."},
+ "403": err("Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed)."),
  "404": err("Not found."),
  "405": err("Method not allowed."),
  "409": err("Conflict (e.g. the crawl is not running)."),
@@ -31,7 +31,7 @@ E = {
 }
 def errs(*codes): return {c: E[c] for c in codes}
 EA = {
- "400": err("Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url)."),
+ "400": err("Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url)."),
  "401": err("Missing, invalid, expired or revoked agent token (missing_bearer, bearer_required, invalid_token, token_expired, token_revoked). Administrator credentials are never accepted here."),
  "403": err("Not allowed for this agent: agent_paused, agent_revoked, unknown_action, action_not_granted, action_not_allowed_for_kind, collection_not_in_scope or limit_exceeded:<limit>."),
  "404": err("Not found; for crawls also every crawl this agent did not start (crawl_not_found)."),
@@ -1417,15 +1417,120 @@ for suffix, operation, result_schema, parameters, note in flow_specs:
 paths["/v1/collections/reassign"] = {"post": op("collections.reassign", "Move one domain's pages between collections", "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Without confirm a preview: the hosts of the domain, how many pages, the collections before and after, a sample and a token; nothing changes. With confirm set to that token it changes collection_sxt of exactly those pages (and their webgraph edges) by a Solr atomic update with the version of the preview: text, JSON-LD and every other field stay, nothing is crawled, deleted or re-indexed, and the knowledge graph takes the new collections over through its sync (re-scoped; tiers 1 and 2 extracted again only if the extractors changed; LLM evidence is neither asked again nor corrected). A page whose version changed since (a new crawl) is never overwritten; a webgraph edge gets its page's collections only once the page has them (webgraphKept counts the others). Only the domain's pages in a removed collection move (without remove: every page of the domain); other collections stay. 400 invalid_request (domain not one registrable domain, add and remove both empty or overlapping, unknown field), 400 collection_unknown, 409 reassign_preview_stale (the pages changed since the preview; details hold the new preview), 409 host_busy (a crawl of the domain runs), 422 reassign_would_empty (a page would keep no collection), 422 reassign_too_large (more than 5000 pages or 100000 webgraph edges), 503 index_unavailable. A later crawl of the domain writes the collection of that crawl again; Discovery refuses such a crawl while the domain has pages in another collection (collection_conflict), and 'scoutro-discovery exclude' takes the domain out of the wrong profile. Agents cannot use it.", ["crawls"], {**ok("Preview or applied change.", "CollectionReassignResult"), **errs("400", "401", "403", "409", "413", "415", "422", "503")}, body="CollectionReassign", mutating=True)}
 paths["/v1/collections"]["post"] = op("collections.create", "Create a collection", "Administrator only, JSON body of at most 4 KiB (413 payload_too_large), same origin. Creates an empty collection that every collection choice (crawl start, filters, chat, agent grants) offers at once; a crawl can then write into it. 400 collection_id_invalid, 400 collection_reserved (robot_… or a reserved word), 400 invalid_request (name missing or too long, unknown field), 409 collection_exists (also for a name differing only in case), 503 index_unavailable (duplicates cannot be checked), 503 collection_store_unavailable. Agents cannot create collections.", ["crawls"], {**ok("Created.", "CollectionCreated", "201"), **errs("400", "401", "403", "409", "413", "415", "503")}, body="CollectionCreate", mutating=True)
 
+# ---------------------------------------------------------------------------
+# People: sign-in, own account, user management and access mode
+# (docs/SCOUTRO_USERS_ACCESS.md). Browser sessions use the cookie scoutro_session;
+# changing session calls need the header X-Scoutro-CSRF. HTTP Digest keeps working.
+# ---------------------------------------------------------------------------
+_name = {"type": "string", "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"}
+_collections = {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,64}$"}}
+_role = {"type": "string", "enum": ["research", "operator", "administrator"]}
+schemas["AuthUser"] = {"type": "object", "properties": {"username": {"type": "string"}, "displayName": {"type": "string"}, "role": {"type": "string", "enum": ["guest", "research", "operator", "administrator"]},
+    "permissions": {"type": "array", "items": {"type": "string", "enum": ["search", "chat", "read", "export", "collect", "admin"]}},
+    "allCollections": {"type": "boolean"}, "collections": _collections, "export": {"type": "boolean"}, "builtin": {"type": "boolean", "description": "The built-in YaCy administrator."},
+    "digest": {"type": "boolean", "description": "Authenticated with HTTP Digest, not with a session."}, "mustChangePassword": {"type": "boolean", "description": "No permission works until the password is changed."}}}
+schemas["AuthLogin"] = {"type": "object", "required": ["username", "password"], "properties": {"username": {"type": "string", "maxLength": 128}, "password": {"type": "string", "maxLength": 1024}, "next": {"type": "string", "description": "Return target; only a path on this server is kept, otherwise the overview."}}}
+schemas["AuthLoginResult"] = {"type": "object", "required": ["ok", "user", "csrf"], "properties": {"ok": {"type": "boolean"}, "user": ref("AuthUser"), "csrf": {"type": "string", "description": "Send it as X-Scoutro-CSRF with changing calls of this session. Keep it in memory, never in localStorage."},
+    "next": {"type": "string"}, "expiresIn": {"type": "integer"}, "warning": {"type": "string", "enum": ["builtin_default_password"]}}}
+schemas["AuthSession"] = {"type": "object", "required": ["authenticated", "kind"], "properties": {"authenticated": {"type": "boolean"}, "kind": {"type": "string", "enum": ["account", "builtin", "digest_admin", "guest", "anonymous"]},
+    "available": {"type": "boolean", "description": "false: the account store cannot be read (sign-in off, Digest unaffected)."},
+    "mode": {"type": "object", "properties": {"protected": {"type": "boolean"}, "guest": {"type": "boolean"}, "loginPage": {"type": "boolean"}}},
+    "user": ref("AuthUser"), "csrf": {"type": "string"}, "expiresIn": {"type": "integer"}, "idleMinutes": {"type": "integer"},
+    "guest": {"type": "object", "properties": {"collections": _collections}}, "warning": {"type": "string"}}}
+schemas["AuthOk"] = {"type": "object", "properties": {"ok": {"type": "boolean"}, "reason": {"type": "string"}, "ended": {"type": "integer"}, "sessionsEnded": {"type": "integer"}, "deleted": {"type": "string"}, "user": ref("AuthUser"), "csrf": {"type": "string"}}}
+schemas["PasswordChange"] = {"type": "object", "required": ["currentPassword", "newPassword"], "properties": {"currentPassword": {"type": "string"}, "newPassword": {"type": "string", "minLength": 10, "maxLength": 256}}}
+schemas["SessionRevoke"] = {"type": "object", "properties": {"id": {"type": "string", "description": "Public id of one of the caller's other sessions."}, "others": {"type": "boolean", "description": "End all other sessions."}}}
+schemas["SessionList"] = {"type": "object", "properties": {"sessions": {"type": "array", "items": {"type": "object", "properties": {"id": {"type": "string"}, "createdAt": {"type": "integer"}, "lastSeenAt": {"type": "integer"}, "client": {"type": "string"}, "agent": {"type": "string"}, "current": {"type": "boolean"}}}}}}
+schemas["User"] = {"type": "object", "properties": {"id": {"type": "string"}, "username": {"type": "string"}, "displayName": {"type": "string"}, "role": _role, "allCollections": {"type": "boolean"}, "collections": _collections,
+    "export": {"type": "boolean"}, "status": {"type": "string", "enum": ["active", "locked"]}, "mustChangePassword": {"type": "boolean"}, "createdAt": {"type": "integer"}, "updatedAt": {"type": "integer"},
+    "passwordChangedAt": {"type": "integer"}, "lastLoginAt": {"type": "integer"}, "createdBy": {"type": "string"}, "sessions": {"type": "integer"}, "changed": {"type": "array", "items": {"type": "string"}}, "sessionsEnded": {"type": "integer"}}}
+schemas["UserCreate"] = {"type": "object", "required": ["username", "role", "password"], "properties": {"username": _name, "displayName": {"type": "string", "maxLength": 80}, "role": _role,
+    "allCollections": {"type": "boolean"}, "collections": _collections, "export": {"type": "boolean"}, "password": {"type": "string", "minLength": 10, "maxLength": 256, "description": "Temporary password; the person sets their own at the first sign-in unless mustChangePassword is false."},
+    "mustChangePassword": {"type": "boolean", "default": True}}}
+schemas["UserPatch"] = {"type": "object", "properties": {"displayName": {"type": "string", "maxLength": 80}, "role": _role, "allCollections": {"type": "boolean"}, "collections": _collections, "export": {"type": "boolean"}, "status": {"type": "string", "enum": ["active", "locked"]}}}
+schemas["PasswordReset"] = {"type": "object", "required": ["password"], "properties": {"password": {"type": "string", "minLength": 10, "maxLength": 256}, "mustChangePassword": {"type": "boolean", "default": True}}}
+schemas["Access"] = {"type": "object", "properties": {"protected": {"type": "boolean", "description": "Effective protected mode (also while active Research/Operator accounts exist)."}, "protectedSetting": {"type": "boolean"},
+    "guest": {"type": "boolean"}, "guestSetting": {"type": "boolean"}, "guestCollections": _collections,
+    "peerToPeer": {"type": "boolean", "description": "Peer-to-peer in protected mode (scoutro.access.p2p, off by default): the routes under /yacy/ that read or write the index and the index distribution (DHT) keep YaCy's network rules; collection rights do not apply there."},
+    "builtinAdminLogin": {"type": "boolean"}, "builtinAdminName": {"type": "string"}, "loginPage": {"type": "boolean"},
+    "activeAdministrators": {"type": "integer"}, "restrictedActive": {"type": "boolean"}, "sessionIdleMinutes": {"type": "integer"}, "sessionMaxHours": {"type": "integer"},
+    "warnings": {"type": "array", "items": {"type": "string", "enum": ["p2p_open", "p2p_closed", "localhost_admin", "builtin_default_password", "protected_enforced"]}}, "changed": {"type": "array", "items": {"type": "string"}}}}
+schemas["UserList"] = {"type": "object", "properties": {"users": {"type": "array", "items": ref("User")}, "access": ref("Access"), "roles": {"type": "array", "items": {"type": "string"}}}}
+schemas["AccessPatch"] = {"type": "object", "properties": {"protected": {"type": "boolean"}, "guest": {"type": "boolean"}, "guestCollections": _collections, "peerToPeer": {"type": "boolean"}, "builtinAdminLogin": {"type": "boolean"}}}
+schemas["AuditList"] = {"type": "object", "properties": {"entries": {"type": "array", "items": {"type": "object", "properties": {"ts": {"type": "integer"}, "actor": {"type": "string"}, "action": {"type": "string"}, "target": {"type": "string"}, "result": {"type": "string", "enum": ["ok", "denied", "failed"]}, "reason": {"type": "string"}, "client": {"type": "string"}}}}}}
+_uname = {"name": "name", "in": "path", "required": True, "description": "User name.", "schema": _name}
+_auth_note = "Sign-in of people (browser). Sets or reads the HttpOnly cookie scoutro_session (SameSite=Strict, Secure behind HTTPS); changing calls of a session need X-Scoutro-CSRF. HTTP Digest for tools is unchanged."
+paths["/v1/auth/login"] = {"post": op("auth.login", "Sign in", _auth_note + " Public, JSON body, same origin. 400 invalid_request, 401 invalid_credentials (wrong name or password, same answer), 403 account_locked (only after the right password), 429 too_many_attempts (Retry-After; 5 failures per name or 30 per client within 15 minutes), 503 accounts_unavailable.", ["system"], {**ok("Signed in; Set-Cookie scoutro_session.", "AuthLoginResult"), **errs("400", "401", "403", "413", "415", "503")}, body="AuthLogin", admin=False, mutating=True)}
+paths["/v1/auth/session"] = {"get": op("auth.session", "Current identity", "Public. Who is calling (account, built-in administrator, Digest administrator, guest or anonymous), the permissions and collections, the CSRF token of a session and the access mode.", ["system"], {**ok("Identity.", "AuthSession")}, admin=False)}
+paths["/v1/auth/logout"] = {"post": op("auth.logout", "Sign out", "Ends the caller's session (X-Scoutro-CSRF) and clears the cookie; ok=false with reason no_session otherwise.", ["system"], {**ok("Signed out.", "AuthOk"), **errs("415")}, admin=False, mutating=True)}
+paths["/v1/auth/password"] = {"post": op("auth.password", "Change own password", "Session only (not Digest, not the built-in administrator: 409 builtin_admin). Checks the current password (403 wrong_password, counted like sign-in failures), applies the password rules (400 password_too_short, password_too_long, password_equals_username, password_too_common, password_unchanged), ends every session of the account and opens a new one (new cookie and CSRF token).", ["system"], {**ok("Changed.", "AuthOk"), **errs("400", "401", "403", "409", "415")}, body="PasswordChange", admin=False, mutating=True)}
+paths["/v1/auth/sessions"] = {"get": op("auth.sessions", "Own sessions", "The caller's sessions: start, last use, client address, browser.", ["system"], {**ok("Sessions.", "SessionList"), **errs("401")}, admin=False)}
+paths["/v1/auth/sessions/revoke"] = {"post": op("auth.sessions.revoke", "End own sessions", "Ends one other session (id) or all others (others: true).", ["system"], {**ok("Ended.", "AuthOk"), **errs("400", "401", "415")}, body="SessionRevoke", admin=False, mutating=True)}
+_admin_note = "Administrator only (Digest or an administrator session). Logged in the audit log."
+paths["/v1/users"] = {"get": op("users.list", "List accounts", _admin_note + " Accounts with role, collections, export flag, status and number of open sessions, plus the access settings.", ["system"], {**ok("Accounts.", "UserList"), **errs("401", "403", "503")}),
+    "post": op("users.create", "Create an account", _admin_note + " 400 invalid_request (details.field), password rules as for auth.password, 409 username_taken, username_reserved (the built-in administrator's name), protected_mode_required (Research and Operator need the protected mode). Research and Operator need at least one collection or allCollections.", ["system"], {**ok("Created.", "User", "201"), **errs("400", "401", "403", "409", "413", "415", "503")}, body="UserCreate", mutating=True)}
+paths["/v1/users/{name}"] = {"get": op("users.get", "Read an account", _admin_note, ["system"], {**ok("Account.", "User"), **errs("401", "403", "404")}, params=[_uname]),
+    "patch": op("users.update", "Change an account", _admin_note + " Changing role, collections, export or locking ends the account's sessions at once. 409 last_admin (the last administrator who can sign in), own_account (own lock or role change), protected_mode_required.", ["system"], {**ok("Changed.", "User"), **errs("400", "401", "403", "404", "409", "415")}, params=[_uname], body="UserPatch", mutating=True),
+    "delete": op("users.delete", "Remove an account", _admin_note + " Body {}. Ends its sessions. 409 last_admin, own_account.", ["system"], {**ok("Removed.", "AuthOk"), **errs("401", "403", "404", "409", "415")}, params=[_uname], mutating=True)}
+paths["/v1/users/{name}/password"] = {"post": op("users.password.reset", "Reset a password", _admin_note + " Sets a temporary password without e-mail; the person must change it at the next sign-in (mustChangePassword, default true). Ends the account's sessions.", ["system"], {**ok("Reset.", "AuthOk"), **errs("400", "401", "403", "404", "415")}, params=[_uname], body="PasswordReset", mutating=True)}
+paths["/v1/users/{name}/sessions"] = {"get": op("users.sessions", "Sessions of an account", _admin_note, ["system"], {**ok("Sessions.", "SessionList"), **errs("401", "403", "404")}, params=[_uname])}
+paths["/v1/users/{name}/sessions/revoke"] = {"post": op("users.sessions.revoke", "End the sessions of an account", _admin_note + " Body {}.", ["system"], {**ok("Ended.", "AuthOk"), **errs("401", "403", "404", "415")}, params=[_uname], mutating=True)}
+paths["/v1/access"] = {"get": op("access.get", "Access mode", _admin_note + " Protected mode, guest access and released collections, built-in administrator sign-in, peer-to-peer in protected mode, warnings (p2p_open: peer-to-peer is allowed in protected mode, other peers and every client of the port read all collections through /yacy/; p2p_closed: the peer is set up for the YaCy network, but protected mode closes its peer-to-peer index routes and pauses the index distribution; localhost_admin: adminAccountForLocalhost grants administrator rights to every local request, also through a reverse proxy on the same computer; builtin_default_password; protected_enforced: active restricted accounts keep the protected rules).", ["system"], {**ok("Settings.", "Access"), **errs("401", "403")}),
+    "patch": op("access.update", "Change the access mode", _admin_note + " 409 restricted_accounts_active (leave protected mode only without active Research/Operator accounts), protected_mode_required (guest access or peerToPeer outside protected mode), peer_to_peer_on (switch off peerToPeer before leaving protected mode), last_admin (switch off the built-in administrator's sign-in only with an active administrator account), own_account (not from the built-in administrator's own session).", ["system"], {**ok("Changed.", "Access"), **errs("400", "401", "403", "409", "415")}, body="AccessPatch", mutating=True)}
+paths["/v1/access/audit"] = {"get": op("access.audit", "Audit log of people", _admin_note + " Newest first: sign-ins, account and access changes and every changing Scoutro API call of a person. Never passwords, tokens, document contents or search texts.", ["system"], {**ok("Entries.", "AuditList"), **errs("401", "403")}, params=[
+    q("limit", {"type": "integer", "minimum": 1, "maximum": 500, "default": 100}, "Number of entries."), q("who", {"type": "string"}, "Only entries whose actor or target is this name.")])}
+
 openapi = O()
 openapi["openapi"] = "3.1.0"
 openapi["info"] = {"title": "Scoutro API", "version": "1.0.0",
-    "description": "Stable, machine-readable action layer of Scoutro (an independent community project based on YaCy). Every action is translated into existing YaCy functions. Mutating and administrative actions require the Scoutro/YaCy administrator account (HTTP Digest). See docs/API.md.",
+    "description": "Stable, machine-readable action layer of Scoutro (an independent community project based on YaCy). Every action is translated into existing YaCy functions. Mutating and administrative actions require the Scoutro/YaCy administrator account (HTTP Digest or an administrator session); Scoutro accounts use the routes of their role (x-scoutro-permission) within their collections. See docs/API.md.",
     "license": {"name": "GPL-2.0-or-later", "identifier": "GPL-2.0-or-later"}}
 openapi["servers"] = [{"url": "/scoutro/api", "description": "Relative to the Scoutro base URL, e.g. http://scoutro:8090/scoutro/api"}]
+# Scoutro accounts (docs/SCOUTRO_USERS_ACCESS.md, section 3): the permission of each /v1 route for people.
+# The administrator (HTTP Digest or an administrator session) may use every route unchanged; an account uses
+# the routes of its role and gets only the data of its collections (x-scoutro-permission).
+KG_READS = ("entities", "statements", "hosts", "sources", "compare", "derived", "facets", "services", "history", "observations")
+def scoutro_permission(path, method):
+    parts = path.split("/")
+    resource = parts[2] if len(parts) > 2 else ""
+    if resource in ("auth", "health", "ui"):
+        return None
+    if resource == "search" or (path == "/v1/collections" and method == "get"):
+        return "search"
+    if path == "/v1/chat/completions":
+        return "chat"
+    if path == "/v1/index/domains/export":
+        return "export"
+    if resource in ("index", "hosts", "seo"):
+        return "read"
+    if resource == "kg":
+        sub = parts[3] if len(parts) > 3 else ""
+        if sub in ("export", "changes"):
+            return "export"
+        return "read" if sub in KG_READS else "admin"
+    if resource in ("reports", "crawls"):
+        return "collect"
+    if resource == "discovery":
+        sub = parts[3] if len(parts) > 3 else ""
+        return "admin" if sub in ("enable", "disable", "pause", "resume", "export") else "collect"
+    return "admin"
+for _path, _methods in paths.items():
+    if not _path.startswith("/v1/"):
+        continue
+    for _method, _o in _methods.items():
+        _perm = scoutro_permission(_path, _method)
+        if _perm is None or not isinstance(_o, dict) or not _o.get("security"):
+            continue
+        _o["x-scoutro-permission"] = _perm
+        if _perm != "admin":
+            _o["security"] = [s for s in _o["security"] if s != {}] + [{"scoutroSession": []}]
+            if _o["security"][0] != {"digest": []} and {"digest": []} not in _o["security"]:
+                _o["security"].insert(0, {"digest": []})
 openapi["paths"] = paths
 openapi["components"] = {"schemas": schemas, "securitySchemes": {
     "digest": {"type": "http", "scheme": "digest", "description": "YaCy administrator account (user 'admin' by default)."},
+    "scoutroSession": {"type": "apiKey", "in": "cookie", "name": "scoutro_session",
+                       "description": "Sign-in of people on scoutro-login.html (POST /v1/auth/login). Changing calls need the header X-Scoutro-CSRF. The account's role decides the routes (x-scoutro-permission: search, chat, read, export, collect, admin), its collections the data; administrators may use every route."},
     "agentBearer": {"type": "http", "scheme": "bearer", "bearerFormat": "sca_<publicId>.<secret>",
                     "description": "Agent token issued in Administration > Agents & Access. Only valid on /scoutro/api/agent/v1/*; never an administrator credential."}}}
 openapi["tags"] = [{"name": t} for t in ["system", "search", "index", "crawls", "config", "ui", "agent", "seo", "reports", "discovery", "knowledge"]]
@@ -1446,6 +1551,15 @@ cli.update({'index.browse': 'scoutroctl index browse [QUERY] [--collection NAME]
 mcp.update({'kg.llm.schedule':'scoutro_kg_llm_schedule','kg.llm.schedule.change':'scoutro_kg_llm_schedule_change','kg.llm.run':'scoutro_kg_llm_run'})
 cli.update({'kg.llm.schedule':'HTTP GET /scoutro/api/v1/kg/llm-schedule (administrator)','kg.llm.schedule.change':'HTTP PUT /scoutro/api/v1/kg/llm-schedule (administrator)','kg.llm.run':'HTTP POST /scoutro/api/v1/kg/llm-run (administrator)'})
 mcp.update({'kg.status': 'scoutro_kg_status', 'kg.control': 'scoutro_kg_control'})
+for _op in ("auth.login", "auth.session", "auth.logout", "auth.password", "auth.sessions", "auth.sessions.revoke", "users.list", "users.create", "users.get", "users.update", "users.delete",
+            "users.password.reset", "users.sessions", "users.sessions.revoke", "access.get", "access.update", "access.audit"):
+    mcp[_op] = None  # people's sign-in and user management are not agent or MCP tools
+cli.update({"auth.login": "browser: /scoutro-login.html", "auth.session": "HTTP GET /scoutro/api/v1/auth/session", "auth.logout": "browser: account menu > Sign out",
+    "auth.password": "browser: /scoutro-account.html", "auth.sessions": "browser: /scoutro-account.html", "auth.sessions.revoke": "browser: /scoutro-account.html",
+    "users.list": "browser: Settings > Users (ScoutroUsers_p.html)", "users.create": "browser: Settings > Users", "users.get": "HTTP GET /scoutro/api/v1/users/{name} (administrator)",
+    "users.update": "browser: Settings > Users", "users.delete": "browser: Settings > Users", "users.password.reset": "browser: Settings > Users",
+    "users.sessions": "HTTP GET /scoutro/api/v1/users/{name}/sessions (administrator)", "users.sessions.revoke": "browser: Settings > Users",
+    "access.get": "browser: Settings > Users", "access.update": "browser: Settings > Users", "access.audit": "browser: Settings > Users > Audit log"})
 for _name, _path in (("kg.history", "history"), ("kg.entity.history", "entities/{id}/history"), ("kg.observation", "observations/{id}"), ("kg.observation.history", "observations/{id}/history")):
     mcp[_name] = "scoutro_" + _name.replace(".", "_")
     cli[_name] = "HTTP GET /scoutro/api/agent/v1/kg/" + _path + "?collection=NAME"
@@ -1494,13 +1608,16 @@ for path, methods in paths.items():
                 params[k] = {**v, "in": "body", "required": k in b.get("required", [])}
         ok_code = [c for c in o["responses"] if c.startswith("2")][0]
         ret = o["responses"][ok_code]["content"]["application/json"]["schema"]["$ref"].split("/")[-1]
-        actions.append(O(
+        action = O(
             name=o["operationId"], description=o["description"], mutating=o["x-scoutro-mutating"],
-            auth="admin" if o["security"] else "public",
+            auth="admin" if o["security"] else "public", permission=o.get("x-scoutro-permission", "admin" if o["security"] else None),
             http={"method": method.upper(), "path": "/scoutro/api" + path, "successStatus": int(ok_code)},
             parameters=params, returns=ret,
             errors=sorted(int(c) for c in o["responses"] if not c.startswith("2")),
-            cli=cli[o["operationId"]], mcpTool=mcp[o["operationId"]]))
+            cli=cli[o["operationId"]], mcpTool=mcp[o["operationId"]])
+        if action["mcpTool"] is None:
+            del action["mcpTool"]  # no MCP tool (people's sign-in and user management), like the Discovery actions
+        actions.append(action)
 actions.extend([{'name': 'discovery.catalog',
   'description': 'Discovery automation catalog. Administrator only; no agent grants.',
   'mutating': False,
@@ -1714,7 +1831,8 @@ catalog = O(service="scoutro", apiVersion="1",
     openapi="/scoutro/api/openapi.json",
     mcpAdapter={"transport":"stdio", "command":"tools/scoutro/scoutro-mcp", "authentication":"agent Bearer only", "readOnly":True,
                 "description":"mcpTool names are mappings. The adapter exposes only catalogued GET actions authorized by current agent capabilities; admin-only mappings are not runnable tools."},
-    authentication={"type": "http-digest", "account": "Scoutro/YaCy administrator", "publicActions": [a["name"] for a in actions if a["auth"] == "public"]},
+    authentication={"type": "http-digest", "account": "Scoutro/YaCy administrator", "publicActions": [a["name"] for a in actions if a["auth"] == "public"],
+                    "accounts": "People sign in on scoutro-login.html (cookie scoutro_session, X-Scoutro-CSRF for changes). 'permission' names the right an account needs (search, chat, read, export, collect, admin); its collections limit the data. See docs/SCOUTRO_USERS_ACCESS.md."},
     errorFormat={"error": {"code": "string", "message": "string", "details": "object (optional)"}},
     agentAccess=O(
         description="Agents created in Administration > Agents & Access call /scoutro/api/agent/v1 with their own token. Every call is authorized against the agent's fixed action list, its collections (data scope) and its limits; GET /scoutro/api/agent/v1/capabilities lists what the agent may use.",
@@ -1737,11 +1855,19 @@ paths["/v1/chat/completions"] = {"post":{
     "operationId":"chat.completions", "x-scoutro-mutating":False, "servers":[{"url":"/","description":"Root chat servlet, outside /scoutro/api."}],
     "summary":"Chat with structured Scoutro system questions", "tags":["system"],
     "description":"Content chat retains existing AIShield/model/RAG behavior. Supported DE/EN system questions run authorized Actions before model/search/tool selection and work without Function Calling. No missing-rights/data web fallback. System questions require Digest admin role or authorized agent Bearer; no localhost bypass. Agent rights, collection scopes, crawl ownership, audit and limits remain enforced. Metadata attributes exact facts/action/time; stream=true sends OpenAI SSE chunks and terminal [DONE].",
-    "security":[{}, {"digest":[]}, {"agentBearer":[]}], "requestBody":{"required":True,"content":{"application/json":{"schema":ref("ChatRequest")}}},
+    "security":[{}, {"digest":[]}, {"agentBearer":[]}, {"scoutroSession":[]}], "x-scoutro-permission":"chat",
+    "requestBody":{"required":True,"content":{"application/json":{"schema":ref("ChatRequest")}}},
     "responses":{"200":{"description":"Existing content completion or structured system completion/SSE.","content":{
         "application/json":{"schema":ref("SystemChatCompletion")},"text/event-stream":{"schema":{"type":"string"}}}},
         **aerrs("400","401","403","429","503")}}}
 openapi["components"]["securitySchemes"]["agentBearer"]["description"] += " Also accepted by root /v1/chat/completions for structured system questions only, with the same selected action authorization."
+# Scoutro accounts: a session with the chat right chats within its collections only (never the whole index without
+# all collections, no peer-to-peer search, no system questions: 403 system_forbidden)
+paths["/v1/chat/completions"]["post"]["description"] += " Scoutro accounts without the administrator role (session with the chat right) chat only within their collections whatever the AI Shield admits for their address: a foreign collection answers 403 collection_not_allowed, no collection with several collections 400 collection_required, system questions 403 system_forbidden; no peer-to-peer search."
+for _action in catalog.get("actions", []) if isinstance(catalog, dict) else []:
+    if "permission" not in _action and isinstance(_action.get("http"), dict) and _action["http"].get("path", "").startswith("/scoutro/api/v1/"):
+        _action["permission"] = scoutro_permission(_action["http"]["path"][len("/scoutro/api"):], _action["http"]["method"].lower()) \
+            if _action.get("auth") == "admin" else None
 for name, value in [("openapi",openapi),("actions",catalog)]:
     with open(out + "/" + name + ".json", "w", encoding="utf-8") as file:
         json.dump(value, file, indent=2, ensure_ascii=False)

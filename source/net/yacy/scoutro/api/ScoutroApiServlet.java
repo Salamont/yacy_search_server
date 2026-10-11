@@ -39,6 +39,8 @@ import org.json.JSONObject;
 import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.scoutro.agents.AgentException;
+import net.yacy.scoutro.access.Caller;
+import net.yacy.scoutro.access.Permission;
 import net.yacy.scoutro.agents.ScoutroAgents;
 import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.search.Switchboard;
@@ -88,11 +90,18 @@ public class ScoutroApiServlet extends HttpServlet {
                 return;
             }
             final JSONObject result = route(method, path, request, response);
-            if (result != null) send(response, response.getStatus() == 0 ? 200 : response.getStatus(), result); // null: streamed
+            final int status = response.getStatus() == 0 ? 200 : response.getStatus();
+            auditChange(method, path, request, status, null);
+            if (result != null) send(response, status, result); // null: streamed
         } catch (final ApiException e) {
+            auditChange(method, path, request, e.status(), e.code());
+            if ("too_many_attempts".equals(e.code())) {
+                response.setHeader("Retry-After", retryAfter(e));
+            }
             send(response, e.status(), e.toJson());
         } catch (final RuntimeException e) {
             LOG.warn("internal error for " + method + " " + path + ": " + e);
+            auditChange(method, path, request, 500, "internal_error");
             send(response, 500, new ApiException(500, "internal_error", "Internal error in the Scoutro API.").toJson());
         }
     }
@@ -143,7 +152,17 @@ public class ScoutroApiServlet extends HttpServlet {
             throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
         final String resource = parts[2];
+        // permission and collection scope of each route for people (docs/SCOUTRO_USERS_ACCESS.md, section 3);
+        // the administrator keeps every route as before, deny by default for everything not listed here
+        final PeopleRoutes people = new PeopleRoutes(Caller.of(request));
         switch (resource) {
+            case "auth":
+                // sign-in and own account; login, session and logout are reachable without a session
+                return access(request, response).auth(method, parts, () -> jsonBody(request));
+            case "users":
+                return access(request, response).users(method, parts, () -> jsonBody(request));
+            case "access":
+                return access(request, response).access(method, parts, () -> jsonBody(request));
             case "health":
                 expect(method, parts, 3, "GET");
                 return this.actions.health();
@@ -158,7 +177,7 @@ public class ScoutroApiServlet extends HttpServlet {
                 }
                 break;
             case "system":
-                requireAdmin(request);
+                people.require(Permission.ADMIN);
                 if (parts.length == 4 && "questions".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
                     final Map<String, String> q = queryParams(request);
@@ -167,29 +186,36 @@ public class ScoutroApiServlet extends HttpServlet {
                 expect(method, parts, 3, "GET");
                 return this.actions.system();
             case "discovery":
-                requireAdmin(request);
+                // jobs of the identity's collections (by profile); global switches and the export stay administrative
+                people.require(Permission.COLLECT);
                 return DiscoveryApi.route(method, parts, request, response,
-                        "GET".equals(method) ? null : new net.yacy.scoutro.discovery.JsonObject(jsonBody(request)));
+                        "GET".equals(method) ? null : new net.yacy.scoutro.discovery.JsonObject(jsonBody(request)),
+                        people.admin() ? null : people.allows());
             case "seo":
-                requireAdmin(request);
+                people.require(Permission.READ);
                 if (!"GET".equals(method)) throw new ApiException(405, "method_not_allowed", "Host analysis is read-only; use GET.");
                 final Map<String, String> seoQuery = queryParams(request);
                 return SeoAnalysis.current().route(java.util.Arrays.asList(parts).subList(3, parts.length),
-                        seoQuery, SeoAnalysis.adminCollections(seoQuery));
+                        seoQuery, people.view(seoQuery));
             case "reports":
-                requireAdmin(request);
+                people.require(Permission.COLLECT);
                 if (!"GET".equals(method)) throw new ApiException(405, "method_not_allowed", "Crawl reports are read-only; use GET.");
-                return ReportApi.current().route(java.util.Arrays.asList(parts).subList(3, parts.length), queryParams(request), null);
+                return ReportApi.current().route(java.util.Arrays.asList(parts).subList(3, parts.length), queryParams(request),
+                        people.reportScope());
             case "hosts":
-                requireAdmin(request);
+                people.require(Permission.READ);
                 if (parts.length == 4 && "resolve".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
-                    final Map<String, String> hostQuery = queryParams(request);
-                    return this.actions.hostResolve(hostQuery, SeoAnalysis.adminCollections(hostQuery));
+                    return people.hostResolve(this.actions, queryParams(request));
                 }
                 break;
             case "collections":
-                requireAdmin(request);
+                if (parts.length == 3 && "GET".equals(method)) {
+                    // the collections a search, chat or crawl may use: guests and every account see their own
+                    people.require(Permission.SEARCH);
+                    return people.collections(this.actions);
+                }
+                people.require(Permission.ADMIN);
                 if (parts.length == 4 && "reassign".equals(parts[3])) {
                     // preview without "confirm", apply with the preview's token; one domain, same origin, small body
                     expect(method, parts, 4, "POST");
@@ -204,46 +230,50 @@ public class ScoutroApiServlet extends HttpServlet {
                 expect(method, parts, 3, "GET", "POST");
                 return this.actions.collections();
             case "search":
-                requireAdmin(request);
+                people.require(Permission.SEARCH);
                 expect(method, parts, 3, "GET");
-                return this.actions.search(queryParams(request));
+                return people.search(this.actions, queryParams(request));
             case "index":
-                requireAdmin(request);
+                people.require(Permission.READ);
                 if (parts.length == 4 && "browse".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
                     final Map<String, String> browseQuery = queryParams(request);
-                    return IndexBrowse.current().browse(browseQuery, SeoAnalysis.adminCollections(browseQuery));
+                    return IndexBrowse.current().browse(browseQuery, people.view(browseQuery));
                 }
                 if (parts.length == 4 && "domains".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
                     final Map<String, String> domainQuery = queryParams(request);
-                    return DomainCandidates.current().page(domainQuery, SeoAnalysis.adminCollections(domainQuery));
+                    return DomainCandidates.current().page(domainQuery, people.view(domainQuery));
                 }
                 if (parts.length == 5 && "domains".equals(parts[3]) && "export".equals(parts[4])) {
+                    people.require(Permission.EXPORT);
                     expect(method, parts, 5, "GET");
-                    exportDomains(queryParams(request), response);
+                    final Map<String, String> exportQuery = queryParams(request);
+                    exportDomains(exportQuery, people.view(exportQuery), response);
                     return null;
                 }
                 if (parts.length == 4 && "metrics".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
                     final Map<String, String> q = queryParams(request);
-                    return IndexMetrics.current().read(q, SeoAnalysis.adminCollections(q));
+                    return IndexMetrics.current().read(q, people.view(q));
                 }
                 if (parts.length == 3) {
                     expect(method, parts, 3, "GET");
-                    return this.actions.index();
+                    return people.index(this.actions);
                 }
                 if (parts.length == 4 && "lookup".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
-                    return this.actions.indexLookup(queryParams(request));
+                    final Map<String, String> q = queryParams(request);
+                    return people.allCollections() ? this.actions.indexLookup(q) : this.actions.indexLookup(q, people.view(q));
                 }
                 if (parts.length == 4 && "evidence".equals(parts[3])) {
                     expect(method, parts, 4, "GET");
-                    return this.actions.indexEvidence(queryParams(request));
+                    final Map<String, String> q = queryParams(request);
+                    return people.allCollections() ? this.actions.indexEvidence(q) : this.actions.indexEvidence(q, people.view(q));
                 }
                 break;
             case "config":
-                requireAdmin(request);
+                people.require(Permission.ADMIN);
                 if (parts.length == 3) {
                     if ("GET".equals(method)) {
                         return this.actions.configGet();
@@ -253,7 +283,9 @@ public class ScoutroApiServlet extends HttpServlet {
                 }
                 break;
             case "kg":
-                requireAdmin(request);
+                if (!people.admin()) {
+                    return knowledgeForPeople(people, method, parts, request, response);
+                }
                 if (parts.length == 5 && "export".equals(parts[3]) && "download".equals(parts[4])) {
                     expect(method, parts, 5, "GET");
                     new KnowledgeApi(KgRuntime::current).download(queryParams(request), (contentType, filename) -> {
@@ -273,26 +305,26 @@ public class ScoutroApiServlet extends HttpServlet {
                 final int maxBody = parts.length == 4 && "prompt".equals(parts[3]) ? PROMPT_BODY_BYTES : MAX_BODY_BYTES;
                 return new KnowledgeApi(KgRuntime::current).route(method, parts, queryParams(request), () -> jsonBody(request, maxBody));
             case "crawls":
-                requireAdmin(request);
+                people.require(Permission.COLLECT);
                 if (parts.length == 3) {
                     if ("GET".equals(method)) {
-                        return this.actions.crawlList();
+                        return people.crawlList(this.actions);
                     }
                     expect(method, parts, 3, "GET", "POST");
-                    final JSONObject crawl = this.actions.crawlStartAdmin(jsonBody(request), request.getHeader("Idempotency-Key"));
+                    final JSONObject crawl = people.crawlStart(this.actions, jsonBody(request), request.getHeader("Idempotency-Key"));
                     response.setStatus(crawl.optBoolean("idempotentReplay") ? 200 : 201);
                     response.setHeader("Location", "/scoutro/api/v1/crawls/" + crawl.optString("id"));
                     return crawl;
                 }
                 if (parts.length == 4) {
                     expect(method, parts, 4, "GET");
-                    return this.actions.crawlGet(parts[3]);
+                    return people.crawlGet(this.actions, parts[3]);
                 }
                 if (parts.length == 5 && "stop".equals(parts[4])) {
                     expect(method, parts, 5, "POST");
                     ScoutroActions.checkCrawlId(parts[3]);
                     jsonBody(request); // same cross-site protection as all mutating calls; body may be {}
-                    return this.actions.crawlStop(parts[3]);
+                    return people.crawlStop(this.actions, parts[3]);
                 }
                 break;
             default:
@@ -302,13 +334,44 @@ public class ScoutroApiServlet extends HttpServlet {
     }
 
     /**
+     * The knowledge graph for an account without the administrator role: the reads within its collections
+     * (read right), exports and the change feed (also the export right); status, controls, settings,
+     * backups and the LLM tier stay administrative.
+     */
+    private static JSONObject knowledgeForPeople(final PeopleRoutes people, final String method, final String[] parts,
+            final HttpServletRequest request, final HttpServletResponse response) throws ApiException, IOException {
+        people.require(Permission.READ);
+        if (parts.length == 5 && "export".equals(parts[3]) && "download".equals(parts[4])) {
+            people.require(Permission.EXPORT);
+            expect(method, parts, 5, "GET");
+            final Map<String, String> q = queryParams(request);
+            new KnowledgeApi(KgRuntime::current).download(q, people.view(q), true, (contentType, filename) -> {
+                response.setStatus(200);
+                response.setContentType(contentType);
+                response.setHeader("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+                return response.getWriter();
+            });
+            return null;
+        }
+        if (parts.length >= 5 && KnowledgeRead.handles(parts[3]) || parts.length == 4 && KnowledgeRead.single(parts[3])) {
+            if ("export".equals(parts[3]) || "changes".equals(parts[3])) {
+                people.require(Permission.EXPORT);
+            }
+            final Map<String, String> q = queryParams(request);
+            return new KnowledgeRead(KgRuntime::current, KnowledgeRead.ADMIN_BASE, true).route(method,
+                    java.util.Arrays.asList(parts).subList(3, parts.length), q, people.view(q), people.permitted());
+        }
+        people.require(Permission.ADMIN); // 403 for every other knowledge route
+        throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
+    }
+
+    /**
      * Read-only domain export as a download, streamed page by page. Invalid filters and an
      * unavailable index answer with the usual JSON error before anything is written.
      */
-    private static void exportDomains(final Map<String, String> query, final HttpServletResponse response)
-            throws ApiException, IOException {
+    private static void exportDomains(final Map<String, String> query, final List<String> collections,
+            final HttpServletResponse response) throws ApiException, IOException {
         final String format = DomainExport.format(query.get("format"));
-        final List<String> collections = SeoAnalysis.adminCollections(query);
         final DomainCandidates candidates = DomainCandidates.current();
         final long now = System.currentTimeMillis();
         final DomainCandidates.Filter filter = DomainCandidates.filter(query, collections, java.util.Set.of("q", "collection", "format"));
@@ -381,15 +444,56 @@ public class ScoutroApiServlet extends HttpServlet {
                 + String.join(", ", allowed) + ".", Json.obj("allowed", String.join(", ", allowed)));
     }
 
+    private static String retryAfter(final ApiException e) {
+        final JSONObject details = e.toJson().optJSONObject("error").optJSONObject("details");
+        final String seconds = details == null ? "" : details.optString("retryAfter", "");
+        return seconds.matches("[0-9]{1,6}") ? seconds : "60";
+    }
+
+    private static AccessApi access(final HttpServletRequest request, final HttpServletResponse response) {
+        final Switchboard sb = Switchboard.getSwitchboard();
+        return new AccessApi(request, response, (key, value) -> {
+            if (sb != null) {
+                sb.setConfig(key, value);
+            }
+        }, () -> sb != null && sb.isRobinsonMode() && !sb.isPublicRobinson(),
+                () -> sb != null && sb.getConfigBool(SwitchboardConstants.ADMIN_ACCOUNT_FOR_LOCALHOST, false));
+    }
+
     /**
-     * The container authenticates protected paths (defaults/web.xml). This check
-     * keeps the routes protected even if the web.xml constraint is missing.
+     * Audit of people's changing calls (docs/SCOUTRO_USERS_ACCESS.md, section 8): who, which
+     * route, which target id, result. Sign-in and user management log their own, more
+     * specific entries. Never request bodies or query texts.
      */
-    private static void requireAdmin(final HttpServletRequest request) throws ApiException {
-        if (!request.isUserInRole(SwitchboardConstants.ADMIN_ACCOUNT_ROLE)) {
-            throw new ApiException(401, "unauthorized",
-                    "This action requires the Scoutro/YaCy administrator account (HTTP Digest authentication).");
+    private static void auditChange(final String method, final String path, final HttpServletRequest request, final int status,
+            final String code) {
+        if (!net.yacy.scoutro.access.WebAuth.unsafeMethod(method)) {
+            return;
         }
+        final String[] parts = path.replaceAll("/+$", "").split("/");
+        if (parts.length < 3 || !"v1".equals(parts[1]) || "auth".equals(parts[2]) || "users".equals(parts[2])
+                || "access".equals(parts[2])) {
+            return;
+        }
+        final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+        if (access == null) {
+            return;
+        }
+        final StringBuilder action = new StringBuilder("api.").append(parts[2]);
+        final StringBuilder target = new StringBuilder();
+        for (int i = 3; i < parts.length && i < 7; i++) {
+            final String seg = parts[i];
+            if (seg.matches("[a-z][a-z-]{0,31}")) {
+                action.append('.').append(seg);
+            } else if (seg.matches("[A-Za-z0-9_.:@-]{1,80}")) {
+                if (target.length() > 0) target.append('/');
+                target.append(seg);
+            }
+        }
+        action.append(' ').append(method);
+        final String result = status < 400 ? "ok" : status == 401 || status == 403 ? "denied" : "failed";
+        access.audit.record(Caller.of(request, access).actor(), action.toString(), target.toString(), result,
+                code == null ? String.valueOf(status) : code, RequestHeader.client(request));
     }
 
     /**

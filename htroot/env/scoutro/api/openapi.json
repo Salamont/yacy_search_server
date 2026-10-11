@@ -3,7 +3,7 @@
   "info": {
     "title": "Scoutro API",
     "version": "1.0.0",
-    "description": "Stable, machine-readable action layer of Scoutro (an independent community project based on YaCy). Every action is translated into existing YaCy functions. Mutating and administrative actions require the Scoutro/YaCy administrator account (HTTP Digest). See docs/API.md.",
+    "description": "Stable, machine-readable action layer of Scoutro (an independent community project based on YaCy). Every action is translated into existing YaCy functions. Mutating and administrative actions require the Scoutro/YaCy administrator account (HTTP Digest or an administrator session); Scoutro accounts use the routes of their role (x-scoutro-permission) within their collections. See docs/API.md.",
     "license": {
       "name": "GPL-2.0-or-later",
       "identifier": "GPL-2.0-or-later"
@@ -70,7 +70,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -98,7 +98,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/search": {
@@ -192,7 +193,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -218,9 +219,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "search"
       }
     },
     "/v1/index/browse": {
@@ -299,7 +304,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "503": {
             "description": "YaCy is not available yet.",
@@ -315,9 +320,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/index/domains": {
@@ -410,7 +419,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "503": {
             "description": "YaCy is not available yet.",
@@ -426,9 +435,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/index/domains/export": {
@@ -503,7 +516,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "503": {
             "description": "YaCy is not available yet.",
@@ -519,9 +532,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "export"
       }
     },
     "/v1/index": {
@@ -544,7 +561,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -570,9 +587,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/index/metrics": {
@@ -617,7 +638,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "503": {
             "description": "YaCy is not available yet.",
@@ -633,9 +654,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/system/questions": {
@@ -690,10 +715,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -718,7 +743,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/index/lookup": {
@@ -773,7 +799,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -799,9 +825,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/index/evidence": {
@@ -882,7 +912,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -908,9 +938,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/crawls": {
@@ -933,7 +967,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -959,9 +993,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       },
       "post": {
         "operationId": "crawl.start",
@@ -1024,10 +1062,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1100,9 +1138,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "collect"
       }
     },
     "/v1/crawls/{id}": {
@@ -1147,7 +1189,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -1183,9 +1225,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       }
     },
     "/v1/crawls/{id}/stop": {
@@ -1230,10 +1276,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1296,9 +1342,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "collect"
       }
     },
     "/v1/config": {
@@ -1321,7 +1371,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "503": {
             "description": "YaCy is not available yet.",
@@ -1339,7 +1389,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       },
       "patch": {
         "operationId": "config.set",
@@ -1380,10 +1431,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1428,7 +1479,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/ui/routes": {
@@ -1520,7 +1572,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -1548,7 +1600,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/control": {
@@ -1591,10 +1644,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1679,7 +1732,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/prompt": {
@@ -1712,7 +1766,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "405": {
             "description": "Method not allowed.",
@@ -1750,7 +1804,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       },
       "post": {
         "operationId": "kg.prompt.change",
@@ -1791,10 +1846,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -1869,7 +1924,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/collections": {
@@ -1902,7 +1958,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -1940,7 +1996,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/collections/{collection}": {
@@ -1995,10 +2052,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -2073,7 +2130,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/backups": {
@@ -2106,7 +2164,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -2154,7 +2212,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/backups/{file}": {
@@ -2195,7 +2254,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -2243,7 +2302,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/entities": {
@@ -2396,7 +2456,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -2442,9 +2502,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/entities/{id}": {
@@ -2499,7 +2563,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -2545,9 +2609,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/entities/{id}/statements": {
@@ -2661,7 +2729,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -2707,9 +2775,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/statements/{id}": {
@@ -2764,7 +2836,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -2810,9 +2882,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/statements/{id}/evidence": {
@@ -2891,7 +2967,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -2937,9 +3013,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/hosts/{host}/entities": {
@@ -3018,7 +3098,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -3064,9 +3144,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/sources/{docId}": {
@@ -3145,7 +3229,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -3191,9 +3275,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/entities/{id}/suggestions": {
@@ -3272,7 +3360,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -3318,9 +3406,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/entities/{id}/business": {
@@ -3387,7 +3479,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -3433,9 +3525,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/entities/{id}/suggestions/{proposal}/contributions": {
@@ -3524,7 +3620,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -3570,9 +3666,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/entities/{id}/neighborhood": {
@@ -3735,7 +3835,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -3781,9 +3881,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/compare": {
@@ -3851,7 +3955,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -3897,9 +4001,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/derived": {
@@ -3993,7 +4101,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4039,9 +4147,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/services": {
@@ -4131,7 +4243,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4177,9 +4289,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/services/providers": {
@@ -4269,7 +4385,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4315,9 +4431,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/services/network": {
@@ -4419,7 +4539,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4465,9 +4585,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/facets": {
@@ -4512,7 +4636,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4558,9 +4682,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/history": {
@@ -4649,7 +4777,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4695,9 +4823,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/entities/{id}/history": {
@@ -4776,7 +4908,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4822,9 +4954,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/observations/{id}": {
@@ -4879,7 +5015,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -4925,9 +5061,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/observations/{id}/history": {
@@ -5006,7 +5146,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -5052,9 +5192,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/v1/kg/export": {
@@ -5135,7 +5279,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -5191,9 +5335,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "export"
       }
     },
     "/v1/kg/changes": {
@@ -5271,7 +5419,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -5327,9 +5475,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "export"
       }
     },
     "/v1/kg/export/download": {
@@ -5407,7 +5559,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -5453,9 +5605,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "export"
       }
     },
     "/agent/v1/capabilities": {
@@ -5547,7 +5703,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -5687,7 +5843,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -5918,7 +6074,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6011,7 +6167,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6114,7 +6270,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6241,7 +6397,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6379,7 +6535,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6581,7 +6737,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6734,7 +6890,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -6847,7 +7003,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7128,7 +7284,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7286,7 +7442,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -7322,9 +7478,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/agent/v1/seo/hosts": {
@@ -7395,7 +7555,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7528,7 +7688,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -7564,9 +7724,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/agent/v1/seo/hosts/{host}": {
@@ -7612,7 +7776,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -7818,7 +7982,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -7854,9 +8018,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/agent/v1/seo/hosts/{host}/pages": {
@@ -7975,7 +8143,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8108,7 +8276,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -8144,9 +8312,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/agent/v1/seo/pages/{id}": {
@@ -8192,7 +8364,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8303,7 +8475,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -8339,9 +8511,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       }
     },
     "/agent/v1/reports/jobs": {
@@ -8365,7 +8541,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8508,7 +8684,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -8544,9 +8720,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       }
     },
     "/agent/v1/reports/jobs/{id}": {
@@ -8602,7 +8782,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8725,7 +8905,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -8761,9 +8941,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       }
     },
     "/agent/v1/reports/collections/{collection}": {
@@ -8799,7 +8983,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -8966,7 +9150,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -9002,9 +9186,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       }
     },
     "/agent/v1/reports/collections/{collection}/hosts": {
@@ -9084,7 +9272,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9217,7 +9405,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "404": {
             "description": "Not found.",
@@ -9253,9 +9441,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       }
     },
     "/agent/v1/reports/hosts/{host}": {
@@ -9301,7 +9493,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9412,7 +9604,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "405": {
             "description": "Method not allowed.",
@@ -9440,7 +9632,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       },
       "put": {
         "operationId": "kg.llm.schedule.change",
@@ -9481,10 +9674,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9539,7 +9732,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/kg/llm-run": {
@@ -9582,10 +9776,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -9650,7 +9844,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
       }
     },
     "/agent/v1/kg/backups": {
@@ -9674,7 +9869,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10026,7 +10221,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10160,7 +10355,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10353,7 +10548,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10487,7 +10682,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10645,7 +10840,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10803,7 +10998,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -10961,7 +11156,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11119,7 +11314,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11265,7 +11460,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11433,7 +11628,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11675,7 +11870,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11822,7 +12017,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -11995,7 +12190,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12164,7 +12359,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12333,7 +12528,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12514,7 +12709,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12638,7 +12833,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12806,7 +13001,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -12964,7 +13159,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13098,7 +13293,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13256,7 +13451,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13416,7 +13611,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13583,7 +13778,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -13694,6 +13889,9 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
         "x-scoutro-mutating": false,
@@ -13779,7 +13977,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "collect"
       }
     },
     "/v1/discovery/export": {
@@ -13877,7 +14076,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/discovery/jobs": {
@@ -13890,6 +14090,9 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
         "x-scoutro-mutating": false,
@@ -13975,7 +14178,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "collect"
       },
       "post": {
         "operationId": "discovery.jobs.create",
@@ -13986,6 +14190,9 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
         "x-scoutro-mutating": true,
@@ -14102,7 +14309,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "collect"
       }
     },
     "/v1/discovery/jobs/{id}": {
@@ -14115,6 +14323,9 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
         "x-scoutro-mutating": false,
@@ -14211,7 +14422,8 @@
               "format": "uuid"
             }
           }
-        ]
+        ],
+        "x-scoutro-permission": "collect"
       },
       "patch": {
         "operationId": "discovery.jobs.update",
@@ -14222,6 +14434,9 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
         "x-scoutro-mutating": true,
@@ -14337,7 +14552,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "collect"
       },
       "delete": {
         "operationId": "discovery.jobs.delete",
@@ -14348,6 +14564,9 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
         "x-scoutro-mutating": true,
@@ -14464,7 +14683,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "collect"
       }
     },
     "/v1/discovery/jobs/{id}/run": {
@@ -14477,6 +14697,9 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
         "x-scoutro-mutating": true,
@@ -14593,7 +14816,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "collect"
       }
     },
     "/v1/discovery/enable": {
@@ -14713,7 +14937,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/discovery/disable": {
@@ -14833,7 +15058,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/discovery/pause": {
@@ -14953,7 +15179,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/discovery/resume": {
@@ -15073,7 +15300,8 @@
               }
             }
           }
-        }
+        },
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/hosts/resolve": {
@@ -15128,7 +15356,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -15154,9 +15382,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "read"
       }
     },
     "/agent/v1/hosts/resolve": {
@@ -15201,7 +15433,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15302,7 +15534,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -15328,9 +15560,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "search"
       },
       "post": {
         "operationId": "collections.create",
@@ -15371,10 +15607,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15429,7 +15665,8 @@
             "digest": []
           }
         ],
-        "x-scoutro-mutating": true
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
       }
     },
     "/agent/v1/collections": {
@@ -15452,7 +15689,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15553,7 +15790,7 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "502": {
             "description": "YaCy returned an error or an unreadable answer on the loopback interface.",
@@ -15579,9 +15816,13 @@
         "security": [
           {
             "digest": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
-        "x-scoutro-mutating": false
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "collect"
       }
     },
     "/agent/v1/discovery/status": {
@@ -15604,7 +15845,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15715,10 +15956,10 @@
             }
           },
           "401": {
-            "description": "Administrator authentication required (HTTP Digest). The body is the server's HTML error page."
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
           },
           "403": {
-            "description": "Forbidden (cross-origin request or setting not on the allowlist).",
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
             "content": {
               "application/json": {
                 "schema": {
@@ -15783,7 +16024,1133 @@
             "digest": []
           }
         ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "operationId": "auth.login",
+        "summary": "Sign in",
+        "description": "Sign-in of people (browser). Sets or reads the HttpOnly cookie scoutro_session (SameSite=Strict, Secure behind HTTPS); changing calls of a session need X-Scoutro-CSRF. HTTP Digest for tools is unchanged. Public, JSON body, same origin. 400 invalid_request, 401 invalid_credentials (wrong name or password, same answer), 403 account_locked (only after the right password), 429 too_many_attempts (Retry-After; 5 failures per name or 30 per client within 15 minutes), 503 accounts_unavailable.",
+        "tags": [
+          "system"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthLogin"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in; Set-Cookie scoutro_session.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthLoginResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
         "x-scoutro-mutating": true
+      }
+    },
+    "/v1/auth/session": {
+      "get": {
+        "operationId": "auth.session",
+        "summary": "Current identity",
+        "description": "Public. Who is calling (account, built-in administrator, Digest administrator, guest or anonymous), the permissions and collections, the CSRF token of a session and the access mode.",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Identity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSession"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "operationId": "auth.logout",
+        "summary": "Sign out",
+        "description": "Ends the caller's session (X-Scoutro-CSRF) and clears the cookie; ok=false with reason no_session otherwise.",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Signed out.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOk"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/auth/password": {
+      "post": {
+        "operationId": "auth.password",
+        "summary": "Change own password",
+        "description": "Session only (not Digest, not the built-in administrator: 409 builtin_admin). Checks the current password (403 wrong_password, counted like sign-in failures), applies the password rules (400 password_too_short, password_too_long, password_equals_username, password_too_common, password_unchanged), ends every session of the account and opens a new one (new cookie and CSRF token).",
+        "tags": [
+          "system"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/auth/sessions": {
+      "get": {
+        "operationId": "auth.sessions",
+        "summary": "Own sessions",
+        "description": "The caller's sessions: start, last use, client address, browser.",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": false
+      }
+    },
+    "/v1/auth/sessions/revoke": {
+      "post": {
+        "operationId": "auth.sessions.revoke",
+        "summary": "End own sessions",
+        "description": "Ends one other session (id) or all others (others: true).",
+        "tags": [
+          "system"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionRevoke"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "x-scoutro-mutating": true
+      }
+    },
+    "/v1/users": {
+      "get": {
+        "operationId": "users.list",
+        "summary": "List accounts",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Accounts with role, collections, export flag, status and number of open sessions, plus the access settings.",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Accounts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      },
+      "post": {
+        "operationId": "users.create",
+        "summary": "Create an account",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. 400 invalid_request (details.field), password rules as for auth.password, 409 username_taken, username_reserved (the built-in administrator's name), protected_mode_required (Research and Operator need the protected mode). Research and Operator need at least one collection or allCollections.",
+        "tags": [
+          "system"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body too large (max 16 KiB).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/users/{name}": {
+      "get": {
+        "operationId": "users.get",
+        "summary": "Read an account",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "User name.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      },
+      "patch": {
+        "operationId": "users.update",
+        "summary": "Change an account",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Changing role, collections, export or locking ends the account's sessions at once. 409 last_admin (the last administrator who can sign in), own_account (own lock or role change), protected_mode_required.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "User name.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      },
+      "delete": {
+        "operationId": "users.delete",
+        "summary": "Remove an account",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Body {}. Ends its sessions. 409 last_admin, own_account.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "User name.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Removed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOk"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/users/{name}/password": {
+      "post": {
+        "operationId": "users.password.reset",
+        "summary": "Reset a password",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Sets a temporary password without e-mail; the person must change it at the next sign-in (mustChangePassword, default true). Ends the account's sessions.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "User name.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordReset"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reset.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/users/{name}/sessions": {
+      "get": {
+        "operationId": "users.sessions",
+        "summary": "Sessions of an account",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "User name.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/users/{name}/sessions/revoke": {
+      "post": {
+        "operationId": "users.sessions.revoke",
+        "summary": "End the sessions of an account",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Body {}.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "description": "User name.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ended.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOk"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/access": {
+      "get": {
+        "operationId": "access.get",
+        "summary": "Access mode",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Protected mode, guest access and released collections, built-in administrator sign-in, peer-to-peer in protected mode, warnings (p2p_open: peer-to-peer is allowed in protected mode, other peers and every client of the port read all collections through /yacy/; p2p_closed: the peer is set up for the YaCy network, but protected mode closes its peer-to-peer index routes and pauses the index distribution; localhost_admin: adminAccountForLocalhost grants administrator rights to every local request, also through a reverse proxy on the same computer; builtin_default_password; protected_enforced: active restricted accounts keep the protected rules).",
+        "tags": [
+          "system"
+        ],
+        "responses": {
+          "200": {
+            "description": "Settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Access"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      },
+      "patch": {
+        "operationId": "access.update",
+        "summary": "Change the access mode",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. 409 restricted_accounts_active (leave protected mode only without active Research/Operator accounts), protected_mode_required (guest access or peerToPeer outside protected mode), peer_to_peer_on (switch off peerToPeer before leaving protected mode), last_admin (switch off the built-in administrator's sign-in only with an active administrator account), own_account (not from the built-in administrator's own session).",
+        "tags": [
+          "system"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Access"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict (e.g. the crawl is not running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request body must be application/json.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": true,
+        "x-scoutro-permission": "admin"
+      }
+    },
+    "/v1/access/audit": {
+      "get": {
+        "operationId": "access.audit",
+        "summary": "Audit log of people",
+        "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Newest first: sign-ins, account and access changes and every changing Scoutro API call of a person. Never passwords, tokens, document contents or search texts.",
+        "tags": [
+          "system"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of entries.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "default": 100
+            }
+          },
+          {
+            "name": "who",
+            "in": "query",
+            "required": false,
+            "description": "Only entries whose actor or target is this name.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Entries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditList"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "403": {
+            "description": "Forbidden: cross-origin request, setting not on the allowlist, the signed-in account lacks the permission (forbidden) or the collection (collection_not_allowed).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
       }
     },
     "/v1/chat/completions": {
@@ -15800,7 +17167,7 @@
         "tags": [
           "system"
         ],
-        "description": "Content chat retains existing AIShield/model/RAG behavior. Supported DE/EN system questions run authorized Actions before model/search/tool selection and work without Function Calling. No missing-rights/data web fallback. System questions require Digest admin role or authorized agent Bearer; no localhost bypass. Agent rights, collection scopes, crawl ownership, audit and limits remain enforced. Metadata attributes exact facts/action/time; stream=true sends OpenAI SSE chunks and terminal [DONE].",
+        "description": "Content chat retains existing AIShield/model/RAG behavior. Supported DE/EN system questions run authorized Actions before model/search/tool selection and work without Function Calling. No missing-rights/data web fallback. System questions require Digest admin role or authorized agent Bearer; no localhost bypass. Agent rights, collection scopes, crawl ownership, audit and limits remain enforced. Metadata attributes exact facts/action/time; stream=true sends OpenAI SSE chunks and terminal [DONE]. Scoutro accounts without the administrator role (session with the chat right) chat only within their collections whatever the AI Shield admits for their address: a foreign collection answers 403 collection_not_allowed, no collection with several collections 400 collection_required, system questions 403 system_forbidden; no peer-to-peer search.",
         "security": [
           {},
           {
@@ -15808,8 +17175,12 @@
           },
           {
             "agentBearer": []
+          },
+          {
+            "scoutroSession": []
           }
         ],
+        "x-scoutro-permission": "chat",
         "requestBody": {
           "required": true,
           "content": {
@@ -15837,7 +17208,7 @@
             }
           },
           "400": {
-            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
+            "description": "Invalid request (validation error; details.field names the parameter), or 'collection:' or, for callers without the administrator role, '/heuristic' in the query (query_modifier_not_allowed), or a token in the URL (token_in_url).",
             "content": {
               "application/json": {
                 "schema": {
@@ -29139,6 +30510,599 @@
           }
         }
       },
+      "AuthUser": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "guest",
+              "research",
+              "operator",
+              "administrator"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "search",
+                "chat",
+                "read",
+                "export",
+                "collect",
+                "admin"
+              ]
+            }
+          },
+          "allCollections": {
+            "type": "boolean"
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          "export": {
+            "type": "boolean"
+          },
+          "builtin": {
+            "type": "boolean",
+            "description": "The built-in YaCy administrator."
+          },
+          "digest": {
+            "type": "boolean",
+            "description": "Authenticated with HTTP Digest, not with a session."
+          },
+          "mustChangePassword": {
+            "type": "boolean",
+            "description": "No permission works until the password is changed."
+          }
+        }
+      },
+      "AuthLogin": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "next": {
+            "type": "string",
+            "description": "Return target; only a path on this server is kept, otherwise the overview."
+          }
+        }
+      },
+      "AuthLoginResult": {
+        "type": "object",
+        "required": [
+          "ok",
+          "user",
+          "csrf"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          },
+          "csrf": {
+            "type": "string",
+            "description": "Send it as X-Scoutro-CSRF with changing calls of this session. Keep it in memory, never in localStorage."
+          },
+          "next": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer"
+          },
+          "warning": {
+            "type": "string",
+            "enum": [
+              "builtin_default_password"
+            ]
+          }
+        }
+      },
+      "AuthSession": {
+        "type": "object",
+        "required": [
+          "authenticated",
+          "kind"
+        ],
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "account",
+              "builtin",
+              "digest_admin",
+              "guest",
+              "anonymous"
+            ]
+          },
+          "available": {
+            "type": "boolean",
+            "description": "false: the account store cannot be read (sign-in off, Digest unaffected)."
+          },
+          "mode": {
+            "type": "object",
+            "properties": {
+              "protected": {
+                "type": "boolean"
+              },
+              "guest": {
+                "type": "boolean"
+              },
+              "loginPage": {
+                "type": "boolean"
+              }
+            }
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          },
+          "csrf": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer"
+          },
+          "idleMinutes": {
+            "type": "integer"
+          },
+          "guest": {
+            "type": "object",
+            "properties": {
+              "collections": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{1,64}$"
+                }
+              }
+            }
+          },
+          "warning": {
+            "type": "string"
+          }
+        }
+      },
+      "AuthOk": {
+        "type": "object",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "ended": {
+            "type": "integer"
+          },
+          "sessionsEnded": {
+            "type": "integer"
+          },
+          "deleted": {
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AuthUser"
+          },
+          "csrf": {
+            "type": "string"
+          }
+        }
+      },
+      "PasswordChange": {
+        "type": "object",
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 256
+          }
+        }
+      },
+      "SessionRevoke": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Public id of one of the caller's other sessions."
+          },
+          "others": {
+            "type": "boolean",
+            "description": "End all other sessions."
+          }
+        }
+      },
+      "SessionList": {
+        "type": "object",
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "createdAt": {
+                  "type": "integer"
+                },
+                "lastSeenAt": {
+                  "type": "integer"
+                },
+                "client": {
+                  "type": "string"
+                },
+                "agent": {
+                  "type": "string"
+                },
+                "current": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "research",
+              "operator",
+              "administrator"
+            ]
+          },
+          "allCollections": {
+            "type": "boolean"
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          "export": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "locked"
+            ]
+          },
+          "mustChangePassword": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "integer"
+          },
+          "updatedAt": {
+            "type": "integer"
+          },
+          "passwordChangedAt": {
+            "type": "integer"
+          },
+          "lastLoginAt": {
+            "type": "integer"
+          },
+          "createdBy": {
+            "type": "string"
+          },
+          "sessions": {
+            "type": "integer"
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "sessionsEnded": {
+            "type": "integer"
+          }
+        }
+      },
+      "UserCreate": {
+        "type": "object",
+        "required": [
+          "username",
+          "role",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+          },
+          "displayName": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "research",
+              "operator",
+              "administrator"
+            ]
+          },
+          "allCollections": {
+            "type": "boolean"
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          "export": {
+            "type": "boolean"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 256,
+            "description": "Temporary password; the person sets their own at the first sign-in unless mustChangePassword is false."
+          },
+          "mustChangePassword": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "UserPatch": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "research",
+              "operator",
+              "administrator"
+            ]
+          },
+          "allCollections": {
+            "type": "boolean"
+          },
+          "collections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          "export": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "locked"
+            ]
+          }
+        }
+      },
+      "PasswordReset": {
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 10,
+            "maxLength": 256
+          },
+          "mustChangePassword": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "Access": {
+        "type": "object",
+        "properties": {
+          "protected": {
+            "type": "boolean",
+            "description": "Effective protected mode (also while active Research/Operator accounts exist)."
+          },
+          "protectedSetting": {
+            "type": "boolean"
+          },
+          "guest": {
+            "type": "boolean"
+          },
+          "guestSetting": {
+            "type": "boolean"
+          },
+          "guestCollections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          "peerToPeer": {
+            "type": "boolean",
+            "description": "Peer-to-peer in protected mode (scoutro.access.p2p, off by default): the routes under /yacy/ that read or write the index and the index distribution (DHT) keep YaCy's network rules; collection rights do not apply there."
+          },
+          "builtinAdminLogin": {
+            "type": "boolean"
+          },
+          "builtinAdminName": {
+            "type": "string"
+          },
+          "loginPage": {
+            "type": "boolean"
+          },
+          "activeAdministrators": {
+            "type": "integer"
+          },
+          "restrictedActive": {
+            "type": "boolean"
+          },
+          "sessionIdleMinutes": {
+            "type": "integer"
+          },
+          "sessionMaxHours": {
+            "type": "integer"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "p2p_open",
+                "p2p_closed",
+                "localhost_admin",
+                "builtin_default_password",
+                "protected_enforced"
+              ]
+            }
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "UserList": {
+        "type": "object",
+        "properties": {
+          "users": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/User"
+            }
+          },
+          "access": {
+            "$ref": "#/components/schemas/Access"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "AccessPatch": {
+        "type": "object",
+        "properties": {
+          "protected": {
+            "type": "boolean"
+          },
+          "guest": {
+            "type": "boolean"
+          },
+          "guestCollections": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          "peerToPeer": {
+            "type": "boolean"
+          },
+          "builtinAdminLogin": {
+            "type": "boolean"
+          }
+        }
+      },
+      "AuditList": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ts": {
+                  "type": "integer"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "target": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "denied",
+                    "failed"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                },
+                "client": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
       "ChatRequest": {
         "type": "object",
         "required": [
@@ -29213,6 +31177,12 @@
         "type": "http",
         "scheme": "digest",
         "description": "YaCy administrator account (user 'admin' by default)."
+      },
+      "scoutroSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "scoutro_session",
+        "description": "Sign-in of people on scoutro-login.html (POST /v1/auth/login). Changing calls need the header X-Scoutro-CSRF. The account's role decides the routes (x-scoutro-permission: search, chat, read, export, collect, admin), its collections the data; administrators may use every route."
       },
       "agentBearer": {
         "type": "http",

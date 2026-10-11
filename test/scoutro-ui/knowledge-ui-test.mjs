@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL;
@@ -24,6 +25,7 @@ const browser = await chromium.launch({
   ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
   args: ['--no-proxy-server'],
 });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 const noOverflow = page => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1);
 // package 6.1: no technical ID in any visible name (links, headings, network cards); the technical ID field is no name
 const noIdAsName = page => page.evaluate(() => ![...document.querySelectorAll('#skg-main a, main a, main h2, main h3, #skg-net-svg text, #skg-net-svg title')]
@@ -60,7 +62,8 @@ try {
         check(/^[A-Z_]+\/fixture$/.test(await cardValue(lModel) || ''), 'the model of the LLM selection (service/model): ' + await cardValue(lModel) + where);
         check(!(await page.locator('#skg-overview').textContent()).includes('no_llm_collections'), 'no no_llm_collections with a model and an LLM collection' + where);
         if (language === 'de') check((await page.locator('h1').textContent()).trim() === 'Wissensgraph', 'German heading' + where);
-        check(await page.locator('#scoutro-adminnav a[href="ScoutroKnowledge_p.html"]').count() === 1, 'navigation entry' + where);
+        check(await page.locator('#scoutro-adminnav a[href="ScoutroKnowledge_p.html?view=operations"]').count() === 1
+          && await page.locator('#scoutro-nav-knowledge a[href="ScoutroKnowledge_p.html?view=objects"]').count() === 1, 'navigation entries (operations, organisations)' + where);
         await page.waitForFunction(() => document.querySelector('#skg-vocab').children.length > 0);
         const vocab = await page.locator('#skg-vocab').textContent();
         check(vocab.includes('kga: care') && vocab.includes('kgb: software') && /1[.,]?047/.test(vocab), 'vocabularies per collection and NACE codes' + where);
@@ -250,8 +253,11 @@ try {
         if (shots) await page.screenshot({ path: path.join(shots, `kg-business-${language}-${width}.png`), fullPage: true });
         await page.goto(base + `/ScoutroKnowledge_p.html?view=object&id=${operator}&collection=kga`, { waitUntil: 'networkidle' });
         await page.waitForSelector('#skg-sec-prices');
-        check(await page.locator('#skg-sec-matches').count() === 0 && !(await page.locator('#skg-object').textContent()).includes('PflegeSoft'),
-          'kga sees no suggestion that needs kgb' + where);
+        // since 08a42db suggestions use the viewer's full permission scope: the administrator may read kgb and gets the
+        // authorized suggestion also in the kga view (an account of kga only gets none: knowledge-live-smoke.py)
+        const kgaMatches = await page.locator('#skg-sec-matches').textContent();
+        check(kgaMatches.includes('PflegeSoft UI GmbH') && kgaMatches.includes(L('suggestion', 'Vorschlag')),
+          'kga view of the administrator shows the authorized kgb suggestion' + where);
 
         // the network: SVG and list from the same data, filters, keyboard, export
         await page.locator('#skg-object-network').click();

@@ -4,7 +4,9 @@ package net.yacy.scoutro.dashboard;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.params.ModifiableSolrParams;
@@ -13,12 +15,6 @@ import org.apache.solr.response.ResultContext;
 
 /** Read-only, bounded Solr aggregates. No stored documents are requested. */
 public final class DashboardMetrics {
-    public static final String[] COLLECTION_IDS = {
-        "edelsenior-web", "checkthecoach-web", "stackfinder-web", "bauteamcheck-web"
-    };
-    public static final String[] COLLECTION_NAMES = {
-        "EdelSenior", "CheckTheCoach", "StackFinder", "Bauteamcheck"
-    };
     // Same successful-URL scope as the standard Index Browser's host overview.
     public static final String INDEX_QUERY = "httpstatus_i:200 AND -failtype_s:[* TO *]";
     public static final int QUERY_BUDGET_MS = 1000;
@@ -51,35 +47,61 @@ public final class DashboardMetrics {
 
     private DashboardMetrics() { }
 
-    public static Snapshot read(final Query query) {
+    /** Collection names that can be written into a query (the catalog's rule). */
+    private static final Pattern NAME = Pattern.compile("[A-Za-z0-9_-]{1,64}");
+
+    /**
+     * The counts of the dashboard (docs/SCOUTRO_USERS_ACCESS.md: built from the catalog and the rights).
+     *
+     * @param collectionIds the collections with a card, from the collection catalog
+     * @param scope null for the whole index (administrator), otherwise the totals count only the documents
+     *        of these collections
+     */
+    public static Snapshot read(final Query query, final List<String> collectionIds, final List<String> scope) {
         final Map<String, Counts> collections = new LinkedHashMap<>();
+        final List<String> ids = valid(collectionIds);
+        final String base = scope == null ? INDEX_QUERY : INDEX_QUERY + " AND " + scopeFilter(valid(scope));
         Counts index = new Counts(-1, -1);
         try {
-            // One docValues JSON-facet request for the overview and all four collections.
-            final ModifiableSolrParams params = parameters(INDEX_QUERY);
+            // One docValues JSON-facet request for the overview and all collections.
+            final ModifiableSolrParams params = parameters(base);
             final StringBuilder facets = new StringBuilder("{\"hosts\":\"unique(host_s)\"");
-            for (int i = 0; i < COLLECTION_IDS.length; i++) {
+            for (int i = 0; i < ids.size(); i++) {
                 facets.append(",\"c").append(i).append("\":{\"type\":\"query\",\"q\":\"collection_sxt:\\\"")
-                        .append(COLLECTION_IDS[i]).append("\\\"\",\"facet\":{\"hosts\":\"unique(host_s)\"}}");
+                        .append(ids.get(i)).append("\\\"\",\"facet\":{\"hosts\":\"unique(host_s)\"}}");
             }
             params.set("json.facet", facets.append('}').toString());
             final NamedList<Object> response = complete(query.execute(params));
             final Object facetData = response.get("facets");
             index = counts(facetData);
-            for (int i = 0; i < COLLECTION_IDS.length; i++) {
-                collections.put(COLLECTION_IDS[i], counts(value(facetData, "c" + i)));
+            for (int i = 0; i < ids.size(); i++) {
+                collections.put(ids.get(i), counts(value(facetData, "c" + i)));
             }
         } catch (final IOException | RuntimeException e) {
             // Unsupported/slow facets must not take down counts or the rest of the page.
         }
-        if (index.pages < 0) index = new Counts(count(query, INDEX_QUERY), -1);
-        for (final String id : COLLECTION_IDS) {
+        if (index.pages < 0) index = new Counts(count(query, base), -1);
+        for (final String id : ids) {
             final Counts c = collections.get(id);
             if (c == null || c.pages < 0) {
-                collections.put(id, new Counts(count(query, INDEX_QUERY + " AND collection_sxt:\"" + id + "\""), -1));
+                collections.put(id, new Counts(count(query, base + " AND collection_sxt:\"" + id + "\""), -1));
             }
         }
         return new Snapshot(index, collections);
+    }
+
+    private static List<String> valid(final List<String> names) {
+        final List<String> out = new java.util.ArrayList<>();
+        if (names != null) for (final String n : names) if (n != null && NAME.matcher(n).matches() && !out.contains(n)) out.add(n);
+        return out;
+    }
+
+    /** Documents of any of the collections; no collection matches nothing. */
+    static String scopeFilter(final List<String> names) {
+        if (names.isEmpty()) return "-*:*";
+        final StringBuilder f = new StringBuilder("collection_sxt:(");
+        for (int i = 0; i < names.size(); i++) f.append(i == 0 ? "" : " OR ").append('"').append(names.get(i)).append('"');
+        return f.append(')').toString();
     }
 
     private static ModifiableSolrParams parameters(final String q) {

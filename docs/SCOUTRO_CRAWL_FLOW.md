@@ -28,7 +28,11 @@ carry their existing frozen collection and start marker through the same parser.
 
 A start is a mutation: YaCy reloads the seed URL and indexes into the selected
 collection. Agents retain domain, depth, pages, parallelism, foreign-index and
-ownership checks. Existing agent presets/grants are not automatically expanded.
+ownership checks. Agent crawls stay on exactly their start host (`www.`
+included): YaCy's domain filter is only a host prefix (`example.com` also
+matches `example.com.au`), so a must-not-match filter after the start marker
+excludes every other host, also further allowed domains and subdomains (each
+needs its own start). Existing agent presets/grants are not automatically expanded.
 
 ## Result of a start on the native page (package 6.3)
 

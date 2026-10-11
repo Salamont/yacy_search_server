@@ -139,6 +139,15 @@ public class IndexBrowser_p {
             browser.put("result", "");
             return browser;
         }
+        // Scoutro: the page is open to the read right in protected mode; its maintenance actions stay with
+        // the administrator (YaCy's own decision, including the local rules)
+        if (!sb.verifyAuthentication(header)) {
+            final serverObjects rejected = new serverObjects();
+            rejected.putHTML("browserQuery", post.get("q", post.get("path", "")));
+            rejected.putHTML("browserCollection", post.get("collection", ""));
+            rejected.putHTML("result", "Maintenance actions need an administrator.");
+            return rejected;
+        }
         // Collection-filtered browsing never delegates to global legacy writes.
         if (!post.get("collection", "").isEmpty()) {
             final serverObjects rejected = new serverObjects();

@@ -50,7 +50,8 @@ public final class DiscoveryGateway implements DiscoveryService.Backend {
             for (int i = 0; i < facets.length(); i += 2) if (!collection.equals(facets.getString(i))) {
                 throw new ApiException(409, "collection_conflict", "Recrawl would replace other collection memberships.");
             }
-            return new JsonObject(this.actions.crawlStart(parameters, marker));
+            // the checks above cover exactly this host: the crawl must not follow YaCy's host prefix to other hosts
+            return new JsonObject(this.actions.crawlStart(parameters, marker, true));
         }
     }
     @Override public JsonObject capacity() {

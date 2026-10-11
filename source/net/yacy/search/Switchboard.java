@@ -3924,6 +3924,15 @@ public final class Switchboard extends serverSwitch {
         if (requestHeader.isUserInRole(SwitchboardConstants.ADMIN_ACCOUNT_ROLE)) {
             if (this.adminAuthenticationLastAccess + 60000 > System.currentTimeMillis()) // 1 minute
                 return 4; // hard-authenticated, quick return
+            // Scoutro: the container authenticated this request in the administrator role without an
+            // Authorization header, i.e. with the session of a Scoutro administrator (the role comes
+            // solely from container authentication, see RequestHeader; Research and Operator sessions
+            // never carry it)
+            final String authorization = requestHeader.get(RequestHeader.AUTHORIZATION, "");
+            if (requestHeader.getUserPrincipal() != null && (authorization == null || authorization.isEmpty())) {
+                this.adminAuthenticationLastAccess = System.currentTimeMillis();
+                return 4;
+            }
         }
 
         // authorization for localhost, only if flag is set to grant localhost access as admin
@@ -4052,6 +4061,14 @@ public final class Switchboard extends serverSwitch {
         }
         if ( this.getConfig(SwitchboardConstants.INDEX_DIST_ALLOW, "false").equalsIgnoreCase("false") ) {
             return "no DHT distribution: not enabled (per setting)";
+        }
+        // Scoutro: the protected access mode keeps the collections in this peer unless peer-to-peer is allowed
+        final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+        final boolean peerToPeer = access != null ? access.peerToPeer()
+                : !this.getConfigBool(net.yacy.scoutro.access.AccessSettings.PROTECTED, false)
+                        || this.getConfigBool(net.yacy.scoutro.access.AccessSettings.PEER_TO_PEER, false);
+        if ( !peerToPeer ) {
+            return "no DHT distribution: Scoutro protected access mode without peer-to-peer (scoutro.access.p2p)";
         }
         final Segment indexSegment = this.index;
         if ( indexSegment.RWICount() < 100 ) {

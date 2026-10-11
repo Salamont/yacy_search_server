@@ -9,13 +9,25 @@
     #%env/templates/header.template%#
     <main class="scoutro-dash" aria-labelledby="scoutro-dash-title">
       <header class="scoutro-dash-heading">
-        <div><p class="scoutro-dash-eyebrow">Scoutro Administration</p>
+        <div><p class="scoutro-dash-eyebrow">#(dashAdmin)#Scoutro::Scoutro Administration#(/dashAdmin)#</p>
           <h1 id="scoutro-dash-title">Scoutro Dashboard</h1>
-          <p class="scoutro-dash-subtitle">Search &amp; Index Overview</p>
+          <p class="scoutro-dash-subtitle">#(dashAdmin)#Your collections at a glance::Search &amp; Index Overview#(/dashAdmin)#</p>
         </div>
         <img src="env/scoutro/brand/pose-laptop.webp" width="80" height="88" alt="" />
       </header>
 
+      #(dashAdmin)#
+      <section class="scoutro-dash-kpis" aria-label="Overview of your collections">
+        <a class="scoutro-dash-card scoutro-dash-kpi" href="IndexBrowser_p.html">
+          <span class="scoutro-dash-label">Websites</span><strong data-metric="hosts">#[hosts]#</strong>
+          <span class="scoutro-dash-caption">hosts in your collections</span>
+        </a>
+        <a class="scoutro-dash-card scoutro-dash-kpi" href="IndexBrowser_p.html">
+          <span class="scoutro-dash-label">Indexed Pages</span><strong data-metric="pages">#[pages]#</strong>
+          <span class="scoutro-dash-caption">pages in your collections</span>
+        </a>
+      </section>
+      ::
       <section class="scoutro-dash-kpis" aria-label="Index and system overview">
         <a class="scoutro-dash-card scoutro-dash-kpi" href="IndexBrowser_p.html?admin=true&amp;hosts=">
           <span class="scoutro-dash-label">Websites</span><strong data-metric="hosts">#[hosts]#</strong>
@@ -38,12 +50,13 @@
           <span class="scoutro-dash-caption">of #[heapMax]# maximum heap</span>
         </a>
       </section>
+      #(/dashAdmin)#
       <p class="scoutro-dash-note">Index statistics refresh within 30 seconds. Hosts are counted separately from pages.</p>
       #(indexUnavailable)#::<p class="scoutro-dash-notice" role="status">Some index statistics are temporarily unavailable. Other sections and detail links remain available.</p>#(/indexUnavailable)#
 
       <section aria-labelledby="scoutro-dash-collections">
         <div class="scoutro-dash-section-heading"><h2 id="scoutro-dash-collections">Scoutro Collections</h2>
-          <span class="scoutro-dash-caption">Share of indexed pages</span></div>
+          <span class="scoutro-dash-caption">#(scoped)#Share of indexed pages::Share of the pages in your collections#(/scoped)#</span></div>
         <div class="scoutro-dash-collections">
           #{collections}#
           <a class="scoutro-dash-card scoutro-dash-collection" data-collection="#[id]#" href="IndexBrowser_p.html?collection=#[id]#">
@@ -58,7 +71,7 @@
         </div>
         <p class="scoutro-dash-note">Collections can overlap. Links open the standard Index Browser.</p>
       </section>
-
+      #(dashCollect)#::
       <section aria-labelledby="scoutro-discovery-heading">
         <a class="scoutro-dash-card" href="ScoutroDiscovery_p.html">
           <h2 id="scoutro-discovery-heading">Discovery Automation</h2>
@@ -67,6 +80,23 @@
           <span hidden data-scdd-label="active">Active</span><span hidden data-scdd-label="paused">Paused</span><span hidden data-scdd-label="disabled">Disabled</span><span hidden data-scdd-label="batch_running">Batch running</span></p>
         </a>
       </section>
+      #(/dashCollect)#
+      #(dashAdmin)#
+      <section aria-labelledby="scoutro-dash-functions">
+        <h2 id="scoutro-dash-functions">Your functions</h2>
+        <div class="scoutro-dash-links">
+          <a class="scoutro-dash-card" href="scoutro-search.html">Search <span aria-hidden="true">&rsaquo;</span></a>
+          #(dashChat)#::<a class="scoutro-dash-card" href="yacychat.html">Chat <span aria-hidden="true">&rsaquo;</span></a>#(/dashChat)#
+          <a class="scoutro-dash-card" href="IndexBrowser_p.html">Websites <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="ScoutroSEO_p.html">Host analysis <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="ScoutroKnowledge_p.html?view=objects">Organisations <span aria-hidden="true">&rsaquo;</span></a>
+          #(dashCollect)#::<a class="scoutro-dash-card" href="ScoutroCrawls_p.html">Crawls <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="ScoutroDiscovery_p.html">Discovery <span aria-hidden="true">&rsaquo;</span></a>
+          <a class="scoutro-dash-card" href="ScoutroSEO_p.html?view=report">Reports <span aria-hidden="true">&rsaquo;</span></a>#(/dashCollect)#
+          <a class="scoutro-dash-card" href="scoutro-account.html">My account <span aria-hidden="true">&rsaquo;</span></a>
+        </div>
+      </section>
+      ::
       <section aria-labelledby="scoutro-knowledge-heading">
         <a class="scoutro-dash-card" href="ScoutroKnowledge_p.html">
           <h2 id="scoutro-knowledge-heading">Knowledge graph</h2>
@@ -122,9 +152,10 @@
           <a class="scoutro-dash-card" href="Automation_p.html?sort=-date_recording">Automation <span aria-hidden="true">&rsaquo;</span></a>
         </div>
       </section>
+      #(/dashAdmin)#
     </main>
-    <script src="env/scoutro/discovery-dashboard.js"></script>
-    <script src="env/scoutro/knowledge-dashboard.js"></script>
+    #(dashCollect)#::<script src="env/scoutro/discovery-dashboard.js"></script>#(/dashCollect)#
+    #(dashAdmin)#::<script src="env/scoutro/knowledge-dashboard.js"></script>#(/dashAdmin)#
     #%env/templates/footer.template%#
   </body>
 </html>

@@ -45,7 +45,9 @@ public class yacychat {
         prop.put("system_prompt", systemPromptJs);
         // Administrators always get the administration navigation with the AI Lab; the front page link
         // (ai.shield.show-chat-link) only selects the public header for visitors. Access stays with the AI Shield.
-        final boolean publicChat = sb.getConfigBool("ai.shield.show-chat-link", false) && !sb.verifyAuthentication(header);
+        // Scoutro: a signed-in account always gets the Scoutro header with its navigation
+        final boolean publicChat = sb.getConfigBool("ai.shield.show-chat-link", false) && !sb.verifyAuthentication(header)
+                && header.getUserPrincipal() == null;
         prop.put("topmenu", publicChat ? (sb.getConfigBool("publicTopmenu", true) ? 1 : 0) : 2);
 
         String promoteChatPageGreeting = env.getConfig("promoteChatPageGreeting", "");
@@ -69,8 +71,13 @@ public class yacychat {
         // the collections this client may choose as the search scope (package 6.1), the same rule as the chat endpoint:
         // local and administrator access all of the index, anyone else only the released ones; sorted alphabetically
         final boolean privileged = ChatCollections.privileged(LLMAccess.client(header), header);
-        final List<String> collections = ChatCollections.allowed(privileged,
-                () -> CollectionCatalog.current().selectable(), sb.getConfig(ChatCollections.GUEST_SETTING, ""));
+        // Scoutro: an account without the administrator role chooses among its collections only, and without
+        // "all collections" it always names one (the chat endpoint applies the same rule)
+        final net.yacy.scoutro.access.Scope member = ChatCollections.member(header);
+        final List<String> collections = member == null
+                ? ChatCollections.allowed(privileged, () -> CollectionCatalog.current().selectable(), sb.getConfig(ChatCollections.GUEST_SETTING, ""))
+                : member.filter(ChatCollections.allowed(true, () -> CollectionCatalog.current().selectable(), ""));
+        prop.put("collectionAll", member == null || member.isAll() ? 1 : 0);
         final java.util.Map<String, String> names = new java.util.HashMap<>();
         try {
             for (final CollectionCatalog.Entry e : CollectionCatalog.current().entries(false)) names.put(e.id, e.name);

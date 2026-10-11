@@ -93,6 +93,11 @@ public class LLM {
          * requests only ({@link #nativeNoThinking()}); {@link #thinking} keeps its meaning for every other caller.
          */
         public String thinkingCapability = "unknown";
+        /**
+         * Whether tools that read the whole index ({@link ToolProvider#readsIndex(String)}) may be offered and run:
+         * false for a chat limited to some collections (a Scoutro account, an AI Shield guest), true otherwise.
+         */
+        public boolean indexTools = true;
         public LLMModel(LLM llm, String model, boolean tooling, boolean thinking) {
             this.llm = llm;
             this.model = model;

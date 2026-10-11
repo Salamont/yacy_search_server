@@ -23,6 +23,7 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 const require = createRequire(import.meta.url);
 let playwright;
@@ -45,6 +46,7 @@ const pages = fs.readdirSync(htroot)
   .sort();
 
 const browser = await playwright.chromium.launch({ args: ['--no-proxy-server'] });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 const ctx = await browser.newContext({
   viewport: { width: WIDTH, height: 800 }, isMobile: true, hasTouch: true,
   httpCredentials: { username: USER, password: PASSWORD },

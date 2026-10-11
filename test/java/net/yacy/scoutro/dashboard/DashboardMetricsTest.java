@@ -18,6 +18,8 @@ import net.yacy.http.AdminSecurity;
 import net.yacy.server.serverObjects;
 
 public class DashboardMetricsTest {
+    /** the cards come from the collection catalog; these are the fixture's collections */
+    private static final java.util.List<String> IDS = java.util.List.of("edelsenior-web", "checkthecoach-web", "stackfinder-web", "bauteamcheck-web");
     private static NamedList<Object> aggregate(final long pages, final long hosts) {
         final NamedList<Object> result = new NamedList<>();
         final NamedList<Object> facets = new NamedList<>();
@@ -47,9 +49,9 @@ public class DashboardMetricsTest {
             Assert.assertEquals(DashboardMetrics.INDEX_QUERY, params.get("q"));
             Assert.assertTrue(params.get("q").contains("-failtype_s"));
             Assert.assertTrue(params.get("json.facet").contains("unique(host_s)"));
-            for (final String id : DashboardMetrics.COLLECTION_IDS) Assert.assertTrue(params.get("json.facet").contains(id));
+            for (final String id : IDS) Assert.assertTrue(params.get("json.facet").contains(id));
             return aggregate(100, 7);
-        });
+        }, IDS, null);
         Assert.assertEquals(1, calls.get());
         Assert.assertEquals(100, snapshot.index.pages);
         Assert.assertEquals(7, snapshot.index.hosts);
@@ -57,9 +59,9 @@ public class DashboardMetricsTest {
     }
 
     @Test public void valuesAreRenderedDynamicallyIncludingMissingCollection() {
-        final DashboardMetrics.Snapshot snapshot = DashboardMetrics.read(params -> aggregate(100, 7));
+        final DashboardMetrics.Snapshot snapshot = DashboardMetrics.read(params -> aggregate(100, 7), IDS, null);
         final serverObjects props = new serverObjects();
-        ScoutroDashboard.renderIndex(props, snapshot);
+        ScoutroDashboard.renderIndex(props, snapshot, IDS, java.util.Map.of());
         Assert.assertEquals("100", props.get("pages"));
         Assert.assertEquals("7", props.get("hosts"));
         Assert.assertEquals("1", props.get("collections_0_hasHosts_hosts"));
@@ -69,7 +71,7 @@ public class DashboardMetricsTest {
         Assert.assertEquals("0.0%", props.get("collections_1_share"));
         Assert.assertEquals("4.0%", props.get("collections_3_share"));
         final serverObjects changed = new serverObjects();
-        ScoutroDashboard.renderIndex(changed, DashboardMetrics.read(params -> aggregate(200, 11)));
+        ScoutroDashboard.renderIndex(changed, DashboardMetrics.read(params -> aggregate(200, 11), IDS, null), IDS, java.util.Map.of());
         Assert.assertEquals("200", changed.get("pages"));
         Assert.assertEquals("11", changed.get("hosts"));
         Assert.assertEquals("2.0%", changed.get("collections_3_share"));
@@ -79,7 +81,7 @@ public class DashboardMetricsTest {
         final DashboardMetrics.Snapshot snapshot = DashboardMetrics.read(params -> {
             if (params.get("json.facet") != null || params.get("q").contains("stackfinder-web")) throw new IOException("unavailable");
             return countResponse(params.get("q").contains("checkthecoach-web") ? 0 : 17);
-        });
+        }, IDS, null);
         Assert.assertEquals(17, snapshot.index.pages);
         Assert.assertEquals(-1, snapshot.index.hosts);
         Assert.assertEquals(0, snapshot.collections.get("checkthecoach-web").pages);
@@ -92,7 +94,7 @@ public class DashboardMetricsTest {
             final NamedList<Object> result = aggregate(123, 45);
             result.add("responseHeader", Map.of("partialResults", true));
             return result;
-        });
+        }, IDS, null);
         Assert.assertEquals(-1, snapshot.index.pages);
         Assert.assertEquals(-1, snapshot.index.hosts);
     }
@@ -106,10 +108,26 @@ public class DashboardMetricsTest {
             @SuppressWarnings("unchecked") final NamedList<Object> facets = (NamedList<Object>) response.get("facets");
             for (int i = 0; i < 4; i++) facets.setVal(2 + i, Map.of("count", 0L));
             return response;
-        });
+        }, IDS, null);
         Assert.assertEquals(0, snapshot.index.pages);
         Assert.assertEquals(0, snapshot.index.hosts);
         for (final DashboardMetrics.Counts c : snapshot.collections.values()) Assert.assertEquals(0, c.pages);
+    }
+
+    @Test public void anAccountScopeLimitsTheTotalsToItsCollections() {
+        final java.util.List<String> queries = new java.util.ArrayList<>();
+        final DashboardMetrics.Snapshot snapshot = DashboardMetrics.read(params -> {
+            queries.add(params.get("q"));
+            Assert.assertFalse(params.get("json.facet").contains("checkthecoach-web"));
+            return aggregate(3, 1);
+        }, java.util.List.of("stackfinder-web"), java.util.List.of("stackfinder-web", "bad name"));
+        Assert.assertEquals(1, queries.size());
+        Assert.assertEquals(DashboardMetrics.INDEX_QUERY + " AND collection_sxt:(\"stackfinder-web\")", queries.get(0));
+        Assert.assertEquals(java.util.Set.of("stackfinder-web"), snapshot.collections.keySet());
+        Assert.assertTrue(DashboardMetrics.read(params -> {
+            Assert.assertTrue(params.get("q").endsWith(" AND -*:*"));
+            return aggregate(0, 0);
+        }, java.util.List.of(), java.util.List.of()).collections.isEmpty());
     }
 
     @Test public void dashboardAlwaysUsesExistingAdministratorPolicy() {
@@ -139,7 +157,7 @@ public class DashboardMetricsTest {
             Assert.assertTrue(path, Files.isRegularFile(Path.of("htroot", path)));
             count++;
         }
-        Assert.assertEquals(24, count);
+        Assert.assertEquals(35, count); // the administrator's 24 links and the 11 of the account view
         Assert.assertFalse(html.contains("<form"));
     }
 
@@ -150,8 +168,11 @@ public class DashboardMetricsTest {
                 "state.json", "/home/opencode", "Crawler_p.respond", "Status.respond"}) {
             Assert.assertFalse(prohibited, responder.contains(prohibited));
         }
+        // /scoutro-*.html pages (the dashboard among them) never write the navigation history settings
         final String servlet = read("source/net/yacy/http/servlets/YaCyDefaultServlet.java");
-        Assert.assertTrue(servlet.contains("!\"/scoutro-dashboard.html\".equals(target)"));
+        Assert.assertTrue(servlet.contains("if (scoutroPageClass(target) == null"));
+        Assert.assertEquals("net.yacy.htroot.ScoutroDashboard",
+                net.yacy.http.servlets.YaCyDefaultServlet.scoutroPageClass("/scoutro-dashboard.html"));
     }
 
     private static String read(final String path) throws IOException {

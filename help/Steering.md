@@ -36,6 +36,8 @@ The page is normally public or read-only, unless the peer is configured to requi
 
 Backend checks: transaction token for protected POST, transaction token issued for forms, user authentication.
 
+Scoutro writes every restart and shutdown to the audit log of people (*Settings → Users → Audit log*, actions `system.restart` and `system.shutdown`, with the acting person and client address). The restart check of this page asks `/yacy/hello.html`, which stays reachable in the protected access mode.
+
 ## Automation And API
 
 Page backend: `source/net/yacy/htroot/Steering.java`.

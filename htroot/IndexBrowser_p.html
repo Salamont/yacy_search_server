@@ -7,7 +7,7 @@
   <script defer src="env/scoutro/collections.js"></script>
   <script defer src="env/scoutro/index-browser.js"></script>
 </head>
-<body id="IndexControl" class="scoutro-visualization">
+<body id="IndexControl" class="scoutro-visualization" data-scoutro-export="#[scoutroExport]#">
   #%env/templates/header.template%#
   #%env/templates/submenuWebStructure.template%#
   <h1>Index Browser</h1>
@@ -110,7 +110,7 @@
     <span data-label="name_candidate_title">Not certain: taken from the page metadata or a page title, not from a name with legal form</span>
   </div>
   <p>#[result]#</p>
-  <p><a href="IndexControlURLs_p.html">Index administration</a></p>
+  #(scoutroAdmin)#::<p><a href="IndexControlURLs_p.html">Index administration</a></p>#(/scoutroAdmin)#
   #%env/templates/footer.template%#
 </body>
 </html>

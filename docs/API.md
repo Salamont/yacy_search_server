@@ -51,12 +51,21 @@ forms, historic YaCy form parameters or browser automation.
 | Endpoints | Access |
 |---|---|
 | `GET /v1/health`, `GET /v1/ui/routes[/{name}]`, `GET /openapi.json`, `GET /actions.json` | public (no personal or index data) |
-| everything else in `/v1`, including search | Scoutro/YaCy administrator account |
+| `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | public; they answer for the caller only |
+| everything else in `/v1` | the administrator (HTTP Digest or an administrator session) without restriction; a Scoutro account the routes of its role, within its collections ([Routes for accounts](#routes-for-accounts)) |
 
 - Enforced by the servlet container (security constraints in
-  `defaults/web.xml`, role `adminRight`, HTTP **Digest**, the same account as
-  the admin pages). The servlet checks the role again for every protected
-  route (defence in depth).
+  `defaults/web.xml` and `net.yacy.scoutro.access.RoutePolicy`, roles
+  `adminRight` and `scoutroUser`, HTTP **Digest**, the same account as
+  the admin pages, or a Scoutro session of the login page). The servlet checks
+  every route again with the central decision `net.yacy.scoutro.access.Caller`
+  (defence in depth, deny by default).
+- Sessions of the Scoutro login page (cookie `scoutro_session`) are accepted
+  next to Digest. Only accounts with the role Administrator and the built-in
+  administrator get `adminRight`; Research and Operator sessions never do. A
+  changing call of a session needs the session's token in `X-Scoutro-CSRF`
+  (`403 csrf_failed` otherwise); `scoutro.js` adds it on Scoutro pages. See
+  [People: sign-in and accounts](#people-sign-in-and-accounts).
 - Unauthenticated calls get `401` with a Digest challenge. The body of this
   answer is the server's HTML error page, not JSON; clients should rely on the
   status code.
@@ -70,8 +79,57 @@ forms, historic YaCy form parameters or browser automation.
   otherwise). The API never answers CORS preflights. YaCy's transaction
   tokens are therefore not needed on this API.
 - Read-only and mutating actions are marked in `actions.json` (`mutating`) and
-  in `openapi.json` (`x-scoutro-mutating`). All mutating actions require the
-  admin account.
+  in `openapi.json` (`x-scoutro-mutating`). All mutating actions require a
+  sign-in, except sign-in, sign-out and the own password (`auth.*`), which act
+  only on the caller's own session. The right an account needs is
+  `x-scoutro-permission` (`openapi.json`) and `permission` (`actions.json`);
+  sessions are the security scheme `scoutroSession`.
+
+## People: sign-in and accounts
+
+Scoutro accounts for people, the login page, sessions and the protected
+access mode are described in [SCOUTRO_USERS_ACCESS.md](SCOUTRO_USERS_ACCESS.md).
+The API for them (all JSON, same origin; `X-Scoutro-CSRF` for changing session
+calls):
+
+| Endpoint | Who | Purpose |
+|---|---|---|
+| `POST /v1/auth/login` `{"username","password","next"}` | public | Sign in. Sets `scoutro_session` (`HttpOnly`, `SameSite=Strict`, `Secure` behind HTTPS) and returns the user, the CSRF token and the safe `next`. `401 invalid_credentials` (same answer for unknown names), `403 account_locked` (only after the right password), `429 too_many_attempts` with `Retry-After`, `503 accounts_unavailable`. |
+| `GET /v1/auth/session` | public | The caller: `kind` (`account`, `builtin`, `digest_admin`, `guest`, `anonymous`), user with role, permissions, collections and export flag, CSRF token of a session, access mode. |
+| `POST /v1/auth/logout` | own session | Ends the session and clears the cookie. |
+| `POST /v1/auth/password` `{"currentPassword","newPassword"}` | own session | Changes the own password; ends every session of the account and opens a new one. Not for the built-in administrator (`409 builtin_admin`, use *Accounts*). |
+| `GET /v1/auth/sessions`, `POST /v1/auth/sessions/revoke` `{"id"}` or `{"others":true}` | own session | Own sessions; end one or all others. |
+| `GET\|POST /v1/users` | administrator | List or create accounts (role `research`, `operator`, `administrator`; collections or `allCollections`; `export`; temporary password with `mustChangePassword`). |
+| `GET\|PATCH\|DELETE /v1/users/{name}` | administrator | Read, change (role, collections, export, `status` `active`/`locked`, display name) or remove an account. Rights changes and locking end its sessions. `409 last_admin`, `409 own_account`, `409 protected_mode_required`. |
+| `POST /v1/users/{name}/password` `{"password","mustChangePassword"}` | administrator | Reset without e-mail; ends the sessions. |
+| `GET /v1/users/{name}/sessions`, `POST /v1/users/{name}/sessions/revoke` | administrator | Sessions of an account; end them. |
+| `GET\|PATCH /v1/access` | administrator | Protected mode, guest access and its collections, peer-to-peer in protected mode (`peerToPeer`, off by default), form sign-in of the built-in administrator; warnings (`p2p_open`, `p2p_closed`, `localhost_admin`, `builtin_default_password`, `protected_enforced`). |
+| `GET /v1/access/audit?limit=&who=` | administrator | Audit log of people (sign-ins, account changes, changing Scoutro API calls). |
+
+### Routes for accounts
+
+The administrator uses every route as before. A Scoutro account (protected
+access mode) uses the routes of its role and gets only data of its
+collections (docs/SCOUTRO_USERS_ACCESS.md, sections 3 and 6). The scope comes
+from the session, never from a parameter: without `collection` a read covers
+all of the account's collections (never the whole index unless it has all
+collections); a foreign or unknown collection answers
+`403 collection_not_allowed` (the same answer, no existence oracle), an
+invalid name `400`.
+
+| Permission | Routes | Within the collections |
+|---|---|---|
+| `search` (also guests with released collections) | `GET /v1/search`, `GET /v1/collections` | Search: `collection:` in `q` → `400 query_modifier_not_allowed` (also `/heuristic` for every caller without the administrator role), `source=network` → `403`; several collections are searched one by one and merged (as for agents). Collections: only the account's, `canCreate` false. |
+| `read` | `/v1/index`, `/v1/index/{browse,domains,metrics,lookup,evidence}`, `/v1/hosts/resolve`, `/v1/seo/*`, the knowledge reads `/v1/kg/{entities,statements,hosts,sources,services,compare,derived,facets,history,observations}` | `GET /v1/index` returns the documents per own collection only (no queues). Knowledge reads use the agents' view (no model names, no graph-wide backlog). |
+| `export` | `/v1/index/domains/export`, `/v1/kg/export`, `/v1/kg/export/download`, `/v1/kg/changes` | Also needs `read`. |
+| `collect` | `/v1/crawls*`, `/v1/reports/*`, `/v1/discovery/{catalog,status,jobs*}` | Crawls: only crawls of own collections (others `404 crawl_not_found`); a start needs an own collection, refuses `scope=wide` (`403 scope_not_allowed`) and hosts with documents outside the scope (`409 host_indexed_elsewhere`), and stays on exactly its host. Discovery: only jobs whose profile writes into an own collection (others `404 job_not_found`), no global action in `status`. Reports: as for agents. |
+| `chat` | `POST /v1/chat/completions` | One own collection (the only one, or `400 collection_required`); a foreign one `403 collection_not_allowed`; no peer-to-peer search; no `search` tool of the model without all collections; system questions `403 system_forbidden`. The account's session decides, not its address. |
+| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `/v1/collections/reassign`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}` | `403 forbidden` for accounts. |
+
+Tools keep using HTTP Digest; the login page never answers them. Every
+changing `/v1` call of a person is written to the audit log
+(`DATA/SETTINGS/scoutro-user-audit.jsonl`) with actor, route, target id and
+result, never with request bodies or search texts.
 
 ## Agent access (`/scoutro/api/agent/v1`)
 
@@ -138,7 +196,7 @@ HTTP status and client — never bodies, queries, page text or secrets.
 | `index.lookup` | `GET /agent/v1/index/lookup?url=…\|host=…` | Solr filter on the scope; documents elsewhere are "not indexed"; only scope collections are reported. |
 | `index.status` | `GET /agent/v1/index` | Documents per scope collection; no global queues or counters. |
 | `index.status.global` | `GET /agent/v1/index?global=true` | Separate grant, global values. |
-| `crawl.start` | `POST /agent/v1/crawls` | `collection` required and in scope; host on the domain allowlist; `scope` `domain`/`subpath` only (no wide crawls); `depth`/`maxPages` within the limits (`maxPages` defaults to the limit); parallel crawl limit; `409 host_busy` while another crawl runs on the host (YaCy's crawl start drops queued URLs of that host from other crawls); `409 host_indexed_elsewhere` when the host already has documents outside the scope (a crawl would re-index them into the agent's collection). Optional `Idempotency-Key` header: the same key returns the existing crawl (200); see "Crawl starts and crashes" below. Crawls stay text-only (`indexText=on`, `indexMedia=off`, no HTCache, `cachePolicy=nocache`, `deleteold=off`). |
+| `crawl.start` | `POST /agent/v1/crawls` | `collection` required and in scope; host on the domain allowlist; `scope` `domain`/`subpath` only (no wide crawls); `depth`/`maxPages` within the limits (`maxPages` defaults to the limit); parallel crawl limit; `409 host_busy` while another crawl runs on the host (YaCy's crawl start drops queued URLs of that host from other crawls); `409 host_indexed_elsewhere` when the host already has documents outside the scope (a crawl would re-index them into the agent's collection). Optional `Idempotency-Key` header: the same key returns the existing crawl (200); see "Crawl starts and crashes" below. Crawls stay text-only (`indexText=on`, `indexMedia=off`, no HTCache, `cachePolicy=nocache`, `deleteold=off`) and on exactly their start host (`www.` included): YaCy's domain filter is only a host prefix (`example.com` also matches `example.com.au`), so a must-not-match filter excludes every other host, also further allowed domains and subdomains (each needs its own start). |
 | `crawl.list`, `crawl.status`, `crawl.stop` | `GET /agent/v1/crawls`, `GET …/{id}`, `POST …/{id}/stop` | Only crawls this agent started; other ids answer `404 crawl_not_found`. A crawl whose profile YaCy has removed is reported as `removed`. |
 | `system.status`, `config.get`, `config.set` | `GET /agent/v1/system`, `GET`/`PATCH /agent/v1/config` | Not scoped; individual grants with a warning, external agents only. |
 

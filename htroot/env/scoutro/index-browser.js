@@ -21,7 +21,8 @@
     $('scoutro-domain-view').hidden = view !== 'domains';
     $('scoutro-url-view').hidden = view !== 'urls';
     $('scoutro-index-sort-field').hidden = view !== 'domains';
-    $('scoutro-export-toggle').hidden = view !== 'domains';
+    // the domain export needs the export right (docs/SCOUTRO_USERS_ACCESS.md); the API refuses it anyway
+    $('scoutro-export-toggle').hidden = view !== 'domains' || document.body.dataset.scoutroExport === '0';
     if (view !== 'domains') $('scoutro-export').hidden = true;
     $('scoutro-index-view-domains').setAttribute('aria-current', view === 'domains' ? 'page' : 'false');
     $('scoutro-index-view-urls').setAttribute('aria-current', view === 'urls' ? 'page' : 'false');

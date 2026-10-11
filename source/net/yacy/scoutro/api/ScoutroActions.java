@@ -692,7 +692,8 @@ final class ScoutroActions {
     }
 
     /** URL filter carrying a start marker; it can only match URLs that contain the marker itself. */
-    static final Pattern START_MARKER_FILTER = Pattern.compile("\\.\\*/scoutro-start-([0-9a-f]{32})/\\.\\*");
+    /** The start marker filter, optionally followed by further alternatives ({@link #mustNotMatch}). */
+    static final Pattern START_MARKER_FILTER = Pattern.compile("\\.\\*/scoutro-start-([0-9a-f]{32})/\\.\\*(\\|.*)?");
 
     static String startMarkerFilter(final String marker) {
         return ".*/scoutro-start-" + marker + "/.*";
@@ -710,13 +711,20 @@ final class ScoutroActions {
      * real page, and is reported as {@code startMarker} by the crawl list.
      * It ties a crawl profile to the start attempt that created it, also
      * when the caller crashed before it could store the crawl id.
+     * {@code hostOnly} keeps the crawl on its start host (agents, Discovery).
      */
-    JSONObject crawlStart(final JSONObject body, final String marker) throws ApiException {
-        return startCrawl(CrawlRequest.parse(body), marker, marker == null ? null : "marker:" + marker);
+    JSONObject crawlStart(final JSONObject body, final String marker, final boolean hostOnly) throws ApiException {
+        final CrawlRequest request = hostOnly ? CrawlRequest.parse(body).hostOnly() : CrawlRequest.parse(body);
+        return startCrawl(request, marker, marker == null ? null : "marker:" + marker);
     }
 
     JSONObject crawlStartAdmin(final JSONObject body, final String key) throws ApiException {
-        final CrawlRequest request = CrawlRequest.parse(body);
+        return crawlStartAdmin(body, key, false);
+    }
+
+    /** As {@link #crawlStartAdmin(JSONObject, String)}; {@code hostOnly} keeps the crawl on its start host (PeopleRoutes). */
+    JSONObject crawlStartAdmin(final JSONObject body, final String key, final boolean hostOnly) throws ApiException {
+        final CrawlRequest request = hostOnly ? CrawlRequest.parse(body).hostOnly() : CrawlRequest.parse(body);
         this.yacy.requireCollectionStorage(); // before anything is read for the crawl
         // a crawl writes into an existing collection only; a new one is created explicitly first (no phantom collections)
         if (!this.catalog.known(request.collection)) {
@@ -785,6 +793,12 @@ final class ScoutroActions {
         return value instanceof String ? (String) value : null;
     }
 
+    static String mustNotMatch(final CrawlRequest request, final String marker) {
+        final String start = marker == null ? "" : startMarkerFilter(marker);
+        if (!request.hostOnly) return start;
+        return start.isEmpty() ? request.outsideHostFilter() : start + "|" + request.outsideHostFilter();
+    }
+
     private JSONObject dispatchCrawl(final CrawlRequest request, final String marker) throws ApiException {
         final String url = request.url, scope = request.scope, collection = request.collection;
         final int depth = request.depth;
@@ -796,7 +810,7 @@ final class ScoutroActions {
                 .add("crawlingDepth", depth)
                 .add("range", scope)
                 .add("mustmatch", ".*")
-                .add("mustnotmatch", marker == null ? "" : startMarkerFilter(marker))
+                .add("mustnotmatch", mustNotMatch(request, marker))
                 .add("crawlingDomMaxCheck", maxPages == null ? "off" : "on")
                 .add("crawlingDomMaxPages", maxPages == null ? null : maxPages)
                 .add("collection", collection)

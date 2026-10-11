@@ -4,7 +4,11 @@ package net.yacy.htroot;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
 
 import org.apache.lucene.store.Directory;
@@ -29,12 +33,18 @@ import net.yacy.server.serverObjects;
 import net.yacy.server.serverSwitch;
 import net.yacy.server.servletProperties;
 
-/** Administration overview only. Never delegates to responders with side effects. */
+/**
+ * Overview of the signed-in identity (docs/SCOUTRO_USERS_ACCESS.md): the collection cards come from the
+ * collection catalog and the identity's collections; the administrator also gets the index, crawler and
+ * system figures and YaCy's tools. Never delegates to responders with side effects.
+ */
 public final class ScoutroDashboard {
     private static final long CACHE_MS = 30000;
+    private static final int CACHE_ENTRIES = 16;
     private static EmbeddedSolrConnector cachedConnector;
-    private static Snapshot cachedSnapshot;
-    private static long cachedAt;
+    /** per set of collections and scope, so that accounts never see another scope's numbers */
+    private static final Map<String, Snapshot> cachedSnapshots = new LinkedHashMap<>();
+    private static final Map<String, Long> cachedAt = new LinkedHashMap<>();
 
     private ScoutroDashboard() { }
 
@@ -45,47 +55,103 @@ public final class ScoutroDashboard {
         responseHeader.put("Cache-Control", "no-store");
         prop.setOutgoingHeader(responseHeader);
         // Parameters are deliberately ignored, including any legacy action parameters.
+        final net.yacy.scoutro.access.Caller caller = net.yacy.scoutro.access.Caller.of(header);
+        final boolean admin = sb.verifyAuthentication(header) || caller.admin();
+        final net.yacy.scoutro.access.Scope scope = admin ? net.yacy.scoutro.access.Scope.ALL : caller.scope();
+        // the cards: the selectable collections of the catalog that the identity may use, in catalog order
+        final List<String> ids = new ArrayList<>();
+        final Map<String, String> names = new LinkedHashMap<>();
+        try {
+            for (final net.yacy.scoutro.api.CollectionCatalog.Entry e : net.yacy.scoutro.api.CollectionCatalog.current().entries(false)) {
+                if (e.selectable() && scope.allows(e.id)) {
+                    ids.add(e.id);
+                    names.put(e.id, e.name == null || e.name.isEmpty() ? e.id : e.name);
+                }
+            }
+        } catch (final net.yacy.scoutro.api.ApiException | RuntimeException e) {
+            // the overview stays usable without the catalog
+        }
         final EmbeddedSolrConnector connector = sb.index.fulltext().getDefaultEmbeddedConnector();
-        final Snapshot snapshot = snapshot(connector);
-        renderIndex(prop, snapshot);
-        prop.putHTML("network", sb.getConfig(SwitchboardConstants.NETWORK_NAME, ""));
-        prop.putHTML("core", "collection1");
-        prop.putHTML("indexSize", indexBytes(connector));
-        prop.putHTML("heapUsed", bytes(MemoryControl.used()));
-        prop.putHTML("heapMax", bytes(MemoryControl.maxMemory()));
-        prop.putHTML("dashboardUptime", uptime(System.currentTimeMillis() - sb.startupTime));
-        prop.putHTML("yacyVersion", yacyBuildProperties.getVersion());
-        prop.putHTML("build", yacyBuildProperties.getReleaseStub());
-        prop.putHTML("scoutroVersion", scoutroVersion(sb));
-        renderCrawler(prop, sb);
+        final List<String> limit = scope.isAll() ? null : scope.collections();
+        final Snapshot snapshot = snapshot(connector, ids, limit);
+        renderIndex(prop, snapshot, ids, names);
+        prop.put("dashAdmin", admin ? 1 : 0);
+        prop.put("dashCollect", admin || caller.has(net.yacy.scoutro.access.Permission.COLLECT) ? 1 : 0);
+        prop.put("scoped", limit == null ? 0 : 1);
+        prop.put("dashAdmin_dashChat", caller.has(net.yacy.scoutro.access.Permission.CHAT) ? 1 : 0);
+        prop.put("dashAdmin_dashCollect", caller.has(net.yacy.scoutro.access.Permission.COLLECT) ? 1 : 0);
+        if (admin) {
+            // system figures only for the administrator; every value also under the block prefix of the template
+            final Map<String, String> system = new LinkedHashMap<>();
+            system.put("network", sb.getConfig(SwitchboardConstants.NETWORK_NAME, ""));
+            system.put("core", "collection1");
+            system.put("indexSize", indexBytes(connector));
+            system.put("heapUsed", bytes(MemoryControl.used()));
+            system.put("heapMax", bytes(MemoryControl.maxMemory()));
+            system.put("dashboardUptime", uptime(System.currentTimeMillis() - sb.startupTime));
+            system.put("yacyVersion", yacyBuildProperties.getVersion());
+            system.put("build", yacyBuildProperties.getReleaseStub());
+            system.put("scoutroVersion", scoutroVersion(sb));
+            system.put("pages", count(snapshot.index.pages));
+            system.put("hosts", count(snapshot.index.hosts));
+            for (final Map.Entry<String, String> v : system.entrySet()) {
+                prop.putHTML(v.getKey(), v.getValue());
+                prop.putHTML("dashAdmin_" + v.getKey(), v.getValue());
+            }
+            renderCrawler(prop, sb);
+            for (final String k : new String[] {"crawlerState", "running", "active", "workers", "pending", "terminated"}) {
+                prop.put("dashAdmin_" + k, prop.get(k, ""));
+            }
+        } else {
+            prop.putHTML("dashAdmin_pages", count(snapshot.index.pages));
+            prop.putHTML("dashAdmin_hosts", count(snapshot.index.hosts));
+        }
         return prop;
     }
 
-    private static synchronized Snapshot snapshot(final EmbeddedSolrConnector connector) {
-        final long now = System.nanoTime() / 1000000;
-        if (cachedSnapshot != null && connector == cachedConnector && now - cachedAt < CACHE_MS) return cachedSnapshot;
-        cachedSnapshot = DashboardMetrics.read(params -> {
-            if (connector == null || connector.isClosed()) throw new IOException("Local index unavailable");
-            try (SolrQueryRequest request = connector.request(params)) {
-                final SolrQueryResponse response = connector.query(request);
-                if (response.getException() != null) throw new IOException("Solr aggregate failed", response.getException());
-                return response.getValues();
+    private static Snapshot snapshot(final EmbeddedSolrConnector connector, final List<String> ids, final List<String> limit) {
+        final String key = ids + "|" + (limit == null ? "*" : limit.toString());
+        synchronized (cachedSnapshots) {
+            final long now = System.nanoTime() / 1000000;
+            if (connector != cachedConnector) {
+                cachedSnapshots.clear();
+                cachedAt.clear();
+                cachedConnector = connector;
             }
-        });
-        cachedConnector = connector;
-        cachedAt = System.nanoTime() / 1000000;
-        return cachedSnapshot;
+            final Snapshot cached = cachedSnapshots.get(key);
+            final Long at = cachedAt.get(key);
+            if (cached != null && at != null && now - at < CACHE_MS) return cached;
+            final Snapshot fresh = DashboardMetrics.read(params -> {
+                if (connector == null || connector.isClosed()) throw new IOException("Local index unavailable");
+                try (SolrQueryRequest request = connector.request(params)) {
+                    final SolrQueryResponse response = connector.query(request);
+                    if (response.getException() != null) throw new IOException("Solr aggregate failed", response.getException());
+                    return response.getValues();
+                }
+            }, ids, limit);
+            cachedSnapshots.remove(key);
+            cachedAt.remove(key);
+            cachedSnapshots.put(key, fresh);
+            cachedAt.put(key, now);
+            while (cachedSnapshots.size() > CACHE_ENTRIES) {
+                final String oldest = cachedSnapshots.keySet().iterator().next();
+                cachedSnapshots.remove(oldest);
+                cachedAt.remove(oldest);
+            }
+            return fresh;
+        }
     }
 
-    public static void renderIndex(final serverObjects prop, final Snapshot snapshot) {
+    public static void renderIndex(final serverObjects prop, final Snapshot snapshot, final List<String> ids,
+            final Map<String, String> names) {
         prop.putHTML("pages", count(snapshot.index.pages));
         prop.putHTML("hosts", count(snapshot.index.hosts));
         prop.put("indexUnavailable", snapshot.index.pages < 0 || snapshot.index.hosts < 0 ? 1 : 0);
-        for (int i = 0; i < DashboardMetrics.COLLECTION_IDS.length; i++) {
-            final String id = DashboardMetrics.COLLECTION_IDS[i];
-            final Counts c = snapshot.collections.get(id);
+        for (int i = 0; i < ids.size(); i++) {
+            final String id = ids.get(i);
+            final Counts c = snapshot.collections.getOrDefault(id, new Counts(-1, -1));
             final String prefix = "collections_" + i + "_";
-            prop.putHTML(prefix + "name", DashboardMetrics.COLLECTION_NAMES[i]);
+            prop.putHTML(prefix + "name", names.getOrDefault(id, id));
             prop.putHTML(prefix + "id", id);
             prop.putHTML(prefix + "pages", count(c.pages));
             prop.putHTML(prefix + "hasHosts_hosts", count(c.hosts));
@@ -95,7 +161,7 @@ public final class ScoutroDashboard {
             prop.putHTML(prefix + "share", share < 0 ? "—" : String.format(Locale.ROOT, "%.1f%%", share));
             prop.putHTML(prefix + "bar", share < 0 ? "0" : String.format(Locale.ROOT, "%.1f", Math.min(100, share)));
         }
-        prop.put("collections", DashboardMetrics.COLLECTION_IDS.length);
+        prop.put("collections", ids.size());
     }
 
     private static void renderCrawler(final serverObjects prop, final Switchboard sb) {
@@ -142,7 +208,7 @@ public final class ScoutroDashboard {
         }
     }
 
-    private static String scoutroVersion(final Switchboard sb) {
+    static String scoutroVersion(final Switchboard sb) {
         final Properties properties = new Properties();
         try (FileInputStream input = new FileInputStream(new File(sb.getAppPath(), "scoutro.properties"))) {
             properties.load(input);
@@ -158,13 +224,13 @@ public final class ScoutroDashboard {
         return value < 0 ? "—" : String.format(Locale.ROOT, "%,d", value);
     }
 
-    private static String bytes(final long value) {
+    static String bytes(final long value) {
         if (value > 0 && value < 1048576L) return String.format(Locale.ROOT, "%.3f MiB", value / 1048576.0);
         return value >= 1073741824L ? String.format(Locale.ROOT, "%.1f GiB", value / 1073741824.0)
                 : String.format(Locale.ROOT, "%.1f MiB", value / 1048576.0);
     }
 
-    private static String uptime(final long millis) {
+    static String uptime(final long millis) {
         final long minutes = Math.max(0, millis / 60000);
         return String.format(Locale.ROOT, "%dd %02dh %02dm", minutes / 1440, minutes / 60 % 24, minutes % 60);
     }

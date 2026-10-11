@@ -3,10 +3,12 @@
 import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const fixture = JSON.parse(fs.readFileSync(process.env.SCOUTRO_CHAIN_FIXTURE, 'utf8'));
 assert(new URL(fixture.base).hostname === '127.0.0.1', 'disposable local peer only');
 const browser = await chromium.launch({ executablePath: process.env.SCOUTRO_CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks = 0;
 function check(value, message) { assert(value, message); checks++; }
 try {

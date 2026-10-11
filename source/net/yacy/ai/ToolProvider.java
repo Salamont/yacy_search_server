@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -130,6 +131,9 @@ public final class ToolProvider {
      */
     private static final Map<String, ToolHandler> TOOL_BY_NAME = buildToolIndex(TOOLS);
 
+    /** Names of the tools that read the whole index: SearchTool. */
+    private static final Set<String> INDEX_TOOLS = Set.of("search");
+
     public static final class ToolConfig {
         public final String name;
         public final String description;
@@ -168,6 +172,14 @@ public final class ToolProvider {
      * @param toolingEnabled the model supports tool calls
      */
     public static void applyReleasedTools(final JSONObject body, final boolean toolingEnabled) {
+        applyReleasedTools(body, toolingEnabled, true);
+    }
+
+    /**
+     * As {@link #applyReleasedTools(JSONObject, boolean)}; without {@code indexTools} the tools that read
+     * the whole index are left out (a chat limited to some collections).
+     */
+    public static void applyReleasedTools(final JSONObject body, final boolean toolingEnabled, final boolean indexTools) {
         if (body == null) return;
         body.remove("tools");
         body.remove("tool_choice");
@@ -179,6 +191,8 @@ public final class ToolProvider {
             for (ToolHandler tool : TOOLS) {
                 JSONObject definition = configuredDefinition(tool);
                 if (definition == null) continue;
+                final JSONObject function = definition.optJSONObject("function");
+                if (!indexTools && readsIndex(function == null ? null : function.optString("name", null))) continue;
                 addToolDefinitionIfMissing(tools, definition);
             }
             if (tools.length() == 0) return;
@@ -198,7 +212,13 @@ public final class ToolProvider {
      * @return tool execution result as JSON string (or error JSON)
      */
     public static String executeTool(String name, String arguments) {
+        return executeTool(name, arguments, true);
+    }
+
+    /** As {@link #executeTool(String, String)}; without {@code indexTools} a tool that reads the whole index does not run. */
+    public static String executeTool(String name, String arguments, final boolean indexTools) {
         if (name == null) return errorJson("Invalid tool call");
+        if (!indexTools && readsIndex(name)) return errorJson("Tool not released: " + name);
         ToolHandler tool = TOOL_BY_NAME.get(name);
         if (tool == null) return errorJson("Unknown tool: " + name);
         if (allowedCallsPerTurn(name) <= 0) return errorJson("Tool not released: " + name);
@@ -234,6 +254,19 @@ public final class ToolProvider {
     public static int allowedCallsPerTurn(final String name) {
         if (!isReleased(name)) return 0;
         return maxCallsPerTurn(name);
+    }
+
+    /** As {@link #allowedCallsPerTurn(String)}; 0 for a tool that reads the whole index without {@code indexTools}. */
+    public static int allowedCallsPerTurn(final String name, final boolean indexTools) {
+        return !indexTools && readsIndex(name) ? 0 : allowedCallsPerTurn(name);
+    }
+
+    /**
+     * True for the tools that search the whole index (every collection, and the peer-to-peer network):
+     * a chat limited to some collections never gets them ({@link LLM.LLMModel#indexTools}).
+     */
+    public static boolean readsIndex(final String name) {
+        return name != null && INDEX_TOOLS.contains(name.trim());
     }
 
     public static List<ToolConfig> listTools() {

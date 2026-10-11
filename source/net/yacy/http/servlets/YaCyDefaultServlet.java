@@ -851,11 +851,10 @@ public class YaCyDefaultServlet extends HttpServlet  {
         if (p < 0) {
             return null;
         }
-        // A Java class name cannot contain the hyphen in these public UI routes.
-        final String classname = "/scoutro-dashboard.html".equals(target)
-                ? "net.yacy.htroot.ScoutroDashboard"
-                : "/scoutro-about.html".equals(target)
-                ? "net.yacy.htroot.ScoutroAbout"
+        // A Java class name cannot contain the hyphen in the Scoutro UI routes:
+        // /scoutro-<name>.html is served by net.yacy.htroot.Scoutro<Name> (e.g. scoutro-dashboard -> ScoutroDashboard).
+        final String classname = scoutroPageClass(target) != null
+                ? scoutroPageClass(target)
                 : "net.yacy.htroot" + target.substring(0, p).replace('/', '.');
         try {
             final Class<?> servletClass = Class.forName(classname);
@@ -872,6 +871,22 @@ public class YaCyDefaultServlet extends HttpServlet  {
                 return null;
             }
         }
+    }
+
+    /** Scoutro: the servlet class of a top-level {@code /scoutro-<name>.html} page, or null. */
+    public static String scoutroPageClass(final String target) {
+        if (!target.startsWith("/scoutro-") || !target.endsWith(".html") || target.indexOf('/', 1) >= 0) {
+            return null;
+        }
+        final String name = target.substring("/scoutro-".length(), target.length() - ".html".length());
+        if (!name.matches("[a-z]+(?:-[a-z]+)*")) {
+            return null;
+        }
+        final StringBuilder sb = new StringBuilder("net.yacy.htroot.Scoutro");
+        for (final String part : name.split("-")) {
+            sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+        }
+        return sb.toString();
     }
 
     private final static Method rewriteMethod(final Class<?> rewriteClass) throws InvocationTargetException {
@@ -1099,9 +1114,8 @@ public class YaCyDefaultServlet extends HttpServlet  {
 
             if (targetLocalizedFile.exists() && targetLocalizedFile.isFile() && targetLocalizedFile.canRead()) {
 
-                // The read-only overview and the About page must not change navigation history/configuration.
-                if (!"/scoutro-dashboard.html".equals(target) && !"/ScoutroSEO_p.html".equals(target) && !"/ScoutroKnowledge_p.html".equals(target)
-                        && !"/scoutro-about.html".equals(target)) {
+                // Scoutro pages (/scoutro-*.html, overview, about, sign-in) and the read-only analyses must not change navigation history/configuration.
+                if (scoutroPageClass(target) == null && !"/ScoutroSEO_p.html".equals(target) && !"/ScoutroKnowledge_p.html".equals(target)) {
                     sb.setConfig(SwitchboardConstants.SERVER_SERVLETS_CALLED, this.appendPath(sb.getConfig(SwitchboardConstants.SERVER_SERVLETS_CALLED, ""), target));
                     if (args != null && !args.isEmpty()) {
                         sb.setConfig("server.servlets.submitted", this.appendPath(sb.getConfig("server.servlets.submitted", ""), target));
@@ -1121,6 +1135,30 @@ public class YaCyDefaultServlet extends HttpServlet  {
                 templatePatterns.putHTML("newpeer_peerhash", myPeer.hash);
                 final boolean authorized = sb.adminAuthenticated(legacyRequestHeader) >= 2;
                 templatePatterns.put("authorized", authorized ? 1 : 0); // used in templates and other html (e.g. to display lock/unlock symbol)
+                // Scoutro: the signed-in identity and its navigation groups for header.template, and the
+                // CSRF token of a Scoutro session for metas.template (empty otherwise)
+                final net.yacy.scoutro.access.PageNav scoutroNav = net.yacy.scoutro.access.PageNav.of(request, authorized,
+                        sb.getConfigBool(SwitchboardConstants.PUBLIC_SEARCHPAGE, true));
+                templatePatterns.put("scoutroCsrf", scoutroNav.csrf);
+                templatePatterns.put("scoutroAccount", scoutroNav.account);
+                templatePatterns.putHTML("scoutroUser", scoutroNav.user);
+                templatePatterns.put("scoutroRole", scoutroNav.role);
+                templatePatterns.put("scoutroSearch", scoutroNav.search ? 1 : 0);
+                templatePatterns.put("scoutroChat", scoutroNav.chat ? 1 : 0);
+                templatePatterns.put("scoutroRead", scoutroNav.read ? 1 : 0);
+                templatePatterns.put("scoutroCollect", scoutroNav.collect ? 1 : 0);
+                templatePatterns.put("scoutroAdmin", scoutroNav.admin ? 1 : 0);
+                templatePatterns.put("scoutroExport", scoutroNav.export ? 1 : 0);
+                templatePatterns.put("scoutroSearchPage", scoutroNav.searchPage ? 1 : 0);
+                templatePatterns.put("scoutroContext", scoutroNav.account > 0 && scoutroNav.search ? 1 : 0);
+                // fields used inside #(...)# blocks of header.template carry the block name as prefix
+                templatePatterns.putHTML("scoutroAccount_scoutroUser", scoutroNav.user);
+                templatePatterns.put("scoutroAccount_scoutroRole", scoutroNav.role);
+                templatePatterns.put("scoutroSearch_scoutroChat", scoutroNav.chat ? 1 : 0);
+                templatePatterns.put("scoutroSearch_scoutroRead", scoutroNav.read ? 1 : 0);
+                templatePatterns.put("scoutroSearch_scoutroSearchPage", scoutroNav.searchPage ? 1 : 0);
+                templatePatterns.put("scoutroAdmin_navigation-p2p",
+                        sb.getConfigBool(SwitchboardConstants.NETWORK_UNIT_DHT, true) || !sb.isRobinsonMode() ? 1 : 0);
 
                 templatePatterns.put("simpleheadernavbar", sb.getConfig("decoration.simpleheadernavbar", "navbar-default"));
 
@@ -1161,7 +1199,10 @@ public class YaCyDefaultServlet extends HttpServlet  {
 
                 // set response header
                 response.setContentType(mimeType);
-                response.setStatus(HttpServletResponse.SC_OK);
+                if (request.getDispatcherType() != javax.servlet.DispatcherType.ERROR) {
+                    // Scoutro: an error page (e.g. scoutro-forbidden.html for 403) keeps the error status
+                    response.setStatus(HttpServletResponse.SC_OK);
+                }
                 final ByteArrayOutputStream bas = new ByteArrayOutputStream(4096);
                 try {
                     // apply templates

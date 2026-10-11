@@ -15,6 +15,7 @@ existing peer or DATA directory is touched.
 Requires `ant compile`, a JDK, Node with Playwright and Chromium. Optional:
 JAVA, NODE_PATH, SCOUTRO_CHROMIUM_PATH, SCOUTRO_SCREENSHOTS.
 """
+import http.cookiejar
 import http.server
 import json
 import os
@@ -104,7 +105,8 @@ BUSINESS = [
                                                  "Preise. Tagespflege ab 49 € pro Tag. Kurzzeitpflege: 89,90 €/Tag. Stand: 09/2026")),
     (f"https://{HOST_C}/kosten", "kga", business("Kosten", OP_C, "Kosten. Tagespflege ab 59 € pro Tag.")),
     (f"https://{HOST_C}/karriere", "kga", business("Karriere", OP_C,
-                                                   "Karriere. Pflegefachkraft (m/w/d) in Vollzeit. Vergütung: 3.400 – 3.900 € brutto monatlich. "
+                                                   "Karriere. Pflegefachkraft (m/w/d) in Vollzeit. Wir suchen Verstärkung für unser Team. "
+                                                   "Vergütung: 3.400 – 3.900 € brutto monatlich. "
                                                    "Bewerbungsfrist: 31.03.2027.")),
     (f"https://{HOST_D}/fuer-wen", "kgb", business("Für wen", '{"@type":"Organization","name":"PflegeSoft UI GmbH","url":"https://www.pflegesoft-ui.de/"}',
                                                    "Für wen? Wir unterstützen Pflegeeinrichtungen bundesweit, nur für Geschäftskunden. "
@@ -176,6 +178,25 @@ def post(c, path, body):
                                  headers={"Content-Type": "application/json", "Origin": BASE})
     with c.open(req, timeout=30) as r:
         return json.loads(r.read())
+
+
+def patch(c, path, body):
+    req = urllib.request.Request(BASE + path, data=json.dumps(body).encode(), method="PATCH",
+                                 headers={"Content-Type": "application/json", "Origin": BASE})
+    with c.open(req, timeout=30) as r:
+        return json.loads(r.read())
+
+
+def account(username, password):
+    """A signed-in Scoutro account (session cookie, CSRF token not needed for reads)."""
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPCookieProcessor(jar))
+    req = urllib.request.Request(BASE + "/scoutro/api/v1/auth/login", method="POST",
+                                 data=json.dumps({"username": username, "password": password}).encode(),
+                                 headers={"Content-Type": "application/json", "Origin": BASE})
+    with opener.open(req, timeout=30) as r:
+        assert json.loads(r.read())["user"]["role"] == "research"
+    return opener
 
 
 def status(c, path):
@@ -282,16 +303,21 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             assert next(p for p in day if p["value"]["amount"] == "49.00")["as_of_basis"] == "stated", day
             job = kga["jobs"]["items"][0]
             assert job["title"] == "Pflegefachkraft (m/w/d)" and job["status"] == "open" and job["salary"][0]["value"]["unit"] == "month", job
-            assert "suggested_matches" not in kga and "PflegeSoft" not in json.dumps(kga), "a kga viewer sees no kgb suggestion"
+            assert [m["other"]["name"] for m in kga["suggested_matches"]["as_possible_customer"]] == ["PflegeSoft UI GmbH"], \
+                "the administrator's kga view shows the authorized kgb suggestion"
             full = get(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/business")
             match = full["suggested_matches"]["as_possible_customer"][0]
             assert match["other"]["name"] == "PflegeSoft UI GmbH" and match["fact"] is False and match["label"] == "suggestion", match
             assert status(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/business?collection=kgb") == 404
             assert status(c, f"/scoutro/api/v1/kg/entities/{soft['id']}/neighborhood?collection=kga") == 404
             net = get(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/neighborhood?collection=kga&suggested=true&depth=2")
-            assert {e["type"] for e in net["edges"]} >= {"operates", "offers", "same_operator"} and not any(
-                e["status"] == "suggested" for e in net["edges"]), net["edges"]
-            assert "PflegeSoft" not in json.dumps(net), "no kgb node in a kga network"
+            # since 08a42db the center's suggestions reach other permitted collections (the administrator may read kgb),
+            # but no ordinary kgb fact enters the kga network
+            suggested = [e for e in net["edges"] if e["status"] == "suggested"]
+            assert {e["type"] for e in net["edges"]} >= {"operates", "offers", "same_operator"} and [
+                e["other"]["name"] for e in suggested] == ["PflegeSoft UI GmbH"], net["edges"]
+            assert not any(soft["id"] in (e["from"], e["to"]) for e in net["edges"] if e["status"] != "suggested"), \
+                "no ordinary kgb fact in a kga network"
             both = get(c, f"/scoutro/api/v1/kg/entities/{operator['id']}/neighborhood?suggested=true")
             assert any(e["type"] == "suggested_customer" and e["fact"] is False for e in both["edges"]), both["edges"]
             cmp = get(c, "/scoutro/api/v1/kg/compare?category=care/tagespflege&collection=kga")
@@ -363,6 +389,23 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
                    "SCOUTRO_KG_ONLY_B": b_only["id"], "SCOUTRO_KG_OPERATOR": operator["id"], "SCOUTRO_KG_SOFT": soft["id"],
                    "SCOUTRO_KG_SAP": sap["id"], "SCOUTRO_KG_CTCON": ctcon, "SCOUTRO_KG_UNNAMED": unnamed[0]["id"]}
             subprocess.run(["node", str(REPO / "test/scoutro-ui/knowledge-ui-test.mjs")], cwd=REPO, env=env, check=True, timeout=900)
+            # accounts (docs/SCOUTRO_USERS_ACCESS.md): a Research account of kga reads the same views without any trace
+            # of kgb, whatever it asks for; the administrator's suggestion above needs the right to read kgb
+            assert patch(c, "/scoutro/api/v1/access", {"protected": True})["protected"] is True
+            password = "kga-" + os.urandom(9).hex()
+            post(c, "/scoutro/api/v1/users", {"username": "rita", "role": "research", "collections": ["kga"],
+                                               "password": password, "mustChangePassword": False})
+            rita = account("rita", password)
+            view = get(rita, f"/scoutro/api/v1/kg/entities/{operator['id']}/business")
+            assert view["jobs"]["items"][0]["title"] == "Pflegefachkraft (m/w/d)", view.get("jobs")
+            assert "suggested_matches" not in view and "PflegeSoft" not in json.dumps(view), "no kgb suggestion for a kga account"
+            near = get(rita, f"/scoutro/api/v1/kg/entities/{operator['id']}/neighborhood?suggested=true&depth=2")
+            assert "PflegeSoft" not in json.dumps(near) and not any(e["type"].startswith("suggested") for e in near["edges"]), near["edges"]
+            assert "PflegeSoft" not in json.dumps(get(rita, f"/scoutro/api/v1/kg/entities/{operator['id']}/suggestions"))
+            for path in (f"/scoutro/api/v1/kg/entities/{soft['id']}/business", "/scoutro/api/v1/kg/entities?collection=kgb",
+                         f"/scoutro/api/v1/kg/entities/{operator['id']}/business?collection=kgb"):
+                assert status(rita, path) in (403, 404), path
+            print("PASS: 7 account checks (a kga Research account sees no kgb data or suggestion)", flush=True)
         except BaseException:
             log.flush()
             print("--- end of peer.log ---\n" + (root / "peer.log").read_text(errors="replace")[-30000:], flush=True)

@@ -41,7 +41,7 @@ All steps are one POST form. The fields of earlier steps travel in the hidden fi
 ## Correct Use
 
 - Choose the narrowest scope. Collections are an access boundary for agents: searches are restricted on the server side, `collection:` in a query is refused, and documents outside the scope do not exist for the agent.
-- Crawl rights need a domain allowlist. Agents never start wide crawls, may only crawl allowed domains into granted collections, and see and stop only crawls they started.
+- Crawl rights need a domain allowlist. Agents never start wide crawls, may only crawl allowed domains into granted collections, and see and stop only crawls they started. Each crawl stays on exactly its start host (`www.` included); a look-alike host such as `example.com.au` for `example.com`, another allowed domain or another subdomain is never followed and needs its own crawl start.
 - For the research worker, create the Clustro connection first: adapter `custom`, without endpoint URL (pull worker), `isPrimary=false`. Clustro shows its `ak_...` key once; paste it in step 5.
 - Without a language model the research worker still answers searches with sources; it reports that no model is configured instead of failing. No model is chosen automatically.
 

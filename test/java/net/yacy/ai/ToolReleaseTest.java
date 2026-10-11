@@ -82,6 +82,21 @@ public class ToolReleaseTest {
     }
 
     @Test
+    public void chatsLimitedToCollectionsNeverGetTheIndexSearch() throws Exception {
+        // the search tool reads every collection (and the peer-to-peer network): not for a Scoutro account or a guest
+        use("ai.tools.search.enabled", "true", "ai.tools.calculator.enabled", "true");
+        assertEquals(List.of("calculator", "search"), offered(ToolCallProtocol.prepareToolRequestBody(clientBody(), false, true)));
+        assertEquals(List.of("calculator"), offered(ToolCallProtocol.prepareToolRequestBody(clientBody(), false, true, false)));
+        assertTrue(ToolProvider.readsIndex("search"));
+        assertFalse(ToolProvider.readsIndex("calculator"));
+        assertEquals(0, ToolProvider.allowedCallsPerTurn("search", false));
+        assertTrue(ToolProvider.allowedCallsPerTurn("search", true) > 0);
+        assertTrue(ToolProvider.allowedCallsPerTurn("calculator", false) > 0);
+        // a tool call the model makes anyway does not run
+        assertTrue(ToolProvider.executeTool("search", "{\"query\":\"collection:other x\"}", false).contains("not released"));
+    }
+
+    @Test
     public void maxCallsPerTurnZeroDisablesAReleasedTool() throws Exception {
         use("ai.tools.calculator.enabled", "true", "ai.tools.calculator.maxCallsPerTurn", "0",
                 "ai.tools.datetime.enabled", "true", "ai.tools.datetime.maxCallsPerTurn", "2");

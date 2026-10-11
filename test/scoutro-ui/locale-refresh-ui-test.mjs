@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { withDigestSignIn } from './digest-signin.mjs';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL;
@@ -21,6 +22,7 @@ const browser = await chromium.launch({
   ...(process.env.SCOUTRO_CHROMIUM_PATH ? { executablePath: process.env.SCOUTRO_CHROMIUM_PATH } : {}),
   args: ['--no-proxy-server'],
 });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 try {
   for (const width of [360, 1280]) {
     const mobile = width < 768;
@@ -44,7 +46,7 @@ try {
           await toggle.click();
           check(await toggle.getAttribute('aria-expanded') === 'true', `${width}: navigation opens`);
         }
-        for (const [href, text] of [['scoutro-dashboard.html', 'Dashboard'], ['ScoutroAgents_p.html', 'Agenten & Zugriffe']]) {
+        for (const [href, text] of [['scoutro-dashboard.html', 'Übersicht'], ['ScoutroAgents_p.html', 'Agenten']]) {
           const link = page.locator(`#scoutro-adminnav a[href="${href}"]:visible`).first();
           check(await link.count() === 1, `${width}: ${href} visible in navigation`);
           check((await link.textContent()).trim() === text, `${width}: ${href} German navigation label`);

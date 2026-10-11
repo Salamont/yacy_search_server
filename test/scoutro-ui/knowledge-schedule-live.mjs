@@ -3,10 +3,12 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
+import { withDigestSignIn } from './digest-signin.mjs';
 const { chromium } = createRequire(import.meta.url)('playwright');
 const base = process.env.SCOUTRO_URL, model = process.env.SCOUTRO_SCHEDULE_MODEL, marker = process.env.SCOUTRO_SCHEDULE_MARKER;
 assert(base && model && new URL(base).hostname === '127.0.0.1' && new URL(model).hostname === '127.0.0.1' && marker && fs.existsSync(marker), 'Use disposable schedule harness');
 const browser = await chromium.launch({ executablePath: process.env.SCOUTRO_CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-proxy-server', '--no-sandbox'] });
+withDigestSignIn(browser); // Digest credentials after the login page (digest-signin.mjs)
 let checks = 0;
 const check = (condition, message) => { assert(condition, message); checks++; };
 try {

@@ -40,6 +40,9 @@ public class DiscoveryGatewayTest {
         var params=bridge.yacy.calls("Crawler_p.json").get(0).params;
         assertEquals("custom-index",params.get("collection"));assertEquals("15",params.get("crawlingDomMaxPages"));
         assertTrue(params.get("mustnotmatch").contains(MARKER));
+        // only the candidate host: YaCy's domain filter alone would also follow host.com.au
+        assertTrue(params.get("mustnotmatch").contains("(?!https?://"));
+        assertEquals(MARKER, ScoutroActions.startMarker(params.get("mustnotmatch")));
     }
     @Test public void foreignCollectionBlocksBeforeAnyCrawlStart() throws Exception {
         Bridge bridge=new Bridge();bridge.yacy.outsideNumFound=1;

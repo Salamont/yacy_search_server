@@ -57,6 +57,11 @@ public final class LLMAccess {
         GUEST(false),
         /** remote, authenticated YaCy administrator */
         ADMIN(true),
+        /**
+         * a signed-in Scoutro account without the administrator role (Research, Operator): admitted whatever
+         * the address, but only within its collections (ChatCollections.member)
+         */
+        ACCOUNT(false),
         /** remote, no valid administrator authentication, guests not allowed */
         ADMIN_REQUIRED(false),
         /** remote request from another site (CSRF protection for the administrator path) */
@@ -72,7 +77,7 @@ public final class LLMAccess {
         }
 
         public boolean allowed() {
-            return this == LOCAL || this == GUEST || this == ADMIN;
+            return this == LOCAL || this == GUEST || this == ADMIN || this == ACCOUNT;
         }
     }
 
