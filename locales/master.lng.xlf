@@ -17926,6 +17926,9 @@
     <trans-unit id="12301c34" xml:space="preserve" approved="no" translate="yes">
        <source>desirable competence</source>
     </trans-unit>
+    <trans-unit id="e4f1b3af" xml:space="preserve" approved="no" translate="yes">
+       <source>stated competence (own or offered; no need)</source>
+    </trans-unit>
     <trans-unit id="5e251f0" xml:space="preserve" approved="no" translate="yes">
        <source>work in customer projects</source>
     </trans-unit>
