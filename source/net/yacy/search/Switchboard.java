@@ -3924,6 +3924,15 @@ public final class Switchboard extends serverSwitch {
         if (requestHeader.isUserInRole(SwitchboardConstants.ADMIN_ACCOUNT_ROLE)) {
             if (this.adminAuthenticationLastAccess + 60000 > System.currentTimeMillis()) // 1 minute
                 return 4; // hard-authenticated, quick return
+            // Scoutro: the container authenticated this request in the administrator role without an
+            // Authorization header, i.e. with the session of a Scoutro administrator (the role comes
+            // solely from container authentication, see RequestHeader; Research and Operator sessions
+            // never carry it)
+            final String authorization = requestHeader.get(RequestHeader.AUTHORIZATION, "");
+            if (requestHeader.getUserPrincipal() != null && (authorization == null || authorization.isEmpty())) {
+                this.adminAuthenticationLastAccess = System.currentTimeMillis();
+                return 4;
+            }
         }
 
         // authorization for localhost, only if flag is set to grant localhost access as admin

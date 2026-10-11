@@ -64,6 +64,8 @@ for the JavaScript code in this page.
   <link rel="stylesheet" type="text/css" href="#[relativeBase]#env/scoutro/brand/brand.css" />
   <link rel="stylesheet" type="text/css" href="#[relativeBase]#env/scoutro/scoutro.css" />
   <link rel="stylesheet" type="text/css" href="#[relativeBase]#env/scoutro/theme.css" />
+  <!-- Scoutro: CSRF token of the signed-in session (empty without a session); scoutro.js sends it with changing API calls -->
+  <meta name="scoutro-csrf" content="#[scoutroCsrf]#" />
   <script src="#[relativeBase]#env/scoutro/scoutro.js"></script>
   <!--[if lt IE 6]>
    <link rel="stylesheet" type="text/css" media="screen" href="#[relativeBase]#env/oldie.css" />

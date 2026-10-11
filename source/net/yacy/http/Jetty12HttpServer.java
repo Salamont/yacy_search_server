@@ -489,7 +489,8 @@ public class Jetty12HttpServer implements YaCyHttpServer {
         }
 
         static DigestAuthenticator createDigestAuthenticator() {
-            final DigestAuthenticator authenticator = new DigestAuthenticator();
+            // Scoutro: sessions of the Scoutro login page first, then YaCy's unchanged Digest login
+            final DigestAuthenticator authenticator = new ScoutroSessionAuthenticator();
             // YaCy stores the RFC 2617 MD5 HA1 value, not the clear-text password.
             authenticator.setAlgorithm("MD5");
             return authenticator;
@@ -521,6 +522,12 @@ public class Jetty12HttpServer implements YaCyHttpServer {
             final String socketRemoteIp = request.getRemoteAddr();
             final String trackingRemoteIp = RequestHeader.client(request);
             serverAccessTracker.track(trackingRemoteIp, pathInContext);
+            // Scoutro: own rules for the sign-in routes and Scoutro pages, and the allowlist of the protected mode
+            final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+            final boolean protectedMode = access != null ? access.protectedMode()
+                    : switchboard.getConfigBool(net.yacy.scoutro.access.AccessSettings.PROTECTED, false);
+            final net.yacy.scoutro.access.RoutePolicy.Rule rule =
+                    net.yacy.scoutro.access.RoutePolicy.classify(pathInContext, protectedMode);
             final AdminSecurity.AccessPolicy policy = new AdminSecurity.AccessPolicy(
                     switchboard.getConfigBool(SwitchboardConstants.ADMIN_ACCOUNT_All_PAGES, false),
                     switchboard.isRobinsonMode() && !switchboard.isPublicRobinson(),
@@ -528,6 +535,10 @@ public class Jetty12HttpServer implements YaCyHttpServer {
                     switchboard.getConfigBool(SwitchboardConstants.ADMIN_ACCOUNT_FOR_LOCALHOST, false),
                     switchboard.getConfig(SwitchboardConstants.ADMIN_ACCOUNT_USER_NAME, "admin"),
                     switchboard.getConfig(SwitchboardConstants.ADMIN_ACCOUNT_B64MD5, ""));
+            if (rule.kind != net.yacy.scoutro.access.RoutePolicy.Kind.LEGACY) {
+                return scoutroConstraint(rule, policy, pathInContext, socketRemoteIp, request,
+                        access != null && access.guestEnabled());
+            }
             final AdminSecurity.AccessPolicy.Decision decision = policy.decide(pathInContext, socketRemoteIp,
                     request.getHeader(RequestHeader.REFERER),
                     request.getHeader(RequestHeader.AUTHORIZATION));
@@ -540,6 +551,35 @@ public class Jetty12HttpServer implements YaCyHttpServer {
             final RoleInfo roleInfo = new RoleInfo();
             roleInfo.setChecked(true);
             roleInfo.addRole(SwitchboardConstants.ADMIN_ACCOUNT_ROLE);
+            return roleInfo;
+        }
+
+        /**
+         * Scoutro: the constraint of a {@link net.yacy.scoutro.access.RoutePolicy} rule. YaCy's local
+         * administrator rules (localhost bypass, admin hash for loopback calls) keep working for every
+         * protected rule; public rules leave authentication to the servlet (deferred).
+         */
+        static RoleInfo scoutroConstraint(final net.yacy.scoutro.access.RoutePolicy.Rule rule,
+                final AdminSecurity.AccessPolicy policy, final String pathInContext, final String socketRemoteIp,
+                final org.eclipse.jetty.ee8.nested.Request request, final boolean guestEnabled) {
+            if (rule.kind == net.yacy.scoutro.access.RoutePolicy.Kind.PUBLIC
+                    || (rule.kind == net.yacy.scoutro.access.RoutePolicy.Kind.PERMISSION && rule.guest && guestEnabled)) {
+                return null;
+            }
+            // pages keep YaCy's local administrator rule; the Scoutro API never had it (web.xml constraint),
+            // so Digest clients on localhost still get their challenge there
+            if (!pathInContext.startsWith("/scoutro/api/") && policy.localBypass(socketRemoteIp,
+                    request.getHeader(RequestHeader.REFERER), request.getHeader(RequestHeader.AUTHORIZATION))) {
+                return null;
+            }
+            final RoleInfo roleInfo = new RoleInfo();
+            roleInfo.setChecked(true);
+            roleInfo.addRole(SwitchboardConstants.ADMIN_ACCOUNT_ROLE);
+            if (rule.kind == net.yacy.scoutro.access.RoutePolicy.Kind.SIGNED_IN) {
+                roleInfo.addRole(net.yacy.scoutro.access.Permission.SIGNED_IN_ROLE);
+            } else if (rule.kind == net.yacy.scoutro.access.RoutePolicy.Kind.PERMISSION) {
+                roleInfo.addRole(rule.permission.containerRole());
+            }
             return roleInfo;
         }
 
