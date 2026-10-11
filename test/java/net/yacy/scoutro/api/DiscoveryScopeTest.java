@@ -121,6 +121,9 @@ public class DiscoveryScopeTest {
             refused("forbidden", () -> call("POST", this.mine, null, global));
         }
         refused("forbidden", () -> call("GET", this.mine, null, "export"));
+        // so does the recovery decision for an unconfirmed crawl start
+        refused("forbidden", () -> call("POST", this.mine, new JsonObject().put("run_id", "00000000-0000-4000-8000-000000000000"),
+                "attempts", "0123456789abcdef0123456789abcdef", "defer"));
 
         // own jobs work
         assertEquals("Renamed", call("PATCH", this.mine, new JsonObject().put("name", "Renamed"), "jobs", own)
