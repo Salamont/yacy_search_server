@@ -55,8 +55,13 @@
       #(indexUnavailable)#::<p class="scoutro-dash-notice" role="status">Some index statistics are temporarily unavailable. Other sections and detail links remain available.</p>#(/indexUnavailable)#
 
       <section aria-labelledby="scoutro-dash-collections">
-        <div class="scoutro-dash-section-heading"><h2 id="scoutro-dash-collections">Scoutro Collections</h2>
+        <div class="scoutro-dash-section-heading"><div class="scoutro-dash-title-tools"><h2 id="scoutro-dash-collections">Scoutro Collections</h2>
+          #(dashAdmin)#::<span class="scoutro-dash-tools" id="scoutro-dash-collection-tools" hidden>
+            <button type="button" class="scoutro-dash-tool" id="scoutro-dash-collection-add" title="New collection" aria-label="New collection"><span aria-hidden="true">+</span></button>
+            <button type="button" class="scoutro-dash-tool" id="scoutro-dash-collection-remove" title="Remove collection" aria-label="Remove collection"><span aria-hidden="true">&minus;</span></button>
+          </span>#(/dashAdmin)#</div>
           <span class="scoutro-dash-caption">#(scoped)#Share of indexed pages::Share of the pages in your collections#(/scoped)#</span></div>
+        #(dashAdmin)#::<p class="scoutro-dash-notice" id="scoutro-dash-collection-status" role="status" hidden></p>#(/dashAdmin)#
         <div class="scoutro-dash-collections">
           #{collections}#
           <a class="scoutro-dash-card scoutro-dash-collection" data-collection="#[id]#" href="IndexBrowser_p.html?collection=#[id]#">
@@ -154,6 +159,43 @@
       </section>
       #(/dashAdmin)#
     </main>
+    #(dashAdmin)#::#%env/templates/scoutro/collection-create.template%#
+    <dialog class="scoutro-collection-dialog" id="scoutro-dash-remove-dialog" aria-labelledby="scoutro-dash-remove-title">
+      <div class="scoutro-dash-remove-body">
+        <h2 id="scoutro-dash-remove-title">Remove collection</h2>
+        <p class="scoutro-collection-intro">Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.</p>
+        <label for="scoutro-dash-remove-id">Collection<select id="scoutro-dash-remove-id" class="form-control" required></select></label>
+        <p class="scoutro-collection-hint" id="scoutro-dash-remove-hint"></p>
+        <p class="scoutro-collection-error" id="scoutro-dash-remove-error" role="alert" hidden></p>
+        <div class="scoutro-collection-actions"><button type="button" class="btn btn-danger" id="scoutro-dash-remove-save">Remove collection</button> <button type="button" class="btn btn-default" id="scoutro-dash-remove-cancel">Cancel</button></div>
+      </div>
+      <div hidden aria-hidden="true">
+        <span data-scoutro-dash-label="choose">Choose a collection</span>
+        <span data-scoutro-dash-label="kept">Cannot be removed</span>
+        <span data-scoutro-dash-label="none">No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.</span>
+        <span data-scoutro-dash-label="pages">%1 pages</span>
+        <span data-scoutro-dash-label="from_profile">Discovery profile</span>
+        <span data-scoutro-dash-label="from_index">from the index</span>
+        <span data-scoutro-dash-label="loading">Loading the collections …</span>
+        <span data-scoutro-dash-label="created">Collection created:</span>
+        <span data-scoutro-dash-label="removed">Collection removed:</span>
+        <span data-scoutro-dash-label="collection_has_documents">The index holds pages of this collection, so it stays. Pages are never deleted here.</span>
+        <span data-scoutro-dash-label="collection_from_profile">A Discovery profile names this collection. Change the profile first.</span>
+        <span data-scoutro-dash-label="collection_not_created">Only a collection created in Scoutro can be removed.</span>
+        <span data-scoutro-dash-label="collection_not_found">This collection does not exist any more. The page is reloaded.</span>
+        <span data-scoutro-dash-label="collection_in_use">Still in use, remove it there first:</span>
+        <span data-scoutro-dash-label="uses_accounts">accounts</span>
+        <span data-scoutro-dash-label="uses_agents">agents</span>
+        <span data-scoutro-dash-label="uses_guest">guest access</span>
+        <span data-scoutro-dash-label="uses_crawls">running crawls</span>
+        <span data-scoutro-dash-label="index_unavailable">The index cannot be read. Nothing was removed; try again later.</span>
+        <span data-scoutro-dash-label="collection_store_unavailable">The collection list cannot be written. Nothing was removed.</span>
+        <span data-scoutro-dash-label="collection_uses_unavailable">It cannot be checked who uses this collection. Nothing was removed.</span>
+        <span data-scoutro-dash-label="error">The collection could not be removed.</span>
+      </div>
+    </dialog>
+    <script src="env/scoutro/collections.js"></script>
+    <script src="env/scoutro/dashboard-collections.js"></script>#(/dashAdmin)#
     #(dashCollect)#::<script src="env/scoutro/discovery-dashboard.js"></script>#(/dashCollect)#
     #(dashAdmin)#::<script src="env/scoutro/knowledge-dashboard.js"></script>#(/dashAdmin)#
     #%env/templates/footer.template%#

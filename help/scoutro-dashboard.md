@@ -10,11 +10,12 @@ backend_java: source/net/yacy/htroot/ScoutroDashboard.java
 
 # Scoutro Dashboard
 
-`scoutro-dashboard.html` is an administrator-only, read-only overview. It uses
+`scoutro-dashboard.html` is an overview. It uses
 YaCy's existing administrator authentication and configured localhost policy,
-even when public search is enabled. There are no request parameters, forms or
-state-changing actions. Unknown query/form parameters are ignored. Responses
-use `Cache-Control: no-store`.
+even when public search is enabled. The page itself has no request parameters,
+forms or state-changing actions; the only changes are the administrator's "+"
+and "−" of the collection list (below), which call the collection API. Unknown
+query/form parameters are ignored. Responses use `Cache-Control: no-store`.
 The shared template servlet also skips its usual called/submitted-page
 registration for this route, so even ignored query parameters cannot write the
 navigation-history settings in `yacy.conf`.
@@ -79,6 +80,31 @@ Index Browser has no stable collection filter, so collection tiles open its
 normal host view. No collection detail page is added. No last-index/crawl
 timestamp or CPU figure is shown: these are not needed for the overview and
 no additional scan/monitor is introduced to derive them.
+
+## Adding and removing collections
+
+Next to **Scoutro Collections** the administrator sees **+** and **−** (an
+account never does; the API refuses it with `403` anyway).
+
+- **+** opens the same **New collection** dialog as *Settings → Collections*
+  (`POST /scoutro/api/v1/collections`): display name, ID (suggested from the
+  name, cannot be changed later) and an optional description. After the server
+  confirmed it the page reloads and shows the new, empty collection as a card.
+- **−** opens **Remove collection**. The list offers only collections created
+  in Scoutro that hold no page and that no Discovery profile names; every other
+  collection is listed as *Cannot be removed* with the reason (pages, Discovery
+  profile, from the index). Removing calls
+  `DELETE /scoutro/api/v1/collections/{id}`. The server reads the page count
+  anew and refuses while an account, an agent (not revoked), the guest access or
+  a crawl that is not terminated names the collection; the dialog then names
+  them (for example "1 accounts, 2 agents"). Remove the collection there first.
+- Removing deletes **no page** and changes no other store: only the entry with
+  name and description leaves the collection list. Knowledge-graph settings of
+  that name stay and apply again if a collection of the same ID is created later.
+  A collection that holds pages stays; moving pages between collections is
+  `POST /v1/collections/reassign`, deleting pages is YaCy's index administration.
+- Every change is in the user audit log (`api.collections POST`,
+  `api.collections DELETE` with the collection as target).
 
 ## Automation and verification
 

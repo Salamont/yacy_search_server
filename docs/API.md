@@ -124,7 +124,7 @@ invalid name `400`.
 | `export` | `/v1/index/domains/export`, `/v1/kg/export`, `/v1/kg/export/download`, `/v1/kg/changes` | Also needs `read`. |
 | `collect` | `/v1/crawls*`, `/v1/reports/*`, `/v1/discovery/{catalog,status,jobs*}` | Crawls: only crawls of own collections (others `404 crawl_not_found`); a start needs an own collection, refuses `scope=wide` (`403 scope_not_allowed`) and hosts with documents outside the scope (`409 host_indexed_elsewhere`), and stays on exactly its host. Discovery: only jobs whose profile writes into an own collection (others `404 job_not_found`), no global action in `status`. Reports: as for agents. |
 | `chat` | `POST /v1/chat/completions` | One own collection (the only one, or `400 collection_required`); a foreign one `403 collection_not_allowed`; no peer-to-peer search; no `search` tool of the model without all collections; system questions `403 system_forbidden`. The account's session decides, not its address. |
-| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `/v1/collections/reassign`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}`, `/v1/discovery/attempts/{id}/defer` | `403 forbidden` for accounts. |
+| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `DELETE /v1/collections/{id}`, `/v1/collections/reassign`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}`, `/v1/discovery/attempts/{id}/defer` | `403 forbidden` for accounts. |
 
 Tools keep using HTTP Digest; the login page never answers them. Every
 changing `/v1` call of a person is written to the audit log
@@ -395,6 +395,28 @@ filters, crawl starts and agent grants all take their choices from it.
   checked) and `503 collection_store_unavailable` when the list cannot be
   written or is damaged; in both cases nothing is created. Agents have no
   create grant (`405` on the agent path).
+- `DELETE /v1/collections/{id}` (administrator, same origin, body `{}`; the
+  Dashboard's "−"): removes a collection created with `POST /v1/collections`
+  from the list, nothing else. Only while the index holds no page of it (read
+  anew, not from the 10-second cache), no Discovery profile names it and no
+  account, agent (not revoked), guest access (`scoutro.access.guest.collections`)
+  or crawl that is not terminated names it explicitly; a grant of all
+  collections names none.
+
+  ```sh
+  curl --digest -u admin -X DELETE -H 'Content-Type: application/json' -d '{}' \
+    http://scoutro:8090/scoutro/api/v1/collections/mein-neues-portal
+  ```
+
+  `200 {"collection":{...entry...},"removed":true}`. Refusals change nothing:
+  `400 invalid_request` (id or a body field), `404 collection_not_found`
+  (unknown or `robot_*`), `409 collection_has_documents` (`details.documents`),
+  `409 collection_from_profile`, `409 collection_not_created`, `409
+  collection_in_use` (`details.uses`, e.g. `{"accounts":1,"agents":2}`), `503
+  index_unavailable`, `503 collection_uses_unavailable`, `503
+  collection_store_unavailable` (the list cannot be written or is damaged).
+  Pages, crawl profiles, knowledge-graph settings and data stay; the same id can
+  be created again. Agents cannot remove collections.
 - `POST /v1/collections/reassign` (administrator, same-origin JSON, at most
   4 KiB): moves the indexed pages of **one registrable domain** (and its
   subdomains) between collections without crawling them again, e.g. a domain

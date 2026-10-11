@@ -95,6 +95,15 @@ try {
       const cards = await page.locator('[data-collection]').evaluateAll(list => list.map(e => e.dataset.collection).sort());
       if (expected.collections) check(JSON.stringify(cards) === JSON.stringify(expected.collections), `overview cards are the own collections ${JSON.stringify(cards)}` + where);
       check((await page.locator('main').innerText()).includes('JVM') === (role === 'administrator'), 'system figures only for the administrator' + where);
+      // "+" and "−" of the collection list: rendered for the administrator only (dashboard-collections-ui-test.mjs)
+      check(await page.locator('#scoutro-dash-collection-tools, #scoutro-dash-remove-dialog, #scoutro-collection-dialog').count() === (role === 'administrator' ? 3 : 0),
+        'collection "+"/"−" only for the administrator' + where);
+      if (role === 'administrator') {
+        await page.locator('#scoutro-dash-collection-tools').waitFor({ state: 'visible' });
+        check(await page.locator('#scoutro-dash-collection-add').getAttribute('aria-label') === (language === 'de' ? 'Neue Collection' : 'New collection')
+          && await page.locator('#scoutro-dash-collection-remove').getAttribute('aria-label') === (language === 'de' ? 'Collection entfernen' : 'Remove collection'),
+          'collection "+"/"−" labelled' + where);
+      }
 
       // pages by permission and the 403 page
       for (const target of expected.allowed) {

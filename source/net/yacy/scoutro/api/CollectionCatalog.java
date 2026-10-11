@@ -170,6 +170,10 @@ public final class CollectionCatalog {
             if (strict) throw e;
             counts = Map.of();
         }
+        return entries(counts);
+    }
+
+    private List<Entry> entries(final Map<String, Long> counts) {
         final Map<String, JSONObject> created = created();
         final Set<String> fromProfiles = new java.util.HashSet<>();
         for (final String p : this.profiles.get()) {
@@ -251,6 +255,57 @@ public final class CollectionCatalog {
                 if (e.id.equals(id)) return e;
             }
             throw new ApiException(500, "collection_not_stored", "The collection could not be stored.");
+        }
+    }
+
+    /** What still names a collection explicitly, as kind → count (e.g. {@code accounts → 2}); empty when nothing does. */
+    public interface Uses {
+        Map<String, Integer> of(String id) throws ApiException;
+    }
+
+    /**
+     * Removes a collection from the list: only one created here ({@link #create}) that holds no page in the index,
+     * no Discovery profile names and nothing else names explicitly ({@code uses}). Nothing in the index, the
+     * knowledge graph or any other store is deleted or changed; only its entry with name and description goes.
+     * The page count is read anew from the index, not from the short-lived cache; an unreadable index refuses.
+     * A collection removed here can be created again under the same id.
+     */
+    public Entry remove(final String id, final Uses uses) throws ApiException {
+        if (id == null || !ID.matcher(id).matches()) throw ApiException.invalid("id", "Unknown collection id.");
+        synchronized (this) {
+            final Map<String, Long> counts;
+            try {
+                counts = Collections.unmodifiableMap(new LinkedHashMap<>(this.index.counts()));
+            } catch (final RuntimeException e) {
+                throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was removed.");
+            }
+            this.indexCache = counts;
+            this.indexCachedAt = System.currentTimeMillis();
+            Entry found = null;
+            for (final Entry e : entries(counts)) {
+                if (e.id.equals(id)) found = e;
+            }
+            if (found == null || found.internal()) {
+                throw new ApiException(404, "collection_not_found", "This collection does not exist.", Json.obj("field", "id"));
+            }
+            if (found.documents > 0) {
+                throw new ApiException(409, "collection_has_documents",
+                        "The index holds pages of this collection; it stays. Pages are never deleted here.", Json.obj("documents", found.documents));
+            }
+            if (found.profile) {
+                throw new ApiException(409, "collection_from_profile", "A Discovery profile names this collection; change the profile first.");
+            }
+            if (!found.created) {
+                throw new ApiException(409, "collection_not_created", "Only a collection created in Scoutro can be removed.");
+            }
+            final Map<String, Integer> using = uses == null ? Map.of() : uses.of(id);
+            if (!using.isEmpty()) {
+                throw new ApiException(409, "collection_in_use", "Still in use; remove it there first.", Json.obj("uses", new JSONObject(using)));
+            }
+            final Map<String, JSONObject> next = new LinkedHashMap<>(created());
+            next.remove(id);
+            store(next);
+            return found;
         }
     }
 

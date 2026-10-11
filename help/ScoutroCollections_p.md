@@ -26,3 +26,9 @@ Knowledge-graph settings per collection are under *Knowledge graph operations*.
 
 Read from `GET /scoutro/api/v1/collections`; creation through
 `POST /scoutro/api/v1/collections` (administrator).
+
+The Dashboard offers the same creation as **+** next to *Scoutro Collections*
+and **−** to remove a collection: only one created in Scoutro that holds no
+page, that no Discovery profile names and that no account, agent, guest access
+or running crawl uses (`DELETE /scoutro/api/v1/collections/{id}`). No page is
+ever deleted; see [Scoutro Dashboard](scoutro-dashboard.md).
