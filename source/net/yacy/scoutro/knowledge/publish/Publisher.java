@@ -356,6 +356,15 @@ public final class Publisher {
      */
     public Result applyLlm(final Connection tx, final Doc doc, final byte[] llmInput, final Extraction extraction, final int extId,
             final long now) throws SQLException {
+        return applyLlm(tx, doc, llmInput, extraction, extId, null, now);
+    }
+
+    /**
+     * {@link #applyLlm(Connection, Doc, byte[], Extraction, int, long)} with the reason the mark keeps: {@code more_text}
+     * if a continuation reads more of the page later, {@code text_cut} if text behind the tier's input stays unread.
+     */
+    public Result applyLlm(final Connection tx, final Doc doc, final byte[] llmInput, final Extraction extraction, final int extId,
+            final String reason, final long now) throws SQLException {
         final long rowid;
         // compare-and-set on what the LLM tier read (the content hash; the input hash before schema 4): a new vocabulary
         // published meanwhile keeps the result, as it keeps a published one (update)
@@ -373,11 +382,45 @@ public final class Publisher {
         final Aggregates agg = new Aggregates(this.cfg, this.terms, now);
         agg.touchDocument(tx, rowid, 3);
         final Result result = new Result(Outcome.PUBLISHED);
-        replaceEvidence(tx, doc, rowid, extraction, agg, result, now, LLM_TIER, extId);
+        replaceEvidence(tx, doc, rowid, extraction, agg, result, now, LLM_TIER, extId, true);
         // the mark is the content hash (schema 4), so a new vocabulary keeps the result; input_hash for a document of schema 3
         try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_status = 1, llm_hash = coalesce(content_hash, input_hash),"
-                + " llm_reason = NULL, tiers = tiers | 4 WHERE doc_rowid = ?")) {
-            ps.setLong(1, rowid);
+                + " llm_reason = ?, tiers = tiers | 4 WHERE doc_rowid = ?")) {
+            ps.setString(1, reason);
+            ps.setLong(2, rowid);
+            ps.executeUpdate();
+        }
+        agg.finish(tx);
+        return result;
+    }
+
+    /**
+     * Adds the LLM tier's result for more of a page's text to the result it published before (a continuation,
+     * docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): nothing is replaced, and a statement already supported by the page keeps
+     * its one tier-3 evidence (the primary key of the evidence), so a continuation never publishes twice. A
+     * compare-and-set on what the tier read and on the mark {@code more_text}: a changed page, a reset or a second
+     * continuation finds no row. The mark then keeps {@code reason} (null: the whole text was read).
+     */
+    public Result applyLlmMore(final Connection tx, final Doc doc, final byte[] llmInput, final Extraction extraction, final int extId,
+            final String reason, final long now) throws SQLException {
+        final long rowid;
+        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_rowid FROM kg_doc WHERE doc_id = ? AND state = 1"
+                + " AND coalesce(content_hash, input_hash) = ? AND llm_status = 1 AND llm_reason = 'more_text'")) {
+            ps.setString(1, doc.docId);
+            ps.setBytes(2, llmInput);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return new Result(Outcome.ABORT_GENERATION);
+                }
+                rowid = rs.getLong(1);
+            }
+        }
+        final Aggregates agg = new Aggregates(this.cfg, this.terms, now);
+        final Result result = new Result(Outcome.PUBLISHED);
+        replaceEvidence(tx, doc, rowid, extraction, agg, result, now, LLM_TIER, extId, false);
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_reason = ? WHERE doc_rowid = ?")) {
+            ps.setString(1, reason);
+            ps.setLong(2, rowid);
             ps.executeUpdate();
         }
         agg.finish(tx);
@@ -386,12 +429,13 @@ public final class Publisher {
 
     private void replaceEvidence(final Connection tx, final Doc doc, final long rowid, final Extraction ex, final Aggregates agg,
             final Result result, final long now) throws SQLException {
-        replaceEvidence(tx, doc, rowid, ex, agg, result, now, REPLACED_TIERS, 0);
+        replaceEvidence(tx, doc, rowid, ex, agg, result, now, REPLACED_TIERS, 0, true);
     }
 
+    /** @param replace delete the document's evidence of these tiers first; false adds to it (a continuation) */
     private void replaceEvidence(final Connection tx, final Doc doc, final long rowid, final Extraction ex, final Aggregates agg,
-            final Result result, final long now, final int[] replacedTiers, final int llmExtId) throws SQLException {
-        for (final int tier : replacedTiers) {
+            final Result result, final long now, final int[] replacedTiers, final int llmExtId, final boolean replace) throws SQLException {
+        for (final int tier : replace ? replacedTiers : new int[0]) {
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_evidence WHERE doc_rowid = ? AND tier = ?")) {
                 ps.setLong(1, rowid);
                 ps.setInt(2, tier);

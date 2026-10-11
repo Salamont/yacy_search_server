@@ -55,6 +55,12 @@ final class LlmQueue {
      * its bounded retries; a new input or the admin retry makes the page to do again.
      */
     static final String INPUT_UNCONFIRMED = "input_unconfirmed";
+    /** Done: a continuation reads more of the long page's text later (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3). */
+    static final String MORE_TEXT = "more_text";
+    /** Done: text behind what the tier reads stays unread (continuations off, a legal page, or their limit reached). */
+    static final String TEXT_CUT = "text_cut";
+    /** Queue priority of a continuation: after every first reading, until it waited {@link #AGING_MILLIS}. */
+    static final int CONTINUATION_PRIORITY = 8;
     /**
      * What the LLM tier read: the content hash (schema 4), the input hash for a page published before it. A new
      * vocabulary or extractor version changes the input hash, not what the tier reads; the comparisons, the marks and
@@ -245,6 +251,40 @@ final class LlmQueue {
                 return rs.next() ? rs.getLong(1) : 0L;
             }
         }
+    }
+
+    /** Continuations in the queue. */
+    static long continuations(final Connection c) throws SQLException {
+        return KgStore.queryLong(c, "SELECT count(*) FROM kg_llm_work WHERE priority = " + CONTINUATION_PRIORITY);
+    }
+
+    /** Up to {@code limit} unqueued pages marked {@link #MORE_TEXT}, oldest row first: {doc_id, host_id}. */
+    static List<String[]> moreText(final Connection c, final int limit) throws SQLException {
+        final List<String[]> out = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement("SELECT d.doc_id, d.host_id FROM kg_doc d INDEXED BY kg_doc_llm_status"
+                + " WHERE d.llm_status = 1 AND d.llm_reason = '" + MORE_TEXT + "' AND d.state = 1 AND d.host_id IS NOT NULL"
+                + " AND NOT EXISTS (SELECT 1 FROM kg_llm_work w WHERE w.doc_id = d.doc_id) ORDER BY d.doc_rowid LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new String[] {rs.getString(1), rs.getString(2)});
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Done pages per reason {@link #MORE_TEXT} and {@link #TEXT_CUT}. */
+    static long[] textCounts(final Connection c) throws SQLException {
+        final long[] out = new long[2];
+        try (PreparedStatement ps = c.prepareStatement("SELECT llm_reason, count(*) FROM kg_doc INDEXED BY kg_doc_llm_status"
+                + " WHERE llm_status = 1 AND llm_reason IN ('" + MORE_TEXT + "', '" + TEXT_CUT + "') GROUP BY llm_reason");
+                ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                out[MORE_TEXT.equals(rs.getString(1)) ? 0 : 1] = rs.getLong(2);
+            }
+        }
+        return out;
     }
 
     /** Items that are not claimed and due within {@code horizon}: what the worker has to do soon (the refill measure). */

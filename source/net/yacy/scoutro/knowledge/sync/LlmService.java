@@ -102,6 +102,13 @@ public final class LlmService {
     static final int UNCONFIRMED_EXTRA_ATTEMPTS = 6;
     /** Reason of a document whose request does not fit the model's context window even split. */
     static final String CONTEXT_BUDGET = "context_budget";
+    /** Continuations queued at a time (they wait behind first readings until they aged, LlmQueue.AGING_MILLIS). */
+    static final int CONTINUATION_QUEUED = 10;
+    /** A continuation starts this many characters at most before the first reading's end: at the line or sentence it cut. */
+    static final int CONTINUATION_OVERLAP = 400;
+    /** Legal pages are not continued: their length is legal text, not the business information the tier extracts. */
+    private static final java.util.regex.Pattern LEGAL = java.util.regex.Pattern.compile(
+            "(?i)(?:datenschutz|privacy|agb|terms|cookie|nutzungsbedingungen|widerruf|disclaimer|haftungsausschluss)");
     static final long UNCONFIRMED_MAX_BACKOFF_MILLIS = 30L * 60_000L;
     static final long FIRST_RETRY_MILLIS = 60_000L;
     static final long COUNTS_MILLIS = 30_000L;
@@ -159,6 +166,12 @@ public final class LlmService {
         final AtomicLong contextRefused = new AtomicLong();
         /** The largest estimated prompt of a planned request. */
         final AtomicLong promptTokensEstimatedMax = new AtomicLong();
+        /** Continuations finished, and the model requests they made (cache misses). */
+        final AtomicLong continuationDocs = new AtomicLong();
+        final AtomicLong continuationCalls = new AtomicLong();
+        /** Pages done with text left unread ({@link LlmQueue#TEXT_CUT}), and the characters left. */
+        final AtomicLong textCutDocs = new AtomicLong();
+        final AtomicLong textCutChars = new AtomicLong();
         /** Long pages whose recurring navigation was moved behind their content, and the characters moved. */
         final AtomicLong navigationMoved = new AtomicLong();
         final AtomicLong navigationMovedChars = new AtomicLong();
@@ -279,7 +292,15 @@ public final class LlmService {
                     "navigationMoved",
                     this.navigationMoved.get(),
                     "navigationMovedChars",
-                    this.navigationMovedChars.get());
+                    this.navigationMovedChars.get(),
+                    "continuationDocs",
+                    this.continuationDocs.get(),
+                    "continuationCalls",
+                    this.continuationCalls.get(),
+                    "textCutDocs",
+                    this.textCutDocs.get(),
+                    "textCutChars",
+                    this.textCutChars.get());
         }
     }
 
@@ -336,6 +357,7 @@ public final class LlmService {
     private volatile long nextAt;
     private volatile long countsAt;
     private volatile long[] docCounts = new long[3];
+    private volatile long[] textCounts = new long[2];
     private volatile long queueSize;
     private volatile long queueClaimed;
     private volatile Long queueOldest;
@@ -585,6 +607,9 @@ public final class LlmService {
             if (this.store.read(c -> LlmQueue.ready(c, now + READY_HORIZON_MILLIS)) > QUEUE_LOW) {
                 return;
             }
+            if (this.cfg.llmContinuationChunks > 0) {
+                continuations(now);
+            }
             final List<LlmQueue.Lane> lanesNow = this.store.read(c -> LlmQueue.lanes(c, this.cfg::llmFollows));
             final List<LlmQueue.Lane> all = new ArrayList<>();
             final List<LlmQueue.Lane> others = new ArrayList<>();
@@ -704,6 +729,28 @@ public final class LlmService {
             this.counters.skippedHostCap.addAndGet(added[2]);
             this.queueSize += added[0];
         }
+    }
+
+    /**
+     * Keeps up to {@link #CONTINUATION_QUEUED} continuations queued, oldest page first, at
+     * {@link LlmQueue#CONTINUATION_PRIORITY}: they wait behind first readings until they aged, so their share of the model
+     * stays small while a backlog of first readings exists. Not bound by the per-host cap (they add no page).
+     */
+    private void continuations(final long now) throws KgException {
+        final long queued = this.store.read(LlmQueue::continuations);
+        if (queued >= CONTINUATION_QUEUED) {
+            return;
+        }
+        final List<String[]> more = this.store.read(c -> LlmQueue.moreText(c, (int) (CONTINUATION_QUEUED - queued)));
+        if (more.isEmpty()) {
+            return;
+        }
+        this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+            for (final String[] page : more) {
+                LlmQueue.offer(tx, page[0], page[1], LlmQueue.CONTINUATION_PRIORITY, now);
+            }
+            return null;
+        });
     }
 
     /**
@@ -838,6 +885,7 @@ public final class LlmService {
         byte[] contentHash;
         int state;
         Integer llmStatus;
+        String llmReason;
         List<String> collections = Collections.emptyList();
 
         /** {@link LlmQueue#LLM_INPUT}: the identity of what the LLM tier reads. */
@@ -859,7 +907,7 @@ public final class LlmService {
                 c -> {
                     try (PreparedStatement ps =
                             c.prepareStatement(
-                                    "SELECT d.url, d.host_id, d.input_hash, d.state, d.llm_status, d.content_hash,"
+                                    "SELECT d.url, d.host_id, d.input_hash, d.state, d.llm_status, d.content_hash, d.llm_reason,"
                                         + " (SELECT group_concat(k.name, ',') FROM"
                                         + " kg_doc_collection dc JOIN kg_collection k ON k.coll_id"
                                         + " = dc.coll_id WHERE dc.doc_rowid = d.doc_rowid) FROM"
@@ -876,7 +924,8 @@ public final class LlmService {
                             r.state = rs.getInt(4);
                             r.llmStatus = rs.getObject(5) == null ? null : rs.getInt(5);
                             r.contentHash = rs.getBytes(6);
-                            final String colls = rs.getString(7);
+                            r.llmReason = rs.getString(7);
+                            final String colls = rs.getString(8);
                             if (colls != null && !colls.isEmpty()) {
                                 r.collections = Arrays.asList(colls.split(","));
                             }
@@ -890,7 +939,14 @@ public final class LlmService {
         final long now = this.clock.getAsLong();
         final KnowledgePrompt p = this.prompt; // one version for the whole document: text, cache key and extractor
         final DocRow row = row(item.docId);
-        if (row == null || row.state != 1 || row.inputHash == null || row.llmStatus != null || !selected(row.collections)) {
+        // a continuation reads more of a long page whose first reading is published (the mark more_text)
+        final boolean continuation = row != null && row.llmStatus != null && row.llmStatus == LlmQueue.STATUS_DONE
+                && LlmQueue.MORE_TEXT.equals(row.llmReason);
+        if (continuation && (row.state != 1 || !selected(row.collections))) {
+            finishContinuation(item, row, LlmQueue.TEXT_CUT, 0); // out of the selection: the rest stays unread, visibly
+            return;
+        }
+        if (row == null || row.state != 1 || row.inputHash == null || row.llmStatus != null && !continuation || !selected(row.collections)) {
             complete(item); // removed, unavailable, already marked or out of the selection: nothing to do
             return;
         }
@@ -900,6 +956,10 @@ public final class LlmService {
         } catch (final IOException e) {
             this.lastError = "solr: " + e.getMessage();
             release(item, now + SOLR_RETRY_MILLIS, false);
+            return;
+        }
+        if (continuation && (d == null || !row.sameInput(d))) {
+            complete(item); // a changed page: the sync resets the mark and the new text is read from the start
             return;
         }
         if (d == null) {
@@ -916,7 +976,7 @@ public final class LlmService {
         final PageText pageText;
         try {
             base = this.tiers.extract(d, page);
-            if (!RuleExtractor.candidate(d.url, d.titles, base)) {
+            if (!continuation && !RuleExtractor.candidate(d.url, d.titles, base)) {
                 this.counters.skippedNotCandidate.incrementAndGet();
                 markAndComplete(item, row.llmInput(), LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_CANDIDATE);
                 return;
@@ -932,13 +992,23 @@ public final class LlmService {
         final String host = BaseTiers.host(d);
         final String domain = Normalizers.registrableDomain(host);
         final String title = d.titles.isEmpty() ? null : d.titles.get(0);
-        final List<LlmExtractor.Chunk> chunks = LlmExtractor.chunks(pageText.text, this.cfg.extractMaxInputChars);
+        final List<LlmExtractor.Chunk> chunks = continuation ? continuationChunks(pageText.text)
+                : LlmExtractor.chunks(pageText.text, this.cfg.extractMaxInputChars);
+        final int readUpTo = continuation && !chunks.isEmpty() ? chunks.get(chunks.size() - 1).offset + chunks.get(chunks.size() - 1).text.length()
+                : Math.min(pageText.text.length(), this.cfg.extractMaxInputChars);
+        final String reason = pageText.text.length() <= readUpTo ? null
+                : !continuation && this.cfg.llmContinuationChunks > 0 && !LEGAL.matcher(d.url == null ? "" : d.url).find() ? LlmQueue.MORE_TEXT
+                : LlmQueue.TEXT_CUT;
         final RequestBudget budget = budget(p);
         final RequestBudget.Plan plan = budget.plan(chunks, known, title, domain, d.language, kinds);
         if (plan.refused) {
             // a request that does not fit the window is never sent (the model would drop the start of the prompt)
             this.counters.contextRefused.incrementAndGet();
-            markAndComplete(item, row.llmInput(), LlmQueue.STATUS_FAILED, CONTEXT_BUDGET);
+            if (continuation) {
+                finishContinuation(item, row, LlmQueue.TEXT_CUT, pageText.text.length() - this.cfg.extractMaxInputChars);
+            } else {
+                markAndComplete(item, row.llmInput(), LlmQueue.STATUS_FAILED, CONTEXT_BUDGET);
+            }
             return;
         }
         this.counters.knownTrimmed.addAndGet(plan.knownTrimmed);
@@ -976,6 +1046,9 @@ public final class LlmService {
                 continue;
             }
             this.counters.cacheMisses.incrementAndGet();
+            if (continuation) {
+                this.counters.continuationCalls.incrementAndGet();
+            }
             final String answer;
             final java.util.concurrent.atomic.AtomicBoolean breakerLease=new java.util.concurrent.atomic.AtomicBoolean();
             final java.util.concurrent.atomic.AtomicBoolean logicalCounted=new java.util.concurrent.atomic.AtomicBoolean();
@@ -983,7 +1056,7 @@ public final class LlmService {
                 answer = this.client.complete(p.text,
                         LlmExtractor.userPrompt(new PromptGuard(), chunk, title, domain, d.language, partKnown, kinds),
                         LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis, this.cfg.llmStructuredOutput,
-                        ()->startRequest(item,row,m,session,breakerLease,logicalCounted));
+                        ()->startRequest(item,row,continuation,m,session,breakerLease,logicalCounted));
             } catch (LlmClient.Deferred e) {
                 if(breakerLease.get())this.breaker.deferred();
                 defer(item,progress,e.reason);return;
@@ -1022,7 +1095,8 @@ public final class LlmService {
         }
         ex.ranTier(LlmExtractor.TIER);
         try {
-            publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate());
+            publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate(), reason, continuation,
+                    Math.max(0, pageText.text.length() - readUpTo));
         } finally {
             if (this.store.read(c -> queued(c, item.docId)))
                 defer(item, progress, this.reason == null ? "publication_deferred" : this.reason);
@@ -1114,6 +1188,7 @@ public final class LlmService {
     private LlmClient.RequestPermit startRequest(
             LlmQueue.Item item,
             DocRow expected,
+            boolean continuation,
             String model,
             LlmTiming.Session session,
             java.util.concurrent.atomic.AtomicBoolean breakerLease,
@@ -1135,7 +1210,10 @@ public final class LlmService {
                                 DocRow current = row(item.docId);
                                 if (current == null
                                         || current.state != 1
-                                        || current.llmStatus != null
+                                        || (continuation
+                                                ? current.llmStatus == null || current.llmStatus != LlmQueue.STATUS_DONE
+                                                        || !LlmQueue.MORE_TEXT.equals(current.llmReason)
+                                                : current.llmStatus != null)
                                         || !selected(current.collections))
                                     throw new LlmTiming.Deferred("collection_not_selected");
                                 if (!Arrays.equals(current.llmInput(), expected.llmInput()))
@@ -1280,8 +1358,14 @@ public final class LlmService {
         }
     }
 
+    /**
+     * @param reason    the mark's reason: {@link LlmQueue#MORE_TEXT}, {@link LlmQueue#TEXT_CUT} or null
+     * @param continuation adds to the first reading's result ({@link Publisher#applyLlmMore}) instead of replacing it
+     * @param unread    characters of the page this reading leaves unread
+     */
     private void publish(final LlmQueue.Item item, final SolrDoc d, final DocRow row, final Extraction ex, final List<byte[]> keys,
-            final String m, final String promptHash,final long estimate) throws KgException {
+            final String m, final String promptHash,final long estimate, final String reason, final boolean continuation,
+            final int unread) throws KgException {
         final long now = this.clock.getAsLong();
         if (this.stopping) {
             release(item, now, false);
@@ -1304,9 +1388,11 @@ public final class LlmService {
                     LlmQueue.release(tx, item.docId, now + GATE_MILLIS, false);
                     return null;
                 }
-                result[0] = this.publisher.applyLlm(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), now);
+                result[0] = continuation
+                        ? this.publisher.applyLlmMore(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), reason, now)
+                        : this.publisher.applyLlm(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), reason, now);
                 ExtractionCache.touch(tx, keys, now);
-                if (result[0].outcome != Publisher.Outcome.PUBLISHED && LlmQueue.toDo(tx, item.docId)) {
+                if (!continuation && result[0].outcome != Publisher.Outcome.PUBLISHED && LlmQueue.toDo(tx, item.docId)) {
                     // the page changed during the call and is still to do: never dropped from the queue without a mark
                     if (item.attempts + 1 >= unconfirmedLimit()) {
                         kept[1] = LlmQueue.mark(tx, item.docId, currentInput(tx, item.docId), LlmQueue.STATUS_FAILED,
@@ -1338,6 +1424,13 @@ public final class LlmService {
         if (result[0].outcome == Publisher.Outcome.PUBLISHED) {
             this.counters.published.incrementAndGet();
             this.counters.statements.addAndGet(result[0].statements);
+            if (continuation) {
+                this.counters.continuationDocs.incrementAndGet();
+            }
+            if (LlmQueue.TEXT_CUT.equals(reason)) {
+                this.counters.textCutDocs.incrementAndGet();
+                this.counters.textCutChars.addAndGet(unread);
+            }
         } else {
             this.counters.changedAborts.incrementAndGet();
             if (kept[0]) {
@@ -1345,6 +1438,53 @@ public final class LlmService {
             } else if (kept[1]) {
                 this.counters.inputUnconfirmed.incrementAndGet();
             }
+        }
+    }
+
+    /**
+     * The chunks of a continuation, at most {@code continuationChunks} (one model request each): from the line or
+     * sentence the first reading ended in (at most {@link #CONTINUATION_OVERLAP} characters back, so a passage cut there
+     * is read whole) onwards. A statement read twice keeps one evidence per page ({@link Publisher#applyLlmMore}).
+     */
+    private List<LlmExtractor.Chunk> continuationChunks(final String text) {
+        final int first = this.cfg.extractMaxInputChars;
+        if (text.length() <= first) {
+            return new ArrayList<>();
+        }
+        final int end = Math.min(text.length(), first + (this.cfg.llmContinuationChunks + 1) * LlmExtractor.CHUNK_CHARS);
+        int start = first;
+        final int line = text.lastIndexOf('\n', first - 1) + 1;
+        final int dot = text.lastIndexOf(". ", first - 1);
+        final int b = Math.max(line, dot < 0 ? 0 : dot + 2);
+        if (b > 0 && first - b <= CONTINUATION_OVERLAP) {
+            start = b;
+        }
+        final List<LlmExtractor.Chunk> out = new ArrayList<>();
+        for (final LlmExtractor.Chunk c : LlmExtractor.chunks(text.substring(start, end), end - start)) {
+            if (out.size() == this.cfg.llmContinuationChunks) {
+                break;
+            }
+            out.add(new LlmExtractor.Chunk(c.text, c.offset + start));
+        }
+        return out;
+    }
+
+    /** Ends a continuation without reading: the mark keeps the reason (the page stays done with its first result). */
+    private void finishContinuation(final LlmQueue.Item item, final DocRow row, final String reason, final int unread) throws KgException {
+        final boolean[] set = new boolean[1];
+        this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+            try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_reason = ? WHERE doc_id = ? AND llm_status = 1"
+                    + " AND llm_reason = '" + LlmQueue.MORE_TEXT + "'")) {
+                ps.setString(1, reason);
+                ps.setString(2, item.docId);
+                set[0] = ps.executeUpdate() > 0;
+            }
+            LlmQueue.complete(tx, item.docId);
+            return null;
+        });
+        if (set[0] && LlmQueue.TEXT_CUT.equals(reason)) {
+            this.counters.textCutDocs.incrementAndGet();
+            this.counters.textCutChars.addAndGet(Math.max(0, unread));
         }
     }
 
@@ -1446,6 +1586,7 @@ public final class LlmService {
         try {
             this.store.read(c -> {
                 this.docCounts = LlmQueue.counts(c);
+                this.textCounts = LlmQueue.textCounts(c);
                 this.pendingDocuments=LlmQueue.pending(c,this.cfg::llmFollows);
                 this.queueSize = LlmQueue.size(c);
                 this.queueClaimed = LlmQueue.claimed(c);
@@ -1509,6 +1650,12 @@ public final class LlmService {
                 selectionStatus(),
                 "context",
                 contextStatus(),
+                "continuation",
+                // pages done whose text a continuation reads further, and pages done with text left unread
+                KgJson.obj("chunks", this.cfg.llmContinuationChunks, "maxChars", this.cfg.extractMaxInputChars
+                        + this.cfg.llmContinuationChunks * LlmExtractor.CHUNK_CHARS, "overlapChars", CONTINUATION_OVERLAP,
+                        "pendingDocuments", this.textCounts[0],
+                        "textCutDocuments", this.textCounts[1]),
                 "breaker",
                 this.breaker.status(),
                 "processed",
