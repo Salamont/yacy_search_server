@@ -51,12 +51,21 @@ forms, historic YaCy form parameters or browser automation.
 | Endpoints | Access |
 |---|---|
 | `GET /v1/health`, `GET /v1/ui/routes[/{name}]`, `GET /openapi.json`, `GET /actions.json` | public (no personal or index data) |
-| everything else in `/v1`, including search | Scoutro/YaCy administrator account |
+| `POST /v1/auth/login`, `GET /v1/auth/session`, `POST /v1/auth/logout` | public; they answer for the caller only |
+| everything else in `/v1`, including search | Scoutro/YaCy administrator account (HTTP Digest or an administrator session) |
 
 - Enforced by the servlet container (security constraints in
-  `defaults/web.xml`, role `adminRight`, HTTP **Digest**, the same account as
-  the admin pages). The servlet checks the role again for every protected
-  route (defence in depth).
+  `defaults/web.xml` and `net.yacy.scoutro.access.RoutePolicy`, roles
+  `adminRight` and `scoutroUser`, HTTP **Digest**, the same account as
+  the admin pages, or a Scoutro session of the login page). The servlet checks
+  every route again with the central decision `net.yacy.scoutro.access.Caller`
+  (defence in depth, deny by default).
+- Sessions of the Scoutro login page (cookie `scoutro_session`) are accepted
+  next to Digest. Only accounts with the role Administrator and the built-in
+  administrator get `adminRight`; Research and Operator sessions never do. A
+  changing call of a session needs the session's token in `X-Scoutro-CSRF`
+  (`403 csrf_failed` otherwise); `scoutro.js` adds it on Scoutro pages. See
+  [People: sign-in and accounts](#people-sign-in-and-accounts).
 - Unauthenticated calls get `401` with a Digest challenge. The body of this
   answer is the server's HTML error page, not JSON; clients should rely on the
   status code.
@@ -71,7 +80,34 @@ forms, historic YaCy form parameters or browser automation.
   tokens are therefore not needed on this API.
 - Read-only and mutating actions are marked in `actions.json` (`mutating`) and
   in `openapi.json` (`x-scoutro-mutating`). All mutating actions require the
-  admin account.
+  admin account, except sign-in, sign-out and the own password (`auth.*`),
+  which act only on the caller's own session.
+
+## People: sign-in and accounts
+
+Scoutro accounts for people, the login page, sessions and the protected
+access mode are described in [SCOUTRO_USERS_ACCESS.md](SCOUTRO_USERS_ACCESS.md).
+The API for them (all JSON, same origin; `X-Scoutro-CSRF` for changing session
+calls):
+
+| Endpoint | Who | Purpose |
+|---|---|---|
+| `POST /v1/auth/login` `{"username","password","next"}` | public | Sign in. Sets `scoutro_session` (`HttpOnly`, `SameSite=Strict`, `Secure` behind HTTPS) and returns the user, the CSRF token and the safe `next`. `401 invalid_credentials` (same answer for unknown names), `403 account_locked` (only after the right password), `429 too_many_attempts` with `Retry-After`, `503 accounts_unavailable`. |
+| `GET /v1/auth/session` | public | The caller: `kind` (`account`, `builtin`, `digest_admin`, `guest`, `anonymous`), user with role, permissions, collections and export flag, CSRF token of a session, access mode. |
+| `POST /v1/auth/logout` | own session | Ends the session and clears the cookie. |
+| `POST /v1/auth/password` `{"currentPassword","newPassword"}` | own session | Changes the own password; ends every session of the account and opens a new one. Not for the built-in administrator (`409 builtin_admin`, use *Accounts*). |
+| `GET /v1/auth/sessions`, `POST /v1/auth/sessions/revoke` `{"id"}` or `{"others":true}` | own session | Own sessions; end one or all others. |
+| `GET\|POST /v1/users` | administrator | List or create accounts (role `research`, `operator`, `administrator`; collections or `allCollections`; `export`; temporary password with `mustChangePassword`). |
+| `GET\|PATCH\|DELETE /v1/users/{name}` | administrator | Read, change (role, collections, export, `status` `active`/`locked`, display name) or remove an account. Rights changes and locking end its sessions. `409 last_admin`, `409 own_account`, `409 protected_mode_required`. |
+| `POST /v1/users/{name}/password` `{"password","mustChangePassword"}` | administrator | Reset without e-mail; ends the sessions. |
+| `GET /v1/users/{name}/sessions`, `POST /v1/users/{name}/sessions/revoke` | administrator | Sessions of an account; end them. |
+| `GET\|PATCH /v1/access` | administrator | Protected mode, guest access and its collections, form sign-in of the built-in administrator; warnings. |
+| `GET /v1/access/audit?limit=&who=` | administrator | Audit log of people (sign-ins, account changes, changing Scoutro API calls). |
+
+Tools keep using HTTP Digest; the login page never answers them. Every
+changing `/v1` call of a person is written to the audit log
+(`DATA/SETTINGS/scoutro-user-audit.jsonl`) with actor, route, target id and
+result, never with request bodies or search texts.
 
 ## Agent access (`/scoutro/api/agent/v1`)
 

@@ -39,6 +39,9 @@ import org.json.JSONObject;
 import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.scoutro.agents.AgentException;
+import net.yacy.scoutro.access.AccessException;
+import net.yacy.scoutro.access.Caller;
+import net.yacy.scoutro.access.Permission;
 import net.yacy.scoutro.agents.ScoutroAgents;
 import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.search.Switchboard;
@@ -88,11 +91,18 @@ public class ScoutroApiServlet extends HttpServlet {
                 return;
             }
             final JSONObject result = route(method, path, request, response);
-            if (result != null) send(response, response.getStatus() == 0 ? 200 : response.getStatus(), result); // null: streamed
+            final int status = response.getStatus() == 0 ? 200 : response.getStatus();
+            auditChange(method, path, request, status, null);
+            if (result != null) send(response, status, result); // null: streamed
         } catch (final ApiException e) {
+            auditChange(method, path, request, e.status(), e.code());
+            if ("too_many_attempts".equals(e.code())) {
+                response.setHeader("Retry-After", retryAfter(e));
+            }
             send(response, e.status(), e.toJson());
         } catch (final RuntimeException e) {
             LOG.warn("internal error for " + method + " " + path + ": " + e);
+            auditChange(method, path, request, 500, "internal_error");
             send(response, 500, new ApiException(500, "internal_error", "Internal error in the Scoutro API.").toJson());
         }
     }
@@ -144,6 +154,13 @@ public class ScoutroApiServlet extends HttpServlet {
         }
         final String resource = parts[2];
         switch (resource) {
+            case "auth":
+                // sign-in and own account; login, session and logout are reachable without a session
+                return access(request, response).auth(method, parts, () -> jsonBody(request));
+            case "users":
+                return access(request, response).users(method, parts, () -> jsonBody(request));
+            case "access":
+                return access(request, response).access(method, parts, () -> jsonBody(request));
             case "health":
                 expect(method, parts, 3, "GET");
                 return this.actions.health();
@@ -386,10 +403,62 @@ public class ScoutroApiServlet extends HttpServlet {
      * keeps the routes protected even if the web.xml constraint is missing.
      */
     private static void requireAdmin(final HttpServletRequest request) throws ApiException {
-        if (!request.isUserInRole(SwitchboardConstants.ADMIN_ACCOUNT_ROLE)) {
-            throw new ApiException(401, "unauthorized",
-                    "This action requires the Scoutro/YaCy administrator account (HTTP Digest authentication).");
+        try {
+            Caller.of(request).require(Permission.ADMIN);
+        } catch (final AccessException e) {
+            throw AccessApi.toApi(e);
         }
+    }
+
+    private static String retryAfter(final ApiException e) {
+        final JSONObject details = e.toJson().optJSONObject("error").optJSONObject("details");
+        final String seconds = details == null ? "" : details.optString("retryAfter", "");
+        return seconds.matches("[0-9]{1,6}") ? seconds : "60";
+    }
+
+    private static AccessApi access(final HttpServletRequest request, final HttpServletResponse response) {
+        final Switchboard sb = Switchboard.getSwitchboard();
+        return new AccessApi(request, response, (key, value) -> {
+            if (sb != null) {
+                sb.setConfig(key, value);
+            }
+        }, () -> sb != null && sb.isRobinsonMode() && !sb.isPublicRobinson());
+    }
+
+    /**
+     * Audit of people's changing calls (docs/SCOUTRO_USERS_ACCESS.md, section 8): who, which
+     * route, which target id, result. Sign-in and user management log their own, more
+     * specific entries. Never request bodies or query texts.
+     */
+    private static void auditChange(final String method, final String path, final HttpServletRequest request, final int status,
+            final String code) {
+        if (!net.yacy.scoutro.access.WebAuth.unsafeMethod(method)) {
+            return;
+        }
+        final String[] parts = path.replaceAll("/+$", "").split("/");
+        if (parts.length < 3 || !"v1".equals(parts[1]) || "auth".equals(parts[2]) || "users".equals(parts[2])
+                || "access".equals(parts[2])) {
+            return;
+        }
+        final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+        if (access == null) {
+            return;
+        }
+        final StringBuilder action = new StringBuilder("api.").append(parts[2]);
+        final StringBuilder target = new StringBuilder();
+        for (int i = 3; i < parts.length && i < 7; i++) {
+            final String seg = parts[i];
+            if (seg.matches("[a-z][a-z-]{0,31}")) {
+                action.append('.').append(seg);
+            } else if (seg.matches("[A-Za-z0-9_.:@-]{1,80}")) {
+                if (target.length() > 0) target.append('/');
+                target.append(seg);
+            }
+        }
+        action.append(' ').append(method);
+        final String result = status < 400 ? "ok" : status == 401 || status == 403 ? "denied" : "failed";
+        access.audit.record(Caller.of(request, access).actor(), action.toString(), target.toString(), result,
+                code == null ? String.valueOf(status) : code, RequestHeader.client(request));
     }
 
     /**

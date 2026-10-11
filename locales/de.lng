@@ -6338,3 +6338,53 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Statement assessment<==>Aussagebewertung<
 >Text location<==>Textstelle<
 >live source object removed; reachability unknown (no vacancy or shutdown conclusion)<==>Live-Quellenobjekt entfernt; Erreichbarkeit unbekannt (keine Aussage über Stellenende oder Abschaltung)<
+
+#File: scoutro-login.html
+#---------------------------
+>Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<
+>Sign in<==>Anmelden<
+>Scoutro accounts are not available at the moment. Administrators can use the browser sign-in below.<==>Scoutro-Konten sind gerade nicht verfügbar. Administratoren können die Browser-Anmeldung unten verwenden.<
+>User name<==>Benutzername<
+>Password<==>Passwort<
+>Administrators can also use the name and password of the built-in YaCy administrator.<==>Administratoren können auch Name und Passwort des eingebauten YaCy-Administrators verwenden.<
+>Set a new password<==>Neues Passwort festlegen<
+>Your account needs a new password before you continue. Use at least 10 characters.<==>Ihr Konto benötigt ein neues Passwort, bevor Sie fortfahren. Verwenden Sie mindestens 10 Zeichen.<
+>Current password<==>Aktuelles Passwort<
+>New password<==>Neues Passwort<
+>At least 10 characters, not your user name.<==>Mindestens 10 Zeichen, nicht Ihr Benutzername.<
+>Repeat new password<==>Neues Passwort wiederholen<
+>Save password<==>Passwort speichern<
+>You are signed in<==>Sie sind angemeldet<
+>Continue<==>Weiter<
+>Browser sign-in for administrators (HTTP Digest)<==>Browser-Anmeldung für Administratoren (HTTP Digest)<
+>About Scoutro<==>Über Scoutro<
+>Enter user name and password.<==>Bitte Benutzername und Passwort eingeben.<
+>User name or password is wrong.<==>Benutzername oder Passwort ist falsch.<
+>Too many failed sign-ins. Please wait %1 minutes and try again.<==>Zu viele fehlgeschlagene Anmeldungen. Bitte warten Sie %1 Minuten und versuchen Sie es erneut.<
+>This account is locked. Please contact an administrator.<==>Dieses Konto ist gesperrt. Bitte wenden Sie sich an einen Administrator.<
+>Scoutro accounts are not available at the moment. Administrators can use the browser sign-in.<==>Scoutro-Konten sind gerade nicht verfügbar. Administratoren können die Browser-Anmeldung verwenden.<
+>The server cannot be reached. Please try again.<==>Der Server ist nicht erreichbar. Bitte versuchen Sie es erneut.<
+>Your browser did not keep the sign-in. Allow cookies for this site, or use the browser sign-in for administrators.<==>Ihr Browser hat die Anmeldung nicht gespeichert. Erlauben Sie Cookies für diese Seite oder verwenden Sie die Browser-Anmeldung für Administratoren.<
+>The new passwords do not match.<==>Die neuen Passwörter stimmen nicht überein.<
+>The password must have at least 10 characters.<==>Das Passwort muss mindestens 10 Zeichen haben.<
+>The password must not have more than 256 characters.<==>Das Passwort darf höchstens 256 Zeichen haben.<
+>The password must not be your user name.<==>Das Passwort darf nicht Ihr Benutzername sein.<
+>This password is too common. Choose another one.<==>Dieses Passwort ist zu verbreitet. Bitte wählen Sie ein anderes.<
+>Choose a password that differs from the current one.<==>Wählen Sie ein Passwort, das sich vom aktuellen unterscheidet.<
+>The current password is wrong.<==>Das aktuelle Passwort ist falsch.<
+>The built-in administrator changes the password on the Accounts page.<==>Der eingebaute Administrator ändert sein Passwort auf der Seite „Konten“.<
+>That did not work. Please try again.<==>Das hat nicht geklappt. Bitte versuchen Sie es erneut.<
+>Signing in …<==>Anmeldung läuft …<
+>Saving …<==>Wird gespeichert …<
+>You are signed out.<==>Sie sind abgemeldet.<
+>Your session has ended. Please sign in again.<==>Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.<
+>The built-in administrator still uses the default password. Change it on the Accounts page.<==>Der eingebaute Administrator verwendet noch das Standardpasswort. Ändern Sie es auf der Seite „Konten“.<
+#-----------------------------
+
+#File: scoutro-digest.html
+#---------------------------
+>Browser sign-in<==>Browser-Anmeldung<
+>You are signed in as administrator<==>Sie sind als Administrator angemeldet<
+>The browser keeps the administrator sign-in until it is closed.<==>Der Browser behält die Administrator-Anmeldung, bis er geschlossen wird.<
+>Continue<==>Weiter<
+#-----------------------------

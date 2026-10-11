@@ -8201,6 +8201,143 @@
   </body>
 </file>
 
+<file original="scoutro-digest.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="80857a1d" xml:space="preserve" approved="no" translate="yes">
+       <source>Browser sign-in</source>
+    </trans-unit>
+    <trans-unit id="95f00f83" xml:space="preserve" approved="no" translate="yes">
+       <source>You are signed in as administrator</source>
+    </trans-unit>
+    <trans-unit id="1a46e799" xml:space="preserve" approved="no" translate="yes">
+       <source>The browser keeps the administrator sign-in until it is closed.</source>
+    </trans-unit>
+    <trans-unit id="e20b90c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Continue</source>
+    </trans-unit>
+  </body>
+</file>
+<file original="scoutro-login.html"  source-language="en"  datatype="html">
+  <body>
+    <trans-unit id="dfb00a48" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign in</source>
+    </trans-unit>
+    <trans-unit id="ae0225d1" xml:space="preserve" approved="no" translate="yes">
+       <source>Sign in with your Scoutro account.</source>
+    </trans-unit>
+    <trans-unit id="830b6889" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro accounts are not available at the moment. Administrators can use the browser sign-in below.</source>
+    </trans-unit>
+    <trans-unit id="883445a0" xml:space="preserve" approved="no" translate="yes">
+       <source>User name</source>
+    </trans-unit>
+    <trans-unit id="4c641ebb" xml:space="preserve" approved="no" translate="yes">
+       <source>Password</source>
+    </trans-unit>
+    <trans-unit id="c4761451" xml:space="preserve" approved="no" translate="yes">
+       <source>Administrators can also use the name and password of the built-in YaCy administrator.</source>
+    </trans-unit>
+    <trans-unit id="d10bb218" xml:space="preserve" approved="no" translate="yes">
+       <source>Set a new password</source>
+    </trans-unit>
+    <trans-unit id="189822f6" xml:space="preserve" approved="no" translate="yes">
+       <source>Your account needs a new password before you continue. Use at least 10 characters.</source>
+    </trans-unit>
+    <trans-unit id="6b4b3982" xml:space="preserve" approved="no" translate="yes">
+       <source>Current password</source>
+    </trans-unit>
+    <trans-unit id="7596193b" xml:space="preserve" approved="no" translate="yes">
+       <source>New password</source>
+    </trans-unit>
+    <trans-unit id="2c98c753" xml:space="preserve" approved="no" translate="yes">
+       <source>At least 10 characters, not your user name.</source>
+    </trans-unit>
+    <trans-unit id="57cd6360" xml:space="preserve" approved="no" translate="yes">
+       <source>Repeat new password</source>
+    </trans-unit>
+    <trans-unit id="124665be" xml:space="preserve" approved="no" translate="yes">
+       <source>Save password</source>
+    </trans-unit>
+    <trans-unit id="7aa55b7c" xml:space="preserve" approved="no" translate="yes">
+       <source>You are signed in</source>
+    </trans-unit>
+    <trans-unit id="e20b90c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Continue</source>
+    </trans-unit>
+    <trans-unit id="2db3a595" xml:space="preserve" approved="no" translate="yes">
+       <source>Browser sign-in for administrators (HTTP Digest)</source>
+    </trans-unit>
+    <trans-unit id="aa510f74" xml:space="preserve" approved="no" translate="yes">
+       <source>&amp;middot;</source>
+    </trans-unit>
+    <trans-unit id="b7102fe8" xml:space="preserve" approved="no" translate="yes">
+       <source>About Scoutro</source>
+    </trans-unit>
+    <trans-unit id="c299aa22" xml:space="preserve" approved="no" translate="yes">
+       <source>Enter user name and password.</source>
+    </trans-unit>
+    <trans-unit id="3c44bb6f" xml:space="preserve" approved="no" translate="yes">
+       <source>User name or password is wrong.</source>
+    </trans-unit>
+    <trans-unit id="5892d3fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Too many failed sign-ins. Please wait %1 minutes and try again.</source>
+    </trans-unit>
+    <trans-unit id="ecd3095b" xml:space="preserve" approved="no" translate="yes">
+       <source>This account is locked. Please contact an administrator.</source>
+    </trans-unit>
+    <trans-unit id="636caf7a" xml:space="preserve" approved="no" translate="yes">
+       <source>Scoutro accounts are not available at the moment. Administrators can use the browser sign-in.</source>
+    </trans-unit>
+    <trans-unit id="fac0dbb3" xml:space="preserve" approved="no" translate="yes">
+       <source>The server cannot be reached. Please try again.</source>
+    </trans-unit>
+    <trans-unit id="10e0b5d7" xml:space="preserve" approved="no" translate="yes">
+       <source>Your browser did not keep the sign-in. Allow cookies for this site, or use the browser sign-in for administrators.</source>
+    </trans-unit>
+    <trans-unit id="40efe0f4" xml:space="preserve" approved="no" translate="yes">
+       <source>The new passwords do not match.</source>
+    </trans-unit>
+    <trans-unit id="d61fd5d0" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must have at least 10 characters.</source>
+    </trans-unit>
+    <trans-unit id="7aaf5f39" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must not have more than 256 characters.</source>
+    </trans-unit>
+    <trans-unit id="9a435f6c" xml:space="preserve" approved="no" translate="yes">
+       <source>The password must not be your user name.</source>
+    </trans-unit>
+    <trans-unit id="621c1252" xml:space="preserve" approved="no" translate="yes">
+       <source>This password is too common. Choose another one.</source>
+    </trans-unit>
+    <trans-unit id="9a9c45b9" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose a password that differs from the current one.</source>
+    </trans-unit>
+    <trans-unit id="6c15cbc8" xml:space="preserve" approved="no" translate="yes">
+       <source>The current password is wrong.</source>
+    </trans-unit>
+    <trans-unit id="69c0198c" xml:space="preserve" approved="no" translate="yes">
+       <source>The built-in administrator changes the password on the Accounts page.</source>
+    </trans-unit>
+    <trans-unit id="b497e9bf" xml:space="preserve" approved="no" translate="yes">
+       <source>That did not work. Please try again.</source>
+    </trans-unit>
+    <trans-unit id="975a9646" xml:space="preserve" approved="no" translate="yes">
+       <source>Signing in …</source>
+    </trans-unit>
+    <trans-unit id="889524a0" xml:space="preserve" approved="no" translate="yes">
+       <source>Saving …</source>
+    </trans-unit>
+    <trans-unit id="66bf4f37" xml:space="preserve" approved="no" translate="yes">
+       <source>You are signed out.</source>
+    </trans-unit>
+    <trans-unit id="5d38572d" xml:space="preserve" approved="no" translate="yes">
+       <source>Your session has ended. Please sign in again.</source>
+    </trans-unit>
+    <trans-unit id="4ca45a49" xml:space="preserve" approved="no" translate="yes">
+       <source>The built-in administrator still uses the default password. Change it on the Accounts page.</source>
+    </trans-unit>
+  </body>
+</file>
 <file original="SearchAccessRate_p.html"  source-language="en"  datatype="html">
   <body>
     <trans-unit id="bfcc5088" xml:space="preserve" approved="no" translate="yes">

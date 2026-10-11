@@ -452,6 +452,42 @@
     </junit>
   </target>
 
+  <target name="scoutro-access-test" depends="compile" description="Scoutro accounts, sessions, permissions and route policy (docs/SCOUTRO_USERS_ACCESS.md)">
+    <property name="scoutro.access.test.classes" location="${build}/../scoutro-access-test-classes" />
+    <delete dir="${scoutro.access.test.classes}" failonerror="false" />
+    <mkdir dir="${scoutro.access.test.classes}" />
+    <javac srcdir="${test}" destdir="${scoutro.access.test.classes}"
+           debug="true" debuglevel="lines,vars,source" includeantruntime="false"
+           release="${javacRelease}" encoding="UTF-8">
+      <include name="net/yacy/scoutro/access/**/*.java" />
+      <include name="net/yacy/http/AdminSecurityTest.java" />
+      <include name="net/yacy/http/Jetty12HttpServerTest.java" />
+      <classpath>
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </javac>
+    <junit printsummary="yes" haltonfailure="yes" fork="true" dir="${yacyroot}">
+      <formatter type="plain" usefile="false" />
+      <batchtest>
+        <fileset dir="${test}">
+          <include name="net/yacy/scoutro/access/**/*Test.java" />
+          <include name="net/yacy/http/AdminSecurityTest.java" />
+          <include name="net/yacy/http/Jetty12HttpServerTest.java" />
+        </fileset>
+      </batchtest>
+      <classpath>
+        <pathelement location="${scoutro.access.test.classes}" />
+        <pathelement location="${build}" />
+        <path refid="compile.path" />
+        <fileset dir="${lib}" includes="solr9-bridge-*.jar" />
+        <fileset dir="${libt}" includes="**/*.jar" />
+      </classpath>
+    </junit>
+  </target>
+
   <target name="scoutro-kg-llm-schedule-test" depends="compile" description="LLM timing, transport admission, continuation, runtime and admin regressions">
     <mkdir dir="build/scoutro-kg-llm-schedule-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-llm-schedule-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

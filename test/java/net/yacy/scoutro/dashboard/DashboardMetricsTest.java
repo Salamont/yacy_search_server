@@ -150,8 +150,11 @@ public class DashboardMetricsTest {
                 "state.json", "/home/opencode", "Crawler_p.respond", "Status.respond"}) {
             Assert.assertFalse(prohibited, responder.contains(prohibited));
         }
+        // /scoutro-*.html pages (the dashboard among them) never write the navigation history settings
         final String servlet = read("source/net/yacy/http/servlets/YaCyDefaultServlet.java");
-        Assert.assertTrue(servlet.contains("!\"/scoutro-dashboard.html\".equals(target)"));
+        Assert.assertTrue(servlet.contains("if (scoutroPageClass(target) == null"));
+        Assert.assertEquals("net.yacy.htroot.ScoutroDashboard",
+                net.yacy.http.servlets.YaCyDefaultServlet.scoutroPageClass("/scoutro-dashboard.html"));
     }
 
     private static String read(final String path) throws IOException {

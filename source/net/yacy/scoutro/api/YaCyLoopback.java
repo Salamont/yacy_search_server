@@ -112,9 +112,14 @@ final class YaCyLoopback implements Upstream {
         return send(path, params, true, true);
     }
 
-    /** GET a public YaCy path without credentials. */
+    /**
+     * GET a public YaCy path without credentials. In Scoutro's protected access mode
+     * (docs/SCOUTRO_USERS_ACCESS.md) public YaCy paths need the administrator, so the
+     * loopback call then uses the administrator's local credential like {@link #getAdmin}.
+     */
     String getPublic(final String path, final Params params) throws ApiException {
-        return send(path, params, false, false);
+        final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
+        return send(path, params, false, access != null && access.protectedMode());
     }
 
     @Override

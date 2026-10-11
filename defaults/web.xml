@@ -187,9 +187,14 @@
         <auth-method>DIGEST</auth-method>
     </login-config>
 
-    <!-- Scoutro: all API v1 actions need the administrator account (HTTP Digest),
-         except the health check and the UI route catalog. openapi.json and
-         actions.json (outside /v1) are public descriptions. -->
+    <!-- Scoutro: API v1 needs a signed-in identity: the administrator account
+         (HTTP Digest) or a Scoutro session (role scoutroUser). The servlet then
+         checks every route against the caller's permissions and collections
+         (deny by default; docs/SCOUTRO_USERS_ACCESS.md). Health, the UI route
+         catalog and the sign-in routes are public; openapi.json and
+         actions.json (outside /v1) are public descriptions. The same rules are
+         applied in code by net.yacy.scoutro.access.RoutePolicy, which the
+         security handler consults before these constraints. -->
     <security-constraint>
         <web-resource-collection>
             <web-resource-name>Scoutro API v1</web-resource-name>
@@ -197,6 +202,7 @@
         </web-resource-collection>
         <auth-constraint>
             <role-name>adminRight</role-name>
+            <role-name>scoutroUser</role-name>
         </auth-constraint>
     </security-constraint>
     <security-constraint>
@@ -204,6 +210,9 @@
             <web-resource-name>Scoutro API v1 public</web-resource-name>
             <url-pattern>/scoutro/api/v1/health</url-pattern>
             <url-pattern>/scoutro/api/v1/ui/*</url-pattern>
+            <url-pattern>/scoutro/api/v1/auth/login</url-pattern>
+            <url-pattern>/scoutro/api/v1/auth/session</url-pattern>
+            <url-pattern>/scoutro/api/v1/auth/logout</url-pattern>
         </web-resource-collection>
     </security-constraint>
     <!-- Scoutro: the agent path /scoutro/api/agent/v1/* deliberately has no
@@ -215,5 +224,11 @@
     <security-role>
         <description>Administrator</description>
         <role-name>adminRight</role-name>
+    </security-role>
+    <!-- Scoutro: every signed-in Scoutro account (sessions of the login page);
+         Research and Operator never get adminRight -->
+    <security-role>
+        <description>Scoutro account</description>
+        <role-name>scoutroUser</role-name>
     </security-role>
 </web-app>

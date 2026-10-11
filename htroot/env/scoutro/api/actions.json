@@ -16,7 +16,13 @@
     "publicActions": [
       "health",
       "ui.routes",
-      "ui.route"
+      "ui.route",
+      "auth.login",
+      "auth.session",
+      "auth.logout",
+      "auth.password",
+      "auth.sessions",
+      "auth.sessions.revoke"
     ]
   },
   "errorFormat": {
@@ -4468,6 +4474,653 @@
       ],
       "cli": "scoutroctl collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN] (administrator; preview without --confirm)",
       "mcpTool": "scoutro_collections_reassign",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "auth.login",
+      "description": "Sign-in of people (browser). Sets or reads the HttpOnly cookie scoutro_session (SameSite=Strict, Secure behind HTTPS); changing calls of a session need X-Scoutro-CSRF. HTTP Digest for tools is unchanged. Public, JSON body, same origin. 400 invalid_request, 401 invalid_credentials (wrong name or password, same answer), 403 account_locked (only after the right password), 429 too_many_attempts (Retry-After; 5 failures per name or 30 per client within 15 minutes), 503 accounts_unavailable.",
+      "mutating": true,
+      "auth": "public",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/auth/login",
+        "successStatus": 200
+      },
+      "parameters": {
+        "username": {
+          "type": "string",
+          "maxLength": 128,
+          "in": "body",
+          "required": true
+        },
+        "password": {
+          "type": "string",
+          "maxLength": 1024,
+          "in": "body",
+          "required": true
+        },
+        "next": {
+          "type": "string",
+          "description": "Return target; only a path on this server is kept, otherwise the overview.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "AuthLoginResult",
+      "errors": [
+        400,
+        401,
+        403,
+        413,
+        415,
+        503
+      ],
+      "cli": "browser: /scoutro-login.html",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "auth.session",
+      "description": "Public. Who is calling (account, built-in administrator, Digest administrator, guest or anonymous), the permissions and collections, the CSRF token of a session and the access mode.",
+      "mutating": false,
+      "auth": "public",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/auth/session",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "AuthSession",
+      "errors": [],
+      "cli": "HTTP GET /scoutro/api/v1/auth/session",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "auth.logout",
+      "description": "Ends the caller's session (X-Scoutro-CSRF) and clears the cookie; ok=false with reason no_session otherwise.",
+      "mutating": true,
+      "auth": "public",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/auth/logout",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "AuthOk",
+      "errors": [
+        415
+      ],
+      "cli": "browser: account menu > Sign out",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "auth.password",
+      "description": "Session only (not Digest, not the built-in administrator: 409 builtin_admin). Checks the current password (403 wrong_password, counted like sign-in failures), applies the password rules (400 password_too_short, password_too_long, password_equals_username, password_too_common, password_unchanged), ends every session of the account and opens a new one (new cookie and CSRF token).",
+      "mutating": true,
+      "auth": "public",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/auth/password",
+        "successStatus": 200
+      },
+      "parameters": {
+        "currentPassword": {
+          "type": "string",
+          "in": "body",
+          "required": true
+        },
+        "newPassword": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 256,
+          "in": "body",
+          "required": true
+        }
+      },
+      "returns": "AuthOk",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        415
+      ],
+      "cli": "browser: /scoutro-account.html",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "auth.sessions",
+      "description": "The caller's sessions: start, last use, client address, browser.",
+      "mutating": false,
+      "auth": "public",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/auth/sessions",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "SessionList",
+      "errors": [
+        401
+      ],
+      "cli": "browser: /scoutro-account.html",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "auth.sessions.revoke",
+      "description": "Ends one other session (id) or all others (others: true).",
+      "mutating": true,
+      "auth": "public",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/auth/sessions/revoke",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "description": "Public id of one of the caller's other sessions.",
+          "in": "body",
+          "required": false
+        },
+        "others": {
+          "type": "boolean",
+          "description": "End all other sessions.",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "AuthOk",
+      "errors": [
+        400,
+        401,
+        415
+      ],
+      "cli": "browser: /scoutro-account.html",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.list",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Accounts with role, collections, export flag, status and number of open sessions, plus the access settings.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/users",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "UserList",
+      "errors": [
+        401,
+        403,
+        503
+      ],
+      "cli": "browser: Settings > Users (ScoutroUsers_p.html)",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.create",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. 400 invalid_request (details.field), password rules as for auth.password, 409 username_taken, username_reserved (the built-in administrator's name), protected_mode_required (Research and Operator need the protected mode). Research and Operator need at least one collection or allCollections.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/users",
+        "successStatus": 201
+      },
+      "parameters": {
+        "username": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$",
+          "in": "body",
+          "required": true
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 80,
+          "in": "body",
+          "required": false
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "research",
+            "operator",
+            "administrator"
+          ],
+          "in": "body",
+          "required": true
+        },
+        "allCollections": {
+          "type": "boolean",
+          "in": "body",
+          "required": false
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "in": "body",
+          "required": false
+        },
+        "export": {
+          "type": "boolean",
+          "in": "body",
+          "required": false
+        },
+        "password": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 256,
+          "description": "Temporary password; the person sets their own at the first sign-in unless mustChangePassword is false.",
+          "in": "body",
+          "required": true
+        },
+        "mustChangePassword": {
+          "type": "boolean",
+          "default": true,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "User",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "browser: Settings > Users",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.get",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/users/{name}",
+        "successStatus": 200
+      },
+      "parameters": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$",
+          "in": "path",
+          "required": true,
+          "description": "User name."
+        }
+      },
+      "returns": "User",
+      "errors": [
+        401,
+        403,
+        404
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/users/{name} (administrator)",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.update",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Changing role, collections, export or locking ends the account's sessions at once. 409 last_admin (the last administrator who can sign in), own_account (own lock or role change), protected_mode_required.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "PATCH",
+        "path": "/scoutro/api/v1/users/{name}",
+        "successStatus": 200
+      },
+      "parameters": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$",
+          "in": "path",
+          "required": true,
+          "description": "User name."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 80,
+          "in": "body",
+          "required": false
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "research",
+            "operator",
+            "administrator"
+          ],
+          "in": "body",
+          "required": false
+        },
+        "allCollections": {
+          "type": "boolean",
+          "in": "body",
+          "required": false
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "in": "body",
+          "required": false
+        },
+        "export": {
+          "type": "boolean",
+          "in": "body",
+          "required": false
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "locked"
+          ],
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "User",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        415
+      ],
+      "cli": "browser: Settings > Users",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.delete",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Body {}. Ends its sessions. 409 last_admin, own_account.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "DELETE",
+        "path": "/scoutro/api/v1/users/{name}",
+        "successStatus": 200
+      },
+      "parameters": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$",
+          "in": "path",
+          "required": true,
+          "description": "User name."
+        }
+      },
+      "returns": "AuthOk",
+      "errors": [
+        401,
+        403,
+        404,
+        409,
+        415
+      ],
+      "cli": "browser: Settings > Users",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.password.reset",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Sets a temporary password without e-mail; the person must change it at the next sign-in (mustChangePassword, default true). Ends the account's sessions.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/users/{name}/password",
+        "successStatus": 200
+      },
+      "parameters": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$",
+          "in": "path",
+          "required": true,
+          "description": "User name."
+        },
+        "password": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 256,
+          "in": "body",
+          "required": true
+        },
+        "mustChangePassword": {
+          "type": "boolean",
+          "default": true,
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "AuthOk",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        415
+      ],
+      "cli": "browser: Settings > Users",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.sessions",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/users/{name}/sessions",
+        "successStatus": 200
+      },
+      "parameters": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$",
+          "in": "path",
+          "required": true,
+          "description": "User name."
+        }
+      },
+      "returns": "SessionList",
+      "errors": [
+        401,
+        403,
+        404
+      ],
+      "cli": "HTTP GET /scoutro/api/v1/users/{name}/sessions (administrator)",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "users.sessions.revoke",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Body {}.",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/users/{name}/sessions/revoke",
+        "successStatus": 200
+      },
+      "parameters": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$",
+          "in": "path",
+          "required": true,
+          "description": "User name."
+        }
+      },
+      "returns": "AuthOk",
+      "errors": [
+        401,
+        403,
+        404,
+        415
+      ],
+      "cli": "browser: Settings > Users",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "access.get",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Protected mode, guest access and released collections, built-in administrator sign-in, warnings (p2p_not_private: the peer answers peer-to-peer searches from the whole index; builtin_default_password; protected_enforced: active restricted accounts keep the protected rules).",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/access",
+        "successStatus": 200
+      },
+      "parameters": {},
+      "returns": "Access",
+      "errors": [
+        401,
+        403
+      ],
+      "cli": "browser: Settings > Users",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "access.update",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. 409 restricted_accounts_active (leave protected mode only without active Research/Operator accounts), protected_mode_required (guest access), last_admin (switch off the built-in administrator's sign-in only with an active administrator account), own_account (not from the built-in administrator's own session).",
+      "mutating": true,
+      "auth": "admin",
+      "http": {
+        "method": "PATCH",
+        "path": "/scoutro/api/v1/access",
+        "successStatus": 200
+      },
+      "parameters": {
+        "protected": {
+          "type": "boolean",
+          "in": "body",
+          "required": false
+        },
+        "guest": {
+          "type": "boolean",
+          "in": "body",
+          "required": false
+        },
+        "guestCollections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          },
+          "in": "body",
+          "required": false
+        },
+        "builtinAdminLogin": {
+          "type": "boolean",
+          "in": "body",
+          "required": false
+        }
+      },
+      "returns": "Access",
+      "errors": [
+        400,
+        401,
+        403,
+        409,
+        415
+      ],
+      "cli": "browser: Settings > Users",
+      "mcpTool": null,
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "access.audit",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Newest first: sign-ins, account and access changes and every changing Scoutro API call of a person. Never passwords, tokens, document contents or search texts.",
+      "mutating": false,
+      "auth": "admin",
+      "http": {
+        "method": "GET",
+        "path": "/scoutro/api/v1/access/audit",
+        "successStatus": 200
+      },
+      "parameters": {
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100,
+          "in": "query",
+          "required": false,
+          "description": "Number of entries."
+        },
+        "who": {
+          "type": "string",
+          "in": "query",
+          "required": false,
+          "description": "Only entries whose actor or target is this name."
+        }
+      },
+      "returns": "AuditList",
+      "errors": [
+        401,
+        403
+      ],
+      "cli": "browser: Settings > Users > Audit log",
+      "mcpTool": null,
       "agent": {
         "grantable": false
       }
@@ -18157,6 +18810,590 @@
             },
             "interval_minutes": {
               "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "AuthUser": {
+      "type": "object",
+      "properties": {
+        "username": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "guest",
+            "research",
+            "operator",
+            "administrator"
+          ]
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "search",
+              "chat",
+              "read",
+              "export",
+              "collect",
+              "admin"
+            ]
+          }
+        },
+        "allCollections": {
+          "type": "boolean"
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          }
+        },
+        "export": {
+          "type": "boolean"
+        },
+        "builtin": {
+          "type": "boolean",
+          "description": "The built-in YaCy administrator."
+        },
+        "digest": {
+          "type": "boolean",
+          "description": "Authenticated with HTTP Digest, not with a session."
+        },
+        "mustChangePassword": {
+          "type": "boolean",
+          "description": "No permission works until the password is changed."
+        }
+      }
+    },
+    "AuthLogin": {
+      "type": "object",
+      "required": [
+        "username",
+        "password"
+      ],
+      "properties": {
+        "username": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "password": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "next": {
+          "type": "string",
+          "description": "Return target; only a path on this server is kept, otherwise the overview."
+        }
+      }
+    },
+    "AuthLoginResult": {
+      "type": "object",
+      "required": [
+        "ok",
+        "user",
+        "csrf"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "user": {
+          "$ref": "#/components/schemas/AuthUser"
+        },
+        "csrf": {
+          "type": "string",
+          "description": "Send it as X-Scoutro-CSRF with changing calls of this session. Keep it in memory, never in localStorage."
+        },
+        "next": {
+          "type": "string"
+        },
+        "expiresIn": {
+          "type": "integer"
+        },
+        "warning": {
+          "type": "string",
+          "enum": [
+            "builtin_default_password"
+          ]
+        }
+      }
+    },
+    "AuthSession": {
+      "type": "object",
+      "required": [
+        "authenticated",
+        "kind"
+      ],
+      "properties": {
+        "authenticated": {
+          "type": "boolean"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "account",
+            "builtin",
+            "digest_admin",
+            "guest",
+            "anonymous"
+          ]
+        },
+        "available": {
+          "type": "boolean",
+          "description": "false: the account store cannot be read (sign-in off, Digest unaffected)."
+        },
+        "mode": {
+          "type": "object",
+          "properties": {
+            "protected": {
+              "type": "boolean"
+            },
+            "guest": {
+              "type": "boolean"
+            },
+            "loginPage": {
+              "type": "boolean"
+            }
+          }
+        },
+        "user": {
+          "$ref": "#/components/schemas/AuthUser"
+        },
+        "csrf": {
+          "type": "string"
+        },
+        "expiresIn": {
+          "type": "integer"
+        },
+        "idleMinutes": {
+          "type": "integer"
+        },
+        "guest": {
+          "type": "object",
+          "properties": {
+            "collections": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              }
+            }
+          }
+        },
+        "warning": {
+          "type": "string"
+        }
+      }
+    },
+    "AuthOk": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "ended": {
+          "type": "integer"
+        },
+        "sessionsEnded": {
+          "type": "integer"
+        },
+        "deleted": {
+          "type": "string"
+        },
+        "user": {
+          "$ref": "#/components/schemas/AuthUser"
+        },
+        "csrf": {
+          "type": "string"
+        }
+      }
+    },
+    "PasswordChange": {
+      "type": "object",
+      "required": [
+        "currentPassword",
+        "newPassword"
+      ],
+      "properties": {
+        "currentPassword": {
+          "type": "string"
+        },
+        "newPassword": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 256
+        }
+      }
+    },
+    "SessionRevoke": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Public id of one of the caller's other sessions."
+        },
+        "others": {
+          "type": "boolean",
+          "description": "End all other sessions."
+        }
+      }
+    },
+    "SessionList": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "integer"
+              },
+              "lastSeenAt": {
+                "type": "integer"
+              },
+              "client": {
+                "type": "string"
+              },
+              "agent": {
+                "type": "string"
+              },
+              "current": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "User": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "username": {
+          "type": "string"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "research",
+            "operator",
+            "administrator"
+          ]
+        },
+        "allCollections": {
+          "type": "boolean"
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          }
+        },
+        "export": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "locked"
+          ]
+        },
+        "mustChangePassword": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "integer"
+        },
+        "passwordChangedAt": {
+          "type": "integer"
+        },
+        "lastLoginAt": {
+          "type": "integer"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "sessions": {
+          "type": "integer"
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sessionsEnded": {
+          "type": "integer"
+        }
+      }
+    },
+    "UserCreate": {
+      "type": "object",
+      "required": [
+        "username",
+        "role",
+        "password"
+      ],
+      "properties": {
+        "username": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._@-]{1,63}$"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "research",
+            "operator",
+            "administrator"
+          ]
+        },
+        "allCollections": {
+          "type": "boolean"
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          }
+        },
+        "export": {
+          "type": "boolean"
+        },
+        "password": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 256,
+          "description": "Temporary password; the person sets their own at the first sign-in unless mustChangePassword is false."
+        },
+        "mustChangePassword": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "UserPatch": {
+      "type": "object",
+      "properties": {
+        "displayName": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "research",
+            "operator",
+            "administrator"
+          ]
+        },
+        "allCollections": {
+          "type": "boolean"
+        },
+        "collections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          }
+        },
+        "export": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "locked"
+          ]
+        }
+      }
+    },
+    "PasswordReset": {
+      "type": "object",
+      "required": [
+        "password"
+      ],
+      "properties": {
+        "password": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 256
+        },
+        "mustChangePassword": {
+          "type": "boolean",
+          "default": true
+        }
+      }
+    },
+    "Access": {
+      "type": "object",
+      "properties": {
+        "protected": {
+          "type": "boolean",
+          "description": "Effective protected mode (also while active Research/Operator accounts exist)."
+        },
+        "protectedSetting": {
+          "type": "boolean"
+        },
+        "guest": {
+          "type": "boolean"
+        },
+        "guestSetting": {
+          "type": "boolean"
+        },
+        "guestCollections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          }
+        },
+        "builtinAdminLogin": {
+          "type": "boolean"
+        },
+        "builtinAdminName": {
+          "type": "string"
+        },
+        "loginPage": {
+          "type": "boolean"
+        },
+        "activeAdministrators": {
+          "type": "integer"
+        },
+        "restrictedActive": {
+          "type": "boolean"
+        },
+        "sessionIdleMinutes": {
+          "type": "integer"
+        },
+        "sessionMaxHours": {
+          "type": "integer"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "p2p_not_private",
+              "builtin_default_password",
+              "protected_enforced"
+            ]
+          }
+        },
+        "changed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "UserList": {
+      "type": "object",
+      "properties": {
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/User"
+          }
+        },
+        "access": {
+          "$ref": "#/components/schemas/Access"
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "AccessPatch": {
+      "type": "object",
+      "properties": {
+        "protected": {
+          "type": "boolean"
+        },
+        "guest": {
+          "type": "boolean"
+        },
+        "guestCollections": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{1,64}$"
+          }
+        },
+        "builtinAdminLogin": {
+          "type": "boolean"
+        }
+      }
+    },
+    "AuditList": {
+      "type": "object",
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ts": {
+                "type": "integer"
+              },
+              "actor": {
+                "type": "string"
+              },
+              "action": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "result": {
+                "type": "string",
+                "enum": [
+                  "ok",
+                  "denied",
+                  "failed"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "client": {
+                "type": "string"
+              }
             }
           }
         }

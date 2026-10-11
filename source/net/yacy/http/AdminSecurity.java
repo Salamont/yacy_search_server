@@ -198,13 +198,21 @@ public final class AdminSecurity {
                 return Decision.PUBLIC;
             }
 
-            if (AdminSecurity.isLocalhostAccess(socketPeerIp, refererHost(referer))) {
-                if (this.allowLocalhostWithoutLogin || AdminSecurity.checkLocalhostLazyAuth(
-                        authorizationHeader, this.adminUser, this.adminHash)) {
-                    return Decision.LOCAL_BYPASS;
-                }
+            if (localBypass(socketPeerIp, referer, authorizationHeader)) {
+                return Decision.LOCAL_BYPASS;
             }
             return Decision.ADMIN_REQUIRED;
+        }
+
+        /**
+         * YaCy's local administrator rule for a protected path: a loopback request with a
+         * local or no referer, either with "admin for localhost" switched on or with the
+         * stored admin hash as Basic credential (scripts, {@code YaCyLoopback}).
+         */
+        public boolean localBypass(final String socketPeerIp, final String referer, final String authorizationHeader) {
+            return AdminSecurity.isLocalhostAccess(socketPeerIp, refererHost(referer))
+                    && (this.allowLocalhostWithoutLogin || AdminSecurity.checkLocalhostLazyAuth(
+                            authorizationHeader, this.adminUser, this.adminHash));
         }
 
         private static String refererHost(final String referer) {

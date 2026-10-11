@@ -19,6 +19,60 @@ for the JavaScript code in this page.
 */
 
 /*
+ * Session CSRF protection: changing same-origin calls to the Scoutro API carry
+ * the session's token in X-Scoutro-CSRF (docs/SCOUTRO_USERS_ACCESS.md, section 5).
+ * The token comes from <meta name="scoutro-csrf"> or, on pages rendered without
+ * it, once from /scoutro/api/v1/auth/session. It is never stored in localStorage.
+ */
+(function () {
+  'use strict';
+  if (typeof window.fetch !== 'function' || window.fetch.scoutroCsrf) return;
+  var original = window.fetch;
+  var pending = null;
+  function metaToken() {
+    var m = document.querySelector('meta[name="scoutro-csrf"]');
+    var value = m && m.getAttribute('content') ? m.getAttribute('content') : '';
+    return /^[A-Za-z0-9_-]{32}$/.test(value) ? value : ''; // a session token; ignores an unresolved template field
+  }
+  function sessionToken() {
+    if (!pending) {
+      pending = original.call(window, '/scoutro/api/v1/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : {}; })
+        .then(function (j) { return (j && j.csrf) || ''; })
+        .catch(function () { return ''; });
+    }
+    return pending;
+  }
+  function needsToken(input, init) {
+    var method = ((init && init.method) || (input && typeof input === 'object' && input.method) || 'GET').toUpperCase();
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return false;
+    try {
+      var url = new URL(typeof input === 'string' ? input : (input && input.url) || String(input), window.location.href);
+      return url.origin === window.location.origin && url.pathname.indexOf('/scoutro/') === 0;
+    } catch (e) {
+      return false;
+    }
+  }
+  function withToken(input, init, token) {
+    if (!token) return original.call(window, input, init);
+    var options = Object.assign({}, init || {});
+    var headers = new Headers(options.headers || (input && typeof input === 'object' && input.headers) || {});
+    if (!headers.has('X-Scoutro-CSRF')) headers.set('X-Scoutro-CSRF', token);
+    options.headers = headers;
+    return original.call(window, input, options);
+  }
+  var wrapped = function (input, init) {
+    if (!needsToken(input, init)) return original.call(window, input, init);
+    var token = metaToken();
+    if (token) return withToken(input, init, token);
+    return sessionToken().then(function (t) { return withToken(input, init, t); });
+  };
+  wrapped.scoutroCsrf = true;
+  window.fetch = wrapped;
+  window.ScoutroCsrf = { token: function () { return metaToken() || ''; }, refresh: function () { pending = null; return sessionToken(); } };
+})();
+
+/*
  * Mobile navigation: on small screens the navbar toggle opens the complete
  * administration menu (#scoutro-adminnav, the YaCy sidebar) as a scrollable
  * panel. Event delegation on document, so this works without waiting for

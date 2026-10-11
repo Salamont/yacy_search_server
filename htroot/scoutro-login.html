@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Scoutro login page (docs/SCOUTRO_USERS_ACCESS.md). Public; signs in through
+    POST /scoutro/api/v1/auth/login. Copyright (C) 2026 Scoutro contributors. GPL-2.0-or-later.
+  -->
+  <title>Sign in</title>
+  #%env/templates/metas.template%#
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-login" class="scoutro-auth-page">
+  <main class="scoutro-auth" aria-labelledby="sa-title">
+    <div class="scoutro-auth-card">
+      <p class="scoutro-auth-brand">
+        <img src="env/scoutro/brand/mascot-64.png" width="44" height="44" alt="" />
+        <span>#%env/templates/scoutro/productname.template%#</span>
+      </p>
+
+      <div id="sa-message" class="scoutro-auth-message" role="alert" aria-live="assertive" tabindex="-1" hidden></div>
+
+      <section id="sa-login" aria-labelledby="sa-title">
+        <h1 id="sa-title">Sign in</h1>
+        <p class="scoutro-auth-lead">Sign in with your Scoutro account.</p>
+        #(available)#<p class="scoutro-auth-note scoutro-auth-warn">Scoutro accounts are not available at the moment. Administrators can use the browser sign-in below.</p>::#(/available)#
+        <form id="sa-login-form" class="scoutro-auth-form" novalidate>
+          <label for="sa-username">User name</label>
+          <input id="sa-username" name="username" type="text" autocomplete="username" autocapitalize="none"
+                 spellcheck="false" maxlength="128" required />
+          <label for="sa-password">Password</label>
+          <input id="sa-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
+          <button type="submit" class="btn btn-primary scoutro-auth-submit" id="sa-submit">Sign in</button>
+        </form>
+        #(builtin)#::<p class="scoutro-auth-note">Administrators can also use the name and password of the built-in YaCy administrator.</p>#(/builtin)#
+      </section>
+
+      <section id="sa-change" aria-labelledby="sa-change-title" hidden>
+        <h1 id="sa-change-title">Set a new password</h1>
+        <p class="scoutro-auth-lead">Your account needs a new password before you continue. Use at least 10 characters.</p>
+        <form id="sa-change-form" class="scoutro-auth-form" novalidate>
+          <input type="text" name="username" id="sa-change-username" autocomplete="username" hidden />
+          <div id="sa-current-field">
+            <label for="sa-current">Current password</label>
+            <input id="sa-current" name="currentPassword" type="password" autocomplete="current-password" maxlength="1024" />
+          </div>
+          <label for="sa-new">New password</label>
+          <input id="sa-new" name="newPassword" type="password" autocomplete="new-password" minlength="10" maxlength="256" required
+                 aria-describedby="sa-new-hint" />
+          <p class="scoutro-auth-hint" id="sa-new-hint">At least 10 characters, not your user name.</p>
+          <label for="sa-repeat">Repeat new password</label>
+          <input id="sa-repeat" name="repeatPassword" type="password" autocomplete="new-password" maxlength="256" required />
+          <button type="submit" class="btn btn-primary scoutro-auth-submit" id="sa-change-submit">Save password</button>
+        </form>
+      </section>
+
+      <section id="sa-done" aria-labelledby="sa-done-title" hidden>
+        <h1 id="sa-done-title">You are signed in</h1>
+        <p class="scoutro-auth-lead"><a id="sa-continue" href="scoutro-dashboard.html">Continue</a></p>
+      </section>
+
+      <p class="scoutro-auth-alt">
+        <a id="sa-digest" href="scoutro-digest.html">Browser sign-in for administrators (HTTP Digest)</a>
+        <span aria-hidden="true">&middot;</span>
+        <a href="scoutro-about.html">About Scoutro</a>
+      </p>
+    </div>
+  </main>
+
+  <div hidden>
+    <span data-sa-label="required">Enter user name and password.</span>
+    <span data-sa-label="invalid_credentials">User name or password is wrong.</span>
+    <span data-sa-label="too_many_attempts">Too many failed sign-ins. Please wait %1 minutes and try again.</span>
+    <span data-sa-label="account_locked">This account is locked. Please contact an administrator.</span>
+    <span data-sa-label="accounts_unavailable">Scoutro accounts are not available at the moment. Administrators can use the browser sign-in.</span>
+    <span data-sa-label="network">The server cannot be reached. Please try again.</span>
+    <span data-sa-label="cookie">Your browser did not keep the sign-in. Allow cookies for this site, or use the browser sign-in for administrators.</span>
+    <span data-sa-label="mismatch">The new passwords do not match.</span>
+    <span data-sa-label="password_too_short">The password must have at least 10 characters.</span>
+    <span data-sa-label="password_too_long">The password must not have more than 256 characters.</span>
+    <span data-sa-label="password_equals_username">The password must not be your user name.</span>
+    <span data-sa-label="password_too_common">This password is too common. Choose another one.</span>
+    <span data-sa-label="password_unchanged">Choose a password that differs from the current one.</span>
+    <span data-sa-label="wrong_password">The current password is wrong.</span>
+    <span data-sa-label="builtin_admin">The built-in administrator changes the password on the Accounts page.</span>
+    <span data-sa-label="generic">That did not work. Please try again.</span>
+    <span data-sa-label="signing_in">Signing in …</span>
+    <span data-sa-label="saving">Saving …</span>
+    <span data-sa-label="sign_in">Sign in</span>
+    <span data-sa-label="save">Save password</span>
+    <span data-sa-label="signed_out">You are signed out.</span>
+    <span data-sa-label="expired">Your session has ended. Please sign in again.</span>
+    <span data-sa-label="builtin_default_password">The built-in administrator still uses the default password. Change it on the Accounts page.</span>
+  </div>
+  <script src="env/scoutro/login.js"></script>
+</body>
+</html>

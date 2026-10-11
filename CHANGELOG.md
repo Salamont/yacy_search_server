@@ -2,6 +2,24 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased — users, roles and navigation (development, not released)
+
+- Scoutro accounts for people with the roles Research, Operator and
+  Administrator, collection access per account and a separate export right;
+  passwords as Argon2id hashes in `DATA/SETTINGS/scoutro-users.json`.
+- Own login page (`scoutro-login.html`) with safe return, sign-out, session
+  expiry (30 minutes idle, 12 hours at most), server-side revocation,
+  password change, administrator reset without e-mail, sign-in limits, CSRF
+  protection and an audit log (`scoutro-user-audit.jsonl`). The built-in YaCy
+  administrator signs in there with its existing password; HTTP Digest for
+  tools and scripts is unchanged.
+- Protected access mode (`scoutro.access.protected`, off after an upgrade): an
+  allowlist that closes native search, Solr, MCP, suggestions, chat and the old
+  YaCy pages to everyone but administrators, the precondition for Research and
+  Operator accounts. Optional guest access, off by default.
+- Design and permission matrix: [SCOUTRO_USERS_ACCESS.md](docs/SCOUTRO_USERS_ACCESS.md);
+  baseline with evidence: [SCOUTRO_ACCESS_BASELINE.md](docs/SCOUTRO_ACCESS_BASELINE.md).
+
 ## 0.9.0 / 1.942-scoutro.22 — release candidate
 
 - Customer and partner suggestions include organizations in other **authorized**

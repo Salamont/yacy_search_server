@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!--
+    Browser sign-in for the YaCy administrator (HTTP Digest dialog), the fallback of the
+    Scoutro login page. Copyright (C) 2026 Scoutro contributors. GPL-2.0-or-later.
+  -->
+  <title>Browser sign-in</title>
+  #%env/templates/metas.template%#
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="stylesheet" type="text/css" href="env/scoutro/access.css" />
+</head>
+<body id="scoutro-digest" class="scoutro-auth-page">
+  <main class="scoutro-auth" aria-labelledby="sd-title">
+    <div class="scoutro-auth-card">
+      <p class="scoutro-auth-brand">
+        <img src="env/scoutro/brand/mascot-64.png" width="44" height="44" alt="" />
+        <span>#%env/templates/scoutro/productname.template%#</span>
+      </p>
+      <h1 id="sd-title">You are signed in as administrator</h1>
+      <p class="scoutro-auth-lead">The browser keeps the administrator sign-in until it is closed.</p>
+      <p class="scoutro-auth-lead"><a id="sd-continue" href="scoutro-dashboard.html">Continue</a></p>
+    </div>
+  </main>
+  <script>
+    (function () {
+      'use strict';
+      var next = new URLSearchParams(window.location.search).get('next') || '';
+      var ok = next.charAt(0) === '/' && next.indexOf('//') !== 0 && next.indexOf('\\') < 0
+        && !/[\u0000-\u001f\u007f]/.test(next) && next.indexOf('/scoutro-login.html') !== 0 && next.length <= 1024;
+      var target = ok ? next : '/scoutro-dashboard.html';
+      document.getElementById('sd-continue').href = target;
+      window.location.replace(target);
+    })();
+  </script>
+</body>
+</html>

@@ -150,7 +150,8 @@ class Descriptions(unittest.TestCase):
 
     def test_mutating_actions_require_admin(self):
         for action in self.actions["actions"]:
-            if action["mutating"]:
+            # sign-in, sign-out and the own password act only on the caller's own session (docs/SCOUTRO_USERS_ACCESS.md)
+            if action["mutating"] and not action["name"].startswith("auth."):
                 self.assertEqual(action["auth"], "admin", action["name"])
 
 
