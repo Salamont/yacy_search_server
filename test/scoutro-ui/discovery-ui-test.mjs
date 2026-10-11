@@ -21,7 +21,7 @@ try {
     const nav=page.locator('#scoutro-adminnav a[href="ScoutroDiscovery_p.html"]');
     if(width<768) await page.locator('[aria-controls="scoutro-adminnav"]').click();
     check(await nav.isVisible(),`${width}: shared navigation visible`);
-    check(await nav.textContent().then(t=>t.includes(language==='de-DE'?'Discovery-Automatisierung':'Discovery Automation')),`${width}: localized navigation`);
+    check(await nav.textContent().then(t=>t.trim()==='Discovery') && await page.locator('#scoutro-nav-collect a[href="ScoutroDiscovery_p.html"]').count()===1,`${width}: Discovery in the Data collection navigation`);
     if(width<768)await page.keyboard.press('Escape');
     check(await page.locator('#scd-global-status').textContent()===(language==='de-DE'?'Deaktiviert':'Disabled'),`${width}: disabled/localized status`);
     await page.locator('#scd-add').click(); await page.locator('#scd-editor').waitFor({state:'visible'});

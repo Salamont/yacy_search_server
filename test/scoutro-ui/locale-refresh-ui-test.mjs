@@ -46,7 +46,7 @@ try {
           await toggle.click();
           check(await toggle.getAttribute('aria-expanded') === 'true', `${width}: navigation opens`);
         }
-        for (const [href, text] of [['scoutro-dashboard.html', 'Dashboard'], ['ScoutroAgents_p.html', 'Agenten & Zugriffe']]) {
+        for (const [href, text] of [['scoutro-dashboard.html', 'Übersicht'], ['ScoutroAgents_p.html', 'Agenten']]) {
           const link = page.locator(`#scoutro-adminnav a[href="${href}"]:visible`).first();
           check(await link.count() === 1, `${width}: ${href} visible in navigation`);
           check((await link.textContent()).trim() === text, `${width}: ${href} German navigation label`);
