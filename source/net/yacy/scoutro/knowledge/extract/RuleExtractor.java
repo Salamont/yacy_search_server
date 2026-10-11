@@ -232,7 +232,8 @@ public final class RuleExtractor {
             final Mention subject = BusinessRules.subject(out, out.mention(OPERATOR_REF));
             this.business.extract(text, url, host, language, outbound, out, ctx, kinds, subject);
             if(subject!=null && !kinds.contains(BusinessRules.PageKind.CAREERS))
-                BusinessSignals.extract(text,subject,out,2,Claim.KIND_RULE,"text","text");
+                // a reference page describes client work (BusinessSignals.REFERENCES); the locator stays "text"
+                BusinessSignals.extract(text,subject,out,2,Claim.KIND_RULE,BusinessSignals.referencePage(url)?BusinessSignals.REFERENCES:"text","text");
             BusinessFacts.ownPlaces(out, host, 2);
             BusinessFacts.industriesFromServices(out, ctx, 2, this.maxExcerpt);
         }

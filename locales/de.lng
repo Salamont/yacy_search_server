@@ -6335,6 +6335,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >internal system use<==>interner Systemeinsatz<
 >required competence<==>geforderte Kenntnisse<
 >desirable competence<==>erwünschte Kenntnisse<
+>stated competence (own or offered; no need)<==>genannte Kompetenz (eigene oder angebotene; kein Bedarf)<
 >work in customer projects<==>Arbeit in Kundenprojekten<
 >planned migration<==>geplante Migration<
 >completed migration<==>abgeschlossene Migration<

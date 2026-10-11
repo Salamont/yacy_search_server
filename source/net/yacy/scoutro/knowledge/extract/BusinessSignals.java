@@ -14,14 +14,21 @@ import net.yacy.scoutro.knowledge.vocab.Signals;
 /** Contextual, deterministic input facts for future matching, never matching rules.
  * Sentences retain their qualifiers. Ambiguous or overlong sentences are skipped,
  * rather than turning a truncated product mention into installed software.
+ * Version 3 (docs/SCOUTRO_MATCHING.md, "Context correction"): markers inside a product name
+ * (SAP In-House Cash) or another word (house, cooperate) are no actor or use; a reference page
+ * describes client work; a company's competence statement is no requirement; a statement that
+ * names another company with an unnamed "we" leaves the actor unclear. The version is no part
+ * of an extractor identity, so it re-extracts nothing by itself; matching re-reads stored quotes.
  */
 public final class BusinessSignals {
-    public static final String VERSION="2";
+    public static final String VERSION="3";
     private static final Pattern CUSTOMERS=p("Kundenprojekt|unser(?:e[nrms]?)? Kunde|bei (?:unseren? )?Kunden|für (?:unsere )?Kunden|client projects?|customer projects?");
     private static final Pattern KNOWLEDGE=p("Kenntnisse|Kenntnissen|Erfahrung|Erfahrungen|Kompetenz|beherrschen|knowledge|skills?|proficiency|experience");
     private static final Pattern DESIRED=p("wünschenswert|erwünscht|von Vorteil|idealerweise|optional|desirable|preferred|nice.to.have");
-    private static final Pattern USE=p("nutzen|nutzt|verwenden|verwendet|betreiben|betreibt|setzen.{0,60}ein|arbeiten.{0,20}mit|uses?|operate|running");
-    private static final Pattern OWN=p("\\bintern\\b|in.house|\\bunser(?:e[nmrs]?)?\\b|\\bwir\\b|our internal|\\bwe\\b|eigene[nrms]?");
+    private static final Pattern USE=p("nutzen|nutzt|verwenden|verwendet|betreiben|betreibt|setzen.{0,60}ein|arbeiten.{0,20}mit|\\buses?\\b|\\boperate\\b|\\brunning\\b");
+    /** "in-house", but not the SAP treasury modules In-House Cash / In-House Bank(ing): a product name is no actor. */
+    private static final String IN_HOUSE="in.house(?![\\s-]{0,2}(?:cash|bank))";
+    private static final Pattern OWN=p("\\bintern\\b|"+IN_HOUSE+"|\\bunser(?:e[nmrs]?)?\\b|\\bwir\\b|our internal|\\bwe\\b|eigene[nrms]?");
     private static final Pattern PLAN=p("planen|plant|geplant|beabsichtigen|beabsichtigt|werden.{0,60}migrieren|planning|planned|intend");
     private static final Pattern MIGRATION=p("Migration|migrieren|Umstellung|migrate|migration");
     private static final Pattern COMPLETED=p("abgeschlossen|vollzogen|completed|finished");
@@ -32,6 +39,15 @@ public final class BusinessSignals {
     private static final Pattern OWN_CARE=p("unser(?:e[nmrs]?)?.{0,80}(?:Entlassmanagement|Überleitungsmanagement|Pflegeüberleitung)|wir.{0,80}(?:organisieren|koordinieren).{0,80}(?:Entlass|Pflegeüber)|our.{0,80}discharge management");
     private static final Pattern CLOSED=p("Stelle (?:ist )?(?:besetzt|geschlossen)|Position (?:ist )?besetzt|Bewerbungsverfahren (?:ist )?beendet|vacancy (?:is )?(?:filled|closed)");
     public static final Pattern INTERMEDIARY=p("im Auftrag (?:unseres|eines) Kunden|für unseren Kunden|für einen unserer Kunden|on behalf of (?:our|a) client|for our client");
+    /** Reference, case-study and client pages: what they describe is work for clients, not the operator's own use or need.
+     * Deliberately narrower than a general "projects" page, which can describe the operator's own projects. */
+    private static final Pattern REFERENCE_PATH=Pattern.compile("(?iu)(?:^|/)(?:referenzen|referenz|references?|case-stud(?:y|ies)|fallstudien"
+            +"|kundenprojekte|projekt-?beispiele|success-stor(?:y|ies)|erfolgsgeschichten|kunden|customers|clients)(?:[./_\\-]|$)");
+    /** A named legal entity (Muster Energie AG); used to tell an unnamed "we" from the company the sentence is about. */
+    private static final Pattern LEGAL_ENTITY=Pattern.compile("(?u)\\b(?:[\\p{Lu}][\\p{L}\\p{N}&'.-]*\\s+){1,4}"
+            +"(?:gGmbH|GmbH|AG|SE|KGaA|KG|OHG|GbR|UG|mbH|e\\.\\s?V\\.|Ltd\\.?|Inc\\.?|LLC|plc|S\\.A\\.|B\\.V\\.|N\\.V\\.)(?![\\p{L}])");
+    /** Section of signals read on a reference page ({@link #referencePage}). */
+    public static final String REFERENCES="references";
     private BusinessSignals() { }
     private static Pattern p(String regex) {return Pattern.compile("(?iu)"+regex);}
 
@@ -78,6 +94,27 @@ public final class BusinessSignals {
 
     private static boolean asciiDigit(char ch){return ch>='0'&&ch<='9';}
 
+    /** Whether the page at {@code url} is a reference, case-study or client page (by its path). */
+    public static boolean referencePage(String url) {
+        if(url==null)return false;
+        String path;
+        try{path=java.net.URI.create(url.trim()).getRawPath();}catch(IllegalArgumentException e){return false;}
+        if(path==null||path.isEmpty())return false;
+        try{path=java.net.URLDecoder.decode(path,java.nio.charset.StandardCharsets.UTF_8);}catch(IllegalArgumentException e){/* keep the raw path */}
+        return REFERENCE_PATH.matcher(path).find();
+    }
+
+    /** The quote names a company other than the actor (a product vendor such as SAP SE is no actor of the statement). */
+    private static boolean otherCompanyNamed(String quote,String actorName,Signals vocab) {
+        Matcher m=LEGAL_ENTITY.matcher(quote);String own=actorName==null?null:actorName.toLowerCase(Locale.ROOT);
+        while(m.find()) {
+            String name=m.group().trim(),lower=name.toLowerCase(Locale.ROOT);
+            if(own!=null&&!own.isBlank()&&(lower.contains(own)||own.contains(lower)))continue;
+            if(!vocab.products(name).isEmpty())continue;
+            return true;
+        }return false;
+    }
+
     /** Distinct passages/postings must not collapse into the live Evidence PK and lose a quotation. */
     public static String located(String value,String locator) {
         if(!value.startsWith("{"))return value;
@@ -99,10 +136,13 @@ public final class BusinessSignals {
         Signals vocab=KgVocabularies.get().signals;
         List<String> out=new ArrayList<>();boolean own=OWN.matcher(quote).find();
         boolean named=actorName!=null&&quote.toLowerCase(Locale.ROOT).contains(actorName.toLowerCase(Locale.ROOT));
+        boolean references=REFERENCES.equals(section);
         if(Vocabulary.SYSTEM_SIGNAL.equals(predicate)) {
             String context=null;
             boolean customer=CUSTOMERS.matcher(quote).find();
             if(NEGATION.matcher(quote).find())return out;
+            // An unnamed "we" next to another named company: whose system it is stays unclear (postings resolve their employer).
+            if(own&&!named&&!Vocabulary.JOB.equals(actorType)&&otherCompanyNamed(quote,actorName,vocab))own=false;
             if(OFFER.matcher(quote).find()&&p("Beratung|Integration|Implementierung|Support|Unterstützung|Schulung|Training|consulting|implementation").matcher(quote).find())context="offered_capability";
             else if(customer)context="customer_projects";
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
@@ -110,10 +150,14 @@ public final class BusinessSignals {
             else if(MIGRATION.matcher(quote).find()&&PLAN.matcher(quote).find()&&(own||named))context="planned_migration";
             else if(USE.matcher(quote).find()&&(own||named))context="internal_use";
             else if(KNOWLEDGE.matcher(quote).find()||"skills".equals(section)||"qualifications".equals(section))
-                context=DESIRED.matcher(quote).find()?"desirable_competence":"required_competence";
+                // A requirement belongs to a posting; a company's own competence statement (Kernkompetenz) is no need.
+                context=!Vocabulary.JOB.equals(actorType)&&!"skills".equals(section)&&!"qualifications".equals(section)?"stated_competence"
+                        :DESIRED.matcher(quote).find()?"desirable_competence":"required_competence";
             if(context==null)return out;
             // Simultaneous internal/customer claims need finer context; never assert internal use from them.
-            if(customer&&p("\\bintern\\b|in.house").matcher(quote).find())return out;
+            if(customer&&p("\\bintern\\b|"+IN_HOUSE).matcher(quote).find())return out;
+            // A reference page reports client work: a system used, migrated or shut down there is the client's.
+            if(references&&List.of("internal_use","planned_migration","completed_migration","shutdown").contains(context))context="customer_projects";
             for(String product:vocab.products(quote)) {
                 Map<String,Object> fields=new TreeMap<>();fields.put("product",product);fields.put("context",context);
                 fields.put("section",section);fields.put("scope",p("unternehmensweit|vollständig|organisation.wide|throughout our company").matcher(quote).find()?"organization":"unspecified");
@@ -128,7 +172,7 @@ public final class BusinessSignals {
                 fields.put("system_role",role);assertionDate(fields,quote);out.add(Values.canonical(fields));
             }
         } else if(Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)) {
-            if(!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find())return out;
+            if(references||!(own||named)||CUSTOMERS.matcher(quote).find()||INTERMEDIARY.matcher(quote).find())return out;
             for(String need:vocab.needs(quote)) {
                 boolean cancelled=p("abgesagt|eingestellt|aufgegeben|cancelled|canceled").matcher(quote).find();
                 boolean completed=p("fertiggestellt|abgeschlossen|completed|finished").matcher(quote).find();

@@ -17,7 +17,7 @@ public final class MatchingRules {
     private MatchingRules() { }
 
     public static final class Observation {
-        public String id,actor,originalActor,subject,type,predicate,text,source,revision,status,assertedAt;
+        public String id,actor,originalActor,subject,type,predicate,text,source,url,revision,status,assertedAt;
         public JSONObject value,identity;
         public Long observedAt;
         public final Map<Integer,String> collections=new TreeMap<>();
@@ -27,19 +27,24 @@ public final class MatchingRules {
             }
         }
         public static Observation read(Connection c,ResultSet r)throws SQLException {
+            Observation o=fields(r);
+            try(PreparedStatement s=c.prepareStatement("SELECT k.coll_id,k.name FROM kg_observation_scope os"
+                    +" JOIN kg_observation b USING(observation_rowid) JOIN kg_collection k USING(coll_id) WHERE b.public_id=? ORDER BY k.name")) {
+                s.setString(1,o.id);try(ResultSet names=s.executeQuery()){while(names.next())o.collections.put(names.getInt(1),names.getString(2));}
+            }return o;
+        }
+        /** The row without its collections (enough for {@link #offers}, which never authorizes anything). */
+        static Observation fields(ResultSet r)throws SQLException {
             Observation o=new Observation();o.id=r.getString("public_id");o.actor=r.getString("organization_id");
             o.originalActor=r.getString("original_organization_id");
             o.subject=r.getString("subject_id");o.type=r.getString("subject_type");o.predicate=r.getString("predicate");
-            o.text=r.getString("quote");o.source=r.getString("source_id");o.status=r.getString("assertion_status");
+            o.text=r.getString("quote");o.source=r.getString("source_id");o.url=r.getString("source_url");o.status=r.getString("assertion_status");
             o.revision=r.getString("content_revision");
             o.assertedAt=r.getString("asserted_at");o.observedAt=r.getObject("observed_at")==null?null:r.getLong("observed_at");
             try {o.identity=new JSONObject(r.getString("identity_context"));String raw=r.getString("value");
                 o.value=raw.startsWith("{")?new JSONObject(raw):KgJson.obj("literal",raw);
             }catch(JSONException e){throw new SQLException("invalid observation",e);}
-            try(PreparedStatement s=c.prepareStatement("SELECT k.coll_id,k.name FROM kg_observation_scope os"
-                    +" JOIN kg_observation b USING(observation_rowid) JOIN kg_collection k USING(coll_id) WHERE b.public_id=? ORDER BY k.name")) {
-                s.setString(1,o.id);try(ResultSet names=s.executeQuery()){while(names.next())o.collections.put(names.getInt(1),names.getString(2));}
-            }return o;
+            return o;
         }
         public boolean accessible(Viewer v){return v==null?!collections.isEmpty():v.all()?!collections.isEmpty():collections.keySet().stream().anyMatch(v.collections()::contains);}
         public boolean usable(){return actor!=null&&"recorded".equals(status)&&!text.isBlank();}
@@ -103,6 +108,8 @@ public final class MatchingRules {
     public static Assessment assess(Connection c,Offer offer,Observation signal,List<Observation> extras,KgConfig cfg,Viewer permitted)throws SQLException {
         if(!offer.evidence.usable()||!signal.usable()||offer.evidence.actor.equals(signal.actor)
                 ||!offer.evidence.accessible(permitted)||!signal.accessible(permitted))return null;
+        // A reference/case-study page describes client work: neither the operator's own system nor its own need.
+        if(BusinessSignals.referencePage(signal.url))return null;
         String context=signal.value.optString("context");
         Assessment result=new Assessment();result.fit="explicit_rule";result.score=60;result.strength="qualified";
         boolean jobBased="job".equals(signal.type);
@@ -120,9 +127,14 @@ public final class MatchingRules {
             if(!Set.of("organization","facility","job").contains(signal.type))return null;
             if(!"system_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("product"))
                     ||!List.of("internal_use","required_competence","desirable_competence","planned_migration").contains(context))return null;
+            // A requirement belongs to a posting; a company's own competence statement is no need (often its offer).
+            if(context.endsWith("_competence")&&!"job".equals(signal.type))return null;
+            // The stored context must still be what the shared parser reads in the stored quote (veto only, never an upgrade).
+            if(!contextConfirmed(signal,context))return null;
             if(List.of("internal_use","planned_migration").contains(context)&&systemRetired(c,signal))return null;
             if(jobBased) {
-                if(itConsultancy(c,signal.actor)||ownCapacity(signal))return null;
+                // Own postings for a product the employer offers itself are delivery capacity, not a customer need.
+                if(itConsultancy(c,signal.actor)||ownCapacity(signal)||offersItself(c,signal.actor,offer))return null;
                 result.uncertainties.add("company_role_unknown");result.score-=15;
             }
             result.strength="internal_use".equals(context)?"stated":"weak";
@@ -160,6 +172,37 @@ public final class MatchingRules {
         if(signal.observedAt==null){result.uncertainties.add("observation_date_unknown");result.score-=5;}
         result.uncertainties.add("external_purchase_or_cooperation_unconfirmed");
         return result;
+    }
+    /** The names the extraction knew the actor by: the stated names of the subject and of its organization. */
+    private static List<String> actorNames(Observation o) {
+        List<String> out=new ArrayList<>();
+        for(String part:List.of("subject","organization")) {
+            JSONArray names=o.identity.optJSONArray(part);
+            if(names!=null)for(int i=0;i<names.length();i++) {
+                JSONObject n=names.optJSONObject(i);
+                if(n!=null&&List.of("name","legal_name").contains(n.optString("predicate"))&&!n.optString("value").isBlank())out.add(n.optString("value"));
+            }
+        }return out;
+    }
+    /** Re-reads the stored quote with the current shared parser; an unconfirmed product/context pair no longer qualifies. */
+    static boolean contextConfirmed(Observation signal,String context) {
+        String product=signal.value.optString("product"),section=signal.value.optString("section","text");
+        List<String> names=new ArrayList<>();names.add(null);names.addAll(actorNames(signal));
+        for(String name:names)for(String value:BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,signal.text,section,signal.type,name)) {
+            JSONObject v=Values.json(value);
+            if(v!=null&&product.equals(v.optString("product"))&&context.equals(v.optString("context")))return true;
+        }return false;
+    }
+    /** The employer offers the same product support itself (an offered capability or an assigned service, as for providers). */
+    private static boolean offersItself(Connection c,String actor,Offer offer)throws SQLException {
+        try(PreparedStatement p=c.prepareStatement("SELECT * FROM kg_observation WHERE organization_id=? AND assertion_status='recorded' AND"
+                +" ((predicate='system_signal' AND json_valid(value) AND json_extract(value,'$.context')='offered_capability'"
+                +" AND json_extract(value,'$.product')=?) OR (subject_type='service' AND predicate IN('name','category','description')))"
+                +" ORDER BY observation_rowid LIMIT 2501")) {
+            p.setString(1,actor);p.setString(2,offer.key);try(ResultSet r=p.executeQuery()){while(r.next()) {
+                for(Offer own:offers(Observation.fields(r)))if(own.rule.equals(offer.rule)&&own.key.equals(offer.key))return true;
+            }}
+        }return false;
     }
     private static boolean ownCapacity(Observation signal) {
         JSONArray names=signal.identity.optJSONArray("subject");String title="";
