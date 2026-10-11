@@ -101,9 +101,11 @@ try {
             await page.goto(base + '/ScoutroKnowledge_p.html', { waitUntil: 'networkidle' });
             await page.waitForFunction(() => document.querySelector('#skg-llm').children.length > 0);
             await page.locator('#skg-llm-invalid-details summary').click();
-            const shown = await page.locator('#skg-llm-invalid dt').allTextContents();
+            const shown = await page.locator('#skg-llm-invalid dt').evaluateAll(n => n.map(d => d.dataset.reason)); // the API code of each row
             if (name === 'reasons') {
               check(JSON.stringify(shown) === JSON.stringify(['entity_extra_field', 'claim_unresolved_object'])
+                && JSON.stringify(await page.locator('#skg-llm-invalid dt .skg-reason-code').allTextContents()) === JSON.stringify(shown)
+                && await page.locator('#skg-llm-invalid dt .skg-reason-label').count() === 2
                 && JSON.stringify(await page.locator('#skg-llm-invalid dd').allTextContents()) === JSON.stringify(['7', '3']), 'reasons, most frequent first, zeros left out' + where);
               const llmRow = async key => page.evaluate(l => [...document.querySelectorAll('#skg-llm dt')].find(d => d.textContent === l)?.nextElementSibling?.textContent, await lbl(key));
               check(await llmRow('dropped_invalid') === '10' && (await llmRow('llm_accepted') || '').endsWith(' · 2'), 'droppedInvalid and valuesAccepted shown' + where);

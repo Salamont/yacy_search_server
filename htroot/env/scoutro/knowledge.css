@@ -128,7 +128,9 @@ tr[data-status="stale"] td, tr[data-status="expired"] td { color: #666; }
 /* LLM tier: the reasons of droppedInvalid (diagnostics since the start) */
 .skg-llm-invalid { margin: 0.5em 0; }
 .skg-llm-invalid summary { cursor: pointer; }
-.skg-llm-invalid dt { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: break-word; }
+.skg-llm-invalid dt { overflow-wrap: break-word; }
+.skg-llm-invalid .skg-reason-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; }
+.skg-llm-invalid .skg-reason-label + .skg-reason-code { display: block; }
 
 /* Global LLM timing controls remain usable on narrow administration pages. */
 #skg-schedule-form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .6rem 1rem; align-items: center; }

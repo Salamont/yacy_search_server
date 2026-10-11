@@ -674,6 +674,7 @@ Found on livaid.com (October 2026): the imprint of an architect named the operat
 | `claim_invalid_hedged` | `hedged` present but no JSON boolean (for example `"false"`) |
 | `claim_unresolved_subject`, `claim_unresolved_object` | the id is neither a known entity nor an entity accepted in this answer (also an entity dropped before, or a name instead of an id) |
 | `claim_subject_type_mismatch`, `claim_object_type_mismatch` | the subject's or object's type is not allowed for the relation |
+| `claim_employer_unresolved` | after grounding: a `hiring_organization` quote names a posting on behalf of a client (`für unseren Kunden`, `on behalf of our client`, …); the intermediary is no employer |
 | `value_not_object` | the array element is no JSON object |
 | `value_extra_field` | a field other than `subject`, `predicate`, `quote` (for example a `value` written by the model) |
 | `value_missing_subject`, `value_malformed_subject` | `subject` missing or malformed |
@@ -682,8 +683,9 @@ Found on livaid.com (October 2026): the imprint of an architect named the operat
 | `value_unknown_predicate` | `predicate` is not one of the value predicates (`price`, `salary`, `category`, …) |
 | `value_missing_quote`, `value_malformed_quote`, `value_quote_too_long` | as for entities |
 | `value_subject_type_mismatch` | the subject's type cannot carry the value (a salary of a service, a price of an organisation) |
+| `value_signal_context_missing` | after grounding: a signal value (`system_signal`, `business_need_signal`, `business_role_evidence`, `job_status`) whose quote the shared signal parser (`BusinessSignals`) reads no context in |
 
-The list is `LlmExtractor.INVALID_REASONS`; a new rule gets a new code. Within one item the order is the one above (structure, then fields, then references and types), for example an entity with an extra field and an unknown type counts as `entity_extra_field`, a claim that refers to itself with an unknown predicate as `claim_self_reference`, a claim with a string `hedged` and an unresolved subject as `claim_invalid_hedged`.
+The list is `LlmExtractor.INVALID_REASONS`; a new rule gets a new code and is registered there (the status lists every registered code with 0, and the overview shows each occurring code with its label `invalid_<code>`; a code without a label stays visible as the code). Within one item the order is the one above (structure, then fields, then references and types; the two codes marked *after grounding* are checked once the quote is found verbatim, a quote not found counts as `droppedUngrounded`), for example an entity with an extra field and an unknown type counts as `entity_extra_field`, a claim that refers to itself with an unknown predicate as `claim_self_reference`, a claim with a string `hedged` and an unresolved subject as `claim_invalid_hedged`.
 
 **Knowledge prompt** (the system prompt of the LLM tier; `GET` / `POST /scoutro/api/v1/kg/prompt`, administrator only):
 

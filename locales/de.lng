@@ -5783,6 +5783,54 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >only from the LLM tier<==>nur aus der LLM-Stufe<
 >Dropped as not quoted<==>Verworfen, weil nicht zitiert<
 >Dropped as invalid<==>Verworfen, weil ungültig<
+>Entity: not a JSON object<==>Entität: kein JSON-Objekt<
+>Entity: unexpected field<==>Entität: unerwartetes Feld<
+>Entity: ID missing<==>Entität: ID fehlt<
+>Entity: ID malformed<==>Entität: ID fehlerhaft<
+>Entity: ID in a format not allowed<==>Entität: ID in unzulässigem Format<
+>Entity: ID already in use<==>Entität: ID bereits vergeben<
+>Entity: type missing<==>Entität: Typ fehlt<
+>Entity: type malformed<==>Entität: Typ fehlerhaft<
+>Entity: unknown type<==>Entität: unbekannter Typ<
+>Entity: name missing<==>Entität: Name fehlt<
+>Entity: name malformed<==>Entität: Name fehlerhaft<
+>Entity: name too short<==>Entität: Name zu kurz<
+>Entity: a person or contact details instead of a name<==>Entität: Person oder Kontaktdaten statt eines Namens<
+>Entity: quote missing<==>Entität: Zitat fehlt<
+>Entity: quote malformed<==>Entität: Zitat fehlerhaft<
+>Entity: quote too long<==>Entität: Zitat zu lang<
+>Statement: not a JSON object<==>Aussage: kein JSON-Objekt<
+>Statement: unexpected field<==>Aussage: unerwartetes Feld<
+>Statement: subject missing<==>Aussage: Subjekt fehlt<
+>Statement: subject malformed<==>Aussage: Subjekt fehlerhaft<
+>Statement: object missing<==>Aussage: Objekt fehlt<
+>Statement: object malformed<==>Aussage: Objekt fehlerhaft<
+>Statement: refers to itself (subject is object)<==>Aussage: Selbstbezug (Subjekt ist Objekt)<
+>Statement: relation missing<==>Aussage: Beziehung fehlt<
+>Statement: relation malformed<==>Aussage: Beziehung fehlerhaft<
+>Statement: unknown relation<==>Aussage: unbekannte Beziehung<
+>Statement: quote missing<==>Aussage: Zitat fehlt<
+>Statement: quote malformed<==>Aussage: Zitat fehlerhaft<
+>Statement: quote too long<==>Aussage: Zitat zu lang<
+>Statement: hedge flag is not true or false<==>Aussage: Vorbehaltskennzeichen ist weder wahr noch falsch<
+>Statement: subject not resolved<==>Aussage: Subjekt nicht zuordenbar<
+>Statement: object not resolved<==>Aussage: Objekt nicht zuordenbar<
+>Statement: subject type does not fit the relation<==>Aussage: Subjekttyp passt nicht zur Beziehung<
+>Statement: object type does not fit the relation<==>Aussage: Objekttyp passt nicht zur Beziehung<
+>Statement: employer unresolved (posting on behalf of a client)<==>Aussage: Arbeitgeber ungeklärt (Ausschreibung im Kundenauftrag)<
+>Value: not a JSON object<==>Wert: kein JSON-Objekt<
+>Value: unexpected field<==>Wert: unerwartetes Feld<
+>Value: subject missing<==>Wert: Subjekt fehlt<
+>Value: subject malformed<==>Wert: Subjekt fehlerhaft<
+>Value: subject not resolved<==>Wert: Subjekt nicht zuordenbar<
+>Value: attribute missing<==>Wert: Merkmal fehlt<
+>Value: attribute malformed<==>Wert: Merkmal fehlerhaft<
+>Value: unknown attribute<==>Wert: unbekanntes Merkmal<
+>Value: quote missing<==>Wert: Zitat fehlt<
+>Value: quote malformed<==>Wert: Zitat fehlerhaft<
+>Value: quote too long<==>Wert: Zitat zu lang<
+>Value: subject type cannot carry this value<==>Wert: Subjekttyp passt nicht zum Wert<
+>Value: signal without a recognizable context (use, competence or plan)<==>Wert: Signal ohne erkennbaren Kontext (Nutzung, Kompetenz oder Plan)<
 >Structured output<==>Strukturierte Ausgabe<
 >Schema enforced by the provider<==>Schema vom Anbieter erzwungen<
 >Schema sent, enforcement not confirmed<==>Schema gesendet, Erzwingung nicht bestätigt<
@@ -6097,6 +6145,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Industries follow NACE Rev. 2.1 / WZ 2025; service categories and audiences come from the Scoutro vocabularies of each collection. Derived relations (same operator, weak link signals, suggested customers and partners) are no facts; they are recomputed every interval and only shown to a viewer of both collections.<==>Branchen folgen NACE Rev. 2.1 / WZ 2025; Leistungskategorien und Zielgruppen kommen aus den Scoutro-Vokabularen jeder Collection. Abgeleitete Beziehungen (gleicher Träger, schwache Link-Signale, vorgeschlagene Kunden und Partner) sind keine Fakten; sie werden in jedem Intervall neu berechnet und nur gezeigt, wer beide Collections sehen darf.<
 >before an upgrade<==>vor einem Upgrade<
 >Graph vocabulary<==>Graph-Vokabular<
+>Categories and NACE codes<==>Kategorien und NACE-Codes<
 >%1 categories, %2 NACE codes<==>%1 Kategorien, %2 NACE-Codes<
 >Vocabulary problems<==>Vokabular-Probleme<
 >Derived relations<==>Abgeleitete Beziehungen<

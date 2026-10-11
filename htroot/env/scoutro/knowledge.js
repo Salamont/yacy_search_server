@@ -239,7 +239,8 @@
     const vo = s.vocabulary || {}, dv = s.derived || {}, up = s.upgrade;
     const derivedRows = dv.last ? Object.values(dv.last.byKind || {}).reduce((a, b) => a + b, 0) : null;
     stats('vocab', [['graph_vocabulary', vo.graphVocabulary], ['vocab_version', vo.version],
-      ['vocab_counts', vo.categories == null ? null : t('vocab_counts').replace('%1', fmt(vo.categories)).replace('%2', fmt(vo.naceCodes))],
+      // the label names the row without placeholders; vocab_counts formats the numbers of the value
+      ['vocab_sizes', vo.categories == null ? null : t('vocab_counts').replace('%1', fmt(vo.categories)).replace('%2', fmt(vo.naceCodes))],
       ['vocab_collections', Object.entries(vo.collections || {}).map(([c, v]) => c + ': ' + (v.vocabulary || t('none')) + (v.jobs ? ' · ' + t('jobs_on') : '')).join('\n') || t('none')],
       ['vocab_problems', (vo.problems || []).join('\n') || t('none')],
       ['derived_last', dv.enabled === false ? t('derived_off') : t('derived_value').replace('%1', fmt(derivedRows))
@@ -266,7 +267,8 @@
     message(s.state === 'running' ? '' : s.state === 'disabled' ? t('disabled') : t('unavailable') + (s.reason ? ' (' + s.reason + ')' : ''));
   }
 
-  // droppedInvalid by reason (counters since the start): only the reasons that occurred, the most frequent first; the codes as the API names them
+  // droppedInvalid by reason (counters since the start): only the reasons that occurred, the most frequent first; a known
+  // code with its readable label (invalid_<code>), every code as the API names it, so an unknown (newer) code stays visible
   function invalidReasonsInto(by) {
     const box = $('llm-invalid'); box.replaceChildren();
     const rows = Object.entries(by && typeof by === 'object' ? by : {}).filter(([, n]) => typeof n === 'number' && n > 0)
@@ -274,8 +276,12 @@
     if (!rows.length) { box.append(node('p', t('none'))); return; }
     const dl = node('dl', null, 'sseo-stats');
     for (const [reason, n] of rows) {
-      const dt = node('dt'); // a line may break after an underscore; the text stays the code
-      reason.split('_').forEach((part, i) => { if (i) dt.append('_', document.createElement('wbr')); dt.append(part); });
+      const dt = node('dt'); dt.dataset.reason = reason;
+      const label = labels['invalid_' + reason];
+      if (label) dt.append(node('span', label, 'skg-reason-label'), ' ');
+      const code = node('code', null, 'skg-reason-code'); // a line may break after an underscore; the text stays the code
+      reason.split('_').forEach((part, i) => { if (i) code.append('_', document.createElement('wbr')); code.append(part); });
+      dt.append(code);
       dl.append(dt, node('dd', fmt(n)));
     }
     box.append(dl);

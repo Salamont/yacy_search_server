@@ -23,7 +23,23 @@ import org.junit.Test;
  */
 public class LlmExtractorInvalidReasonTest {
 
-    /** Valid items about {@link LlmExtractorTest#TEXT}; k1 is the known "Muster Pflege gGmbH". */
+    /**
+     * {@link LlmExtractorTest#TEXT} and two sentences for the rules checked after grounding: a posting on behalf of a
+     * client (claim_employer_unresolved) and a named product without a usage context (value_signal_context_missing).
+     */
+    static final String TEXT = LlmExtractorTest.TEXT + "\nWir suchen im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die"
+            + " Muster Pflege gGmbH. Die Muster Pflege gGmbH und SAP werden genannt.";
+
+    /** k1 is the known "Muster Pflege gGmbH" ({@link LlmExtractorTest#known()}), kj the known posting. */
+    static List<LlmExtractor.Known> known() {
+        final Mention job = new Mention("jsonld:1", Vocabulary.JOB, 1);
+        job.name = "Pflegefachkraft (m/w/d)";
+        final List<LlmExtractor.Known> known = new java.util.ArrayList<>(LlmExtractorTest.known());
+        known.add(new LlmExtractor.Known("kj", job));
+        return known;
+    }
+
+    /** Valid items about {@link #TEXT}. */
     static final String E1 = "{\"id\":\"e1\",\"type\":\"facility\",\"name\":\"Haus Lindenhof\",\"quote\":\"betreibt das Haus Lindenhof in Berlin\"}";
     static final String E2 = "{\"id\":\"e2\",\"type\":\"service\",\"name\":\"Tagespflege\",\"quote\":\"Das Haus Lindenhof bietet Tagespflege an\"}";
     static final String C1 = "{\"subject\":\"e1\",\"predicate\":\"offers\",\"object\":\"e2\",\"quote\":\"Das Haus Lindenhof bietet Tagespflege an\"}";
@@ -43,7 +59,7 @@ public class LlmExtractorInvalidReasonTest {
     }
 
     static LlmExtractor.Result validate(final String answer) {
-        return LlmExtractor.validate(answer, LlmExtractorTest.chunk(), LlmExtractorTest.known(), Set.of());
+        return LlmExtractor.validate(answer, LlmExtractor.chunks(TEXT, 12_000).get(0), known(), Set.of());
     }
 
     static int sum(final LlmExtractor.Result r) {
@@ -120,6 +136,9 @@ public class LlmExtractorInvalidReasonTest {
                 + Q + "\"}", V1));
         m.put("claim_object_type_mismatch", answer(E1 + "," + E2, c + "{\"subject\":\"k1\",\"predicate\":\"operates\",\"object\":\"e2\",\"quote\":\""
                 + Q + "\"}", V1));
+        // grounded and of the right types, but the quote names a client of an intermediary, not the employer
+        m.put("claim_employer_unresolved", answer(E1 + "," + E2, c + "{\"subject\":\"kj\",\"predicate\":\"hiring_organization\",\"object\":\"k1\","
+                + "\"quote\":\"im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die Muster Pflege gGmbH\"}", V1));
         // values
         final String v = V1 + ",";
         m.put("value_not_object", answer(E1 + "," + E2, C1, v + "42"));
@@ -137,6 +156,9 @@ public class LlmExtractorInvalidReasonTest {
         m.put("value_malformed_quote", answer(E1 + "," + E2, C1, v + "{\"subject\":\"e2\",\"predicate\":\"category\",\"quote\":false}"));
         m.put("value_quote_too_long", answer(E1 + "," + E2, C1, v + "{\"subject\":\"e2\",\"predicate\":\"category\",\"quote\":\"" + LONG201 + "\"}"));
         m.put("value_subject_type_mismatch", answer(E1 + "," + E2, C1, v + "{\"subject\":\"e2\",\"predicate\":\"salary\",\"quote\":\"" + Q + "\"}"));
+        // grounded with the named actor, but the shared signal parser reads no usage, competence or plan in it
+        m.put("value_signal_context_missing", answer(E1 + "," + E2, C1, v + "{\"subject\":\"k1\",\"predicate\":\"system_signal\","
+                + "\"quote\":\"Die Muster Pflege gGmbH und SAP werden genannt\"}"));
         return m;
     }
 
