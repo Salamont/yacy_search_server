@@ -271,3 +271,13 @@ question, the global search, client tools and system messages, a search-tool
 call of the model (released as an administrator could do it), system
 questions and the administrator's model mirror. `SCOUTRO_RAG_DUMP=FILE`
 writes what the model received.
+
+`test/scoutro-api/agent-crawl-host-live-smoke.py` checks that an agent's
+crawl stays on exactly its start host. YaCy's domain filter is a host prefix,
+so a crawl of `agent-host.example` would also follow `agent-host.example.test`.
+The smoke starts two local HTTP servers for these names (resolved only inside
+the disposable peer through a temporary `jdk.net.hosts.file`), a peer in the
+intranet network and a collection-limited agent with the allowlist
+`agent-host.example`. It asserts that the look-alike host is never requested
+and none of its pages lands in the agent's collection, and that the start
+marker, the idempotent replay, the crawl status and the stop keep working.

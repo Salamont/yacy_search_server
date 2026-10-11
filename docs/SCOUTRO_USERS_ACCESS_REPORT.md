@@ -77,8 +77,8 @@ Serverprüfung je Funktion: SCOUTRO_USERS_ACCESS.md, Abschnitt 3; je API-Route:
 | 1 | `ccr-2ad9a69f-3dvaa8-p1-analysis` | Ausgangsbefunde, Architektur, Matrix | `main` |
 | 2 | `ccr-2ad9a69f-3dvaa8-p2-auth` | Konten, Anmeldung, Sitzungen, zentrale Rechte, geschützter Modus, Audit; Review: P2P-Routen, Argon2-Slots, CSRF-Pfad, Anmeldelimits | PR 1 |
 | 3 | `ccr-2ad9a69f-3dvaa8-p3-ui` | Header, rechtegesteuerte Navigation (alle bisherigen YaCy-Seiten erreichbar), Konto-/Nutzer-/System-/Collections-Seiten, 403-Seite; Review: P2P-Schalter und Warnungen | PR 2 |
-| 4 | `ccr-2ad9a69f-3dvaa8-p4-data` | Funktionsseiten und Daten nach Recht und Collection, Scoutro-Suche, Chat-Scope, dynamisches Dashboard, Kontext; Review: Chat-Werkzeuge, exakter Crawl-Host, `/heuristic` | PR 3 |
-| 5 | `ccr-2ad9a69f-3dvaa8` | Mehrbenutzer-E2E-Test, RAG-Test mit Modell-Stub, Reparatur des Wissens-Smokes, dieser Bericht | PR 4 |
+| 4 | `ccr-2ad9a69f-3dvaa8-p4-data` | Funktionsseiten und Daten nach Recht und Collection, Scoutro-Suche, Chat-Scope, dynamisches Dashboard, Kontext; Review: Chat-Werkzeuge, exakter Crawl-Host, `/heuristic`; Nachtrag: exakter Starthost auch für Agenten-Crawls | PR 3 |
+| 5 | `ccr-2ad9a69f-3dvaa8` | Mehrbenutzer-E2E-Test, RAG-Test mit Modell-Stub, Agenten-Host-Smoke, Reparatur des Wissens-Smokes, dieser Bericht | PR 4 |
 
 Jeder PR ist für sich prüfbar; erst mit PR 4 können Recherche- und
 Operator-Konten Funktionsseiten nutzen (bis dahin sehen sie nur ihr Konto).
@@ -87,9 +87,10 @@ Operator-Konten Funktionsseiten nutzen (bis dahin sehen sie nur ihr Konto).
 
 | Prüfung | Ergebnis |
 |---|---|
-| JUnit (Scoutro- und HTTP-Tests, sauberer Build) | 944 Tests nach dem Review, 3 Fehler – dieselben 3 wie auf `main` `829ab35` (AgentCatalogTest, CollectionsStatusTest, KgRebuildTest; Einordnung in Abschnitt 10.5); KI-Tests (`net.yacy.ai`) 60/60 |
+| JUnit (Scoutro- und HTTP-Tests, sauberer Build) | 945 Tests nach dem Nachtrag (944 nach dem Review), 3 Fehler – dieselben 3 wie auf `main` `829ab35` (AgentCatalogTest, CollectionsStatusTest, KgRebuildTest; Einordnung in Abschnitt 10.5); KI-Tests (`net.yacy.ai`) 60/60 |
 | `ant scoutro-access-test` | 9 Suiten, 74 Tests grün (vor dem Review; im Review die Access-Tests direkt: P2-Stand 71/71) |
-| Access-Live-Smoke (HTTP, Mehrbenutzer, Scope-Manipulation, Digest-Automation, P2P-Routen, Operator-Crawl) | 177/177 |
+| Access-Live-Smoke (HTTP, Mehrbenutzer, Scope-Manipulation, Digest-Automation, P2P-Routen, Operator-Crawl) | 177/177, auch nach dem Nachtrag |
+| Agenten-Crawl-Hostgrenze (`agent-crawl-host-live-smoke.py`, erlaubter Starthost und täuschend ähnlicher fremder Host) | 10/10; ohne die Korrektur 7/10 (Abschnitt 10.7) |
 | RAG-Chat mit Modell-Stub (`chat-rag-live-smoke.py`) | 27/27 |
 | Mehrbenutzer-Browsertest (`accounts-ui-live-smoke.py`, DE/EN, 1280/390 px, Recherche/Operator/Admin/Gast; Administrator öffnet alle 45 internen Navigationsseiten inkl. YaCy-Werkzeuge) | 408/408 (+5 Setup), auch nach dem Review |
 | Navigation (`scoutro-ui-test`) / Dashboard (`dashboard-ui-test`, `dashboard-live-smoke`) | 384/384 / 187, Live 237 + 4 + 13 Solr-Prüfungen (nach dem Review erneut grün) |
@@ -97,8 +98,8 @@ Operator-Konten Funktionsseiten nutzen (bis dahin sehen sie nur ihr Konto).
 | Discovery (`discovery-live-smoke`) | 80 UI + 43 API grün (nach dem Review erneut) |
 | Sprachwechsel (`locale-refresh-live-smoke`) | 75 + 3×63 grün (nach dem Review erneut) |
 | LLM-Auswahl (`llm-selection-live-smoke`) | 719 UI + 50 HTTP grün (nach dem Review erneut) |
-| Agenten, Wissensgraph-Export, MCP, Chat-UI (`kg-agents-live-smoke`) | 51 + 46 grün – Agenten unverändert (vor dem Review; im Review nicht erneut gelaufen) |
-| Crawl-Berichte (`report-live-smoke`) | 453 UI-Checks grün (vor dem Review; im Review nicht erneut gelaufen) |
+| Agenten, Wissensgraph-Export, MCP, Chat-UI (`kg-agents-live-smoke`) | 51 + 46 grün, nach dem Nachtrag auf dem finalen Stand erneut |
+| Crawl-Berichte (`report-live-smoke`) | 453 UI-Checks + 9 Live-Lesezugriffe grün, nach dem Nachtrag auf dem finalen Stand erneut |
 | API-Testsuite (`test_api.py`) | OK (3 Crawl-Tests ohne Test-Site übersprungen, wie auf `main`). Korrektur im Review: die frühere Angabe „identisch zu `main`“ stammte aus Läufen unter verschiedenen Bedingungen; unter identischen Bedingungen war `main` grün und der Stapel rot (`mcpTool: null` der Konto-Aktionen), behoben in PR #47 |
 | Weitere Python-API-Suiten (`test_agent_api`, `test_flow_api`, `test_report_api`, `test_seo_api`, `test_system_questions_api`; `test_mcp_adapter`, `test_flow_contract`) | A/B mit identischem Wegwerf-Peer: dieselben Tests scheitern auf `main` und im Stapel (sie erwarten eigene Testdaten, z. B. 29 indexierte Seiten); `test_mcp_adapter` und `test_flow_contract` grün |
 | Wissens-Smoke (`knowledge-live-smoke`, nach gezielter Reparatur veralteter Testverträge) | 45 API + 1060 UI + 7 Konto-Prüfungen grün |
@@ -126,7 +127,8 @@ Bericht übergeben und nicht im Repository abgelegt.
   `yacysearch` (D1) bleibt im kompatiblen Modus bestehen (Upstream-Code, nicht geändert).
 - **P2P:** Im geschützten Modus sind YaCys Peer-Routen mit Indexdaten Admin-Routen und die Indexverteilung (DHT)
   pausiert, solange *Peer-to-Peer im geschützten Modus* aus ist (Standard). Eingeschaltet gelten YaCys Netzregeln:
-  dann sind alle Collections für andere Peers und jeden Client des Ports lesbar (Abschnitt 10.3).
+  dann sind alle Collections für andere Peers und jeden Client des Ports lesbar (Abschnitt 10.3). Entscheidung
+  bestätigt (2026-10-11): Indexaustausch und DHT bleiben im geschützten Modus standardmäßig aus.
 - **Vorschläge** (`suggest.json`) lassen sich nicht nach Collection trennen und bleiben im geschützten Modus Admin-Funktion.
 - **Anmeldelimit pro Adresse** gilt hinter einem nicht vertrauenswürdigen Proxy für alle Clients gemeinsam.
 - **Chat:** mit einem lokalen, deterministischen Modell-Stub Ende-zu-Ende geprüft (`chat-rag-live-smoke.py`); ein echtes
@@ -142,8 +144,10 @@ Bericht übergeben und nicht im Repository abgelegt.
 
 ## 8. Migration und Rückweg
 
-1. Upgrade: nichts ändert sich für Automation (Digest, Admin-Hash-Loopback, Agenten). Browser sehen die
-   Scoutro-Anmeldeseite; der eingebaute Administrator meldet sich mit demselben Namen und Passwort an.
+1. Upgrade: nichts ändert sich für Automation (Digest, Admin-Hash-Loopback, Agenten), mit einer Ausnahme:
+   Agenten-Crawls folgen keinem anderen Host als ihrem Starthost mehr (`www.` eingeschlossen; Abschnitt 10.7).
+   Browser sehen die Scoutro-Anmeldeseite; der eingebaute Administrator meldet sich mit demselben Namen und
+   Passwort an.
 2. Persönliches Administratorkonto anlegen (*Einstellungen → Nutzer*), damit anmelden.
 3. Optional: Formular-Anmeldung des eingebauten Administrators abschalten (Digest für Werkzeuge bleibt).
 4. Geschützten Modus einschalten; Werkzeuge prüfen, die bisher öffentliche native Routen ohne Anmeldung nutzten
@@ -181,14 +185,15 @@ die XLIFF-Blöcke geänderter Seiten entsprechen der Generierung.
 | Hoch (bedingt) | **Chat-Werkzeug `search` ignoriert die Collection:** `SearchTool` durchsucht ganzen Index und P2P-Netz; die Ausführung prüft nur die Freigabe `ai.tools.search.enabled` (Standard aus). Reproduziert mit Modell-Stub: das Recherche-Konto von alpha-web erhielt Text und Host aus beta-web. | P4: Chats ohne alle Collections (Konten, KI-Schild-Gäste) bekommen Werkzeuge, die den ganzen Index lesen, weder angeboten noch ausgeführt (`LLMModel.indexTools`, `ToolProvider.readsIndex`); übrige Werkzeuge bleiben. |
 | Mittel | **Argon2-Speicher:** 19 MiB je Prüfung, unbegrenzt parallel, auch für unbekannte Namen. 150 gleichzeitige Prüfungen bei 600 MiB Heap (YaCy-Standard): 77 OutOfMemoryErrors; über HTTP (768 MiB, 250 parallel) kein OOM – teilweise bestätigt. | P2: höchstens vier gleichzeitig; 300 parallel bei 600 MiB: 0 OOM, 6 s statt 73 s. |
 | Mittel | **Operator-Crawl über den Host hinaus:** YaCys Domain-Filter ist ein Präfix (`(www.)?host.*`, trifft `host.com.au`); Crawler_p verknüpft eigene Filter per ODER. Ein Operator-Crawl könnte Seiten fremder Collections in die eigene neu indexieren. Gilt ebenso für Discovery-Crawls. | P4: Crawls von Konten ohne alle Collections und alle Discovery-Crawls bekommen einen Ausschlussfilter für alles außer dem exakten Host; der Startmarker bleibt lesbar. Live: Profil mit Filter, Crawl startet, ist abrufbar und stoppbar. |
-| Mittel | **Sperre fremder Konten:** 5 Fehlversuche je Name in 15 min sperren die Formularanmeldung dieses Namens für alle. | Nicht geändert (übliche Abwägung gegen Raten); Digest bleibt, Sperre endet von selbst. Hinter nicht vertrauenswürdigem Proxy teilen sich alle Clients das Limit je Adresse (Betriebsabnahme). |
+| Mittel | **Agenten-Crawl über den Host hinaus (Nachtrag):** Der Agentenpfad (`ScopedActions.crawlStart` → `ScoutroActions.crawlStart(body, marker)`) startete ohne Hostbegrenzung. Die Domain-Allowlist prüft nur den Starthost, `host_indexed_elsewhere` nur dessen Dokumente. Live reproduziert (Abschnitt 10.7): ein Agent mit einer Collection und Allowlist `agent-host.example` rief `agent-host.example.test` ab und indexierte dessen Seite in seine Collection. | P4: auch Agenten-Crawls bekommen `CrawlRequest.hostOnly` hinter dem Startmarker; Idempotenz, Marker, Wiederaufnahme, Limits und Collection-Rechte unverändert. Live 10/10, ohne Korrektur 7/10. |
+| Mittel | **Sperre fremder Konten:** 5 Fehlversuche je Name in 15 min sperren die Formularanmeldung dieses Namens für alle. | Nicht geändert (übliche Abwägung gegen Raten); Digest bleibt, Sperre endet von selbst. Hinter nicht vertrauenswürdigem Proxy teilen sich alle Clients das Limit je Adresse (Betriebsabnahme). Entscheidung bestätigt (2026-10-11): die zeitlich begrenzte Sperre bleibt vorerst. |
 | Mittel | **`adminAccountForLocalhost=true`** macht hinter einem Proxy auf demselben Rechner jede Anfrage zum Administrator (vorbestehend; Scoutro-Image setzt `false`). | P2/P3: Warnung `localhost_admin` in *Einstellungen → Nutzer*. |
 | Niedrig | **CSRF-Pfad:** `POST /scoutro;x/api/v1/users` legte ohne CSRF-Token ein Konto an (Container leitet den Pfadparameter an die API); Cross-Site blieb durch Origin/JSON-Pflicht geschützt. | P2: Pfad ohne Pfadparameter; live 403. |
 | Niedrig | **`/heuristic`** in der Personen-/Gastsuche startet über den Admin-Loopback eine föderierte Suche und indexiert fremde Seiten. | P4: `400 query_modifier_not_allowed` für alle ohne Administratorrolle. |
 | Niedrig | Jeder 429 schrieb einen Audit-Eintrag (Audit-Log mit 20.000 Einträgen leerbar); bei 10.000 Schlüsseln leerte die Limit-Tabelle sich komplett (frei wählbare Namen setzten den Zähler eines Zielkontos zurück); Wettlauf „Formularanmeldung aus“ gegen „letzten Admin sperren“. | P2: ein Eintrag je Sperrfenster; Einzelfehlversuche zuerst verdrängt; Zugriffsänderungen unter der Sperre des Kontospeichers. |
 | Niedrig | `help/Steering.md` ohne Hinweis auf Audit von Neustart/Shutdown. | P3. |
 | Niedrig | **API-Beschreibung:** Die Konto-Aktionen trugen `"mcpTool": null`; `test_api.py` war unter identischen Bedingungen auf `main` grün und im Stapel rot. Die frühere Angabe „identisch zu `main`“ beruhte auf ungleichen Läufen. | P2: Schlüssel entfällt wie bei Discovery, Testvertrag um die neuen schreibenden Aktionen ergänzt; grün auf P2-Stand und final. |
-| Info | Option `SameSite=Lax` macht GET-Aktionen alter YaCy-Seiten CSRF-anfällig (Standard `Strict`); Cookie ohne `__Host-`-Präfix; Antwortzeit verrät den Namen des eingebauten Administrators; unlesbare Kontodatei plus Einstellung `false` (nur nach Handänderung) ergibt den kompatiblen Modus; Kontodatei-Änderungen im Betrieb werden überschrieben; laufende Chat-Antworten enden nach Widerruf regulär; Agenten-Crawls (vor dieser Arbeit) haben dieselbe Präfixschwäche. | Dokumentiert, nicht geändert. |
+| Info | Option `SameSite=Lax` macht GET-Aktionen alter YaCy-Seiten CSRF-anfällig (Standard `Strict`); Cookie ohne `__Host-`-Präfix; Antwortzeit verrät den Namen des eingebauten Administrators; unlesbare Kontodatei plus Einstellung `false` (nur nach Handänderung) ergibt den kompatiblen Modus; Kontodatei-Änderungen im Betrieb werden überschrieben; laufende Chat-Antworten enden nach Widerruf regulär. | Dokumentiert, nicht geändert. |
 
 Bestätigt ohne Befund: Recherche/Operator erhalten nie `adminRight` (auch nicht mit Digest-Header,
 Weiterleitungs-Headern oder Pflicht-Passwortwechsel); Sperre, Passwort- und Rechteänderung beenden
@@ -259,3 +264,44 @@ Nicht auf einem echten Olares getestet. Vor einem produktiven Wechsel in den ges
 - Peer-Einstellungen: das Image übernimmt `freeworld`; der geschützte Modus pausiert DHT und schließt die
   Peer-Indexrouten – prüfen, dass das gewollt ist, und `scoutro.access.p2p` aus lassen.
 - Heap (`javastart_Xmx`, Standard 600 MiB) und `adminAccountForLocalhost=false` (Image) bestätigen.
+- Agenten mit Crawl-Recht: prüfen, ob eine bestehende Automation von einem Start aus Subdomains oder weitere
+  erlaubte Domains erreichen soll; sie braucht dafür ab jetzt je Host einen eigenen Crawl-Start (Abschnitt 10.7).
+
+### 10.7 Nachtrag: Hostgrenze für Agenten-Crawls (2026-10-11)
+
+Entscheidungen des Auftraggebers (2026-10-11): Im geschützten Modus bleiben Indexaustausch und DHT
+standardmäßig aus; die zeitlich begrenzte Kontosperre bleibt vorerst bestehen.
+
+**Befund (bestätigt).** Der Agentenpfad `ScopedActions.crawlStart` rief
+`ScoutroActions.crawlStart(body, marker)` mit `hostOnly=false` auf. YaCys Domain-Filter
+`(www.)?host.*` ist ein Präfix, die Allowlist des Agenten prüft nur den Starthost und
+`host_indexed_elsewhere` nur dessen Dokumente. Nachgestellt mit `agent-crawl-host-live-smoke.py`:
+Wegwerf-Peer im Intranet-Netz, zwei lokale Server (erlaubter Starthost `agent-host.example`,
+täuschend ähnlicher fremder Host `agent-host.example.test` mit einem Dokument der Collection
+`edelsenior-web`; beide Namen nur im Peer über eine temporäre `jdk.net.hosts.file` auflösbar), ein
+Agent nur mit `stackfinder-web` und Allowlist `agent-host.example`. Der direkte Start auf dem fremden
+Host wird korrekt abgewiesen (`403 limit_exceeded:domains`). Ein erlaubter Start mit `scope=domain`
+folgte jedoch dem Link: `agent-host.example.test` erhielt `/robots.txt` und `/fresh`, und
+`/fresh` landete in `stackfinder-web`.
+
+**Korrektur (P4, Commit `91c77cd`).** Agenten-Crawls starten mit `CrawlRequest.hostOnly`, wie
+Operator- und Discovery-Crawls: Hinter dem Startmarker schließt ein Must-not-match-Filter jeden anderen
+Host aus (`www.` und Port erlaubt). Das gilt immer, auch für Agenten mit allen Collections, denn sonst
+würde die Allowlist umgangen. Weitere Subdomains oder erlaubte Domains brauchen eigene Starts. Unverändert:
+Idempotenz (`Idempotency-Key`, Wiederholung 200), Startmarker (Status, Stopp, Abgleich nach Absturz),
+Tiefe, Seiten, Parallelität, `host_busy`, `host_indexed_elsewhere` und Collection-Rechte. Die Überladung,
+die einen markierten Crawl ohne Hostentscheidung startete, entfällt. Kein neues Berechtigungskonzept.
+
+**Prüfung.**
+
+| Prüfung | Ergebnis |
+|---|---|
+| `agent-crawl-host-live-smoke.py` (finaler Stand) | 10/10: fremder Host ohne einen einzigen Abruf, keine fremde Seite in der Agenten-Collection, eigene Seiten indexiert, Wiederholung mit gleichem Schlüssel 200, Status über den Startmarker, Profil mit Marker und Hostfilter, Stopp 200 |
+| derselbe Smoke ohne die Korrektur (A/B, nur die eine Zeile zurückgesetzt) | 7/10: fremder Host abgerufen (`/robots.txt`, `/fresh`), `/fresh` in `stackfinder-web`, Profil ohne Hostfilter |
+| Regressionstest `CrawlStartRecoveryTest.crawlStaysOnItsStartHostAndKeepsItsMarker` | grün; gegen den alten Agentenpfad rot (`not crawled: https://example.com.au/`) |
+| Betroffene Crawl-/Access-Unit-Tests (14 Klassen: `CrawlStartRecoveryTest`, `CrawlFlowTest`, `PeopleRoutesTest`, `DiscoveryGatewayTest`, `DiscoveryScopeTest`, `ScopedActionsTest`, `AgentApiTest`, `AgentAdminTest`, `AgentStoreTest`, `AgentKnowledgeTest`, `CollectionCatalogTest`, `ScoutroAccessTest`, `CallerTest`, `RoutePolicyTest`) | 153/153 am neuen P4-Commit (sauberer Build) und am finalen Stand |
+| JUnit gesamt, finaler Stand (sauberer Build) | 945 Tests, nur die drei Altfehler aus Abschnitt 10.5 |
+| Access-Live-Smoke, finaler Stand | 177/177 |
+| `kg-agents-live-smoke.py`, finaler Stand (nach dem Review erstmals wieder) | 51 Live- + 46 Chat-UI-Prüfungen grün |
+| `report-live-smoke.py`, finaler Stand (nach dem Review erstmals wieder) | Seed, 9 Live-Lesezugriffe ohne Zustandsänderung, 453 UI-Prüfungen grün |
+| Generierte API-Beschreibung | am neuen P4-Commit und am finalen Stand unverändert reproduziert |
