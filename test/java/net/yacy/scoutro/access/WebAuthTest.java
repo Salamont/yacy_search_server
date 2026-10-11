@@ -81,4 +81,18 @@ public class WebAuthTest {
         assertEquals("scoutro_session=v; Path=/; HttpOnly; SameSite=Lax; Secure", WebAuth.setCookie("v", TestRequests.get("/").build(), settings));
         assertTrue(WebAuth.clearCookie(TestRequests.get("/").build(), settings).contains("Max-Age=0"));
     }
+    @Test
+    public void secureAlwaysMarksSetAndClearOverInternalHttpAndKeepsStrict() {
+        // the Olares entrance terminates TLS; Scoutro sees plain HTTP with X-Forwarded-Proto: http
+        final Map<String, String> conf = new HashMap<>();
+        conf.put(AccessSettings.SECURE, "always");
+        final AccessSettings settings = new AccessSettings(conf::get);
+        final javax.servlet.http.HttpServletRequest internal = TestRequests.get("/scoutro/api/v1/auth/login")
+                .header("X-Forwarded-Proto", "http").build();
+        assertEquals("scoutro_session=v; Path=/; HttpOnly; SameSite=Strict; Secure", WebAuth.setCookie("v", internal, settings));
+        assertEquals("scoutro_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict; Secure",
+                WebAuth.clearCookie(internal, settings));
+        conf.put(AccessSettings.SECURE, "ALWAYS");
+        assertTrue(WebAuth.setCookie("v", TestRequests.get("/").build(), settings).endsWith("; SameSite=Strict; Secure"));
+    }
 }

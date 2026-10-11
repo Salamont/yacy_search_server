@@ -20,7 +20,7 @@ open it; it shows no index data.
 |---|---|
 | Profile | Your role decides what you may do, your collections which data you see. Only an administrator changes them (*Settings → Users*). |
 | Change password | Current password, new password (at least 10 characters, not the user name) and repetition. All other sessions of your account end; this session continues with a new sign-in cookie. |
-| Sessions | Your open sessions with start, last use, address and browser. End one, end all others, or sign out. |
+| Sessions | Your open sessions with start, last use, address and browser. Behind a reverse proxy such as the Olares entrance the address is the proxy's (`proxy:…`), not your own. End one, end all others, or sign out. |
 
 The built-in YaCy administrator changes its password on *Accounts*
 (`ConfigAccounts_p.html`); tools with HTTP Digest then need the new password.

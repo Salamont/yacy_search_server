@@ -147,9 +147,10 @@ in the network are unchanged.
 | Built-in admin password | Its Digest hash cannot become an Argon2id hash. The login page verifies the typed password against the existing Digest hash (`AdminSecurity.checkAdminPassword`, without the localhost hash shortcut); nothing is converted or stored. |
 | Sessions | Server-side, in memory: 256-bit random id, only its SHA-256 is kept. Idle timeout `scoutro.auth.session.idleMinutes` (30), absolute `scoutro.auth.session.maxHours` (12), at most 10 per account. A restart ends all sessions. Each request re-reads the account: status, role, collections and export flag apply immediately. |
 | Revocation | Sign-out ends the session. Password reset, role, collection, export or status changes and deletion end all sessions of the account. A user's own password change ends the other sessions and renews the current one. Administrators can end sessions per account. |
-| Cookie | `scoutro_session`, `HttpOnly`, `Path=/`, `SameSite=Strict` (`scoutro.auth.cookie.sameSite`, `Lax` allowed), `Secure` on HTTPS or when `X-Forwarded-Proto: https` (`scoutro.auth.cookie.secure=auto|always|never`). No token is ever stored in `localStorage`. |
+| Cookie | `scoutro_session`, `HttpOnly`, `Path=/`, `SameSite=Strict` (`scoutro.auth.cookie.sameSite`, `Lax` allowed), `Secure` on HTTPS or when `X-Forwarded-Proto: https` (`scoutro.auth.cookie.secure=auto|always|never`). With `always` the set and the clearing cookie carry `Secure` even when the request reaches Scoutro over internal HTTP; use it behind an HTTPS-only entrance whose inner hop sends `X-Forwarded-Proto: http` (Olares). No token is ever stored in `localStorage`. |
 | CSRF | Session requests that change something must carry the session's CSRF token in `X-Scoutro-CSRF` (Scoutro API) or come from the same site (`Sec-Fetch-Site`/`Origin`, old YaCy forms which also keep their transaction tokens). `scoutro.js` adds the header to same-origin `fetch` calls. JSON bodies stay `application/json` with same-origin `Origin`. |
-| Login limits | Per account: after 5 failures within 15 minutes, further attempts wait 15 minutes (no permanent lock). Per client address: 30 failures within 15 minutes → 429. Unknown names are hashed too, so timing does not reveal accounts. |
+| Login limits | Per account: after 5 failures within 15 minutes, further attempts wait 15 minutes (no permanent lock). Per client: 30 failures within 15 minutes → 429. At most 4 password checks run at the same time (fewer on machines with fewer processors). Unknown names are hashed too, so timing does not reveal accounts. |
+| Sign-in client | The client of the limits and of the audit field `client` (`SignInClient`). A direct connection counts its socket address. A connection from a peer that matches `server.reverseProxy.trusted` (default: loopback) counts in **one shared bucket per proxy**, `proxy:<proxy address>`: a client can send `X-Real-IP` or `X-Forwarded-For` itself, and a proxy that passes such a header on would otherwise let each attempt choose its own bucket (for the Olares entrance chain it is not shown that the client's header is replaced). Behind such a proxy 30 failures from anyone make every form sign-in through it wait up to 15 minutes; Digest and Bearer access are not counted here and keep working. `scoutro.auth.limits.proxyAddress=x-real-ip` (default `shared`) counts exactly one valid `X-Real-IP` of a trusted proxy instead; set it only for a proxy shown to replace that header with the address it received the connection from. `X-Forwarded-For` is never used. YaCy's own effective address (Access Tracker, routing) is unchanged. |
 | Must change password | Accounts created or reset by an administrator get a temporary password and must set their own before anything else works. |
 | Errors | Not signed in: login page (pages) or 401 JSON (API). Signed in without permission: a Scoutro "no permission" page (pages) or 403 JSON with `error.code`. |
 
@@ -228,7 +229,9 @@ re-validates it on every request.
 
 `DATA/SETTINGS/scoutro-user-audit.jsonl` (owner-only, newest 20,000 entries,
 like the agent audit): time, acting identity (account, built-in admin,
-Digest admin, local), action, target, result and reason. Logged: sign-in
+Digest admin, local), action, target, result, reason and client (the
+sign-in client of section 5: an address, or `proxy:<address>` behind a
+trusted proxy; an `X-Real-IP` value only with the `x-real-ip` opt-in). Logged: sign-in
 success and failure, sign-out, password change and reset, account created,
 changed, locked, unlocked, deleted, sessions ended, access mode and guest
 changes, and every changing Scoutro API call by a person (route, target
@@ -279,6 +282,12 @@ contents, search texts.
 - Check on Olares that the app window keeps the `scoutro_session` cookie
   (same site as the Olares desktop). If not, use `SameSite=Lax` and record
   the decision.
+- Behind the HTTPS-only Olares entrance set `scoutro.auth.cookie.secure=always`
+  before the first browser sign-in (the inner hop is HTTP with
+  `X-Forwarded-Proto: http`, so `auto` would omit `Secure`).
+- Sign-in limits behind the Olares entrance count one shared bucket
+  (`proxy:127.0.0.1`); per-client limits need a proven `X-Real-IP` contract
+  (`scoutro.auth.limits.proxyAddress=x-real-ip`).
 - Decide whether the production instance switches to protected mode, and when.
 - Back up DATA before the upgrade as in previous rollouts; the account file
   and audit log live in `DATA/SETTINGS`.

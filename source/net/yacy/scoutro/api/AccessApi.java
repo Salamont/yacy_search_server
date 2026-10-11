@@ -28,7 +28,6 @@ import javax.servlet.http.HttpServletResponse;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import net.yacy.cora.protocol.RequestHeader;
 import net.yacy.scoutro.access.AccessException;
 import net.yacy.scoutro.access.AccessSettings;
 import net.yacy.scoutro.access.Account;
@@ -40,6 +39,7 @@ import net.yacy.scoutro.access.Scope;
 import net.yacy.scoutro.access.ScoutroAccess;
 import net.yacy.scoutro.access.ScoutroPrincipal;
 import net.yacy.scoutro.access.SessionStore;
+import net.yacy.scoutro.access.SignInClient;
 import net.yacy.scoutro.access.WebAuth;
 
 /**
@@ -92,8 +92,10 @@ final class AccessApi {
         return new ApiException(e.status(), e.code(), e.getMessage(), details);
     }
 
+    /** The client as the sign-in limits count it, also recorded in the audit ({@link SignInClient}). */
     private String client() {
-        return RequestHeader.client(this.request);
+        final ScoutroAccess access = ScoutroAccess.current();
+        return SignInClient.of(this.request, access == null ? null : access.settings);
     }
 
     private String agent() {
