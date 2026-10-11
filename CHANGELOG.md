@@ -2,7 +2,14 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased
+## 0.10.1 / 1.942-scoutro.25 — release candidate: Discovery recovery, collections, process display
+
+Upgrade from 0.10.0: no migration and no new setting; knowledge graph schema
+stays **6**; access mode, cookie and sign-in limits are unchanged. A Discovery
+batch blocked by an unconfirmed start stays blocked until an administrator
+defers it. Rollback to 0.10.0: let an open batch with a deferred start complete
+first and pause the job whose website was deferred. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.1.md).
 
 - Discovery: an administrator can defer an unconfirmed crawl start that
   blocks all Discovery batches (`needs_review`, `submitted_unknown`, no crawl
