@@ -401,7 +401,9 @@ class ScopedActions {
                     "collection", collection);
             final JSONObject created;
             try {
-                created = this.actions.crawlStart(start, marker);
+                // YaCy's domain filter is a host prefix (example.com also matches example.com.au): keep the crawl
+                // on its start host, so it reaches no host outside the allowlist and no foreign documents
+                created = this.actions.crawlStart(start, marker, true);
             } catch (final ApiException e) {
                 // The answer alone does not tell whether a crawl runs: Crawler_p reports "failed" also after it
                 // has activated the profile (e.g. when start URLs cannot be stacked). Decide by the marker.

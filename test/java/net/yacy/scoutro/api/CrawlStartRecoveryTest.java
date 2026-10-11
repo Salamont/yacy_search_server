@@ -96,14 +96,47 @@ public class CrawlStartRecoveryTest {
         Assert.assertTrue(rec.isStarted());
         Assert.assertTrue(rec.startMarker.matches("[0-9a-f]{32}"));
         Assert.assertEquals("https://example.com/", rec.url);
-        Assert.assertEquals(".*/scoutro-start-" + rec.startMarker + "/.*",
-                this.yacy.last("Crawler_p.json").get("mustnotmatch"));
+        final String filter = this.yacy.last("Crawler_p.json").get("mustnotmatch");
+        Assert.assertTrue(filter, filter.startsWith(".*/scoutro-start-" + rec.startMarker + "/.*|"));
+        Assert.assertEquals(rec.startMarker, ScoutroActions.startMarker(filter));
         Assert.assertNull("the marker is internal", r.body.opt("startMarker"));
         // replay with the same key: the same crawl, no second start
         final AgentApi.Response replay = start("https://example.com/", "run-1");
         Assert.assertEquals(200, replay.status);
         Assert.assertTrue(replay.body.optBoolean("idempotentReplay"));
         Assert.assertEquals(1, starts());
+    }
+
+    @Test
+    public void crawlStaysOnItsStartHostAndKeepsItsMarker() {
+        // YaCy's domain filter is a host prefix: without the host filter, a crawl of the allowed
+        // example.com would follow links to example.com.au, which is not on the agent's allowlist
+        final AgentApi.Response direct = start("https://example.com.au/", "direct");
+        Assert.assertEquals(403, direct.status);
+        Assert.assertEquals("limit_exceeded:domains", code(direct));
+        Assert.assertEquals(0, starts());
+        final AgentApi.Response r = start("https://example.com/", "run-1");
+        Assert.assertEquals(201, r.status);
+        final String filter = this.yacy.last("Crawler_p.json").get("mustnotmatch");
+        for (final String outside : Arrays.asList("https://example.com.au/", "http://example.com.au/page",
+                "https://example.community/", "https://www.example.com.evil.org/", "https://other.org/")) {
+            Assert.assertTrue("not crawled: " + outside, outside.matches(filter));
+        }
+        for (final String own : Arrays.asList("https://example.com/", "http://example.com:8080/a?b=c",
+                "https://www.example.com/docs#top", "https://example.com")) {
+            Assert.assertFalse("crawled: " + own, own.matches(filter));
+        }
+        // start marker, status, idempotent replay and stop work with the combined filter
+        final CrawlRecord rec = only();
+        Assert.assertEquals(rec.startMarker, ScoutroActions.startMarker(filter));
+        final AgentApi.Response status = call("GET", "crawls/" + rec.crawlId, null, null);
+        Assert.assertEquals(200, status.status);
+        Assert.assertNotEquals("removed", status.body.optString("state"));
+        final AgentApi.Response replay = start("https://example.com/", "run-1");
+        Assert.assertEquals(200, replay.status);
+        Assert.assertTrue(replay.body.optBoolean("idempotentReplay"));
+        Assert.assertEquals(1, starts());
+        Assert.assertEquals(200, call("POST", "crawls/" + rec.crawlId + "/stop", new JSONObject(), null).status);
     }
 
     @Test

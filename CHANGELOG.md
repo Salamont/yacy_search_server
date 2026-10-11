@@ -43,9 +43,10 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   administrator. The overview is built from the collection catalog instead of
   a fixed list. A collection context in the navigation presets search and
   function pages. The model's index `search` tool is not offered to chats
-  without all collections, crawls of such accounts and Discovery crawls stay
-  on exactly their host, and `/heuristic` in a search needs the
-  administrator.
+  without all collections, crawls of such accounts, Discovery crawls and
+  agent crawls stay on exactly their start host (YaCy's domain filter alone
+  also follows look-alike hosts such as `example.com.au`, outside an agent's
+  domain allowlist), and `/heuristic` in a search needs the administrator.
 - Design and permission matrix: [SCOUTRO_USERS_ACCESS.md](docs/SCOUTRO_USERS_ACCESS.md);
   baseline with evidence: [SCOUTRO_ACCESS_BASELINE.md](docs/SCOUTRO_ACCESS_BASELINE.md).
 

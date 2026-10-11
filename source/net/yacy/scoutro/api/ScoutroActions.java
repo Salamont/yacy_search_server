@@ -711,12 +711,8 @@ final class ScoutroActions {
      * real page, and is reported as {@code startMarker} by the crawl list.
      * It ties a crawl profile to the start attempt that created it, also
      * when the caller crashed before it could store the crawl id.
+     * {@code hostOnly} keeps the crawl on its start host (agents, Discovery).
      */
-    JSONObject crawlStart(final JSONObject body, final String marker) throws ApiException {
-        return crawlStart(body, marker, false);
-    }
-
-    /** As {@link #crawlStart(JSONObject, String)}; {@code hostOnly} keeps the crawl on its start host. */
     JSONObject crawlStart(final JSONObject body, final String marker, final boolean hostOnly) throws ApiException {
         final CrawlRequest request = hostOnly ? CrawlRequest.parse(body).hostOnly() : CrawlRequest.parse(body);
         return startCrawl(request, marker, marker == null ? null : "marker:" + marker);
