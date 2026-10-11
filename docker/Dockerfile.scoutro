@@ -11,12 +11,12 @@
 # build (from the repository root, with .git present so that the build records
 # the source revision):
 #   docker build -f docker/Dockerfile.scoutro \
-#     --build-arg SCOUTRO_VERSION=1.942-scoutro.22 \
+#     --build-arg SCOUTRO_VERSION=1.942-scoutro.23 \
 #     --build-arg SCOUTRO_REVISION=$(git rev-parse HEAD) \
-#     -t ghcr.io/salamont/scoutro:1.942-scoutro.22 .
+#     -t ghcr.io/salamont/scoutro:1.942-scoutro.23 .
 #
 # run:
-#   docker run -d --name scoutro -p 8090:8090 -v scoutro_data:/opt/yacy_search_server/DATA ghcr.io/salamont/scoutro:1.942-scoutro.22
+#   docker run -d --name scoutro -p 8090:8090 -v scoutro_data:/opt/yacy_search_server/DATA ghcr.io/salamont/scoutro:1.942-scoutro.23
 
 ## builder image
 FROM eclipse-temurin:24-jdk-noble AS builder

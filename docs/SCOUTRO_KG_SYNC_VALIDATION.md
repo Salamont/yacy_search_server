@@ -2,6 +2,24 @@
 
 Stand: 2026-10-10. Repository: `Salamont/yacy_search_server`.
 
+## Ergänzung: Patchrelease-Vorbereitung 2026-10-11
+
+Draft PR #45 bereitet jetzt **0.9.1 / 1.942-scoutro.23** vor. Die folgenden
+ursprünglichen Nachweise beziehen sich weiterhin ausdrücklich auf den unten
+genannten Code-Stand und den damaligen Image-Overlay-Lauf; sie werden nicht
+als Prüfung eines neu gebauten Images ausgegeben. Die Releaseangaben und
+Publish-Versionsliterale sind nun separat aktualisiert. Der Überschreibschutz
+bleibt erhalten; keine Schema-/Extraktoridentitäts-/Lastgrenzenänderung.
+
+Die abschließende Patchrelease-Abnahme gegen einen vollständigen lokalen
+linux/amd64-Kandidaten wird mit **exaktem Commit, Image-Konfigurations-ID,
+Prüfergebnissen und Grenzen** im Abnahmebericht bei
+[Draft PR #45](https://github.com/Salamont/yacy_search_server/pull/45)
+aufgezeichnet. Dort steht auch der erwartete automatische Publish-Lauf eines
+späteren ausdrücklich autorisierten Merges. So erfordert die Aufzeichnung
+des Ergebnisses keine nachträgliche Änderung des geprüften Image-Kandidaten.
+Siehe auch [Patchrelease-Hinweise](SCOUTRO_RELEASE_0.9.1.md).
+
 ## Geprüfter Stand und Aussagegrenze
 
 - Aktuelles `origin/main`, ausgelieferte Quellrevision und isolierte Basis:

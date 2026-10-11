@@ -33,7 +33,7 @@ def verify(read, expected, version):
     upstream, release = version.split('-scoutro.')
     assert 'scoutro.release=' + release + '\n' in properties
     assert 'scoutro.upstream.version=' + upstream + '\n' in properties
-    for name in ['CHANGELOG.md', 'docs/SCOUTRO_RELEASE_0.9.0.md',
+    for name in ['CHANGELOG.md', 'docs/SCOUTRO_RELEASE_0.9.1.md',
                  'help/ScoutroKnowledge_p.md', 'tools/scoutro/scoutroctl', 'LICENSES/GPL-2.0-or-later.txt']:
         assert read(name), 'Missing release artifact: ' + name
 
@@ -43,7 +43,7 @@ def main():
     parser.add_argument('--inputs', required=True, type=Path)
     parser.add_argument('--distribution', type=Path)
     parser.add_argument('--image-root', type=Path, help='Actual locally exported container root')
-    parser.add_argument('--version', default='1.942-scoutro.22')
+    parser.add_argument('--version', default='1.942-scoutro.23')
     args = parser.parse_args()
     assert args.distribution or args.image_root, 'Choose an actual distribution and/or exported image'
     expected = originals(args.inputs)

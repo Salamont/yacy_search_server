@@ -2,6 +2,24 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.9.1 / 1.942-scoutro.23 — patch release candidate
+
+- Fix a recursive clause regex that can overflow the stack on long text or
+  JSON-LD descriptions and terminate the periodic KG synchronization task.
+  The linear scanner preserves existing quotation, date and locator contracts.
+- Show the sync task's scheduler state, last execution, error and reconcile
+  progress in the administrator API and localized overview. Unexpected task
+  failures are logged and remain terminal; fatal JVM errors are not retried.
+- Preserve unpersisted dirty events after transaction failures and bind task
+  diagnostics/cancellation to their runtime session, including late completion
+  after close, restore or a rebuild swap. Existing Solr/storage retries remain.
+
+The code failure is reproduced against the 0.9.0 image with the reported
+scan/extraction/publication counters; the actual production trigger remains
+unconfirmed. No schema, extractor identity, load threshold or matching change.
+See [patch release notes](docs/SCOUTRO_RELEASE_0.9.1.md) and
+[sync reproduction and validation](docs/SCOUTRO_KG_SYNC_VALIDATION.md).
+
 ## 0.9.0 / 1.942-scoutro.22 — release candidate
 
 - Customer and partner suggestions include organizations in other **authorized**

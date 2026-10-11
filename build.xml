@@ -776,7 +776,7 @@
       <fileset dir=".">
         <include name="scoutro.properties"/>
         <include name="CHANGELOG.md"/>
-        <include name="docs/SCOUTRO_RELEASE_0.9.0.md"/>
+        <include name="docs/SCOUTRO_RELEASE_0.9.1.md"/>
         <include name="readme.txt"/>
         <include name="gpl.txt"/>
         <include name="ChangeLog"/>
