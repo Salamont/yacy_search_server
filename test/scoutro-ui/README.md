@@ -236,3 +236,26 @@ Clocks, DST, simultaneous workers, actual HTTP format fallbacks, retry and
 checkpoint-write refusal are exercised by the Java target. The write refusal is
 simulated through the existing integrity/storage guard; it is not a host disk-full
 test. [Timing semantics and limits](../../docs/SCOUTRO_LLM_SCHEDULE.md).
+
+## Accounts and permissions (multi-user)
+
+`test/scoutro-access/access-live-smoke.py` checks the sign-in, sessions,
+protected access mode, rights changes and the scope of every API route for a
+Research and an Operator account (HTTP only). The browser check runs through
+
+```sh
+NODE_PATH=/path/to/node_modules SCOUTRO_CHROMIUM_PATH=/usr/bin/chromium \
+SCOUTRO_SCREENSHOTS=/tmp/scoutro-accounts \
+python3 test/scoutro-access/accounts-ui-live-smoke.py
+```
+
+It starts a disposable peer (four seeded collections, German by browser
+language), switches on the protected access mode, creates a Research, an
+Operator and an Administrator account with passwords generated for the run,
+releases one collection for guests and runs `accounts-ui-test.mjs` in English
+and German at 1280 and 390 px: sign-in with return target, navigation groups
+per role, collection context, overview cards, pages by permission and the
+403 page, the Scoutro search, the knowledge page without operations,
+sign-out and the guest search. As administrator it opens every internal page
+of the navigation, YaCy's own pages under "Advanced tools" included, on
+desktop and phone. No credential is written to a file.
