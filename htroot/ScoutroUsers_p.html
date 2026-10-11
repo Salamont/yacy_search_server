@@ -37,6 +37,14 @@
       </div>
       <div class="scoutro-switch-row">
         <div>
+          <h3>Peer-to-peer in protected mode</h3>
+          <p>Off by default: other YaCy peers cannot search this index or send index data, and this peer does not distribute its index. Switched on, YaCy's network rules apply and collection rights do not.</p>
+        </div>
+        <span class="scoutro-badge-state" id="su-p2p-state"></span>
+        <button type="button" class="btn btn-default" id="su-p2p-toggle"></button>
+      </div>
+      <div class="scoutro-switch-row">
+        <div>
           <h3>Built-in administrator on the login page</h3>
           <p>The YaCy administrator (<strong id="su-builtin-name"></strong>) may sign in on the login page with its password. HTTP Digest for tools stays available either way.</p>
         </div>
@@ -178,9 +186,13 @@
     <span data-su-label="confirm_protected_off">YaCy's previous rules apply again; public search can then be reachable without sign-in.</span>
     <span data-su-label="confirm_guest_on_title">Switch on guest access?</span>
     <span data-su-label="confirm_guest_on">Without sign-in, everyone who reaches Scoutro can search the released collections.</span>
+    <span data-su-label="confirm_p2p_on_title">Allow peer-to-peer in protected mode?</span>
+    <span data-su-label="confirm_p2p_on">Other YaCy peers and everyone who reaches this peer's port can then search all collections, read their addresses and titles and send index data; the peer distributes its index again. Collection rights do not apply there.</span>
     <span data-su-label="confirm_builtin_off_title">Switch off the built-in administrator on the login page?</span>
     <span data-su-label="confirm_builtin_off">Its sessions end. HTTP Digest for tools stays available.</span>
-    <span data-su-label="warn_p2p_not_private">This peer takes part in the YaCy network: other peers can search the whole index. Collection rights do not apply to peers. Use private Robinson mode if accounts must stay within their collections.</span>
+    <span data-su-label="warn_p2p_open">Peer-to-peer is allowed in protected mode: other peers and everyone who reaches this peer's port can search all collections. Collection rights do not apply there.</span>
+    <span data-su-label="warn_p2p_closed">This peer is set up for the YaCy network, but the protected mode closes its peer-to-peer search and index routes and pauses the index distribution.</span>
+    <span data-su-label="warn_localhost_admin">YaCy grants administrator rights to every request from this computer (adminAccountForLocalhost). Behind a reverse proxy on the same computer everyone would be administrator; switch it off on the Accounts page.</span>
     <span data-su-label="warn_builtin_default_password">The built-in administrator still uses YaCy's default password. Change it on the Accounts page.</span>
     <span data-su-label="warn_protected_enforced">Active Research or Operator accounts keep the protected rules although the setting is off.</span>
     <span data-su-label="no_collections_available">No collections are known yet.</span>
@@ -189,6 +201,7 @@
     <span data-su-label="result_denied">Denied</span>
     <span data-su-label="result_failed">Failed</span>
     <span data-su-label="protected_mode_required">Research and Operator accounts need the protected access mode. Switch it on first.</span>
+    <span data-su-label="peer_to_peer_on">Switch off peer-to-peer in protected mode before leaving the protected mode.</span>
     <span data-su-label="restricted_accounts_active">Lock or remove the active Research and Operator accounts before leaving the protected mode.</span>
     <span data-su-label="last_admin">This is the last administrator who can sign in. Create or activate another administrator first.</span>
     <span data-su-label="own_account">You cannot lock, remove or demote your own account here.</span>

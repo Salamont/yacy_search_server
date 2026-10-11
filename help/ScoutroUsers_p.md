@@ -33,12 +33,18 @@ collections" means every collection, also future ones.
 |---|---|
 | Protected access mode | Only the listed Scoutro pages are reachable without the administrator role; native search, Solr, MCP, suggestions, chat and the YaCy pages need an administrator. Research and Operator accounts can only be created or unlocked in this mode, and the mode cannot be left while such accounts are active. Tools with the administrator password (HTTP Digest) and agents keep working. |
 | Guest access | Off by default and only in protected mode: without sign-in, people may search the released collections and nothing else. |
+| Peer-to-peer in protected mode | Off by default: YaCy's peer-to-peer routes that read or write the index (peer search, URL metadata, host index, counts, index transfer) need the administrator, and the peer does not distribute its index. Switched on (with confirmation, logged), YaCy's network rules apply: other peers and everyone who reaches the peer's port can search all collections. Only for peers whose collections may all be public; switch it off before leaving the protected mode. |
 | Built-in administrator on the login page | Whether the YaCy administrator may sign in on the login page. It can be switched off only with an active administrator account and not from the built-in administrator's own session. HTTP Digest stays available. |
 
-Warnings: *peer-to-peer* (the peer answers searches of other YaCy peers from the
-whole index; collection rights do not apply to peers), *default password* of
-the built-in administrator, and *protected rules enforced* (active
-restricted accounts although the setting is off).
+Warnings: *peer-to-peer allowed* (other peers and every client of the port
+search all collections; collection rights do not apply there), *peer-to-peer
+closed* (the peer is set up for the YaCy network, but the protected mode
+closes its peer-to-peer index routes and pauses the index distribution),
+*administrator from this computer* (YaCy's `adminAccountForLocalhost` grants
+administrator rights to every local request; behind a reverse proxy on the
+same computer that would be everyone), *default password* of the built-in
+administrator, and *protected rules enforced* (active restricted accounts
+although the setting is off).
 
 ## Accounts
 

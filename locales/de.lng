@@ -6479,6 +6479,8 @@ People who sign in to Scoutro, their roles and their collections. Agents have th
 >Guest access<==>Gastzugang<
 >Without sign-in, guests may only search the collections released here. Off by default; needs the protected mode.<==>Ohne Anmeldung dürfen Gäste nur die hier freigegebenen Collections durchsuchen. Standardmäßig aus; erfordert den geschützten Modus.<
 >Save guest collections<==>Gast-Collections speichern<
+>Peer-to-peer in protected mode<==>Peer-to-Peer im geschützten Modus<
+>Off by default: other YaCy peers cannot search this index or send index data, and this peer does not distribute its index. Switched on, YaCy's network rules apply and collection rights do not.<==>>Standardmäßig aus: Andere YaCy-Peers können diesen Index weder durchsuchen noch Indexdaten senden, und dieser Peer verteilt seinen Index nicht. Eingeschaltet gelten die Netzregeln von YaCy, Collection-Rechte nicht.<
 >Built-in administrator on the login page<==>Eingebauter Administrator auf der Anmeldeseite<
 The YaCy administrator (<strong id="su-builtin-name"></strong>) may sign in on the login page with its password. HTTP Digest for tools stays available either way.==Der YaCy-Administrator (<strong id="su-builtin-name"></strong>) darf sich mit seinem Passwort auf der Anmeldeseite anmelden. HTTP Digest für Werkzeuge bleibt in jedem Fall verfügbar.
 >Accounts<==>Konten<
@@ -6556,9 +6558,13 @@ New temporary password for <strong id="su-reset-name"></strong>. All sessions of
 >YaCy's previous rules apply again; public search can then be reachable without sign-in.<==>Es gelten wieder die bisherigen YaCy-Regeln; die öffentliche Suche kann dann ohne Anmeldung erreichbar sein.<
 >Switch on guest access?<==>Gastzugang einschalten?<
 >Without sign-in, everyone who reaches Scoutro can search the released collections.<==>Ohne Anmeldung kann jeder, der Scoutro erreicht, die freigegebenen Collections durchsuchen.<
+>Allow peer-to-peer in protected mode?<==>Peer-to-Peer im geschützten Modus erlauben?<
+>Other YaCy peers and everyone who reaches this peer's port can then search all collections, read their addresses and titles and send index data; the peer distributes its index again. Collection rights do not apply there.<==>>Andere YaCy-Peers und alle, die den Port dieses Peers erreichen, können dann alle Collections durchsuchen, deren Adressen und Titel lesen und Indexdaten senden; der Peer verteilt seinen Index wieder. Collection-Rechte gelten dort nicht.<
 >Switch off the built-in administrator on the login page?<==>Eingebauten Administrator auf der Anmeldeseite ausschalten?<
 >Its sessions end. HTTP Digest for tools stays available.<==>Seine Sitzungen enden. HTTP Digest für Werkzeuge bleibt verfügbar.<
->This peer takes part in the YaCy network: other peers can search the whole index. Collection rights do not apply to peers. Use private Robinson mode if accounts must stay within their collections.<==>Dieser Peer nimmt am YaCy-Netzwerk teil: Andere Peers können den gesamten Index durchsuchen. Collection-Rechte gelten nicht für Peers. Verwenden Sie den privaten Robinson-Modus, wenn Konten auf ihre Collections beschränkt bleiben müssen.<
+>Peer-to-peer is allowed in protected mode: other peers and everyone who reaches this peer's port can search all collections. Collection rights do not apply there.<==>>Peer-to-Peer ist im geschützten Modus erlaubt: Andere Peers und alle, die den Port dieses Peers erreichen, können alle Collections durchsuchen. Collection-Rechte gelten dort nicht.<
+>This peer is set up for the YaCy network, but the protected mode closes its peer-to-peer search and index routes and pauses the index distribution.<==>>Dieser Peer ist für das YaCy-Netzwerk eingerichtet, aber der geschützte Modus schließt seine Peer-to-Peer-Such- und Indexrouten und pausiert die Indexverteilung.<
+>YaCy grants administrator rights to every request from this computer (adminAccountForLocalhost). Behind a reverse proxy on the same computer everyone would be administrator; switch it off on the Accounts page.<==>YaCy gewährt jeder Anfrage von diesem Rechner Administratorrechte (adminAccountForLocalhost). Hinter einem Reverse-Proxy auf demselben Rechner wäre jede Person Administrator; schalten Sie das auf der Seite „Konten“ aus.<
 >The built-in administrator still uses YaCy's default password. Change it on the Accounts page.<==>Der eingebaute Administrator verwendet noch das YaCy-Standardpasswort. Ändern Sie es auf der Seite „Konten“.<
 >Active Research or Operator accounts keep the protected rules although the setting is off.<==>Aktive Recherche- oder Operator-Konten halten die geschützten Regeln aufrecht, obwohl die Einstellung aus ist.<
 >No collections are known yet.<==>Es sind noch keine Collections bekannt.<
@@ -6567,6 +6573,7 @@ New temporary password for <strong id="su-reset-name"></strong>. All sessions of
 >Denied<==>Abgelehnt<
 >Failed<==>Fehlgeschlagen<
 >Research and Operator accounts need the protected access mode. Switch it on first.<==>Recherche- und Operator-Konten erfordern den geschützten Zugriffsmodus. Schalten Sie ihn zuerst ein.<
+>Switch off peer-to-peer in protected mode before leaving the protected mode.<==>Schalten Sie Peer-to-Peer im geschützten Modus aus, bevor Sie den geschützten Modus verlassen.<
 >Lock or remove the active Research and Operator accounts before leaving the protected mode.<==>Sperren oder entfernen Sie die aktiven Recherche- und Operator-Konten, bevor Sie den geschützten Modus verlassen.<
 >This is the last administrator who can sign in. Create or activate another administrator first.<==>Dies ist der letzte Administrator, der sich anmelden kann. Legen Sie zuerst einen weiteren Administrator an oder aktivieren Sie ihn.<
 >You cannot lock, remove or demote your own account here.<==>Ihr eigenes Konto können Sie hier nicht sperren, entfernen oder herabstufen.<

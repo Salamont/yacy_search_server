@@ -8686,6 +8686,12 @@
     <trans-unit id="cca7278a" xml:space="preserve" approved="no" translate="yes">
        <source>Save guest collections</source>
     </trans-unit>
+    <trans-unit id="590ff2f9" xml:space="preserve" approved="no" translate="yes">
+       <source>Peer-to-peer in protected mode</source>
+    </trans-unit>
+    <trans-unit id="245da50b" xml:space="preserve" approved="no" translate="yes">
+       <source>Off by default: other YaCy peers cannot search this index or send index data, and this peer does not distribute its index. Switched on, YaCy's network rules apply and collection rights do not.</source>
+    </trans-unit>
     <trans-unit id="defde897" xml:space="preserve" approved="no" translate="yes">
        <source>Built-in administrator on the login page</source>
     </trans-unit>
@@ -8926,14 +8932,26 @@
     <trans-unit id="62aacacf" xml:space="preserve" approved="no" translate="yes">
        <source>Without sign-in, everyone who reaches Scoutro can search the released collections.</source>
     </trans-unit>
+    <trans-unit id="d7d73f8f" xml:space="preserve" approved="no" translate="yes">
+       <source>Allow peer-to-peer in protected mode?</source>
+    </trans-unit>
+    <trans-unit id="f82374c" xml:space="preserve" approved="no" translate="yes">
+       <source>Other YaCy peers and everyone who reaches this peer's port can then search all collections, read their addresses and titles and send index data; the peer distributes its index again. Collection rights do not apply there.</source>
+    </trans-unit>
     <trans-unit id="b54e72fc" xml:space="preserve" approved="no" translate="yes">
        <source>Switch off the built-in administrator on the login page?</source>
     </trans-unit>
     <trans-unit id="c8f487cd" xml:space="preserve" approved="no" translate="yes">
        <source>Its sessions end. HTTP Digest for tools stays available.</source>
     </trans-unit>
-    <trans-unit id="a20381a9" xml:space="preserve" approved="no" translate="yes">
-       <source>This peer takes part in the YaCy network: other peers can search the whole index. Collection rights do not apply to peers. Use private Robinson mode if accounts must stay within their collections.</source>
+    <trans-unit id="9c7861d7" xml:space="preserve" approved="no" translate="yes">
+       <source>Peer-to-peer is allowed in protected mode: other peers and everyone who reaches this peer's port can search all collections. Collection rights do not apply there.</source>
+    </trans-unit>
+    <trans-unit id="9dc34cbe" xml:space="preserve" approved="no" translate="yes">
+       <source>This peer is set up for the YaCy network, but the protected mode closes its peer-to-peer search and index routes and pauses the index distribution.</source>
+    </trans-unit>
+    <trans-unit id="5660ae24" xml:space="preserve" approved="no" translate="yes">
+       <source>YaCy grants administrator rights to every request from this computer (adminAccountForLocalhost). Behind a reverse proxy on the same computer everyone would be administrator; switch it off on the Accounts page.</source>
     </trans-unit>
     <trans-unit id="7c94f25a" xml:space="preserve" approved="no" translate="yes">
        <source>The built-in administrator still uses YaCy's default password. Change it on the Accounts page.</source>
@@ -8958,6 +8976,9 @@
     </trans-unit>
     <trans-unit id="1e749604" xml:space="preserve" approved="no" translate="yes">
        <source>Research and Operator accounts need the protected access mode. Switch it on first.</source>
+    </trans-unit>
+    <trans-unit id="71018127" xml:space="preserve" approved="no" translate="yes">
+       <source>Switch off peer-to-peer in protected mode before leaving the protected mode.</source>
     </trans-unit>
     <trans-unit id="e026fa52" xml:space="preserve" approved="no" translate="yes">
        <source>Lock or remove the active Research and Operator accounts before leaving the protected mode.</source>

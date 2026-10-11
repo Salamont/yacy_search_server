@@ -100,6 +100,8 @@ for the JavaScript code in this page.
     setSwitch('su-protected-state', 'su-protected-toggle', a.protected);
     setSwitch('su-guest-state', 'su-guest-toggle', a.guest);
     $('su-guest-toggle').disabled = !a.protected && !a.guest;
+    setSwitch('su-p2p-state', 'su-p2p-toggle', a.peerToPeer);
+    $('su-p2p-toggle').disabled = !a.protected && !a.peerToPeer;
     setSwitch('su-builtin-state', 'su-builtin-toggle', a.builtinAdminLogin);
     $('su-builtin-name').textContent = a.builtinAdminName || 'admin';
     var guestList = $('su-guest-collections');
@@ -137,6 +139,11 @@ for the JavaScript code in this page.
     var on = !state.access.guest;
     var go = on ? confirmDialog('confirm_guest_on_title', 'confirm_guest_on') : Promise.resolve(true);
     go.then(function (ok) { if (ok) patchAccess({ guest: on }); });
+  });
+  $('su-p2p-toggle').addEventListener('click', function () {
+    var on = !state.access.peerToPeer;
+    var go = on ? confirmDialog('confirm_p2p_on_title', 'confirm_p2p_on') : Promise.resolve(true);
+    go.then(function (ok) { if (ok) patchAccess({ peerToPeer: on }); });
   });
   $('su-guest-save').addEventListener('click', function () {
     patchAccess({ guestCollections: checked('su-guest-collections') });
