@@ -16,7 +16,12 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 - Protected access mode (`scoutro.access.protected`, off after an upgrade): an
   allowlist that closes native search, Solr, MCP, suggestions, chat and the old
   YaCy pages to everyone but administrators, the precondition for Research and
-  Operator accounts. Optional guest access, off by default.
+  Operator accounts. Optional guest access, off by default. YaCy's
+  peer-to-peer routes that read or write the index (`/yacy/search.html`,
+  `urls.xml`, `idx.json`, `query.html`, index transfer) need the
+  administrator in this mode and the index distribution (DHT) pauses, unless
+  peer-to-peer in protected mode (`scoutro.access.p2p`, off by default) is
+  switched on.
 - Design and permission matrix: [SCOUTRO_USERS_ACCESS.md](docs/SCOUTRO_USERS_ACCESS.md);
   baseline with evidence: [SCOUTRO_ACCESS_BASELINE.md](docs/SCOUTRO_ACCESS_BASELINE.md).
 

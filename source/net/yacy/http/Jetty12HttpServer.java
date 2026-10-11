@@ -526,8 +526,10 @@ public class Jetty12HttpServer implements YaCyHttpServer {
             final net.yacy.scoutro.access.ScoutroAccess access = net.yacy.scoutro.access.ScoutroAccess.current();
             final boolean protectedMode = access != null ? access.protectedMode()
                     : switchboard.getConfigBool(net.yacy.scoutro.access.AccessSettings.PROTECTED, false);
+            final boolean peerToPeer = access != null ? access.peerToPeer()
+                    : !protectedMode || switchboard.getConfigBool(net.yacy.scoutro.access.AccessSettings.PEER_TO_PEER, false);
             final net.yacy.scoutro.access.RoutePolicy.Rule rule =
-                    net.yacy.scoutro.access.RoutePolicy.classify(pathInContext, protectedMode);
+                    net.yacy.scoutro.access.RoutePolicy.classify(pathInContext, protectedMode, peerToPeer);
             final AdminSecurity.AccessPolicy policy = new AdminSecurity.AccessPolicy(
                     switchboard.getConfigBool(SwitchboardConstants.ADMIN_ACCOUNT_All_PAGES, false),
                     switchboard.isRobinsonMode() && !switchboard.isPublicRobinson(),

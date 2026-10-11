@@ -227,14 +227,19 @@ public final class WebAuth {
     }
 
     /**
-     * The decoded request path (context "/"). The security handler runs before
-     * the servlet mapping, so servlet path and path info are not set yet.
+     * The decoded request path (context "/") without path parameters: the container routes
+     * {@code /scoutro;x/api/v1/users} to {@code /scoutro/api/v1/users}, so the CSRF rule must see that
+     * path too. The security handler runs before the servlet mapping, so servlet path and path info
+     * are not set yet.
      */
     static String path(final HttpServletRequest request) {
         final String raw = request.getRequestURI() == null ? "/" : request.getRequestURI();
         try {
             final String decoded = new URI(raw).getPath();
-            return decoded == null || decoded.isEmpty() ? "/" : decoded;
+            if (decoded == null || decoded.isEmpty()) {
+                return "/";
+            }
+            return decoded.indexOf(';') < 0 ? decoded : decoded.replaceAll(";[^/]*", "");
         } catch (final Exception e) {
             return "/scoutro/invalid"; // undecodable: treated with the strictest rules
         }

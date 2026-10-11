@@ -101,14 +101,29 @@ public final class RoutePolicy {
     static final Set<String> STATIC_FILES = Set.of("/favicon.ico", "/favicon.png", "/favicon.bmp", "/robots.txt",
             "/jslicense.html", "/scoutro-about.html");
 
+    /**
+     * Peer-to-peer routes without index data (handshake, peer list, owner profile, shared blacklists,
+     * messages). In protected mode only these keep YaCy's network rules unless peer-to-peer is allowed:
+     * search, URL metadata, host index, counts and index transfer read or write every collection.
+     */
+    static final Set<String> PEER_HANDSHAKE = Set.of("/yacy/hello.html", "/yacy/seedlist.html", "/yacy/seedlist.json",
+            "/yacy/seedlist.xml", "/yacy/profile.html", "/yacy/list.html", "/yacy/message.html");
+
     private RoutePolicy() {
+    }
+
+    /** {@link #classify(String, boolean, boolean)} without peer-to-peer data exchange in protected mode. */
+    public static Rule classify(final String path, final boolean protectedMode) {
+        return classify(path, protectedMode, false);
     }
 
     /**
      * @param path the request path inside the context, as the container matched it
      * @param protectedMode the effective access mode ({@link ScoutroAccess#protectedMode()})
+     * @param peerToPeer protected mode keeps every peer-to-peer route of YaCy's network rules
+     *        ({@link ScoutroAccess#peerToPeer()}); otherwise only {@link #PEER_HANDSHAKE} does
      */
-    public static Rule classify(final String path, final boolean protectedMode) {
+    public static Rule classify(final String path, final boolean protectedMode, final boolean peerToPeer) {
         if (path == null || path.isEmpty() || suspicious(path)) {
             return protectedMode ? ADMIN : LEGACY;
         }
@@ -131,7 +146,7 @@ public final class RoutePolicy {
         if (STATIC_FILES.contains(path) || staticAsset(path)) {
             return PUBLIC;
         }
-        if (path.startsWith("/yacy/")) {
+        if (path.startsWith("/yacy/") && (peerToPeer || PEER_HANDSHAKE.contains(path))) {
             return LEGACY; // peer-to-peer protocol: YaCy's network rules decide
         }
         return ADMIN;

@@ -5017,7 +5017,7 @@
     },
     {
       "name": "access.get",
-      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Protected mode, guest access and released collections, built-in administrator sign-in, warnings (p2p_not_private: the peer answers peer-to-peer searches from the whole index; builtin_default_password; protected_enforced: active restricted accounts keep the protected rules).",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. Protected mode, guest access and released collections, built-in administrator sign-in, peer-to-peer in protected mode, warnings (p2p_open: peer-to-peer is allowed in protected mode, other peers and every client of the port read all collections through /yacy/; p2p_closed: the peer is set up for the YaCy network, but protected mode closes its peer-to-peer index routes and pauses the index distribution; localhost_admin: adminAccountForLocalhost grants administrator rights to every local request, also through a reverse proxy on the same computer; builtin_default_password; protected_enforced: active restricted accounts keep the protected rules).",
       "mutating": false,
       "auth": "admin",
       "http": {
@@ -5039,7 +5039,7 @@
     },
     {
       "name": "access.update",
-      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. 409 restricted_accounts_active (leave protected mode only without active Research/Operator accounts), protected_mode_required (guest access), last_admin (switch off the built-in administrator's sign-in only with an active administrator account), own_account (not from the built-in administrator's own session).",
+      "description": "Administrator only (Digest or an administrator session). Logged in the audit log. 409 restricted_accounts_active (leave protected mode only without active Research/Operator accounts), protected_mode_required (guest access or peerToPeer outside protected mode), peer_to_peer_on (switch off peerToPeer before leaving protected mode), last_admin (switch off the built-in administrator's sign-in only with an active administrator account), own_account (not from the built-in administrator's own session).",
       "mutating": true,
       "auth": "admin",
       "http": {
@@ -5064,6 +5064,11 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]{1,64}$"
           },
+          "in": "body",
+          "required": false
+        },
+        "peerToPeer": {
+          "type": "boolean",
           "in": "body",
           "required": false
         },
@@ -19340,6 +19345,10 @@
             "pattern": "^[A-Za-z0-9_-]{1,64}$"
           }
         },
+        "peerToPeer": {
+          "type": "boolean",
+          "description": "Peer-to-peer in protected mode (scoutro.access.p2p, off by default): the routes under /yacy/ that read or write the index and the index distribution (DHT) keep YaCy's network rules; collection rights do not apply there."
+        },
         "builtinAdminLogin": {
           "type": "boolean"
         },
@@ -19366,7 +19375,9 @@
           "items": {
             "type": "string",
             "enum": [
-              "p2p_not_private",
+              "p2p_open",
+              "p2p_closed",
+              "localhost_admin",
               "builtin_default_password",
               "protected_enforced"
             ]
@@ -19415,6 +19426,9 @@
             "type": "string",
             "pattern": "^[A-Za-z0-9_-]{1,64}$"
           }
+        },
+        "peerToPeer": {
+          "type": "boolean"
         },
         "builtinAdminLogin": {
           "type": "boolean"

@@ -101,7 +101,7 @@ calls):
 | `GET\|PATCH\|DELETE /v1/users/{name}` | administrator | Read, change (role, collections, export, `status` `active`/`locked`, display name) or remove an account. Rights changes and locking end its sessions. `409 last_admin`, `409 own_account`, `409 protected_mode_required`. |
 | `POST /v1/users/{name}/password` `{"password","mustChangePassword"}` | administrator | Reset without e-mail; ends the sessions. |
 | `GET /v1/users/{name}/sessions`, `POST /v1/users/{name}/sessions/revoke` | administrator | Sessions of an account; end them. |
-| `GET\|PATCH /v1/access` | administrator | Protected mode, guest access and its collections, form sign-in of the built-in administrator; warnings. |
+| `GET\|PATCH /v1/access` | administrator | Protected mode, guest access and its collections, peer-to-peer in protected mode (`peerToPeer`, off by default), form sign-in of the built-in administrator; warnings (`p2p_open`, `p2p_closed`, `localhost_admin`, `builtin_default_password`, `protected_enforced`). |
 | `GET /v1/access/audit?limit=&who=` | administrator | Audit log of people (sign-ins, account changes, changing Scoutro API calls). |
 
 Tools keep using HTTP Digest; the login page never answers them. Every

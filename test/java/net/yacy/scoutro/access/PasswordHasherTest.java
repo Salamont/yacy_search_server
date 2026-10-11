@@ -41,4 +41,24 @@ public class PasswordHasherTest {
         assertFalse(h.needsRehash(hash));
         assertTrue(h.needsRehash(new PasswordHasher(256, 1).hash("x")));
     }
+
+    @Test
+    public void parallelChecksWaitForAFreeSlot() throws Exception {
+        final PasswordHasher h = new PasswordHasher(256, 1);
+        final String stored = h.hash("slot-password-1");
+        assertTrue(PasswordHasher.CONCURRENT >= 1 && PasswordHasher.CONCURRENT <= 4);
+        PasswordHasher.SLOTS.acquireUninterruptibly(PasswordHasher.CONCURRENT); // every slot busy
+        final boolean[] done = new boolean[1];
+        final Thread check = new Thread(() -> done[0] = h.verify("slot-password-1", stored));
+        try {
+            check.start();
+            check.join(300);
+            assertTrue("no Argon2 computation while all slots are taken", check.isAlive());
+        } finally {
+            PasswordHasher.SLOTS.release(PasswordHasher.CONCURRENT);
+        }
+        check.join(10_000);
+        assertFalse(check.isAlive());
+        assertTrue(done[0]);
+    }
 }

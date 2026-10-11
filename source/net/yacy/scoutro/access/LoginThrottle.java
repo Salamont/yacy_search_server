@@ -38,6 +38,8 @@ public final class LoginThrottle {
     private final LongSupplier clock;
     private final Map<String, Deque<Long>> accounts = new HashMap<>();
     private final Map<String, Deque<Long>> clients = new HashMap<>();
+    /** name and client of a refusal already in the audit log, with the end of its block */
+    private final Map<String, Long> reported = new HashMap<>();
 
     public LoginThrottle(final LongSupplier clock) {
         this.clock = clock;
@@ -58,6 +60,27 @@ public final class LoginThrottle {
         add(this.clients, client == null ? "" : client, now);
     }
 
+    /**
+     * True for the first refusal of a block (name and client), so that a flood of refused attempts writes one
+     * audit entry per block instead of pushing older entries out of the audit log.
+     */
+    public synchronized boolean firstRefusal(final String username, final String client, final long waitSeconds) {
+        final long now = this.clock.getAsLong();
+        final String k = key(username) + "\n" + (client == null ? "" : client);
+        final Long until = this.reported.get(k);
+        if (until != null && until > now) {
+            return false;
+        }
+        if (this.reported.size() >= MAX_KEYS) {
+            this.reported.values().removeIf(u -> u <= now);
+            if (this.reported.size() >= MAX_KEYS) {
+                this.reported.clear();
+            }
+        }
+        this.reported.put(k, now + waitSeconds * 1000);
+        return true;
+    }
+
     public synchronized void success(final String username) {
         this.accounts.remove(key(username));
     }
@@ -75,6 +98,10 @@ public final class LoginThrottle {
     private static void add(final Map<String, Deque<Long>> map, final String key, final long now) {
         if (map.size() >= MAX_KEYS && !map.containsKey(key)) {
             map.entrySet().removeIf(e -> e.getValue().isEmpty() || now - e.getValue().peekLast() > WINDOW);
+            if (map.size() >= MAX_KEYS) {
+                // single failures go first: a flood of new names never resets the counter of an attacked account
+                map.entrySet().removeIf(e -> e.getValue().size() <= 1);
+            }
             if (map.size() >= MAX_KEYS) {
                 map.clear(); // under a flood keep memory bounded; the per-client limit refills quickly
             }

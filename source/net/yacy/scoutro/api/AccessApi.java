@@ -71,15 +71,19 @@ final class AccessApi {
     private final HttpServletRequest request;
     private final HttpServletResponse response;
     private final BiConsumer<String, String> configWriter;
-    /** true when the peer is in private Robinson mode (no peer-to-peer search of this index). */
+    /** true when the peer is in private Robinson mode (it takes no part in the YaCy network). */
     private final BooleanSupplier privateRobinson;
+    /** true when YaCy grants administrator rights to every request from this computer (adminAccountForLocalhost). */
+    private final BooleanSupplier localhostAdmin;
 
     AccessApi(final HttpServletRequest request, final HttpServletResponse response,
-            final BiConsumer<String, String> configWriter, final BooleanSupplier privateRobinson) {
+            final BiConsumer<String, String> configWriter, final BooleanSupplier privateRobinson,
+            final BooleanSupplier localhostAdmin) {
         this.request = request;
         this.response = response;
         this.configWriter = configWriter;
         this.privateRobinson = privateRobinson;
+        this.localhostAdmin = localhostAdmin;
     }
 
     static ApiException toApi(final AccessException e) {
@@ -402,8 +406,14 @@ final class AccessApi {
 
     private JSONObject accessView(final ScoutroAccess access) {
         final List<String> warnings = new ArrayList<>();
-        if (access.protectedMode() && !this.privateRobinson.getAsBoolean()) {
-            warnings.add("p2p_not_private");
+        if (access.protectedMode() && access.settings.peerToPeerSetting()) {
+            warnings.add("p2p_open"); // other peers and every client of the port read all collections
+        } else if (access.protectedMode() && !this.privateRobinson.getAsBoolean()) {
+            warnings.add("p2p_closed"); // a network peer no longer answers searches nor distributes its index
+        }
+        if (access.protectedMode() && this.localhostAdmin.getAsBoolean()) {
+            // behind a reverse proxy on the same computer every request would come from localhost
+            warnings.add("localhost_admin");
         }
         if (access.builtinAdminLogin() && access.builtinDefaultPassword()) {
             warnings.add("builtin_default_password");
@@ -414,6 +424,7 @@ final class AccessApi {
         return Json.obj("protected", access.protectedMode(), "protectedSetting", access.settings.protectedSetting(),
                 "guest", access.guestEnabled(), "guestSetting", access.settings.guestSetting(),
                 "guestCollections", new JSONArray(access.settings.guestCollections()),
+                "peerToPeer", access.settings.peerToPeerSetting(),
                 "builtinAdminLogin", access.settings.builtinAdminLogin(), "builtinAdminName", access.builtinAdminName(),
                 "loginPage", access.settings.loginPage(), "activeAdministrators", access.accounts.activeAdministrators(),
                 "restrictedActive", access.accounts.anyActiveRestricted(),
@@ -423,16 +434,33 @@ final class AccessApi {
 
     private JSONObject accessPatch(final ScoutroAccess access, final Caller caller, final JSONObject b)
             throws AccessException, ApiException {
-        allowOnly(b, "protected", "guest", "guestCollections", "builtinAdminLogin");
+        // the same lock as account changes: the last-administrator rule reads both the accounts and these settings
+        synchronized (access.accounts) {
+            return accessPatchLocked(access, caller, b);
+        }
+    }
+
+    private JSONObject accessPatchLocked(final ScoutroAccess access, final Caller caller, final JSONObject b)
+            throws AccessException, ApiException {
+        allowOnly(b, "protected", "guest", "guestCollections", "peerToPeer", "builtinAdminLogin");
         final List<String> changed = new ArrayList<>();
         final boolean protectedNext = b.has("protected") ? b.optBoolean("protected", false) : access.settings.protectedSetting();
         final boolean guestNext = b.has("guest") ? b.optBoolean("guest", false) : access.settings.guestSetting();
+        final boolean peerToPeerNext = b.has("peerToPeer") ? b.optBoolean("peerToPeer", false) : access.settings.peerToPeerSetting();
         if (!protectedNext && access.accounts.anyActiveRestricted()) {
             throw new AccessException(409, "restricted_accounts_active",
                     "Lock or remove the active Research and Operator accounts before leaving protected mode.", "protected");
         }
         if (guestNext && !protectedNext) {
             throw new AccessException(409, "protected_mode_required", "Guest access needs the protected access mode.", "guest");
+        }
+        if (peerToPeerNext && !protectedNext) {
+            // compatible mode keeps YaCy's network rules anyway; a stored release would silently open the next protected mode
+            throw access.settings.peerToPeerSetting() && !b.has("peerToPeer")
+                    ? new AccessException(409, "peer_to_peer_on",
+                            "Switch off peer-to-peer in protected mode before leaving protected mode.", "peerToPeer")
+                    : new AccessException(409, "protected_mode_required",
+                            "Peer-to-peer in protected mode needs the protected access mode.", "peerToPeer");
         }
         List<String> guestCollections = null;
         if (b.has("guestCollections")) {
@@ -463,6 +491,10 @@ final class AccessApi {
             this.configWriter.accept(AccessSettings.GUEST, String.valueOf(guestNext));
             changed.add("guest");
         }
+        if (b.has("peerToPeer") && peerToPeerNext != access.settings.peerToPeerSetting()) {
+            this.configWriter.accept(AccessSettings.PEER_TO_PEER, String.valueOf(peerToPeerNext));
+            changed.add("peerToPeer");
+        }
         if (guestCollections != null && !guestCollections.equals(access.settings.guestCollections())) {
             this.configWriter.accept(AccessSettings.GUEST_COLLECTIONS, String.join(",", guestCollections));
             changed.add("guestCollections");
@@ -473,7 +505,7 @@ final class AccessApi {
         }
         if (!changed.isEmpty()) {
             access.audit.record(caller.actor(), "access.changed", String.join("+", changed), "ok",
-                    "protected=" + access.protectedMode() + " guest=" + access.guestEnabled(), client());
+                    "protected=" + access.protectedMode() + " guest=" + access.guestEnabled() + " p2p=" + access.peerToPeer(), client());
         }
         final JSONObject out = accessView(access);
         Json.put(out, "changed", new JSONArray(changed));

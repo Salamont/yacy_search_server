@@ -46,6 +46,30 @@ public class RoutePolicyTest {
     }
 
     @Test
+    public void protectedModeClosesPeerToPeerIndexRoutesUntilAllowed() {
+        // read or write every collection: search, URL metadata, host index, counts, index transfer, crawl receipts
+        final String[] data = {"/yacy/search.html", "/yacy/urls.xml", "/yacy/idx.json", "/yacy/query.html",
+            "/yacy/transferRWI.html", "/yacy/transferURL.html", "/yacy/crawlReceipt.html", "/yacy/search.json",
+            "/yacy/unknown.html", "/yacy/"};
+        for (final String p : data) {
+            assertEquals(p, RoutePolicy.Kind.ADMIN, kind(p, true));
+            assertEquals(p, RoutePolicy.Kind.ADMIN, RoutePolicy.classify(p, true, false).kind);
+            assertEquals(p, RoutePolicy.Kind.LEGACY, RoutePolicy.classify(p, true, true).kind);
+            assertEquals(p, RoutePolicy.Kind.LEGACY, kind(p, false));
+        }
+        // no index data: the handshake keeps YaCy's network rules (also Steering's restart check)
+        for (final String p : new String[] {"/yacy/hello.html", "/yacy/seedlist.json", "/yacy/seedlist.xml", "/yacy/seedlist.html",
+                "/yacy/profile.html", "/yacy/list.html", "/yacy/message.html"}) {
+            assertEquals(p, RoutePolicy.Kind.LEGACY, kind(p, true));
+        }
+        // path tricks never reach the handshake rule
+        for (final String p : new String[] {"/yacy/hello.html/../search.html", "/yacy//search.html", "/yacy/%73earch.html",
+                "/yacy/hello.html;/../urls.xml"}) {
+            assertEquals(p, RoutePolicy.Kind.ADMIN, kind(p, true));
+        }
+    }
+
+    @Test
     public void unusualPathsNeverMatchTheAllowlist() {
         for (final String p : new String[] {"/env/../Status.html", "//env/x.css", "/env/x.css;jsessionid=1", "/env\\x.css",
                 "/scoutro-login.html/../ConfigAccounts_p.html", "/%65nv/x.css", "relative.css", ""}) {

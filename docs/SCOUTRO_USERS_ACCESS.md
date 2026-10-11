@@ -109,7 +109,8 @@ Route table in protected mode:
 | `/scoutro-login.html`, `POST /scoutro/api/v1/auth/login`, `GET /scoutro/api/v1/auth/session`, `POST /scoutro/api/v1/auth/logout` | everyone (self-protected) |
 | `/scoutro/api/v1/health`, `/scoutro/api/v1/ui/*`, `/scoutro/api/openapi.json`, `/scoutro/api/actions.json` | everyone (as before) |
 | `/scoutro/api/agent/v1/**` | agent token (as before) |
-| `/yacy/**` (peer-to-peer) | YaCy network rules (unchanged)³ |
+| `/yacy/hello.html`, `/yacy/seedlist.*`, `/yacy/profile.html`, `/yacy/list.html`, `/yacy/message.html` (peer-to-peer without index data) | YaCy network rules (unchanged)³ |
+| other `/yacy/**` (peer search, URL metadata, host index, counts, index transfer) | administrator; YaCy network rules only with `scoutro.access.p2p=true`³ |
 | `/`, `/index.html`, `/scoutro-search.html`, `GET /v1/search`, `GET /v1/collections` | `search` (signed in) or guest |
 | `/scoutro-account.html`, other `/scoutro/api/v1/auth/*` | signed in |
 | `/scoutro-dashboard.html`, `/IndexBrowser_p.html`, `/ScoutroSEO_p.html`, `/ScoutroKnowledge_p.html` | `read` |
@@ -118,11 +119,22 @@ Route table in protected mode:
 | other `/scoutro/api/v1/*` | signed in at the container; the servlet decides per route (deny by default) |
 | everything else | administrator |
 
-³ A peer that takes part in the YaCy network (not private Robinson mode)
-answers remote searches of other peers from the whole index. That is a
-network decision of the administrator; collection rights do not apply to
-peers. *Settings → Users* warns when protected mode is on and the peer is not
-in private Robinson mode.
+³ YaCy's peer-to-peer routes answer from the whole index and know no
+collections: `/yacy/search.html` searches every collection, `/yacy/urls.xml`
+returns address, title, author and date of any document whose URL hash is
+known, `/yacy/idx.json` and `/yacy/query.html` reveal hosts and counts, and
+`transferRWI`/`transferURL`/`crawlReceipt` write into the index. The
+freeworld network is `uncontrolled`, so every client that reaches the port
+is accepted as a peer; private Robinson mode does not close `urls.xml` and
+`idx.json`. In protected mode these routes therefore need the administrator,
+and the index distribution (DHT) pauses, unless *Peer-to-peer in protected
+mode* (`scoutro.access.p2p`, off by default, logged) is switched on; then
+YaCy's network rules apply and collection rights do not. The handshake
+routes stay open, so the peer remains visible in the network and *Steering*
+still sees a restarted peer. *Settings → Users* warns with `p2p_open` when
+the switch is on, and with `p2p_closed` when the peer is set up for the
+network but protected mode closes it. Outgoing searches of the administrator
+in the network are unchanged.
 
 ## 5. Sign-in, sessions and protection
 
@@ -211,12 +223,15 @@ contents, search texts.
    Digest access for tools stays.
 4. **Protected mode.** Switch it on; check tools that used public native
    routes without credentials (on Olares the API entrance forwards only
-   `/scoutro/api/`, so it is not affected). Then create Research and Operator
-   accounts.
+   `/scoutro/api/`, so it is not affected). A peer in the YaCy network then
+   stops answering peer searches and distributing its index (see note ³);
+   allow peer-to-peer only if every collection may be public. Then create
+   Research and Operator accounts.
 5. **Fallback.**
    - Login page problems: `scoutro.auth.loginPage=false` (Digest dialog).
-   - Protected mode: lock the restricted accounts, switch guest off, switch
-     protected mode off on *Settings → Users*, or stop Scoutro and set
+   - Protected mode: lock the restricted accounts, switch guest and
+     peer-to-peer off, switch protected mode off on *Settings → Users*, or
+     stop Scoutro and set
      `scoutro.access.protected=false` and remove/rename
      `DATA/SETTINGS/scoutro-users.json` (only the built-in administrator
      remains).

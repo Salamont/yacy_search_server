@@ -422,7 +422,8 @@ public class ScoutroApiServlet extends HttpServlet {
             if (sb != null) {
                 sb.setConfig(key, value);
             }
-        }, () -> sb != null && sb.isRobinsonMode() && !sb.isPublicRobinson());
+        }, () -> sb != null && sb.isRobinsonMode() && !sb.isPublicRobinson(),
+                () -> sb != null && sb.getConfigBool(SwitchboardConstants.ADMIN_ACCOUNT_FOR_LOCALHOST, false));
     }
 
     /**

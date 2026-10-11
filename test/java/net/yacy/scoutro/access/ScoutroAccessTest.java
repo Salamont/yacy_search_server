@@ -345,9 +345,35 @@ public class ScoutroAccessTest {
             assertEquals(429, e.status());
             assertEquals("too_many_attempts", e.code());
         }
+        // a flood of refused attempts writes one audit entry per block, the older entries stay
+        for (int i = 0; i < 50; i++) {
+            try {
+                this.access.login("anna", "wrong-x", "10.0.0.99", "a");
+                fail();
+            } catch (final AccessException e) {
+                assertEquals(429, e.status());
+            }
+        }
+        final long refusals = this.access.audit.recent("anna", 500).stream()
+                .filter(e -> "too_many_attempts".equals(e.optString("reason"))).count();
+        assertEquals(1, refusals);
         this.clock.addAndGet(LoginThrottle.WINDOW + 1000);
         assertNotNull("the wait ends by itself", this.access.login("anna", "anna-password-1", "10.0.0.99", "a"));
         assertEquals(Account.Status.ACTIVE, this.access.accounts.get("anna").status());
+    }
+
+    @Test
+    public void aFloodOfNewNamesNeverResetsTheCounterOfAnAccount() {
+        final java.util.concurrent.atomic.AtomicLong now = new java.util.concurrent.atomic.AtomicLong(1_000_000);
+        final LoginThrottle t = new LoginThrottle(now::get);
+        for (int i = 0; i < LoginThrottle.ACCOUNT_FAILURES - 1; i++) {
+            t.failure("anna", "10.0.0." + i);
+        }
+        for (int i = 0; i < LoginThrottle.MAX_KEYS + 10; i++) {
+            t.failure("junk" + i, "10.1." + (i / 250) + "." + (i % 250));
+        }
+        t.failure("anna", "10.0.0.200");
+        assertTrue("anna is still counted and now waits", t.waitSeconds("anna", "10.0.0.201") > 0);
     }
 
     @Test
@@ -405,6 +431,23 @@ public class ScoutroAccessTest {
             assertEquals("collection_not_allowed", e.code());
         }
         assertEquals(List.of("pub-web"), guest.view(null));
+    }
+
+    @Test
+    public void peerToPeerStaysClosedInProtectedModeUntilItIsAllowed() throws Exception {
+        assertTrue("compatible mode keeps YaCy's network rules", this.access.peerToPeer());
+        protectedMode(true);
+        assertFalse("protected mode closes peer-to-peer by default", this.access.peerToPeer());
+        this.config.put(AccessSettings.PEER_TO_PEER, "true");
+        assertTrue(this.access.peerToPeer());
+        // protected through an active restricted account (setting edited by hand): still closed without the release
+        this.config.put(AccessSettings.PEER_TO_PEER, "false");
+        create("anna", Role.RESEARCH, List.of("a-web"), false);
+        protectedMode(false);
+        assertTrue(this.access.protectedMode());
+        assertFalse(this.access.peerToPeer());
+        this.config.put(AccessSettings.PEER_TO_PEER, "yes");
+        assertFalse("only the value true releases", this.access.peerToPeer());
     }
 
     private static void deleteRecursively(final File f) {

@@ -31,6 +31,7 @@ public final class AccessSettings {
     public static final String PROTECTED = "scoutro.access.protected";
     public static final String GUEST = "scoutro.access.guest";
     public static final String GUEST_COLLECTIONS = "scoutro.access.guest.collections";
+    public static final String PEER_TO_PEER = "scoutro.access.p2p";
     public static final String BUILTIN_ADMIN_LOGIN = "scoutro.auth.builtinAdminLogin";
     public static final String LOGIN_PAGE = "scoutro.auth.loginPage";
     public static final String IDLE_MINUTES = "scoutro.auth.session.idleMinutes";
@@ -76,6 +77,11 @@ public final class AccessSettings {
 
     public boolean guestSetting() {
         return bool(GUEST, false);
+    }
+
+    /** Peer-to-peer data exchange in protected mode; off by default ({@link ScoutroAccess#peerToPeer()}). */
+    public boolean peerToPeerSetting() {
+        return bool(PEER_TO_PEER, false);
     }
 
     public List<String> guestCollections() {

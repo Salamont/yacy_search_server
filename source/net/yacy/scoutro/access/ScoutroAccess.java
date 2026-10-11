@@ -143,6 +143,15 @@ public final class ScoutroAccess implements AccountStore.Context {
         return protectedMode() && this.settings.guestSetting();
     }
 
+    /**
+     * True when YaCy's peer-to-peer rules apply unchanged: always in compatible mode, in protected mode
+     * only with the explicit setting. Otherwise the peer-to-peer routes that read or write the index need
+     * the administrator and the index distribution (DHT) pauses, so no collection leaves through the network.
+     */
+    public boolean peerToPeer() {
+        return !protectedMode() || this.settings.peerToPeerSetting();
+    }
+
     public Scope guestScope() {
         return guestEnabled() ? Scope.of(this.settings.guestCollections()) : Scope.NONE;
     }
@@ -192,7 +201,9 @@ public final class ScoutroAccess implements AccountStore.Context {
         final String attempted = AccountStore.normalize(name);
         final long wait = this.throttle.waitSeconds(attempted, client);
         if (wait > 0) {
-            this.audit.record(attempted, "auth.login", attempted, "denied", "too_many_attempts", client);
+            if (this.throttle.firstRefusal(attempted, client, wait)) {
+                this.audit.record(attempted, "auth.login", attempted, "denied", "too_many_attempts", client);
+            }
             throw new AccessException(429, "too_many_attempts",
                     "Too many failed sign-ins. Try again in " + Math.max(1, (wait + 59) / 60) + " minutes.", String.valueOf(wait));
         }

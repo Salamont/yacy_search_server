@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.concurrent.Semaphore;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,6 +40,12 @@ public final class PasswordHasher {
     static final int PARALLELISM = 1;
     static final int SALT_BYTES = 16;
     static final int HASH_BYTES = 32;
+    /**
+     * Argon2 computations at the same time. Each one holds its whole memory (19 MiB), so parallel
+     * sign-ins, also with unknown names, would otherwise fill the heap; more than the cores adds no speed.
+     */
+    static final int CONCURRENT = Math.max(1, Math.min(4, Runtime.getRuntime().availableProcessors()));
+    static final Semaphore SLOTS = new Semaphore(CONCURRENT, true);
 
     private static final Pattern PHC = Pattern.compile(
             "\\$argon2id\\$v=19\\$m=(\\d{1,7}),t=(\\d{1,2}),p=(\\d{1,2})\\$([A-Za-z0-9+/]{16,64})\\$([A-Za-z0-9+/]{16,128})");
@@ -120,10 +127,15 @@ public final class PasswordHasher {
                 .withParallelism(lanes)
                 .withSalt(salt)
                 .build();
-        final Argon2BytesGenerator generator = new Argon2BytesGenerator();
-        generator.init(params);
         final byte[] out = new byte[length];
-        generator.generateBytes(password.getBytes(StandardCharsets.UTF_8), out);
+        SLOTS.acquireUninterruptibly();
+        try {
+            final Argon2BytesGenerator generator = new Argon2BytesGenerator();
+            generator.init(params);
+            generator.generateBytes(password.getBytes(StandardCharsets.UTF_8), out);
+        } finally {
+            SLOTS.release();
+        }
         return out;
     }
 }

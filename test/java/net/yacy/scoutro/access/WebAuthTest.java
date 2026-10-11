@@ -54,6 +54,10 @@ public class WebAuthTest {
         assertFalse("token from another site", WebAuth.csrfAllowed(TestRequests.get("/scoutro/api/v1/crawls").method("POST")
                 .header(WebAuth.CSRF_HEADER, s.csrf).header("Sec-Fetch-Site", "cross-site").build(), s));
         assertFalse("encoded path", WebAuth.csrfAllowed(TestRequests.get("/%73coutro/api/v1/crawls").method("POST").build(), s));
+        // path parameters: the container routes /scoutro;x/api/... to the API, so the token is required there too
+        for (final String uri : new String[] {"/scoutro;x/api/v1/users", "/scoutro/api;x/v1/users", "/scoutro;/api/v1/users"}) {
+            assertFalse(uri, WebAuth.csrfAllowed(TestRequests.get(uri).method("POST").build(), s));
+        }
         // old YaCy forms: same site only
         assertTrue(WebAuth.csrfAllowed(TestRequests.get("/ConfigAccounts_p.html").method("POST")
                 .header("Origin", "http://peer:8090").header("Host", "peer:8090").build(), s));

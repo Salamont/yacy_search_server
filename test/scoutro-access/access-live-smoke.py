@@ -24,12 +24,16 @@ import sys
 import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 REPO = Path(__file__).resolve().parents[2]
 JAVA = os.environ.get("JAVA", "java")
 CLASSPATH = f"{REPO}/build/classes/java/main:{REPO}/lib/*"
 RESULTS = {"pass": 0, "fail": []}
+# a fixture document of edelsenior-web, outside the Research account's collection
+FOREIGN_URL = "https://edel.example/page-0"
+PEER_UNIT = "network.unit.name=webportal"
 
 
 def check(condition, label, detail=""):
@@ -80,6 +84,15 @@ class Client:
             return json.loads(raw)
         except ValueError:
             return raw.decode("utf-8", "replace")[:400]
+
+    def page(self, path):
+        """A page as a browser navigation: status and the complete text."""
+        request = urllib.request.Request(self.base + path, headers={"Accept": "text/html"})
+        try:
+            with self.opener.open(request, timeout=60) as response:
+                return response.status, response.read().decode("utf-8", "replace")
+        except urllib.error.HTTPError as e:
+            return e.code, e.read().decode("utf-8", "replace")
 
     def login(self, username, password):
         status, body, _ = self.call("POST", "/scoutro/api/v1/auth/login", {"username": username, "password": password})
@@ -142,6 +155,8 @@ def run(base):
     check(status == 401 and "Digest" in headers.get("WWW-Authenticate", ""), "API never redirected", str(status))
     check(anon.call("GET", "/yacysearch.json?query=test")[0] == 200, "compatible mode: public search unchanged")
     check(anon.call("GET", "/scoutro-login.html")[0] == 200, "login page public")
+    status, text = anon.page(f"/yacy/urls.xml?{PEER_UNIT}&call=urlhashlist&hashes={url_hash(digest, FOREIGN_URL)}")
+    check(status == 200 and FOREIGN_URL in str(text), "compatible mode: YaCy's peer routes unchanged", str(status))
 
     admin = Client(base)
     status, body = admin.login("admin", "yacy")
@@ -195,6 +210,7 @@ def run(base):
     check(anon.call("GET", "/scoutro/api/agent/v1/capabilities")[0] == 401, "agent path still needs its token")
     check(digest.call("GET", "/yacysearch.json?query=a")[0] == 200, "digest automation still searches")
     check(digest.call("GET", "/Status.html")[0] == 200, "digest admin pages unchanged")
+    peer_routes(admin, digest, anna, anon)
 
     # --- rights changes and locking end sessions ---
     status, body, _ = admin.call("PATCH", "/scoutro/api/v1/users/anna", {"collections": ["stackfinder-web", "edelsenior-web"]})
@@ -262,6 +278,57 @@ def run(base):
            "auth.password.changed", "access.changed", "auth.logout"} <= actions, "audit actions", str(sorted(actions)))
     check("anna-password-1" not in text and "temporary-pass-1" not in text and "ben-admin-password" not in text, "audit without passwords")
     check(anon.call("GET", "/scoutro/api/v1/health")[0] == 200, "internal loopback calls work in protected mode")
+
+    # --- leaving protected mode: a peer-to-peer release must be withdrawn first ---
+    check(digest.call("PATCH", "/scoutro/api/v1/access", {"peerToPeer": True})[0] == 200, "allow peer-to-peer before leaving")
+    for user in ("anna", "otto"):
+        digest.call("PATCH", "/scoutro/api/v1/users/" + user, {"status": "locked"})
+    status, body, _ = digest.call("PATCH", "/scoutro/api/v1/access", {"protected": False})
+    check(status == 409 and digest.code(body) == "peer_to_peer_on", "protected mode is not left with peer-to-peer on", str(body)[:200])
+    status, body, _ = digest.call("PATCH", "/scoutro/api/v1/access", {"protected": False, "peerToPeer": False})
+    check(status == 200 and body["protected"] is False and body["peerToPeer"] is False, "leave protected mode", str(body)[:200])
+    status, body, _ = digest.call("PATCH", "/scoutro/api/v1/access", {"peerToPeer": True})
+    check(status == 409 and digest.code(body) == "protected_mode_required", "no stored peer-to-peer release outside protected mode")
+
+
+def url_hash(digest, url):
+    """The YaCy URL hash (Solr id) of a fixture document, read as the administrator."""
+    status, body, _ = digest.call("GET", "/solr/select?wt=json&fl=id&q=" + urllib.parse.quote(f'sku:"{url}"'))
+    docs = body.get("response", {}).get("docs", []) if isinstance(body, dict) else []
+    return docs[0]["id"] if docs else ""
+
+
+def peer_routes(admin, digest, anna, anon):
+    """Protected mode: YaCy's peer routes that read or write the index need the administrator until peer-to-peer is allowed."""
+    foreign = url_hash(digest, FOREIGN_URL)
+    check(len(foreign) == 12, "fixture URL hash", foreign)
+    data = (f"/yacy/urls.xml?{PEER_UNIT}&call=urlhashlist&hashes={foreign}",
+            f"/yacy/search.html?{PEER_UNIT}&query=TPnU8AafwY-z",  # word hash of "fixture"
+            f"/yacy/idx.json?{PEER_UNIT}&object=host", f"/yacy/query.html?{PEER_UNIT}&object=rwicount",
+            f"/yacy/transferURL.html?{PEER_UNIT}", f"/yacy/transferRWI.html?{PEER_UNIT}", f"/yacy/crawlReceipt.html?{PEER_UNIT}")
+    status, body, _ = admin.call("GET", "/scoutro/api/v1/access")
+    check(body.get("peerToPeer") is False and "p2p_closed" in body.get("warnings", []), "peer-to-peer closed by default",
+          str(body)[:300])
+    for client, name, code in ((anon, "anonymous", 401), (anna, "research", 403)):
+        for path in data:
+            status, text = client.page(path)
+            check(status == code and FOREIGN_URL not in text, f"{name} refused on peer route {path.split('?')[0]}", str(status))
+    for path in (f"/yacy/hello.html?{PEER_UNIT}", "/yacy/seedlist.json"):
+        check(anon.call("GET", path)[0] == 200, "peer handshake stays open: " + path.split("?")[0])
+    status, text = digest.page(data[0])
+    check(status == 200 and FOREIGN_URL in text, "administrator keeps the peer routes", str(status))
+    # the explicit release applies YaCy's network rules: every collection, also for anonymous clients
+    status, body, _ = admin.call("PATCH", "/scoutro/api/v1/access", {"peerToPeer": True})
+    check(status == 200 and body.get("peerToPeer") is True and "p2p_open" in body.get("warnings", [])
+          and body.get("changed") == ["peerToPeer"], "allow peer-to-peer", str(body)[:300])
+    status, text = anon.page(data[0])
+    check(status == 200 and FOREIGN_URL in text, "released peer-to-peer answers from every collection", str(status))
+    status, body, _ = admin.call("PATCH", "/scoutro/api/v1/access", {"peerToPeer": False})
+    check(status == 200 and body.get("peerToPeer") is False and "p2p_closed" in body.get("warnings", []), "close peer-to-peer again")
+    check(anon.call("GET", data[0])[0] == 401, "closed again at once")
+    status, body, _ = digest.call("GET", "/scoutro/api/v1/access/audit?limit=20")
+    check(any(e.get("action") == "access.changed" and e.get("target") == "peerToPeer" for e in body.get("entries", [])),
+          "peer-to-peer changes are audited")
 
 
 def main():
