@@ -77,6 +77,19 @@ public class KnowledgeApiTest {
     }
 
     @Test
+    public void statusIncludesNonMutatingSchedulerDiagnosticsWhenSyncIsNotConfigured() throws Exception {
+        final KgRuntime r=running();
+        try {
+            final JSONObject status=new KnowledgeApi(()->r).route("GET",STATUS,body("{}"));
+            final JSONObject scheduler=status.getJSONObject("sync").getJSONObject("scheduler");
+            assertEquals("not_scheduled",scheduler.getString("state"));
+            assertEquals(0L,scheduler.getLong("completedTicks"));
+            assertFalse(scheduler.getBoolean("automaticRecovery"));
+            assertTrue(scheduler.isNull("lastError"));
+        } finally {r.close();}
+    }
+
+    @Test
     public void pauseAndResume() throws Exception {
         final KgRuntime r = running();
         try {

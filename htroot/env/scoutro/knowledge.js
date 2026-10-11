@@ -212,7 +212,14 @@
     const byType = bt ? [['pending_new', bt.new], ['pending_update', bt.update], ['pending_delete', bt.delete],
       ['pending_reconcile', bt.reconcile], ['pending_captured', bt.captured], ['pending_llm', s.llm?.queue?.items]]
       .filter(([, n]) => n != null).map(([k, n]) => t(k) + ' ' + fmt(n)).join(' · ') : null;
-    stats('sync', [['state', sy.state], ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['pending_types', byType],
+    const scheduler = sy.scheduler, scan = sy.reconcile?.current;
+    stats('sync', [['state', sy.state], ['sync_scheduler', scheduler ? t('sync_task_' + scheduler.state) : null],
+      ['sync_last_started', scheduler?.lastStartedAt ? date(scheduler.lastStartedAt) : null],
+      ['sync_last_finished', scheduler?.lastFinishedAt ? date(scheduler.lastFinishedAt) : null],
+      ['sync_completed_ticks', scheduler?.completedTicks],
+      ['sync_task_error', scheduler?.lastError || sy.lastError],
+      ['sync_scanned', scan?.scanned], ['sync_cursor', scan?.cursor],
+      ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['pending_types', byType],
       ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
       ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);

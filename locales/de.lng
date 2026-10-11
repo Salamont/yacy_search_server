@@ -5811,6 +5811,19 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 (usage knowledge).==(Verwendung knowledge).
 >Pending changes<==>Ausstehende Änderungen<
 >Pending by type<==>Ausstehend nach Typ<
+>Sync scheduler<==>Sync-Zeitgeber<
+>Scheduled; waiting for next tick<==>Eingeplant; wartet auf nächsten Takt<
+>Sync task executing<==>Sync-Aufgabe läuft<
+>Sync task terminated; inspect server log<==>Sync-Aufgabe beendet; Serverprotokoll prüfen<
+>Sync scheduler stopped<==>Sync-Zeitgeber gestoppt<
+>Sync task cancelled<==>Sync-Aufgabe abgebrochen<
+>No background sync task scheduled<==>Keine Sync-Hintergrundaufgabe eingeplant<
+>Last sync tick started<==>Letzter Sync-Takt gestartet<
+>Last sync tick finished<==>Letzter Sync-Takt beendet<
+>Completed sync ticks (including idle)<==>Abgeschlossene Sync-Takte (einschließlich Leerlauf)<
+>Sync error<==>Sync-Fehler<
+>Documents scanned in current reconcile<==>Dokumente im laufenden Abgleich geprüft<
+>Current reconcile cursor<==>Cursor des laufenden Abgleichs<
 >new pages<==>neue Seiten<
 >updates<==>Aktualisierungen<
 >deletions<==>Löschungen<

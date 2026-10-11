@@ -239,7 +239,9 @@ public final class SyncService {
     // ------------------------------------------------------------------ step
 
     /**
-     * One bounded step of the sync thread. Never throws.
+     * One bounded step of the sync thread. Expected storage/Solr failures and
+     * RuntimeExceptions are handled here; Errors propagate to the runtime's
+     * terminal task boundary. They are not safe to retry automatically.
      *
      * @return true if more work is due at once
      */
@@ -324,13 +326,20 @@ public final class SyncService {
                 break;
             }
             final WorkQueue.Added a;
+            boolean persisted = false;
             try {
                 a = this.store.write(WriteClass.MAINTENANCE, SMALL + events.size() * 256L,
                         tx -> WorkQueue.events(tx, events, now, this.queueMax));
+                persisted = true;
             } catch (final KgException e) {
-                this.dirty.restore(events);
                 this.counters.drainRefused.incrementAndGet();
                 return;
+            } finally {
+                // The store rolls back RuntimeException/Error as well. Keep
+                // the captured batch even when a terminal task error escapes.
+                if (!persisted) {
+                    this.dirty.restore(events);
+                }
             }
             this.counters.drained.addAndGet(events.size());
             this.nextClaimAt = 0L;

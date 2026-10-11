@@ -26,6 +26,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -264,6 +265,14 @@ public final class KgRuntime {
     private ScheduledExecutorService watchdog;
     private ScheduledExecutorService maintenance;
     private ScheduledExecutorService syncThread;
+    /** A closed session may finish late; it must never overwrite replacement-session diagnostics. */
+    private static final class SyncTaskState {
+        volatile ScheduledFuture<?> future;
+        volatile boolean executing, closed;
+        volatile long lastStartedAt, lastFinishedAt, completedTicks, failedAt;
+        volatile String lastError;
+    }
+    private volatile SyncTaskState syncTask = new SyncTaskState();
     private DirtySet dirty;
     private volatile SyncService sync;
     private volatile LlmService llm;
@@ -431,6 +440,7 @@ public final class KgRuntime {
     public synchronized void open() {
         this.startedAt = this.env.clock.getAsLong();
         this.closing = false;
+        this.syncTask = new SyncTaskState();
         try {
             this.config = KgConfig.read(this.env.config, this.env.keys.get());
             this.jsonld = new JsonLdCapturePolicy(this.config);
@@ -481,7 +491,8 @@ public final class KgRuntime {
                 this.maintenance.scheduleWithFixedDelay(this::tick, 0L, MAINTENANCE_MILLIS, TimeUnit.MILLISECONDS);
                 if (this.sync != null) {
                     this.syncThread = daemon(SYNC_THREAD);
-                    this.syncThread.scheduleWithFixedDelay(this::syncTick, 0L, SYNC_DELAY_MILLIS, TimeUnit.MILLISECONDS);
+                    final SyncTaskState task = this.syncTask;
+                    task.future = this.syncThread.scheduleWithFixedDelay(() -> syncTick(task), 0L, SYNC_DELAY_MILLIS, TimeUnit.MILLISECONDS);
                 }
                 if (this.llm != null) {
                     this.llmThreads = daemons(EXTRACT_THREAD, this.config.llmParallel);
@@ -620,6 +631,8 @@ public final class KgRuntime {
      */
     public synchronized void close() {
         this.closing = true;
+        final SyncTaskState task = this.syncTask;
+        task.closed = true;
         final KgStore s = this.store;
         final KgRebuild rb = this.rebuild;
         if (rb != null && rb.active() && !rb.isRebuildThread()) {
@@ -645,6 +658,10 @@ public final class KgRuntime {
         this.llm = null;
         if (this.sync != null) {
             this.sync.requestStop();
+        }
+        final ScheduledFuture<?> scheduledSync = task.future;
+        if (scheduledSync != null) {
+            scheduledSync.cancel(false); // prevent another start; never interrupt embedded Solr
         }
         if (this.syncThread != null) {
             this.syncThread.shutdown();
@@ -732,16 +749,56 @@ public final class KgRuntime {
 
     /** Sync step: runs bounded sync steps for up to a second, then yields. */
     void syncTick() {
+        syncTick(this.syncTask);
+    }
+
+    private void syncTick(final SyncTaskState task) {
         final SyncService s = this.sync;
-        if (s == null || this.state != State.RUNNING || this.closing) {
+        if (s == null || this.state != State.RUNNING || this.closing || task.closed || task != this.syncTask) {
             return;
         }
-        final long until = this.env.clock.getAsLong() + SYNC_SLICE_MILLIS;
-        int steps = 0;
-        while (s.step() && !this.closing && !Thread.currentThread().isInterrupted() && this.env.clock.getAsLong() < until
-                && ++steps < SYNC_SLICE_STEPS) {
-            // more work is due right away
+        task.executing = true;
+        try {
+            task.lastStartedAt = this.env.clock.getAsLong();
+            final long until = task.lastStartedAt + SYNC_SLICE_MILLIS;
+            int steps = 0;
+            while (s.step() && !this.closing && !task.closed && task == this.syncTask && !Thread.currentThread().isInterrupted() && this.env.clock.getAsLong() < until
+                    && ++steps < SYNC_SLICE_STEPS) {
+                // more work is due right away
+            }
+            task.completedTicks++;
+        } catch (final RuntimeException | Error failure) {
+            // Do not restart after an Error: Java/SQLite state may not be safe
+            // for recovery (in particular VirtualMachineError/ThreadDeath).
+            // Retain the failure even though ScheduledThreadPoolExecutor hides
+            // it in its Future rather than the thread's uncaught handler.
+            task.lastError = failure.getClass().getName();
+            task.failedAt = this.env.clock.getAsLong();
+            LOG.severe("knowledge graph sync task terminated; automatic recovery is disabled", failure);
+            throw failure;
+        } finally {
+            task.lastFinishedAt = this.env.clock.getAsLong();
+            task.executing = false;
         }
+    }
+
+    /** No SQL or scheduler mutation; timestamps/counters describe this runtime session only. */
+    private JSONObject syncSchedulerStatus() {
+        final SyncTaskState task = this.syncTask;
+        final ScheduledFuture<?> future = task.future;
+        final boolean cancelled = future != null && future.isCancelled();
+        final boolean done = future != null && future.isDone();
+        final String schedulerState = task.closed || this.closing || this.state == State.STOPPED ? "stopped"
+                : task.lastError != null || (done && !cancelled) ? "failed"
+                : cancelled ? "cancelled" : future == null ? "not_scheduled"
+                : task.executing ? "running" : "scheduled";
+        return KgJson.obj("state", schedulerState, "executing", task.executing,
+                "done", done, "cancelled", cancelled,
+                "lastStartedAt", task.lastStartedAt > 0L ? task.lastStartedAt : null,
+                "lastFinishedAt", task.lastFinishedAt > 0L ? task.lastFinishedAt : null,
+                "completedTicks", task.completedTicks,
+                "failedAt", task.failedAt > 0L ? task.failedAt : null,
+                "lastError", task.lastError, "automaticRecovery", false);
     }
 
     /** Extract step: one document at a time, for up to a second, then yields. */
@@ -1324,8 +1381,16 @@ public final class KgRuntime {
                     "integrity", integrityStatus(), "manualPause", this.guard.manualPause(),
                     "manualPauseSaved", this.unsavedManualPause == null));
             final SyncService sy = this.sync;
-            KgJson.put(o, "sync", sy != null ? sy.status()
-                    : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped"));
+            final JSONObject syncStatus = sy != null ? sy.status()
+                    : KgJson.obj("state", "off", "reason", this.env.solr == null ? "not_configured" : "stopped");
+            final JSONObject scheduler = syncSchedulerStatus();
+            if ("failed".equals(scheduler.optString("state"))) {
+                KgJson.put(syncStatus, "state", "failed");
+                KgJson.put(syncStatus, "reason", "task_terminated");
+                KgJson.put(syncStatus, "lastError", this.syncTask.lastError == null ? "unexpected_task_end" : this.syncTask.lastError);
+            }
+            KgJson.put(syncStatus, "scheduler", scheduler);
+            KgJson.put(o, "sync", syncStatus);
             final LlmService ll = this.llm;
             // the model of the LLM selection (usage knowledge) is shown also while the tier is off (package 6.3)
             // no_llm_collections only while no collection is switched on for it; switched on but all off for the graph is said so

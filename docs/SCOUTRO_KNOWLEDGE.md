@@ -457,6 +457,19 @@ How big the graph gets for a given number of pages, measured, and whether
 
 ## 9. Maintenance
 
+The overview and administrator `GET /scoutro/api/v1/kg/status` expose
+`sync.scheduler`: retained task/Future state, last start/finish, completed
+ticks and terminal error class. A periodic task can be `failed` while its
+executor thread remains idle and alive. Completed ticks include idle and
+gated checks; use queue, published counters and the current reconcile's
+scanned count/cursor to assess actual progress. A terminal task error is
+logged with its stack trace and is not automatically restarted. Inspect the
+log before a controlled restart. Normal Solr/storage failures keep their
+existing retry/backoff paths. Closing a session cancels its future without
+interrupting Solr; a restore/rebuild swap starts a separate session, and no
+watchdog revives the old task. These diagnostics add no permission, setting,
+schema migration or re-extraction trigger.
+
 ### 9.1 Backup and restore (O6)
 
 - **Making one.** *Knowledge graph → Create backup*, `scoutroctl kg backup`,
