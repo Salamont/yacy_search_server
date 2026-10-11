@@ -23,6 +23,8 @@ public class MatchingTest {
     private final String provider=KgIds.entityId("organization","test","","provider"),candidate=KgIds.entityId("organization","test","","candidate");
     private final long date=1_700_000_000_000L,now=1_800_000_000_000L;
     private long observationDate=1_700_000_000_000L;
+    /** The page of the next observations (null: a neutral page of its own); undated: no source date. */
+    private String pageUrl=null;private boolean undated=false;
     @Before public void open()throws Exception {
         Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());settings.put(KgConfig.JOBS_COLLECTIONS,"a,b,c");
         cfg=KgTestSupport.config(settings);KgPaths paths=new KgPaths(tmp.getRoot());
@@ -50,8 +52,9 @@ public class MatchingTest {
             try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_observation(public_id,source_id,source_url,content_revision,subject_id,subject_type,"
                     +"organization_id,original_organization_id,identity_context,predicate,value,quote,locator,tier,extractor,vocabulary_version,"
                     +"observed_at,recorded_at,origin_scopes,source_status,certainty) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,1,'jsonld/5','test',?,?,'','removed',1)")) {
-                int n=1;for(String s:List.of(id,source,"https://example.org/"+source,"revision",actor,type,actor,actor,identity.toString(),predicate,value.toString(),quote,"/description"))p.setString(n++,s);
-                p.setLong(n++,observationDate+serial);p.setLong(n,now);p.executeUpdate();
+                int n=1;for(String s:List.of(id,source,pageUrl!=null?pageUrl:"https://example.org/"+source,"revision",actor,type,actor,actor,identity.toString(),predicate,value.toString(),quote,"/description"))p.setString(n++,s);
+                if(undated)p.setNull(n++,Types.INTEGER);else p.setLong(n++,observationDate+serial);
+                p.setLong(n,now);p.executeUpdate();
             }
             try(PreparedStatement p=c.prepareStatement("INSERT OR IGNORE INTO kg_collection(name) VALUES(?)")){p.setString(1,scope);p.executeUpdate();}
             try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_observation_scope SELECT o.observation_rowid,k.coll_id FROM kg_observation o,kg_collection k WHERE o.public_id=? AND k.name=?")) {
@@ -329,6 +332,136 @@ public class MatchingTest {
         offer("Ambulante Pflege");need("Unser Krankenhaus koordiniert das Entlassmanagement für Frau Müller für den Übergang in ambulante Versorgung in Berlin.");
         observation(provider,"organization","service_area",KgJson.obj("literal","Berlin"),"Unser Versorgungsgebiet ist Berlin.","a");
         run();assertEquals(0,count());
+    }
+    // ------------------------------------------------ context correction (docs/SCOUTRO_MATCHING.md, "Context correction")
+
+    /** A system signal exactly as the shared parser of 0.9.1 stored it (no re-check by the current parser). */
+    private String stored(String quote,String type,String product,String context)throws Exception {
+        return observation(candidate,type,"system_signal",KgJson.obj("context",context,"product",product,"scope","unspecified","section","text",
+                "system_role","unspecified"),quote,"b");
+    }
+    /** A cached contribution as MatchingService of 0.9.1 wrote it for one service and one signal. */
+    private String cachedContribution(String service,String signal)throws Exception {
+        return store.write(WriteClass.GROWTH,0,c->{
+            MatchingRules.Observation sv=MatchingRules.Observation.read(c,service),sg=MatchingRules.Observation.read(c,signal);
+            MatchingRules.Offer offer=MatchingRules.offers(sv).get(0);
+            String key=offer.evidence.id+":"+offer.rule+":"+offer.key+":"+offer.service;
+            String proposal=KgIds.derivedId("suggested_customer",offer.evidence.actor,sg.actor,"matching-v1","");
+            String id=KgIds.derivedId("suggested_customer",offer.evidence.actor,sg.actor,"contribution:"+key,sg.id);
+            JSONArray refs=new JSONArray().put(KgJson.obj("role","service","id",sv.id)).put(KgJson.obj("role","signal","id",sg.id));
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_match_contribution(public_id,proposal_id,kind,provider_id,candidate_id,rule,"
+                    +"rule_version,service_key,signal_key,corroboration_key,refs,computed_at,seen_generation) VALUES(?,?,3,?,?,?,?,?,?,?,?,?,'0.9.1')")) {
+                int n=1;for(String v:List.of(id,proposal,offer.evidence.actor,sg.actor,offer.rule,MatchingRules.VERSION,key,sg.id,MatchingRules.corroboration(offer,sg),refs.toString()))p.setString(n++,v);
+                p.setLong(n,now);p.executeUpdate();
+            }
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_match_ref VALUES(?,?)")) {
+                for(String ref:List.of(sv.id,sg.id)){p.setString(1,id);p.setString(2,ref);p.executeUpdate();}
+            }
+            MatchingAccess.remember(c,id);
+            KgChangeLog.record(c,KgChangeLog.Kind.MATCH_CONTRIBUTION,id,KgChangeLog.Op.UPSERT,null,Set.of(),Set.of(),now);
+            return id;
+        });
+    }
+    private JSONArray reasons(String... scopes)throws Exception {return page(scopes).getJSONArray("items").getJSONObject(0).getJSONArray("contributions");}
+
+    /**
+     * STELLWERK case (Olares 0.9.1): a consultancy's reference page "SAP In-House Cash" (stored internal_use; the product name
+     * matched "in-house" and "use") and "Kernkompetenz SAP Rechnungswesen" (stored required_competence) grounded incoming SAP
+     * suggestions. Read validation withdraws them at once, the next complete provider partition removes the cache rows with
+     * delete notices; an independent own-use reason of the same pair, the observations and their quotes stay.
+     */
+    @Test public void referencePageAndCoreCompetenceOfAConsultancyNoLongerGroundSuggestions()throws Exception {
+        String service=offer("SAP Logistik Beratung");
+        pageUrl="https://www.stellwerk.net/unternehmen/";String own=signal("Wir nutzen SAP intern für unsere Buchhaltung.","organization");
+        run();String independent=store.read(c->KgStore.queryString(c,"SELECT public_id FROM kg_match_contribution"));
+        pageUrl="https://www.stellwerk.net/referenzen/projekt-beispiele/";
+        String ihc=stored("SAP In-House Cash","organization","sap","internal_use");
+        String core=stored("Kernkompetenz SAP Rechnungswesen","organization","sap","required_competence");
+        pageUrl=null;
+        String a=cachedContribution(service,ihc),b=cachedContribution(service,core);
+        assertEquals("the cache of 0.9.1",3,count());
+        // read validation: only the independent reason of the same pair is shown, at once and without a calculation
+        JSONObject item=page("a","b").getJSONArray("items").getJSONObject(0);
+        assertEquals(1,page("a","b").getInt("total"));assertEquals(1,item.getInt("contributions_total"));
+        assertEquals(independent,item.getJSONArray("contributions").getJSONObject(0).getString("id"));
+        long seq=store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change"));
+        run();
+        assertEquals("only the withdrawn cache rows are removed",1,count());
+        assertEquals(independent,store.read(c->KgStore.queryString(c,"SELECT public_id FROM kg_match_contribution")));
+        // delete notices for exactly the two withdrawn reasons; the independent one is not re-announced
+        for(String id:List.of(a,b))assertEquals(id,2L,(long)store.read(c->KgStore.queryLong(c,"SELECT op FROM kg_change WHERE public_id='"+id+"'")));
+        assertEquals(0L,(long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_change WHERE public_id='"+independent+"' AND seq>"+seq)));
+        // historical system information and evidence stay unchanged
+        for(String id:List.of(ihc,core,own))assertTrue(new ObservationHistory(reader).detail(id,reader.viewer(List.of("b"))).has("quote"));
+        assertEquals("internal_use",new ObservationHistory(reader).detail(ihc,reader.viewer(List.of("b"))).getJSONObject("value").getString("context"));
+        assertEquals(4L,(long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_observation")));
+    }
+    /** The corrected parser reads none of the two passages as own use or need. */
+    @Test public void referencePassagesAreReadAsClientWorkOrStatedCompetence()throws Exception {
+        assertTrue(BusinessSignals.read("system_signal","SAP In-House Cash","text","organization","STELLWERK Consulting AG").isEmpty());
+        assertEquals("stated_competence",new JSONObject(BusinessSignals.read("system_signal","Kernkompetenz SAP Rechnungswesen","text","organization",
+                "STELLWERK Consulting AG").get(0)).getString("context"));
+        assertEquals("customer_projects",new JSONObject(BusinessSignals.read("system_signal","Wir nutzen SAP S/4HANA im Rechnungswesen.",
+                BusinessSignals.REFERENCES,"organization","STELLWERK Consulting AG").get(0)).getString("context"));
+        offer("SAP S/4HANA Beratung");pageUrl="https://www.stellwerk.net/referenzen/projekt-beispiele/";
+        stored("Wir nutzen SAP S/4HANA im Rechnungswesen.","organization","sap-s4hana","internal_use"); // even a "we" on a reference page
+        run();assertEquals(0,count());assertEquals(0,page("a","b").getInt("total"));
+    }
+    /** Own offered service or competence of the candidate is no need (eigene Leistung). */
+    @Test public void ownOfferedServiceOrCompetenceIsNoNeed()throws Exception {
+        offer("SAP Beratung");
+        signal("Wir bieten SAP Beratung und Implementierung an.","organization");
+        signal("Kernkompetenz SAP Rechnungswesen","organization");
+        stored("Unser Team verfügt über langjährige Erfahrung mit SAP.","organization","sap","required_competence");
+        run();assertEquals(0,count());assertEquals(0,page("a","b").getInt("total"));
+    }
+    /** Genuine own use counts, also for a company that offers the product itself; no date is neither current nor ended. */
+    @Test public void genuineInternalUseCountsAlsoForAConsultancy()throws Exception {
+        offer("SAP S/4HANA Beratung");
+        observation(candidate,"organization","business_role_evidence",KgJson.obj("role","it_consultancy","context","own_offered_services"),"Wir bieten SAP-Beratung an.","b");
+        signal("Wir bieten SAP S/4HANA Beratung und Implementierung an.","organization");
+        undated=true;signal("Wir nutzen SAP S/4HANA intern für unsere Finanzbuchhaltung.","organization");undated=false;
+        run();JSONArray reasons=reasons("a","b");assertEquals(1,reasons.length());JSONObject r=reasons.getJSONObject(0);
+        assertEquals("internal_use",r.getString("context"));assertEquals("stated",r.getString("evidence_strength"));
+        assertEquals("historical_not_reconfirmed",r.getString("temporal_status"));
+        assertTrue(r.getJSONArray("uncertainties").toString().contains("observation_date_unknown"));
+        assertTrue(r.getJSONArray("uncertainties").toString().contains("external_purchase_or_cooperation_unconfirmed"));
+    }
+    /** An unclear actor (a product name, or an unnamed "we" next to another company) stays conservative. */
+    @Test public void unclearActorAssignmentGroundsNothing()throws Exception {
+        assertTrue(BusinessSignals.read("system_signal","Wir unterstützen die Muster Energie AG, die SAP S/4HANA nutzt.","text","organization","Candidate").isEmpty());
+        assertEquals("internal_use",new JSONObject(BusinessSignals.read("system_signal","Die Candidate GmbH nutzt SAP S/4HANA intern.","text",
+                "organization","Candidate").get(0)).getString("context"));
+        offer("SAP S/4HANA Beratung");
+        stored("Wir unterstützen die Muster Energie AG, die SAP S/4HANA nutzt.","organization","sap-s4hana","internal_use");
+        offer("SAP Beratung");stored("Projektbeispiel: SAP In-House Cash","organization","sap","internal_use");
+        run();assertEquals(0,count());assertEquals(0,page("a","b").getInt("total"));
+    }
+    /** A consultancy's own posting for the product it offers is delivery capacity; its separately evidenced own use stays. */
+    @Test public void consultancyPostingForItsOwnOfferIsNoCustomerNeed()throws Exception {
+        offer("SAP Beratung");signal("Kenntnisse in SAP Rechnungswesen erforderlich.","job");run();assertEquals(1,count());
+        signal("Wir bieten SAP Beratung und Implementierung an.","organization"); // the employer offers SAP itself
+        assertEquals("withdrawn on read",0,page("a","b").getInt("total"));
+        run();assertEquals(0,count());
+        signal("Wir nutzen SAP intern.","organization");run();
+        JSONArray reasons=reasons("a","b");assertEquals(1,reasons.length());assertEquals("internal_use",reasons.getJSONObject(0).getString("context"));
+    }
+    /** The posting of an actual customer (no own offer of the product) stays a weak, visibly uncertain reason. */
+    @Test public void postingOfAnActualCustomerStillCounts()throws Exception {
+        offer("SAP Beratung");signal("Kenntnisse in SAP Rechnungswesen erforderlich.","job");run();
+        JSONObject r=reasons("a","b").getJSONObject(0);
+        assertEquals("required_competence",r.getString("context"));assertEquals("weak",r.getString("evidence_strength"));
+        assertTrue(r.getJSONArray("uncertainties").toString().contains("company_role_unknown"));
+    }
+    /** A project on a reference page is a client's, also for the need rules. */
+    @Test public void referencePageProjectIsNoOwnNeed()throws Exception {
+        offer("Architektur und Genehmigungsplanung");
+        JSONObject planned=KgJson.obj("need","new-build","context","planned_need","responsibility","own_responsibility","location","Berlin",
+                "phase","planned","scope","unspecified","section","text");
+        pageUrl="https://architekt.example/referenzen/";observation(candidate,"organization","business_need_signal",planned,"Wir planen den Neubau unseres Werkes in Berlin.","b");
+        run();assertEquals(0,count());
+        pageUrl=null;observation(candidate,"organization","business_need_signal",planned,"Wir planen den Neubau unseres Werkes in Berlin.","b");
+        run();assertEquals(1,count());
     }
     @Test public void futureTargetPlanSurvivesShutdownButCompletedTargetMigrationClosesIt()throws Exception {
         offer("Microsoft Azure Integration");signal("Wir planen unternehmensweit eine Migration zu Microsoft Azure am 2028-10-09.","organization");run();

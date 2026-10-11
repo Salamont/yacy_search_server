@@ -18,7 +18,7 @@ matching continue independently; their row IDs remain unchanged.
 
 | Rule | Provider evidence | Candidate evidence and result |
 | --- | --- | --- |
-| `it-support` | Product-specific support, consulting, training or implementation | Exact product; internal use, required/desirable competence or planned migration → possible customer. General SAP does not prove S/4HANA, BW or SAC. |
+| `it-support` | Product-specific support, consulting, training or implementation | Exact product; internal use, a posting's required/desirable competence or planned migration → possible customer. General SAP does not prove S/4HANA, BW or SAC. A company's own competence statement, client work and reference pages are no need (see "Context correction"). |
 | `cad-bim` | Explicit Revit/Archicad support, training or introduction | Exact contextual internal use/competence/plan → possible customer, including an architecture firm. Architecture alone is not a software-support offer. |
 | `construction` | Architecture/design/approval/general planning, or explicit construction execution | Own new building, rebuilding or site expansion with explicit responsible actor, location and phase. Planning excludes already-under-construction projects; execution at planning stage carries phase/procurement uncertainty. |
 | `energy-renovation` | Energy consulting, energetic planning or appropriate building/specialist planning | Own energetic renovation with responsibility, location and planned/approved/construction phase → possible customer. General architecture alone is insufficient. |
@@ -35,7 +35,9 @@ Care capacity and external purchasing/cooperation always remain unconfirmed.
 Job-based system rules require a source-declared employer. Company passages on a posting page cannot bypass this: a unique employer assignment from the same source revision becomes an additional required observation. Mixed or unresolved employers defer such passages. Coaching needs on recruiting pages require independent non-recruiting evidence. An unresolved employer
 is deferred. The recorded employing legal entity is classified, not its portal,
 collection, company name or a different group company. Proven own IT/SAP consulting
-or system integration excludes its job contributions. Its archived knowledge and
+or system integration excludes its job contributions, and so does the employer's own
+offer of the same product support (an `offered_capability` or an assigned service that
+would make it a provider of that rule and product). Its archived knowledge and
 independent organizational/project/legacy reasons remain. Care consulting, coaching
 and architecture are not excluded by the word consulting.
 
@@ -61,6 +63,98 @@ contributions immediately on read. An old job quotation reassigned to another
 employer cannot itself ground that employer's system: a new source-grounded
 observation is required. B retains the historical assignment and audit history;
 C does not invent missing correction evidence or rewrite original identity text.
+
+## Context correction (Olares 0.9.1 finding, STELLWERK)
+
+**Finding, reproduced with the shipped code** (`829ab35`, Scoutro 0.9.1 / 1.942-scoutro.23).
+STELLWERK Consulting AG (stellwerk.net, an SAP consultancy) received incoming SAP
+suggestions from ecovium.com and mgm-tp.com (`it-support`, stackfinder-web). Their
+signals came from its own reference page `/referenzen/projekt-beispiele/`:
+
+| Stored quote | Stored context | Cause in `BusinessSignals` 2 |
+| --- | --- | --- |
+| `SAP In-House Cash` | `internal_use` | The SAP treasury module name matched the own marker `in.house` **and** the use marker `uses?` inside "Ho**use**"; no actor and no use are stated. |
+| `Kernkompetenz SAP Rechnungswesen` | `required_competence` | "Kompetenz" made every competence statement a requirement, also a company's own core competence (its offer); `MatchingRules` accepted competence of any organization as a need. |
+
+The extractor also ignored the page kind: a reference page reports client work. The
+same marker flaw read "we cooperate with …" (`operate`) as use. The source page itself
+could not be fetched from the development environment; the passages above are the stored
+quotes from the read-only production analysis, re-run through the shipped parser.
+
+**Correction (version 3 of the shared parser; no schema, prompt, model or extractor-version change):**
+
+- Markers are words: `\buses?\b`, `\boperate\b`, `\brunning\b`; `in-house` no longer
+  matches the module names In-House Cash / In-House Bank(ing). Explicit own use of them
+  ("Wir nutzen SAP In-House Cash intern.") stays `internal_use`.
+- A competence statement of an organization or facility outside a posting is
+  `stated_competence` (own or offered; no need). Postings keep `required_competence` /
+  `desirable_competence`. Matching accepts competence only from job subjects.
+- Reference, case-study and client pages (`BusinessSignals.referencePage`: paths such as
+  `referenzen`, `referenz`, `references`, `case-studies`, `kundenprojekte`,
+  `projekt-beispiele`, `kunden`, `customers`, `clients`; deliberately not `projekte`,
+  which can be own projects) are read under section `references`: used, migrated or
+  shut-down systems become `customer_projects`, needs are not read; offers and stated
+  competence stay. Matching ignores signals and needs of such pages for every rule.
+- An unnamed "we" next to another named company (a legal-form name that is neither the
+  actor nor a product vendor such as SAP SE) leaves the actor unclear: no own use is read.
+  Postings are exempt (their employer is resolved separately).
+- Postings of an employer that offers the same product support itself are delivery
+  capacity, not a customer need. There is no blanket exclusion of consultancies or
+  product vendors: a separately evidenced own use or need of the same company still
+  matches (tested).
+- Missing dates stay unknown: no expiry and no present use is inferred
+  (`historical_not_reconfirmed`, `observation_date_unknown`), as before.
+
+**Withdrawal of existing contributions, targeted.** Observations are append-only: a
+later re-extraction adds corrected rows but never changes the stored wrong ones. The
+correction therefore works on read: `MatchingRules.assess` re-reads the stored quote
+with the current parser (`contextConfirmed`, a veto only, never an upgrade), rejects
+reference-page signals, competence outside postings and own-offer postings. Because
+`MatchingProjection` re-runs `assess` for every cached contribution, wrong reasons
+disappear from lists, graph, details, exports and feeds (as authorized deletions) right
+after the deployment, without a calculation. Each contribution is one (service,
+signal) pair, so other reasons of the same provider/candidate pair stay visible. The
+next **complete and unchanged** provider partition of the regular matching pass does
+not re-upsert them and deletes their cache rows with a `match_contribution` delete
+notice; unaffected rows keep their IDs and are not re-announced (tested).
+`MatchingRules.VERSION` stays `1` on purpose: a new rule version would hide **all**
+cached contributions until every provider partition is recomputed.
+
+**Re-evaluation needed and its scope.**
+
+- No global re-extraction, rebuild, reset or manual recompute is needed or triggered.
+  `BusinessSignals.VERSION` is no part of an extractor identity; `rule`, `jsonld`, `llm`
+  versions are unchanged, so no `extractor_changed` work is queued.
+- Immediately on deployment: read validation of all cached contributions (part of every read).
+- Within the regular matching cycles (`matches.max` signals per pass, resumable): cache
+  cleanup of the withdrawn rows, provider by provider. Until a provider's partition
+  completes, its withdrawn rows stay in `kg_match_contribution` but are invisible; a raw
+  SQL count of that table can therefore still include them.
+- New and changed pages are read with the corrected parser by the ordinary sync; the
+  stored historical observations (including STELLWERK's two quotes and their original
+  contexts) stay unchanged and visible in the history.
+- Live `system_signal` statements of the graph (the object page's context labels) of
+  pages not re-extracted keep their old context until the page changes; they do not
+  feed matching.
+- Read-only size estimate before/after the rollout (upper bounds; the exact veto is the
+  Java re-read):
+
+  ```sql
+  SELECT count(*) FROM kg_observation WHERE predicate='system_signal' AND assertion_status='recorded'
+    AND json_valid(value) AND json_extract(value,'$.context') IN('required_competence','desirable_competence') AND subject_type<>'job';
+  SELECT count(*) FROM kg_observation WHERE predicate IN('system_signal','business_need_signal') AND assertion_status='recorded'
+    AND (source_url LIKE '%/referenz%' OR source_url LIKE '%/reference%' OR source_url LIKE '%/kunden/%' OR source_url LIKE '%projekt-beispiele%'
+      OR source_url LIKE '%case-stud%' OR source_url LIKE '%/customers%' OR source_url LIKE '%/clients%');
+  SELECT count(*) FROM kg_observation WHERE predicate='system_signal' AND json_extract(value,'$.context')='internal_use'
+    AND (quote LIKE '%In-House Cash%' OR quote LIKE '%In-House Bank%' OR quote LIKE '%cooperat%');
+  SELECT count(*) FROM kg_match_contribution;  -- before, and after one complete matching cycle
+  ```
+
+**Limits.** The page kind comes from the URL path only; a reference page under another
+path stays undetected, an own-use sentence on a reference page is read as client work.
+Legal-form detection is pattern based. Product names other than In-House Cash/Bank that
+contain marker words are not enumerated. The LLM tier uses the same parser, so
+`value_signal_context_missing` can count more such quotes than before.
 
 ## Schema 6 and contributions
 

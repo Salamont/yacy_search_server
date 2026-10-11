@@ -65,6 +65,69 @@ public class BusinessSignalsTest {
         assertEquals(Set.of("sap"),KgVocabularies.get().signals.products("SAP"));
         assertEquals(Set.of("sap-sac"),KgVocabularies.get().signals.products("SAP Analytics Cloud"));
     }
+    private List<String> company(String text,String section) {return BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,text,section,Vocabulary.ORGANIZATION,"STELLWERK Consulting AG");}
+    private String companyContext(String text,String section) throws Exception {
+        List<String> r=company(text,section);assertEquals(text,1,r.size());return new JSONObject(r.get(0)).getString("context");
+    }
+    /** STELLWERK (Olares 0.9.1): "In-House" of a product name and "use" inside "House" or "cooperate" are no actor and no use. */
+    @Test public void markersInsideProductNamesOrOtherWordsAreNoActorOrUse() throws Exception {
+        for(String text:List.of("SAP In-House Cash","Projekt-Beispiele: SAP In-House Cash","Einführung von SAP In-House Cash bei einem internationalen Konzern",
+                "SAP In-House Banking für einen Energieversorger","We cooperate with SAP partners.","The SAP house style focuses on cloud."))
+            assertTrue(text,company(text,"text").isEmpty());
+        // explicit own use stays own use, also of the In-House Cash module or "in-house"
+        assertEquals("internal_use",companyContext("Wir nutzen SAP In-House Cash intern.","text"));
+        assertEquals("internal_use",companyContext("We use SAP in-house.","text"));
+        assertEquals("internal_use",companyContext("Wir betreiben SAP in-house.","text"));
+    }
+    /** A company's own competence statement is no requirement; a posting's requirement stays one. */
+    @Test public void companyCompetenceIsStatedNotRequired() throws Exception {
+        assertEquals("stated_competence",companyContext("Kernkompetenz SAP Rechnungswesen","text"));
+        assertEquals("stated_competence",companyContext("Unser Team verfügt über langjährige Erfahrung mit SAP.","company"));
+        assertEquals("stated_competence",new JSONObject(BusinessSignals.read(Vocabulary.SYSTEM_SIGNAL,"Erfahrung mit SAP wünschenswert.","text",
+                Vocabulary.FACILITY,null).get(0)).getString("context"));
+        context("Kenntnisse in SAP S/4HANA erforderlich.","sap-s4hana","required_competence");
+        context("SAP BW Kenntnisse sind wünschenswert.","sap-bw","desirable_competence");
+    }
+    /** A reference page reports client work: used, migrated or shut down systems are the client's; offers and competence stay. */
+    @Test public void referencePagesReportClientWork() throws Exception {
+        for(String url:List.of("https://www.stellwerk.net/referenzen/projekt-beispiele/","https://x.example/referenz/a","https://x.example/kunden/",
+                "https://x.example/case-studies/sap","https://x.example/en/references","https://x.example/projektbeispiele.html"))
+            assertTrue(url,BusinessSignals.referencePage(url));
+        for(String url:List.of("https://x.example/projekte/neubau","https://x.example/fuer-kunden/","https://x.example/ueber-uns/","https://x.example/",
+                "https://x.example/kundenservice","not a url with spaces"))
+            assertFalse(url,BusinessSignals.referencePage(url));
+        assertFalse(BusinessSignals.referencePage(null));
+        String refs=BusinessSignals.REFERENCES;
+        assertEquals("customer_projects",companyContext("Wir nutzen SAP S/4HANA im Rechnungswesen.",refs));
+        assertEquals("customer_projects",companyContext("Unsere Migration von SAP ECC zu SAP S/4HANA ist abgeschlossen.",refs));
+        assertEquals("offered_capability",companyContext("Wir bieten SAP Beratung und Implementierung an.",refs));
+        assertEquals("stated_competence",companyContext("Kernkompetenz SAP Rechnungswesen",refs));
+        assertTrue(company("SAP In-House Cash",refs).isEmpty());
+        assertTrue(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,"Wir planen den Neubau unseres Werkes in Berlin.",refs,Vocabulary.ORGANIZATION,null).isEmpty());
+        assertFalse(BusinessSignals.read(Vocabulary.BUSINESS_NEED_SIGNAL,"Wir planen den Neubau unseres Werkes in Berlin.","text",Vocabulary.ORGANIZATION,null).isEmpty());
+        // the rule tier reads a reference page under that section; the same sentence on another page is own use
+        ExtractContext software=new ExtractContext(KgVocabularies.get(),Set.of(),false,List.of("stackfinder-web"));
+        String page="Impressum Angaben gemäß § 5 TMG STELLWERK Consulting AG Musterweg 1 50667 Köln Telefon: 0221 1234567. "
+                +"Wir nutzen SAP S/4HANA im Rechnungswesen. SAP In-House Cash.";
+        for(String[] c:new String[][]{{"https://www.stellwerk.example/referenzen/projekt-beispiele/","references","customer_projects"},
+                {"https://www.stellwerk.example/unternehmen/","text","internal_use"}}) {
+            Extraction ex=new Extraction(300);
+            new RuleExtractor(200,65536).extract(page,c[0],"www.stellwerk.example","de",ex,software,List.of(),List.of());
+            List<JSONObject> signals=new ArrayList<>();
+            for(Claim claim:ex.claims())if(Vocabulary.SYSTEM_SIGNAL.equals(claim.predicate))signals.add(new JSONObject(claim.value));
+            assertEquals(c[0]+": "+signals,1,signals.size());
+            assertEquals(c[1],signals.get(0).getString("section"));assertEquals(c[2],signals.get(0).getString("context"));
+        }
+    }
+    /** An unnamed "we" next to another named company leaves the actor unclear; the named actor and a product vendor do not. */
+    @Test public void anUnnamedWeNextToAnotherCompanyLeavesTheActorUnclear() throws Exception {
+        assertTrue(company("Wir unterstützen die Muster Energie AG, die SAP S/4HANA nutzt.","text").isEmpty());
+        assertTrue(company("Für die Muster Pflege gGmbH betreiben wir SAP intern.","text").isEmpty());
+        assertEquals("internal_use",companyContext("Die STELLWERK Consulting AG nutzt SAP S/4HANA intern.","text"));
+        assertEquals("internal_use",companyContext("Wir nutzen SAP S/4HANA der SAP SE intern.","text"));
+        // postings resolve their employer separately: the employer's name in the posting's own sentence is no other actor
+        context("Wir, die Muster Energie AG, nutzen SAP S/4HANA intern.","sap-s4hana","internal_use");
+    }
     @Test public void assertionDatePreservesPrecisionAndDistinctPassagesKeepTheirQuotes()throws Exception {
         Mention actor=new Mention("j",Vocabulary.JOB,1);Extraction e=new Extraction(30);e.add(actor);
         BusinessSignals.extract("Wir nutzen SAP intern seit 09.10.2020. SAP Kenntnisse erwünscht.",actor,e,1,Claim.KIND_JSONLD,"description","/description");

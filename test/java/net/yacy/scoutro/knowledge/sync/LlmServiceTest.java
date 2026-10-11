@@ -371,6 +371,36 @@ public class LlmServiceTest {
         assertEquals(6L, c.json().getLong("droppedInvalid"));
     }
 
+    /** The two codes the validator checks after grounding are registered: listed with 0 before, counted like every other code. */
+    @Test
+    public void theReasonsCheckedAfterGroundingAreRegisteredCodes() throws Exception {
+        final LlmService.Counters c = new LlmService.Counters();
+        for (final String reason : List.of("claim_employer_unresolved", "value_signal_context_missing")) {
+            assertTrue(reason, LlmExtractor.INVALID_REASONS.contains(reason));
+            assertEquals(reason, 0L, c.json().getJSONObject("droppedInvalidByReason").getLong(reason));
+        }
+        final String text = "Wir suchen im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die Muster Pflege gGmbH."
+                + " Die Muster Pflege gGmbH und SAP werden genannt.";
+        final net.yacy.scoutro.knowledge.extract.Mention job = new net.yacy.scoutro.knowledge.extract.Mention("jsonld:1",
+                net.yacy.scoutro.knowledge.extract.Vocabulary.JOB, 1);
+        job.name = "Pflegefachkraft (m/w/d)";
+        final List<LlmExtractor.Known> known = List.of(new LlmExtractor.Known("k1", mention()), new LlmExtractor.Known("kj", job));
+        final String answer = "{\"entities\":[],\"claims\":[{\"subject\":\"kj\",\"predicate\":\"hiring_organization\",\"object\":\"k1\","
+                + "\"quote\":\"im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die Muster Pflege gGmbH\"}],"
+                + "\"values\":[{\"subject\":\"k1\",\"predicate\":\"system_signal\",\"quote\":\"Die Muster Pflege gGmbH und SAP werden genannt\"}]}";
+        final LlmExtractor.Result r = LlmExtractor.validate(answer, LlmExtractor.chunks(text, 12_000).get(0), known, java.util.Set.of());
+        assertNull(r.refused);
+        c.accepted(r);
+        c.accepted(r);
+        final JSONObject p = c.json();
+        final JSONObject by = p.getJSONObject("droppedInvalidByReason");
+        assertEquals(2L, by.getLong("claim_employer_unresolved"));
+        assertEquals(2L, by.getLong("value_signal_context_missing"));
+        assertEquals(4L, p.getLong("droppedInvalid"));
+        assertEquals(p.getLong("droppedInvalid"), sum(by));
+        assertEquals("no code outside the registered list", new java.util.TreeSet<>(LlmExtractor.INVALID_REASONS), new java.util.TreeSet<>(by.keySet()));
+    }
+
     @Test
     public void groundedRelationsArePublishedAsUncertainWithProvenance() throws Exception {
         add("AAAAAAhost01", "https://www.muster-pflege.de/impressum", "c1", LD, TEXT);

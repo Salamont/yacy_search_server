@@ -317,6 +317,7 @@ public final class LlmExtractor {
             "claim_invalid_hedged", // hedged present but no boolean
             "claim_unresolved_subject", "claim_unresolved_object", // no known entity and no entity accepted in the answer
             "claim_subject_type_mismatch", "claim_object_type_mismatch", // the type rules of the relation
+            "claim_employer_unresolved", // hiring_organization quoted on behalf of a client (an intermediary, not the employer)
             // values
             "value_not_object",
             "value_extra_field", // a field other than subject, predicate, quote
@@ -325,7 +326,8 @@ public final class LlmExtractor {
             "value_missing_predicate", "value_malformed_predicate",
             "value_unknown_predicate", // not one of VALUE_PREDICATES
             "value_missing_quote", "value_malformed_quote", "value_quote_too_long",
-            "value_subject_type_mismatch"); // the entity types the value may describe
+            "value_subject_type_mismatch", // the entity types the value may describe
+            "value_signal_context_missing"); // a grounded signal quote without a context the shared signal parser reads
 
     private LlmExtractor() {
     }

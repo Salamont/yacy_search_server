@@ -298,10 +298,12 @@ memory; every restart resets them, so they are no long-term statistics.
   invalid ones. Answers refused as a whole (`invalid_json`, `unknown_field`,
   …) are counted separately in the status (`refusedBy`).
 - **Invalid items by reason (since the last start)** (folded) lists the
-  reasons that occurred, the most frequent first, with the codes of the API
-  (`llm.processed.droppedInvalidByReason`). Each item counts once, under the
-  first rule it breaks; the counts add up to **Dropped as invalid**. The
-  codes and their rules: `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 6.3.
+  reasons that occurred, the most frequent first, each with a readable label
+  and the code of the API (`llm.processed.droppedInvalidByReason`); a code
+  without a label (for example from a newer server) is shown as the code.
+  Each item counts once, under the first rule it breaks; the counts add up to
+  **Dropped as invalid**. The codes and their rules:
+  `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 6.3.
 - These are diagnostic counters only; no model answer, quote or page text is
   stored for them.
 - **Structured output** shows what the endpoint is asked for: *Schema

@@ -16966,6 +16966,150 @@
     <trans-unit id="64de9c89" xml:space="preserve" approved="no" translate="yes">
        <source>Dropped as invalid</source>
     </trans-unit>
+    <trans-unit id="d6508262" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: not a JSON object</source>
+    </trans-unit>
+    <trans-unit id="f9a010d4" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: unexpected field</source>
+    </trans-unit>
+    <trans-unit id="6bac8e8a" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: ID missing</source>
+    </trans-unit>
+    <trans-unit id="6b958fdf" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: ID malformed</source>
+    </trans-unit>
+    <trans-unit id="4b5aa210" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: ID in a format not allowed</source>
+    </trans-unit>
+    <trans-unit id="80fa0b30" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: ID already in use</source>
+    </trans-unit>
+    <trans-unit id="18a65f69" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: type missing</source>
+    </trans-unit>
+    <trans-unit id="c15ea4fe" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: type malformed</source>
+    </trans-unit>
+    <trans-unit id="4eef7e39" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: unknown type</source>
+    </trans-unit>
+    <trans-unit id="182f69ba" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: name missing</source>
+    </trans-unit>
+    <trans-unit id="2ce5f0f" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: name malformed</source>
+    </trans-unit>
+    <trans-unit id="e6712e04" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: name too short</source>
+    </trans-unit>
+    <trans-unit id="7678817d" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: a person or contact details instead of a name</source>
+    </trans-unit>
+    <trans-unit id="47832ff9" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: quote missing</source>
+    </trans-unit>
+    <trans-unit id="ac49918e" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: quote malformed</source>
+    </trans-unit>
+    <trans-unit id="b20ccd95" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: quote too long</source>
+    </trans-unit>
+    <trans-unit id="bc90d96" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: not a JSON object</source>
+    </trans-unit>
+    <trans-unit id="d20f4f20" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: unexpected field</source>
+    </trans-unit>
+    <trans-unit id="e5b2d1d" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: subject missing</source>
+    </trans-unit>
+    <trans-unit id="1d16d5b2" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: subject malformed</source>
+    </trans-unit>
+    <trans-unit id="42c5697a" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: object missing</source>
+    </trans-unit>
+    <trans-unit id="dfe36ecf" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: object malformed</source>
+    </trans-unit>
+    <trans-unit id="79a9b654" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: refers to itself (subject is object)</source>
+    </trans-unit>
+    <trans-unit id="89d289f7" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: relation missing</source>
+    </trans-unit>
+    <trans-unit id="982a640c" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: relation malformed</source>
+    </trans-unit>
+    <trans-unit id="11fe8fc7" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: unknown relation</source>
+    </trans-unit>
+    <trans-unit id="c0c9752d" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: quote missing</source>
+    </trans-unit>
+    <trans-unit id="ed1359c2" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: quote malformed</source>
+    </trans-unit>
+    <trans-unit id="618f2ee1" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: quote too long</source>
+    </trans-unit>
+    <trans-unit id="5dfee199" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: hedge flag is not true or false</source>
+    </trans-unit>
+    <trans-unit id="fad87d4e" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: subject not resolved</source>
+    </trans-unit>
+    <trans-unit id="fa267311" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: object not resolved</source>
+    </trans-unit>
+    <trans-unit id="69f8fe71" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: subject type does not fit the relation</source>
+    </trans-unit>
+    <trans-unit id="c85c2974" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: object type does not fit the relation</source>
+    </trans-unit>
+    <trans-unit id="d1963106" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: employer unresolved (posting on behalf of a client)</source>
+    </trans-unit>
+    <trans-unit id="9afd6254" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: not a JSON object</source>
+    </trans-unit>
+    <trans-unit id="18be6aa2" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: unexpected field</source>
+    </trans-unit>
+    <trans-unit id="6b79995b" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: subject missing</source>
+    </trans-unit>
+    <trans-unit id="ac4b2a70" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: subject malformed</source>
+    </trans-unit>
+    <trans-unit id="d5aa07d0" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: subject not resolved</source>
+    </trans-unit>
+    <trans-unit id="2669688b" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: attribute missing</source>
+    </trans-unit>
+    <trans-unit id="6a83eda0" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: attribute malformed</source>
+    </trans-unit>
+    <trans-unit id="be4422ef" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: unknown attribute</source>
+    </trans-unit>
+    <trans-unit id="e671d8eb" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: quote missing</source>
+    </trans-unit>
+    <trans-unit id="4a31c600" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: quote malformed</source>
+    </trans-unit>
+    <trans-unit id="f0f342e3" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: quote too long</source>
+    </trans-unit>
+    <trans-unit id="3ff03356" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: subject type cannot carry this value</source>
+    </trans-unit>
+    <trans-unit id="1c55a97f" xml:space="preserve" approved="no" translate="yes">
+       <source>Value: signal without a recognizable context (use, competence or plan)</source>
+    </trans-unit>
     <trans-unit id="9d705290" xml:space="preserve" approved="no" translate="yes">
        <source>Structured output</source>
     </trans-unit>
@@ -17169,6 +17313,9 @@
     </trans-unit>
     <trans-unit id="5abf7fbe" xml:space="preserve" approved="no" translate="yes">
        <source>Vocabulary version</source>
+    </trans-unit>
+    <trans-unit id="512c89e8" xml:space="preserve" approved="no" translate="yes">
+       <source>Categories and NACE codes</source>
     </trans-unit>
     <trans-unit id="320475ea" xml:space="preserve" approved="no" translate="yes">
        <source>%1 categories, %2 NACE codes</source>
@@ -17778,6 +17925,9 @@
     </trans-unit>
     <trans-unit id="12301c34" xml:space="preserve" approved="no" translate="yes">
        <source>desirable competence</source>
+    </trans-unit>
+    <trans-unit id="e4f1b3af" xml:space="preserve" approved="no" translate="yes">
+       <source>stated competence (own or offered; no need)</source>
     </trans-unit>
     <trans-unit id="5e251f0" xml:space="preserve" approved="no" translate="yes">
        <source>work in customer projects</source>
