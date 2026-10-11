@@ -88,6 +88,9 @@ public interface LlmClient {
      * The context window the requests of the selected model are budgeted against (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
      */
     final class Window {
+        /** Where {@link #tokens} comes from. */
+        public static final String CONFIGURED = "configured", DETECTED = "detected", ASSUMED = "assumed_default";
+
         /** Tokens of prompt and answer together. */
         public final int tokens;
         /** True if the service's window is configured ({@code ai.service_num_ctx}) and sent with the request. */
@@ -96,12 +99,26 @@ public interface LlmClient {
         public final int maxOutputTokens;
         /** True if the endpoint may put the answer schema into the prompt (OpenAI-compatible); Ollama applies it as a grammar. */
         public final boolean schemaInPrompt;
+        /**
+         * {@link #CONFIGURED} (sent as {@code num_ctx}), {@link #DETECTED} (the window the server reports for the loaded
+         * model, not sent) or {@link #ASSUMED} (Ollama's default).
+         */
+        public final String source;
+        /** The longest context the model itself supports, as the server reports it; null if unknown. */
+        public final Integer modelMaxTokens;
 
         public Window(final int tokens, final boolean configured, final int maxOutputTokens, final boolean schemaInPrompt) {
+            this(tokens, configured, maxOutputTokens, schemaInPrompt, configured ? CONFIGURED : ASSUMED, null);
+        }
+
+        public Window(final int tokens, final boolean configured, final int maxOutputTokens, final boolean schemaInPrompt, final String source,
+                final Integer modelMaxTokens) {
             this.tokens = tokens;
             this.configured = configured;
             this.maxOutputTokens = maxOutputTokens;
             this.schemaInPrompt = schemaInPrompt;
+            this.source = source;
+            this.modelMaxTokens = modelMaxTokens;
         }
     }
 

@@ -452,6 +452,94 @@ public class LLM {
     }
     
     
+    /**
+     * A bounded, read-only GET with the service's key: short timeouts, at most {@code maxChars} characters. For the
+     * metadata endpoints of a model server, never for inference.
+     */
+    private String sendMetadataGet(final String urls, final int timeoutMillis, final int maxChars) throws IOException, URISyntaxException {
+        final URL url = new URI(urls).toURL();
+        final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(timeoutMillis);
+        conn.setReadTimeout(timeoutMillis);
+        conn.setRequestMethod("GET");
+        if (this.api_key != null && !this.api_key.isEmpty()) {
+            conn.setRequestProperty("Authorization", "Bearer " + this.api_key);
+        }
+        if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            throw new IOException("Request failed with response code " + conn.getResponseCode());
+        }
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"))) {
+            final StringBuilder response = new StringBuilder();
+            final char[] buf = new char[8192];
+            int n;
+            while ((n = br.read(buf)) >= 0) {
+                response.append(buf, 0, n);
+                if (response.length() > maxChars) {
+                    throw new IOException("response exceeds " + maxChars + " characters");
+                }
+            }
+            return response.toString();
+        }
+    }
+
+    /** True if two Ollama model names mean the same model ({@code qwen3} is {@code qwen3:latest}). */
+    static boolean sameOllamaModel(final String a, final String b) {
+        if (a == null || b == null) return false;
+        final String x = a.contains(":") ? a : a + ":latest";
+        final String y = b.contains(":") ? b : b + ":latest";
+        return x.equals(y);
+    }
+
+    /**
+     * The context window an Ollama server has currently loaded {@code model} with: {@code context_length} of the
+     * model's entry in {@code GET /api/ps}, which newer Ollama versions report for loaded models. Null if the model is
+     * not loaded, the server does not report the field, or the request fails. Read-only, no inference.
+     */
+    public Integer ollamaLoadedContext(final String model, final int timeoutMillis) {
+        try {
+            final JSONObject ps = new JSONObject(sendMetadataGet(this.hoststub + "/api/ps", timeoutMillis, 256 * 1024));
+            final JSONArray models = ps.optJSONArray("models");
+            if (models == null) return null;
+            for (int i = 0; i < models.length(); i++) {
+                final JSONObject m = models.optJSONObject(i);
+                if (m != null && (sameOllamaModel(model, m.optString("name", null)) || sameOllamaModel(model, m.optString("model", null)))) {
+                    final int n = m.optInt("context_length", 0);
+                    return n > 0 ? n : null;
+                }
+            }
+            return null;
+        } catch (JSONException | URISyntaxException | IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The longest context the model itself supports: {@code model_info.<architecture>.context_length} of
+     * {@code POST /api/show}. Null if unknown. Read-only, no inference.
+     */
+    public Integer ollamaModelContext(final String model, final int timeoutMillis) {
+        try {
+            final JSONObject data = new JSONObject();
+            data.put("model", model);
+            data.put("name", model);
+            final JSONObject show = new JSONObject(sendPostRequest(this.hoststub + "/api/show", data, this.api_key, timeoutMillis, 4 * 1024 * 1024));
+            final JSONObject info = show.optJSONObject("model_info");
+            if (info == null) return null;
+            final String arch = info.optString("general.architecture", "");
+            int n = arch.isEmpty() ? 0 : info.optInt(arch + ".context_length", 0);
+            if (n <= 0) {
+                for (final String key : info.keySet()) {
+                    if (key.endsWith(".context_length")) {
+                        n = Math.max(n, info.optInt(key, 0));
+                    }
+                }
+            }
+            return n > 0 ? n : null;
+        } catch (JSONException | URISyntaxException | IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     public LinkedHashMap<String, Long> listOllamaModels() {
         final LinkedHashMap<String, Long> sortedMap = new LinkedHashMap<>();
         try {

@@ -1105,8 +1105,9 @@ public final class LlmService {
 
     /**
      * The budget of the requests (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): the model's window (the service's configured
-     * {@code ai.service_num_ctx}, else Ollama's default of 4096 assumed), the answer reserve (at most the row's output
-     * cap), the active system prompt and, where the endpoint may count it as prompt, the schema.
+     * {@code ai.service_num_ctx}, else the window an Ollama server reports for the loaded model, else Ollama's default of
+     * 4096 assumed), the answer reserve (at most the row's output cap), the active system prompt and, where the endpoint
+     * may count it as prompt, the schema.
      */
     private RequestBudget budget(final KnowledgePrompt p) {
         final LlmClient.Window w = this.client.window();
@@ -1693,7 +1694,8 @@ public final class LlmService {
     private JSONObject contextStatus() {
         final LlmClient.Window w = this.client.window();
         final RequestBudget b = budget(this.prompt);
-        return KgJson.obj("windowTokens", b.window, "windowSource", w == null || !w.configured ? "assumed_default" : "configured",
+        return KgJson.obj("windowTokens", b.window, "windowSource", w == null ? LlmClient.Window.ASSUMED : w.source,
+                "modelMaxTokens", w == null ? null : w.modelMaxTokens,
                 "numCtxSent", w != null && w.configured, "maxOutputTokens", w == null ? null : w.maxOutputTokens,
                 "answerReserveTokens", b.reserve, "fixedPromptTokens", b.fixedTokens, "schemaCounted", w == null || w.schemaInPrompt,
                 "promptTokensEstimatedMax", this.counters.promptTokensEstimatedMax.get(), "measured", this.client.usage());

@@ -18,6 +18,7 @@ package net.yacy.scoutro.knowledge.extract;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -83,6 +84,15 @@ public final class YacyLlmClient implements LlmClient {
     private final AtomicLong answerTokens = new AtomicLong();
     private final AtomicLong answerTokensMax = new AtomicLong();
     private final AtomicLong answersCutAtLimit = new AtomicLong();
+    /** How often the window of an unconfigured Ollama service is read again, and the timeout of that read. */
+    static final long DETECT_EVERY_MILLIS = 10L * 60_000L;
+    static final int DETECT_TIMEOUT_MILLIS = 3000;
+    long detectEveryMillis = DETECT_EVERY_MILLIS;
+    /**
+     * Per {@code hoststub|model}: when it was read, the loaded window last seen (kept while the server has unloaded the
+     * model: not loaded is no other window) and the model's maximum.
+     */
+    private final Map<String, long[]> detected = new ConcurrentHashMap<>();
 
     /** What one request asks for, and why. */
     static final class Plan {
@@ -127,8 +137,11 @@ public final class YacyLlmClient implements LlmClient {
     }
 
     /**
-     * The service's context window ({@code ai.service_num_ctx}, else Ollama's default 4096 assumed), the row's output
-     * cap, and whether the endpoint may count the schema as prompt: the native Ollama path applies it as a grammar.
+     * The window the requests are planned against, the row's output cap, and whether the endpoint may count the schema
+     * as prompt (the native Ollama path applies it as a grammar). The window is the service's configured
+     * {@code ai.service_num_ctx} (sent as {@code num_ctx}); for an unconfigured Ollama service the window the server
+     * reports for the loaded model ({@code /api/ps}, read at most every ten minutes; the last one seen is kept while the
+     * model is unloaded; not sent, so the server is asked exactly as before); else Ollama's default of 4096 is assumed.
      */
     @Override
     public Window window() {
@@ -136,7 +149,31 @@ public final class YacyLlmClient implements LlmClient {
         if (name(m) == null) {
             return null;
         }
-        return new Window(m.llm.num_ctx, m.llm.num_ctx_configured, m.llm.max_tokens, !API_OLLAMA_NATIVE.equals(api(m)));
+        final boolean nativeApi = API_OLLAMA_NATIVE.equals(api(m));
+        final long[] d = nativeApi ? detect(m) : null;
+        final Integer max = d == null || d[2] <= 0 ? null : (int) d[2];
+        if (m.llm.num_ctx_configured) {
+            return new Window(m.llm.num_ctx, true, m.llm.max_tokens, !nativeApi, Window.CONFIGURED, max);
+        }
+        if (d != null && d[1] > 0) {
+            return new Window((int) (max == null ? d[1] : Math.min(d[1], max)), false, m.llm.max_tokens, false, Window.DETECTED, max);
+        }
+        return new Window(m.llm.num_ctx, false, m.llm.max_tokens, !nativeApi, Window.ASSUMED, max);
+    }
+
+    /** {@code {readAt, loaded window or 0, model maximum or 0}}, read again after {@link #detectEveryMillis}. */
+    private long[] detect(final LLM.LLMModel m) {
+        final String key = m.llm.hoststub + "|" + m.model;
+        final long now = System.currentTimeMillis();
+        final long[] last = this.detected.get(key);
+        if (last != null && now - last[0] < this.detectEveryMillis) {
+            return last;
+        }
+        final Integer loaded = m.llm.ollamaLoadedContext(m.model, DETECT_TIMEOUT_MILLIS);
+        final Integer max = last != null && last[2] > 0 ? Integer.valueOf((int) last[2]) : m.llm.ollamaModelContext(m.model, DETECT_TIMEOUT_MILLIS);
+        final long[] read = {now, loaded != null ? loaded : last != null ? last[1] : 0L, max != null ? max : 0L};
+        this.detected.put(key, read);
+        return read;
     }
 
     private void record(final JSONObject u) {

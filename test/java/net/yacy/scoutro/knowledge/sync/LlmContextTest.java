@@ -64,6 +64,14 @@ public class LlmContextTest extends LlmFixture {
         ctx = this.llm.status().getJSONObject("context");
         assertEquals(16384, ctx.getInt("windowTokens"));
         assertEquals("configured", ctx.getString("windowSource"));
+        fake().window = new LlmClient.Window(8192, false, 4096, false, LlmClient.Window.DETECTED, 40960);
+        ctx = this.llm.status().getJSONObject("context");
+        assertEquals(8192, ctx.getInt("windowTokens"));
+        assertEquals("detected", ctx.getString("windowSource"));
+        assertFalse("a detected window is not sent", ctx.getBoolean("numCtxSent"));
+        assertEquals(40960, ctx.getInt("modelMaxTokens"));
+        fake().window = new LlmClient.Window(16384, true, 512, false);
+        ctx = this.llm.status().getJSONObject("context");
         assertTrue(ctx.getBoolean("numCtxSent"));
         assertEquals("the reserve never exceeds the output cap", 512, ctx.getInt("answerReserveTokens"));
         assertFalse(ctx.getBoolean("schemaCounted"));

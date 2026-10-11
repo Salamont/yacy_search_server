@@ -42,6 +42,11 @@ public class OllamaNativeChatTest {
     /** ok, reject (400 for any format), always400, error503, slow, huge, length */
     private final AtomicReference<String> endpoint = new AtomicReference<>("ok");
     private final AtomicReference<String> content = new AtomicReference<>("{\"entities\":[],\"claims\":[],\"values\":[]}");
+    /** the body of GET /api/ps (the loaded models) and of POST /api/show */
+    private final AtomicReference<String> ps = new AtomicReference<>("{\"models\":[]}");
+    private final AtomicReference<String> show = new AtomicReference<>("{\"model_info\":{\"general.architecture\":\"llama\","
+            + "\"llama.context_length\":131072}}");
+    private final java.util.concurrent.atomic.AtomicInteger metadataReads = new java.util.concurrent.atomic.AtomicInteger();
     /** a Qwen-like model: without think: false it thinks by default and spends the whole budget on it (empty content) */
     private final java.util.concurrent.atomic.AtomicBoolean thinksByDefault = new java.util.concurrent.atomic.AtomicBoolean(false);
 
@@ -50,6 +55,8 @@ public class OllamaNativeChatTest {
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         this.server.createContext("/api/chat", exchange -> answer(exchange, true));
         this.server.createContext("/v1/chat/completions", exchange -> answer(exchange, false));
+        this.server.createContext("/api/ps", exchange -> metadata(exchange, this.ps.get()));
+        this.server.createContext("/api/show", exchange -> metadata(exchange, this.show.get()));
         this.server.start();
     }
 
@@ -92,6 +99,17 @@ public class OllamaNativeChatTest {
             }
         } catch (final IOException ignored) {
             // the client gave up (timeout test)
+        }
+        exchange.close();
+    }
+
+    private void metadata(final HttpExchange exchange, final String body) throws IOException {
+        this.metadataReads.incrementAndGet();
+        exchange.getRequestBody().readAllBytes();
+        final byte[] out = body.getBytes(StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(200, out.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(out);
         }
         exchange.close();
     }
@@ -527,5 +545,55 @@ public class OllamaNativeChatTest {
         ask(openai, YacyLlmClient.AUTO);
         assertEquals(400L, openai.usage().getLong("promptTokensMax"));
         assertTrue(openai.window().schemaInPrompt);
+    }
+
+    @Test
+    public void theWindowOfTheLoadedModelIsReadButNotSent() throws Exception {
+        // Ollama reports the loaded model with the window it was loaded with (and the request names it without a tag)
+        this.ps.set("{\"models\":[{\"name\":\"llama3.1:8b\",\"model\":\"llama3.1:8b\",\"context_length\":8192}]}");
+        final YacyLlmClient c = ollama("supported");
+        final LlmClient.Window w = c.window();
+        assertEquals(8192, w.tokens);
+        assertEquals(LlmClient.Window.DETECTED, w.source);
+        assertFalse("a detected window is not sent", w.configured);
+        assertEquals(Integer.valueOf(131072), w.modelMaxTokens);
+        ask(c, YacyLlmClient.AUTO);
+        assertFalse("the request is the same as before: no num_ctx", body(0).getJSONObject("options").has("num_ctx"));
+        // read at most every ten minutes
+        final int reads = this.metadataReads.get();
+        c.window();
+        c.window();
+        assertEquals(reads, this.metadataReads.get());
+        // the model unloaded meanwhile: the last window seen stays (not loaded is no other window)
+        this.ps.set("{\"models\":[]}");
+        c.detectEveryMillis = 0L;
+        assertEquals(8192, c.window().tokens);
+        assertEquals(LlmClient.Window.DETECTED, c.window().source);
+        // loaded again with another window: that one counts
+        this.ps.set("{\"models\":[{\"name\":\"llama3.1:8b\",\"context_length\":16384}]}");
+        assertEquals(16384, c.window().tokens);
+    }
+
+    @Test
+    public void withoutAReportedWindowTheDefaultIsAssumedAndAConfiguredOneWins() throws Exception {
+        // not loaded, or an older Ollama without context_length: Ollama's default is assumed
+        assertEquals(LLM.DEFAULT_NUM_CTX, ollama("supported").window().tokens);
+        assertEquals(LlmClient.Window.ASSUMED, ollama("supported").window().source);
+        this.ps.set("{\"models\":[{\"name\":\"llama3.1:8b\",\"model\":\"llama3.1:8b\"}]}");
+        assertEquals(LlmClient.Window.ASSUMED, ollama("supported").window().source);
+        // a server that refuses the metadata request
+        this.ps.set("not json");
+        assertEquals(LlmClient.Window.ASSUMED, ollama("supported").window().source);
+        // configured for the service: it wins and is sent
+        this.ps.set("{\"models\":[{\"name\":\"llama3.1:8b\",\"context_length\":8192}]}");
+        final LLM.LLMModel m = new LLM.LLMModel(new LLM(stub(), "", 512, 16384, LLM.LLMType.OLLAMA), "llama3.1:8b", false, false);
+        final YacyLlmClient configured = new YacyLlmClient(() -> m);
+        assertEquals(16384, configured.window().tokens);
+        assertEquals(LlmClient.Window.CONFIGURED, configured.window().source);
+        // the OpenAI-compatible path reads nothing
+        final int reads = this.metadataReads.get();
+        final YacyLlmClient openai = new YacyLlmClient(() -> model(LLM.LLMType.OPENAI, "supported", false));
+        assertEquals(LlmClient.Window.ASSUMED, openai.window().source);
+        assertEquals(reads, this.metadataReads.get());
     }
 }

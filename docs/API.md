@@ -881,8 +881,9 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     `revisit`, row IDs as of the last refill) and the pages it `queued`
     since the start, with `scanBatch`, `revisitBatch`, `agingMinutes`.
     `context`: the window the requests are planned against
-    (`windowTokens`, `windowSource` `configured` or `assumed_default`,
-    `numCtxSent`), `maxOutputTokens`, `answerReserveTokens`,
+    (`windowTokens`, `windowSource` `configured`, `detected` (the window
+    an Ollama server reports for the loaded model, not sent) or
+    `assumed_default`, `modelMaxTokens`, `numCtxSent`), `maxOutputTokens`, `answerReserveTokens`,
     `fixedPromptTokens`, `schemaCounted`, `promptTokensEstimatedMax` and
     `measured` (what the endpoint reported since the start; null for a
     client without reports). `continuation`: `chunks`, `maxChars`,
