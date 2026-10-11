@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The page text the LLM tier reads (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3). For a page longer than the tier's input,
+ * The page text the LLM tier reads (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.4). For a page longer than the tier's input,
  * blocks of navigation that recur on the other pages of the same host (a site menu, a footer) are moved behind the
  * page's own content, so the first characters of the input are the page's content instead of the same menu again
  * (www.pta.de: a menu of 4,166 characters before every page's text). Nothing is removed: every line stays, verbatim,

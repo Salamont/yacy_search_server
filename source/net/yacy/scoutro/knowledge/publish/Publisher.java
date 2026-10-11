@@ -396,7 +396,7 @@ public final class Publisher {
 
     /**
      * Adds the LLM tier's result for more of a page's text to the result it published before (a continuation,
-     * docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): nothing is replaced, and a statement already supported by the page keeps
+     * docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.5): nothing is replaced, and a statement already supported by the page keeps
      * its one tier-3 evidence (the primary key of the evidence), so a continuation never publishes twice. A
      * compare-and-set on what the tier read and on the mark {@code more_text}: a changed page, a reset or a second
      * continuation finds no row. The mark then keeps {@code reason} (null: the whole text was read).

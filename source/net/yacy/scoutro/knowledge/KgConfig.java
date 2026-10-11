@@ -89,7 +89,7 @@ public final class KgConfig {
     public static final String LLM_PARALLEL = "scoutro.kg.llm.parallel";
     public static final String LLM_TIMEOUT_SECONDS = "scoutro.kg.llm.timeoutSeconds";
     public static final String LLM_MAX_ATTEMPTS = "scoutro.kg.llm.maxAttempts";
-    /** Tokens of the context window kept free for the answer (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3). */
+    /** Tokens of the context window kept free for the answer (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.3). */
     public static final String LLM_ANSWER_RESERVE_TOKENS = "scoutro.kg.llm.answerReserveTokens";
     /** Chunks a continuation reads of a long content page beyond the first {@code extract.maxInputChars}; 0: none. */
     public static final String LLM_CONTINUATION_CHUNKS = "scoutro.kg.llm.continuationChunks";

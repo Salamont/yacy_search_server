@@ -14,14 +14,17 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   before newer higher-priority ones. Every request is planned against the
   model's context window with an answer reserve
   (`scoutro.kg.llm.answerReserveTokens`, 1,200): a large list of known
-  entities is cut to those the chunk names, a chunk is split or the page is
-  shown as `context_budget` instead of sending a request that does not fit;
-  `num_ctx` is sent on Ollama's native path where `ai.service_num_ctx` is
-  configured; otherwise the window Ollama reports for the loaded model
-  (`/api/ps`, read-only, not sent) is used before the assumed 4,096. A long page reads its own content before navigation that
-  recurs on its host (moved, never removed), and a long content page is
-  continued by at most `scoutro.kg.llm.continuationChunks` (5) further
-  requests at low priority; text still unread shows as `text_cut`. New
+  entities is cut to those the chunk names and as many others as fit, a
+  chunk is split or the page is shown as `context_budget` instead of
+  sending a request that does not fit; `num_ctx` is sent on Ollama's native
+  path where `ai.service_num_ctx` is configured; otherwise the window
+  Ollama reports for the loaded model (`/api/ps`, read-only, not sent) is
+  used before the assumed 4,096. A long page reads its own content before
+  navigation that recurs on its host (moved, never removed), and a long
+  content page is continued by at most `scoutro.kg.llm.continuationChunks`
+  (5) further requests at low priority, in the layout of its first reading;
+  text still unread shows as `text_cut`. A page published before schema 4
+  is confirmed with the input hash it was published with. New
   status blocks `llm.selection`, `llm.context`, `llm.continuation` and
   counters. No schema change; pages read before are not read again.
 

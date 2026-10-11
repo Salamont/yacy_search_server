@@ -25,7 +25,7 @@ import org.json.JSONObject;
 import net.yacy.ai.PromptGuard;
 
 /**
- * The token budget of one model request of the LLM tier (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): the whole request,
+ * The token budget of one model request of the LLM tier (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.3): the whole request,
  * system prompt, answer schema (where the endpoint may count it as prompt), the user message with the page's site,
  * language, title, facility kinds, known entities and the chunk, plus a reserve for the answer, must fit the model's
  * context window. Ollama keeps prompt and answer in one window and otherwise drops the start of the prompt, so a request

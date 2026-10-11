@@ -210,7 +210,11 @@ A changed vocabulary re-extracts the pages at low priority.
   (`llm.timeoutSeconds`, 120), retries (`llm.maxAttempts`, 2), a circuit
   breaker (`llm.breakerFailures`, 3; backoff up to
   `llm.breakerMaxBackoffMinutes`, 60) and at most `llm.maxDocsPerHost` (25)
-  pages per host. Input is capped at `extract.maxInputChars` (12 000).
+  pages per host. A first reading takes at most `extract.maxInputChars`
+  (12 000) characters; a long content page is continued by at most
+  `llm.continuationChunks` (5) further chunks at low priority. Every request
+  is planned against the model's context window with
+  `llm.answerReserveTokens` (1 200) kept for the answer.
 - **Counters since the start.** The overview's LLM tier panel and
   `llm.processed` in `GET /scoutro/api/v1/kg/status` count in memory since
   the last start (since the pod start); every restart or upgrade resets

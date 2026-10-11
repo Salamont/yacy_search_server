@@ -55,7 +55,7 @@ final class LlmQueue {
      * its bounded retries; a new input or the admin retry makes the page to do again.
      */
     static final String INPUT_UNCONFIRMED = "input_unconfirmed";
-    /** Done: a continuation reads more of the long page's text later (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3). */
+    /** Done: a continuation reads more of the long page's text later (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.5). */
     static final String MORE_TEXT = "more_text";
     /** Done: text behind what the tier reads stays unread (continuations off, a legal page, or their limit reached). */
     static final String TEXT_CUT = "text_cut";
@@ -140,7 +140,7 @@ final class LlmQueue {
     static final String LAYOUT_PREFIX = "llm_layout:";
 
     /**
-     * The scan of one LLM collection (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): its frontier walks the collection's pages in
+     * The scan of one LLM collection (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.2): its frontier walks the collection's pages in
      * row order and is never reset by a restart; the revisit walks behind the frontier and finds pages that became to do
      * again there (a new text, a new extractor, a retry) or that were left unqueued by an earlier version.
      */
@@ -354,7 +354,7 @@ final class LlmQueue {
 
     /**
      * A queued item waiting longer than this is claimed before newer items of a higher priority: the page priorities
-     * order the queue, but never hold an older page back for good (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
+     * order the queue, but never hold an older page back for good (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.2).
      */
     static final long AGING_MILLIS = 2L * 60L * 60_000L;
 

@@ -877,13 +877,15 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     `validator_only` or `fallback_after_rejection`, `request`, `reason`,
     `withoutSchema`, `requests` per format, `rejections`, `lastRejection`;
     in memory since the start; docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
-    `selection`: per LLM collection its scan positions (`frontier`,
-    `revisit`, row IDs as of the last refill) and the pages it `queued`
-    since the start, with `scanBatch`, `revisitBatch`, `agingMinutes`.
+    `selection`: `collections`, per LLM collection (`collection`) its scan
+    positions (`frontier`, `revisit`, row IDs as of the last refill) and the
+    pages it `queued` since the start, with `scanBatch`, `revisitBatch`,
+    `agingMinutes`.
     `context`: the window the requests are planned against
     (`windowTokens`, `windowSource` `configured`, `detected` (the window
     an Ollama server reports for the loaded model, not sent) or
-    `assumed_default`, `modelMaxTokens`, `numCtxSent`), `maxOutputTokens`, `answerReserveTokens`,
+    `assumed_default`, `modelMaxTokens`, `numCtxSent`, as last read: the
+    status never asks the model server), `maxOutputTokens`, `answerReserveTokens`,
     `fixedPromptTokens`, `schemaCounted`, `promptTokensEstimatedMax` and
     `measured` (what the endpoint reported since the start; null for a
     client without reports). `continuation`: `chunks`, `maxChars`,
@@ -979,7 +981,10 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
   - Per document: candidate pages only (imprint, about, services, locations,
     contact, home page, pages with structured data), at most
     `scoutro.kg.llm.maxDocsPerHost` per host, ≤
-    `scoutro.kg.extract.maxInputChars` of text in chunks; read timeout
+    `scoutro.kg.extract.maxInputChars` of text in chunks at a first reading
+    (a long content page then up to `scoutro.kg.llm.continuationChunks`
+    further chunks), each request planned against the model's window with
+    `scoutro.kg.llm.answerReserveTokens` kept for the answer; read timeout
     `scoutro.kg.llm.timeoutSeconds`, ≤ 1 MiB raw response.
   - The answer must be one JSON object of the schema; every entity and
     relation needs a quote found verbatim in the page text that contains the

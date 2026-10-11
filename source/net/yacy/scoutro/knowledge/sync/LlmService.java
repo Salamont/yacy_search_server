@@ -607,7 +607,7 @@ public final class LlmService {
 
     /**
      * Fills the queue while few items are due; one pass per call, one thread at a time (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
-     * 6.3). Every followed collection has its own scan: a frontier that walks its pages in row order and keeps its
+     * 27.2). Every followed collection has its own scan: a frontier that walks its pages in row order and keeps its
      * position across restarts, and a revisit that walks behind the frontier for pages that became to do again there.
      * A pass gives the revisits up to {@link #REVISIT_BATCH} pages and every collection an equal share of the rest;
      * a share a collection cannot use goes to the others. The page priorities, the per-host cap, the schedule and the
@@ -1136,7 +1136,7 @@ public final class LlmService {
     }
 
     /**
-     * The budget of the requests (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): the model's window (the service's configured
+     * The budget of the requests (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.3): the model's window (the service's configured
      * {@code ai.service_num_ctx}, else the window an Ollama server reports for the loaded model, else 4096, Ollama's
      * smallest default, assumed), the answer reserve (at most the row's output cap), the active system prompt and, where the endpoint
      * may count it as prompt, the schema.
@@ -1738,7 +1738,7 @@ public final class LlmService {
     }
 
     /**
-     * The fair, resumable selection (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): per followed collection its frontier and
+     * The fair, resumable selection (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.2): per followed collection its frontier and
      * revisit positions (row IDs, as of the last scan pass) and the pages it queued since the start.
      */
     private JSONObject selectionStatus() {
@@ -1752,7 +1752,7 @@ public final class LlmService {
     }
 
     /**
-     * The context budget (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): the window the requests are planned against and
+     * The context budget (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.3): the window the requests are planned against and
      * whether it is the service's configured one (then it is sent as {@code num_ctx}) or Ollama's assumed default, the
      * row's output cap ({@code num_predict}), the answer reserve, the fixed part of every request, the largest planned
      * prompt, and what the endpoint reported.

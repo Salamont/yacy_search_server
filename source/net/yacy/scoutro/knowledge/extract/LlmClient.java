@@ -85,7 +85,7 @@ public interface LlmClient {
     }
 
     /**
-     * The context window the requests of the selected model are budgeted against (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
+     * The context window the requests of the selected model are budgeted against (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.3).
      */
     final class Window {
         /** Where {@link #tokens} comes from. */
