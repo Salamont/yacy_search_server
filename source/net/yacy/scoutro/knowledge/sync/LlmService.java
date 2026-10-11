@@ -159,6 +159,9 @@ public final class LlmService {
         final AtomicLong contextRefused = new AtomicLong();
         /** The largest estimated prompt of a planned request. */
         final AtomicLong promptTokensEstimatedMax = new AtomicLong();
+        /** Long pages whose recurring navigation was moved behind their content, and the characters moved. */
+        final AtomicLong navigationMoved = new AtomicLong();
+        final AtomicLong navigationMovedChars = new AtomicLong();
 
         Counters() {
             for (final String reason : LlmExtractor.INVALID_REASONS) {
@@ -272,7 +275,11 @@ public final class LlmService {
                     "chunksSplit",
                     this.chunksSplit.get(),
                     "contextRefused",
-                    this.contextRefused.get());
+                    this.contextRefused.get(),
+                    "navigationMoved",
+                    this.navigationMoved.get(),
+                    "navigationMovedChars",
+                    this.navigationMovedChars.get());
         }
     }
 
@@ -314,6 +321,16 @@ public final class LlmService {
     private final Map<Integer, Long> revisitPausedUntil = new ConcurrentHashMap<>();
     /** Pages queued per collection since the start (the fair shares in the status). */
     private final Map<String, AtomicLong> queuedByCollection = new ConcurrentHashMap<>();
+    /** Recurring lines per host and compared pages (a bounded cache: a host's long pages share it). */
+    private final Map<String, Set<String>> recurringLines = Collections.synchronizedMap(
+            new java.util.LinkedHashMap<String, Set<String>>(16, 0.75f, true) {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                protected boolean removeEldestEntry(final Map.Entry<String, Set<String>> eldest) {
+                    return size() > 128;
+                }
+            });
     /** The scan positions as of the last pass (status). */
     private volatile List<LlmQueue.Lane> lanes = Collections.emptyList();
     private volatile long nextAt;
@@ -896,7 +913,7 @@ public final class LlmService {
         }
         final BaseTiers.Text page = new BaseTiers.Text(this.solr, item.docId);
         final Extraction base;
-        final String text;
+        final PageText pageText;
         try {
             base = this.tiers.extract(d, page);
             if (!RuleExtractor.candidate(d.url, d.titles, base)) {
@@ -904,7 +921,7 @@ public final class LlmService {
                 markAndComplete(item, row.llmInput(), LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_CANDIDATE);
                 return;
             }
-            text = page.get();
+            pageText = layout(item.docId, row.hostId, page.get());
         } catch (final IOException e) {
             this.lastError = "solr: " + e.getMessage();
             release(item, now + SOLR_RETRY_MILLIS, false);
@@ -915,7 +932,7 @@ public final class LlmService {
         final String host = BaseTiers.host(d);
         final String domain = Normalizers.registrableDomain(host);
         final String title = d.titles.isEmpty() ? null : d.titles.get(0);
-        final List<LlmExtractor.Chunk> chunks = LlmExtractor.chunks(text, this.cfg.extractMaxInputChars);
+        final List<LlmExtractor.Chunk> chunks = LlmExtractor.chunks(pageText.text, this.cfg.extractMaxInputChars);
         final RequestBudget budget = budget(p);
         final RequestBudget.Plan plan = budget.plan(chunks, known, title, domain, d.language, kinds);
         if (plan.refused) {
@@ -1001,7 +1018,7 @@ public final class LlmService {
         final Extraction ex = new Extraction(this.cfg.extractMaxStatementsPerDoc);
         final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d);
         for (int i = 0; i < accepted.size(); i++) {
-            LlmExtractor.apply(accepted.get(i), acceptedKnown.get(i), ex, ctx);
+            LlmExtractor.apply(atOrigin(accepted.get(i), pageText), acceptedKnown.get(i), ex, ctx);
         }
         ex.ranTier(LlmExtractor.TIER);
         try {
@@ -1022,6 +1039,75 @@ public final class LlmService {
         final int window = w == null ? RequestBudget.DEFAULT_WINDOW : w.tokens;
         final int reserve = w == null ? this.cfg.llmAnswerReserveTokens : Math.min(this.cfg.llmAnswerReserveTokens, w.maxOutputTokens);
         return new RequestBudget(window, reserve, p.text, w == null || w.schemaInPrompt ? LlmExtractor.SCHEMA : null);
+    }
+
+    /**
+     * The page as the tier reads it ({@link PageText}): a page longer than the input with blocks of navigation that
+     * recur on up to three other pages of its host (the first by document ID, so the same page is read the same way)
+     * gets them behind its own content; every other page is read unchanged.
+     */
+    private PageText layout(final String docId, final String hostId, final String text) throws IOException, KgException {
+        if (text == null || text.length() <= this.cfg.extractMaxInputChars || hostId == null) {
+            return PageText.of(text);
+        }
+        final List<String> ids = this.store.read(c -> {
+            final List<String> out = new ArrayList<>();
+            try (PreparedStatement ps = c.prepareStatement("SELECT doc_id FROM kg_doc WHERE host_id = ? AND state = 1 AND doc_id <> ?"
+                    + " ORDER BY doc_id LIMIT " + PageText.SIBLINGS)) {
+                ps.setString(1, hostId);
+                ps.setString(2, docId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        out.add(rs.getString(1));
+                    }
+                }
+            }
+            return out;
+        });
+        if (ids.isEmpty()) {
+            return PageText.of(text);
+        }
+        final String key = hostId + "|" + String.join(",", ids);
+        Set<String> recurring = this.recurringLines.get(key);
+        if (recurring == null) {
+            final List<Set<String>> sets = new ArrayList<>();
+            for (final String id : ids) {
+                sets.add(PageText.keys(this.solr.text(id)));
+            }
+            recurring = PageText.recurring(sets);
+            this.recurringLines.put(key, recurring);
+        }
+        final PageText pt = PageText.layout(text, recurring, this.cfg.extractMaxInputChars);
+        if (pt.moved > 0) {
+            this.counters.navigationMoved.incrementAndGet();
+            this.counters.navigationMovedChars.addAndGet(pt.moved);
+        }
+        return pt;
+    }
+
+    /** The accepted items with their quote positions in the stored text (the cached answer keeps those of the input). */
+    private static JSONObject atOrigin(final JSONObject accepted, final PageText pt) {
+        if (pt.moved == 0) {
+            return accepted;
+        }
+        try {
+            final JSONObject out = new JSONObject(accepted.toString());
+            for (final String field : List.of("entities", "claims", "values")) {
+                final org.json.JSONArray items = out.optJSONArray(field);
+                if (items == null) {
+                    continue;
+                }
+                for (int i = 0; i < items.length(); i++) {
+                    final JSONObject item = items.optJSONObject(i);
+                    if (item != null && item.has("at")) {
+                        item.put("at", pt.origin(item.optInt("at")));
+                    }
+                }
+            }
+            return out;
+        } catch (final org.json.JSONException e) {
+            return accepted; // the positions stay those of the input
+        }
     }
 
     /** Rechecked for every transport, including the second request after a format rejection. */
