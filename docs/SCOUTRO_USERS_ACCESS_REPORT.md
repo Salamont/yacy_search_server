@@ -130,7 +130,8 @@ Bericht übergeben und nicht im Repository abgelegt.
   dann sind alle Collections für andere Peers und jeden Client des Ports lesbar (Abschnitt 10.3). Entscheidung
   bestätigt (2026-10-11): Indexaustausch und DHT bleiben im geschützten Modus standardmäßig aus.
 - **Vorschläge** (`suggest.json`) lassen sich nicht nach Collection trennen und bleiben im geschützten Modus Admin-Funktion.
-- **Anmeldelimit pro Adresse** gilt hinter einem nicht vertrauenswürdigen Proxy für alle Clients gemeinsam.
+- **Anmeldelimit pro Adresse** gilt hinter einem Proxy für alle Clients gemeinsam (ab 0.10.0 auch hinter einem
+  vertrauenswürdigen Proxy, Bucket `proxy:<Adresse>`; Abschnitt 10.6).
 - **Chat:** mit einem lokalen, deterministischen Modell-Stub Ende-zu-Ende geprüft (`chat-rag-live-smoke.py`); ein echtes
   Sprachmodell wurde nicht verwendet (keine externen Kosten, keine Zugangsdaten).
 - **Gemischte Hinweislinks:** Einzelne Hinweise der Host-Analyse verweisen auf `IndexSchema_p.html` (Admin-Seite);
@@ -257,8 +258,12 @@ eine Collection sieht. Er läuft vollständig durch.
 Nicht auf einem echten Olares getestet. Vor einem produktiven Wechsel in den geschützten Modus:
 
 - App-Fenster: sendet es `scoutro_session` mit `SameSite=Strict`? Sonst `Lax` (Abschnitt 10.1, Info).
-- Anmeldelimits: Olares-Eingang als vertrauenswürdigen Proxy eintragen (`server.reverseProxy.trusted`)
-  und `X-Real-IP` setzen, sonst teilen sich alle Browser das Limit je Adresse.
+- Anmeldelimits (korrigiert 2026-10-11 für 0.10.0): Die frühere Empfehlung hier, den Olares-Eingang als
+  vertrauenswürdigen Proxy einzutragen und `X-Real-IP` zu übernehmen, ist überholt. Für die Olares-Kette ist
+  nicht belegt, dass sie ein vom Client gesetztes `X-Real-IP` ersetzt. Anmeldungen über einen vertrauenswürdigen
+  Proxy zählen deshalb in einem gemeinsamen Bucket (`proxy:<Adresse>`);
+  `scoutro.auth.limits.proxyAddress=x-real-ip` nur mit belegtem Vertrag
+  ([SCOUTRO_USERS_ACCESS.md](SCOUTRO_USERS_ACCESS.md), Abschnitt 5).
 - Interner API-Zugang (`authLevel: internal`): leitet alle `/scoutro/api/` weiter, auch die Anmeldung;
   die Begrenzung auf vier Argon2-Prüfungen gilt dort ebenso.
 - Peer-Einstellungen: das Image übernimmt `freeworld`; der geschützte Modus pausiert DHT und schließt die

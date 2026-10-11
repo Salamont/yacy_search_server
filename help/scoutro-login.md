@@ -46,7 +46,7 @@ then continues to the requested page.
 | Message | Meaning |
 |---|---|
 | User name or password is wrong. | Same answer for an unknown name and a wrong password. |
-| Too many failed sign-ins … | 5 failures for a name or 30 from one address within 15 minutes; wait and try again. The account is not locked. |
+| Too many failed sign-ins … | 5 failures for a name or 30 from one client within 15 minutes; wait and try again. The account is not locked. Behind a reverse proxy (such as the Olares entrance) all sign-ins through it count as one client, unless the administrator set `scoutro.auth.limits.proxyAddress=x-real-ip` for a proxy that replaces `X-Real-IP`. |
 | This account is locked. | An administrator locked it (shown only after the right password). |
 | Your browser did not keep the sign-in. | Cookies are blocked for this site; allow them or use the browser sign-in. |
 | The built-in administrator still uses the default password. | Change it on the *Accounts* page (`ConfigAccounts_p.html`). |
@@ -54,7 +54,8 @@ then continues to the requested page.
 ## Security
 
 - The session cookie `scoutro_session` is `HttpOnly`, `SameSite=Strict` and
-  `Secure` behind HTTPS. Only its hash is kept on the server; sessions end
+  `Secure` behind HTTPS (`scoutro.auth.cookie.secure=always` also when a
+  TLS entrance forwards plain HTTP). Only its hash is kept on the server; sessions end
   after 30 minutes without use, after 12 hours at the latest, with sign-out,
   and when the password, role, collections, export right or status change.
 - Passwords are stored as Argon2id hashes; nothing is stored in the browser's

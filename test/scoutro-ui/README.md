@@ -272,6 +272,21 @@ call of the model (released as an administrator could do it), system
 questions and the administrator's model mirror. `SCOUTRO_RAG_DUMP=FILE`
 writes what the model received.
 
+`test/scoutro-access/signin-proxy-live-smoke.py` puts a local TLS edge in
+front of two disposable peers that behaves like the Olares entrance chain in
+its least favourable form (HTTPS outside, connection from loopback, the
+client's `X-Real-IP` passed on unchanged, `X-Forwarded-For` appended,
+`X-Forwarded-Proto: http`). At `POST /scoutro/api/v1/auth/login` it checks
+that forged `X-Real-IP`/`X-Forwarded-For` values rotated over 30 failures
+stay in the shared bucket `proxy:127.0.0.1` (429) and never reach the audit,
+that a direct client (a non-loopback address of the host,
+`SCOUTRO_DIRECT_ADDRESS`) keeps its own bucket, the per-name limit and
+Digest access; with `scoutro.auth.cookie.secure=always` that the cookie is
+set, used and cleared with `Secure` over internal HTTP and through the edge
+(also in Chromium via `signin-proxy-browser-test.mjs`, `SCOUTRO_SKIP_BROWSER=1`
+skips it), and that only `scoutro.auth.limits.proxyAddress=x-real-ip` counts
+`X-Real-IP`. It prints cookie attributes only.
+
 `test/scoutro-api/agent-crawl-host-live-smoke.py` checks that an agent's
 crawl stays on exactly its start host. YaCy's domain filter is a host prefix,
 so a crawl of `agent-host.example` would also follow `agent-host.example.test`.

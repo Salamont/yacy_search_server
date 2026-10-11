@@ -67,8 +67,10 @@ sign in, and nobody can lock, demote or remove their own account.
 Newest first: sign-ins (also failures), sign-outs, password changes and
 resets, account and access changes, restart and shutdown, and every changing
 Scoutro action of a person (route, target and result). Passwords, tokens,
-cookies, document contents and search texts are never logged. Filter by a
-person or target name. Stored in `DATA/SETTINGS/scoutro-user-audit.jsonl`
+cookies, document contents and search texts are never logged. The client of
+an entry is its address, or `proxy:<address>` for everything that arrived
+through a trusted reverse proxy such as the Olares entrance (headers sent by
+the client are not taken over). Filter by a person or target name. Stored in `DATA/SETTINGS/scoutro-user-audit.jsonl`
 (newest 20,000 entries).
 
 ## API

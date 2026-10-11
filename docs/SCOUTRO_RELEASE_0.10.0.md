@@ -28,7 +28,22 @@ What happens on the first start of the new image with existing DATA:
   `Secure` follows `scoutro.auth.cookie.secure` (default `auto`): set when the
   request is HTTPS or carries `X-Forwarded-Proto: https`. Behind a TLS-terminating
   entrance whose inner hop sends `X-Forwarded-Proto: http` the cookie is **not**
-  `Secure` in `auto` mode; see the acceptance gate below.
+  `Secure` in `auto` mode. **On Olares** (external entrance HTTPS only) set
+  `scoutro.auth.cookie.secure=always` in `yacy.conf` during the stopped upgrade
+  window, before the first browser sign-in: the set and the clearing cookie then
+  carry `Secure` although Scoutro itself is reached over internal HTTP.
+  `SameSite` stays `Strict`.
+- **Sign-in limits behind a proxy.** The limits and the audit field `client`
+  count a direct connection by its socket address and every connection from a
+  peer in `server.reverseProxy.trusted` (installed: loopback, i.e. the whole
+  Olares chain) in one shared bucket `proxy:<proxy address>`. `X-Real-IP` and
+  `X-Forwarded-For` sent by a client therefore cannot choose a bucket. Trade-off:
+  30 failed form sign-ins from anyone within 15 minutes make every form sign-in
+  through that proxy wait up to 15 minutes (the 5-per-name limit and the limit of
+  4 parallel password checks stay; HTTP Digest and agent Bearer tokens are not
+  affected). `scoutro.auth.limits.proxyAddress=x-real-ip` counts one valid
+  `X-Real-IP` of a trusted proxy instead, only for a proxy shown to replace that
+  header; the package does not set it.
 - **Settings preserved.** The image reads heap, proxy trust, localhost
   administrator and peer-to-peer settings from `DATA/SETTINGS/yacy.conf`. An
   existing configuration is neither re-seeded nor rewritten, so installed values
@@ -86,9 +101,9 @@ code facts it rests on:
 
 | Area | Behaviour in this release |
 | --- | --- |
-| Sign-in limits | 5 failures per account name and 30 per client address within 15 minutes (`LoginThrottle`). The address is `RequestHeader.client`: the socket peer, or, when the peer matches `server.reverseProxy.trusted`, one valid `X-Real-IP` header. `X-Forwarded-For` is **not** used here. Without `X-Real-IP` all clients behind a loopback proxy share one address; a client-supplied `X-Real-IP` passed through unchanged would choose its own bucket. |
+| Sign-in limits | 5 failures per account name and 30 per client within 15 minutes (`LoginThrottle`), at most 4 parallel password checks. The client is `SignInClient`: the socket peer, or `proxy:<peer>` for every peer matching `server.reverseProxy.trusted` (one shared bucket; on Olares `proxy:127.0.0.1`). `X-Real-IP` counts only with `scoutro.auth.limits.proxyAddress=x-real-ip` and exactly one valid value; `X-Forwarded-For` never. Per-client limits behind the Olares entrance are therefore **not** available until an `X-Real-IP` contract is proven. YaCy's own effective address (`RequestHeader.client`, Access Tracker) is unchanged and not used for these limits. |
 | Chat, LLM shield | `ClientAddress`: from a trusted peer one valid `X-Real-IP` first, otherwise the right-most `X-Forwarded-For` entry that is not a trusted proxy; `source` is `direct`, `untrusted_proxy`, `x_real_ip`, `x_forwarded_for` or `unresolved`. |
-| Cookie | `SameSite=Strict`, `Secure` in `auto` only for HTTPS or `X-Forwarded-Proto: https`. `scoutro.auth.cookie.secure=always` and `scoutro.auth.cookie.sameSite=lax` exist as settings; change them only after a measured finding and approval. |
+| Cookie | `SameSite=Strict`, `Secure` in `auto` only for HTTPS or `X-Forwarded-Proto: https`. Planned for the Olares upgrade: `scoutro.auth.cookie.secure=always` before the first browser sign-in (set, use and clear over internal HTTP tested). `scoutro.auth.cookie.sameSite=lax` only after a measured app-window finding and approval. |
 | Rights | Only administrator sessions get `adminRight`; Research/Operator are limited to their collections in protected mode. |
 
 Existing diagnostics (none of them records cookies, `Authorization` headers or tokens):
@@ -96,16 +111,19 @@ Existing diagnostics (none of them records cookies, `Authorization` headers or t
 - **Audit** (`GET /scoutro/api/v1/access/audit`, Settings → Users → Audit; file
   `DATA/SETTINGS/scoutro-user-audit.jsonl`): `auth.login` (`ok`, `failed`
   `invalid_credentials`, `denied` `too_many_attempts`/`account_locked`) and
-  `auth.logout`, each with the effective sign-in address `client`.
-- **YaCy access tracker** (`AccessTracker_p.html`, administrator): effective
-  address per requested path, same resolution as the sign-in limits.
+  `auth.logout`, each with the sign-in client `client` (an address, or
+  `proxy:<address>` for the shared bucket of a trusted proxy).
+- **YaCy access tracker** (`AccessTracker_p.html`, administrator): YaCy's
+  effective address per requested path (one valid `X-Real-IP` from a trusted
+  peer). It shows which `X-Real-IP` arrives, but is not the sign-in client.
 - **Chat log line** (`DATA/LOG`, logger `RAGProxy`): `event=rag-request
   phase=start … localhost=… source=… peerTrusted=… shield=…`, written for a
   signed-in `GET /v1/chat/completions` before the method is refused, so no model
   is called. The line contains no addresses or headers.
 
-No diagnostic shows the sign-in address together with its source; compare the
-audit `client` with controlled source addresses and injected test headers.
+No diagnostic shows the sign-in client together with the headers it ignored;
+compare the audit `client` and the Access Tracker with controlled source
+addresses and injected test headers.
 
 ## Candidate validation and later publication
 

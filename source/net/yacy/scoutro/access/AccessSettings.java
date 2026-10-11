@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
 
+import net.yacy.search.SwitchboardConstants;
+
 /**
  * The access settings in yacy.conf, read through a key lookup so that the
  * rules can be tested without a running peer. Missing or invalid values fall
@@ -38,6 +40,8 @@ public final class AccessSettings {
     public static final String MAX_HOURS = "scoutro.auth.session.maxHours";
     public static final String SAME_SITE = "scoutro.auth.cookie.sameSite";
     public static final String SECURE = "scoutro.auth.cookie.secure";
+    /** {@code shared} (default) or {@code x-real-ip}: how sign-ins through a trusted reverse proxy are counted ({@link SignInClient}). */
+    public static final String LIMITS_PROXY_ADDRESS = "scoutro.auth.limits.proxyAddress";
 
     private final Function<String, String> config;
 
@@ -113,6 +117,22 @@ public final class AccessSettings {
     /** {@code Strict} (default) or {@code Lax}. */
     public String sameSite() {
         return "lax".equalsIgnoreCase(get(SAME_SITE)) ? "Lax" : "Strict";
+    }
+
+    /**
+     * The patterns of {@code server.reverseProxy.trusted} as configured (empty: no trusted proxy). YaCy's
+     * yacy.init always provides the key; the loopback patterns are its default.
+     */
+    public String trustedProxies() {
+        return get(SwitchboardConstants.SERVER_REVERSE_PROXY_TRUSTED);
+    }
+
+    /**
+     * True only for {@code scoutro.auth.limits.proxyAddress=x-real-ip}: the sign-in limits then count a
+     * single valid {@code X-Real-IP} of a trusted proxy. Default {@code shared}: one bucket per trusted proxy.
+     */
+    public boolean proxyRealIp() {
+        return "x-real-ip".equals(get(LIMITS_PROXY_ADDRESS).toLowerCase(Locale.ROOT));
     }
 
     /** {@code auto} (default), {@code always} or {@code never}. */

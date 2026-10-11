@@ -21,6 +21,14 @@ start host (see below). See the [release, upgrade and rollback notes](docs/SCOUT
   protection and an audit log (`scoutro-user-audit.jsonl`). The built-in YaCy
   administrator signs in there with its existing password; HTTP Digest for
   tools and scripts is unchanged.
+- Sign-in limits cannot be steered by client headers: connections from a
+  trusted reverse proxy (`server.reverseProxy.trusted`, loopback by default,
+  i.e. the Olares entrance chain) count in one shared bucket
+  `proxy:<address>`; `X-Real-IP` counts only with
+  `scoutro.auth.limits.proxyAddress=x-real-ip`, `X-Forwarded-For` never. The
+  5-per-name limit and the 4 parallel password checks are unchanged. Behind an
+  HTTPS-only entrance that forwards plain HTTP (Olares) set
+  `scoutro.auth.cookie.secure=always` before the first browser sign-in.
 - Protected access mode (`scoutro.access.protected`, off after an upgrade): an
   allowlist that closes native search, Solr, MCP, suggestions, chat and the old
   YaCy pages to everyone but administrators, the precondition for Research and

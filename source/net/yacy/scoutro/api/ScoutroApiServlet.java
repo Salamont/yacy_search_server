@@ -41,6 +41,7 @@ import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.scoutro.agents.AgentException;
 import net.yacy.scoutro.access.Caller;
 import net.yacy.scoutro.access.Permission;
+import net.yacy.scoutro.access.SignInClient;
 import net.yacy.scoutro.agents.ScoutroAgents;
 import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.search.Switchboard;
@@ -493,7 +494,7 @@ public class ScoutroApiServlet extends HttpServlet {
         action.append(' ').append(method);
         final String result = status < 400 ? "ok" : status == 401 || status == 403 ? "denied" : "failed";
         access.audit.record(Caller.of(request, access).actor(), action.toString(), target.toString(), result,
-                code == null ? String.valueOf(status) : code, RequestHeader.client(request));
+                code == null ? String.valueOf(status) : code, SignInClient.of(request, access.settings));
     }
 
     /**
