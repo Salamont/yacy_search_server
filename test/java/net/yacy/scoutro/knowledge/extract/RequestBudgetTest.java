@@ -72,7 +72,7 @@ public class RequestBudgetTest {
     }
 
     @Test
-    public void aLargeEntityListKeepsTheEntitiesNamedInTheChunk() {
+    public void aLargeEntityListKeepsTheEntitiesNamedInTheChunkAndTheOthersInOrderAsFarAsTheyFit() {
         final RequestBudget b = new RequestBudget(RequestBudget.DEFAULT_WINDOW, 1200, SYSTEM, null);
         final List<LlmExtractor.Chunk> chunks = LlmExtractor.chunks(page(4000), 12_000);
         final List<LlmExtractor.Known> all = worst();
@@ -80,10 +80,23 @@ public class RequestBudgetTest {
         assertFalse(plan.refused);
         assertEquals(1, plan.parts.size());
         final RequestBudget.Part p = plan.parts.get(0);
-        assertEquals("only the entity the chunk names, numbered again", List.of("k1"), p.known.stream().map(k -> k.id).toList());
-        assertEquals("Muster Pflege gGmbH", p.known.get(0).mention.name);
-        assertEquals(39, plan.knownTrimmed);
+        assertEquals("the entity the chunk names first", "Muster Pflege gGmbH", p.known.get(0).mention.name);
+        assertEquals("k1", p.known.get(0).id);
+        // a plain value (an industry, a company size) needs no name in its quote: the others stay as far as they fit,
+        // in their order and numbered again
+        assertTrue("some others stay: " + p.known.size(), p.known.size() > 1);
+        for (int i = 0; i < p.known.size(); i++) {
+            assertEquals("k" + (i + 1), p.known.get(i).id);
+            assertTrue(p.known.get(i).mention == all.get(i).mention);
+        }
+        assertTrue("the rest is left out: " + plan.knownTrimmed, plan.knownTrimmed > 0);
+        assertEquals(all.size(), p.known.size() + plan.knownTrimmed);
         assertTrue(p.promptTokens + b.reserve <= b.window);
+        // one more would not fit
+        final List<LlmExtractor.Known> oneMore = new ArrayList<>(p.known);
+        oneMore.add(new LlmExtractor.Known("k" + (oneMore.size() + 1), all.get(p.known.size()).mention));
+        assertFalse(b.fits(LlmExtractor.userPrompt(new net.yacy.ai.PromptGuard(), chunks.get(0), "Impressum", "muster-pflege.de", "de",
+                oneMore, Set.of())));
         // without the budget the request would not fit: the worst case of the analysis (about 5,700 tokens)
         final String full = LlmExtractor.userPrompt(new net.yacy.ai.PromptGuard(), chunks.get(0), "Impressum", "muster-pflege.de", "de", all,
                 Set.of());

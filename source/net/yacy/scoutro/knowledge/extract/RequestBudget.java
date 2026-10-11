@@ -133,11 +133,28 @@ public final class RequestBudget {
             plan.maxPromptTokens = Math.max(plan.maxPromptTokens, prompt(all));
             return true;
         }
-        final List<LlmExtractor.Known> needed = LlmExtractor.needed(known, chunk);
-        final String trimmed = LlmExtractor.userPrompt(guard, chunk, title, domain, language, needed, kinds);
+        final boolean[] keep = LlmExtractor.named(known, chunk);
+        List<LlmExtractor.Known> kept = LlmExtractor.select(known, keep);
+        String trimmed = LlmExtractor.userPrompt(guard, chunk, title, domain, language, kept, kinds);
         if (fits(trimmed)) {
-            plan.knownTrimmed += known.size() - needed.size();
-            plan.parts.add(new Part(chunk, needed, prompt(trimmed)));
+            // the others in their order as far as they fit: a plain value needs no name in its quote, and the page's
+            // operator comes first
+            for (int i = 0; i < keep.length; i++) {
+                if (keep[i]) {
+                    continue;
+                }
+                keep[i] = true;
+                final List<LlmExtractor.Known> more = LlmExtractor.select(known, keep);
+                final String withMore = LlmExtractor.userPrompt(guard, chunk, title, domain, language, more, kinds);
+                if (fits(withMore)) {
+                    kept = more;
+                    trimmed = withMore;
+                } else {
+                    keep[i] = false;
+                }
+            }
+            plan.knownTrimmed += known.size() - kept.size();
+            plan.parts.add(new Part(chunk, kept, prompt(trimmed)));
             plan.maxPromptTokens = Math.max(plan.maxPromptTokens, prompt(trimmed));
             return true;
         }

@@ -41,13 +41,17 @@ public class LlmBudgetTest extends LlmFixture {
         assertEquals(1, this.model.users.size());
         final String user = this.model.users.get(0);
         assertTrue(user, user.contains("k1: organization \"Muster Pflege gGmbH\""));
-        assertFalse("only the entities the chunk names are sent: " + user.length() + " characters", user.contains("Partnerorganisation"));
-        assertTrue("the request fits: " + user.length() + " characters of user message", user.length() < 3000);
+        // the others follow in their order as far as they fit (a plain value needs no name in its quote)
+        assertTrue(user, user.contains("Partnerorganisation 1 mit"));
+        assertFalse("the last ones are left out: " + user.length() + " characters", user.contains("Partnerorganisation 39 mit"));
+        final org.json.JSONObject ctx = this.llm.status().getJSONObject("context");
+        assertTrue("the request fits: " + ctx, ctx.getInt("promptTokensEstimatedMax") + ctx.getInt("answerReserveTokens") <= ctx.getInt("windowTokens"));
         assertEquals("the reference k1 of the answer resolved to the operator", List.of("offers Tagespflege q2", "operates Haus Am See q2",
                 "operates Haus Lindenhof q2"), strings("SELECT v.name || ' ' || (SELECT obj_val FROM kg_statement n JOIN kg_vocab nv ON"
                         + " nv.term_id = n.pred WHERE n.subj = s.obj_ent AND nv.name = 'name' LIMIT 1) || ' q' || s.quality FROM kg_statement s"
                         + " JOIN kg_vocab v ON v.term_id = s.pred JOIN kg_evidence e ON e.stmt_rowid = s.stmt_rowid AND e.tier = 3"
                         + " WHERE s.obj_ent IS NOT NULL ORDER BY 1"));
-        assertTrue(this.llm.status().getJSONObject("processed").getLong("knownTrimmed") >= 30L);
+        final long trimmed = this.llm.status().getJSONObject("processed").getLong("knownTrimmed");
+        assertTrue("trimmed " + trimmed, trimmed > 0L && trimmed < 39L);
     }
 }

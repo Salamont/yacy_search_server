@@ -388,9 +388,15 @@ public class LLM {
      */
     private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey, final int readTimeoutMillis,
             final int maxResponseChars) throws IOException, URISyntaxException {
+        return sendPostRequest(urls, data, apiKey, readTimeoutMillis, maxResponseChars, 10000);
+    }
+
+    /** @param connectTimeoutMillis connect timeout */
+    private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey, final int readTimeoutMillis,
+            final int maxResponseChars, final int connectTimeoutMillis) throws IOException, URISyntaxException {
         final URL url = new URI(urls).toURL();
         final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(10000);
+        conn.setConnectTimeout(connectTimeoutMillis);
         conn.setReadTimeout(Math.max(0, readTimeoutMillis));
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
@@ -493,9 +499,11 @@ public class LLM {
     /**
      * The context window an Ollama server has currently loaded {@code model} with: {@code context_length} of the
      * model's entry in {@code GET /api/ps}, which newer Ollama versions report for loaded models. Null if the model is
-     * not loaded, the server does not report the field, or the request fails. Read-only, no inference.
+     * not loaded or the server does not report the field. Read-only, no inference.
+     *
+     * @throws IOException if the server cannot be asked (not reachable, an HTTP error, the timeout)
      */
-    public Integer ollamaLoadedContext(final String model, final int timeoutMillis) {
+    public Integer ollamaLoadedContext(final String model, final int timeoutMillis) throws IOException {
         try {
             final JSONObject ps = new JSONObject(sendMetadataGet(this.hoststub + "/api/ps", timeoutMillis, 256 * 1024));
             final JSONArray models = ps.optJSONArray("models");
@@ -508,7 +516,9 @@ public class LLM {
                 }
             }
             return null;
-        } catch (JSONException | URISyntaxException | IOException | RuntimeException e) {
+        } catch (final URISyntaxException e) {
+            throw new IOException(e.getMessage());
+        } catch (JSONException | RuntimeException e) {
             return null;
         }
     }
@@ -522,7 +532,8 @@ public class LLM {
             final JSONObject data = new JSONObject();
             data.put("model", model);
             data.put("name", model);
-            final JSONObject show = new JSONObject(sendPostRequest(this.hoststub + "/api/show", data, this.api_key, timeoutMillis, 4 * 1024 * 1024));
+            final JSONObject show = new JSONObject(sendPostRequest(this.hoststub + "/api/show", data, this.api_key, timeoutMillis, 4 * 1024 * 1024,
+                    timeoutMillis));
             final JSONObject info = show.optJSONObject("model_info");
             if (info == null) return null;
             final String arch = info.optString("general.architecture", "");

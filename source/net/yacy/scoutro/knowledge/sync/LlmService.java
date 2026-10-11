@@ -1011,8 +1011,6 @@ public final class LlmService {
             }
             return;
         }
-        this.counters.knownTrimmed.addAndGet(plan.knownTrimmed);
-        this.counters.chunksSplit.addAndGet(plan.splits);
         this.counters.promptTokensEstimatedMax.accumulateAndGet(plan.maxPromptTokens, Math::max);
         final List<JSONObject> accepted = new ArrayList<>();
         final List<List<LlmExtractor.Known>> acceptedKnown = new ArrayList<>();
@@ -1094,6 +1092,9 @@ public final class LlmService {
             LlmExtractor.apply(atOrigin(accepted.get(i), pageText), acceptedKnown.get(i), ex, ctx);
         }
         ex.ranTier(LlmExtractor.TIER);
+        // counted once per reading that is published, not per attempt (a deferred document is planned again)
+        this.counters.knownTrimmed.addAndGet(plan.knownTrimmed);
+        this.counters.chunksSplit.addAndGet(plan.splits);
         try {
             publish(item, d, row, ex, keys, m, p.hash, PUBLISH_ESTIMATE + progress.estimate(), reason, continuation,
                     Math.max(0, pageText.text.length() - readUpTo));
@@ -1110,7 +1111,10 @@ public final class LlmService {
      * may count it as prompt, the schema.
      */
     private RequestBudget budget(final KnowledgePrompt p) {
-        final LlmClient.Window w = this.client.window();
+        return budget(p, this.client.window());
+    }
+
+    private RequestBudget budget(final KnowledgePrompt p, final LlmClient.Window w) {
         final int window = w == null ? RequestBudget.DEFAULT_WINDOW : w.tokens;
         final int reserve = w == null ? this.cfg.llmAnswerReserveTokens : Math.min(this.cfg.llmAnswerReserveTokens, w.maxOutputTokens);
         return new RequestBudget(window, reserve, p.text, w == null || w.schemaInPrompt ? LlmExtractor.SCHEMA : null);
@@ -1692,8 +1696,8 @@ public final class LlmService {
      * prompt, and what the endpoint reported.
      */
     private JSONObject contextStatus() {
-        final LlmClient.Window w = this.client.window();
-        final RequestBudget b = budget(this.prompt);
+        final LlmClient.Window w = this.client.lastWindow(); // the status never waits for the model server
+        final RequestBudget b = budget(this.prompt, w);
         return KgJson.obj("windowTokens", b.window, "windowSource", w == null ? LlmClient.Window.ASSUMED : w.source,
                 "modelMaxTokens", w == null ? null : w.modelMaxTokens,
                 "numCtxSent", w != null && w.configured, "maxOutputTokens", w == null ? null : w.maxOutputTokens,

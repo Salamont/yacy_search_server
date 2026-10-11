@@ -93,7 +93,10 @@ public interface LlmClient {
 
         /** Tokens of prompt and answer together. */
         public final int tokens;
-        /** True if the service's window is configured ({@code ai.service_num_ctx}) and sent with the request. */
+        /**
+         * True if the request carries this window as {@code num_ctx}: a window configured for the service
+         * ({@code ai.service_num_ctx}), and any window on the OpenAI-compatible path, which sends it always.
+         */
         public final boolean configured;
         /** The row's output cap ({@code max_tokens}, Ollama's {@code num_predict}). */
         public final int maxOutputTokens;
@@ -125,6 +128,11 @@ public interface LlmClient {
     /** The window of the selected model, or null if unknown (then 4096 tokens, Ollama's smallest default, are assumed). */
     default Window window() {
         return null;
+    }
+
+    /** {@link #window()} as last read, without asking the server (the status). */
+    default Window lastWindow() {
+        return window();
     }
 
     /** What the endpoint counted for the requests since the start (tokens, answers cut at a limit), or null. */

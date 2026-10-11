@@ -374,18 +374,33 @@ public final class LlmExtractor {
     }
 
     /**
-     * The known entities the answer for this chunk can use, numbered k1, k2, ... again: those whose name occurs in the
-     * chunk (compared as the validator compares a quote with the names it must contain), and job postings (a value of a
-     * job may be quoted without its title). A claim or value about another known entity cannot pass the validator for
-     * this chunk.
+     * The known entities this chunk names, numbered k1, k2, ... again: those whose name occurs in the chunk (compared as
+     * the validator compares a quote with the names it must contain), and job postings (a value of a job may be quoted
+     * without its title). A claim and a signal about a known entity need its name in the quote; a plain value (a
+     * price, an industry, a company size) does not, so a request that has room keeps the others too ({@link #select}).
      */
     public static List<Known> needed(final List<Known> known, final Chunk chunk) {
+        return select(known, named(known, chunk));
+    }
+
+    /** Per known entity: true if the chunk names it or it is a job posting ({@link #needed}). */
+    public static boolean[] named(final List<Known> known, final Chunk chunk) {
         final String text = " " + nonNull(Normalizers.key(chunk.text)) + " ";
-        final List<Known> out = new ArrayList<>();
-        for (final Known k : known) {
+        final boolean[] out = new boolean[known.size()];
+        for (int i = 0; i < out.length; i++) {
+            final Known k = known.get(i);
             final String nk = Normalizers.key(k.mention.name);
-            if (Vocabulary.JOB.equals(k.mention.type) || nk != null && text.contains(" " + nk + " ")) {
-                out.add(new Known("k" + (out.size() + 1), k.mention));
+            out[i] = Vocabulary.JOB.equals(k.mention.type) || nk != null && text.contains(" " + nk + " ");
+        }
+        return out;
+    }
+
+    /** The known entities marked in {@code keep}, in their order, numbered k1, k2, ... again. */
+    public static List<Known> select(final List<Known> known, final boolean[] keep) {
+        final List<Known> out = new ArrayList<>();
+        for (int i = 0; i < known.size(); i++) {
+            if (keep[i]) {
+                out.add(new Known("k" + (out.size() + 1), known.get(i).mention));
             }
         }
         return out;

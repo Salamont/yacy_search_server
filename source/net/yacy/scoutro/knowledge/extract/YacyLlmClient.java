@@ -84,10 +84,16 @@ public final class YacyLlmClient implements LlmClient {
     private final AtomicLong answerTokens = new AtomicLong();
     private final AtomicLong answerTokensMax = new AtomicLong();
     private final AtomicLong answersCutAtLimit = new AtomicLong();
-    /** How often the window of an unconfigured Ollama service is read again, and the timeout of that read. */
+    /**
+     * How often the window of an Ollama service is read again, and the timeout of that read (connecting included). As
+     * long as no window was seen (the model not loaded yet, e.g. after a restart, or the server not reachable) it is
+     * read again after {@link #DETECT_UNSEEN_MILLIS}: the first request loads the model.
+     */
     static final long DETECT_EVERY_MILLIS = 10L * 60_000L;
+    static final long DETECT_UNSEEN_MILLIS = 60_000L;
     static final int DETECT_TIMEOUT_MILLIS = 3000;
     long detectEveryMillis = DETECT_EVERY_MILLIS;
+    long detectUnseenMillis = DETECT_UNSEEN_MILLIS;
     /**
      * Per {@code hoststub|model}: when it was read, the loaded window last seen (kept while the server has unloaded the
      * model: not loaded is no other window) and the model's maximum.
@@ -142,15 +148,27 @@ public final class YacyLlmClient implements LlmClient {
      * {@code ai.service_num_ctx} (sent as {@code num_ctx}); for an unconfigured Ollama service the window the server
      * reports for the loaded model ({@code /api/ps}, read at most every ten minutes; the last one seen is kept while the
      * model is unloaded; not sent, so the server is asked exactly as before); else 4096, Ollama's smallest default, is assumed.
+     * The OpenAI-compatible path sends its window as {@code num_ctx} always (as before; Ollama's OpenAI-compatible
+     * endpoint ignores it).
      */
     @Override
     public Window window() {
+        return window(true);
+    }
+
+    /** The window as last read: no request to the server (the status). */
+    @Override
+    public Window lastWindow() {
+        return window(false);
+    }
+
+    private Window window(final boolean read) {
         final LLM.LLMModel m = this.selection.get();
         if (name(m) == null) {
             return null;
         }
         final boolean nativeApi = API_OLLAMA_NATIVE.equals(api(m));
-        final long[] d = nativeApi ? detect(m) : null;
+        final long[] d = nativeApi ? detect(m, read) : null;
         final Integer max = d == null || d[2] <= 0 ? null : (int) d[2];
         if (m.llm.num_ctx_configured) {
             return new Window(m.llm.num_ctx, true, m.llm.max_tokens, !nativeApi, Window.CONFIGURED, max);
@@ -158,22 +176,34 @@ public final class YacyLlmClient implements LlmClient {
         if (d != null && d[1] > 0) {
             return new Window((int) (max == null ? d[1] : Math.min(d[1], max)), false, m.llm.max_tokens, false, Window.DETECTED, max);
         }
-        return new Window(m.llm.num_ctx, false, m.llm.max_tokens, !nativeApi, Window.ASSUMED, max);
+        return new Window(m.llm.num_ctx, !nativeApi, m.llm.max_tokens, !nativeApi, Window.ASSUMED, max);
     }
 
-    /** {@code {readAt, loaded window or 0, model maximum or 0}}, read again after {@link #detectEveryMillis}. */
-    private long[] detect(final LLM.LLMModel m) {
+    /**
+     * {@code {readAt, loaded window or 0, model maximum or 0}}, read again after {@link #detectEveryMillis} (after
+     * {@link #detectUnseenMillis} while no window was seen); null if never read and {@code read} is false. The model's
+     * maximum is asked only once the server answered.
+     */
+    private long[] detect(final LLM.LLMModel m, final boolean read) {
         final String key = m.llm.hoststub + "|" + m.model;
         final long now = System.currentTimeMillis();
         final long[] last = this.detected.get(key);
-        if (last != null && now - last[0] < this.detectEveryMillis) {
+        if (!read || last != null && now - last[0] < (last[1] > 0 ? this.detectEveryMillis : Math.min(this.detectEveryMillis, this.detectUnseenMillis))) {
             return last;
         }
-        final Integer loaded = m.llm.ollamaLoadedContext(m.model, DETECT_TIMEOUT_MILLIS);
-        final Integer max = last != null && last[2] > 0 ? Integer.valueOf((int) last[2]) : m.llm.ollamaModelContext(m.model, DETECT_TIMEOUT_MILLIS);
-        final long[] read = {now, loaded != null ? loaded : last != null ? last[1] : 0L, max != null ? max : 0L};
-        this.detected.put(key, read);
-        return read;
+        Integer loaded;
+        boolean answered = true;
+        try {
+            loaded = m.llm.ollamaLoadedContext(m.model, DETECT_TIMEOUT_MILLIS);
+        } catch (final IOException e) {
+            loaded = null;
+            answered = false; // not reachable: the model's maximum is not asked either
+        }
+        final Integer max = last != null && last[2] > 0 ? Integer.valueOf((int) last[2])
+                : answered ? m.llm.ollamaModelContext(m.model, DETECT_TIMEOUT_MILLIS) : null;
+        final long[] next = {now, loaded != null ? loaded : last != null ? last[1] : 0L, max != null ? max : 0L};
+        this.detected.put(key, next);
+        return next;
     }
 
     private void record(final JSONObject u) {

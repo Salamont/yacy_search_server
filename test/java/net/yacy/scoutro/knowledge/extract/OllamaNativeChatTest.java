@@ -47,6 +47,7 @@ public class OllamaNativeChatTest {
     private final AtomicReference<String> show = new AtomicReference<>("{\"model_info\":{\"general.architecture\":\"llama\","
             + "\"llama.context_length\":131072}}");
     private final java.util.concurrent.atomic.AtomicInteger metadataReads = new java.util.concurrent.atomic.AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicInteger showReads = new java.util.concurrent.atomic.AtomicInteger();
     /** a Qwen-like model: without think: false it thinks by default and spends the whole budget on it (empty content) */
     private final java.util.concurrent.atomic.AtomicBoolean thinksByDefault = new java.util.concurrent.atomic.AtomicBoolean(false);
 
@@ -56,7 +57,10 @@ public class OllamaNativeChatTest {
         this.server.createContext("/api/chat", exchange -> answer(exchange, true));
         this.server.createContext("/v1/chat/completions", exchange -> answer(exchange, false));
         this.server.createContext("/api/ps", exchange -> metadata(exchange, this.ps.get()));
-        this.server.createContext("/api/show", exchange -> metadata(exchange, this.show.get()));
+        this.server.createContext("/api/show", exchange -> {
+            this.showReads.incrementAndGet();
+            metadata(exchange, this.show.get());
+        });
         this.server.start();
     }
 
@@ -106,6 +110,11 @@ public class OllamaNativeChatTest {
     private void metadata(final HttpExchange exchange, final String body) throws IOException {
         this.metadataReads.incrementAndGet();
         exchange.getRequestBody().readAllBytes();
+        if ("error500".equals(body)) {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+            return;
+        }
         final byte[] out = body.getBytes(StandardCharsets.UTF_8);
         exchange.sendResponseHeaders(200, out.length);
         try (OutputStream os = exchange.getResponseBody()) {
@@ -590,10 +599,39 @@ public class OllamaNativeChatTest {
         final YacyLlmClient configured = new YacyLlmClient(() -> m);
         assertEquals(16384, configured.window().tokens);
         assertEquals(LlmClient.Window.CONFIGURED, configured.window().source);
-        // the OpenAI-compatible path reads nothing
+        // the OpenAI-compatible path reads nothing; it sends its window as num_ctx always, as before
         final int reads = this.metadataReads.get();
         final YacyLlmClient openai = new YacyLlmClient(() -> model(LLM.LLMType.OPENAI, "supported", false));
         assertEquals(LlmClient.Window.ASSUMED, openai.window().source);
+        assertTrue("the OpenAI-compatible body carries num_ctx", openai.window().configured);
         assertEquals(reads, this.metadataReads.get());
+    }
+
+    @Test
+    public void aWindowNotSeenYetIsReadAgainSoonAndTheStatusNeverAsks() throws Exception {
+        // after a restart the model is often not loaded yet: the default is assumed only until the first request loads it
+        final YacyLlmClient c = ollama("supported");
+        assertNull("the status does not ask the server", c.lastWindow().modelMaxTokens);
+        assertEquals(0, this.metadataReads.get());
+        assertEquals(LlmClient.Window.ASSUMED, c.window().source);
+        final int reads = this.metadataReads.get();
+        c.window();
+        assertEquals("read again only after a while", reads, this.metadataReads.get());
+        this.ps.set("{\"models\":[{\"name\":\"llama3.1:8b\",\"context_length\":32768}]}");
+        c.detectUnseenMillis = 0L; // the minute has passed; the ten minutes for a seen window have not
+        assertEquals(32768, c.window().tokens);
+        assertEquals(LlmClient.Window.DETECTED, c.lastWindow().source);
+        final int seen = this.metadataReads.get();
+        c.window();
+        assertEquals("a seen window is read again after ten minutes", seen, this.metadataReads.get());
+        assertEquals(1, this.showReads.get());
+    }
+
+    @Test
+    public void aServerThatCannotBeAskedIsNotAskedForTheModelEither() throws Exception {
+        this.ps.set("error500");
+        final YacyLlmClient c = ollama("supported");
+        assertEquals(LlmClient.Window.ASSUMED, c.window().source);
+        assertEquals("no /api/show after /api/ps failed", 0, this.showReads.get());
     }
 }
