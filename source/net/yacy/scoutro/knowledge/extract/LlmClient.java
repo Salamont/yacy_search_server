@@ -101,7 +101,7 @@ public interface LlmClient {
         public final boolean schemaInPrompt;
         /**
          * {@link #CONFIGURED} (sent as {@code num_ctx}), {@link #DETECTED} (the window the server reports for the loaded
-         * model, not sent) or {@link #ASSUMED} (Ollama's default).
+         * model, not sent) or {@link #ASSUMED} (4096, Ollama's smallest default).
          */
         public final String source;
         /** The longest context the model itself supports, as the server reports it; null if unknown. */
@@ -122,7 +122,7 @@ public interface LlmClient {
         }
     }
 
-    /** The window of the selected model, or null if unknown (then Ollama's default of 4096 tokens is assumed). */
+    /** The window of the selected model, or null if unknown (then 4096 tokens, Ollama's smallest default, are assumed). */
     default Window window() {
         return null;
     }

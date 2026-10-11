@@ -141,7 +141,7 @@ public final class YacyLlmClient implements LlmClient {
      * as prompt (the native Ollama path applies it as a grammar). The window is the service's configured
      * {@code ai.service_num_ctx} (sent as {@code num_ctx}); for an unconfigured Ollama service the window the server
      * reports for the loaded model ({@code /api/ps}, read at most every ten minutes; the last one seen is kept while the
-     * model is unloaded; not sent, so the server is asked exactly as before); else Ollama's default of 4096 is assumed.
+     * model is unloaded; not sent, so the server is asked exactly as before); else 4096, Ollama's smallest default, is assumed.
      */
     @Override
     public Window window() {

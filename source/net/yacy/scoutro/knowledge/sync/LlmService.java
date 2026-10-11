@@ -1105,8 +1105,8 @@ public final class LlmService {
 
     /**
      * The budget of the requests (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3): the model's window (the service's configured
-     * {@code ai.service_num_ctx}, else the window an Ollama server reports for the loaded model, else Ollama's default of
-     * 4096 assumed), the answer reserve (at most the row's output cap), the active system prompt and, where the endpoint
+     * {@code ai.service_num_ctx}, else the window an Ollama server reports for the loaded model, else 4096, Ollama's
+     * smallest default, assumed), the answer reserve (at most the row's output cap), the active system prompt and, where the endpoint
      * may count it as prompt, the schema.
      */
     private RequestBudget budget(final KnowledgePrompt p) {
