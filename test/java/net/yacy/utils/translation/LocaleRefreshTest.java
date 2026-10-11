@@ -177,16 +177,21 @@ public class LocaleRefreshTest {
 
     @Test public void startupAndLanguageManagementShareMarkerAndPreserveUserTranslations() throws Exception {
         old("de", "1.942");
+        // The user translation overrides the entry the header actually uses: since the navigation rework the link to
+        // scoutro-dashboard.html reads "Overview" (formerly "Dashboard"), shipped as ">Overview<==>Übersicht<".
+        final String link = "href=\"scoutro-dashboard.html\" class=\"MenuItemLink\">";
+        assertTrue("the user translation must name the current header label",
+                Files.readString(this.app.resolve("htroot/env/templates/header.template")).contains(link + "Overview<"));
         final Path overrides = this.root.getParent().resolve("de.lng");
-        final String custom = "#File: env/templates/header.template\nDashboard==Meine Startseite\n";
+        final String custom = "#File: env/templates/header.template\n>Overview<==>Meine Startseite<\n";
         write(overrides, custom);
         LocaleRefresh.refreshGeneratedTranslations(this.env);
         final String startupMarker = Files.readString(this.root.resolve("de/version"));
-        assertTrue(Files.readString(this.root.resolve("de/env/templates/header.template")).contains("Meine Startseite"));
+        assertTrue(Files.readString(this.root.resolve("de/env/templates/header.template")).contains(link + "Meine Startseite<"));
         assertTrue(new TranslatorXliff(this.env).changeLang(this.env, this.app.resolve("locales").toFile(), "de.lng"));
         assertEquals(startupMarker, Files.readString(this.root.resolve("de/version")));
         assertEquals(custom, Files.readString(overrides));
-        assertTrue(Files.readString(this.root.resolve("de/env/templates/header.template")).contains("Meine Startseite"));
+        assertTrue(Files.readString(this.root.resolve("de/env/templates/header.template")).contains(link + "Meine Startseite<"));
         fresh("de");
     }
 
