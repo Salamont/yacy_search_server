@@ -31,6 +31,13 @@ successful translation; failures keep the old copies and marker, log a
 Do not edit generated HTML copies to customize translations: use the language
 override files instead. No index, crawl or agent data is involved in this refresh.
 
+A user translation matches the English text of the current templates. The
+header link to the Scoutro overview (`scoutro-dashboard.html`) and its group
+heading are labelled "Overview" since the navigation rework (shipped German
+entry `>Overview<==>Übersicht<` in the `env/templates/header.template` section).
+A user translation of the former label "Dashboard" no longer affects this link;
+translate `>Overview<` in that section instead.
+
 ## What You Can Do Here
 
 - Language selection changes the interface translation.

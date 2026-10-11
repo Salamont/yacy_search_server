@@ -27,7 +27,10 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   Data collection and Settings, shown by the rights of the signed-in identity;
   YaCy's own pages unchanged under "Advanced tools" for administrators, the
   same groups on phones. Re-Start and Shutdown moved from the header to
-  Settings → System (with confirmation and an audit entry).
+  Settings → System (with confirmation and an audit entry). The header link
+  to the dashboard is now labelled "Overview": a user translation
+  (`DATA/LOCALE/<code>.lng`) of the former label "Dashboard" no longer affects
+  it; translate `>Overview<` in the `env/templates/header.template` section.
 - New pages: My account (profile, password, own sessions), Settings → Users
   (access mode, guest access, accounts, audit log), Settings → Collections
   (catalog, "New collection") and Settings → System; a branded 403 page.
