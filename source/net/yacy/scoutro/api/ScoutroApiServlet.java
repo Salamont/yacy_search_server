@@ -217,6 +217,12 @@ public class ScoutroApiServlet extends HttpServlet {
                     return people.collections(this.actions);
                 }
                 people.require(Permission.ADMIN);
+                if (parts.length == 4 && "DELETE".equals(method)) {
+                    // an empty, unused collection created here; same cross-site protection as all mutating calls, body {}
+                    final JSONObject body = jsonBody(request, MAX_COLLECTION_BODY_BYTES);
+                    if (body.length() > 0) throw ApiException.invalid(body.keys().next(), "Unknown field.");
+                    return this.actions.collectionRemove(parts[3]);
+                }
                 if (parts.length == 4 && "reassign".equals(parts[3])) {
                     // preview without "confirm", apply with the preview's token; one domain, same origin, small body
                     expect(method, parts, 4, "POST");
@@ -484,7 +490,9 @@ public class ScoutroApiServlet extends HttpServlet {
         final StringBuilder target = new StringBuilder();
         for (int i = 3; i < parts.length && i < 7; i++) {
             final String seg = parts[i];
-            if (seg.matches("[a-z][a-z-]{0,31}")) {
+            // a collection id is the target, not part of the action (DELETE /v1/collections/{id})
+            final boolean collection = i == 3 && "collections".equals(parts[2]) && !"reassign".equals(seg);
+            if (!collection && seg.matches("[a-z][a-z-]{0,31}")) {
                 action.append('.').append(seg);
             } else if (seg.matches("[A-Za-z0-9_.:@-]{1,80}")) {
                 if (target.length() > 0) target.append('/');

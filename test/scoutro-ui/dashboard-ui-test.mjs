@@ -47,7 +47,9 @@ try {
     check(!rendered.includes('#[') && !rendered.includes('UNRESOLVED_PATTERN'), `${width}: no unresolved substitutions`);
     check(/^\d+d \d{2}h \d{2}m$/.test(await page.locator('[data-metric="uptime"]').textContent()), `${width}: uptime is not overwritten by global template defaults`);
     check(await page.locator('[data-collection]').count() === 4, `${width}: all four collections render`);
-    check(await page.locator('main form, main button').count() === 0, `${width}: no action forms/buttons`);
+    // the only actions: the administrator's "+" and "−" of the collection list (dashboard-collections-ui-test.mjs)
+    check(await page.locator('main form, main button:not(.scoutro-dash-tool)').count() === 0, `${width}: no other action forms/buttons`);
+    check(await page.locator('main .scoutro-dash-tool').count() === 2, `${width}: collection "+" and "−"`);
     check(!await page.locator('#header_restart').isVisible() && !await page.locator('#header_shutdown').isVisible(), `${width}: no restart/shutdown actions on overview`);
     const data = await page.evaluate(() => ({
       pages: document.querySelector('[data-metric="pages"]').textContent,

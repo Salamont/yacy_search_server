@@ -14517,6 +14517,12 @@
     <trans-unit id="6c9f6c91" xml:space="preserve" approved="no" translate="yes">
        <source>"Index and system overview"</source>
     </trans-unit>
+    <trans-unit id="b6573a42" xml:space="preserve" approved="no" translate="yes">
+       <source>"New collection"</source>
+    </trans-unit>
+    <trans-unit id="b63fdb6a" xml:space="preserve" approved="no" translate="yes">
+       <source>"Remove collection"</source>
+    </trans-unit>
     <trans-unit id="8a843b83" xml:space="preserve" approved="no" translate="yes">
        <source>"Service status"</source>
     </trans-unit>
@@ -14576,6 +14582,9 @@
     </trans-unit>
     <trans-unit id="43180670" xml:space="preserve" approved="no" translate="yes">
        <source>Scoutro Collections</source>
+    </trans-unit>
+    <trans-unit id="9a287171" xml:space="preserve" approved="no" translate="yes">
+       <source>&amp;minus;</source>
     </trans-unit>
     <trans-unit id="9f0ec78d" xml:space="preserve" approved="no" translate="yes">
        <source>Share of indexed pages</source>
@@ -14768,6 +14777,84 @@
     </trans-unit>
     <trans-unit id="8b55f137" xml:space="preserve" approved="no" translate="yes">
        <source>Automation</source>
+    </trans-unit>
+    <trans-unit id="34d3939a" xml:space="preserve" approved="no" translate="yes">
+       <source>Remove collection</source>
+    </trans-unit>
+    <trans-unit id="10eec56d" xml:space="preserve" approved="no" translate="yes">
+       <source>Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.</source>
+    </trans-unit>
+    <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection</source>
+    </trans-unit>
+    <trans-unit id="77df1a9a" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel</source>
+    </trans-unit>
+    <trans-unit id="e04faf06" xml:space="preserve" approved="no" translate="yes">
+       <source>Choose a collection</source>
+    </trans-unit>
+    <trans-unit id="28a5ca0" xml:space="preserve" approved="no" translate="yes">
+       <source>Cannot be removed</source>
+    </trans-unit>
+    <trans-unit id="f0c4e780" xml:space="preserve" approved="no" translate="yes">
+       <source>No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.</source>
+    </trans-unit>
+    <trans-unit id="608fd750" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages</source>
+    </trans-unit>
+    <trans-unit id="23f63b19" xml:space="preserve" approved="no" translate="yes">
+       <source>Discovery profile</source>
+    </trans-unit>
+    <trans-unit id="f734536d" xml:space="preserve" approved="no" translate="yes">
+       <source>from the index</source>
+    </trans-unit>
+    <trans-unit id="deae40e8" xml:space="preserve" approved="no" translate="yes">
+       <source>Loading the collections …</source>
+    </trans-unit>
+    <trans-unit id="c364e974" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection created:</source>
+    </trans-unit>
+    <trans-unit id="38527efc" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection removed:</source>
+    </trans-unit>
+    <trans-unit id="cfd32bb0" xml:space="preserve" approved="no" translate="yes">
+       <source>The index holds pages of this collection, so it stays. Pages are never deleted here.</source>
+    </trans-unit>
+    <trans-unit id="ede44f20" xml:space="preserve" approved="no" translate="yes">
+       <source>A Discovery profile names this collection. Change the profile first.</source>
+    </trans-unit>
+    <trans-unit id="9225bb62" xml:space="preserve" approved="no" translate="yes">
+       <source>Only a collection created in Scoutro can be removed.</source>
+    </trans-unit>
+    <trans-unit id="98d48f4a" xml:space="preserve" approved="no" translate="yes">
+       <source>This collection does not exist any more. The page is reloaded.</source>
+    </trans-unit>
+    <trans-unit id="693fa617" xml:space="preserve" approved="no" translate="yes">
+       <source>Still in use, remove it there first:</source>
+    </trans-unit>
+    <trans-unit id="809dbbe6" xml:space="preserve" approved="no" translate="yes">
+       <source>accounts</source>
+    </trans-unit>
+    <trans-unit id="ab611e0e" xml:space="preserve" approved="no" translate="yes">
+       <source>agents</source>
+    </trans-unit>
+    <trans-unit id="7aae2cac" xml:space="preserve" approved="no" translate="yes">
+       <source>guest access</source>
+    </trans-unit>
+    <trans-unit id="de8b4ead" xml:space="preserve" approved="no" translate="yes">
+       <source>running crawls</source>
+    </trans-unit>
+    <trans-unit id="268b279d" xml:space="preserve" approved="no" translate="yes">
+       <source>The index cannot be read. Nothing was removed; try again later.</source>
+    </trans-unit>
+    <trans-unit id="79e8a992" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection list cannot be written. Nothing was removed.</source>
+    </trans-unit>
+    <trans-unit id="4864ac86" xml:space="preserve" approved="no" translate="yes">
+       <source>It cannot be checked who uses this collection. Nothing was removed.</source>
+    </trans-unit>
+    <trans-unit id="b81b5dcc" xml:space="preserve" approved="no" translate="yes">
+       <source>The collection could not be removed.</source>
     </trans-unit>
   </body>
 </file>

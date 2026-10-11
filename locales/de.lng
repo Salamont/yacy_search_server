@@ -5013,6 +5013,33 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 #-----------------------------
 
 #File: scoutro-dashboard.html
+"New collection"=="Neue Collection"
+"Remove collection"=="Collection entfernen"
+>Remove collection<==>Collection entfernen<
+>Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.<==>Entfernen lässt sich nur eine leere, in Scoutro angelegte Collection, und nur solange kein Konto, kein Agent, kein Gastzugang und kein laufender Crawl sie verwendet. Seiten im Index werden hier nie gelöscht.<
+>Cancel<==>Abbrechen<
+>Choose a collection<==>Collection wählen<
+>Cannot be removed<==>Nicht entfernbar<
+>No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.<==>Keine Collection lässt sich entfernen: Jede enthält Seiten oder stammt aus einem Discovery-Profil oder aus dem Index.<
+>%1 pages<==>%1 Seiten<
+>Discovery profile<==>Discovery-Profil<
+>from the index<==>aus dem Index<
+>Loading the collections …<==>Collections werden geladen …<
+>Collection created:<==>Collection angelegt:<
+>Collection removed:<==>Collection entfernt:<
+>The index holds pages of this collection, so it stays. Pages are never deleted here.<==>Der Index enthält Seiten dieser Collection, daher bleibt sie bestehen. Seiten werden hier nie gelöscht.<
+>A Discovery profile names this collection. Change the profile first.<==>Ein Discovery-Profil nennt diese Collection. Ändern Sie zuerst das Profil.<
+>Only a collection created in Scoutro can be removed.<==>Entfernen lässt sich nur eine in Scoutro angelegte Collection.<
+>This collection does not exist any more. The page is reloaded.<==>Diese Collection gibt es nicht mehr. Die Seite wird neu geladen.<
+>Still in use, remove it there first:<==>Noch in Verwendung, dort zuerst entfernen:<
+>accounts<==>Konten<
+>agents<==>Agenten<
+>guest access<==>Gastzugang<
+>running crawls<==>laufende Crawls<
+>The index cannot be read. Nothing was removed; try again later.<==>Der Index kann nicht gelesen werden. Es wurde nichts entfernt; versuchen Sie es später erneut.<
+>The collection list cannot be written. Nothing was removed.<==>Die Collection-Liste kann nicht geschrieben werden. Es wurde nichts entfernt.<
+>It cannot be checked who uses this collection. Nothing was removed.<==>Es lässt sich nicht prüfen, wer diese Collection verwendet. Es wurde nichts entfernt.<
+>The collection could not be removed.<==>Die Collection konnte nicht entfernt werden.<
 Share of the pages in your collections==Anteil an den Seiten Ihrer Collections
 "Overview of your collections"=="Übersicht Ihrer Collections"
 Your collections at a glance==Ihre Collections auf einen Blick

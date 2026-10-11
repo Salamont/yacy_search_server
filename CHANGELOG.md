@@ -2,6 +2,17 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased
+
+- Dashboard: the administrator adds and removes collections with **+** and
+  **−** next to *Scoutro Collections*. **+** opens the existing *New
+  collection* dialog. **−** removes a collection created in Scoutro from the
+  collection list (`DELETE /scoutro/api/v1/collections/{id}`), but only while
+  it holds no page (counted anew in the index), no Discovery profile names it
+  and no account, agent, guest access or running crawl uses it; otherwise the
+  dialog says why it stays. No page, crawl, knowledge-graph setting or other
+  data is deleted. Accounts never see the buttons; the API answers them `403`.
+
 ## 0.10.0 / 1.942-scoutro.24 — release candidate: users, roles and navigation
 
 Upgrade from 0.9.1 keeps the **compatible access mode**: no account exists and

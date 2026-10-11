@@ -4655,6 +4655,33 @@ rss terminal==rss термінал
 >An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<==>An unsuccessful crawl result means that no page was indexed or nothing was reloaded by the crawl. Such hosts are retried with the backoff of other retries, which doubles up to the recrawl interval. Needs retry.<
 
 #File: scoutro-dashboard.html
+"New collection"=="New collection"
+"Remove collection"=="Remove collection"
+>Remove collection<==>Remove collection<
+>Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.<==>Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.<
+>Cancel<==>Cancel<
+>Choose a collection<==>Choose a collection<
+>Cannot be removed<==>Cannot be removed<
+>No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.<==>No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.<
+>%1 pages<==>%1 pages<
+>Discovery profile<==>Discovery profile<
+>from the index<==>from the index<
+>Loading the collections …<==>Loading the collections …<
+>Collection created:<==>Collection created:<
+>Collection removed:<==>Collection removed:<
+>The index holds pages of this collection, so it stays. Pages are never deleted here.<==>The index holds pages of this collection, so it stays. Pages are never deleted here.<
+>A Discovery profile names this collection. Change the profile first.<==>A Discovery profile names this collection. Change the profile first.<
+>Only a collection created in Scoutro can be removed.<==>Only a collection created in Scoutro can be removed.<
+>This collection does not exist any more. The page is reloaded.<==>This collection does not exist any more. The page is reloaded.<
+>Still in use, remove it there first:<==>Still in use, remove it there first:<
+>accounts<==>accounts<
+>agents<==>agents<
+>guest access<==>guest access<
+>running crawls<==>running crawls<
+>The index cannot be read. Nothing was removed; try again later.<==>The index cannot be read. Nothing was removed; try again later.<
+>The collection list cannot be written. Nothing was removed.<==>The collection list cannot be written. Nothing was removed.<
+>It cannot be checked who uses this collection. Nothing was removed.<==>It cannot be checked who uses this collection. Nothing was removed.<
+>The collection could not be removed.<==>The collection could not be removed.<
 >Discovery Automation<==>Автоматизація пошуку<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<
