@@ -244,7 +244,10 @@ public class CollectionsStatusTest {
         assertFalse("only the named collection", on.config().jobsFor(List.of("otherportal-web")));
         assertTrue(row(on, "newportal-web").getBoolean("jobs"));
         assertEquals("newportal-web", on.status().getJSONObject("config").getJSONArray("jobsCollections").getString(0));
-        publish(on, "NEWPO5host01", "https://www.neuportal.de/karriere", "newportal-web", ORG, TEXT);
+        // the site operator is the employer only where the posting says so (docs/SCOUTRO_DURABLE_OBSERVATIONS.md: the domain
+        // operator alone is not enough)
+        publish(on, "NEWPO5host01", "https://www.neuportal.de/karriere", "newportal-web", ORG,
+                TEXT.replace("Karriere: Pflegefachkraft", "Karriere: Wir suchen eine Pflegefachkraft"));
         assertTrue(count(on, "hiring_organization", "newportal-web") > 0);
     }
 
