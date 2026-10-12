@@ -465,8 +465,9 @@ final class ScoutroActions {
     /**
      * Who or what names a collection explicitly, as kind → count: accounts and agents with the collection in their
      * scope (a grant of all collections names none; revoked agents never act again), the guest access, and crawls
-     * that are not terminated. Knowledge-graph settings do not count: they name a collection without granting
-     * anything, stay as they are and apply again if the collection is created anew.
+     * that are not terminated (the push API's profile of a collection is no crawl). Knowledge-graph settings do not
+     * count: they name a collection without granting anything, stay as they are and apply again if the collection is
+     * created anew.
      */
     static Map<String, Integer> collectionUses(final String id, final java.util.Collection<net.yacy.scoutro.access.Scope> accounts,
             final java.util.Collection<net.yacy.scoutro.agents.Agent> agents, final java.util.Collection<String> guest,
@@ -484,6 +485,8 @@ final class ScoutroActions {
         for (final JSONObject crawl : crawls) {
             final JSONArray names = crawl.optJSONArray("collections");
             if ("terminated".equals(crawl.optString("state")) || names == null) continue;
+            // the push API's profile of a collection (push_<collection>) crawls nothing and never ends (0.10.3)
+            if (crawl.optString("name").startsWith(net.yacy.crawler.data.CrawlProfile.CRAWL_PROFILE_PUSH_STUB)) continue;
             for (int i = 0; i < names.length(); i++) {
                 if (id.equals(names.optString(i))) {
                     out.merge("crawls", 1, Integer::sum);
