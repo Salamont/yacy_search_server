@@ -361,8 +361,19 @@ memory; every restart resets them, so they are no long-term statistics.
   Each item counts once, under the first rule it breaks; the counts add up to
   **Dropped as invalid**. The codes and their rules:
   `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 6.3.
-- These are diagnostic counters only; no model answer, quote or page text is
-  stored for them.
+- These are diagnostic counters. For diagnosis, up to 500 samples of dropped
+  items and refused answers are kept in memory only (20 per reason, 128 KiB,
+  seven days; a restart clears them): reason, item, predicate, types, page
+  and an excerpt of at most 160 characters without person names, e-mail
+  addresses or phone numbers, never a prompt or a whole answer
+  (`GET /scoutro/api/v1/kg/llm-refusals`, administrator).
+- **Long pages and missing text** (process display, AI enrichment): a long
+  page counts as done after its first reading and is shown as **read on**
+  until its own content is read (navigation recurring on the site is not
+  read); **read to the end of their content**, **text left unread** (a
+  legal page, the statement limit, three failed passes or continuations
+  off) and **text missing** (the HTML is large but its text is near empty,
+  or it asks for JavaScript; such a page is not covered) are shown apart.
 - **Structured output** shows what the endpoint is asked for: *Schema
   enforced by the provider* (the model's format capability is supported),
   *Schema sent, enforcement not confirmed* (capability unknown, or the
@@ -500,7 +511,8 @@ text; links to crawled pages open in a new tab without a referrer.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`), its scan per collection (`llm.selection`), request budget (`llm.context`) and continuations of long pages (`llm.continuation`) |
+| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`), its scan per collection (`llm.selection`), request budget (`llm.context`), long pages read on to the end of their content (`llm.continuation`), how much of the done pages' text was read (`llm.documents.coverage`), refusal samples (`llm.refusalSamples`), what the tier keeps between readings (`llm.storage`) and the backlog over the last day (`llm.backlog`) |
+| `/scoutro/api/v1/kg/llm-refusals` | GET | Samples of what the LLM tier dropped or refused since the start, newest first (`reason`, `limit` 1–100): reason, item, predicate, types, page, chunk and an excerpt of at most 160 characters without person names, e-mail addresses or phone numbers; in memory only (at most 500, 20 per reason, 128 KiB, seven days) |
 | `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
 | `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |

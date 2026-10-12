@@ -888,14 +888,30 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     status never asks the model server), `maxOutputTokens`, `answerReserveTokens`,
     `fixedPromptTokens`, `schemaCounted`, `promptTokensEstimatedMax` and
     `measured` (what the endpoint reported since the start; null for a
-    client without reports). `continuation`: `chunks`, `maxChars`,
-    `overlapChars`, `pendingDocuments` (reason `more_text`),
-    `textCutDocuments` (reason `text_cut`). Further `processed` counters:
-    `unconfirmedRetries`, `inputUnconfirmed`, `requeuedBehindFrontier`,
-    `scanPasses`, `knownTrimmed`, `chunksSplit`, `contextRefused`,
-    `navigationMoved`, `navigationMovedChars`, `continuationDocs`,
-    `continuationCalls`, `textCutDocs`, `textCutChars`
-    (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27);
+    client without reports). `continuation`: `chunks`, `passChars`,
+    `overlapChars`, `failedPassesMax`, `pendingDocuments` (reason
+    `more_text`: a continuation reads on), `remainingChars` (their content
+    still to read), `fullTextDocuments` (reason `full_text`: read to the end
+    of the content), `textCutDocuments` (reason `text_cut`), `audit`
+    (`checkedUpTo`, `upTo`, `done`: the one check of the pages read before
+    this version). `documents.coverage`: the done pages by how much of their
+    text was read (`whole`, `fullText`, `partial`, `textCut`, `textMissing`).
+    `refusalSamples`: size, bytes, `byReason` and bounds of the refusal
+    samples (no excerpts; `GET …/kg/llm-refusals`). `storage`:
+    `progressRows`, `progressBytes`, `checkpointRows`, `checkpointBytes`.
+    `backlog`: `samples` (one per `sampleMinutes`, the last day: `at`,
+    `pending`, `queue`, `partial`, `remainingChars`) and `pendingPerHour`
+    (null until two samples are 15 minutes apart). Further `processed`
+    counters: `unconfirmedRetries`, `inputUnconfirmed`,
+    `requeuedBehindFrontier`, `scanPasses`, `knownTrimmed`, `chunksSplit`,
+    `contextRefused`, `navigationMoved`, `navigationMovedChars`,
+    `continuationDocs`, `continuationCalls`, `textCutDocs`, `textCutChars`,
+    `fullTextDocs`, `navigationSkippedChars`, `continuationRetries`,
+    `statementCapDocs`, `queueWait` (`firstReadings`,
+    `firstReadingAverageMillis`, `firstReadingMaxMillis`, `continuations`,
+    `continuationAverageMillis`), `thinTextDocs`, `textMissingDocs`,
+    `auditedDocs`, `backfilledDocs`; `droppedInvalidByReason` also counts
+    `claim_entity_dropped` (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27);
   - `store`: schema version, dataset epoch, `uncleanStartDetected`,
     `startRecorded`, `integrity` (state of `PRAGMA quick_check`),
     `manualPause`, `manualPauseSaved`;
@@ -982,8 +998,9 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     contact, home page, pages with structured data), at most
     `scoutro.kg.llm.maxDocsPerHost` per host, ≤
     `scoutro.kg.extract.maxInputChars` of text in chunks at a first reading
-    (a long content page then up to `scoutro.kg.llm.continuationChunks`
-    further chunks), each request planned against the model's window with
+    (a long page is then read to the end of its content in passes of up to
+    `scoutro.kg.llm.continuationChunks` chunks, navigation behind the content
+    is never asked), each request planned against the model's window with
     `scoutro.kg.llm.answerReserveTokens` kept for the answer; read timeout
     `scoutro.kg.llm.timeoutSeconds`, ≤ 1 MiB raw response.
   - The answer must be one JSON object of the schema; every entity and
@@ -1264,6 +1281,8 @@ concrete upgrade/rollback: `docs/SCOUTRO_MATCHING.md`.
 ### Global LLM enrichment timing (administrator only)
 
 `GET`/`PUT /scoutro/api/v1/kg/llm-schedule` reads/replaces a fully validated plan: `mode` (`automatic` default, `scheduled`, `manual`), ISO `days` 1–7, `from`/`until` HH:mm, explicit named `zone`, `minStartSeconds` 0–86400 (default 0). No query parameters; atomic single configuration-key update and hot apply without KG reopen or re-extraction. Overnight windows use their starting weekday; equal times mean 24 hours. DST gaps have no starts, overlaps both occurrences. Windows authorize starts, not completion times.
+
+`GET /scoutro/api/v1/kg/llm-refusals?reason=&limit=` (administrator only, no agent route) lists samples of what the LLM tier dropped or refused since the start, newest first: `reason` (a reason code, optional), `limit` 1–100 (default 50). Each sample: `reason`, `item` (`entity`, `claim`, `value`, `answer`), `predicate`, `subjectType`/`objectType`, `subject`/`object` (`known`, `new`, `dropped_entity:<reason>`, `unknown_id`, `name_like`, `missing`), `docId`, `chunkOffset`, `domain`, `promptHash`, `at`, and `excerpt` (at most 160 characters, person names, e-mail addresses and phone numbers masked). In memory only: at most 500, 20 per reason, 128 KiB, seven days; `summary` gives size and bounds (also in `llm.refusalSamples` of the status, without excerpts). 400 for another parameter, a malformed reason or limit; 503 while the graph is off.
 
 `POST /scoutro/api/v1/kg/llm-run` starts (`action:start`, optional `maxDocuments` 1–100/default 25, `maxRequests` 1–1000/default 100) or stops (`action:stop` only) a manual override lasting at most one hour. Current requests may finish; unfinished chunk results remain independently of optional cache. Manual runs never bypass collections, KG pause, safety gates or circuit breaker; shared request spacing covers both workers and every format-fallback HTTP call. Cache hits consume no start. Done documents are not reexamined; failed documents require existing Retry. Wake/Retry do not override timing. Runs do not resume after process restart.
 
