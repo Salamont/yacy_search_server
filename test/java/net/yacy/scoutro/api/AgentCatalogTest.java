@@ -120,7 +120,11 @@ public class AgentCatalogTest {
                     // services of the same name across providers (package 6.1)
                     "kg.services", "kg.services.providers",
                     // the network of a service name (package 6.2)
-                    "kg.services.network");
+                    "kg.services.network",
+                    // collection-crossing suggestions and their reasons (docs/API.md: grant kg.read)
+                    "kg.entity.suggestions", "kg.entity.contributions",
+                    // the durable observation history (docs/API.md: agent mirrors require kg.read)
+                    "kg.history", "kg.entity.history", "kg.observation", "kg.observation.history");
             if (!reads.contains(name) && !name.equals("kg.export") && !name.equals("kg.changes")) {
                 // status, control, the download, backups and every later administrator route: never an agent grant
                 Assert.assertFalse(name, agent.getBoolean("grantable"));
@@ -135,7 +139,7 @@ public class AgentCatalogTest {
             Assert.assertEquals(name, grant, AgentApi.route("GET", segs).action);
             if (grant.equals("kg.read")) read++; else export++;
         }
-        Assert.assertEquals(15, read);
+        Assert.assertEquals(21, read);
         Assert.assertEquals(2, export);
     }
 }

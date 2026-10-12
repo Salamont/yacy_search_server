@@ -54,6 +54,17 @@ public final class TransformerWriter extends Writer {
     public static final char singlequote = '\'';
     public static final char doublequote = '"';
 
+    /** a '<' that starts no tag is text; it is kept as this entity so that stripping tags from the text does not cut it */
+    private static final char[] lt = "&lt;".toCharArray();
+
+    /**
+     * A text document may contain a few stray control characters (see {@link #binaryHint(char)}):
+     * at most this many, and at most one per {@link #CONTROL_CHAR_SPACING} characters.
+     * Binary data (images, archives, compressed streams, UTF-16 text) holds far more.
+     */
+    private static final int MAX_STRAY_CONTROL_CHARS = 8;
+    private static final int CONTROL_CHAR_SPACING = 100;
+
     private final OutputStream outStream;
     private OutputStreamWriter out;
     private CharBuffer buffer;
@@ -64,6 +75,8 @@ public final class TransformerWriter extends Writer {
     private boolean inComment;
     private boolean binaryUnsuspect;
     private final boolean passbyIfBinarySuspect;
+    private long charCount;
+    private int controlCharCount;
 
     public TransformerWriter(
             final OutputStream outStream,
@@ -339,8 +352,10 @@ public final class TransformerWriter extends Writer {
         if (this.scraper != null && this.scraper.isPairedTag(tag.tagName)) {
             // remove the tag from the stack as soon as the tag is processed
             this.tagStack.pop();
-            // at this point the characters from the recently processed tag must be attached to the previous tag
-            if (this.tagStack.size() > 0) this.tagStack.lastElement().content.append(ret);
+            // at this point the characters from the recently processed tag must be attached to the previous tag;
+            // script and style code is no text of the enclosing tag (it is raw text and may hold a bare '<')
+            if (this.tagStack.size() > 0) this.tagStack.lastElement().content.append(
+                    isRawText(tag.tagType) ? generatePairedTag(tag.tagName, tag.opts, new char[0], quotechar) : ret);
         }
 
         // add markdown for the tag
@@ -383,16 +398,38 @@ public final class TransformerWriter extends Writer {
      * The tokens are then parsed with the filterSentence method
      */
     @Override
-    public void write(final int c) throws IOException {
+    public void write(int c) throws IOException {
         //System.out.println((char) c);
-        if ((this.binaryUnsuspect) && (binaryHint((char)c))) {
-            this.binaryUnsuspect = false;
-            if (this.passbyIfBinarySuspect) this.close();
+        this.charCount++;
+        if (binaryHint((char)c)) {
+            this.controlCharCount++;
+            if (this.binaryUnsuspect) {
+                this.binaryUnsuspect = false;
+                if (this.passbyIfBinarySuspect) this.close();
+            }
+            // read a stray control character like a space; binarySuspect() judges the whole document
+            if (!this.passbyIfBinarySuspect) c = ' ';
         }
 
         if (this.binaryUnsuspect || !this.passbyIfBinarySuspect) {
             char[] filtered;
-            if (this.inSingleQuote) {
+            final TagType rawText = this.rawTextElement();
+            if (rawText != null) {
+                // HTML: the content of script and style is raw text, ended only by the matching end tag.
+                // Quotes, comments and '<' in it are code ("if (a<b)", "// don't", "'<p>'"), no markup.
+                if (c == lb && !this.buffer.isEmpty()) {
+                    // pass on the code so far; the buffer keeps only what may become the end tag
+                    filtered = this.filterTag(this.buffer.getChars());
+                    if (this.out != null) this.out.write(filtered);
+                    this.buffer.reset();
+                }
+                this.buffer.append(c);
+                if (c == rb && isEndTag(this.buffer, rawText.name())) {
+                    filtered = this.tokenProcessor(this.buffer.getChars(), doublequote);
+                    if (this.out != null) this.out.write(filtered);
+                    this.buffer.reset();
+                }
+            } else if (this.inSingleQuote) {
                 this.buffer.append(c);
                 if (c == singlequote) this.inSingleQuote = false;
             } else if (this.inDoubleQuote) {
@@ -419,9 +456,16 @@ public final class TransformerWriter extends Writer {
                     } else {
                         this.buffer.append(c);
                     }
+                } else if (this.buffer.length() == 1 && this.buffer.charAt(0) == lb && !tagStart(c)) {
+                    // HTML: '<' starts a tag only before a letter, '/', '!' or '?'; otherwise it is text ("a < b")
+                    this.buffer.reset();
+                    this.buffer.append(lt);
+                    this.buffer.append(c);
                 } else if (this.buffer.length() > 0 && this.buffer.charAt(0) == lb) {
-                    if (c == singlequote) this.inSingleQuote = true;
-                    if (c == doublequote) this.inDoubleQuote = true;
+                    // HTML: a quote opens a quoted attribute value only after '=' (name="value");
+                    // elsewhere it is a character of the tag (alt=Peter's, a backslash does not escape)
+                    if (c == singlequote && attributeValueStart(this.buffer)) this.inSingleQuote = true;
+                    if (c == doublequote && attributeValueStart(this.buffer)) this.inDoubleQuote = true;
                     // fill in tag text
                     if ((this.buffer.length() >= 3) && (this.buffer.charAt(1) == excl) &&
                         (this.buffer.charAt(2) == dash) && (c == dash)) {
@@ -449,20 +493,24 @@ public final class TransformerWriter extends Writer {
                         this.buffer.append(c);
                     }
                 } else {
-                    // fill in plain text
-                    if (c == lb) {
-                        // the text ends here
-                        if (this.buffer.length() > 0) {
-                            filtered = this.tokenProcessor(this.buffer.getChars(), doublequote);
+                    // fill in plain text; a '<' stays at its end until the next character shows whether it starts a tag
+                    final int last = this.buffer.length() - 1;
+                    if (this.buffer.charAt(last) == lb) {
+                        if (tagStart(c)) {
+                            // the text ends here
+                            filtered = this.tokenProcessor(this.buffer.getChars(0, last), doublequote);
                             if (this.out != null) this.out.write(filtered);
+                            // this.buffer = new serverByteBuffer();
+                            this.buffer.reset();
+                            this.buffer.append(lb);
+                        } else {
+                            // HTML: no tag, the '<' is text ("3<5", "a < b")
+                            this.buffer.deleteCharAt(last);
+                            this.buffer.append(lt);
                         }
-                        // this.buffer = new serverByteBuffer();
-                        this.buffer.reset();
-                        this.buffer.append(c);
-                    } else {
-                        // simply append
-                        this.buffer.append(c);
                     }
+                    // simply append
+                    this.buffer.append(c);
                 }
             }
         } else {
@@ -515,6 +563,45 @@ public final class TransformerWriter extends Writer {
         if (this.scraper != null) this.scraper.finish();
     }
 
+    /** true for the elements whose content HTML reads as raw text up to their end tag */
+    private static boolean isRawText(final TagType tagType) {
+        return tagType == TagType.script || tagType == TagType.style;
+    }
+
+    /** @return the type of the raw text element (script, style) whose content is being read, or null */
+    private TagType rawTextElement() {
+        if (this.tagStack.isEmpty()) return null;
+        final TagType tagType = this.tagStack.lastElement().tagType;
+        return isRawText(tagType) ? tagType : null;
+    }
+
+    /** true if the buffer holds the end tag of the element name: "&lt;/name" in any case, then whitespace, '/' or '&gt;' */
+    private static boolean isEndTag(final CharBuffer b, final String name) {
+        final int n = name.length();
+        if (b.length() < n + 3 || b.charAt(0) != lb || b.charAt(1) != '/') return false;
+        for (int i = 0; i < n; i++) {
+            char x = b.charAt(2 + i);
+            if (x >= 'A' && x <= 'Z') x += 'a' - 'A';
+            if (x != name.charAt(i)) return false;
+        }
+        final char d = b.charAt(2 + n);
+        return d == rb || d == '/' || Character.isWhitespace(d);
+    }
+
+    /** true if the last character of the tag text, ignoring whitespace, is '=': a quote here opens an attribute value */
+    private static boolean attributeValueStart(final CharBuffer tag) {
+        for (int i = tag.length() - 1; i > 0; i--) {
+            final char x = tag.charAt(i);
+            if (!Character.isWhitespace(x)) return x == '=';
+        }
+        return false;
+    }
+
+    /** true if c after '<' starts a tag, an end tag, a comment, a doctype or a processing instruction */
+    private static boolean tagStart(final int c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '/' || c == excl || c == '?';
+    }
+
     private static boolean binaryHint(final char c) {
         // space, punctiation and symbols, letters and digits (ASCII/latin)
         //if (c >= 31 && c < 128) return false;
@@ -533,7 +620,11 @@ public final class TransformerWriter extends Writer {
     }
 
     public boolean binarySuspect() {
-        return !this.binaryUnsuspect;
+        if (this.binaryUnsuspect) return false;
+        if (this.passbyIfBinarySuspect) return true; // the parse stopped at the first control character
+        // a few stray control characters do not make a text document binary
+        return this.controlCharCount > MAX_STRAY_CONTROL_CHARS
+                || (long) this.controlCharCount * CONTROL_CHAR_SPACING > this.charCount;
     }
 
 }

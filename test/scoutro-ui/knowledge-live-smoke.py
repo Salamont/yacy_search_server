@@ -46,12 +46,32 @@ HOST_A = "www.muster-pflege-ui.de"
 HOST_B = "www.nur-bee-ui.de"
 
 
+CHAT_OPTIONS = []  # the options of every native chat request
+
+
 class FakeModel(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
+    def reply(self, data):
+        out = json.dumps(data).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(out)))
+        self.end_headers()
+        self.wfile.write(out)
+
+    def do_GET(self):
+        if self.path == "/api/ps":  # Ollama's loaded models: the window it loaded the model with
+            return self.reply({"models": [{"name": "fixture:latest", "model": "fixture:latest", "context_length": 8192}]})
+        self.send_error(404)
+
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+        if self.path == "/api/show":  # the model's own maximum
+            return self.reply({"model_info": {"general.architecture": "qwen3", "qwen3.context_length": 40960}})
+        if self.path == "/api/chat":
+            CHAT_OPTIONS.append(body.get("options", {}))
         user = body["messages"][1]["content"]
         answer = {"entities": [], "claims": []}
         if "Haus Lindenhof" in user:
@@ -267,6 +287,12 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             wait(c, f"{total} published pages and the LLM result",
                  lambda s: s["sync"]["processed"]["published"] >= total and s["llm"]["processed"]["published"] >= 1)
             checks = 0
+            # the request budget plans against the window Ollama reports for the loaded model; it is not sent
+            ctx = get(c, "/scoutro/api/v1/kg/status")["llm"]["context"]
+            assert ctx["windowSource"] == "detected" and ctx["windowTokens"] == 8192 and ctx["modelMaxTokens"] == 40960, ctx
+            assert ctx["numCtxSent"] is False, ctx
+            assert CHAT_OPTIONS and all("num_ctx" not in o for o in CHAT_OPTIONS), CHAT_OPTIONS
+            checks += 3
             # read API: collection isolation
             a = get(c, "/scoutro/api/v1/kg/entities?collection=kga&limit=100")
             names_a = sorted(e["name"] for e in a["items"])

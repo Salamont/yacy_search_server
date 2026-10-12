@@ -148,6 +148,8 @@ public final class KgRuntime {
         final LlmClient llm;
         /** The keys that are set (for the per-collection keys of collections named nowhere else, package 6.1). */
         final Supplier<Iterable<String>> keys;
+        /** Writes one setting (the marker of {@link CollectionMigration}); null: the runtime writes no setting and the step does not run. */
+        final java.util.function.BiConsumer<String, String> settings;
 
         /** Without Solr synchronisation (store, budget and status only). */
         public Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
@@ -166,14 +168,15 @@ public final class KgRuntime {
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
                 final KgStore.SqlWork<String> integrityCheck, final Supplier<SolrClient> solr, final Gates.Probe system,
                 final LlmClient llm) {
-            this(dataRoot, config, clock, probe, connections, monitorThread, integrityCheck, solr, system, llm, java.util.List::of);
+            this(dataRoot, config, clock, probe, connections, monitorThread, integrityCheck, solr, system, llm, java.util.List::of, null);
         }
 
         private Env(final File dataRoot, final Function<String, String> config, final LongSupplier clock,
                 final StorageProbe probe, final KgStore.ConnectionFactory connections, final boolean monitorThread,
                 final KgStore.SqlWork<String> integrityCheck, final Supplier<SolrClient> solr, final Gates.Probe system,
-                final LlmClient llm, final Supplier<Iterable<String>> keys) {
+                final LlmClient llm, final Supplier<Iterable<String>> keys, final java.util.function.BiConsumer<String, String> settings) {
             this.keys = keys;
+            this.settings = settings;
             this.dataRoot = dataRoot;
             this.config = config;
             this.clock = clock;
@@ -189,19 +192,28 @@ public final class KgRuntime {
         /** The same environment with another integrity check (tests). */
         Env withIntegrityCheck(final KgStore.SqlWork<String> check) {
             return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread, check,
-                    this.solr, this.system, this.llm, this.keys);
+                    this.solr, this.system, this.llm, this.keys, this.settings);
         }
 
         /** The same environment with another LLM model (tests). */
         Env withLlm(final LlmClient client) {
             return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread,
-                    this.integrityCheck, this.solr, this.system, client, this.keys);
+                    this.integrityCheck, this.solr, this.system, client, this.keys, this.settings);
         }
 
         /** The same environment with the keys that are set, read at every start (package 6.1). */
         public Env withKeys(final Supplier<Iterable<String>> setKeys) {
             return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread,
-                    this.integrityCheck, this.solr, this.system, this.llm, setKeys);
+                    this.integrityCheck, this.solr, this.system, this.llm, setKeys, this.settings);
+        }
+
+        /**
+         * The same environment with a writer of settings: the runtime then records the end of the built-in collection defaults
+         * ({@link CollectionMigration}) once (the running peer; tests of the upgrade).
+         */
+        public Env withSettings(final java.util.function.BiConsumer<String, String> writer) {
+            return new Env(this.dataRoot, this.config, this.clock, this.probe, this.connections, this.monitorThread,
+                    this.integrityCheck, this.solr, this.system, this.llm, this.keys, writer);
         }
 
         static Env of(final Switchboard sb) {
@@ -230,9 +242,10 @@ public final class KgRuntime {
                     return sb.onlineCaution();
                 }
             };
-            // the business vocabularies of the application (package 6), not of the working directory
+            // the business vocabularies of the application (package 6), not of the working directory, and the operator's own
+            // vocabulary files (with the collection maps), also while the graph is off: its settings page shows them
             net.yacy.scoutro.knowledge.vocab.KgVocabularies.configure(
-                    new File(sb.getAppPath(), net.yacy.scoutro.knowledge.vocab.KgVocabularies.DEFAULTS), null);
+                    new File(sb.getAppPath(), net.yacy.scoutro.knowledge.vocab.KgVocabularies.DEFAULTS), vocabularyDir(sb.getDataPath()));
             return new Env(sb.getDataPath(), key -> sb.getConfig(key, null), System::currentTimeMillis,
                     StorageProbe.SYSTEM, KgStore.SQLITE, true, QUICK_CHECK, solr, system, new YacyLlmClient(), () -> {
                         // the knowledge graph's own keys, copied (the settings may change while they are read)
@@ -248,11 +261,18 @@ public final class KgRuntime {
                             LOG.warn("knowledge graph: the set keys could not be read: " + e);
                         }
                         return keys;
-                    });
+                    }, sb::setConfig);
         }
     }
 
+    /** The operator's vocabulary files below the YaCy data root ({@code DATA/SCOUTRO/knowledge/vocabulary}). */
+    static File vocabularyDir(final File dataRoot) {
+        return new File(new KgPaths(dataRoot).dir, net.yacy.scoutro.knowledge.vocab.KgVocabularies.OVERRIDES);
+    }
+
     private final Env env;
+    /** What the end of the built-in collection defaults did at this start ({@link CollectionMigration}); null if it ran before. */
+    private CollectionMigration.Result migration;
     private volatile State state = State.STOPPED;
     private volatile String reason;
     private volatile String reasonDetail;
@@ -442,6 +462,10 @@ public final class KgRuntime {
         this.closing = false;
         this.syncTask = new SyncTaskState();
         try {
+            // the operator's vocabulary extensions live with the graph's data; they count also while the graph is off (the defaults
+            // of a collection on its settings page)
+            net.yacy.scoutro.knowledge.vocab.KgVocabularies.overrides(vocabularyDir(this.env.dataRoot));
+            final String migrationFailed = migrateCollections();
             this.config = KgConfig.read(this.env.config, this.env.keys.get());
             this.jsonld = new JsonLdCapturePolicy(this.config);
             if (!this.config.enabled) {
@@ -453,10 +477,12 @@ public final class KgRuntime {
                 LOG.warn("knowledge graph not started, invalid settings: " + this.config.problems());
                 return;
             }
+            if (migrationFailed != null) {
+                // without the carried-over defaults every page would be extracted again: the graph waits for the next start
+                set(State.UNAVAILABLE, KgException.START_FAILED, migrationFailed);
+                return;
+            }
             this.paths = new KgPaths(this.env.dataRoot);
-            // the operator's vocabulary extensions live with the graph's data
-            net.yacy.scoutro.knowledge.vocab.KgVocabularies.overrides(new File(this.paths.dir,
-                    net.yacy.scoutro.knowledge.vocab.KgVocabularies.OVERRIDES));
             this.guard = new StorageGuard(this.config, this.paths, this.env.probe, this.env.clock);
             this.guard.refresh();
             this.store = KgStore.open(this.paths, this.config, this.guard, this.env.connections, this.env.clock);
@@ -480,6 +506,7 @@ public final class KgRuntime {
                 recordEvent(2, "rebuild_interrupted", "a shadow graph of an unfinished rebuild was deleted; the graph is unchanged", false);
                 this.guard.refresh();
             }
+            recordMigration();
             set(State.RUNNING, null, null);
             if (this.env.solr != null) {
                 startSync();
@@ -557,6 +584,55 @@ public final class KgRuntime {
             t.setPriority(Thread.MIN_PRIORITY);
             return t;
         });
+    }
+
+    /**
+     * The end of the collection defaults built into Scoutro, once per installation ({@link CollectionMigration}), before the
+     * settings are read: a carried-over map is then part of the vocabularies in force. Never throws.
+     *
+     * @return null, or why the step failed: the graph then does not start (it would extract every page again)
+     */
+    private String migrateCollections() {
+        this.migration = null;
+        try {
+            this.migration = CollectionMigration.run(this.env.dataRoot, this.env.config, this.env.settings, this.env.keys.get());
+        } catch (final IOException | RuntimeException e) {
+            LOG.warn("knowledge graph: the former collection defaults could not be carried over, the graph waits: " + e);
+            return "the former collection defaults could not be carried over (" + e.getClass().getSimpleName() + "); next start";
+        }
+        if (this.migration != null) {
+            if (this.migration.written) {
+                net.yacy.scoutro.knowledge.vocab.KgVocabularies.reload();
+            }
+            LOG.info("knowledge graph: " + this.migration.describe());
+        }
+        return null;
+    }
+
+    /**
+     * Records what {@link #migrateCollections} carried over at this start, and checks that a graph built before keeps its
+     * extractor identity (a difference would extract every page again; it is reported, not hidden).
+     */
+    private void recordMigration() {
+        final CollectionMigration.Result m = this.migration;
+        if (m == null || !m.existing) {
+            return;
+        }
+        String stored = null;
+        try {
+            stored = this.store.read(c -> KgStore.getMeta(c, KgSchema.META_EXTRACTORS));
+        } catch (final KgException e) {
+            // reported without the comparison
+        }
+        final String computed = net.yacy.scoutro.knowledge.sync.SolrDoc.extractors(this.config);
+        if (stored != null && !stored.equals(computed)) {
+            LOG.warn("knowledge graph: after the collection defaults were carried over the extractor identity differs: " + stored
+                    + " -> " + computed);
+            recordEvent(2, "collection_profiles_identity_changed", m.describe() + "; extractor identity " + stored + " -> " + computed,
+                    false);
+        } else {
+            recordEvent(1, "collection_profiles_migrated", m.describe() + (stored == null ? "" : "; extractor identity unchanged"), false);
+        }
     }
 
     /**
@@ -1117,6 +1193,15 @@ public final class KgRuntime {
     }
 
     /**
+     * Samples of what the LLM tier dropped or refused since the start, newest first ({@code GET /kg/llm-refusals}):
+     * in memory, bounded, without person names or contact data; empty while the tier does not run.
+     */
+    public JSONObject llmRefusals(final String reason, final int limit) {
+        final LlmService l = this.llm;
+        return l == null ? KgJson.obj("samples", new org.json.JSONArray(), "summary", null) : l.refusals(reason, limit);
+    }
+
+    /**
      * Makes the documents the LLM tier gave up on due again
      * ({@code POST /kg/control {"action":"llm_retry"}}); also closes the
      * circuit breaker.
@@ -1514,8 +1599,8 @@ public final class KgRuntime {
      * The collections the graph follows, maps or holds (package 6.1), each
      * with: followed or not, the vocabulary in force and where it comes from
      * ({@code setting} for {@code scoutro.kg.vocab.<collection>},
-     * {@code vocabulary_files} for categories.json or an override file,
-     * {@code none}), whether that vocabulary exists, jobs, the LLM tier, the
+     * {@code vocabulary_files} for a collection map of the operator's vocabulary
+     * files, {@code none}), whether that vocabulary exists, jobs, the LLM tier, the
      * documents in the graph (at most 10 seconds old) and a state. A collection without a vocabulary
      * gets generic facts only; its vocabulary is never guessed from its name.
      */

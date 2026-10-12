@@ -66,14 +66,17 @@ public class LlmExtractorInvalidReasonTest {
         return r.droppedInvalidByReason.values().stream().mapToInt(Integer::intValue).sum();
     }
 
-    /** Exactly one item dropped as invalid, under {@code reason}; the valid items stay. */
+    /**
+     * Exactly one item dropped as invalid, under {@code reason}; the valid items stay. A claim about an entity of the
+     * answer that was dropped needs that entity, which is dropped as ungrounded (counted there, not as invalid).
+     */
     static void assertOnly(final String reason, final LlmExtractor.Result r) {
         assertNull(reason, r.refused);
         assertTrue("a known code: " + reason, LlmExtractor.INVALID_REASONS.contains(reason));
         assertEquals(reason + ": " + r.droppedInvalidByReason, Map.of(reason, 1), r.droppedInvalidByReason);
         assertEquals(reason, 1, r.droppedInvalid);
         assertEquals(reason, r.droppedInvalid, sum(r));
-        assertEquals(reason, 0, r.droppedUngrounded);
+        assertEquals(reason, "claim_entity_dropped".equals(reason) ? 1 : 0, r.droppedUngrounded);
     }
 
     /** One case per reason: the bad item next to the valid E1, E2, C1 and V1. */
@@ -131,6 +134,10 @@ public class LlmExtractorInvalidReasonTest {
         m.put("claim_unresolved_subject", answer(E1 + "," + E2, c + "{\"subject\":\"k2\",\"predicate\":\"operates\",\"object\":\"e1\",\"quote\":\""
                 + Q + "\"}", V1));
         m.put("claim_unresolved_object", answer(E1 + "," + E2, c + "{\"subject\":\"k1\",\"predicate\":\"operates\",\"object\":\"e9\",\"quote\":\""
+                + Q + "\"}", V1));
+        // the object is an entity of the answer that was dropped (its quote is not in the text)
+        m.put("claim_entity_dropped", answer(E1 + "," + E2 + ",{\"id\":\"e3\",\"type\":\"facility\",\"name\":\"Haus Am Meer\","
+                + "\"quote\":\"das Haus Am Meer\"}", c + "{\"subject\":\"k1\",\"predicate\":\"operates\",\"object\":\"e3\",\"quote\":\""
                 + Q + "\"}", V1));
         m.put("claim_subject_type_mismatch", answer(E1 + "," + E2, c + "{\"subject\":\"e2\",\"predicate\":\"operates\",\"object\":\"e1\",\"quote\":\""
                 + Q + "\"}", V1));
@@ -269,7 +276,8 @@ public class LlmExtractorInvalidReasonTest {
         assertEquals(1, r.values);
         assertEquals("the invented holding", 1, r.droppedUngrounded);
         assertEquals(5, r.droppedInvalid);
-        assertEquals(Map.of("entity_unknown_type", 1, "entity_extra_field", 1, "claim_unresolved_object", 2, "value_subject_type_mismatch", 1),
+        // the two claims about dropped entities (e3 of an unknown type, the ungrounded e5) count as such
+        assertEquals(Map.of("entity_unknown_type", 1, "entity_extra_field", 1, "claim_entity_dropped", 2, "value_subject_type_mismatch", 1),
                 r.droppedInvalidByReason);
         assertEquals(r.droppedInvalid, sum(r));
         assertEquals(List.of("e1", "e2"), List.of(r.accepted.getJSONArray("entities").getJSONObject(0).getString("id"),
@@ -339,7 +347,7 @@ public class LlmExtractorInvalidReasonTest {
         final LlmExtractor.Result r = LlmExtractor.validate(LlmExtractorTest.answer(), LlmExtractorTest.chunk(), LlmExtractorTest.known(),
                 Set.of("nursinghome"));
         assertNotNull(r.accepted);
-        assertEquals(Map.of("claim_subject_type_mismatch", 1, "claim_unresolved_object", 1), r.droppedInvalidByReason);
+        assertEquals(Map.of("claim_subject_type_mismatch", 1, "claim_entity_dropped", 1), r.droppedInvalidByReason);
         assertEquals(r.droppedInvalid, sum(r));
     }
 }

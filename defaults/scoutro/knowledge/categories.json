@@ -1,13 +1,7 @@
 {
  "schema": "scoutro.kg.categories",
  "version": "1",
- "note": "Seed vocabularies (package 6), not closed enumerations. New categories are added here or in DATA/SCOUTRO/knowledge/vocabulary/*.json; no schema change. 'nace' is the safe NACE Rev. 2.1 level (section, division, group or class) or null if no level is reliable.",
- "collections": {
-  "edelsenior-web": "care",
-  "checkthecoach-web": "coaching",
-  "stackfinder-web": "software",
-  "bauteamcheck-web": "construction"
- },
+ "note": "Seed vocabularies (package 6), not closed enumerations. New categories are added here or in DATA/SCOUTRO/knowledge/vocabulary/*.json; no schema change. 'nace' is the safe NACE Rev. 2.1 level (section, division, group or class) or null if no level is reliable. A vocabulary is a profile the operator gives a collection (scoutro.kg.vocab.<collection>, or a 'collections' map in a file of DATA/SCOUTRO/knowledge/vocabulary); no collection has one by default. 'llm_kinds' are the facility kinds the LLM tier may assign on the pages of a collection with this vocabulary; they are not part of the vocabulary version.",
  "customer_types": [
   {
    "code": "b2b",
@@ -213,6 +207,15 @@
   "care": {
    "de": "Pflege und Betreuung",
    "en": "Care and support",
+   "llm_kinds": [
+    "adultdaycare",
+    "assistedliving",
+    "hospital",
+    "medicalclinic",
+    "nursinghome",
+    "outpatientcare",
+    "seniorcenter"
+   ],
    "groups": [
     {
      "code": "stationaer",
@@ -667,6 +670,12 @@
   "coaching": {
    "de": "Coaching",
    "en": "Coaching",
+   "llm_kinds": [
+    "exercisegym",
+    "professionalservice",
+    "sportsactivitylocation",
+    "sportsclub"
+   ],
    "groups": [
     {
      "code": "business",
@@ -1310,6 +1319,10 @@
   "software": {
    "de": "Software und IT",
    "en": "Software and IT",
+   "llm_kinds": [
+    "professionalservice",
+    "store"
+   ],
    "groups": [
     {
      "code": "entwicklung",
@@ -1884,6 +1897,16 @@
   "construction": {
    "de": "Bauen und Planen",
    "en": "Construction and planning",
+   "llm_kinds": [
+    "electrician",
+    "generalcontractor",
+    "homeandconstructionbusiness",
+    "housepainter",
+    "hvacbusiness",
+    "locksmith",
+    "plumber",
+    "roofingcontractor"
+   ],
    "groups": [
     {
      "code": "planung",

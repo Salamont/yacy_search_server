@@ -410,8 +410,11 @@
       else if ((items || 0) > 0 || (pending || 0) > 0) { kind = 'scheduled'; why = t('pr_ai_ready'); }
       if (!action && (num(docs.failed) || 0) > 0 && kind !== 'off') { action = one('pr_ai_failed', docs.failed).replace('%1', fmt(docs.failed)); optional = true; }
       const queue = items == null ? null : items > 0 ? t('pr_ai_queue').replace('%1', unit('pr_unit_tasks', items)).replace('%2', fmt(claimed)) : t('pr_ai_queue_empty');
-      const open = pending == null ? (queue == null ? t('pr_open_unknown') : queue + ' · ' + t('pr_ai_backlog_unknown'))
+      // a long page is done after its first reading; until its content is read it is read on, never shown as covered
+      const cov = docs.coverage || null, cont = l.continuation || {}, partial = num(cov?.partial) || 0;
+      const openPages = pending == null ? (queue == null ? t('pr_open_unknown') : queue + ' · ' + t('pr_ai_backlog_unknown'))
         : pending === 0 && !(items > 0) ? t('pr_ai_open_none') : unit('pr_unit_unexamined', pending) + (queue ? ' · ' + queue : '');
+      const open = partial > 0 ? openPages + ' · ' + t('pr_ai_partial').replace('%1', fmt(partial)) : openPages;
       // measured: only model requests that have ended (an older server without that count: only while none runs)
       const finished = num(pr.requestsFinished);
       const avg = finished != null ? (finished > 0 ? num(pr.averageRequestMillis) : null)
@@ -426,6 +429,11 @@
           ['pr_d_done', unit('pr_unit_docs', num(docs.done)), t('pr_basis_total')],
           ['pr_d_failed', unit('pr_unit_docs', num(docs.failed)), t('pr_basis_total')],
           ['pr_d_skipped', unit('pr_unit_docs', num(docs.skipped)), t('pr_basis_total')],
+          ...(cov ? [['pr_d_partial', t('pr_d_partial_value').replace('%1', fmt(partial)).replace('%2', fmt(num(cont.remainingChars) || 0)),
+              t('pr_basis_now')],
+            ['pr_d_fulltext', unit('pr_unit_docs', num(cov.fullText)), t('pr_basis_total')],
+            ['pr_d_textcut', unit('pr_unit_docs', num(cov.textCut)), t('pr_basis_total')],
+            ['pr_d_textmissing', unit('pr_unit_docs', num(cov.textMissing)), t('pr_basis_total')]] : []),
           ['pr_d_calls', unit('pr_unit_calls', num(pr.calls)), t('pr_basis_start')],
           ['pr_d_avg', avg != null ? one('pr_d_avg_value', measuredOver).replace('%1', secs(avg)).replace('%2', fmt(measuredOver)) : t('pr_d_avg_none'),
             t('pr_basis_measured')],

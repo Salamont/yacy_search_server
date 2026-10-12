@@ -101,6 +101,29 @@ public class KgLlmSettingsTest {
     }
 
     @Test
+    public void theRefusalSamplesRouteTakesOnlyAReasonAndALimit() throws Exception {
+        KnowledgeApi api = new KnowledgeApi(() -> null, () -> null, () -> null);
+        String[] path = "/v1/kg/llm-refusals".split("/");
+        for (Map<String, String> q : List.of(Map.of("limit", "0"), Map.of("limit", "101"), Map.of("limit", "x"),
+                Map.of("reason", "Claim-Self"), Map.of("collection", "c1"))) {
+            try {
+                api.route("GET", path, q, () -> new JSONObject());
+                fail(q.toString());
+            } catch (ApiException e) {
+                assertEquals(q.toString(), 400, e.status());
+            }
+        }
+        try {
+            api.route("POST", path, Map.of(), () -> new JSONObject());
+            fail();
+        } catch (ApiException e) {
+            assertEquals(405, e.status());
+        }
+        // agents never reach it: no grant, no agent route
+        assertEquals(404, AgentApi.route("GET", List.of("kg", "llm-refusals")).error.status());
+    }
+
+    @Test
     public void focusedRoutesRejectArbitraryKeysQueriesAndInvalidManualLimits() throws Exception {
         Memory m = new Memory();
         KgLlmSettings settings = new KgLlmSettings(m, () -> null);

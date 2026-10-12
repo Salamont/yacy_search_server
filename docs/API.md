@@ -725,7 +725,7 @@ is ever written to Solr.
 | `POST /scoutro/api/v1/kg/prompt` | administrator (Digest), JSON body (≤ 64 KiB), same origin | `{"action":"validate","text":…}` (stores nothing), `{"action":"activate","text":…,"expectedRevision":n}`, `{"action":"reset","expectedRevision":n}`; a new prompt changes the prompt hash and the cache key but reads no done document again (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3); 422 `prompt_invalid`, 409 `prompt_revision_conflict` |
 | `GET /scoutro/api/v1/kg/backups` | administrator (Digest) | The backup files with their metadata (`scoutro.kg.backup.v1`), newest first |
 | `GET /scoutro/api/v1/kg/backups/{file}` | administrator only, never an agent | One backup as a SQLite file (`application/vnd.sqlite3`), to keep it outside the app |
-| `GET /scoutro/api/v1/kg/collections` | administrator only, never an agent | Package 6.2: the knowledge graph settings of each collection: every collection of the collection catalog (a new one by itself, never `robot_*`) and every collection the graph's settings or data name, with `active`, `inactive`, `followedBy` (`list`, `all`, `inactive`, `none`), `vocabulary`, `vocabularySetting` (unset `null`, a name, `""` for none), `defaultVocabulary`, `vocabularySource`, `indexDocuments`, `graphDocuments`, `state` (`following`, `waiting`, `inactive`, `not_followed`, `unknown_vocabulary`); `vocabularies` lists the vocabularies a collection can be given. Package 6.3: each row also has `llm` (switched on for the LLM tier), `llmBy` (`list`, `all`, `none`) and `llmActive` (graph on, collection followed and switched on, and a model of the LLM selection); `llm` at the top names `model` (the model of the usage *knowledge*, null without one), `allCollections`, `collections`, `enabled` and `active` |
+| `GET /scoutro/api/v1/kg/collections` | administrator only, never an agent | Package 6.2: the knowledge graph settings of each collection: every collection of the collection catalog (a new one by itself, never `robot_*`) and every collection the graph's settings or data name, with `active`, `inactive`, `followedBy` (`list`, `all`, `inactive`, `none`), `vocabulary`, `vocabularySetting` (unset `null`, a name, `""` for none), `defaultVocabulary` (the mapping of the vocabulary files in `DATA/SCOUTRO/knowledge/vocabulary`; null for a collection they do not map, no collection has one by its name), `vocabularySource`, `indexDocuments`, `graphDocuments`, `state` (`following`, `waiting`, `inactive`, `not_followed`, `unknown_vocabulary`); `vocabularies` lists the vocabularies a collection can be given. Package 6.3: each row also has `llm` (switched on for the LLM tier), `llmBy` (`list`, `all`, `none`) and `llmActive` (graph on, collection followed and switched on, and a model of the LLM selection); `llm` at the top names `model` (the model of the usage *knowledge*, null without one), `allCollections`, `collections`, `enabled` and `active` |
 | `PATCH /scoutro/api/v1/kg/collections/{collection}` | administrator only, never an agent, JSON body, same origin | `{"active": true\|false, "vocabulary": "care"\|""\|null, "llm": true\|false}` (at least one). `llm` (package 6.3) adds the name to or removes it from `scoutro.kg.llm.collections` (an empty list removes the key); it is never set by itself, also not by `active`. With `scoutro.kg.llm.collections=*` switching one collection off answers 409 `llm_all_collections` and writes nothing. The answer adds `llmModel` and `llmWarning` (`no_model`, `collection_not_active`, or null): the setting is stored and waits for a model or for the collection. Only that collection's keys change: `scoutro.kg.collections` (name added or removed, the other names as they are, `*` stays `*`), `scoutro.kg.collections.inactive` (switched off: not followed, also under `*`, its graph data kept) and `scoutro.kg.vocab.<collection>` (`null` removes it: the default). Applied at once by reopening the graph; the start reconcile reads the pages of a collection switched on (`backfill`). Answer: the collection's row, `changed`, `applied`, `backfill`, `kept`, `reextract`, `keys`, `applyError`. 400 `collection_id_invalid`, `collection_reserved` (`robot_*`), `vocabulary_unknown`, `invalid_request`; 404 `collection_unknown`; 409 `operation_running` while a backup, restore or rebuild runs (nothing written) |
 | `GET /scoutro/api/v1/kg/entities?q&type&host&quality&industry&category&audience&offset&limit&collection` | administrator (Digest) | Entities, newest first (`scoutro.kg.v1`); `industry` a NACE Rev. 2.1 / WZ 2025 code or prefix (`43`, `43.22`), `category` a service category or group, `audience` a customer type, segment or company size; `type` also `job`. Every item carries `context` for the viewer, batched for the page: `hosts`, `collections`, `places`, `quality`, `sources`, `last_confirmed`, and for a service its `providers` (visible subjects of a visible `offers`, with their hosts, collections and places) and `provider_count`, for a job its employer; `provider_count: 0` when none is visible |
 | `GET /scoutro/api/v1/kg/entities/{id}` | administrator | One entity, or `{"redirect": id}` after a merge |
@@ -876,7 +876,42 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     `mode` `schema_enforced`, `schema_unverified`, `json_mode`,
     `validator_only` or `fallback_after_rejection`, `request`, `reason`,
     `withoutSchema`, `requests` per format, `rejections`, `lastRejection`;
-    in memory since the start; docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3);
+    in memory since the start; docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
+    `selection`: `collections`, per LLM collection (`collection`) its scan
+    positions (`frontier`, `revisit`, row IDs as of the last refill) and the
+    pages it `queued` since the start, with `scanBatch`, `revisitBatch`,
+    `agingMinutes`.
+    `context`: the window the requests are planned against
+    (`windowTokens`, `windowSource` `configured`, `detected` (the window
+    an Ollama server reports for the loaded model, not sent) or
+    `assumed_default`, `modelMaxTokens`, `numCtxSent`, as last read: the
+    status never asks the model server), `maxOutputTokens`, `answerReserveTokens`,
+    `fixedPromptTokens`, `schemaCounted`, `promptTokensEstimatedMax` and
+    `measured` (what the endpoint reported since the start; null for a
+    client without reports). `continuation`: `chunks`, `passChars`,
+    `overlapChars`, `failedPassesMax`, `pendingDocuments` (reason
+    `more_text`: a continuation reads on), `remainingChars` (their content
+    still to read), `fullTextDocuments` (reason `full_text`: read to the end
+    of the content), `textCutDocuments` (reason `text_cut`), `audit`
+    (`checkedUpTo`, `upTo`, `done`: the one check of the pages read before
+    this version). `documents.coverage`: the done pages by how much of their
+    text was read (`whole`, `fullText`, `partial`, `textCut`, `textMissing`).
+    `refusalSamples`: size, bytes, `byReason` and bounds of the refusal
+    samples (no excerpts; `GET …/kg/llm-refusals`). `storage`:
+    `progressRows`, `progressBytes`, `checkpointRows`, `checkpointBytes`.
+    `backlog`: `samples` (one per `sampleMinutes`, the last day: `at`,
+    `pending`, `queue`, `partial`, `remainingChars`) and `pendingPerHour`
+    (null until two samples are 15 minutes apart). Further `processed`
+    counters: `unconfirmedRetries`, `inputUnconfirmed`,
+    `requeuedBehindFrontier`, `scanPasses`, `knownTrimmed`, `chunksSplit`,
+    `contextRefused`, `navigationMoved`, `navigationMovedChars`,
+    `continuationDocs`, `continuationCalls`, `textCutDocs`, `textCutChars`,
+    `fullTextDocs`, `navigationSkippedChars`, `continuationRetries`,
+    `statementCapDocs`, `queueWait` (`firstReadings`,
+    `firstReadingAverageMillis`, `firstReadingMaxMillis`, `continuations`,
+    `continuationAverageMillis`), `thinTextDocs`, `textMissingDocs`,
+    `auditedDocs`, `backfilledDocs`; `droppedInvalidByReason` also counts
+    `claim_entity_dropped` (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27);
   - `store`: schema version, dataset epoch, `uncleanStartDetected`,
     `startRecorded`, `integrity` (state of `PRAGMA quick_check`),
     `manualPause`, `manualPauseSaved`;
@@ -962,7 +997,11 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
   - Per document: candidate pages only (imprint, about, services, locations,
     contact, home page, pages with structured data), at most
     `scoutro.kg.llm.maxDocsPerHost` per host, ≤
-    `scoutro.kg.extract.maxInputChars` of text in chunks; read timeout
+    `scoutro.kg.extract.maxInputChars` of text in chunks at a first reading
+    (a long page is then read to the end of its content in passes of up to
+    `scoutro.kg.llm.continuationChunks` chunks, navigation behind the content
+    is never asked), each request planned against the model's window with
+    `scoutro.kg.llm.answerReserveTokens` kept for the answer; read timeout
     `scoutro.kg.llm.timeoutSeconds`, ≤ 1 MiB raw response.
   - The answer must be one JSON object of the schema; every entity and
     relation needs a quote found verbatim in the page text that contains the
@@ -979,8 +1018,10 @@ name or null. Clients never show the ID (`kge_…`, `kgs_…`) as a name.
     (`scoutro.kg.llm.breakerFailures` in a row: pause of 5 minutes, doubling
     up to `scoutro.kg.llm.breakerMaxBackoffMinutes`); a document that used up
     its attempts is `failed` until its content changes or `llm_retry`.
-  - Facility kinds the model may assign come from a small start vocabulary
-    per collection, replaced by `scoutro.kg.llm.kinds.<collection>`.
+  - Facility kinds the model may assign come with the vocabulary profile of
+    the page's collections (`llm_kinds` of the vocabulary; none without a
+    vocabulary, never from a collection's name), replaced by
+    `scoutro.kg.llm.kinds.<collection>`.
 - **Reads (package 3):**
   - Visibility is computed from evidence: a piece of evidence is visible if its
     document is in one of the viewer's collections (`collection`, or all
@@ -1242,6 +1283,8 @@ concrete upgrade/rollback: `docs/SCOUTRO_MATCHING.md`.
 ### Global LLM enrichment timing (administrator only)
 
 `GET`/`PUT /scoutro/api/v1/kg/llm-schedule` reads/replaces a fully validated plan: `mode` (`automatic` default, `scheduled`, `manual`), ISO `days` 1–7, `from`/`until` HH:mm, explicit named `zone`, `minStartSeconds` 0–86400 (default 0). No query parameters; atomic single configuration-key update and hot apply without KG reopen or re-extraction. Overnight windows use their starting weekday; equal times mean 24 hours. DST gaps have no starts, overlaps both occurrences. Windows authorize starts, not completion times.
+
+`GET /scoutro/api/v1/kg/llm-refusals?reason=&limit=` (administrator only, no agent route) lists samples of what the LLM tier dropped or refused since the start, newest first: `reason` (a reason code, optional), `limit` 1–100 (default 50). Each sample: `reason`, `item` (`entity`, `claim`, `value`, `answer`), `predicate`, `subjectType`/`objectType`, `subject`/`object` (`known`, `new`, `dropped_entity:<reason>`, `unknown_id`, `name_like`, `missing`), `docId`, `chunkOffset`, `domain`, `promptHash`, `at`, and `excerpt` (at most 160 characters, person names, e-mail addresses and phone numbers masked). In memory only: at most 500, 20 per reason, 128 KiB, seven days; `summary` gives size and bounds (also in `llm.refusalSamples` of the status, without excerpts). 400 for another parameter, a malformed reason or limit; 503 while the graph is off.
 
 `POST /scoutro/api/v1/kg/llm-run` starts (`action:start`, optional `maxDocuments` 1–100/default 25, `maxRequests` 1–1000/default 100) or stops (`action:stop` only) a manual override lasting at most one hour. Current requests may finish; unfinished chunk results remain independently of optional cache. Manual runs never bypass collections, KG pause, safety gates or circuit breaker; shared request spacing covers both workers and every format-fallback HTTP call. Cache hits consume no start. Done documents are not reexamined; failed documents require existing Retry. Wake/Retry do not override timing. Runs do not resume after process restart.
 

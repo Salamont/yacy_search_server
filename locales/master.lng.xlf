@@ -17110,8 +17110,8 @@
     <trans-unit id="ea5f003a" xml:space="preserve" approved="no" translate="yes">
        <source>fix the LLM schedule (Settings)</source>
     </trans-unit>
-    <trans-unit id="4e2399a1" xml:space="preserve" approved="no" translate="yes">
-       <source>The AI examines the pages of the AI collections; its queue is refilled from the pages not yet examined in small portions. One page can need several model requests, so a request is not a page. Skipped pages (not selected, over the per-host limit or without a host) are no backlog.</source>
+    <trans-unit id="b208cdce" xml:space="preserve" approved="no" translate="yes">
+       <source>The AI examines the pages of the AI collections; its queue is refilled from the pages not yet examined in small portions. One page can need several model requests, so a request is not a page. Skipped pages (not selected, over the per-host limit or without a host) are no backlog. A long page counts as done after its first reading; it is shown as read on until its own content is read.</source>
     </trans-unit>
     <trans-unit id="4ab9b90f" xml:space="preserve" approved="no" translate="yes">
        <source>Document tasks in the queue (in progress included)</source>
@@ -17130,6 +17130,24 @@
     </trans-unit>
     <trans-unit id="80aa749b" xml:space="preserve" approved="no" translate="yes">
        <source>Documents skipped (no backlog)</source>
+    </trans-unit>
+    <trans-unit id="f2304b70" xml:space="preserve" approved="no" translate="yes">
+       <source>Long pages read on (first reading done, content left)</source>
+    </trans-unit>
+    <trans-unit id="61d69589" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages · %2 characters of their content still to read</source>
+    </trans-unit>
+    <trans-unit id="eff1bb79" xml:space="preserve" approved="no" translate="yes">
+       <source>Long pages read to the end of their content</source>
+    </trans-unit>
+    <trans-unit id="79ae4407" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents with text left unread</source>
+    </trans-unit>
+    <trans-unit id="9dcc6ff3" xml:space="preserve" approved="no" translate="yes">
+       <source>Documents whose text is missing (not covered)</source>
+    </trans-unit>
+    <trans-unit id="54b8b159" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 long pages are still read on</source>
     </trans-unit>
     <trans-unit id="2890c5fe" xml:space="preserve" approved="no" translate="yes">
        <source>Model calls</source>
@@ -17646,6 +17664,9 @@
     </trans-unit>
     <trans-unit id="fa267311" xml:space="preserve" approved="no" translate="yes">
        <source>Statement: object not resolved</source>
+    </trans-unit>
+    <trans-unit id="85955c8c" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement: about an entity of the answer that was dropped</source>
     </trans-unit>
     <trans-unit id="69f8fe71" xml:space="preserve" approved="no" translate="yes">
        <source>Statement: subject type does not fit the relation</source>
