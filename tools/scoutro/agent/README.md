@@ -73,10 +73,10 @@ The Clustro run content is either free text — a research question — or a
 JSON object with `"scoutro_task": "1"` (`schemas/task.schema.json`):
 
 ```json
-{"scoutro_task": "1", "type": "research", "query": "Kurzzeitpflege Köln", "collections": ["edelsenior-web"], "limit": 8, "summarize": true}
+{"scoutro_task": "1", "type": "research", "query": "Kurzzeitpflege Köln", "collections": ["my-portal-web"], "limit": 8, "summarize": true}
 {"scoutro_task": "1", "type": "portal_evaluation", "profile": "edelsenior", "domains": ["example.de"], "mode": "stored"}
 {"scoutro_task": "1", "type": "portal_evaluation", "profile": "edelsenior", "query": "Pflegeheim Köln", "mode": "classify", "verdicts": ["PASS", "UNSURE"]}
-{"scoutro_task": "1", "type": "crawl", "url": "https://example.de/", "collection": "edelsenior-web", "depth": 1, "maxPages": 50}
+{"scoutro_task": "1", "type": "crawl", "url": "https://example.de/", "collection": "my-portal-web", "depth": 1, "maxPages": 50}
 ```
 
 Clustro's API is unchanged: the structure lives only in the content, and is
@@ -97,7 +97,7 @@ excerpts first and sets `truncated`):
 ```json
 {"scoutro_result": "1", "type": "research", "status": "ok", "query": "…",
  "summary": "Sonnenhof bietet Kurzzeitpflege. [1]", "summaryStatus": "generated",
- "sources": [{"id": 1, "url": "https://…", "title": "…", "collection": "edelsenior-web", "excerpt": "…"}],
+ "sources": [{"id": 1, "url": "https://…", "title": "…", "collection": "my-portal-web", "excerpt": "…"}],
  "warnings": [], "truncated": false}
 ```
 
