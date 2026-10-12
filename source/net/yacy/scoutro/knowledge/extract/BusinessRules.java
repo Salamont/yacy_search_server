@@ -422,11 +422,39 @@ public final class BusinessRules {
     private static final Pattern NOT_A_NAME = Pattern.compile("(?iu)^(?:wir|sie|ich|es|mehr|weitere|alle|unsere?|hier|jetzt|kontakt|impressum"
             + "|datenschutz|home|startseite|leistungen|über|ueber|news|aktuelles|zurück|weiter|mehr\\s+erfahren|termin|anfrage|copyright)\\b");
 
+    /**
+     * The wording of a consent banner (0.10.3): "an unsere Partner für soziale Medien, Werbung und Analysen weiter", "with our
+     * partners for social media, advertising and analytics". Its "partners" are the recipients of tracking data, never partners.
+     */
+    private static final Pattern CONSENT = Pattern.compile("(?iu)\\bcookies?\\b|einwilligung|zustimm|\\bconsent\\b|datenschutzeinstellung"
+            + "|privacy\\s+settings|\\btracking\\b|soziale(?:n)?\\s+medien|social\\s+media|werbung\\s+und\\s+analyse|advertising\\s+and\\s+analytics"
+            + "|verwendung\\s+unserer\\s+(?:web)?seite|use\\s+of\\s+our\\s+(?:site|website)");
+    /** A marker followed by a preposition is used in a sentence ("an unsere Partner für …"), it opens no list of names. */
+    private static final Pattern PREPOSITION_AFTER = Pattern.compile("(?u)^\\s*(?:für|fuer|in|im|aus|bei|von|vom|mit|zu|zur|zum|über|ueber|an|auf"
+            + "|weiter|for|with|to|from|on|of|at)\\b");
+
+    /** The sentence around {@code [from, to)}: back to and on to the next sentence end or line break (at most 300 characters). */
+    private static String sentence(final String text, final int from, final int to) {
+        int a = from;
+        while (a > 0 && from - a < 300 && ".!?\n".indexOf(text.charAt(a - 1)) < 0) {
+            a--;
+        }
+        int b = to;
+        while (b < text.length() && b - to < 300 && ".!?\n".indexOf(text.charAt(b)) < 0) {
+            b++;
+        }
+        return text.substring(a, b);
+    }
+
     private void relations(final Run run) {
         final Set<String> seen = new LinkedHashSet<>();
         for (final Marker mk : MARKERS) {
             final Matcher m = mk.pattern.matcher(run.text);
             while (m.find() && run.relations < MAX_RELATIONS) {
+                if (CONSENT.matcher(sentence(run.text, m.start(), m.end())).find()
+                        || mk.list && PREPOSITION_AFTER.matcher(run.text).region(m.end(), run.text.length()).lookingAt()) {
+                    continue; // a consent text or a marker in a sentence: no relation
+                }
                 final int from = m.end();
                 final int to = Math.min(run.text.length(), from + (mk.list ? 600 : 160));
                 final List<int[]> names = mk.list ? names(run.text, from, to) : first(run.text, from, to);
@@ -557,6 +585,11 @@ public final class BusinessRules {
     /** Lower-case words to the end of the item, without any capitalised word: a predicate, not part of a name. */
     private static final Pattern PREDICATE_TAIL = Pattern.compile("(?<=\\S)\\s+\\p{Ll}[\\p{Ll}\\-]*(?:\\s+\\p{Ll}[\\p{Ll}\\-]*)*\\s*[.!]?$");
 
+    /** Common words that are no brand when they stand alone in a list (0.10.3). */
+    private static final Pattern GENERIC_WORD = Pattern.compile("(?iu)werbung|werbepartner|analysen?|analytics|analytik|marketing|medien|media"
+            + "|statistik(?:en)?|tracking|cookies?|personalisierung|funktionen|inhalte|anzeigen|dienste|services|partner|partnern|kunden|daten"
+            + "|informationen|social|advertising");
+
     /** A sentence, not a list item, starts with an article, a pronoun or a preposition. */
     private static final Pattern SENTENCE_START = Pattern.compile("^(?:Die|Der|Das|Den|Dem|Des|Ein|Eine|Wir|Sie|Es|Er|Ihr|Ihre|Unser|Unsere"
             + "|Seit|Mit|Als|In|Auf|Für|Bei|Durch|Zu|Zur|Zum|Nach|Von|Vom|Im|Am|Hier|Damit|Dabei|Auch|So|Und|The|We|Our|With|In)\\s");
@@ -579,8 +612,10 @@ public final class BusinessRules {
         if (INSTITUTION.matcher(item).find()) {
             return true;
         }
-        // a brand in a customer or partner list: one word ("Siemens", "DHL", "SAP"); "Max Mustermann" is no organisation
-        return list && words.length == 1 && item.length() >= 2 && item.length() <= 30 && item.matches("[\\p{Lu}\\p{N}][\\p{L}\\p{N}&+.\\-]*");
+        // a brand in a customer or partner list: one word ("Siemens", "DHL", "SAP"); "Max Mustermann" is no organisation, nor a
+        // common word ("Werbung", "Analysen")
+        return list && words.length == 1 && item.length() >= 2 && item.length() <= 30 && item.matches("[\\p{Lu}\\p{N}][\\p{L}\\p{N}&+.\\-]*")
+                && !GENERIC_WORD.matcher(item).matches();
     }
 
     // ------------------------------------------------------------- industry

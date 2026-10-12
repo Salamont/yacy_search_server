@@ -978,6 +978,47 @@ public class SyncServiceTest {
         assertEquals(Reconciler.REASON_START, strings("SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1").get(0));
     }
 
+    /**
+     * 0.10.3: a consent banner made purposes partner organisations. Pages processed before the corrected rules that carry a relation
+     * of the rule tier are extracted again once, at low priority, and no other page; a restart does not repeat it.
+     */
+    @Test
+    public void pagesWithRelationsOfTheRuleTierAreExtractedAgainOnce() throws Exception {
+        final SolrInputDocument partners = doc("PARTNEhost01", "https://www.partner.example/partner", "c1", null);
+        partners.setField("text_t", List.of("Unsere Partner: Muster Software GmbH und Beispiel AG."));
+        client().add(partners);
+        add("AAAAAAhost02", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        commit();
+        settle();
+        final String relations = "SELECT count(*) FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v"
+                + " ON v.term_id = s.pred WHERE v.name = 'partner_of' AND e.tier = 2";
+        assertEquals("two partners of the rule tier", 2L, count(relations));
+        assertEquals("a new graph has nothing to check again", 1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
+        // a graph of 0.10.2: the check never ran
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.deleteMeta(tx, "relation_recheck_since");
+            KgStore.deleteMeta(tx, "relation_recheck_done");
+            return null;
+        });
+        final String a = hash("AAAAAAhost02");
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals("only the page with relations of the rule tier is extracted again", 1L, this.sync.counters.extractions.get());
+        assertEquals(a, hash("AAAAAAhost02"));
+        assertEquals(2L, count(relations));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck' AND detail LIKE '1 pages %'"));
+        assertEquals(0, this.sync.status().getInt("relationRecheck"));
+        // a restart: nothing again, the check is done
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+    }
+
     @Test
     public void anUpgradedGraphReadsTheHintsOfItsJobPagesOnce() throws Exception {
         // a graph of 0.10.1: no stored job reading, jobs not extracted; the hints are on by default
