@@ -51,12 +51,14 @@ public class LlmNavigationTest extends LlmFixture {
                         "Unternehmen")));
         settleSync();
         settleLlm();
-        assertEquals("1:", llmStatus(TARGET));
+        assertTrue(llmStatus(TARGET), llmStatus(TARGET).startsWith("1:"));
         boolean asked = false;
         for (final String user : this.model.users) {
             asked |= user.contains(QUOTE);
             assertFalse("no request of the long page starts with the menu", user.contains("page text:\n- **Unternehmen**")
                     && user.contains("Pflege Absatz 0"));
+            assertFalse("the menu moved behind the long page's content is never asked", user.contains("Pflege Absatz")
+                    && user.contains("Leistungsbereich Nummer 30 der"));
         }
         assertTrue("the evidence was asked", asked);
         final List<String> locators = strings("SELECT e.locator FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"

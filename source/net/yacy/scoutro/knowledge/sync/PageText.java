@@ -49,25 +49,57 @@ final class PageText {
     final int moved;
     /** Segments: start in {@link #text}, start in the stored text, length. */
     private final int[][] segments;
-    /** The other pages of the host the layout compared (document IDs, comma-separated); null if none were asked. */
-    final String siblings;
+    /** The blocks moved behind the content, in the stored text: {start, length}, in order; empty if none. */
+    final int[][] ranges;
+    /** End of the page's own content in {@link #text}: what follows is moved navigation. */
+    final int contentEnd;
 
-    private PageText(final String text, final int moved, final int[][] segments, final String siblings) {
+    private PageText(final String text, final int moved, final int[][] segments, final int[][] ranges, final int contentEnd) {
         this.text = text;
         this.moved = moved;
         this.segments = segments;
-        this.siblings = siblings;
+        this.ranges = ranges;
+        this.contentEnd = contentEnd;
     }
 
     /** The stored text unchanged. */
     static PageText of(final String text) {
         final String t = text == null ? "" : text;
-        return new PageText(t, 0, new int[][] {{0, 0, t.length()}}, null);
+        return new PageText(t, 0, new int[][] {{0, 0, t.length()}}, new int[0][], t.length());
     }
 
-    /** This layout, made with the given other pages of the host. */
-    PageText comparedWith(final String siblingIds) {
-        return new PageText(this.text, this.moved, this.segments, siblingIds);
+    /**
+     * The layout that moves exactly the given blocks of the stored text ({@link #ranges} of an earlier layout of the same
+     * text): it needs neither the other pages of the host nor their current state, so a page is read the same way later.
+     */
+    static PageText fromRanges(final String text, final int[][] ranges) {
+        if (text == null || ranges == null || ranges.length == 0) {
+            return of(text);
+        }
+        final List<int[]> lines = lines(text);
+        final boolean[] move = new boolean[lines.size()];
+        for (int x = 0; x < move.length; x++) {
+            final int[] l = lines.get(x);
+            final int end = l[1] < text.length() ? l[1] + 1 : l[1];
+            for (final int[] r : ranges) {
+                if (l[0] >= r[0] && end <= r[0] + r[1]) {
+                    move[x] = true;
+                    break;
+                }
+            }
+        }
+        return build(text, lines, move);
+    }
+
+    /** The blocks of {@link #ranges} that start at or after {@code from} (the part of the page not read yet). */
+    int[][] rangesFrom(final int from) {
+        final List<int[]> out = new ArrayList<>();
+        for (final int[] r : this.ranges) {
+            if (r[0] >= from) {
+                out.add(r);
+            }
+        }
+        return out.toArray(new int[0][]);
     }
 
     /**
@@ -137,20 +169,7 @@ final class PageText {
         if (text == null || text.length() <= input || recurring.isEmpty()) {
             return of(text);
         }
-        // lines with their positions; a line ends before its '\n'
-        final List<int[]> lines = new ArrayList<>();
-        int start = 0;
-        while (start <= text.length()) {
-            int end = text.indexOf('\n', start);
-            if (end < 0) {
-                end = text.length();
-            }
-            lines.add(new int[] {start, end});
-            if (end == text.length()) {
-                break;
-            }
-            start = end + 1;
-        }
+        final List<int[]> lines = lines(text);
         final int n = lines.size();
         final boolean[] rec = new boolean[n];
         final boolean[] blank = new boolean[n];
@@ -183,6 +202,30 @@ final class PageText {
             }
             i = last + 1;
         }
+        return build(text, lines, move);
+    }
+
+    /** The lines of a text with their positions: {start, end}, a line ends before its '\n'. */
+    private static List<int[]> lines(final String text) {
+        final List<int[]> lines = new ArrayList<>();
+        int start = 0;
+        while (start <= text.length()) {
+            int end = text.indexOf('\n', start);
+            if (end < 0) {
+                end = text.length();
+            }
+            lines.add(new int[] {start, end});
+            if (end == text.length()) {
+                break;
+            }
+            start = end + 1;
+        }
+        return lines;
+    }
+
+    /** The page's own lines in their order, then the moved ones in theirs; unchanged if nothing moves. */
+    private static PageText build(final String text, final List<int[]> lines, final boolean[] move) {
+        final int n = lines.size();
         final StringBuilder content = new StringBuilder();
         final List<int[]> segs = new ArrayList<>();
         final StringBuilder tail = new StringBuilder();
@@ -212,6 +255,21 @@ final class PageText {
             segs.add(new int[] {base + s[0], s[1], s[2]});
         }
         content.append(tail);
-        return new PageText(content.toString(), moved, segs.toArray(new int[0][]), null);
+        // the moved runs of lines in the stored text, for a later identical layout
+        final List<int[]> runs = new ArrayList<>();
+        for (int x = 0; x < n; x++) {
+            if (!move[x]) {
+                continue;
+            }
+            final int[] l = lines.get(x);
+            final int end = l[1] < text.length() ? l[1] + 1 : l[1];
+            final int[] last = runs.isEmpty() ? null : runs.get(runs.size() - 1);
+            if (last != null && last[0] + last[1] == l[0]) {
+                last[1] = end - last[0];
+            } else {
+                runs.add(new int[] {l[0], end - l[0]});
+            }
+        }
+        return new PageText(content.toString(), moved, segs.toArray(new int[0][]), runs.toArray(new int[0][]), base);
     }
 }

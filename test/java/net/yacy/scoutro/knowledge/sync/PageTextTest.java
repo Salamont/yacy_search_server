@@ -82,6 +82,37 @@ public class PageTextTest {
     }
 
     @Test
+    public void theMovedBlocksAloneLayThePageOutAgainWithoutTheHostsOtherPages() {
+        final String m = menu();
+        final Set<String> rec = PageText.recurring(List.of(PageText.keys(m + "A"), PageText.keys(m + "B")));
+        final String own = "Business Intelligence\n" + content("BI", 14_000);
+        final String tail = m.substring(0, m.indexOf('\n', 900) + 1); // whole lines of the menu again, at the end
+        final String page = "Muster Daten GmbH\n" + m + own + tail;
+        final PageText pt = PageText.layout(page, rec, 12_000);
+        assertEquals("both blocks moved", 2, pt.ranges.length);
+        assertEquals(page.indexOf(m), pt.ranges[0][0]);
+        assertEquals(m.length(), pt.ranges[0][1]);
+        assertEquals("the content ends where the moved blocks start", "Muster Daten GmbH\n".length() + own.length(), pt.contentEnd);
+        // later, with nothing but the stored ranges: the same text, the same positions
+        final PageText again = PageText.fromRanges(page, pt.ranges);
+        assertEquals(pt.text, again.text);
+        assertEquals(pt.moved, again.moved);
+        assertEquals(pt.contentEnd, again.contentEnd);
+        for (int at = 0; at < pt.text.length(); at += 101) {
+            assertEquals(pt.origin(at), again.origin(at));
+        }
+        // the blocks behind a position only: the part before it keeps the stored positions
+        final int from = 12_000;
+        final PageText rest = PageText.fromRanges(page, pt.rangesFrom(from));
+        assertEquals(1, pt.rangesFrom(from).length);
+        assertEquals(page.substring(0, from), rest.text.substring(0, from));
+        assertEquals(page.length() - tail.length(), rest.contentEnd);
+        // no ranges: unchanged
+        assertEquals(page, PageText.fromRanges(page, new int[0][]).text);
+        assertEquals(page.length(), PageText.of(page).contentEnd);
+    }
+
+    @Test
     public void aSingleRecurringLineInTheContentStaysWhereItIs() {
         final Set<String> rec = PageText.recurring(List.of(PageText.keys("Impressum: Beispiel GmbH, Musterstraße 1\nA"),
                 PageText.keys("Impressum: Beispiel GmbH, Musterstraße 1\nB")));

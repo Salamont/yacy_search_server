@@ -172,9 +172,10 @@ public abstract class LlmFixture {
         fail("sync did not settle: " + this.sync.status());
     }
 
+    /** Steps until nothing is left to read: no item queued, no page to do, no long page whose content goes on. */
     protected void settleLlm() {
         settleLlm(() -> count("SELECT count(*) FROM kg_llm_work") == 0L
-                && count("SELECT count(*) FROM kg_doc WHERE state = 1 AND llm_status IS NULL") == 0L);
+                && count("SELECT count(*) FROM kg_doc WHERE state = 1 AND (llm_status IS NULL OR llm_reason = 'more_text')") == 0L);
     }
 
     protected void settleLlm(final BooleanSupplier done) {

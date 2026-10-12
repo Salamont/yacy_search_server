@@ -132,7 +132,7 @@ public class LlmReviewRegressionTest extends LlmFixture {
                 && count("SELECT count(*) FROM kg_doc WHERE state = 1 AND (llm_status IS NULL OR llm_reason = '" + LlmQueue.MORE_TEXT + "')")
                         == 0L);
         assertEquals(1, failing().failed.get());
-        assertEquals("1:", llmStatus(LlmNavigationTest.TARGET));
+        assertEquals("1:" + LlmQueue.FULL_TEXT, llmStatus(LlmNavigationTest.TARGET));
         final int moved = PageText.layout(text, PageText.recurring(List.of(PageText.keys(handel), PageText.keys(wir))),
                 this.cfg.extractMaxInputChars).moved;
         assertTrue(moved > 0);

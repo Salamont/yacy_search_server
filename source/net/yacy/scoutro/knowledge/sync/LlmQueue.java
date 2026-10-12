@@ -57,8 +57,16 @@ final class LlmQueue {
     static final String INPUT_UNCONFIRMED = "input_unconfirmed";
     /** Done: a continuation reads more of the long page's text later (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.5). */
     static final String MORE_TEXT = "more_text";
-    /** Done: text behind what the tier reads stays unread (continuations off, a legal page, or their limit reached). */
+    /**
+     * Done: text behind what the tier reads stays unread (continuations off, a legal page, the per-document statement
+     * limit reached, a continuation that kept failing, or the page's progress lost to a change).
+     */
     static final String TEXT_CUT = "text_cut";
+    /**
+     * Done: a long page whose own content was read to its end, over a first reading and continuations; recurring
+     * navigation moved behind the content ({@link PageText}) is not read.
+     */
+    static final String FULL_TEXT = "full_text";
     /** Queue priority of a continuation: after every first reading, until it waited {@link #AGING_MILLIS}. */
     static final int CONTINUATION_PRIORITY = 8;
     /**
@@ -134,8 +142,8 @@ final class LlmQueue {
     /** Prefix of the persisted scan position of a collection ({@code llm_scan:<coll_id>} = {@code frontier:revisit}). */
     static final String CURSOR_PREFIX = "llm_scan:";
     /**
-     * Per page whose first reading left text for a continuation ({@link #MORE_TEXT}): the other pages of its host the
-     * reading's layout compared, so the continuation lays the page out the same way ({@code kg_meta}).
+     * Per page whose content a continuation reads on ({@link #MORE_TEXT}): its {@link ReadProgress} ({@code kg_meta},
+     * one small row, never text).
      */
     static final String LAYOUT_PREFIX = "llm_layout:";
 
@@ -280,17 +288,28 @@ final class LlmQueue {
         return out;
     }
 
-    /** Done pages per reason {@link #MORE_TEXT} and {@link #TEXT_CUT}. */
+    /** Done pages per reason: {{@link #MORE_TEXT}, {@link #TEXT_CUT}, {@link #FULL_TEXT}}. */
     static long[] textCounts(final Connection c) throws SQLException {
-        final long[] out = new long[2];
+        final long[] out = new long[3];
+        final List<String> reasons = List.of(MORE_TEXT, TEXT_CUT, FULL_TEXT);
         try (PreparedStatement ps = c.prepareStatement("SELECT llm_reason, count(*) FROM kg_doc INDEXED BY kg_doc_llm_status"
-                + " WHERE llm_status = 1 AND llm_reason IN ('" + MORE_TEXT + "', '" + TEXT_CUT + "') GROUP BY llm_reason");
+                + " WHERE llm_status = 1 AND llm_reason IN ('" + MORE_TEXT + "', '" + TEXT_CUT + "', '" + FULL_TEXT + "') GROUP BY llm_reason");
                 ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                out[MORE_TEXT.equals(rs.getString(1)) ? 0 : 1] = rs.getLong(2);
+                out[reasons.indexOf(rs.getString(1))] = rs.getLong(2);
             }
         }
         return out;
+    }
+
+    /**
+     * Characters of the pages' own content that the continuations have still to read: the sum over the progress rows
+     * ({@link ReadProgress}) of pages marked {@link #MORE_TEXT}.
+     */
+    static long unreadChars(final Connection c) throws SQLException {
+        return KgStore.queryLong(c, "SELECT coalesce(sum(max(0, json_extract(m.value, '$.e') - json_extract(m.value, '$.r'))), 0)"
+                + " FROM kg_meta m WHERE m.key GLOB '" + LAYOUT_PREFIX + "*' AND json_valid(m.value)"
+                + " AND json_extract(m.value, '$.v') = 2");
     }
 
     /** Items that are not claimed and due within {@code horizon}: what the worker has to do soon (the refill measure). */
@@ -399,6 +418,19 @@ final class LlmQueue {
         }
     }
 
+    /**
+     * Returns an item to the queue, due at {@code notBefore}, with its attempts counted from zero again: a new pass of a
+     * continuation whose last pass failed (its {@link ReadProgress} counts the failed passes).
+     */
+    static void retryLater(final Connection tx, final String docId, final long notBefore) throws SQLException {
+        try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_llm_work SET claimed_at = NULL, not_before = ?, attempts = 0"
+                + " WHERE doc_id = ?")) {
+            ps.setLong(1, notBefore);
+            ps.setString(2, docId);
+            ps.executeUpdate();
+        }
+    }
+
     static void complete(final Connection tx, final String docId) throws SQLException {complete(tx,docId,false);}
     static void complete(final Connection tx,final String docId,boolean preserveProgress)throws SQLException {
         if(!preserveProgress)LlmProgress.clear(tx,docId);
@@ -492,8 +524,10 @@ final class LlmQueue {
         return out;
     }
 
-    /** Empties the queue and forgets the scan positions (full reset). */
-    /** Removes up to 16 layouts of pages no longer waiting for a continuation (changed, deleted or reset meanwhile). */
+    /**
+     * Removes up to 16 progress rows ({@link ReadProgress}) of pages no longer waiting for a continuation (read, changed,
+     * deleted or reset meanwhile).
+     */
     static void pruneLayouts(final Connection tx) throws SQLException {
         try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_meta WHERE key IN (SELECT m.key FROM kg_meta m WHERE m.key GLOB '"
                 + LAYOUT_PREFIX + "*' AND NOT EXISTS (SELECT 1 FROM kg_doc d WHERE d.doc_id = substr(m.key, " + (LAYOUT_PREFIX.length() + 1)
@@ -502,6 +536,7 @@ final class LlmQueue {
         }
     }
 
+    /** Empties the queue and forgets the scan positions and the read progress (full reset). */
     static int clear(final Connection tx) throws SQLException {
         resetCursors(tx);
         try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_meta WHERE key GLOB ?")) {
