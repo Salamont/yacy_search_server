@@ -408,6 +408,25 @@ public class BusinessExtractionTest {
     }
 
     @Test
+    public void aListEndsWithItsSentence() {
+        // the operator's imprint after a list of partners is no partner (in 0.10.3 the page became a partner of itself)
+        final String url = "https://www.muster-software.example/partner";
+        assertEquals(List.of("null -> Alpha Systeme GmbH", "null -> Beta Logistik AG"), relations(rules("Unsere Partner: Alpha Systeme GmbH"
+                + " und Beta Logistik AG. Muster Software GmbH, Musterstraße 1, 10115 Berlin.", url, vocabulary("software", "stackfinder-web"),
+                List.of()), Vocabulary.PARTNER_OF));
+        // nor the company a next sentence starts with, in a list of customers or of memberships
+        assertEquals(List.of("Siemens -> null", "DHL -> null"), relations(rules("Unsere Kunden: Siemens, DHL. Muster GmbH ist seit 1990 Ihr"
+                + " Ansprechpartner.", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.CUSTOMER_OF));
+        assertEquals(List.of("null -> IHK Hamburg"), relations(rules("Mitgliedschaften: IHK Hamburg. Beispiel Logistik GmbH, Hafenweg 2,"
+                + " 20095 Hamburg.", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.MEMBER_OF));
+        // a list on lines goes on, and an abbreviated legal form with a full stop ends no list
+        assertEquals(List.of("null -> Alpha GmbH", "null -> Beta AG", "null -> Gamma KG"), relations(rules("Unsere Partner:\nAlpha GmbH\nBeta AG"
+                + "\nGamma KG", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.PARTNER_OF));
+        assertEquals(List.of("null -> Alpha Inc.", "null -> Beta Ltd", "null -> Gamma GmbH"), relations(rules("Unsere Partner: Alpha Inc.,"
+                + " Beta Ltd. und Gamma GmbH.", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.PARTNER_OF));
+    }
+
+    @Test
     public void theIndustryOfAnImprintAndTheSafeLevelOfAService() {
         final String imprint = "Impressum Angaben gemäß § 5 TMG Muster Bedachungen GmbH Dachstraße 1 12345 Musterstadt Telefon: 030 1234567 "
                 + "Eintragung in die Handwerksrolle der Handwerkskammer Musterstadt, Gewerk: Dachdecker. Registergericht: Amtsgericht "

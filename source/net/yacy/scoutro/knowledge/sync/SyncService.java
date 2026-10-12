@@ -199,7 +199,13 @@ public final class SyncService {
      */
     static final String META_RELATION_RECHECK = "relation_recheck_since";
     static final String META_RELATION_RECHECK_DONE = "relation_recheck_done";
-    /** The relations the rule tier reads after a marker (BusinessRules); the consent fix of 0.10.3 may change them. */
+    /**
+     * kg_meta (0.10.4): the version of the relation rules the check above belongs to. 1 (0.10.3, no row): consent banners name
+     * no partner; 2 (0.10.4): a list ends with its sentence. A graph checked with older rules is checked once more.
+     */
+    static final String META_RELATION_RULES = "relation_recheck_rules";
+    static final String RELATION_RULES = "2";
+    /** The relations the rule tier reads after a marker (BusinessRules); the fixes of 0.10.3 and 0.10.4 may change them. */
     static final List<String> RECHECK_RELATIONS = List.of(Vocabulary.CARRIER_OF, Vocabulary.SUBSIDIARY_OF, Vocabulary.PARENT_OF,
             Vocabulary.BRAND_OF, Vocabulary.COOPERATION_WITH, Vocabulary.PARTNER_OF, Vocabulary.CUSTOMER_OF, Vocabulary.REFERENCE_FOR,
             Vocabulary.MEMBER_OF, Vocabulary.ASSOCIATION_MEMBER, Vocabulary.CERTIFIED_BY, Vocabulary.FUNDED_BY, Vocabulary.SPONSORED_BY,
@@ -209,11 +215,17 @@ public final class SyncService {
 
     /**
      * 0.10.3: a consent banner ("an unsere Partner für soziale Medien, Werbung und Analysen weiter") made purposes partner
-     * organisations. The active pages processed before the corrected rules with a relation of the rule tier are extracted again
-     * once, at low priority, and only they; their input is unchanged, so they are named here. Restart-safe: a page extracted
+     * organisations; 0.10.4: a list went on into the next sentence ("… Beta AG. Muster GmbH, Musterstraße 1" made the operator of
+     * the imprint a partner). The active pages processed before the corrected rules with a relation of the rule tier are
+     * extracted again once per version of the rules ({@link #RELATION_RULES}), at low priority, and only they; their input is unchanged, so they are named here. Restart-safe: a page extracted
      * since then is not named again, and an empty selection ends the check for good.
      */
     private List<String> relationRecheck(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
+        if (!RELATION_RULES.equals(KgStore.getMeta(tx, META_RELATION_RULES))) {
+            KgStore.deleteMeta(tx, META_RELATION_RECHECK); // checked with older rules (0.10.3) or never: once with these
+            KgStore.deleteMeta(tx, META_RELATION_RECHECK_DONE);
+            KgStore.putMeta(tx, META_RELATION_RULES, RELATION_RULES);
+        }
         if (KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
             return List.of();
         }
@@ -247,7 +259,7 @@ public final class SyncService {
         }
         if (stored == null) {
             KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations of the rule tier extracted again"
-                    + " (consent banners are no partners); no other page", now);
+                    + " (consent banners are no partners, a list ends with its sentence); no other page", now);
         }
         WorkQueue.scanned(tx, ids, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_REEXTRACT, 0L, now, this.queueMax);
         return ids;
