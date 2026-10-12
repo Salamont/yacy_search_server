@@ -400,8 +400,8 @@ filters, crawl starts and agent grants all take their choices from it.
   from the list, nothing else. Only while the index holds no page of it (read
   anew, not from the 10-second cache), no Discovery profile names it and no
   account, agent (not revoked), guest access (`scoutro.access.guest.collections`)
-  or crawl that is not terminated names it explicitly; a grant of all
-  collections names none.
+  or crawl that is not terminated names it explicitly (the push API's profile
+  `push_<collection>` is no crawl); a grant of all collections names none.
 
   ```sh
   curl --digest -u admin -X DELETE -H 'Content-Type: application/json' -d '{}' \

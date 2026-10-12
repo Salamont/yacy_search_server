@@ -93,7 +93,10 @@ Both messages are reproduced with the 0.10.2 code by the tests of this release
     (`POST …/{id}/show`), which switches the knowledge graph on again if hiding
     switched it off.
   Refused while a Discovery profile, an account, agent, guest access or running
-  crawl names the collection. Kept in `DATA/SCOUTRO/collections-hidden.json`
+  crawl names the collection; the push API's profile `push_<collection>`
+  crawls nothing and never ends, so it no longer counts as a running crawl
+  (before, a collection filled through the push API could not even be removed
+  when empty). Kept in `DATA/SCOUTRO/collections-hidden.json`
   (owned by the peer's user), apart from `collections.json`. Administrator
   only, never an agent or MCP tool; audited as `api.collections.hide POST`,
   `api.collections.show POST` and `api.collections.delete-pages POST` with the

@@ -49,7 +49,10 @@ upgrade extracts again only the pages that carry a relation of the rule tier
   irreversible); a page that also belongs to another collection stays and the
   collection is then hidden. Hidden collections are listed below the cards
   with **Show again** (`POST …/{id}/show`). Not while a Discovery profile, an
-  account, agent, guest access or running crawl uses the collection. Kept in
+  account, agent, guest access or running crawl uses the collection (the push
+  API's profile `push_<collection>` crawls nothing and no longer counts as a
+  running crawl, so a collection filled through the push API can be hidden or
+  removed). Kept in
   `DATA/SCOUTRO/collections-hidden.json`; administrator only, never an agent or
   MCP tool; audited as `api.collections.hide`, `.show` and `.delete-pages`.
 
