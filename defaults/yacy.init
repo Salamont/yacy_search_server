@@ -1454,7 +1454,7 @@ ai.logreport.feed.max_entries = 100
 ai.shield.allow-nonlocalhost = false
 ai.shield.show-chat-link = false
 # collections an AI Shield guest may choose as the chat's search scope (comma-separated,
-# e.g. kitas-web,stackfinder-web); empty: none, guests search the whole index. Local and
+# e.g. my-portal-web,example-web); empty: none, guests search the whole index. Local and
 # administrator access may choose every collection. docs/SCOUTRO_LLM_SECURITY.md
 ai.shield.guest-collections =
 ai.shield.rate.per-minute = 4

@@ -144,40 +144,40 @@ public class KgConfigTest {
         assertTrue(withKeys.extractionKey().contains("newportal-web=software"));
         assertEquals(java.util.List.of(KgConfig.PRICES_STALE_DAYS + ".newportal-web", KgConfig.VOCAB_PREFIX + "newportal-web"),
                 withKeys.perCollectionKeys);
-        // without the key list (or with a fixed list) only the named and the Scoutro collections are read, as before
+        // without the key list (or with a fixed list) only the named collections (and those a migration carried over) are read
         assertFalse(KgConfig.read(star::get).vocabOverrides.containsKey("newportal-web"));
         final Map<String, String> fixed = new HashMap<>(star);
-        fixed.put(KgConfig.COLLECTIONS, "edelsenior-web");
+        fixed.put(KgConfig.COLLECTIONS, "example-care");
         final KgConfig list = KgConfig.read(fixed::get, fixed.keySet());
         assertFalse(list.vocabOverrides.containsKey("newportal-web"));
         assertTrue(list.perCollectionKeys.isEmpty());
         assertFalse(list.follows("newportal-web"));
         // no vocabulary is guessed from a name: a new collection has none unless mapped
-        assertEquals(null, withKeys.vocabularyOf("otherportal-web", java.util.Map.of("edelsenior-web", "care")));
+        assertEquals(null, withKeys.vocabularyOf("otherportal-web", java.util.Map.of("example-care", "care")));
         assertFalse("jobs only when named", withKeys.jobsFor(java.util.List.of("newportal-web")));
     }
 
     /** Package 6.2: a collection switched off is never followed, also under *, keeps its settings and is part of the collections key. */
     @Test
     public void collectionsSwitchedOffAreNotFollowedAndKeepTheirSettings() throws Exception {
-        final Map<String, String> m = KgTestSupport.enabled(KgConfig.COLLECTIONS, "edelsenior-web,newportal-web", KgConfig.INACTIVE_COLLECTIONS,
+        final Map<String, String> m = KgTestSupport.enabled(KgConfig.COLLECTIONS, "example-care,newportal-web", KgConfig.INACTIVE_COLLECTIONS,
                 "newportal-web, oldportal-web", KgConfig.VOCAB_PREFIX + "oldportal-web", "software");
         final KgConfig c = KgConfig.read(m::get, m.keySet());
         assertTrue(c.problems().toString(), c.valid());
         assertEquals(new java.util.TreeSet<>(java.util.List.of("newportal-web", "oldportal-web")), c.inactiveCollections);
-        assertTrue(c.follows("edelsenior-web"));
+        assertTrue(c.follows("example-care"));
         assertFalse("switched off wins over the list", c.follows("newportal-web"));
         assertFalse(c.follows("oldportal-web"));
-        assertTrue(c.holds("oldportal-web") && c.holds("newportal-web") && !c.holds("edelsenior-web"));
-        assertEquals(java.util.Set.of("edelsenior-web"), c.activeCollections());
-        assertEquals(java.util.Set.of("edelsenior-web", "newportal-web", "oldportal-web"), c.scanCollections());
-        assertEquals("edelsenior-web,newportal-web-newportal-web,oldportal-web", c.collectionsKey());
+        assertTrue(c.holds("oldportal-web") && c.holds("newportal-web") && !c.holds("example-care"));
+        assertEquals(java.util.Set.of("example-care"), c.activeCollections());
+        assertEquals(java.util.Set.of("example-care", "newportal-web", "oldportal-web"), c.scanCollections());
+        assertEquals("example-care,newportal-web-newportal-web,oldportal-web", c.collectionsKey());
         assertTrue(c.followsAny());
         // its vocabulary stays read: switching it off changes no extraction identity
         assertEquals("software", c.vocabOverrides.get("oldportal-web"));
         final Map<String, String> on = new HashMap<>(m);
         on.remove(KgConfig.INACTIVE_COLLECTIONS);
-        on.put(KgConfig.COLLECTIONS, "edelsenior-web,newportal-web,oldportal-web");
+        on.put(KgConfig.COLLECTIONS, "example-care,newportal-web,oldportal-web");
         assertEquals(KgConfig.read(on::get, on.keySet()).extractionKey(), c.extractionKey());
         // under *, every other collection stays followed
         final Map<String, String> star = KgTestSupport.enabled(KgConfig.COLLECTIONS, "*", KgConfig.INACTIVE_COLLECTIONS, "oldportal-web");

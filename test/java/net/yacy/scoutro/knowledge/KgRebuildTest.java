@@ -112,7 +112,12 @@ public class KgRebuildTest {
 
     /** Runs the graph's steps with an advancing clock until the condition holds (the rebuild runs on its own thread). */
     private void drive(final KgRuntime r, final BooleanSupplier done) throws InterruptedException {
-        for (int i = 0; i < 3000; i++) {
+        drive(r, done, 3000);
+    }
+
+    /** As above with a bound of {@code max} steps, for work the rebuild thread does in wall time. */
+    private void drive(final KgRuntime r, final BooleanSupplier done, final int max) throws InterruptedException {
+        for (int i = 0; i < max; i++) {
             if (r.state() == KgRuntime.State.RUNNING && !this.background) {
                 r.tick();
                 r.syncTick();
@@ -273,7 +278,9 @@ public class KgRebuildTest {
         assertEquals(n, count(r, "SELECT count(*) FROM kg_doc WHERE state = 1"));
         final long entities = count(r, "SELECT count(*) FROM kg_entity WHERE status = 1");
         r.rebuild();
-        drive(r, () -> "done".equals(phase(r)));
+        // the shadow publishes the 1,100 documents on its own thread in wall time, each batch within the 3 s budget of
+        // the test clock that every step moves on: the bound counts steps, not time, so it is set for the work
+        drive(r, () -> "done".equals(phase(r)), 15_000);
         final JSONObject v = r.status().getJSONObject("rebuild").getJSONObject("verify");
         assertEquals(n, v.getLong("documentsAfter"));
         assertEquals(entities, v.getLong("entitiesAfter"));

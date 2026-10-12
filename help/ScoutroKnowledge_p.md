@@ -216,11 +216,11 @@ not run additional matching. Reuse existing graph data; no re-extraction needed.
 
 ## Services of the same name
 
-A service belongs to its provider: "SAP" of CTcon GmbH (ctcon.de) and "SAP"
-of another company are two objects, each with its own provider, prices and
-sources; nothing is merged, and the IDs stay as they are. The object list
-therefore shows each service with its provider and domain
-(`SAP` · `CTcon GmbH · ctcon.de · stackfinder-web`); a service whose provider
+A service belongs to its provider: "SAP" of Example Consulting GmbH
+(example.com) and "SAP" of another company are two objects, each with its own
+provider, prices and sources; nothing is merged, and the IDs stay as they are.
+The object list therefore shows each service with its provider and domain
+(`SAP` · `Example Consulting GmbH · example.com · my-portal-web`); a service whose provider
 the selected collection does not show says **No provider assigned**.
 
 Searching a name that several providers use adds a line above the list
@@ -361,8 +361,19 @@ memory; every restart resets them, so they are no long-term statistics.
   Each item counts once, under the first rule it breaks; the counts add up to
   **Dropped as invalid**. The codes and their rules:
   `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 6.3.
-- These are diagnostic counters only; no model answer, quote or page text is
-  stored for them.
+- These are diagnostic counters. For diagnosis, up to 500 samples of dropped
+  items and refused answers are kept in memory only (20 per reason, 128 KiB,
+  seven days; a restart clears them): reason, item, predicate, types, page
+  and an excerpt of at most 160 characters without person names, e-mail
+  addresses or phone numbers, never a prompt or a whole answer
+  (`GET /scoutro/api/v1/kg/llm-refusals`, administrator).
+- **Long pages and missing text** (process display, AI enrichment): a long
+  page counts as done after its first reading and is shown as **read on**
+  until its own content is read (navigation recurring on the site is not
+  read); **read to the end of their content**, **text left unread** (a
+  legal page, the statement limit, three failed passes or continuations
+  off) and **text missing** (the HTML is large but its text is near empty,
+  or it asks for JavaScript; such a page is not covered) are shown apart.
 - **Structured output** shows what the endpoint is asked for: *Schema
   enforced by the provider* (the model's format capability is supported),
   *Schema sent, enforcement not confirmed* (capability unknown, or the
@@ -395,18 +406,28 @@ uncertain, each with a quote of the page).
 
 - With `scoutro.kg.collections=*` a new collection (for example
   `newportal-web`) is followed at once; with a fixed list only the named ones.
+- You choose the names of your collections. A vocabulary (care, coaching,
+  software, construction or one of your own) is a profile you give a
+  collection; Scoutro gives no collection one by itself. The profile brings
+  its service categories and audiences, and the facility kinds the LLM
+  enrichment may assign on the collection's pages.
 - A collection without a vocabulary is shown as **No vocabulary assigned**:
   it gets generic facts (names, addresses, contacts, relations, the industry
   of a declared business type) but no service categories. Its vocabulary is
-  never guessed from its name. The defaults are `edelsenior-web` care,
-  `checkthecoach-web` coaching, `stackfinder-web` software and
-  `bauteamcheck-web` construction.
-- Assign an existing vocabulary with `scoutro.kg.vocab.<collection>=<vocabulary>`
-  (for example `scoutro.kg.vocab.newportal-web=software`, also under `*`);
-  an empty value switches a default off. A new vocabulary, or a mapping, is a
-  JSON file in `DATA/SCOUTRO/knowledge/vocabulary/` in the format of
+  never guessed from its name.
+- Assign a vocabulary under **Settings** (column **Vocabulary**) or with
+  `scoutro.kg.vocab.<collection>=<vocabulary>` (for example
+  `scoutro.kg.vocab.newportal-web=software`, also under `*`); an empty value
+  switches a default off. A new vocabulary, or a default mapping of your
+  collections (`"collections": {"my-portal-web": "software"}`), is a JSON file
+  in `DATA/SCOUTRO/knowledge/vocabulary/` in the format of
   `defaults/scoutro/knowledge/categories.json`, without a schema change. Both
   take effect at the next start and re-extract the pages concerned.
+- An installation that used the collection defaults earlier versions of
+  Scoutro shipped keeps them: the first start of this version writes them
+  once into `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`
+  (your file from then on) and records that in
+  `scoutro.kg.migration.collectionProfiles`; no page is read again.
 - Job extraction initially follows collections named in
   `scoutro.kg.jobs.collections` (shown under Settings); a new collection never
   gets them by itself.
@@ -431,11 +452,12 @@ itself, without a vocabulary, and is followed only under `*`; YaCy's internal
   reconcile deletes nothing of it and nothing new is read from it, also under
   `*`. A page deleted from the index still leaves the graph, as always; a page
   that also belongs to a followed collection is still read through that one.
-- **Vocabulary:** **Default** (of the vocabulary files, e.g. `care` for
-  `edelsenior-web`, else none), one of the vocabularies, or **No vocabulary**
-  (`scoutro.kg.vocab.<collection>`: unset, a name, empty). A new vocabulary of
-  a followed collection makes the graph read its pages again in the
-  background.
+- **Vocabulary:** **Default** (a mapping of your vocabulary files, e.g.
+  `care` for `my-portal-web`; none for a new collection), one of the
+  vocabularies, or **No vocabulary** (`scoutro.kg.vocab.<collection>`: unset,
+  a name, empty). A new vocabulary of a followed collection makes the graph
+  read its pages again in the background (`reextract`); the LLM enrichment
+  then uses the facility kinds of that vocabulary.
 - Only the keys of that one collection change; the other collections, jobs,
   the LLM tier and all other settings stay as they are. A change takes effect
   at once: the graph is closed cleanly and opened again (a manual pause
@@ -500,7 +522,8 @@ text; links to crawled pages open in a new tab without a referrer.
 
 | Endpoint | Method | Purpose |
 | --- | --- | --- |
-| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`) |
+| `/scoutro/api/v1/kg/status` | GET | Status, with `collections` (vocabulary, jobs, LLM tier, documents and state per collection) and the LLM tier's counters since the start (`llm.processed`, with `valuesAccepted`, `droppedInvalid` and `droppedInvalidByReason`; `llm.structuredOutput`), its scan per collection (`llm.selection`), request budget (`llm.context`), long pages read on to the end of their content (`llm.continuation`), how much of the done pages' text was read (`llm.documents.coverage`), refusal samples (`llm.refusalSamples`), what the tier keeps between readings (`llm.storage`) and the backlog over the last day (`llm.backlog`) |
+| `/scoutro/api/v1/kg/llm-refusals` | GET | Samples of what the LLM tier dropped or refused since the start, newest first (`reason`, `limit` 1–100): reason, item, predicate, types, page, chunk and an excerpt of at most 160 characters without person names, e-mail addresses or phone numbers; in memory only (at most 500, 20 per reason, 128 KiB, seven days) |
 | `/scoutro/api/v1/kg/entities` | GET | Objects (`q`, `type`, `host`, `quality`, `industry`, `category`, `audience`, `offset`, `limit`, `collection`); each item with its `context`: hosts, collections, places, quality, sources and, for a service or job, `providers` and `provider_count` |
 | `/scoutro/api/v1/kg/entities/{id}/business` | GET | The business view in sections (`include=hidden_jobs`) |
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |

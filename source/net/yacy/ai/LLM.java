@@ -129,17 +129,21 @@ public class LLM {
     public final String api_key;
     public final int max_tokens; // output-token cap (OpenAI max_tokens = Ollama num_predict)
     public final int num_ctx;    // context window of the inference service (per-service, advisory)
+    /** True if {@link #num_ctx} was configured for the service ({@link #SERVICE_NUM_CTX_CONFIG}), false for the assumed default. */
+    public final boolean num_ctx_configured;
     public final LLMType type;
 
     public LLM(final String hoststub, final String api_key, final int max_tokens, final LLMType type) {
-        this(hoststub, api_key, max_tokens, DEFAULT_NUM_CTX, type);
+        this(hoststub, api_key, max_tokens, 0, type);
     }
 
+    /** @param num_ctx the configured context window of the service; 0 or less for none (the default is assumed) */
     public LLM(final String hoststub, final String api_key, final int max_tokens, final int num_ctx, final LLMType type) {
         this.hoststub = hoststub.endsWith("/") ? hoststub.substring(0, hoststub.length() - 1) : hoststub;
         this.api_key = api_key == null ? "" : api_key;
         this.max_tokens = max_tokens <= 0 ? DEFAULT_MAX_TOKENS : max_tokens;
         this.num_ctx = num_ctx <= 0 ? DEFAULT_NUM_CTX : num_ctx;
+        this.num_ctx_configured = num_ctx > 0;
         this.type = type;
     }
     
@@ -191,7 +195,7 @@ public class LLM {
                             if (!thinking) thinking = "supported".equals(capabilityEntry.optString("thinking", ""));
                         }
                     }
-                    final int num_ctx = serviceNumCtx(sb, hoststub);
+                    final int num_ctx = configuredServiceNumCtx(sb, hoststub);
                     LLM llm = new LLM(hoststub, api_key, max_tokens, num_ctx, type);
                     LLMModel llmmodel = new LLMModel(llm, model, tooling, thinking);
                     // the row's format flag is only the displayed probe result of the page: not a result of its own
@@ -252,14 +256,20 @@ public class LLM {
      * it does not enforce it on the backend. Falls back to DEFAULT_NUM_CTX when unset.
      */
     public static int serviceNumCtx(final Switchboard sb, final String hoststub) {
-        if (sb == null) return DEFAULT_NUM_CTX;
+        final int value = configuredServiceNumCtx(sb, hoststub);
+        return value <= 0 ? DEFAULT_NUM_CTX : value;
+    }
+
+    /** {@link #serviceNumCtx}, but 0 if the service has no configured context window. */
+    public static int configuredServiceNumCtx(final Switchboard sb, final String hoststub) {
+        if (sb == null) return 0;
         final String json = sb.getConfig(SERVICE_NUM_CTX_CONFIG, "{}");
         try {
             final JSONObject map = new JSONObject(new JSONTokener(json));
             final int value = map.optInt(normalizeHoststub(hoststub), 0);
-            return value <= 0 ? DEFAULT_NUM_CTX : value;
+            return Math.max(0, value);
         } catch (final JSONException e) {
-            return DEFAULT_NUM_CTX;
+            return 0;
         }
     }
 
@@ -378,9 +388,15 @@ public class LLM {
      */
     private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey, final int readTimeoutMillis,
             final int maxResponseChars) throws IOException, URISyntaxException {
+        return sendPostRequest(urls, data, apiKey, readTimeoutMillis, maxResponseChars, 10000);
+    }
+
+    /** @param connectTimeoutMillis connect timeout */
+    private static String sendPostRequest(final String urls, final JSONObject data, final String apiKey, final int readTimeoutMillis,
+            final int maxResponseChars, final int connectTimeoutMillis) throws IOException, URISyntaxException {
         final URL url = new URI(urls).toURL();
         final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setConnectTimeout(10000);
+        conn.setConnectTimeout(connectTimeoutMillis);
         conn.setReadTimeout(Math.max(0, readTimeoutMillis));
         conn.setRequestMethod("POST");
         conn.setRequestProperty("Content-Type", "application/json");
@@ -442,6 +458,99 @@ public class LLM {
     }
     
     
+    /**
+     * A bounded, read-only GET with the service's key: short timeouts, at most {@code maxChars} characters. For the
+     * metadata endpoints of a model server, never for inference.
+     */
+    private String sendMetadataGet(final String urls, final int timeoutMillis, final int maxChars) throws IOException, URISyntaxException {
+        final URL url = new URI(urls).toURL();
+        final HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setConnectTimeout(timeoutMillis);
+        conn.setReadTimeout(timeoutMillis);
+        conn.setRequestMethod("GET");
+        if (this.api_key != null && !this.api_key.isEmpty()) {
+            conn.setRequestProperty("Authorization", "Bearer " + this.api_key);
+        }
+        if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
+            throw new IOException("Request failed with response code " + conn.getResponseCode());
+        }
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"))) {
+            final StringBuilder response = new StringBuilder();
+            final char[] buf = new char[8192];
+            int n;
+            while ((n = br.read(buf)) >= 0) {
+                response.append(buf, 0, n);
+                if (response.length() > maxChars) {
+                    throw new IOException("response exceeds " + maxChars + " characters");
+                }
+            }
+            return response.toString();
+        }
+    }
+
+    /** True if two Ollama model names mean the same model ({@code qwen3} is {@code qwen3:latest}). */
+    static boolean sameOllamaModel(final String a, final String b) {
+        if (a == null || b == null) return false;
+        final String x = a.contains(":") ? a : a + ":latest";
+        final String y = b.contains(":") ? b : b + ":latest";
+        return x.equals(y);
+    }
+
+    /**
+     * The context window an Ollama server has currently loaded {@code model} with: {@code context_length} of the
+     * model's entry in {@code GET /api/ps}, which newer Ollama versions report for loaded models. Null if the model is
+     * not loaded or the server does not report the field. Read-only, no inference.
+     *
+     * @throws IOException if the server cannot be asked (not reachable, an HTTP error, the timeout)
+     */
+    public Integer ollamaLoadedContext(final String model, final int timeoutMillis) throws IOException {
+        try {
+            final JSONObject ps = new JSONObject(sendMetadataGet(this.hoststub + "/api/ps", timeoutMillis, 256 * 1024));
+            final JSONArray models = ps.optJSONArray("models");
+            if (models == null) return null;
+            for (int i = 0; i < models.length(); i++) {
+                final JSONObject m = models.optJSONObject(i);
+                if (m != null && (sameOllamaModel(model, m.optString("name", null)) || sameOllamaModel(model, m.optString("model", null)))) {
+                    final int n = m.optInt("context_length", 0);
+                    return n > 0 ? n : null;
+                }
+            }
+            return null;
+        } catch (final URISyntaxException e) {
+            throw new IOException(e.getMessage());
+        } catch (JSONException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /**
+     * The longest context the model itself supports: {@code model_info.<architecture>.context_length} of
+     * {@code POST /api/show}. Null if unknown. Read-only, no inference.
+     */
+    public Integer ollamaModelContext(final String model, final int timeoutMillis) {
+        try {
+            final JSONObject data = new JSONObject();
+            data.put("model", model);
+            data.put("name", model);
+            final JSONObject show = new JSONObject(sendPostRequest(this.hoststub + "/api/show", data, this.api_key, timeoutMillis, 4 * 1024 * 1024,
+                    timeoutMillis));
+            final JSONObject info = show.optJSONObject("model_info");
+            if (info == null) return null;
+            final String arch = info.optString("general.architecture", "");
+            int n = arch.isEmpty() ? 0 : info.optInt(arch + ".context_length", 0);
+            if (n <= 0) {
+                for (final String key : info.keySet()) {
+                    if (key.endsWith(".context_length")) {
+                        n = Math.max(n, info.optInt(key, 0));
+                    }
+                }
+            }
+            return n > 0 ? n : null;
+        } catch (JSONException | URISyntaxException | IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     public LinkedHashMap<String, Long> listOllamaModels() {
         final LinkedHashMap<String, Long> sortedMap = new LinkedHashMap<>();
         try {
@@ -560,6 +669,16 @@ public class LLM {
      */
     public String chatWithResponseFormat(final String model, final Context context, final JSONObject response_format,
             final int max_tokens, final int readTimeoutMillis, final int maxResponseChars) throws IOException {
+        return chatWithResponseFormat(model, context, response_format, max_tokens, readTimeoutMillis, maxResponseChars, null);
+    }
+
+    /**
+     * {@link #chatWithResponseFormat(String, Context, JSONObject, int, int, int)} that also reports what the endpoint
+     * counted: {@code promptTokens}, {@code answerTokens} (null where it does not say) and {@code stop} (the finish reason).
+     */
+    public String chatWithResponseFormat(final String model, final Context context, final JSONObject response_format,
+            final int max_tokens, final int readTimeoutMillis, final int maxResponseChars,
+            final java.util.function.Consumer<JSONObject> usage) throws IOException {
         final JSONObject data = new JSONObject();
         
         try {
@@ -597,6 +716,14 @@ public class LLM {
                         + ", contentChars=" + content.length()
                         + ". Configure a higher max_tokens for this model if complete outputs are required.");
             }
+            if (usage != null) {
+                final JSONObject u = responseObject.optJSONObject("usage");
+                final JSONObject out = new JSONObject();
+                if (u != null && u.has("prompt_tokens")) out.put("promptTokens", u.optLong("prompt_tokens"));
+                if (u != null && u.has("completion_tokens")) out.put("answerTokens", u.optLong("completion_tokens"));
+                out.put("stop", finishReason);
+                usage.accept(out);
+            }
             return stripThinkBlocks(content);
         } catch (JSONException | URISyntaxException e) {
             throw new IOException(e.getMessage());
@@ -609,9 +736,10 @@ public class LLM {
      * OpenAI-compatible {@code /v1/chat/completions} may ignore a {@code response_format}. No other usage calls it.
      * <p>
      * The options mirror what Ollama derives from {@link #chatWithResponseFormat}'s request: {@code temperature} 0.1,
-     * {@code num_predict} = max_tokens and the stop tokens. {@code num_ctx} is not sent (the OpenAI-compatible path
-     * ignores it too, so the server's own context length applies as before); {@code think: false} unless the model is
-     * known not to think ({@link LLMModel#nativeNoThinking()}; the other path always sends reasoning_effort none).
+     * {@code num_predict} = max_tokens and the stop tokens. {@code num_ctx} is not sent here (the OpenAI-compatible path
+     * ignores it too, so the server's own context length applies as before); the overload with {@code numCtx} sends the
+     * window a service has configured; {@code think: false} unless the model is known not to think
+     * ({@link LLMModel#nativeNoThinking()}; the other path always sends reasoning_effort none).
      *
      * @param format a JSON schema (JSONObject), the string {@code "json"} (JSON mode), or null for none
      * @param noThinking send {@code think: false}
@@ -619,10 +747,27 @@ public class LLM {
      */
     public String chatOllamaNative(final String model, final Context context, final Object format, final int max_tokens,
             final boolean noThinking, final int readTimeoutMillis, final int maxResponseChars) throws IOException {
+        return chatOllamaNative(model, context, format, max_tokens, noThinking, readTimeoutMillis, maxResponseChars, 0, null);
+    }
+
+    /**
+     * {@link #chatOllamaNative(String, Context, Object, int, boolean, int, int)} with a context window to send and a
+     * report of what Ollama counted.
+     *
+     * @param numCtx {@code num_ctx} to send (the service's configured window); 0 or less sends none, so the server's
+     *        own context length applies as before
+     * @param usage receives {@code promptTokens} (Ollama's {@code prompt_eval_count}: the prompt tokens it evaluated,
+     *        without a prefix served from its prompt cache), {@code answerTokens} ({@code eval_count}) and {@code stop}
+     *        ({@code done_reason}); may be null
+     */
+    public String chatOllamaNative(final String model, final Context context, final Object format, final int max_tokens,
+            final boolean noThinking, final int readTimeoutMillis, final int maxResponseChars, final int numCtx,
+            final java.util.function.Consumer<JSONObject> usage) throws IOException {
         try {
             final JSONObject options = new JSONObject(true);
             options.put("temperature", 0.1);
             options.put("num_predict", max_tokens);
+            if (numCtx > 0) options.put("num_ctx", numCtx);
             options.put("stop", new JSONArray(STOPTOKENS));
             final JSONObject data = new JSONObject(true);
             data.put("model", model);
@@ -640,6 +785,13 @@ public class LLM {
                         + "), model=" + LogRedaction.redact(model)
                         + ", contentChars=" + content.length()
                         + ". Configure a higher max_tokens for this model if complete outputs are required.");
+            }
+            if (usage != null) {
+                final JSONObject out = new JSONObject();
+                if (responseObject.has("prompt_eval_count")) out.put("promptTokens", responseObject.optLong("prompt_eval_count"));
+                if (responseObject.has("eval_count")) out.put("answerTokens", responseObject.optLong("eval_count"));
+                out.put("stop", responseObject.optString("done_reason", ""));
+                usage.accept(out);
             }
             return stripThinkBlocks(content);
         } catch (JSONException | URISyntaxException e) {

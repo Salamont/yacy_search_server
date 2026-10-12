@@ -166,6 +166,22 @@ public class ContentScraperTest {
         }
         scraper.close();
     }
+
+    /**
+     * Entities in text are decoded after the tags are stripped: an encoded '<'
+     * or '>' is text and must not cut the rest of the text.
+     */
+    @Test
+    public void testScrapeTextDecodesEntitiesAfterStrippingTags() throws MalformedURLException {
+        final ContentScraper scraper = new ContentScraper(new DigestURL("http://example.org/"), 10, new HashSet<String>(),
+                TagValency.EVAL, new VocabularyScraper(), 0);
+        try {
+            scraper.scrapeText("Price &lt; 100 EUR, 5 &gt; 3 and the rest of the line".toCharArray(), null);
+            Assert.assertEquals("Price < 100 EUR, 5 > 3 and the rest of the line", scraper.getText());
+        } finally {
+            scraper.close();
+        }
+    }
     
     /**
      * Test absolute URLs detection in plain text

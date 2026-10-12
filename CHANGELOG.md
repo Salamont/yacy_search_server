@@ -4,6 +4,77 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- HTML parser: a single stray quote or `<` no longer drops all text after
+  it from the indexed text (`text_t`). A quote opens an attribute value only
+  after `=` (`alt=Peter's` and `'Peter\'s'` end their tag); a `<` not
+  followed by a letter, `/`, `!` or `?` is text (`a < b`, `3<5`); the
+  content of `<script>` and `<style>` is read as raw text up to its end tag,
+  so `<`, quotes or a `// don't` comment in code no longer swallow the page
+  text after it, and a JSON-LD block with a `<` in a string is captured
+  intact. Script code is no longer part of the text of an enclosing link or
+  heading. `&lt;` and `&gt;` in text are decoded after the tags are
+  stripped, so they no longer cut the rest of the text. A page with a few
+  stray control characters (at most 8, at most one per 100 characters) is
+  parsed with them read as spaces instead of being rejected as binary;
+  binary data is still rejected. What is crawled and fetched is unchanged.
+  Pages already indexed benefit after their next recrawl; no recrawl is
+  triggered.
+
+- Knowledge graph, collections: Scoutro no longer names collections. The
+  shipped `categories.json` maps none, and no collection gets a vocabulary or
+  facility kinds of the LLM tier by its name: a vocabulary (care, coaching,
+  software, construction or an own one) is a profile the operator gives a
+  collection (Settings, `scoutro.kg.vocab.<collection>` or a vocabulary file),
+  and it brings its facility kinds (`llm_kinds`, replaced by
+  `scoutro.kg.llm.kinds.<collection>`). An existing installation keeps the
+  collection defaults earlier versions shipped: the first start writes them
+  once into `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`
+  and records `scoutro.kg.migration.collectionProfiles`; the extractor
+  identity and the LLM cache keys stay the same and no page is read again
+  (docs/SCOUTRO_KNOWLEDGE_GRAPH.md 28). No new setting is needed.
+
+- Knowledge graph, LLM tier (follow-up of the 0.10.0 coverage analysis,
+  docs/SCOUTRO_KNOWLEDGE_GRAPH.md 27): a queue item is never dropped while
+  its page is still to do (a page left unconfirmed is retried with a backoff
+  and then shown as `input_unconfirmed`); every LLM collection has its own
+  resumable scan with an equal share of each refill and a revisit behind it,
+  so a late collection is not left behind and pages that became to do again
+  are found without a restart; a queue item waiting two hours is claimed
+  before newer higher-priority ones. Every request is planned against the
+  model's context window with an answer reserve
+  (`scoutro.kg.llm.answerReserveTokens`, 1,200): a large list of known
+  entities is cut to those the chunk names and as many others as fit, a
+  chunk is split or the page is shown as `context_budget` instead of
+  sending a request that does not fit; `num_ctx` is sent on Ollama's native
+  path where `ai.service_num_ctx` is configured; otherwise the window
+  Ollama reports for the loaded model (`/api/ps`, read-only, not sent) is
+  used before the assumed 4,096. A long page reads its own content before
+  navigation that recurs on its host (moved, never removed; never asked once
+  the content is read), and is read to the end of its content in passes of
+  at most `scoutro.kg.llm.continuationChunks` (5) requests at low priority,
+  in the layout of its first reading, with a small progress row per page
+  (positions, no text); `extract.maxStatementsPerDoc` holds over all its
+  readings, a failed pass is tried again after one and two hours, and the
+  rest shows as `text_cut` only after three failed passes, at the statement
+  limit, for a legal page or with continuations off. Pages read before this
+  version are audited once, 20 per scan pass, and a long one is read on from
+  where it stopped, never from its start. A page whose text is missing
+  (under 200 characters of its own while its HTML has 20,000 bytes or more,
+  or a text asking for JavaScript) is marked `text_missing` and counts as
+  not covered. The known entities are offered once per type and name, the
+  declared operator first; a relation of an entity to itself is refused and
+  counted, a claim about a dropped entity counts as `claim_entity_dropped`,
+  and an organisation with a legal form joins the declared operator; the
+  prompt and the validator's rules are unchanged. Up to 500 refusal samples
+  without person names or contact data are kept in memory only (20 per
+  reason, 128 KiB, 7 days; `GET /scoutro/api/v1/kg/llm-refusals`,
+  administrator). A page published before schema 4 is confirmed with the
+  input hash it was published with. New status blocks `llm.selection`,
+  `llm.context`, `llm.continuation`, `llm.documents.coverage`,
+  `llm.refusalSamples`, `llm.storage`, `llm.backlog` and counters (queue
+  wait, intake, retries). No schema change and no new setting; no page is
+  read again from its start.
+
 - Discovery: an administrator can defer an unconfirmed crawl start that
   blocks all Discovery batches (`needs_review`, `submitted_unknown`, no crawl
   profile with its marker) on the Discovery page (**Defer start (outcome

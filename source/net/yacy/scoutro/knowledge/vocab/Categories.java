@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 
 import org.json.JSONArray;
@@ -52,11 +53,25 @@ import org.json.JSONObject;
  * {@code b2b}, {@code sme}, {@code full_time}; NACE codes come from
  * {@link Nace}. {@link #version} changes with the content, so a changed
  * vocabulary re-extracts.
+ * <p>
+ * A vocabulary is a profile: no collection has one by itself. The operator
+ * gives a collection its vocabulary with {@code scoutro.kg.vocab.<collection>}
+ * or with a {@code collections} map in a file of
+ * {@code DATA/SCOUTRO/knowledge/vocabulary} (the shipped defaults name no
+ * collection). Each vocabulary also names the facility kinds the LLM tier may
+ * assign on the pages of its collections ({@code llm_kinds}); a file may fix
+ * the kinds of single collections ({@code collection_llm_kinds}). Kinds are no
+ * part of {@link #version}: they never re-extract.
  */
 public final class Categories {
 
     public static final Pattern CODE = Pattern.compile("^[a-z][a-z0-9_]{0,47}$");
     public static final Pattern VOCABULARY = Pattern.compile("^[a-z][a-z0-9_]{0,31}$");
+    /** A facility kind the LLM tier may assign (lower-case schema.org type names where one exists). */
+    public static final Pattern LLM_KIND = Pattern.compile("^[a-z]{2,64}$");
+    /** Facility kinds of one vocabulary or collection at most. */
+    public static final int MAX_LLM_KINDS = 40;
+    private static final Pattern COLLECTION = Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
 
     /** One entry: a category, group, segment, customer type, company size or employment type. */
     public static final class Entry {
@@ -94,17 +109,20 @@ public final class Categories {
         public final String name;
         public final String de;
         public final String en;
+        /** The facility kinds the LLM tier may assign on the pages of a collection with this vocabulary (sorted; not versioned). */
+        public final Set<String> llmKinds;
         public final Map<String, Entry> groups;
         public final Map<String, Entry> categories;
         public final Map<String, Entry> segments;
         final TermMatcher<Entry> categoryMatcher;
         final TermMatcher<Entry> segmentMatcher;
 
-        Vocab(final String name, final String de, final String en, final Map<String, Entry> groups, final Map<String, Entry> categories,
-                final Map<String, Entry> segments) {
+        Vocab(final String name, final String de, final String en, final Set<String> llmKinds, final Map<String, Entry> groups,
+                final Map<String, Entry> categories, final Map<String, Entry> segments) {
             this.name = name;
             this.de = de;
             this.en = en;
+            this.llmKinds = Collections.unmodifiableSet(new TreeSet<>(llmKinds));
             this.groups = Collections.unmodifiableMap(groups);
             this.categories = Collections.unmodifiableMap(categories);
             this.segments = Collections.unmodifiableMap(segments);
@@ -123,8 +141,13 @@ public final class Categories {
     }
 
     public final String version;
-    /** Collection name -> vocabulary name (defaults; the configuration may override). */
+    /**
+     * Collection name -> vocabulary name, from the {@code collections} maps of the vocabulary files (the default of a collection;
+     * {@code scoutro.kg.vocab.<collection>} overrides it). The shipped defaults map no collection.
+     */
     public final Map<String, String> collections;
+    /** Collection name -> the facility kinds fixed for it by a vocabulary file ({@code collection_llm_kinds}; not versioned). */
+    public final Map<String, Set<String>> collectionLlmKinds;
     public final Map<String, Vocab> vocabularies;
     public final Map<String, Entry> customerTypes;
     public final Map<String, Entry> companySizes;
@@ -134,13 +157,15 @@ public final class Categories {
     private final TermMatcher<Entry> companySizeMatcher;
     private final TermMatcher<Entry> employmentTypeMatcher;
 
-    static final Categories EMPTY = new Categories("0", new TreeMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
+    static final Categories EMPTY = new Categories("0", new TreeMap<>(), new TreeMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>(),
             new LinkedHashMap<>(), new LinkedHashMap<>());
 
-    private Categories(final String version, final Map<String, String> collections, final Map<String, Vocab> vocabularies,
-            final Map<String, Entry> customerTypes, final Map<String, Entry> companySizes, final Map<String, Entry> employmentTypes) {
+    private Categories(final String version, final Map<String, String> collections, final Map<String, Set<String>> collectionLlmKinds,
+            final Map<String, Vocab> vocabularies, final Map<String, Entry> customerTypes, final Map<String, Entry> companySizes,
+            final Map<String, Entry> employmentTypes) {
         this.version = version;
         this.collections = Collections.unmodifiableMap(collections);
+        this.collectionLlmKinds = Collections.unmodifiableMap(collectionLlmKinds);
         this.vocabularies = Collections.unmodifiableMap(vocabularies);
         this.customerTypes = Collections.unmodifiableMap(customerTypes);
         this.companySizes = Collections.unmodifiableMap(companySizes);
@@ -199,6 +224,12 @@ public final class Categories {
         return name == null ? null : this.vocabularies.get(name);
     }
 
+    /** The facility kinds of a vocabulary (its profile); empty for none or an unknown one. */
+    public Set<String> llmKinds(final String vocabulary) {
+        final Vocab v = vocabulary(vocabulary);
+        return v == null ? Collections.emptySet() : v.llmKinds;
+    }
+
     public List<TermMatcher.Hit<Entry>> customerTypes(final String text, final int from, final int to) {
         return this.customerTypeMatcher.find(text, from, to);
     }
@@ -240,6 +271,7 @@ public final class Categories {
      */
     public static Categories read(final List<JSONObject> files, final List<String> names, final Nace nace, final Problems problems) {
         final Map<String, String> collections = new TreeMap<>();
+        final Map<String, Set<String>> collectionKinds = new TreeMap<>();
         final Map<String, Raw> vocabs = new LinkedHashMap<>();
         final Map<String, JSONObject> customerTypes = new LinkedHashMap<>();
         final Map<String, JSONObject> companySizes = new LinkedHashMap<>();
@@ -259,10 +291,23 @@ public final class Categories {
                 for (final Iterator<String> it = cols.keys(); it.hasNext();) {
                     final String c = it.next();
                     final String v = cols.optString(c, null);
-                    if (c.matches("^[A-Za-z0-9_-]{1,64}$") && v != null && VOCABULARY.matcher(v).matches()) {
+                    if (COLLECTION.matcher(c).matches() && v != null && VOCABULARY.matcher(v).matches()) {
                         collections.put(c, v);
                     } else {
                         problems.add(where, "invalid collection mapping '" + clip(c) + "'");
+                    }
+                }
+            }
+            final JSONObject ck = f.optJSONObject("collection_llm_kinds");
+            if (ck != null) {
+                for (final Iterator<String> it = ck.keys(); it.hasNext();) {
+                    final String c = it.next();
+                    final Set<String> k = COLLECTION.matcher(c).matches() ? kinds(ck.optJSONArray(c), where + " collection_llm_kinds " + clip(c),
+                            problems) : null;
+                    if (k != null) {
+                        collectionKinds.put(c, k);
+                    } else {
+                        problems.add(where, "invalid collection_llm_kinds of '" + clip(c) + "'");
                     }
                 }
             }
@@ -284,6 +329,15 @@ public final class Categories {
                     }
                     if (v.optString("en", null) != null) {
                         raw.en = v.optString("en");
+                    }
+                    if (v.has("llm_kinds")) {
+                        // a later file replaces the kinds of the vocabulary as a whole
+                        final Set<String> k = kinds(v.optJSONArray("llm_kinds"), where + " " + name + " llm_kinds", problems);
+                        if (k != null) {
+                            raw.llmKinds = k;
+                        } else {
+                            problems.add(where, "invalid llm_kinds of '" + clip(name) + "' (a list of facility kinds)");
+                        }
                     }
                     merge(raw.groups, v.optJSONArray("groups"), where + " " + name + " groups", problems);
                     merge(raw.categories, v.optJSONArray("categories"), where + " " + name + " categories", problems);
@@ -322,7 +376,8 @@ public final class Categories {
                     segments.put(x.id, x);
                 }
             }
-            out.put(vn, new Vocab(vn, raw.de == null ? vn : raw.de, raw.en == null ? vn : raw.en, groups, categories, segments));
+            out.put(vn, new Vocab(vn, raw.de == null ? vn : raw.de, raw.en == null ? vn : raw.en,
+                    raw.llmKinds == null ? Collections.emptySet() : raw.llmKinds, groups, categories, segments));
         }
         for (final Iterator<Map.Entry<String, String>> it = collections.entrySet().iterator(); it.hasNext();) {
             final Map.Entry<String, String> c = it.next();
@@ -334,13 +389,16 @@ public final class Categories {
         final Map<String, Entry> ct = flat(customerTypes, "customer type", problems);
         final Map<String, Entry> cs = flat(companySizes, "company size", problems);
         final Map<String, Entry> et = flat(employmentTypes, "employment type", problems);
+        // the facility kinds (of vocabularies and of collections) are left out: they never re-extract
         final String version = version(collections, out, ct, cs, et);
-        return new Categories(version, collections, out, ct, cs, et);
+        return new Categories(version, collections, collectionKinds, out, ct, cs, et);
     }
 
     private static final class Raw {
         String de;
         String en;
+        /** null: not given (no kinds). */
+        Set<String> llmKinds;
         final Map<String, JSONObject> groups = new LinkedHashMap<>();
         final Map<String, JSONObject> categories = new LinkedHashMap<>();
         final Map<String, JSONObject> segments = new LinkedHashMap<>();
@@ -359,6 +417,29 @@ public final class Categories {
             }
             into.put(code, o);
         }
+    }
+
+    /**
+     * A list of facility kinds (sorted; an empty list means none); an invalid kind is left out and reported, more than
+     * {@link #MAX_LLM_KINDS} are cut. Null if {@code items} is no list.
+     */
+    private static Set<String> kinds(final JSONArray items, final String where, final Problems problems) {
+        if (items == null) {
+            return null;
+        }
+        final Set<String> out = new TreeSet<>();
+        for (int i = 0; i < items.length(); i++) {
+            final String k = items.optString(i, "");
+            if (!LLM_KIND.matcher(k).matches()) {
+                problems.add(where, "invalid facility kind '" + clip(k) + "' (2 to 64 lower-case letters)");
+            } else if (out.size() >= MAX_LLM_KINDS) {
+                problems.add(where, "at most " + MAX_LLM_KINDS + " kinds");
+                break;
+            } else {
+                out.add(k);
+            }
+        }
+        return Collections.unmodifiableSet(out);
     }
 
     private static Map<String, Entry> flat(final Map<String, JSONObject> raw, final String what, final Problems problems) {
@@ -438,6 +519,26 @@ public final class Categories {
         } catch (final NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    /**
+     * The collections one vocabulary file maps, as {@link #read} takes them from it: a valid name with a valid vocabulary name
+     * (also one the files do not define, which {@link #read} then reports and drops after the merge).
+     */
+    public static Set<String> mappedCollections(final JSONObject file) {
+        final Set<String> out = new TreeSet<>();
+        final JSONObject cols = file == null || !"scoutro.kg.categories".equals(file.optString("schema")) ? null
+                : file.optJSONObject("collections");
+        if (cols != null) {
+            for (final Iterator<String> it = cols.keys(); it.hasNext();) {
+                final String c = it.next();
+                final String v = cols.optString(c, null);
+                if (COLLECTION.matcher(c).matches() && v != null && VOCABULARY.matcher(v).matches()) {
+                    out.add(c);
+                }
+            }
+        }
+        return out;
     }
 
     /** The vocabularies of a document's collections, given the collection -> vocabulary mapping in force. */

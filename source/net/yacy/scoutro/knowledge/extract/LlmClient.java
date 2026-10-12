@@ -84,6 +84,62 @@ public interface LlmClient {
         return null;
     }
 
+    /**
+     * The context window the requests of the selected model are budgeted against (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.3).
+     */
+    final class Window {
+        /** Where {@link #tokens} comes from. */
+        public static final String CONFIGURED = "configured", DETECTED = "detected", ASSUMED = "assumed_default";
+
+        /** Tokens of prompt and answer together. */
+        public final int tokens;
+        /**
+         * True if the request carries this window as {@code num_ctx}: a window configured for the service
+         * ({@code ai.service_num_ctx}), and any window on the OpenAI-compatible path, which sends it always.
+         */
+        public final boolean configured;
+        /** The row's output cap ({@code max_tokens}, Ollama's {@code num_predict}). */
+        public final int maxOutputTokens;
+        /** True if the endpoint may put the answer schema into the prompt (OpenAI-compatible); Ollama applies it as a grammar. */
+        public final boolean schemaInPrompt;
+        /**
+         * {@link #CONFIGURED} (sent as {@code num_ctx}), {@link #DETECTED} (the window the server reports for the loaded
+         * model, not sent) or {@link #ASSUMED} (4096, Ollama's smallest default).
+         */
+        public final String source;
+        /** The longest context the model itself supports, as the server reports it; null if unknown. */
+        public final Integer modelMaxTokens;
+
+        public Window(final int tokens, final boolean configured, final int maxOutputTokens, final boolean schemaInPrompt) {
+            this(tokens, configured, maxOutputTokens, schemaInPrompt, configured ? CONFIGURED : ASSUMED, null);
+        }
+
+        public Window(final int tokens, final boolean configured, final int maxOutputTokens, final boolean schemaInPrompt, final String source,
+                final Integer modelMaxTokens) {
+            this.tokens = tokens;
+            this.configured = configured;
+            this.maxOutputTokens = maxOutputTokens;
+            this.schemaInPrompt = schemaInPrompt;
+            this.source = source;
+            this.modelMaxTokens = modelMaxTokens;
+        }
+    }
+
+    /** The window of the selected model, or null if unknown (then 4096 tokens, Ollama's smallest default, are assumed). */
+    default Window window() {
+        return null;
+    }
+
+    /** {@link #window()} as last read, without asking the server (the status). */
+    default Window lastWindow() {
+        return window();
+    }
+
+    /** What the endpoint counted for the requests since the start (tokens, answers cut at a limit), or null. */
+    default JSONObject usage() {
+        return null;
+    }
+
     /** No model is ever selected (tests, environments without Scoutro's LLM configuration). */
     LlmClient NONE = new LlmClient() {
         @Override

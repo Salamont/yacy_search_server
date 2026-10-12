@@ -72,7 +72,7 @@ public class LlmServiceTest {
             + " bietet Tagespflege an. Die Muster Pflege gGmbH plant ab 2027 das Haus Am See.";
 
     /** A model under the test's control. */
-    static final class Fake implements LlmClient {
+    static class Fake implements LlmClient {
         volatile String name = "TEST/fixture";
         final AtomicInteger calls = new AtomicInteger();
         volatile Function<String, String> answer = Fake::grounded;
@@ -102,6 +102,9 @@ public class LlmServiceTest {
             return net.yacy.scoutro.knowledge.KgJson.obj("setting", setting, "mode", "fake");
         }
 
+        /** Every user message asked, in order. */
+        final List<String> users = new java.util.concurrent.CopyOnWriteArrayList<>();
+
         /** The system prompt of the last call. */
         volatile String system;
 
@@ -110,6 +113,7 @@ public class LlmServiceTest {
                 throws IOException {
             this.calls.incrementAndGet();
             this.system = system;
+            this.users.add(user);
             final CountDownLatch in = this.entered;
             final CountDownLatch out = this.release;
             if (in != null && out != null) {
@@ -440,13 +444,15 @@ public class LlmServiceTest {
         assertEquals("auto", this.model.structuredOutput);
         assertEquals("auto", st.getJSONObject("structuredOutput").getString("setting"));
         assertEquals("fake", st.getJSONObject("structuredOutput").getString("mode"));
-        // the items of the answer: the claim about the dropped holding is invalid (its object was not accepted)
+        // the items of the answer: the claim about the dropped holding is invalid (its object, an entity of the answer, was
+        // dropped as ungrounded: counted as such, not as an unknown id)
         final JSONObject p = st.getJSONObject("processed");
         assertEquals(3L, p.getLong("entitiesAccepted"));
         assertEquals(3L, p.getLong("claimsAccepted"));
         assertEquals(0L, p.getLong("valuesAccepted"));
         assertEquals(1L, p.getLong("droppedInvalid"));
-        assertEquals(1L, p.getJSONObject("droppedInvalidByReason").getLong("claim_unresolved_object"));
+        assertEquals(1L, p.getJSONObject("droppedInvalidByReason").getLong("claim_entity_dropped"));
+        assertEquals(0L, p.getJSONObject("droppedInvalidByReason").getLong("claim_unresolved_object"));
         assertEquals(p.getLong("droppedInvalid"), sum(p.getJSONObject("droppedInvalidByReason")));
         // timing is measured over ended requests only; the backlog of pages not yet examined is reported apart from the queue
         assertEquals("every started request has ended", p.getLong("requestStarts"), p.getLong("requestsFinished"));
@@ -811,12 +817,15 @@ public class LlmServiceTest {
                 KgConfig.LLM_PARALLEL, "3", "scoutro.kg.llm.kinds.c1", "Pflege-Heim"));
         assertFalse(bad.valid());
         assertEquals(bad.problems().toString(), 2, bad.problems().size());
-        final KgConfig ok = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1,edelsenior-web",
-                KgConfig.LLM_COLLECTIONS, "*"));
+        final KgConfig ok = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1,example-care",
+                KgConfig.LLM_COLLECTIONS, "*", KgConfig.VOCAB_PREFIX + "example-care", "care"));
         assertTrue(ok.valid());
-        assertTrue(ok.llmFollows("edelsenior-web"));
-        assertTrue("start vocabulary of the collection", ok.llmKinds(List.of("edelsenior-web")).contains("nursinghome"));
+        assertTrue(ok.llmFollows("example-care"));
+        assertTrue("the kinds of the collection's vocabulary profile", ok.llmKinds(List.of("example-care")).contains("nursinghome"));
         assertTrue(ok.llmKinds(List.of("c1")).isEmpty());
+        // a name gives no kinds: the collections Scoutro once had kinds for are names like any other
+        final KgConfig named = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "edelsenior-web", KgConfig.LLM_COLLECTIONS, "*"));
+        assertTrue(named.llmKinds(List.of("edelsenior-web")).isEmpty());
         assertEquals("auto", ok.llmStructuredOutput);
         for (final String v : List.of("auto", "json_schema", "json_object", "none")) {
             final KgConfig so = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1", KgConfig.LLM_STRUCTURED_OUTPUT, v));

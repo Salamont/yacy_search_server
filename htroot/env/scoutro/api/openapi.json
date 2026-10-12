@@ -9736,6 +9736,92 @@
         "x-scoutro-permission": "admin"
       }
     },
+    "/v1/kg/llm-refusals": {
+      "get": {
+        "operationId": "kg.llm.refusals",
+        "summary": "Samples of what the LLM tier dropped or refused",
+        "description": "Administrator only, never an agent grant. Newest first, since the start: reason (a reason code, optional) and limit (1-100, default 50). Each sample: reason, item (entity, claim, value, answer), predicate, subjectType/objectType, subject/object (known, new, dropped_entity:<reason>, unknown_id, name_like, missing), docId, chunkOffset, domain, promptHash, at and an excerpt of at most 160 characters with person names, e-mail addresses and phone numbers masked; never a prompt or a whole answer. In memory only: at most 500, 20 per reason, 128 KiB, seven days. 400 for another parameter or a malformed reason or limit, 503 while the graph is off.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "description": "Only samples of this reason code.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z_]{1,64}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "At most this many samples, newest first.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Samples and their summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgLlmRefusals"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      }
+    },
     "/v1/kg/llm-run": {
       "post": {
         "operationId": "kg.llm.run",
@@ -19405,7 +19491,7 @@
                     "type": "string"
                   }
                 },
-                "description": "Facility kinds the LLM tier may assign per collection: the start vocabulary or scoutro.kg.llm.kinds.<collection>."
+                "description": "Facility kinds the LLM tier may assign per named LLM collection: scoutro.kg.llm.kinds.<collection>, else the kinds of its vocabulary profile (llm_kinds of the vocabulary files); empty without a vocabulary, never derived from the name."
               },
               "llmSchedule": {
                 "$ref": "#/components/schemas/KgLlmSchedule"
@@ -20248,6 +20334,27 @@
                   },
                   "pending": {
                     "type": "integer"
+                  },
+                  "coverage": {
+                    "type": "object",
+                    "description": "The done pages by how much of their own text was read: whole (fits the input), fullText (a long page read to the end of its content), partial (a continuation reads on: a first reading is no full coverage), textCut (text left unread), textMissing (the text is missing although the HTML is not empty: not covered).",
+                    "properties": {
+                      "whole": {
+                        "type": "integer"
+                      },
+                      "fullText": {
+                        "type": "integer"
+                      },
+                      "partial": {
+                        "type": "integer"
+                      },
+                      "textCut": {
+                        "type": "integer"
+                      },
+                      "textMissing": {
+                        "type": "integer"
+                      }
+                    }
                   }
                 }
               },
@@ -20264,6 +20371,262 @@
                     ]
                   },
                   "maxBytes": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "selection": {
+                "type": "object",
+                "description": "The scan per collection the LLM tier follows: frontier and revisit are row IDs as of the last pass (kept across restarts), queued counts pages queued since the start.",
+                "properties": {
+                  "collections": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "collection": {
+                          "type": "string"
+                        },
+                        "frontier": {
+                          "type": "integer"
+                        },
+                        "revisit": {
+                          "type": "integer"
+                        },
+                        "queued": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "scanBatch": {
+                    "type": "integer"
+                  },
+                  "revisitBatch": {
+                    "type": "integer"
+                  },
+                  "agingMinutes": {
+                    "type": "integer",
+                    "description": "An item waiting longer is claimed before newer items of a higher priority."
+                  }
+                }
+              },
+              "context": {
+                "type": "object",
+                "description": "The request budget: the window the requests are planned against, the answer reserve and what the endpoint reported; no host or key.",
+                "properties": {
+                  "windowTokens": {
+                    "type": "integer"
+                  },
+                  "windowSource": {
+                    "type": "string",
+                    "enum": [
+                      "configured",
+                      "detected",
+                      "assumed_default"
+                    ],
+                    "description": "configured: ai.service_num_ctx, sent as num_ctx; detected: the window an Ollama server reports for the loaded model (/api/ps), not sent; assumed_default: 4096."
+                  },
+                  "modelMaxTokens": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "description": "The model's own context length (Ollama's /api/show); shown, not used."
+                  },
+                  "numCtxSent": {
+                    "type": "boolean"
+                  },
+                  "maxOutputTokens": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "answerReserveTokens": {
+                    "type": "integer"
+                  },
+                  "fixedPromptTokens": {
+                    "type": "integer"
+                  },
+                  "schemaCounted": {
+                    "type": "boolean"
+                  },
+                  "promptTokensEstimatedMax": {
+                    "type": "integer"
+                  },
+                  "measured": {
+                    "type": "object",
+                    "description": "What the endpoint reported since the start; Ollama's prompt count leaves out a prefix served from its prompt cache.",
+                    "properties": {
+                      "answers": {
+                        "type": "integer"
+                      },
+                      "promptTokensMax": {
+                        "type": "integer"
+                      },
+                      "promptTokensAverage": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "answerTokensMax": {
+                        "type": "integer"
+                      },
+                      "answerTokensAverage": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ]
+                      },
+                      "answersCutAtLimit": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              },
+              "continuation": {
+                "type": "object",
+                "description": "Long pages read to the end of their content in passes of at most scoutro.kg.llm.continuationChunks requests (docs/SCOUTRO_KNOWLEDGE_GRAPH.md 27.5).",
+                "properties": {
+                  "chunks": {
+                    "type": "integer"
+                  },
+                  "passChars": {
+                    "type": "integer"
+                  },
+                  "overlapChars": {
+                    "type": "integer"
+                  },
+                  "failedPassesMax": {
+                    "type": "integer"
+                  },
+                  "pendingDocuments": {
+                    "type": "integer",
+                    "description": "Pages done whose content a continuation reads further (reason more_text)."
+                  },
+                  "remainingChars": {
+                    "type": "integer",
+                    "description": "Characters of their content still to read."
+                  },
+                  "fullTextDocuments": {
+                    "type": "integer",
+                    "description": "Long pages read to the end of their content (reason full_text)."
+                  },
+                  "textCutDocuments": {
+                    "type": "integer",
+                    "description": "Pages done with text left unread (reason text_cut)."
+                  },
+                  "audit": {
+                    "type": "object",
+                    "description": "The one check of the pages read before this version.",
+                    "properties": {
+                      "checkedUpTo": {
+                        "type": "integer"
+                      },
+                      "upTo": {
+                        "type": "integer"
+                      },
+                      "done": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              },
+              "refusalSamples": {
+                "type": "object",
+                "description": "Size and bounds of the refusal samples (in memory; GET /kg/llm-refusals lists them); no excerpts.",
+                "properties": {
+                  "size": {
+                    "type": "integer"
+                  },
+                  "bytes": {
+                    "type": "integer"
+                  },
+                  "added": {
+                    "type": "integer"
+                  },
+                  "oldestAt": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "byReason": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "max": {
+                    "type": "integer"
+                  },
+                  "perReason": {
+                    "type": "integer"
+                  },
+                  "maxBytes": {
+                    "type": "integer"
+                  },
+                  "keepHours": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "storage": {
+                "type": "object",
+                "description": "What the tier keeps between readings in kg_meta: progress rows of long pages (positions, no text) and checkpoints of unfinished readings.",
+                "properties": {
+                  "progressRows": {
+                    "type": "integer"
+                  },
+                  "progressBytes": {
+                    "type": "integer"
+                  },
+                  "checkpointRows": {
+                    "type": "integer"
+                  },
+                  "checkpointBytes": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "backlog": {
+                "type": "object",
+                "description": "The backlog over the last day (in memory, since the start): a sample per sampleMinutes, and the change of the pages to examine per hour (null until two samples are a sample period apart).",
+                "properties": {
+                  "samples": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "integer"
+                        },
+                        "pending": {
+                          "type": "integer"
+                        },
+                        "queue": {
+                          "type": "integer"
+                        },
+                        "partial": {
+                          "type": "integer"
+                        },
+                        "remainingChars": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "pendingPerHour": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "sampleMinutes": {
                     "type": "integer"
                   }
                 }
@@ -20303,7 +20666,7 @@
               "processed": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Counters: calls, requestStarts, callFailures, timeouts, averageCallMillis (all measured time per counted call, a running call included), requestsFinished, averageRequestMillis (measured time per ended request; null before the first one ends), answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, growthRefused. All in memory since the start of the instance, reset by a restart; no model answer is stored.",
+                "description": "Counters: calls, requestStarts, callFailures, timeouts, averageCallMillis (all measured time per counted call, a running call included), requestsFinished, averageRequestMillis (measured time per ended request; null before the first one ends), answersAccepted, answersRefused, refusedBy (invalid_json, not_an_object, unknown_field, schema, too_many_items, too_large, empty), entitiesAccepted, claimsAccepted, valuesAccepted, droppedUngrounded, droppedInvalid (single dropped entities, claims and values, not calls), droppedInvalidByReason (droppedInvalid by the first rule an item breaks, e.g. entity_extra_field, entity_unknown_type, claim_unresolved_object, claim_subject_type_mismatch, value_subject_type_mismatch; every code always present, the counts add up to droppedInvalid), cacheHits, cacheMisses, cacheWritesRefused, published, statements, abortedChanged, failedDocs, unconfirmedRetries, inputUnconfirmed (pages whose input Solr never confirmed, failed input_unconfirmed), skippedNotCandidate, skippedNotSelected, skippedHostCap, queued, requeuedBehindFrontier (pages the revisit queued behind a frontier), scanPasses, growthRefused, knownTrimmed, chunksSplit, contextRefused (pages failed context_budget), navigationMoved, navigationMovedChars, continuationDocs, continuationCalls, textCutDocs, textCutChars. All in memory since the start of the instance, reset by a restart; no model answer is stored.",
                 "properties": {
                   "requestStarts": {
                     "type": "integer",
@@ -21634,7 +21997,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "The default of the vocabulary files (categories.json); never guessed from the name."
+                  "description": "The default of the vocabulary files (a collections map in DATA/SCOUTRO/knowledge/vocabulary; the shipped categories.json maps none); never guessed from the name."
                 },
                 "vocabularySource": {
                   "type": "string",
@@ -21813,7 +22176,7 @@
                   "string",
                   "null"
                 ],
-                "description": "The default of the vocabulary files (categories.json); never guessed from the name."
+                "description": "The default of the vocabulary files (a collections map in DATA/SCOUTRO/knowledge/vocabulary; the shipped categories.json maps none); never guessed from the name."
               },
               "vocabularySource": {
                 "type": "string",
@@ -30081,6 +30444,24 @@
             }
           }
         ]
+      },
+      "KgLlmRefusals": {
+        "type": "object",
+        "properties": {
+          "samples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "summary": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
       },
       "DiscoveryJob": {
         "type": "object",

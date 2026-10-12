@@ -23,6 +23,9 @@ import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+import java.io.File;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +44,7 @@ import net.yacy.scoutro.knowledge.KgConfig;
 import net.yacy.scoutro.knowledge.KgRuntime;
 import net.yacy.scoutro.knowledge.KgTestSupport;
 import net.yacy.scoutro.knowledge.store.KgStore;
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 
 /**
  * The knowledge graph settings of each collection (package 6.2): every
@@ -63,6 +67,7 @@ public class KgCollectionSettingsTest {
     @After
     public void close() {
         KgRuntime.stop();
+        KgVocabularies.overrides(null);
     }
 
     private KgCollectionSettings.Settings store() {
@@ -93,8 +98,17 @@ public class KgCollectionSettingsTest {
         };
     }
 
-    /** The productive shape: two Scoutro collections followed, one with a vocabulary of its own, jobs for one. */
-    private void productive() {
+    /**
+     * The productive shape of an installation that kept its former collection defaults: its own map of four collections (as the
+     * upgrade wrote it into DATA/SCOUTRO/knowledge/vocabulary), two of them followed, one with a vocabulary setting, jobs for one.
+     */
+    private void productive() throws Exception {
+        final File dir = new File(this.tmp.getRoot(), "DATA/SCOUTRO/knowledge/vocabulary");
+        assertTrue(dir.isDirectory() || dir.mkdirs());
+        Files.write(new File(dir, "000-migrated-collections.json").toPath(), ("{\"schema\":\"scoutro.kg.categories\",\"collections\":{"
+                + "\"edelsenior-web\":\"care\",\"checkthecoach-web\":\"coaching\",\"stackfinder-web\":\"software\","
+                + "\"bauteamcheck-web\":\"construction\"}}").getBytes(StandardCharsets.UTF_8));
+        KgVocabularies.overrides(dir);
         this.conf.put(KgConfig.ENABLED, "true");
         this.conf.put(KgConfig.COLLECTIONS, "edelsenior-web, stackfinder-web");
         this.conf.put(KgConfig.VOCAB_PREFIX + "stackfinder-web", "software");
@@ -268,6 +282,51 @@ public class KgCollectionSettingsTest {
         final JSONObject both = patch("bauteamcheck-web", "{\"active\":true,\"vocabulary\":\"construction\"}");
         assertTrue(both.getJSONObject("collection").getBoolean("active"));
         assertEquals("construction", this.conf.get(KgConfig.VOCAB_PREFIX + "bauteamcheck-web"));
+    }
+
+    /**
+     * (6) A new collection gets a vocabulary profile by PATCH; {@code reextract} says whether its pages are read again: not while
+     * it is not followed, when it is switched on with one, and when the profile of a followed collection changes.
+     */
+    @Test
+    public void aNewCollectionGetsItsProfileByPatchAndReextractSaysWhetherItsPagesAreReadAgain() throws Exception {
+        this.index.put("alpha_x", 12L);
+        this.index.put("beta-y", 3L);
+        productive();
+        final JSONObject before = row(this.settings.list(), "alpha_x");
+        assertTrue("a name gives no vocabulary", before.isNull("vocabulary") && before.isNull("defaultVocabulary"));
+        assertEquals("none", before.getString("vocabularySource"));
+        // not followed: the profile is stored, no page of it is read
+        final JSONObject set = patch("alpha_x", "{\"vocabulary\":\"construction\"}");
+        assertTrue(set.getBoolean("changed"));
+        assertFalse(set.getBoolean("reextract"));
+        assertEquals("construction", this.conf.get(KgConfig.VOCAB_PREFIX + "alpha_x"));
+        assertEquals("construction", set.getJSONObject("collection").getString("vocabulary"));
+        assertEquals("setting", set.getJSONObject("collection").getString("vocabularySource"));
+        // switched on: its pages come in with the profile, which is now part of the extraction identity
+        final JSONObject on = patch("alpha_x", "{\"active\":true}");
+        assertTrue(on.getBoolean("backfill"));
+        assertTrue(on.getBoolean("reextract"));
+        // followed: another profile reads its pages again, the same one changes nothing
+        assertTrue(patch("alpha_x", "{\"vocabulary\":\"care\"}").getBoolean("reextract"));
+        final JSONObject same = patch("alpha_x", "{\"vocabulary\":\"care\"}");
+        assertFalse(same.getBoolean("changed"));
+        assertFalse(same.getBoolean("reextract"));
+        // the LLM tier gets the profile's facility kinds, no reading again for that
+        final JSONObject llm = patch("alpha_x", "{\"llm\":true}");
+        assertFalse(llm.getBoolean("reextract"));
+        final KgConfig cfg = KgConfig.read(this.conf::get, this.conf.keySet());
+        assertEquals(KgVocabularies.get().categories.llmKinds("care"), cfg.llmKinds(List.of("alpha_x")));
+        // back to no setting: no vocabulary (none is mapped), its pages are read again
+        final JSONObject reset = patch("alpha_x", "{\"vocabulary\":null}");
+        assertTrue(reset.getBoolean("reextract"));
+        assertTrue(reset.getJSONObject("collection").isNull("vocabulary"));
+        assertTrue(KgConfig.read(this.conf::get, this.conf.keySet()).llmKinds(List.of("alpha_x")).isEmpty());
+        // under *, a new collection is followed at once: its first profile reads its pages again at once
+        this.conf.put(KgConfig.COLLECTIONS, "*");
+        final JSONObject star = patch("beta-y", "{\"vocabulary\":\"software\"}");
+        assertTrue(star.getJSONObject("collection").getBoolean("active"));
+        assertTrue(star.getBoolean("reextract"));
     }
 
     @Test
