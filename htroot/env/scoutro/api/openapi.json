@@ -9736,6 +9736,92 @@
         "x-scoutro-permission": "admin"
       }
     },
+    "/v1/kg/llm-refusals": {
+      "get": {
+        "operationId": "kg.llm.refusals",
+        "summary": "Samples of what the LLM tier dropped or refused",
+        "description": "Administrator only, never an agent grant. Newest first, since the start: reason (a reason code, optional) and limit (1-100, default 50). Each sample: reason, item (entity, claim, value, answer), predicate, subjectType/objectType, subject/object (known, new, dropped_entity:<reason>, unknown_id, name_like, missing), docId, chunkOffset, domain, promptHash, at and an excerpt of at most 160 characters with person names, e-mail addresses and phone numbers masked; never a prompt or a whole answer. In memory only: at most 500, 20 per reason, 128 KiB, seven days. 400 for another parameter or a malformed reason or limit, 503 while the graph is off.",
+        "tags": [
+          "knowledge"
+        ],
+        "parameters": [
+          {
+            "name": "reason",
+            "in": "query",
+            "required": false,
+            "description": "Only samples of this reason code.",
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z_]{1,64}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "At most this many samples, newest first.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Samples and their summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KgLlmRefusals"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (validation error; details.field names the parameter).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sign-in required: the administrator (HTTP Digest) or a Scoutro session (cookie scoutro_session). The body is the server's HTML error page or a JSON error."
+          },
+          "405": {
+            "description": "Method not allowed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "YaCy is not available yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "digest": []
+          }
+        ],
+        "x-scoutro-mutating": false,
+        "x-scoutro-permission": "admin"
+      }
+    },
     "/v1/kg/llm-run": {
       "post": {
         "operationId": "kg.llm.run",
@@ -20248,6 +20334,27 @@
                   },
                   "pending": {
                     "type": "integer"
+                  },
+                  "coverage": {
+                    "type": "object",
+                    "description": "The done pages by how much of their own text was read: whole (fits the input), fullText (a long page read to the end of its content), partial (a continuation reads on: a first reading is no full coverage), textCut (text left unread), textMissing (the text is missing although the HTML is not empty: not covered).",
+                    "properties": {
+                      "whole": {
+                        "type": "integer"
+                      },
+                      "fullText": {
+                        "type": "integer"
+                      },
+                      "partial": {
+                        "type": "integer"
+                      },
+                      "textCut": {
+                        "type": "integer"
+                      },
+                      "textMissing": {
+                        "type": "integer"
+                      }
+                    }
                   }
                 }
               },
@@ -20382,24 +20489,145 @@
               },
               "continuation": {
                 "type": "object",
-                "description": "Continuations of long content pages (scoutro.kg.llm.continuationChunks).",
+                "description": "Long pages read to the end of their content in passes of at most scoutro.kg.llm.continuationChunks requests (docs/SCOUTRO_KNOWLEDGE_GRAPH.md 27.5).",
                 "properties": {
                   "chunks": {
                     "type": "integer"
                   },
-                  "maxChars": {
+                  "passChars": {
                     "type": "integer"
                   },
                   "overlapChars": {
                     "type": "integer"
                   },
+                  "failedPassesMax": {
+                    "type": "integer"
+                  },
                   "pendingDocuments": {
                     "type": "integer",
-                    "description": "Pages done whose text a continuation reads further (reason more_text)."
+                    "description": "Pages done whose content a continuation reads further (reason more_text)."
+                  },
+                  "remainingChars": {
+                    "type": "integer",
+                    "description": "Characters of their content still to read."
+                  },
+                  "fullTextDocuments": {
+                    "type": "integer",
+                    "description": "Long pages read to the end of their content (reason full_text)."
                   },
                   "textCutDocuments": {
                     "type": "integer",
                     "description": "Pages done with text left unread (reason text_cut)."
+                  },
+                  "audit": {
+                    "type": "object",
+                    "description": "The one check of the pages read before this version.",
+                    "properties": {
+                      "checkedUpTo": {
+                        "type": "integer"
+                      },
+                      "upTo": {
+                        "type": "integer"
+                      },
+                      "done": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              },
+              "refusalSamples": {
+                "type": "object",
+                "description": "Size and bounds of the refusal samples (in memory; GET /kg/llm-refusals lists them); no excerpts.",
+                "properties": {
+                  "size": {
+                    "type": "integer"
+                  },
+                  "bytes": {
+                    "type": "integer"
+                  },
+                  "added": {
+                    "type": "integer"
+                  },
+                  "oldestAt": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "byReason": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "integer"
+                    }
+                  },
+                  "max": {
+                    "type": "integer"
+                  },
+                  "perReason": {
+                    "type": "integer"
+                  },
+                  "maxBytes": {
+                    "type": "integer"
+                  },
+                  "keepHours": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "storage": {
+                "type": "object",
+                "description": "What the tier keeps between readings in kg_meta: progress rows of long pages (positions, no text) and checkpoints of unfinished readings.",
+                "properties": {
+                  "progressRows": {
+                    "type": "integer"
+                  },
+                  "progressBytes": {
+                    "type": "integer"
+                  },
+                  "checkpointRows": {
+                    "type": "integer"
+                  },
+                  "checkpointBytes": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "backlog": {
+                "type": "object",
+                "description": "The backlog over the last day (in memory, since the start): a sample per sampleMinutes, and the change of the pages to examine per hour (null until two samples are a sample period apart).",
+                "properties": {
+                  "samples": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "at": {
+                          "type": "integer"
+                        },
+                        "pending": {
+                          "type": "integer"
+                        },
+                        "queue": {
+                          "type": "integer"
+                        },
+                        "partial": {
+                          "type": "integer"
+                        },
+                        "remainingChars": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  },
+                  "pendingPerHour": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "sampleMinutes": {
+                    "type": "integer"
                   }
                 }
               },
@@ -30216,6 +30444,24 @@
             }
           }
         ]
+      },
+      "KgLlmRefusals": {
+        "type": "object",
+        "properties": {
+          "samples": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "summary": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
       },
       "DiscoveryJob": {
         "type": "object",
