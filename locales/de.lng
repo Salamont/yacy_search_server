@@ -6630,7 +6630,26 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Statement assessment<==>Aussagebewertung<
 >Text location<==>Textstelle<
 >live source object removed; reachability unknown (no vacancy or shutdown conclusion)<==>Live-Quellenobjekt entfernt; Erreichbarkeit unbekannt (keine Aussage über Stellenende oder Abschaltung)<
-
+>All services with a current price<==>Alle Leistungen mit aktuellem Preis<
+>Services with a price<==>Leistungen mit Preis<
+>Every row is one published price of one provider's own service, exactly as published: amount, currency, unit, conditions and date. Prices of different providers are never mixed, converted or averaged. A price is current when a current page of the collection confirms it, it has not expired, it is within the collection's price age and no other price of the same service contradicts it; the counts of the service names use the same rule.<==>Jede Zeile ist ein veröffentlichter Preis der eigenen Leistung eines Anbieters, genau wie veröffentlicht: Betrag, Währung, Einheit, Bedingungen und Datum. Preise verschiedener Anbieter werden nie vermischt, umgerechnet oder gemittelt. Ein Preis ist aktuell, wenn eine aktuelle Seite der Collection ihn bestätigt, er nicht abgelaufen ist, er innerhalb des Preisalters der Collection liegt und kein anderer Preis derselben Leistung ihm widerspricht; die Zählungen der Leistungsnamen folgen derselben Regel.<
+>Current prices<==>Aktuelle Preise<
+>Conflicting prices<==>Widersprüchliche Preise<
+>Outdated or expired prices<==>Veraltete oder abgelaufene Preise<
+>Uncertain prices<==>Unsichere Preise<
+>All prices<==>Alle Preise<
+>As of and validity<==>Stand und Gültigkeit<
+>With a price (any status)<==>Mit Preis (jeder Status)<
+>Service categories could not be loaded: %1<==>Leistungskategorien konnten nicht geladen werden: %1<
+>No service categories: no vocabulary is assigned to %1. Categories come only from a vocabulary profile of the collection, never from its name.<==>Keine Leistungskategorien: %1 ist kein Vokabular zugeordnet. Kategorien entstehen nur aus einem Vokabularprofil der Collection, nie aus ihrem Namen.<
+>An administrator assigns one under Knowledge graph operations, column Vocabulary; the pages of that collection are then read again.<==>Ein Administrator ordnet eines unter Wissensgraph-Betrieb, Spalte Vokabular, zu; die Seiten dieser Collection werden danach neu gelesen.<
+>No service categories found in the visible pages yet.<==>In den sichtbaren Seiten wurden noch keine Leistungskategorien gefunden.<
+>Prices of %1<==>Preise von %1<
+>No price of this kind is visible.<==>Kein Preis dieser Art ist sichtbar.<
+>Only the first %1 services with a price were read: narrow the list by a service name or a category.<==>Nur die ersten %1 Leistungen mit Preis wurden gelesen: Grenzen Sie die Liste mit einem Leistungsnamen oder einer Kategorie ein.<
+>Current<==>Aktuell<
+>Conflicting<==>Widersprüchlich<
+>Outdated or expired<==>Veraltet oder abgelaufen<
 #File: scoutro-login.html
 #---------------------------
 >Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<

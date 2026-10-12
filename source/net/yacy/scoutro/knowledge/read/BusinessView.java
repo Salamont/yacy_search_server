@@ -567,6 +567,32 @@ public final class BusinessView {
 
     private Map<Integer, String> collectionNames = new HashMap<>();
 
+    /**
+     * Loads the collection names for the per-collection price age once ({@code scoutro.kg.prices.staleDays.<collection>}):
+     * every price list that is not a business view calls it before {@link #priceItems}.
+     */
+    void ensureCollections(final Connection c) throws SQLException {
+        if (this.collectionNames.isEmpty()) {
+            loadCollections(c);
+        }
+    }
+
+    /**
+     * The prices of one service with the status every price list shows (package 0.10.2): current only if supported,
+     * confirmed by a current page of the viewer, not expired, within the collection's price age and in no conflict.
+     */
+    JSONArray servicePrices(final Connection c, final long service, final String serviceId, final String serviceName, final Viewer v,
+            final long now) throws SQLException {
+        ensureCollections(c);
+        final JSONArray items = priceItems(facts(c, service, false, List.of(Vocabulary.PRICE), v, now, 200), serviceId, serviceName, null, now,
+                new LinkedHashSet<>());
+        markConflicts(items);
+        return items;
+    }
+
+    /** Loads the collection names once per view (on the view's own connection). */
+
+
     /** Loads the collection names once per view (on the view's own connection). */
     private void loadCollections(final Connection c) throws SQLException {
         final Map<Integer, String> m = new HashMap<>();

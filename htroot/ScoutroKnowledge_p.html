@@ -9,7 +9,7 @@
 <main class="sseo-main skg-main">
 <h1>Knowledge graph</h1>
 <nav class="sseo-views" aria-label="Views">
-<a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-services" href="ScoutroKnowledge_p.html?view=services" data-skg-view="services">Services</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
+<a id="skg-view-overview" href="ScoutroKnowledge_p.html" data-skg-view="overview">Overview</a><a id="skg-view-objects" href="ScoutroKnowledge_p.html?view=objects" data-skg-view="objects">Objects</a><a id="skg-view-services" href="ScoutroKnowledge_p.html?view=services" data-skg-view="services">Services</a><a id="skg-view-compare" href="ScoutroKnowledge_p.html?view=compare" data-skg-view="compare">Compare</a><a id="skg-view-prices" href="ScoutroKnowledge_p.html?view=prices" data-skg-view="prices">Prices</a><a id="skg-view-settings" href="ScoutroKnowledge_p.html?view=settings" data-skg-view="settings">Settings</a>
 </nav>
 <p><a href="ScoutroKnowledge_p.html?view=history" data-skg-view="history">System and need history</a></p>
 <form id="skg-scope" class="sseo-search skg-scope">
@@ -155,9 +155,11 @@
 <h2 id="skg-compare-title" tabindex="-1">Compare services and prices</h2>
 <p class="sseo-note">One service category across providers. Prices are shown exactly as published, with their unit, conditions, VAT and date; they are never estimated, converted, normalised or averaged. Conflicting prices stay visible, outdated ones are marked.</p>
 <form id="skg-compare-form" class="sseo-search">
-<label for="skg-compare-category">Service category<select class="form-control" id="skg-compare-category"><option value="">Choose a category</option></select></label>
+<label for="skg-compare-category">Service category<select class="form-control" id="skg-compare-category" aria-describedby="skg-compare-category-note"><option value="">Choose a category</option></select></label>
 <button class="btn btn-primary" type="submit">Show comparison</button>
 </form>
+<p class="sseo-note skg-category-note" id="skg-compare-category-note" role="status" hidden></p>
+<p class="skg-prices-entry"><a class="skg-prices-link" id="skg-compare-prices" href="ScoutroKnowledge_p.html?view=prices">All services with a current price</a></p>
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-compare-table"><thead><tr><th>Provider</th><th>Service</th><th>Price</th><th>Conditions</th><th>As of</th><th>Status</th><th>Sources</th></tr></thead><tbody></tbody></table></div>
 </section>
 
@@ -166,9 +168,11 @@
 <p class="sseo-note">Services of the same name, counted across their providers. Every provider's service stays its own object with its own provider, prices and sources; this view only counts them, it merges, averages and mixes nothing.</p>
 <form id="skg-svc-form" class="sseo-search">
 <label for="skg-svc-q">Service name<input class="form-control" id="skg-svc-q" type="search" maxlength="200" autocomplete="off" /></label>
-<label for="skg-svc-category">Service category<select class="form-control" id="skg-svc-category"><option value="">Any category</option></select></label>
+<label for="skg-svc-category">Service category<select class="form-control" id="skg-svc-category" aria-describedby="skg-svc-category-note"><option value="">Any category</option></select></label>
 <button class="btn btn-primary" type="submit">Show</button>
 </form>
+<p class="sseo-note skg-category-note" id="skg-svc-category-note" role="status" hidden></p>
+<p class="skg-prices-entry"><a class="skg-prices-link" id="skg-svc-prices" href="ScoutroKnowledge_p.html?view=prices">All services with a current price</a></p>
 <div id="skg-svc-groups-box">
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-svc-groups"><thead><tr><th>Service</th><th>Providers</th><th>Collections</th><th>Places</th><th>With a current price</th><th>With a current source</th></tr></thead><tbody></tbody></table></div>
 </div>
@@ -180,6 +184,22 @@
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-hits" id="skg-svc-rows"><thead><tr><th>Service</th><th>Provider and domain</th><th>Collection</th><th>Place</th><th>Prices</th><th>Quality</th><th>Sources</th><th>Last confirmed</th><th>Actions</th></tr></thead><tbody></tbody></table></div>
 </div>
 <div class="sseo-controls"><button class="btn btn-default" id="skg-svc-prev" type="button">Previous</button><span id="skg-svc-range" role="status"></span><button class="btn btn-default" id="skg-svc-next" type="button">Next</button></div>
+</section>
+
+<section id="skg-prices" hidden aria-labelledby="skg-prices-title">
+<h2 id="skg-prices-title" tabindex="-1">Services with a price</h2>
+<p class="sseo-note">Every row is one published price of one provider's own service, exactly as published: amount, currency, unit, conditions and date. Prices of different providers are never mixed, converted or averaged. A price is current when a current page of the collection confirms it, it has not expired, it is within the collection's price age and no other price of the same service contradicts it; the counts of the service names use the same rule.</p>
+<form id="skg-prices-form" class="sseo-search">
+<label for="skg-prices-status">Prices<select class="form-control" id="skg-prices-status"><option value="current">Current prices</option><option value="conflicting">Conflicting prices</option><option value="outdated">Outdated or expired prices</option><option value="uncertain">Uncertain prices</option><option value="all">All prices</option></select></label>
+<label for="skg-prices-category">Service category<select class="form-control" id="skg-prices-category" aria-describedby="skg-prices-category-note"><option value="">Any category</option></select></label>
+<button class="btn btn-primary" type="submit">Show</button>
+</form>
+<p class="sseo-note skg-category-note" id="skg-prices-category-note" role="status" hidden></p>
+<p id="skg-prices-scope" hidden><span id="skg-prices-scope-text"></span> · <a id="skg-prices-back" href="ScoutroKnowledge_p.html?view=services">All service names</a></p>
+<dl id="skg-prices-counts" class="sseo-stats"></dl>
+<p class="sseo-note" id="skg-prices-truncated" hidden></p>
+<div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-prices-table"><thead><tr><th>Provider</th><th>Service</th><th>Price</th><th>Conditions</th><th>As of and validity</th><th>Status</th><th>Sources</th></tr></thead><tbody></tbody></table></div>
+<div class="sseo-controls"><button class="btn btn-default" id="skg-prices-prev" type="button">Previous</button><span id="skg-prices-range" role="status"></span><button class="btn btn-default" id="skg-prices-next" type="button">Next</button></div>
 </section>
 
 <section id="skg-source" hidden aria-labelledby="skg-source-title">
@@ -960,6 +980,18 @@
 <span data-skg-label="g_providers">Providers</span>
 <span data-skg-label="g_without_provider">Without a provider</span>
 <span data-skg-label="g_with_price">With a current price</span>
+<span data-skg-label="g_with_any_price">With a price (any status)</span>
+<span data-skg-label="categories_error">Service categories could not be loaded: %1</span>
+<span data-skg-label="categories_no_profile">No service categories: no vocabulary is assigned to %1. Categories come only from a vocabulary profile of the collection, never from its name.</span>
+<span data-skg-label="categories_no_profile_admin">An administrator assigns one under Knowledge graph operations, column Vocabulary; the pages of that collection are then read again.</span>
+<span data-skg-label="categories_none_found">No service categories found in the visible pages yet.</span>
+<span data-skg-label="prices_title_group">Prices of %1</span>
+<span data-skg-label="prices_empty">No price of this kind is visible.</span>
+<span data-skg-label="prices_truncated">Only the first %1 services with a price were read: narrow the list by a service name or a category.</span>
+<span data-skg-label="pc_current">Current</span>
+<span data-skg-label="pc_conflicting">Conflicting</span>
+<span data-skg-label="pc_outdated">Outdated or expired</span>
+<span data-skg-label="pc_uncertain">Uncertain</span>
 <span data-skg-label="g_with_current">With a current source</span>
 <span data-skg-label="g_places">Places of the providers</span>
 <span data-skg-label="prices_value">%1 current of %2</span>

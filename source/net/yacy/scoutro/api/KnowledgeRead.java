@@ -55,6 +55,9 @@ import net.yacy.scoutro.knowledge.store.KgChangeLog.Viewer;
  * {@code context} of every item of {@code GET entities} (hosts, collections, places, providers)</li>
  * <li>package 6.2: {@code GET services/network?name&category&offset&limit&include=stale} (all providers of one name around a
  * virtual centre, one line per provider's own offers statement to its own service)</li>
+ * <li>0.10.2: {@code GET services/prices?name&category&status&offset&limit} (published prices one by one, the drilldown of
+ * "with a current price", also without a name or a category); {@code GET facets?counts=false} (filter values and vocabulary
+ * profiles only)</li>
  * </ul>
  * The caller decides the collections ({@code null} = all, for the
  * administrator without filter); everything is computed over the evidence of
@@ -260,8 +263,8 @@ final class KnowledgeRead {
                             intParam(q, "offset", 0, 0, KgReader.MAX_OFFSET), intParam(q, "limit", 25, 1, KgReader.MAX_LIMIT), viewer);
                     break;
                 case "facets":
-                    allow(q, "collection");
-                    out = new BusinessGraph(reader).facets(viewer);
+                    allow(q, "counts", "collection");
+                    out = new BusinessGraph(reader).facets(viewer, !"false".equals(oneOf(q, "counts", Set.of("true", "false"))));
                     break;
                 case "services": {
                     final net.yacy.scoutro.knowledge.read.ServiceGroups groups = new net.yacy.scoutro.knowledge.read.ServiceGroups(reader);
@@ -270,6 +273,11 @@ final class KnowledgeRead {
                         allow(q, "q", "category", "offset", "limit", "collection");
                         out = groups.groups(text(q, "q", 200), code(q, "category", CODE), offset,
                                 intParam(q, "limit", 25, 1, net.yacy.scoutro.knowledge.read.ServiceGroups.MAX_LIMIT), viewer);
+                    } else if ("prices".equals(parts.get(1))) {
+                        allow(q, "name", "category", "status", "offset", "limit", "collection");
+                        final String status = oneOf(q, "status", net.yacy.scoutro.knowledge.read.ServiceGroups.PRICE_STATUSES);
+                        out = groups.prices(text(q, "name", 200), code(q, "category", CODE), status, offset, intParam(q, "limit", 25, 1,
+                                net.yacy.scoutro.knowledge.read.ServiceGroups.MAX_LIMIT), viewer);
                     } else if ("network".equals(parts.get(1))) {
                         allow(q, "name", "category", "offset", "limit", "include", "collection");
                         final String name = text(q, "name", 200);
@@ -342,7 +350,7 @@ final class KnowledgeRead {
             case "sources":
                 return n == 2;
             case "services":
-                return n == 1 || n == 2 && ("providers".equals(p.get(1)) || "network".equals(p.get(1)));
+                return n == 1 || n == 2 && ("providers".equals(p.get(1)) || "network".equals(p.get(1)) || "prices".equals(p.get(1)));
             case "export":
             case "changes":
             case "compare":
