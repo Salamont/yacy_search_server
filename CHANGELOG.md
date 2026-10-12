@@ -2,6 +2,26 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.10.4 / 1.942-scoutro.28 — patch: a list of relations ends with its sentence
+
+Patch of the installed 0.10.2 that contains 0.10.3 (published, not rolled out).
+See the [release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.4.md).
+Knowledge graph schema stays **6**, the extractor identity and every setting
+stay. The upgrade extracts again only the pages that carry a relation of the
+rule tier, once (event `relation_rules_recheck`); no other page.
+
+- **A list of relations ends with its sentence.** After "Unsere Partner: Alpha
+  Systeme GmbH und Beta Logistik AG." the next sentence "Muster Software GmbH,
+  Musterstraße 1" (the imprint) was read as a third partner, so a company
+  could become a partner of itself; the same for customers, references,
+  memberships and the other lists. A full stop now ends the list; a list on
+  lines goes on, and the full stop of `Inc.`, `Ltd.` and other abbreviated
+  legal forms ends no sentence.
+- **The relation re-check of 0.10.3 knows the version of the rules**
+  (`kg_meta.relation_recheck_rules`): an upgrade from 0.10.2 checks the pages
+  with relations of the rule tier once with all fixes; an installation of
+  0.10.3 checks them once more.
+
 ## 0.10.3 / 1.942-scoutro.27 — patch: the knowledge graph sync no longer stalls; no partners from consent banners; hide a collection or delete its pages
 
 Patch of the installed 0.10.2. See the
