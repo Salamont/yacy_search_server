@@ -70,6 +70,9 @@ public class SyncServiceTest {
         final AtomicInteger scanCalls = new AtomicInteger();
         volatile int failScanAt = -1;
         volatile int partialScanAt = -1;
+        /** A page whose extraction fails with a runtime error (a defect of the extraction), and how often it did. */
+        volatile String failText;
+        final AtomicInteger textFailures = new AtomicInteger();
 
         Hooked(final SolrSource inner) {
             this.inner = inner;
@@ -88,6 +91,10 @@ public class SyncServiceTest {
 
         @Override
         public String text(final String id) throws IOException {
+            if (id.equals(this.failText)) {
+                this.textFailures.incrementAndGet();
+                throw new IllegalStateException("injected extraction defect");
+            }
             return this.inner.text(id);
         }
 
@@ -281,6 +288,36 @@ public class SyncServiceTest {
         for (final String f : d.getFieldNames()) {
             assertFalse("graph state in Solr: " + f, f.startsWith("kg_"));
         }
+    }
+
+    /**
+     * 0.10.2 in production: the extraction of a page failed with a runtime error (a range error of the job titles); the step
+     * ended, the page stayed claimed at the head of the queue, every step took it again and nothing behind it was published.
+     * Such a failure now counts against the page alone: retried with backoff, dropped after {@link SyncService#MAX_FAILURES}
+     * with an event, read again with its next change.
+     */
+    @Test
+    public void aPageWhoseExtractionFailsDoesNotHoldUpTheQueue() throws Exception {
+        settle();
+        this.source.failText = "AAAAAAhost01";
+        add("AAAAAAhost01", "https://www.muster.de/", org("Muster Pflege gGmbH", "030 1111111"));
+        add("BBBBBBhost02", "https://www.beispiel.de/", org("Beispiel Technik GmbH", "040 2222222"));
+        commit();
+        settle();
+        assertTrue("the page behind it is published", tracked("BBBBBBhost02"));
+        assertEquals(List.of("+49402222222"), phones());
+        assertFalse(tracked("AAAAAAhost01"));
+        assertEquals("tried again, then given up", SyncService.MAX_FAILURES, this.source.textFailures.get());
+        assertEquals(1L, this.sync.counters.failedDocs.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'doc_failed' AND detail = 'AAAAAAhost01: extract_failed'"));
+        assertEquals(0L, queue());
+        // the defect is gone: the next change of the page is read
+        this.source.failText = null;
+        add("AAAAAAhost01", "https://www.muster.de/", org("Muster Pflege gGmbH", "030 1111111"));
+        commit();
+        settle();
+        assertTrue(tracked("AAAAAAhost01"));
+        assertEquals(List.of("+49301111111", "+49402222222"), phones());
     }
 
     @Test

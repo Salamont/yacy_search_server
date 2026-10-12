@@ -593,6 +593,9 @@ public final class SyncService {
                 solrFailed(e);
                 release(item, now + SOLR_RETRY_MILLIS, false);
                 return false;
+            } catch (final RuntimeException e) {
+                // a defect of the extraction of this page: it counts against the page, the pages behind it go on
+                return failed(item, "extract_failed", e);
             }
         }
         return publish(item, doc, ex, action == Action.EXTRACT ? WriteClass.GROWTH : WriteClass.MAINTENANCE);
@@ -798,14 +801,29 @@ public final class SyncService {
             this.nextClaimAt = now + REFUSED_RETRY_MILLIS;
             return false;
         }
-        this.lastError = e.code() + ": " + e.getMessage();
-        LOG.warn("knowledge graph: processing " + item.docId + " failed: " + e.code() + " " + e.getMessage());
-        if (item.attempts + 1 >= MAX_FAILURES) {
+        return failed(item, e.code(), e);
+    }
+
+    /**
+     * A failure of this item alone: released with backoff and counted; after {@link #MAX_FAILURES} it is dropped with event
+     * {@code doc_failed} (visible in the status, retried by the next reconcile or change). The last attempt logs the trace.
+     */
+    private boolean failed(final WorkQueue.Item item, final String code, final Exception e) {
+        final long now = this.clock.getAsLong();
+        final String message = e instanceof KgException ? e.getMessage() : e.toString();
+        this.lastError = code + ": " + message;
+        final boolean last = item.attempts + 1 >= MAX_FAILURES;
+        if (last && !(e instanceof KgException)) {
+            LOG.warn("knowledge graph: processing " + item.docId + " failed: " + code + " " + message, e);
+        } else {
+            LOG.warn("knowledge graph: processing " + item.docId + " failed: " + code + " " + message);
+        }
+        if (last) {
             this.counters.failedDocs.incrementAndGet();
             try {
                 this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
                     WorkQueue.complete(tx, item);
-                    KgStore.event(tx, 2, "doc_failed", item.docId + ": " + e.code(), now);
+                    KgStore.event(tx, 2, "doc_failed", item.docId + ": " + code, now);
                     return null;
                 });
             } catch (final KgException ignored) {

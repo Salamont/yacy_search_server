@@ -734,17 +734,33 @@ public final class BusinessRules {
             + "|stellenangebot|wir\\s+stellen\\s+ein|we\\s+are\\s+hiring)\\s*:?\\s*");
     private static final Pattern WORK_PLACE = Pattern.compile("(?iu)\\b(?:standort|einsatzort|arbeitsort|location)\\s*:?\\s*(\\p{Lu}[\\p{L}\\-]{2,40})");
 
-    /** The job titles of a careers page: {start, end, gender marker}, at most {@link #MAX_JOBS}. */
+    /** A word or mark joining two titles in one sentence ("Buchhalter (m/w/d) oder Controller (m/w/d)"); no part of a title. */
+    private static final Pattern TITLE_JOIN = Pattern.compile("(?:[/,&+]|(?:und|oder|bzw\\.|sowie|or|and)(?=[\\s/,&+]))[\\s\\-/,&+]*");
+
+    /**
+     * The job titles of a careers page: {start, end, gender marker}, at most {@link #MAX_JOBS}. A title never reaches back over
+     * the marker before it, so the titles do not overlap and the text of each advertisement ({@link #windowEnd}) has no
+     * negative length.
+     */
     private List<int[]> jobTitles(final Run run) {
         final Matcher g = GENDER.matcher(run.text);
         final List<int[]> titles = new ArrayList<>();
+        int floor = 0;
         while (g.find() && titles.size() < MAX_JOBS) {
-            final int start = titleStart(run.text, g.start());
+            final int start = titleStart(run.text, g.start(), floor);
             if (start >= 0 && g.start() - start >= 3) {
                 titles.add(new int[] {start, g.end(), g.start()});
             }
+            floor = g.end();
         }
         return titles;
+    }
+
+    /** End of the text of advertisement {@code i}: the next title, at most 6000 characters; never before the end of its own. */
+    private static int windowEnd(final Run run, final List<int[]> titles, final int i) {
+        final int[] t = titles.get(i);
+        final int next = i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length();
+        return Math.max(t[1], Math.min(Math.min(next, run.text.length()), t[1] + 6000));
     }
 
     /** Phrases with which a careers page declares its operator as the employer of its advertisements. */
@@ -768,7 +784,7 @@ public final class BusinessRules {
             if (Normalizers.key(title) == null || BusinessFacts.personLike(title)) {
                 continue;
             }
-            final int windowEnd = Math.min(i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length(), t[1] + 6000);
+            final int windowEnd = windowEnd(run, titles, i);
             final String jobText = run.text.substring(t[0], windowEnd);
             if (BusinessSignals.INTERMEDIARY.matcher(jobText + " " + lead).find()
                     || !SELF_HIRING.matcher(jobText).find() && !SELF_HIRING.matcher(lead).find()) {
@@ -788,7 +804,7 @@ public final class BusinessRules {
             if (key == null || BusinessFacts.personLike(title)) {
                 continue;
             }
-            final int windowEnd = Math.min(i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length(),t[1]+6000);
+            final int windowEnd = windowEnd(run, titles, i);
             final Mention job = run.out.add(new Mention("rule:job:" + key+":"+t[0], Vocabulary.JOB, 2));
             job.name = title;
             final Matcher wp = WORK_PLACE.matcher(run.text).region(t[1], windowEnd);
@@ -865,11 +881,14 @@ public final class BusinessRules {
         }
     }
 
-    /** Start of a job title that ends at {@code markerAt}: back to a line break, a sentence end or a list mark; -1 if none. */
-    private static int titleStart(final String text, final int markerAt) {
+    /**
+     * Start of a job title that ends at {@code markerAt}: back to a line break, a sentence end, a list mark or the end of the
+     * marker before ({@code floor}), there without the word that joins both titles; -1 if none.
+     */
+    private static int titleStart(final String text, final int markerAt, final int floor) {
         int i = markerAt;
-        final int floor = Math.max(0, markerAt - 90);
-        while (i > floor) {
+        final int stop = Math.max(Math.max(0, floor), markerAt - 90);
+        while (i > stop) {
             final char c = text.charAt(i - 1);
             if (c == '\n' || c == '•' || c == '|' || c == ':' || c == ';' || c == '#' || c == '*'
                     || c == '.' && (i >= markerAt - 1 || Character.isWhitespace(text.charAt(i)))) {
@@ -877,8 +896,15 @@ public final class BusinessRules {
             }
             i--;
         }
+        final boolean afterMarker = i == floor && floor > 0;
         while (i < markerAt && (Character.isWhitespace(text.charAt(i)) || text.charAt(i) == '-')) {
             i++;
+        }
+        if (afterMarker && i < markerAt) {
+            final Matcher join = TITLE_JOIN.matcher(text).region(i, markerAt);
+            if (join.lookingAt()) {
+                i = join.end();
+            }
         }
         if (i >= markerAt || !Character.isUpperCase(text.codePointAt(i)) && !Character.isDigit(text.charAt(i))) {
             return -1;
