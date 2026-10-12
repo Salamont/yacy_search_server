@@ -9,13 +9,13 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * Recurring navigation of a long page (the 0.10.0 coverage analysis, section 12: www.pta.de, a menu of 4,166 characters
- * before every page, content cut at character 12,000). Uses only what the LLM tier offered before, so it also runs
+ * Recurring navigation of a long page (example data after section 12 of the 0.10.0 coverage analysis: a site menu of
+ * about 4,200 characters before every page, content cut at character 12,000; site and names are fictitious). Uses only what the LLM tier offered before, so it also runs
  * against the base as the counter-check.
  */
 public class LlmNavigationTest extends LlmFixture {
 
-    static final String TARGET = "AAAAAApta001";
+    static final String TARGET = "AAAAAAnav001";
     static final String QUOTE = "Die Muster Pflege gGmbH betreibt das Haus Sonnenhof";
 
     static String menu() {
@@ -42,12 +42,12 @@ public class LlmNavigationTest extends LlmFixture {
 
     @Test
     public void evidenceBehindARecurringMenuIsReadInTheFirstPass() throws Exception {
-        final String ld = LD.replace("muster-pflege", "pta-pflege");
+        final String ld = LD.replace("muster-pflege", "beispiel-navigation");
         final String text = page();
         assertTrue("the evidence lies behind character 12,000 of the stored text: " + text.indexOf(QUOTE), text.indexOf(QUOTE) > 12_000);
-        addAll(List.of(doc(TARGET, "https://www.pta-pflege.de/leistungen/tagespflege/", "c1", ld, text, "Tagespflege"),
-                doc("BBBBBBpta001", "https://www.pta-pflege.de/branchen/handel/", "c1", ld, "Handel\n" + menu() + content("Handel", 2000), "Handel"),
-                doc("CCCCCCpta001", "https://www.pta-pflege.de/unternehmen/", "c1", ld, "Unternehmen\n" + menu() + content("Wir", 2000),
+        addAll(List.of(doc(TARGET, "https://www.beispiel-navigation.de/leistungen/tagespflege/", "c1", ld, text, "Tagespflege"),
+                doc("BBBBBBnav001", "https://www.beispiel-navigation.de/branchen/handel/", "c1", ld, "Handel\n" + menu() + content("Handel", 2000), "Handel"),
+                doc("CCCCCCnav001", "https://www.beispiel-navigation.de/unternehmen/", "c1", ld, "Unternehmen\n" + menu() + content("Wir", 2000),
                         "Unternehmen")));
         settleSync();
         settleLlm();

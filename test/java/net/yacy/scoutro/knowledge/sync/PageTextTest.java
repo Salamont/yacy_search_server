@@ -49,10 +49,10 @@ public class PageTextTest {
         final Set<String> rec = PageText.recurring(List.of(PageText.keys(m + content("Handel", 3000)),
                 PageText.keys(m + content("Unternehmen", 3000)), PageText.keys(content("Kontakt", 1000))));
         final String own = "Business Intelligence\n" + content("BI", 14_000) + "Leistungen: Data Warehouse und Reporting.\n";
-        final String page = "PTA GmbH\n" + m + own;
+        final String page = "Muster Daten GmbH\n" + m + own;
         final PageText pt = PageText.layout(page, rec, 12_000);
         assertEquals(m.length(), pt.moved);
-        assertTrue("the page's own content comes first", pt.text.startsWith("PTA GmbH\nBusiness Intelligence\n"));
+        assertTrue("the page's own content comes first", pt.text.startsWith("Muster Daten GmbH\nBusiness Intelligence\n"));
         assertTrue("the menu stays, behind the content", pt.text.endsWith(m));
         assertEquals("no character is lost or added", page.length(), pt.text.length());
         // every position maps back to the same character of the stored text
@@ -67,13 +67,13 @@ public class PageTextTest {
     public void aQuoteAcrossAMovedBlockIsNotContiguousInTheStoredText() {
         final String m = menu();
         final Set<String> rec = PageText.recurring(List.of(PageText.keys(m + "A"), PageText.keys(m + "B")));
-        final String page = "PTA GmbH\n" + m + "Business Intelligence\n" + content("BI", 14_000);
+        final String page = "Muster Daten GmbH\n" + m + "Business Intelligence\n" + content("BI", 14_000);
         final PageText pt = PageText.layout(page, rec, 12_000);
-        // the model reads "PTA GmbH" and "Business Intelligence" on adjacent lines: the stored page has the menu between
-        final String across = "PTA GmbH Business Intelligence";
+        // the model reads "Muster Daten GmbH" and "Business Intelligence" on adjacent lines: the stored page has the menu between
+        final String across = "Muster Daten GmbH Business Intelligence";
         final int at = 0;
         final int end = net.yacy.scoutro.knowledge.extract.LlmExtractor.rawEnd(pt.text, at, across);
-        assertEquals("PTA GmbH\nBusiness Intelligence".length(), end);
+        assertEquals("Muster Daten GmbH\nBusiness Intelligence".length(), end);
         assertFalse(pt.contiguous(at, end));
         // a quote within the content is contiguous
         final int in = pt.text.indexOf("BI Absatz 3");

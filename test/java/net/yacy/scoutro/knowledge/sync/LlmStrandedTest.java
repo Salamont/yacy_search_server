@@ -20,7 +20,7 @@ import net.yacy.scoutro.knowledge.KgTestSupport;
  * so the same tests run against the base as the counter-check.
  * <p>
  * The crawl is simulated by one new page before every step: the scan always finds new work ahead of its position,
- * as on the production graph (+280 to 340 documents per hour), so nothing behind it is found by a wrap-around.
+ * as in the analysed installation (example: +280 to 340 documents per hour), so nothing behind it is found by a wrap-around.
  */
 public class LlmStrandedTest extends LlmFixture {
 

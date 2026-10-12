@@ -8,13 +8,13 @@ import java.util.List;
 import org.junit.Test;
 
 /**
- * Evidence behind character 12,000 of a long content page (the 0.10.0 coverage analysis, section 12: STELLWERK's
- * reference page of 67,173 characters, cut in the middle of its case studies). Uses only what the LLM tier offered
+ * Evidence behind character 12,000 of a long content page (example data after section 12 of the 0.10.0 coverage
+ * analysis: a reference page of about 67,000 characters, cut in the middle of its case studies; the site is fictitious). Uses only what the LLM tier offered
  * before, so it also runs against the base as the counter-check.
  */
 public class LlmLongPageTest extends LlmFixture {
 
-    static final String PAGE = "SSSSSSstw001";
+    static final String PAGE = "SSSSSSref001";
     static final String QUOTE = "Die Muster Pflege gGmbH betreibt das Haus Sonnenhof";
 
     /** Case studies without names of the fixture's answers. */
@@ -37,7 +37,7 @@ public class LlmLongPageTest extends LlmFixture {
     public void evidenceBehindCharacter12000IsRead() throws Exception {
         final String text = page();
         assertTrue(text.indexOf(QUOTE) > 12_000);
-        add(PAGE, "https://www.stellwerk-pflege.de/referenzen/projekt-beispiele/", "c1", LD.replace("muster-pflege", "stellwerk-pflege"),
+        add(PAGE, "https://www.beispiel-referenzen.de/referenzen/projekt-beispiele/", "c1", LD.replace("muster-pflege", "beispiel-referenzen"),
                 text, "Projekt-Beispiele");
         settleSync();
         settleLlm();

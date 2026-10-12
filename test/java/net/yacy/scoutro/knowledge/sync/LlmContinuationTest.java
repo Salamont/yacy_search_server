@@ -46,10 +46,10 @@ public class LlmContinuationTest extends LlmFixture {
         return new FailingFake();
     }
 
-    private String url = "https://www.stellwerk-pflege.de/referenzen/projekt-beispiele/";
+    private String url = "https://www.beispiel-referenzen.de/referenzen/projekt-beispiele/";
 
     private void addPage(final String text) throws Exception {
-        add(PAGE, this.url, "c1", LD.replace("muster-pflege", "stellwerk-pflege"), text, "Projekt-Beispiele");
+        add(PAGE, this.url, "c1", LD.replace("muster-pflege", "beispiel-referenzen"), text, "Projekt-Beispiele");
         settleSync();
     }
 
@@ -91,7 +91,7 @@ public class LlmContinuationTest extends LlmFixture {
 
     @Test
     public void aVeryLongPageIsReadUpToTheBoundAndTheRestShowsAsCut() throws Exception {
-        // STELLWERK's reference page: 67,173 characters, evidence at about 25,000 and at about 50,000
+        // an example reference page of 67,173 characters, evidence at about 25,000 and at about 50,000
         final String text = "Projekt-Beispiele\n" + LlmLongPageTest.cases(0, 25_000) + "\n" + QUOTE + ".\n" + LlmLongPageTest.cases(2000, 25_000)
                 + "\nDie Muster Pflege gGmbH betreibt das Haus Lindenhof in Berlin.\n";
         final String padded = text + LlmLongPageTest.cases(5000, 67_173 - text.length());
@@ -167,11 +167,11 @@ public class LlmContinuationTest extends LlmFixture {
 
     @Test
     public void aContinuationReadsThePageLaidOutAsItsFirstReadingWas() throws Exception {
-        final String ld = LD.replace("muster-pflege", "pta-pflege");
+        final String ld = LD.replace("muster-pflege", "beispiel-navigation");
         final String text = LlmNavigationTest.page();
         final String quote = LlmNavigationTest.QUOTE;
         // the host has no other page yet: the first reading reads the page as stored, the menu first
-        addAll(List.of(doc(LlmNavigationTest.TARGET, "https://www.pta-pflege.de/leistungen/tagespflege/", "c1", ld, text, "Tagespflege")));
+        addAll(List.of(doc(LlmNavigationTest.TARGET, "https://www.beispiel-navigation.de/leistungen/tagespflege/", "c1", ld, text, "Tagespflege")));
         settleSync();
         for (int i = 0; i < 400 && !("1:" + LlmQueue.MORE_TEXT).equals(llmStatus(LlmNavigationTest.TARGET)); i++) {
             if (!this.llm.step()) {
@@ -182,9 +182,9 @@ public class LlmContinuationTest extends LlmFixture {
         assertFalse(this.model.users.stream().anyMatch(u -> u.contains(quote)));
         // pages of the host with the same menu arrive before the continuation: it still reads on where the first reading
         // ended (with today's layout the menu would move behind the content and the evidence fall before its start)
-        addAll(List.of(doc("BBBBBBpta001", "https://www.pta-pflege.de/branchen/handel/", "c1", ld,
+        addAll(List.of(doc("BBBBBBnav001", "https://www.beispiel-navigation.de/branchen/handel/", "c1", ld,
                 "Handel\n" + LlmNavigationTest.menu() + LlmNavigationTest.content("Handel", 2000), "Handel"),
-                doc("CCCCCCpta001", "https://www.pta-pflege.de/unternehmen/", "c1", ld,
+                doc("CCCCCCnav001", "https://www.beispiel-navigation.de/unternehmen/", "c1", ld,
                         "Unternehmen\n" + LlmNavigationTest.menu() + LlmNavigationTest.content("Wir", 2000), "Unternehmen")));
         settleSync();
         settleLlm();
@@ -205,7 +205,7 @@ public class LlmContinuationTest extends LlmFixture {
 
     @Test
     public void legalPagesAndDisabledContinuationsLeaveTheRestVisiblyUnread() throws Exception {
-        this.url = "https://www.stellwerk-pflege.de/datenschutz/";
+        this.url = "https://www.beispiel-referenzen.de/datenschutz/";
         addPage(LlmLongPageTest.page());
         settleLlm();
         assertEquals("1:" + LlmQueue.TEXT_CUT, llmStatus(PAGE));

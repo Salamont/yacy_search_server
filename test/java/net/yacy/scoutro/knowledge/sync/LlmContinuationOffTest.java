@@ -22,7 +22,7 @@ public class LlmContinuationOffTest extends LlmFixture {
 
     @Test
     public void theFirstReadingEndsTheWorkAndMarksTheCut() throws Exception {
-        add(PAGE, "https://www.stellwerk-pflege.de/referenzen/projekt-beispiele/", "c1", LD.replace("muster-pflege", "stellwerk-pflege"),
+        add(PAGE, "https://www.beispiel-referenzen.de/referenzen/projekt-beispiele/", "c1", LD.replace("muster-pflege", "beispiel-referenzen"),
                 LlmLongPageTest.page(), "Projekt-Beispiele");
         settleSync();
         settleLlm();

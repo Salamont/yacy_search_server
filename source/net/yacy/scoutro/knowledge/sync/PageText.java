@@ -28,7 +28,7 @@ import java.util.Set;
  * The page text the LLM tier reads (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 27.4). For a page longer than the tier's input,
  * blocks of navigation that recur on the other pages of the same host (a site menu, a footer) are moved behind the
  * page's own content, so the first characters of the input are the page's content instead of the same menu again
- * (www.pta.de: a menu of 4,166 characters before every page's text). Nothing is removed: every line stays, verbatim,
+ * (for example a site menu of about 4,200 characters before every page's text). Nothing is removed: every line stays, verbatim,
  * and a block is read where the input reaches it. A page that fits the input is read unchanged.
  * <p>
  * A line recurs if it occurs (compared without case, Markdown marks and repeated spaces) on at least two of the
