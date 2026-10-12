@@ -523,7 +523,11 @@ public final class BusinessRules {
         return out;
     }
 
-    /** The organisations of a list after a marker; the list ends after three items that are no names. */
+    /**
+     * The organisations of a list after a marker; the list ends with its sentence (0.10.4: "Unsere Partner: A GmbH und B AG. Muster
+     * GmbH, Musterstraße 1" named the operator of the imprint a partner of itself), on a line that names no organisation, or after
+     * three items that are no names. A list on lines goes on.
+     */
     private static List<int[]> names(final String text, final int from, final int to) {
         final List<int[]> out = new ArrayList<>();
         final Matcher sp = ITEM_SPLIT.matcher(text).region(from, to);
@@ -534,17 +538,20 @@ public final class BusinessRules {
             final int stop;
             final int next;
             final boolean sentence;
+            final boolean fullStop;
             if (sp.find()) {
                 stop = sp.start();
                 next = sp.end();
                 final String sep = sp.group().trim();
-                sentence = sep.startsWith(".") || sp.group().indexOf('\n') >= 0;
+                fullStop = sep.startsWith(".") && !ABBREVIATED_FORM.matcher(text.substring(start, stop)).find();
+                sentence = fullStop || sp.group().indexOf('\n') >= 0;
             } else {
                 stop = to;
                 next = to;
                 sentence = false;
+                fullStop = false;
             }
-            String item = text.substring(start, stop).trim();
+            String item = LEADING_JOIN.matcher(text.substring(start, stop).trim()).replaceFirst("");
             if (afterSentence && SENTENCE_START.matcher(item).find()) {
                 break; // a new sentence ("Die ... GmbH ist ..."), not a list item
             }
@@ -576,11 +583,20 @@ public final class BusinessRules {
                     }
                 }
             }
+            if (fullStop) {
+                break; // the sentence of the list has ended; the next one names no item of it
+            }
             afterSentence = sentence;
             start = next;
         }
         return out;
     }
+
+    /** "und Gamma GmbH" after "Beta Ltd.": the joining word is no part of the name. */
+    private static final Pattern LEADING_JOIN = Pattern.compile("^(?:und|sowie|and|&)\\s+");
+
+    /** A legal form abbreviated with a full stop ("Alpha Inc. und Beta GmbH"): its full stop ends no sentence. */
+    private static final Pattern ABBREVIATED_FORM = Pattern.compile("(?<![\\p{L}\\p{N}])(?:Inc|Ltd|Corp|S\\.A|B\\.V|N\\.V|e\\.\\s?K)\\s*$");
 
     /** Lower-case words to the end of the item, without any capitalised word: a predicate, not part of a name. */
     private static final Pattern PREDICATE_TAIL = Pattern.compile("(?<=\\S)\\s+\\p{Ll}[\\p{Ll}\\-]*(?:\\s+\\p{Ll}[\\p{Ll}\\-]*)*\\s*[.!]?$");

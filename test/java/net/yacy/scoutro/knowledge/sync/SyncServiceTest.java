@@ -1017,6 +1017,24 @@ public class SyncServiceTest {
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '2'"));
+        // a graph of 0.10.3: checked with the rules before (no version row); the rules of 0.10.4 check the page once more
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.deleteMeta(tx, "relation_recheck_rules");
+            return null;
+        });
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals("the page with relations of the rule tier once more", 1L, this.sync.counters.extractions.get());
+        assertEquals(a, hash("AAAAAAhost02"));
+        assertEquals(2L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(2L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
     }
 
     @Test
