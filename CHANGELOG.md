@@ -4,6 +4,20 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+- HTML parser: a single stray quote or `<` no longer drops all text after
+  it from the indexed text (`text_t`). A quote opens an attribute value only
+  after `=` (`alt=Peter's` and `'Peter\'s'` end their tag); a `<` not
+  followed by a letter, `/`, `!` or `?` is text (`a < b`, `3<5`); the
+  content of `<script>` and `<style>` is read as raw text up to its end tag,
+  so `<`, quotes or a `// don't` comment in code no longer swallow the page
+  text after it, and a JSON-LD block with a `<` in a string is captured
+  intact. Script code is no longer part of the text of an enclosing link or
+  heading. `&lt;` and `&gt;` in text are decoded after the tags are
+  stripped, so they no longer cut the rest of the text. What is crawled and
+  fetched is unchanged.
+  Pages already indexed benefit after their next recrawl; no recrawl is
+  triggered.
+
 - Knowledge graph, LLM tier (follow-up of the 0.10.0 coverage analysis,
   docs/SCOUTRO_KNOWLEDGE_GRAPH.md 27): a queue item is never dropped while
   its page is still to do (a page left unconfirmed is retried with a backoff

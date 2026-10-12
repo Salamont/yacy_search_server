@@ -28,6 +28,7 @@ import net.yacy.document.VocabularyScraper;
 import net.yacy.document.parser.html.ContentScraper;
 import net.yacy.document.parser.html.ImageEntry;
 import net.yacy.document.parser.html.TagValency;
+import net.yacy.scoutro.knowledge.sync.JsonLdCapture;
 
 public class htmlParserTest {
 
@@ -547,5 +548,144 @@ public class htmlParserTest {
         assertFalse(txt.contains("@click"));
         assertFalse(txt.contains("lightboxPrev"));
         assertFalse(txt.contains("imgModalItems.length"));
+    }
+
+    /**
+     * Parse like the crawler does: htmlParser.parse, whose document text is
+     * indexed as text_t.
+     */
+    private static Document parseLikeCrawler(final String html) throws Exception {
+        try (final InputStream sourceStream = new ByteArrayInputStream(html.getBytes(StandardCharsets.UTF_8))) {
+            return new htmlParser().parse(new AnchorURL("http://example.org/page.html"), "text/html",
+                    StandardCharsets.UTF_8.name(), TagValency.EVAL, new HashSet<String>(), new VocabularyScraper(), 0,
+                    sourceStream)[0];
+        }
+    }
+
+    private static String page(final String head, final String body) {
+        return "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Example page</title>" + head
+                + "</head><body>" + body + "<p>Last paragraph of the page.</p></body></html>";
+    }
+
+    /**
+     * A quoted attribute value without its closing quote runs to the next quote
+     * (as in browsers), but the text after that must not be lost.
+     */
+    @Test
+    public void testParseAttributeWithMissingClosingQuote() throws Exception {
+        final String text = parseLikeCrawler(page("", "<p>Paragraph before the link.</p>"
+                + "<a href=\"/contact>Contact us</a><p>Swallowed by the attribute value.</p>"
+                + "<ul><li><a href=\"/next\">Next page</a></li></ul>"
+                + "<p>Paragraph after the missing quote.</p>")).getTextString();
+        assertTrue(text, text.contains("Paragraph before the link"));
+        assertTrue(text, text.contains("Next page"));
+        assertTrue(text, text.contains("Paragraph after the missing quote"));
+        assertTrue(text, text.contains("Last paragraph of the page"));
+    }
+
+    /** An apostrophe in an unquoted attribute value is no quote. */
+    @Test
+    public void testParseUnquotedAttributeWithApostrophe() throws Exception {
+        final String text = parseLikeCrawler(page("", "<p>Paragraph before the image.</p>"
+                + "<img alt=Peter's src=photo.jpg>"
+                + "<p>Paragraph after the apostrophe.</p>")).getTextString();
+        assertTrue(text, text.contains("Paragraph after the apostrophe"));
+        assertTrue(text, text.contains("Last paragraph of the page"));
+    }
+
+    /** A backslash does not escape a quote in HTML: 'Peter\'s' ends after the backslash. */
+    @Test
+    public void testParseBackslashEscapedApostropheInAttribute() throws Exception {
+        final String text = parseLikeCrawler(page("", "<p>Paragraph before the box.</p>"
+                + "<div data-title='Peter\\'s choice'>Text inside the box.</div>"
+                + "<p>Paragraph after the escaped apostrophe.</p>")).getTextString();
+        assertTrue(text, text.contains("Text inside the box"));
+        assertTrue(text, text.contains("Paragraph after the escaped apostrophe"));
+        assertTrue(text, text.contains("Last paragraph of the page"));
+    }
+
+    /** A '<' that starts no tag is text, also when an apostrophe follows later. */
+    @Test
+    public void testParseLessThanInTextFollowedByApostrophe() throws Exception {
+        final String text = parseLikeCrawler(page("", "<p>Paragraph before the prices.</p>"
+                + "<p>Prices from < 100 EUR, it's cheap.</p>"
+                + "<p>Paragraph after the less-than sign.</p>"
+                + "<p>As 3<5 holds, we are done.</p>")).getTextString();
+        assertTrue(text, text.contains("Paragraph after the less-than sign"));
+        assertTrue(text, text.contains("Prices from < 100 EUR, it's cheap"));
+        assertTrue(text, text.contains("As 3<5 holds, we are done"));
+        assertTrue(text, text.contains("Last paragraph of the page"));
+    }
+
+    /**
+     * Script code is raw text up to its end tag: neither '<' nor an unbalanced or
+     * escaped quote nor a "// don't" comment in it may swallow the text after it.
+     */
+    @Test
+    public void testParseInlineScriptWithLessThanAndQuotes() throws Exception {
+        final String text = parseLikeCrawler(page("", "<p>Paragraph before the scripts.</p>"
+                + "<script>if (a < b) { msg = 'don\\'t'; }</script>"
+                + "<p>Paragraph after the first script.</p>"
+                + "<script>if (x<0) { // don't go below zero\n x = 0; }</script>"
+                + "<p>Paragraph after the second script.</p>"
+                + "<script type=\"text/javascript\">var s = \"it's <b>\" + '</p>'; if (n<2) { t = '\\''; }</SCRIPT >"
+                + "<p>Paragraph after the third script.</p>")).getTextString();
+        assertTrue(text, text.contains("Paragraph after the first script"));
+        assertTrue(text, text.contains("Paragraph after the second script"));
+        assertTrue(text, text.contains("Paragraph after the third script"));
+        assertTrue(text, text.contains("Last paragraph of the page"));
+        assertFalse("script code is no text: " + text, text.contains("msg"));
+        assertFalse("script code is no text: " + text, text.contains("below zero"));
+        assertFalse("script code is no text: " + text, text.contains("var s"));
+    }
+
+    /** Script code inside a link is no link text, even when it holds a bare '<'. */
+    @Test
+    public void testParseScriptCodeIsNoAnchorText() throws Exception {
+        final ContentScraper scraper = parseToScraper(new AnchorURL("http://example.org/"), StandardCharsets.UTF_8.name(),
+                TagValency.EVAL, new HashSet<String>(), new VocabularyScraper(), 0,
+                "<html><body><a href=\"/next\"><script>if (a<b) show();</script>Link text</a><p>After the link.</p></body></html>",
+                10, 10);
+        assertEquals(1, scraper.getAnchors().size());
+        assertEquals("Link text", scraper.getAnchors().get(0).getTextProperty());
+        assertTrue(scraper.getText(), scraper.getText().contains("After the link"));
+    }
+
+    /**
+     * A '<' inside a JSON-LD string must neither swallow the page text nor cut the
+     * captured JSON-LD block.
+     */
+    @Test
+    public void testParseJsonLdWithLessThanInString() throws Exception {
+        final String ld = "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Example Org\","
+                + "\"description\":\"<b>Fair</b> prices < 100 EUR for \\\"members\\\" and more\"}";
+        JsonLdCapture.activate(8, 64 * 1024, true, Set.of());
+        try {
+            final Document doc = parseLikeCrawler(page("<script type=\"application/ld+json\">" + ld + "</script>",
+                    "<h1>Welcome</h1><p>Paragraph after the JSON-LD block.</p>"));
+            final String text = doc.getTextString();
+            assertTrue(text, text.contains("Welcome"));
+            assertTrue(text, text.contains("Paragraph after the JSON-LD block"));
+            assertTrue(text, text.contains("Last paragraph of the page"));
+            assertFalse("JSON-LD is no text: " + text, text.contains("members"));
+            final JsonLdCapture.Blocks blocks = ((ContentScraper) doc.getScraperObject()).getLdJsonBlocks();
+            assertNotNull(blocks);
+            assertEquals("the JSON-LD block is captured intact", List.of(ld), blocks.list());
+        } finally {
+            JsonLdCapture.clear();
+        }
+    }
+
+    /** An encoded '<' in text is decoded after the tags are stripped, so it cannot cut the text. */
+    @Test
+    public void testParseLtEntityInText() throws Exception {
+        final String text = parseLikeCrawler(page("", "<p>Paragraph before the entity.</p>"
+                + "<p>Price &lt; 100 EUR, members pay less.</p>"
+                + "<p>Since 5 &gt; 3 &amp; 2 &lt; 3, all is well.</p>"
+                + "<p>Paragraph after the entity.</p>")).getTextString();
+        assertTrue(text, text.contains("Price < 100 EUR, members pay less"));
+        assertTrue(text, text.contains("Since 5 > 3 & 2 < 3, all is well"));
+        assertTrue(text, text.contains("Paragraph after the entity"));
+        assertTrue(text, text.contains("Last paragraph of the page"));
     }
 }

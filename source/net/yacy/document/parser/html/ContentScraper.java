@@ -440,8 +440,8 @@ public class ContentScraper extends AbstractScraper implements Scraper {
             }
             break location;
         }
-        // find tags inside text
-        String b = cleanLine(stripAllTags(newtext));
+        // find tags inside text; decode entities only afterwards, as a decoded "&lt;" would cut the text like a tag
+        String b = cleanLine(CharacterCoding.html2unicode(stripAllTags(newtext0)));
         if ((insideTag != null) && (insideTag.tagType != TagType.a)) {
             // texts inside tags sometimes have no punctuation at the line end
             // this is bad for the text semantics, because it is not possible for the
