@@ -127,6 +127,11 @@ with tempfile.TemporaryDirectory(prefix="scoutro-dashboard-") as temporary:
                 preview = call("POST", "collections/reassign", move)
                 assert preview[0] == 200 and preview[1].get("token"), preview
                 assert call("POST", "collections/reassign", {**move, "confirm": preview[1]["token"]})[0] == 200
+            # the catalog keeps the page counts of the index for ten seconds
+            deadline = time.monotonic() + 30
+            while {c["id"]: c for c in call("GET", "collections")[1]["collections"]}.get("test-web", {}).get("documents") != 6:
+                assert time.monotonic() < deadline, "test-web has its six pages in the catalog"
+                time.sleep(1)
             # "+" and "−" of the collection list (administrator): the browser flow changes only its own collection
             index = digests(root / "DATA/INDEX/webportal/SEGMENTS")
             subprocess.run(["node", str(REPO / "test/scoutro-ui/dashboard-collections-ui-test.mjs"), "--screenshots", shots], cwd=REPO, env=env, check=True)
