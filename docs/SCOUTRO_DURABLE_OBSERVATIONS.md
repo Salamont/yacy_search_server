@@ -177,6 +177,13 @@ freezes the legacy opt-in. Direct config edits should set all desired policies
 explicitly. Only extraction changes require re-extraction; off deletes no
 knowledge and changes no permission. Matching policy prepares future C consumers.
 
+0.10.2 adds jobsSignals (scoutro.kg.jobs.signals.<collection>, or the list
+scoutro.kg.jobs.signals.collections; unset = on): software hints of job
+advertisements for their declared employer, independent of job objects and of
+the display. It is no part of the extraction identity; a change answers
+recheckJobs and re-reads only the job pages of that collection (see
+SCOUTRO_KNOWLEDGE_GRAPH.md, section 29.3).
+
 ## Concrete upgrade and rollback
 
 1. Keep an external peer data/config backup before deploying. Plan archive

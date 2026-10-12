@@ -84,6 +84,12 @@ public final class Reconciler {
     public static final String REASON_UNCLEAN_START = "unclean_start";
     public static final String REASON_COLLECTIONS = "collections_changed";
     public static final String REASON_EXTRACTORS = "extractor_changed";
+    /**
+     * kg_meta: the collections whose job reading changed (0.10.2, {@code scoutro.kg.jobs.signals}) and whose pages the next
+     * completed run still has to check again (comma-separated). The run keeps its own reason; the input hash decides, so only
+     * their job pages are extracted again (SolrDoc.jobComponent), the others keep their result.
+     */
+    public static final String META_JOB_RECHECK = "job_recheck";
     public static final String REASON_QUERY_DELETE = "query_delete";
     public static final String REASON_OVERFLOW = "overflow";
     public static final String REASON_QUEUE_FULL = "queue_full";
@@ -119,6 +125,8 @@ public final class Reconciler {
         String cursor;
         long startedAt;
         String reason;
+        /** The collections whose pages this run checks again for their job reading ({@link #META_JOB_RECHECK}). */
+        java.util.Set<String> jobs = java.util.Set.of();
         long scanned;
         long enqueued;
         long candidates;
@@ -156,6 +164,8 @@ public final class Reconciler {
     private long dueAt;
     private boolean debounced;
     private boolean reextract;
+    /** Collections of a pending job reading check (guarded by {@code lock}); empty: none. */
+    private java.util.Set<String> jobRecheck = java.util.Set.of();
     private long dailyRequestedFor;
 
     // run state: changed only by the sync thread, read by the status
@@ -257,6 +267,15 @@ public final class Reconciler {
     void reextractAll() {
         synchronized (this.lock) {
             this.reextract = true;
+        }
+    }
+
+    /** Checks the pages of these collections again with the next run (their job pages get a new input hash). */
+    void recheckJobs(final java.util.Collection<String> collections) {
+        synchronized (this.lock) {
+            final java.util.Set<String> s = new java.util.TreeSet<>(this.jobRecheck);
+            s.addAll(collections);
+            this.jobRecheck = java.util.Collections.unmodifiableSet(s);
         }
     }
 
@@ -417,9 +436,11 @@ public final class Reconciler {
     private void create(final long now) throws KgException {
         final String reason;
         final boolean all;
+        final java.util.Set<String> jobs;
         synchronized (this.lock) {
             reason = this.pendingReason;
             all = this.reextract;
+            jobs = this.jobRecheck;
         }
         final Run r = this.store.write(WriteClass.MAINTENANCE, ESTIMATE, tx -> {
             final long tracked = KgStore.queryLong(tx, "SELECT count(*) FROM kg_doc");
@@ -429,6 +450,7 @@ public final class Reconciler {
             n.phase = PHASE_SCAN;
             n.startedAt = now;
             n.reason = all ? REASON_EXTRACTORS : reason;
+            n.jobs = jobs;
             try (PreparedStatement ps = tx.prepareStatement("INSERT INTO kg_scan (kind, state, started_at, phase, reason) VALUES (?, ?, ?, ?, ?)")) {
                 ps.setInt(1, n.kind);
                 ps.setInt(2, n.state);
@@ -528,6 +550,8 @@ public final class Reconciler {
                 enqueue.add(d.id);
             } else if (REASON_EXTRACTORS.equals(r.reason)) {
                 reextract.add(d.id);
+            } else if (!r.jobs.isEmpty() && !java.util.Collections.disjoint(d.collections, r.jobs)) {
+                reextract.add(d.id); // processed again: the input hash decides (only job pages changed it)
             }
         }
         for (final Map.Entry<String, Tracked> e : graph.entrySet()) {
@@ -724,6 +748,9 @@ public final class Reconciler {
             }
             KgStore.putMeta(tx, KgSchema.META_RECONCILE_LAST_COMPLETED, Long.toString(now));
             KgStore.putMeta(tx, KgSchema.META_RECONCILE_REQUIRED, "0");
+            if (!r.jobs.isEmpty() || REASON_EXTRACTORS.equals(r.reason)) {
+                KgStore.deleteMeta(tx, META_JOB_RECHECK);
+            }
             try (PreparedStatement ps = tx.prepareStatement("DELETE FROM kg_scan WHERE run_id NOT IN"
                     + " (SELECT run_id FROM kg_scan ORDER BY run_id DESC LIMIT " + KEEP_RUNS + ")")) {
                 ps.executeUpdate();
@@ -743,6 +770,11 @@ public final class Reconciler {
             }
             if (REASON_EXTRACTORS.equals(r.reason)) {
                 this.reextract = false;
+            }
+            if (!r.jobs.isEmpty() || REASON_EXTRACTORS.equals(r.reason)) {
+                final java.util.Set<String> left = new java.util.TreeSet<>(this.jobRecheck);
+                left.removeAll(r.jobs);
+                this.jobRecheck = REASON_EXTRACTORS.equals(r.reason) ? java.util.Set.of() : java.util.Collections.unmodifiableSet(left);
             }
         }
         if (r.dropped > 0L) {
@@ -975,13 +1007,16 @@ public final class Reconciler {
         final String reason;
         final long due;
         final boolean all;
+        final java.util.Set<String> jobs;
         synchronized (this.lock) {
             p = this.pending;
             reason = this.pendingReason;
             due = this.dueAt;
             all = this.reextract;
+            jobs = this.jobRecheck;
         }
         return KgJson.obj("pending", p, "reason", p ? reason : null, "dueAt", p ? due : null, "reextract", all,
+                "jobRecheck", new org.json.JSONArray(jobs),
                 "current", r == null ? null : r.json(), "retryAt", r != null && r.state == STATE_ABORTED ? this.retryAt : null,
                 "awaitingConfirmation", r != null && r.state == STATE_SUSPECT,
                 "last", this.lastRun, "lastCompletedAt", this.lastCompletedAt > 0L ? this.lastCompletedAt : null,

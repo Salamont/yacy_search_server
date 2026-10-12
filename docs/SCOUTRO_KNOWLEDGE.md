@@ -60,7 +60,8 @@ Scoutro:
 | `scoutro.kg.collections` | e.g. `my-portal-web,example-care`, or `*` for all | The collections the graph follows; nothing outside them is read. Also under *Knowledge graph → Settings*, per collection ([5.4](#54-collections-o5)) |
 | `scoutro.kg.jsonld.enabled` | `true` | Captures `<script type="application/ld+json">` while crawling. Without it, tier 1 only has metadata, and only pages crawled after the switch carry JSON-LD |
 | `scoutro.kg.llm.collections` | optional, e.g. `my-portal-web` | The optional LLM tier ([5.3](#53-the-optional-llm-tier)) |
-| `scoutro.kg.jobs.collections` | optional, e.g. `my-portal-web,example-care` | Job postings ([4.4](#44-business-facts-vocabulary-2)); off by default |
+| `scoutro.kg.jobs.collections` | optional, e.g. `my-portal-web,example-care` | Job postings as objects ([4.4](#44-business-facts-vocabulary-2)); off by default |
+| `scoutro.kg.jobs.signals.<collection>` | optional, `false` to switch off | Software hints of job advertisements for their declared employer, also without job objects; on unless switched off (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, section 29.3) |
 
 Further settings of the business facts (defaults in brackets):
 - `scoutro.kg.vocab.<collection>`: the business vocabulary (profile) of a
@@ -371,9 +372,11 @@ A changed vocabulary re-extracts the pages at low priority.
     identity and the LLM cache keys stay the same, no page is read again;
     a new installation gets nothing of it (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
     section 28).
-  - Jobs are read only for collections named in
+  - Job objects are read only for collections named in
     `scoutro.kg.jobs.collections` (or `*`). A new collection never gets them
-    by itself.
+    by itself. The software hints of job advertisements are read for every
+    followed collection unless `scoutro.kg.jobs.signals.<collection>=false`
+    (0.10.2; a change re-reads only the job pages of that collection).
 - **Switching collections on and off (package 6.2).** *Knowledge graph →
   Settings* lists every collection of the collection catalog (a new one by
   itself; YaCy's internal `robot_*` never) with its pages in the index, *On*

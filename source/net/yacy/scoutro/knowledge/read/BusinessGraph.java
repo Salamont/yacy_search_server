@@ -262,6 +262,7 @@ public final class BusinessGraph {
                 services.add(n);
             }
         }
+        this.view.ensureCollections(c);
         for (final Map.Entry<String, Long> s : services) {
             final List<BusinessView.Fact> facts = this.view.facts(c, s.getValue(), false, List.of(Vocabulary.PRICE), v, now, 50);
             final JSONArray items = this.view.priceItems(facts, s.getKey(), nodes.get(s.getKey()).optString("label", null), null, now,
@@ -484,6 +485,7 @@ public final class BusinessGraph {
                 }
             }
             final boolean truncated = services.size() > limit;
+            this.view.ensureCollections(c); // the price age of the collections, as in the business view
             final java.util.Set<Long> providerRows = new java.util.LinkedHashSet<>();
             for (final long s : services.subList(0, Math.min(limit, services.size()))) {
                 final List<BusinessView.Fact> facts = this.view.facts(c, s, false, List.of(Vocabulary.NAME, Vocabulary.PRICE), v, now, 200);
@@ -646,11 +648,21 @@ public final class BusinessGraph {
 
     /** The filter values the viewer's graph holds: industries, service categories, audiences, places; with entity counts. */
     public JSONObject facets(final Viewer v) throws KgException {
+        return facets(v, true);
+    }
+
+    /**
+     * The filter values the viewer's graph holds and the vocabulary profile of each of the viewer's collections (a
+     * category exists only where a profile is given, docs/SCOUTRO_KNOWLEDGE_GRAPH.md 28). With {@code counts} also the
+     * entity, price and derived counts; the derived counts run in their own read, so a slow projection never costs the
+     * filter values (they are null then, with {@code derived_error}). The page's selects ask without counts.
+     */
+    public JSONObject facets(final Viewer v, final boolean counts) throws KgException {
         final long now = this.reader.now();
         final Categories cats = KgVocabularies.get().categories;
         final Nace nace = KgVocabularies.get().nace;
-        return this.reader.store().read(c -> {
-            final JSONObject out = KgJson.obj("schema", BusinessView.SCHEMA);
+        final JSONObject out = this.reader.store().read(c -> {
+            final JSONObject o = KgJson.obj("schema", BusinessView.SCHEMA);
             for (final String[] f : new String[][] {{"industries", Vocabulary.INDUSTRY}, {"categories", Vocabulary.CATEGORY},
                 {"customer_types", Vocabulary.CUSTOMER_TYPE}, {"segments", Vocabulary.AUDIENCE_SEGMENT},
                 {"target_industries", Vocabulary.TARGET_INDUSTRY}, {"employment_types", Vocabulary.EMPLOYMENT_TYPE}}) {
@@ -674,22 +686,61 @@ public final class BusinessGraph {
                         }
                     }
                 }
-                KgJson.put(out, f[0], items);
+                KgJson.put(o, f[0], items);
             }
-            final JSONObject counts = new JSONObject();
-            for (final String[] f : new String[][] {{"jobs", "job"}, {"services", "service"}}) {
-                KgJson.put(counts, f[0], net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(*) FROM kg_entity e JOIN kg_vocab t"
-                        + " ON t.term_id = e.type WHERE t.name = '" + f[1] + "' AND " + KgReader.visibleEntity(v, "e")));
+            KgJson.put(o, "profiles", profiles(c, v, cats));
+            if (counts) {
+                final JSONObject n = new JSONObject();
+                for (final String[] f : new String[][] {{"jobs", "job"}, {"services", "service"}}) {
+                    KgJson.put(n, f[0], net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(*) FROM kg_entity e JOIN kg_vocab t"
+                            + " ON t.term_id = e.type WHERE t.name = '" + f[1] + "' AND " + KgReader.visibleEntity(v, "e")));
+                }
+                KgJson.put(n, "prices", net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(*) FROM kg_statement s JOIN kg_vocab v"
+                        + " ON v.term_id = s.pred WHERE v.name = 'price' AND " + KgReader.visibleStatement(v, "s")));
+                KgJson.put(o, "counts", n);
             }
-            KgJson.put(counts, "prices", net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(*) FROM kg_statement s JOIN kg_vocab v"
-                    + " ON v.term_id = s.pred WHERE v.name = 'price' AND " + KgReader.visibleStatement(v, "s")));
-            final JSONObject derived = new JSONObject();
-            final Map<String,Integer> totals=new LinkedHashMap<>();
-            for(JSONObject item:projectedDerived(c,null,null,v))totals.merge(item.optString("kind"),1,Integer::sum);
-            for(Map.Entry<String,Integer> e:totals.entrySet())KgJson.put(derived,e.getKey(),e.getValue());
-            KgJson.put(counts, "derived", derived);
-            KgJson.put(out, "counts", counts);
-            return out;
+            return o;
         });
+        if (counts) {
+            final JSONObject n = out.optJSONObject("counts");
+            try {
+                final JSONObject derived = this.reader.store().read(c -> {
+                    final JSONObject d = new JSONObject();
+                    final Map<String, Integer> totals = new LinkedHashMap<>();
+                    for (final JSONObject item : projectedDerived(c, null, null, v)) {
+                        totals.merge(item.optString("kind"), 1, Integer::sum);
+                    }
+                    for (final Map.Entry<String, Integer> e : totals.entrySet()) {
+                        KgJson.put(d, e.getKey(), e.getValue());
+                    }
+                    return d;
+                });
+                KgJson.put(n, "derived", derived);
+            } catch (final KgException e) {
+                KgJson.put(n, "derived", null);
+                KgJson.put(n, "derived_error", e.code());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * The vocabulary profile of each collection the viewer sees: the vocabulary in force and its source
+     * ({@code setting}, {@code vocabulary_files}, {@code none}). Never guessed from a name.
+     */
+    private JSONArray profiles(final Connection c, final Viewer v, final Categories cats) throws SQLException {
+        final net.yacy.scoutro.knowledge.KgConfig cfg = this.reader.config();
+        final JSONArray out = new JSONArray();
+        try (PreparedStatement ps = c.prepareStatement("SELECT name FROM kg_collection" + (v.all() ? "" : " WHERE coll_id IN ("
+                + BusinessView.ids(v) + ")") + " ORDER BY name"); ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                final String name = rs.getString(1);
+                final String setting = cfg.vocabOverrides.get(name);
+                final String vocabulary = cfg.vocabularyOf(name, cats.collections);
+                out.put(KgJson.obj("collection", name, "vocabulary", vocabulary, "source", setting != null ? "setting"
+                        : cats.collections.containsKey(name) ? "vocabulary_files" : "none"));
+            }
+        }
+        return out;
     }
 }

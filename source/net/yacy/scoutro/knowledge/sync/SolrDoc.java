@@ -94,10 +94,13 @@ public final class SolrDoc {
     }
 
     private static volatile String extractionKey = "";
+    /** The configuration whose job reading enters the input hash of job pages ({@link #jobComponent}); null: none (tests). */
+    private static volatile KgConfig jobs;
 
     /** The configuration's part of the extractor identity (vocabulary per collection, jobs), set by the sync at start. */
     public static void configure(final KgConfig cfg) {
         extractionKey = key(cfg);
+        jobs = cfg;
     }
 
     private static String key(final KgConfig cfg) {
@@ -273,7 +276,40 @@ public final class SolrDoc {
         final MessageDigest md = sha256();
         update(md, extractors);
         content(md, !EXTRACTORS_V1.equals(extractors));
+        final String job = jobComponent(jobs);
+        if (job != null) {
+            update(md, job);
+        }
         return Arrays.copyOf(md.digest(), 16);
+    }
+
+    /**
+     * The job reading of a job page in the input hash (0.10.2), only where it differs from what the extractor identity says
+     * (job objects with their hints where they are extracted, nothing elsewhere): the software hints of job advertisements
+     * without job objects, or job objects without hints. A changed hint policy therefore changes the hash of the job pages of
+     * the collections concerned and of nothing else; with the former behaviour every hash stays as it was.
+     */
+    String jobComponent(final KgConfig cfg) {
+        if (cfg == null || !jobPage()) {
+            return null;
+        }
+        final List<String> followed = followed(cfg);
+        final boolean objects = cfg.jobsFor(followed), hints = cfg.jobSignalsFor(followed);
+        return objects == hints ? null : objects ? "jobs:objects" : "jobs:signals";
+    }
+
+    /** A page that may hold job advertisements: a careers page by its address or title, or JSON-LD that names a JobPosting. */
+    boolean jobPage() {
+        if (net.yacy.scoutro.knowledge.extract.BusinessRules.kinds(this.url, this.titles)
+                .contains(net.yacy.scoutro.knowledge.extract.BusinessRules.PageKind.CAREERS)) {
+            return true;
+        }
+        for (final String b : this.ldJson) {
+            if (b != null && b.toLowerCase(java.util.Locale.ROOT).contains("jobposting")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

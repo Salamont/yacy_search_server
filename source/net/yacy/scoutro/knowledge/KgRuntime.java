@@ -1627,7 +1627,8 @@ public final class KgRuntime {
                     : documents != null && documents == 0L ? "waiting" : "following";
             out.put(KgJson.obj("collection", c, "followed", followed, "inactive", inactive, "vocabulary", vocabulary, "vocabularySource",
                     setting != null ? "setting" : v.categories.collections.containsKey(c) ? "vocabulary_files" : "none", "vocabularyKnown", known,
-                    "jobs", followed && this.config.jobsShown(c), "llm", this.config.llmFollows(c), "documents", documents, "state", state));
+                    "jobs", followed && this.config.jobsShown(c), "jobSignals", followed && this.config.jobSignalsRead(c), "llm",
+                    this.config.llmFollows(c), "documents", documents, "state", state));
         }
         return out;
     }

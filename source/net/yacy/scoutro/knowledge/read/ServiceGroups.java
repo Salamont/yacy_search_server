@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -72,10 +73,20 @@ public final class ServiceGroups {
     static final String NETWORK_NOTE = "the centre is the service name only, no object: every line is one provider's own offers statement to"
             + " its own service (field service); services, prices, sources and facts of different providers are never merged or mixed";
 
+    /** Services whose prices one price list reads at most (narrow it by a service name or a category). */
+    static final int MAX_PRICE_SERVICES = 2000;
+    /** The price lists a reader can ask for: by the status every price list shows ({@code outdated} = stale or expired). */
+    public static final Set<String> PRICE_STATUSES = Set.of("current", "conflicting", "outdated", "uncertain", "all");
+    static final String PRICES_NOTE = "one row per published price of one provider's service, exactly as published (amount, currency, unit,"
+            + " conditions, date); never converted, averaged or mixed across providers; current = supported, confirmed by a current page,"
+            + " not expired, within the collection's price age and in no conflict";
+
     private final KgReader reader;
+    private final BusinessView view;
 
     public ServiceGroups(final KgReader reader) {
         this.reader = reader;
+        this.view = new BusinessView(reader);
     }
 
     /** The visible name statements of visible services, optionally matching a text and of a category. */
@@ -350,24 +361,177 @@ public final class ServiceGroups {
                 places.put(KgJson.obj("name", rs.getString(1), "providers", rs.getLong(2)));
             }
         }
-        final long withPrice = net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(DISTINCT s.subj) FROM kg_statement s"
-                + " JOIN kg_vocab v ON v.term_id = s.pred WHERE v.kind = 2 AND v.name = 'price' AND s.subj IN (" + in + ") AND "
-                + KgReader.visibleStatement(v, "s") + " AND " + this.reader.currentStatement(v, "s", now));
+        // the same status as every price list and the price drilldown (services/prices): a current price, not a fresh page alone
+        long withPrice = 0L;
+        long withAnyPrice = 0L;
+        for (final JSONArray items : prices(c, services, v, now).values()) {
+            withAnyPrice++;
+            if (count(items, "current") > 0) {
+                withPrice++;
+            }
+        }
         final long current = net.yacy.scoutro.knowledge.store.KgStore.queryLong(c, "SELECT count(DISTINCT s.subj) FROM kg_statement s"
                 + " WHERE s.subj IN (" + in + ") AND " + KgReader.visibleStatement(v, "s") + " AND " + this.reader.currentStatement(v, "s", now));
         return KgJson.obj("key", key, "name", name, "services", services.size(), "providers", providers, "without_provider", withoutProvider,
-                "collections", collections, "places", places, "with_price", withPrice, "with_current_source", current, "truncated",
+                "collections", collections, "places", places, "with_price", withPrice, "with_any_price", withAnyPrice, "with_current_source",
+                current, "truncated",
                 services.size() >= MAX_GROUP_SERVICES);
     }
 
-    /** Visible price statements per service: {current, all}. */
+    /** Prices per service as the price lists show them: {current, all}. */
     private Map<Long, long[]> priceCounts(final Connection c, final List<Long> services, final Viewer v, final long now) throws SQLException {
         final Map<Long, long[]> out = new LinkedHashMap<>();
-        try (PreparedStatement ps = c.prepareStatement("SELECT s.subj, count(*), sum(CASE WHEN " + this.reader.currentStatement(v, "s", now)
-                + " THEN 1 ELSE 0 END) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred WHERE v.kind = 2 AND v.name = 'price' AND s.subj IN ("
-                + EntityContexts.in(services) + ") AND " + KgReader.visibleStatement(v, "s") + " GROUP BY s.subj"); ResultSet rs = ps.executeQuery()) {
+        for (final Map.Entry<Long, JSONArray> e : prices(c, services, v, now).entrySet()) {
+            out.put(e.getKey(), new long[] {count(e.getValue(), "current"), e.getValue().length()});
+        }
+        return out;
+    }
+
+    /** The price items of those services that have a visible price, each with the shared status (BusinessView.servicePrices). */
+    private Map<Long, JSONArray> prices(final Connection c, final List<Long> services, final Viewer v, final long now) throws SQLException {
+        final Map<Long, JSONArray> out = new LinkedHashMap<>();
+        if (services.isEmpty()) {
+            return out;
+        }
+        final List<Long> priced = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement("SELECT DISTINCT s.subj FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred"
+                + " WHERE v.kind = 2 AND v.name = 'price' AND s.subj IN (" + EntityContexts.in(services) + ") AND " + KgReader.visibleStatement(v, "s")
+                + " ORDER BY s.subj"); ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
-                out.put(rs.getLong(1), new long[] {rs.getLong(3), rs.getLong(2)});
+                priced.add(rs.getLong(1));
+            }
+        }
+        for (final Long s : priced) {
+            final JSONArray items = this.view.servicePrices(c, s, KgReader.publicId(c, s), KgReader.visibleName(c, s, v), v, now);
+            if (items.length() > 0) {
+                out.put(s, items);
+            }
+        }
+        return out;
+    }
+
+    private static long count(final JSONArray items, final String status) {
+        long n = 0L;
+        for (int i = 0; i < items.length(); i++) {
+            if (status.equals(bucket(items.optJSONObject(i).optString("status")))) {
+                n++;
+            }
+        }
+        return n;
+    }
+
+    /** The list a price status belongs to: stale and expired are outdated. */
+    static String bucket(final String status) {
+        return "stale".equals(status) || "expired".equals(status) ? "outdated" : status;
+    }
+
+    /**
+     * Published prices one by one (package 0.10.2, the drilldown of "with a current price"): of the services of one name, or of
+     * all the viewer's services with a price when no name is given, optionally of one category. Every row is one price of one
+     * provider's own service, with its providers, value, conditions, dates, status and sources; the status is the one of the
+     * group counts, so the rows of {@code status=current} are exactly the services counted as {@code with_price}. Null if a
+     * name is given and no visible service has it.
+     */
+    public JSONObject prices(final String name, final String category, final String status, final int offset, final int limit,
+            final Viewer v) throws KgException, KgReader.NotFound {
+        final long now = this.reader.now();
+        final String wanted = status == null ? "current" : status;
+        final Object r = this.reader.store().read(c -> {
+            final List<Long> services;
+            JSONObject group = null;
+            if (name != null) {
+                final String key = key(c, name);
+                services = services(c, key, category, v);
+                if (services.isEmpty()) {
+                    return null;
+                }
+                group = summary(c, key, services, v, now);
+            } else {
+                services = pricedServices(c, category, v);
+            }
+            final boolean truncated = name == null ? services.size() > MAX_PRICE_SERVICES : services.size() >= MAX_GROUP_SERVICES;
+            final List<Long> read = name == null && truncated ? services.subList(0, MAX_PRICE_SERVICES) : services;
+            final Map<String, Long> counts = new LinkedHashMap<>();
+            for (final String k : List.of("current", "conflicting", "outdated", "uncertain")) {
+                counts.put(k, 0L);
+            }
+            final java.util.Set<Long> withCurrent = new java.util.HashSet<>();
+            final List<JSONObject> rows = new ArrayList<>();
+            for (final Map.Entry<Long, JSONArray> e : prices(c, read, v, now).entrySet()) {
+                for (int i = 0; i < e.getValue().length(); i++) {
+                    final JSONObject item = e.getValue().optJSONObject(i);
+                    final String b = bucket(item.optString("status"));
+                    counts.merge(b, 1L, Long::sum);
+                    if ("current".equals(b)) {
+                        withCurrent.add(e.getKey());
+                    }
+                    if ("all".equals(wanted) || wanted.equals(b)) {
+                        rows.add(KgJson.obj("price", item, "_row", e.getKey()));
+                    }
+                }
+            }
+            rows.sort(java.util.Comparator.comparing((JSONObject x) -> x.optJSONObject("price").optString("service_name", "")
+                    .toLowerCase(java.util.Locale.ROOT)).thenComparing(x -> x.optJSONObject("price").optString("statement")));
+            final List<JSONObject> page = rows.subList(Math.min(offset, rows.size()), Math.min(rows.size(), offset + limit));
+            final java.util.Set<Long> providerRows = new java.util.LinkedHashSet<>();
+            final JSONArray items = new JSONArray();
+            for (final JSONObject row : page) {
+                final long s = row.optLong("_row");
+                final JSONObject price = row.optJSONObject("price");
+                final String sname = price.optString("service_name", null);
+                final JSONArray providers = new JSONArray();
+                for (final BusinessView.Fact f : this.view.facts(c, s, true, List.of(Vocabulary.OFFERS), v, now, 20)) {
+                    if (BusinessView.visible(c, f.stat.subj, v)) {
+                        final String pname = KgReader.visibleName(c, f.stat.subj, v);
+                        providers.put(DisplayNames.put(KgJson.obj("id", KgReader.publicId(c, f.stat.subj), "name", pname, "_row", f.stat.subj),
+                                DisplayNames.known(c, f.stat.subj, pname, v)));
+                        providerRows.add(f.stat.subj);
+                    }
+                }
+                items.put(KgJson.obj("service", DisplayNames.put(KgJson.obj("id", price.optString("service"), "name", sname),
+                        DisplayNames.known(c, s, sname, v)), "providers", providers, "price", price));
+            }
+            // each provider with the hosts and collections of the viewer's pages (as in compare)
+            final Map<Long, EntityContexts.Ctx> ctx = EntityContexts.of(c, providerRows, v, this.reader, now);
+            for (int i = 0; i < items.length(); i++) {
+                final JSONArray providers = items.optJSONObject(i).optJSONArray("providers");
+                for (int j = 0; j < providers.length(); j++) {
+                    final JSONObject p = providers.optJSONObject(j);
+                    final EntityContexts.Ctx x = ctx.get(p.optLong("_row"));
+                    p.remove("_row");
+                    if (x != null) {
+                        KgJson.put(p, "hosts", new JSONArray(x.hosts));
+                        KgJson.put(p, "collections", new JSONArray(x.collections));
+                    }
+                }
+            }
+            return KgJson.obj("schema", BusinessView.SCHEMA, "group", group, "category", category, "status", wanted, "offset", offset, "limit",
+                    limit, "total", rows.size(), "counts", KgJson.obj("current", counts.get("current"), "conflicting", counts.get("conflicting"),
+                            "outdated", counts.get("outdated"), "uncertain", counts.get("uncertain")), "services_with_current", withCurrent.size(),
+                    "truncated", truncated, "items", items, "note", PRICES_NOTE);
+        });
+        if (r == null) {
+            throw new KgReader.NotFound("service name " + name);
+        }
+        return (JSONObject) r;
+    }
+
+    /** The viewer's visible services with a visible price, optionally of a category, in a stable order (one more than read). */
+    private static List<Long> pricedServices(final Connection c, final String category, final Viewer v) throws SQLException {
+        final List<Long> out = new ArrayList<>();
+        try (PreparedStatement ps = c.prepareStatement("SELECT DISTINCT s.subj FROM kg_statement s JOIN kg_vocab pv ON pv.term_id = s.pred"
+                + " JOIN kg_entity e ON e.ent_rowid = s.subj WHERE pv.kind = 2 AND pv.name = 'price' AND e.type = (SELECT term_id FROM kg_vocab"
+                + " WHERE kind = 1 AND name = 'service') AND " + KgReader.visibleEntity(v, "e") + " AND " + KgReader.visibleStatement(v, "s")
+                + (category != null ? " AND s.subj IN (SELECT k.subj FROM kg_statement k JOIN kg_vocab kv ON kv.term_id = k.pred WHERE kv.kind = 2"
+                        + " AND kv.name = 'category' AND k.obj_val = ? AND " + KgReader.visibleStatement(v, "k") + ")" : "")
+                + " ORDER BY s.subj LIMIT " + (MAX_PRICE_SERVICES + 1))) {
+            if (category != null) {
+                ps.setString(1, category);
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(rs.getLong(1));
+                }
             }
         }
         return out;

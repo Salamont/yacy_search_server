@@ -190,6 +190,83 @@ public final class SyncService {
 
     // ----------------------------------------------------------------- start
 
+    /** kg_meta: how each followed collection reads job advertisements ({@link KgConfig#jobMode}), as JSON, since 0.10.2. */
+    static final String META_JOB_MODES = "job_modes";
+
+    /**
+     * Compares the job reading of the followed collections with the stored one (0.10.2) and returns the collections whose
+     * pages must be checked again, also those of a check that did not complete; empty if none. Without a stored reading
+     * (an upgrade) the former behaviour is the reference: job objects with their hints where jobs are extracted, nothing
+     * elsewhere. Only a different reading checks pages again, and only job pages are extracted again. The reading a
+     * collection was read with stays stored while it is not followed, so switching it on again compares with that one.
+     */
+    private String jobReading(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
+        // the collections of the graph and those the settings name (a reading stored before their first page counts for them)
+        final java.util.Map<String, String> current = new java.util.TreeMap<>();
+        final java.util.Set<String> resting = new java.util.TreeSet<>(); // in the graph, not followed now
+        for (final String c : this.cfg.collections) {
+            if (this.cfg.follows(c)) {
+                current.put(c, this.cfg.jobMode(c));
+            }
+        }
+        try (java.sql.PreparedStatement ps = tx.prepareStatement("SELECT name FROM kg_collection ORDER BY name");
+                java.sql.ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                final String c = rs.getString(1);
+                if (this.cfg.follows(c)) {
+                    current.put(c, this.cfg.jobMode(c));
+                } else {
+                    resting.add(c);
+                }
+            }
+        }
+        final String stored0 = KgStore.getMeta(tx, META_JOB_MODES);
+        // a graph without pages has read nothing yet: its reading starts now (only an upgraded graph compares with the former one)
+        final String stored = stored0 == null && KgStore.queryLong(tx, "SELECT count(*) FROM (SELECT 1 FROM kg_doc LIMIT 1)") == 0L
+                ? "{}" : stored0;
+        org.json.JSONObject before = null;
+        if (stored != null) {
+            try {
+                before = new org.json.JSONObject(stored);
+            } catch (final org.json.JSONException e) {
+                before = null; // unreadable: every collection counts as changed below
+            }
+        }
+        final java.util.Set<String> recheck = new java.util.TreeSet<>();
+        final String pending = KgStore.getMeta(tx, Reconciler.META_JOB_RECHECK);
+        if (pending != null && !pending.isEmpty()) {
+            recheck.addAll(java.util.Arrays.asList(pending.split(",")));
+        }
+        for (final java.util.Map.Entry<String, String> e : current.entrySet()) {
+            final String c = e.getKey();
+            // a collection first seen since the reading was stored was read under this version: nothing to check again
+            final String was = stored == null ? (this.cfg.jobsExtracted(c) ? "full" : "none")
+                    : before == null ? null : before.optString(c, e.getValue());
+            if (!e.getValue().equals(was)) {
+                recheck.add(c);
+            }
+        }
+        recheck.retainAll(current.keySet());
+        final java.util.Map<String, String> keep = new java.util.TreeMap<>(current);
+        for (final String c : resting) {
+            final String was = stored == null ? (this.cfg.jobsExtracted(c) ? "full" : "none") : before == null ? null : before.optString(c, null);
+            if (was != null) {
+                keep.put(c, was);
+            }
+        }
+        KgStore.putMeta(tx, META_JOB_MODES, new org.json.JSONObject(keep).toString());
+        if (recheck.isEmpty()) {
+            KgStore.deleteMeta(tx, Reconciler.META_JOB_RECHECK);
+            return "";
+        }
+        final String list = String.join(",", recheck);
+        if (!list.equals(pending)) {
+            KgStore.event(tx, 1, "job_reading_changed", "pages checked again, only job pages extracted again: " + list, now);
+        }
+        KgStore.putMeta(tx, Reconciler.META_JOB_RECHECK, list);
+        return list;
+    }
+
     /**
      * Start-up work, retried until the guard admits it (e.g. after the
      * integrity check): seeds the vocabulary, releases claims of the last run,
@@ -211,8 +288,9 @@ public final class SyncService {
                 KgStore.putMeta(tx, KgSchema.META_EXTRACTORS, SolrDoc.extractors());
             } // an upgrade without its copy: the old identity stays, so the re-extraction runs once the hold is released
             this.reconciler.onStart(tx, now);
+            final String jobs = jobReading(tx, now);
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
-                    KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold};
+                    KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold, jobs};
         });
         final boolean collectionsChanged = meta[0] != null && !meta[0].equals(this.cfg.collectionsKey());
         final boolean extractorsChanged = meta[1] != null && !meta[1].equals(SolrDoc.extractors());
@@ -221,6 +299,9 @@ public final class SyncService {
                 : this.uncleanStart ? Reconciler.REASON_UNCLEAN_START : Reconciler.REASON_START, now);
         if (extractorsChanged && this.upgradeHold == null) {
             this.reconciler.reextractAll();
+        }
+        if (meta[5] != null && !meta[5].isEmpty()) {
+            this.reconciler.recheckJobs(java.util.Arrays.asList(meta[5].split(",")));
         }
         if ("1".equals(meta[2])) {
             this.reset = new FullReset(this.store, this.clock, true);

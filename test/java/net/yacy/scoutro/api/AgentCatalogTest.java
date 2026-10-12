@@ -121,6 +121,8 @@ public class AgentCatalogTest {
                     "kg.services", "kg.services.providers",
                     // the network of a service name (package 6.2)
                     "kg.services.network",
+                    // the services behind "with a current price" (0.10.2)
+                    "kg.services.prices",
                     // collection-crossing suggestions and their reasons (docs/API.md: grant kg.read)
                     "kg.entity.suggestions", "kg.entity.contributions",
                     // the durable observation history (docs/API.md: agent mirrors require kg.read)
@@ -139,7 +141,7 @@ public class AgentCatalogTest {
             Assert.assertEquals(name, grant, AgentApi.route("GET", segs).action);
             if (grant.equals("kg.read")) read++; else export++;
         }
-        Assert.assertEquals(21, read);
+        Assert.assertEquals(22, read);
         Assert.assertEquals(2, export);
     }
 }

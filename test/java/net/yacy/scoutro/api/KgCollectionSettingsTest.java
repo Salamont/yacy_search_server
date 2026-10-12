@@ -18,6 +18,7 @@ package net.yacy.scoutro.api;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertTrue;
@@ -138,6 +139,26 @@ public class KgCollectionSettingsTest {
         JSONObject match=settings.update("edelsenior-web",new JSONObject().put("jobsMatching",false));
         assertFalse(match.getBoolean("reextract"));assertFalse(match.getJSONObject("collection").getBoolean("jobsMatching"));
         assertEquals("edelsenior-web",conf.get(KgConfig.JOBS_COLLECTIONS));
+    }
+
+    @Test public void softwareHintsOfJobAdsAreOnByDefaultAndSwitchedOffExplicitlyWithoutReextraction()throws Exception {
+        productive();
+        JSONObject before=row(settings.list(),"edelsenior-web");
+        assertTrue("on unless switched off",before.getBoolean("jobsSignals"));
+        assertFalse("an unchanged value writes nothing",settings.update("edelsenior-web",new JSONObject().put("jobsSignals",true)).getBoolean("changed"));
+        assertNull(conf.get(KgConfig.JOBS_SIGNALS_PREFIX+"edelsenior-web"));
+        JSONObject off=settings.update("edelsenior-web",new JSONObject().put("jobsSignals",false));
+        assertTrue(off.getBoolean("changed"));assertFalse("no extractor identity change",off.getBoolean("reextract"));
+        assertEquals("false",conf.get(KgConfig.JOBS_SIGNALS_PREFIX+"edelsenior-web"));
+        assertFalse(off.getJSONObject("collection").getBoolean("jobsSignals"));
+        // the job objects of this collection are extracted (legacy list): their hints go, the objects stay; only job pages are read again
+        assertTrue(off.getBoolean("recheckJobs"));assertTrue(off.getJSONObject("collection").getBoolean("jobsExtraction"));
+        JSONObject on=settings.update("edelsenior-web",new JSONObject().put("jobsSignals",true));
+        assertTrue(on.getBoolean("recheckJobs"));assertEquals("true",conf.get(KgConfig.JOBS_SIGNALS_PREFIX+"edelsenior-web"));
+        try {
+            settings.update("edelsenior-web",new JSONObject().put("jobsSignals","yes"));
+            throw new AssertionError("a non-boolean is refused");
+        } catch(final ApiException e) {assertEquals(400,e.status());}
     }
 
     private static JSONObject row(final JSONObject list, final String collection) throws Exception {

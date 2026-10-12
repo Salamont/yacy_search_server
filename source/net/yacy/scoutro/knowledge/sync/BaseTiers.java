@@ -85,7 +85,8 @@ final class BaseTiers {
     static ExtractContext context(final KgConfig cfg, final SolrDoc d) {
         final List<String> followed = d.followed(cfg);
         final KgVocabularies.Snapshot vocab = KgVocabularies.get();
-        return new ExtractContext(vocab, cfg.vocabulariesOf(followed, vocab.categories.collections), cfg.jobsFor(followed), followed);
+        return new ExtractContext(vocab, cfg.vocabulariesOf(followed, vocab.categories.collections), cfg.jobsFor(followed),
+                cfg.jobSignalsFor(followed), followed);
     }
 
     static String host(final SolrDoc d) {

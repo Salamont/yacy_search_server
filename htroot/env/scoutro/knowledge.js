@@ -13,7 +13,7 @@
   const de = String(lang || '').toLowerCase().startsWith('de');
   const pct = v => v == null ? t('missing') : Math.round(v * 100) + ' %';
   const ROOT = '/scoutro/api/v1/kg/';
-  const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'source', 'history', 'settings'];
+  const VIEWS = ['overview', 'objects', 'object', 'network', 'services', 'compare', 'prices', 'source', 'history', 'settings'];
   // Scoutro accounts (docs/SCOUTRO_USERS_ACCESS.md): status, controls and settings ("Knowledge graph operations",
   // ?view=operations) are for administrators; downloads need the export right. The API refuses them anyway.
   const ADMIN = document.body.dataset.scoutroAdmin === '1';
@@ -236,7 +236,8 @@
       ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['pending_types', byType],
       ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
-      ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
+      ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null],
+      ['job_recheck', sy.reconcile?.jobRecheck?.length ? sy.reconcile.jobRecheck.join(', ') : null]]);
     const l = s.llm || {}, lp = l.processed || {}, so = l.structuredOutput && typeof l.structuredOutput === 'object' ? l.structuredOutput : null;
     stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')],
       ['structured_output', so?.mode ? t('so_mode_' + so.mode) + (so.capability ? ' · ' + t('so_cap_' + so.capability) : '')
@@ -571,7 +572,8 @@
         vocab.append(node('span', t('no_vocabulary'), 'skg-novocab'));
         if (c.vocabularySource === 'setting') vocab.append(' ', node('span', '(' + t('vocab_from_setting') + ')', 'sseo-note'));
       }
-      const row = rowInto(body, heads, [c.collection, t(c.followed ? 'yes' : 'no'), vocab, t(c.jobs ? 'yes' : 'no'), t(c.llm ? 'yes' : 'no'),
+      const row = rowInto(body, heads, [c.collection, t(c.followed ? 'yes' : 'no'), vocab,
+        t('jobs_cell').replace('%1', t(c.jobs ? 'yes' : 'no')).replace('%2', t(c.jobSignals ? 'yes' : 'no')), t(c.llm ? 'yes' : 'no'),
         c.documents == null ? t('missing') : fmt(c.documents), t('vstate_' + c.state)]);
       row.dataset.collection = c.collection; row.dataset.state = c.state;
     }
@@ -671,12 +673,38 @@
     return p;
   }
 
-  // The filter values the visible graph holds (industries, categories, audiences), loaded once per collection.
+  // The filter values the visible graph holds (industries, categories, audiences) and the vocabulary profile of each
+  // collection, for one collection at a time and at most a minute old (a vocabulary assigned meanwhile shows up); never the
+  // counts, which the selects do not need. A late answer for a collection the page has left is not kept.
   const OBJECT_FILTERS = ['q', 'type', 'quality', 'host', 'industry', 'category', 'audience'];
-  let facets = null, facetsFor = null;
+  let facets = null, facetsFor = null, facetsAt = 0;
   async function loadFacets() {
-    if (facets && facetsFor === collection) return facets;
-    facets = await api('facets'); facetsFor = collection; return facets;
+    const wanted = collection;
+    if (facets && facetsFor === wanted && Date.now() - facetsAt < 60000) return facets;
+    const f = await api('facets', { counts: 'false' });
+    if (wanted === collection) { facets = f; facetsFor = wanted; facetsAt = Date.now(); }
+    return f;
+  }
+  // Why a category select holds only its placeholder: the categories could not be loaded, no vocabulary profile is
+  // assigned (categories come only from one), or none was found in the pages yet. Never left silent.
+  function categoryNote(id, f, error) {
+    const note = $(id); if (!note) return;
+    let text = '';
+    if (error) text = t('categories_error').replace('%1', error.message);
+    else if (f && !(f.categories || []).length) {
+      const without = (f.profiles || []).filter(p => !p.vocabulary).map(p => p.collection);
+      text = without.length ? t('categories_no_profile').replace('%1', without.join(', ')) + (ADMIN ? ' ' + t('categories_no_profile_admin') : '')
+        : t('categories_none_found');
+    }
+    note.textContent = text; note.hidden = !text;
+  }
+  async function categorySelect(run, select, note, keep) {
+    let f = null, error = null;
+    try { f = await loadFacets(); } catch (e) { error = e; }
+    if (run !== generation) return null;
+    fillSelect($(select), [[t('categories'), f?.categories || [], false]], keep);
+    categoryNote(note, f, error);
+    return f;
   }
   const facetLabel = f => (de ? f.label_de : f.label_en) || f.label || f.code;
   function fillSelect(select, groups, keep) {
@@ -1039,7 +1067,15 @@
     li.append(dl);
     return li;
   }
-  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'contacts', 'relations', 'jobs', 'audiences', 'matches', 'sources', 'facts'];
+  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'contacts', 'relations', 'jobs', 'systems', 'audiences', 'matches', 'sources', 'facts'];
+  // a software or system mention with its context and source (0.10.2): a requirement is no proof of use, client work is the client's
+  function systemItem(x) {
+    const head = node('div', null, 'skg-statement-head');
+    head.append(node('span', x.product, 'skg-value'), ' · ', node('span', t('ctx_' + x.context), 'skg-predicate skg-ctx-' + x.context),
+      ' · ', node('span', t('src_' + x.source), 'sseo-note'));
+    if (x.asserted_date) head.append(' · ', node('span', x.asserted_date, 'sseo-note'));
+    const li = factItem(head, x); li.dataset.context = x.context; li.dataset.source = x.source; return li;
+  }
   function businessInto(b) {
     const box = $('business'); box.replaceChildren();
     if (b.industry && (b.industry.main || b.industry.secondary?.length || b.industry.categories?.length)) {
@@ -1077,6 +1113,7 @@
     const jobs = b.jobs?.items || (b.job ? [b.job] : []);
     if (jobs.length || b.jobs?.hidden_ended) box.append(section('jobs', jobs.length ? list(jobs, jobItem) : null,
       b.jobs?.hidden_ended ? node('p', t('hidden_ended').replace('%1', fmt(b.jobs.hidden_ended)), 'sseo-note') : null));
+    if (b.systems?.length) box.append(section('systems', node('p', t('systems_note'), 'sseo-note'), list(b.systems, systemItem)));
     if (b.audiences) {
       const a = b.audiences, parts = [];
       const declared = []; for (const [p, l] of Object.entries(a.declared || {})) for (const i of l) declared.push([p, i]);
@@ -1724,10 +1761,10 @@
   // Services of the same name across providers: read-only groups, then the services of one name, each with its own provider.
   async function servicesView(p) {
     const run = ++generation; message(t('loading'));
-    let f = null; try { f = await loadFacets(); } catch (_) { f = null; }
-    if (run !== generation) return;
     const name = p.get('name') || '', category = p.get('category') || '';
-    fillSelect($('svc-category'), [[t('categories'), f?.categories || [], false]], category);
+    await categorySelect(run, 'svc-category', 'svc-category-note', category);
+    if (run !== generation) return;
+    pricesEntry($('svc-prices'), category ? { category } : {});
     $('svc-q').value = p.get('q') || '';
     $('svc-groups-box').hidden = !!name; $('svc-rows-box').hidden = !name;
     let data;
@@ -1738,7 +1775,9 @@
       stats('svc-group', [['g_services', fmt(g.services)], ['g_providers', fmt(g.providers)], ['g_without_provider', fmt(g.without_provider)],
         ['collections', g.collections.map(c => c.name + ' (' + fmt(c.services) + ')').join(', ') || t('none')],
         ['g_places', g.places.map(x => x.name + ' (' + fmt(x.providers) + ')').join(', ') || t('none')],
-        ['g_with_price', fmt(g.with_price)], ['g_with_current', fmt(g.with_current_source)]]);
+        ['g_with_price', priceCount(g.with_price, { name: g.name, ...(category ? { category } : {}) })],
+        ['g_with_any_price', priceCount(g.with_any_price, { name: g.name, status: 'all', ...(category ? { category } : {}) })],
+        ['g_with_current', fmt(g.with_current_source)]]);
       const body = $('svc-rows').tBodies[0]; body.replaceChildren();
       const heads = [...$('svc-rows').tHead.rows[0].cells].map(c => c.textContent);
       for (const r of data.items) {
@@ -1763,7 +1802,8 @@
         title.append(' · ', link(t('group_network'), { view: 'network', group: g.name, ...(category ? { category } : {}) }));
         if (g.without_provider) title.append(' ', node('span', t('g_without_provider') + ': ' + fmt(g.without_provider), 'sseo-note'));
         rowInto(body, heads, [title, fmt(g.providers), g.collections.map(c => c.name + ' (' + fmt(c.services) + ')').join(', ') || t('none'),
-          g.places.slice(0, 5).map(x => x.name).join(', ') || t('missing'), fmt(g.with_price), fmt(g.with_current_source)]);
+          g.places.slice(0, 5).map(x => x.name).join(', ') || t('missing'), priceCount(g.with_price, { name: g.name, ...(category ? { category } : {}) }),
+          fmt(g.with_current_source)]);
       }
     }
     const total = data.total;
@@ -1782,11 +1822,12 @@
   // ------------------------------------------------------------------- compare
   async function compare(category) {
     const run = ++generation; message(t('loading'));
-    let f = null; try { f = await loadFacets(); } catch (_) { f = null; }
+    const f = await categorySelect(run, 'compare-category', 'compare-category-note', category);
     if (run !== generation) return;
-    fillSelect($('compare-category'), [[t('categories'), f?.categories || [], false]], category);
+    pricesEntry($('compare-prices'), {});
     const body = $('compare-table').tBodies[0]; body.replaceChildren();
-    if (!category) { message(t('choose_category')); return; }
+    // without a category to choose, the note says why; the prices stay reachable without one
+    if (!category) { message(f?.categories?.length ? t('choose_category') : ''); return; }
     const data = await api('compare', { category }); if (run !== generation) return;
     const heads = [...$('compare-table').tHead.rows[0].cells].map(c => c.textContent);
     for (const r of data.rows) {
@@ -1802,6 +1843,64 @@
       }
     }
     message(data.rows.length ? '' : t('compare_empty'));
+  }
+
+  // -------------------------------------------------------------------- prices
+  // "With a current price" made concrete (0.10.2): every published price one by one with its provider, value, conditions,
+  // dates, status and sources; the counts of the service names use the same status, so a count opens exactly its rows.
+  const PRICE_LISTS = ['current', 'conflicting', 'outdated', 'uncertain', 'all'];
+  const PRICES_TITLE = $('prices-title').textContent;
+  function priceCount(n, query) {
+    return n ? link(fmt(n), { view: 'prices', ...query }) : fmt(n);
+  }
+  function pricesEntry(a, query) {
+    const q = { view: 'prices', ...query }, p = new URLSearchParams(q); if (collection) p.set('collection', collection);
+    a.href = 'ScoutroKnowledge_p.html?' + p; a.dataset.query = JSON.stringify(q);
+  }
+  async function pricesView(p) {
+    const run = ++generation; message(t('loading'));
+    const name = p.get('name') || '', category = p.get('category') || '';
+    const status = PRICE_LISTS.includes(p.get('status')) ? p.get('status') : 'current';
+    $('prices-status').value = status;
+    await categorySelect(run, 'prices-category', 'prices-category-note', category);
+    if (run !== generation) return;
+    const body = $('prices-table').tBodies[0]; body.replaceChildren();
+    const data = await api('services/prices', { name, category, status, offset, limit: LIMIT }); if (run !== generation) return;
+    $('prices-title').textContent = name ? t('prices_title_group').replace('%1', data.group?.name || name) : PRICES_TITLE;
+    $('prices-scope').hidden = !name;
+    if (name) {
+      $('prices-scope-text').textContent = t('service_group') + ': ' + (data.group?.name || name);
+      const back = $('prices-back'); const bp = new URLSearchParams({ view: 'services', name }); if (collection) bp.set('collection', collection);
+      back.href = 'ScoutroKnowledge_p.html?' + bp; back.dataset.query = JSON.stringify({ view: 'services', name });
+    }
+    const keep = { ...(name ? { name } : {}), ...(category ? { category } : {}) };
+    stats('prices-counts', ['current', 'conflicting', 'outdated', 'uncertain'].map(k => ['pc_' + k,
+      k === status || !data.counts?.[k] ? fmt(data.counts?.[k] ?? 0) : link(fmt(data.counts[k]), { view: 'prices', ...keep, status: k })]));
+    $('prices-truncated').hidden = !data.truncated;
+    $('prices-truncated').textContent = data.truncated ? t('prices_truncated').replace('%1', fmt(2000)) : '';
+    const heads = [...$('prices-table').tHead.rows[0].cells].map(c => c.textContent);
+    for (const item of data.items) {
+      const pr = item.price, row = body.insertRow(); row.dataset.status = pr.status;
+      const providers = node('span');
+      if (item.providers.length) item.providers.forEach((pv, i) => { if (i) providers.append(', '); providers.append(nameLink(pv, pv.id, 'organization')); });
+      else providers.textContent = t('no_provider');
+      const state = node('span'); state.append(statusBadge(pr.status));
+      if (pr.conflicts_with?.length) state.append(' ', node('span', t('conflicts_with'), 'sseo-note'));
+      if (pr.stale_since) state.append(' ', node('span', t('stale_since').replace('%1', pr.stale_since).replace('%2', fmt(pr.stale_after_days)), 'sseo-note'));
+      const ev = node('span'); ev.append(fmt(pr.sources) + ' ', ...evidenceToggle(pr.statement));
+      [providers, nameLink(item.service, item.service.id, 'service'), money(pr.value), conditions(pr.value) || t('none'), asOfText(pr), state, ev]
+        .forEach((c, i) => { const td = row.insertCell(); td.dataset.label = heads[i]; if (c instanceof Node) td.append(c); else td.textContent = c; });
+    }
+    $('prices-range').textContent = data.total ? t('range').replace('%1', fmt(offset + 1)).replace('%2', fmt(offset + data.items.length)).replace('%3', fmt(data.total)) : '';
+    $('prices-prev').disabled = offset === 0; $('prices-next').disabled = offset + LIMIT >= data.total;
+    message(data.total ? '' : t('prices_empty'));
+    $('prices-title').focus();
+  }
+  function pricesQuery(from) {
+    const p = new URLSearchParams(location.search), q = { view: 'prices' };
+    for (const k of ['name', 'category', 'status']) if (p.get(k)) q[k] = p.get(k);
+    if (from) q.offset = from;
+    return q;
   }
 
   // -------------------------------------------------------------------- source
@@ -1949,7 +2048,7 @@
       if (c.llm && !c.llmActive) llmCell.append(' ', node('span', '(' + t(!lm.model ? 'llm_reason_no_model' : 'kgc_llm_waits') + ')', 'sseo-note'));
       const save = node('button', t('kgc_save'), 'btn btn-default btn-sm'); save.type = 'button'; save.disabled = true;
       const jobs = node('span'); const jobControls = [];
-      for (const [field, key] of [['jobsExtraction', 'jobs_extraction'], ['jobsDisplay', 'jobs_display'], ['jobsMatching', 'jobs_matching']]) {
+      for (const [field, key] of [['jobsExtraction', 'jobs_extraction'], ['jobsSignals', 'jobs_signals'], ['jobsDisplay', 'jobs_display'], ['jobsMatching', 'jobs_matching']]) {
         const label = node('label'); const input = node('input'); input.type = 'checkbox'; input.checked = Boolean(c[field]); input.dataset.field = field;
         label.append(input, ' ', t(key)); jobs.append(label, node('br')); jobControls.push(input);
       }
@@ -1985,6 +2084,7 @@
     }
     const done = !body.changed ? t('kgc_unchanged') : body.applied ? t('kgc_saved') : t('kgc_stored');
     const text = [done.replace('%1', c.name), body.backfill ? t('kgc_backfill') : '', body.reextract ? t('kgc_reextract') : '',
+      body.recheckJobs ? t('kgc_recheck_jobs') : '',
       body.llmWarning === 'no_model' ? t('kgc_llm_warn_no_model') : body.llmWarning === 'collection_not_active' ? t('kgc_llm_warn_not_active') : '']
       .filter(Boolean).join(' ');
     await settings();
@@ -2020,6 +2120,7 @@
     else if (view === 'network') guarded(() => network(p));
     else if (view === 'services') guarded(() => servicesView(p));
     else if (view === 'compare') guarded(() => compare(p.get('category') || ''));
+    else if (view === 'prices') guarded(() => pricesView(p));
     else if (view === 'source') guarded(() => source(p.get('doc') || ''));
     else if (view === 'history') guarded(() => historyView(p));
     else guarded(settings);
@@ -2028,7 +2129,8 @@
   $('scope').addEventListener('submit', e => e.preventDefault());
   $('collection').addEventListener('change', () => {
     collection = $('collection').value;
-    const p = Object.fromEntries(new URLSearchParams(location.search)); delete p.collection; delete p.offset;
+    // a category comes from the vocabulary of a collection: it does not carry over to another one
+    const p = Object.fromEntries(new URLSearchParams(location.search)); delete p.collection; delete p.offset; delete p.category;
     navigate(p);
   });
   $('search').addEventListener('submit', e => { e.preventDefault(); navigate(objectQuery()); });
@@ -2063,6 +2165,17 @@
     e.preventDefault(); const q = { view: 'services' };
     if ($('svc-q').value.trim()) q.q = $('svc-q').value.trim(); if ($('svc-category').value) q.category = $('svc-category').value;
     navigate(q);
+  });
+  $('prices-form').addEventListener('submit', e => {
+    e.preventDefault(); const q = { ...pricesQuery(0), status: $('prices-status').value };
+    if ($('prices-category').value) q.category = $('prices-category').value; else delete q.category;
+    delete q.offset; navigate(q);
+  });
+  $('prices-prev').addEventListener('click', () => navigate(pricesQuery(Math.max(0, offset - LIMIT))));
+  $('prices-next').addEventListener('click', () => navigate(pricesQuery(offset + LIMIT)));
+  for (const id of ['svc-prices', 'compare-prices', 'prices-back']) $(id).addEventListener('click', e => {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || !e.currentTarget.dataset.query) return; e.preventDefault();
+    navigate(JSON.parse(e.currentTarget.dataset.query));
   });
   $('svc-prev').addEventListener('click', () => navigate(servicesQuery(Math.max(0, offset - LIMIT))));
   $('svc-next').addEventListener('click', () => navigate(servicesQuery(offset + LIMIT)));

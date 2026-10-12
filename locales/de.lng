@@ -6387,7 +6387,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Followed<==>Verfolgt<
 >Vocabulary<==>Vokabular<
 >Documents in the graph<==>Dokumente im Graph<
->With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Jobs are read only for the collections named in scoutro.kg.jobs.collections.<==>Mit scoutro.kg.collections=* wird eine neue Collection sofort verfolgt; mit einer festen Liste nur die genannten. Eine Collection ohne Vokabular erhält nur allgemeine Fakten (Namen, Adressen, Kontakte, Beziehungen), keine Leistungskategorien; ihr Vokabular wird nie aus ihrem Namen erraten. Ein vorhandenes Vokabular weisen Sie mit scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; zu, ein neues mit einer Datei in DATA/SCOUTRO/knowledge/vocabulary. Jobs werden nur für die Collections gelesen, die in scoutro.kg.jobs.collections genannt sind.<
+>With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Job objects are read only for the collections named in scoutro.kg.jobs.collections or switched on in the settings; the software hints of job advertisements are read for every collection unless switched off (scoutro.kg.jobs.signals).<==>Mit scoutro.kg.collections=* wird eine neue Collection sofort verfolgt; mit einer festen Liste nur die genannten. Eine Collection ohne Vokabular erhält nur allgemeine Fakten (Namen, Adressen, Kontakte, Beziehungen), keine Leistungskategorien; ihr Vokabular wird nie aus ihrem Namen erraten. Ein vorhandenes Vokabular weisen Sie mit scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; zu, ein neues mit einer Datei in DATA/SCOUTRO/knowledge/vocabulary. Stellenobjekte werden nur für die in scoutro.kg.jobs.collections genannten oder in den Einstellungen eingeschalteten Collections gelesen; die Softwarehinweise aus Stellenanzeigen werden für jede Collection gelesen, sofern sie nicht ausgeschaltet sind (scoutro.kg.jobs.signals).<
 >Provider and domain<==>Anbieter und Domain<
 >Actions<==>Aktionen<
 >The neighbourhood of one object, never the whole graph. Arrows point in the direction the source states: a provider offers a service, a company is a partner of another. Solid lines are facts with evidence, dashed lines uncertain facts, dotted lines derived rows, which are no facts: a shared operator, a weak link signal or a suggestion. Tap a node or a line for its details, its relation to the centre and its sources; around a service its providers are shown, around a job its employer.<==>Die Nachbarschaft eines Objekts, nie der ganze Graph. Pfeile zeigen in die Richtung, die die Quelle angibt: Ein Anbieter bietet eine Leistung an, ein Unternehmen ist Partner eines anderen. Durchgezogene Linien sind Fakten mit Belegen, gestrichelte unsichere Fakten, gepunktete abgeleitete Zeilen, die keine Fakten sind: ein gemeinsamer Träger, ein schwaches Link-Signal oder ein Vorschlag. Tippen Sie auf einen Knoten oder eine Linie für Details, die Beziehung zum Zentrum und die Quellen; um eine Leistung herum werden ihre Anbieter gezeigt, um einen Job sein Arbeitgeber.<
@@ -6575,8 +6575,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >organizational care transition; possible cooperation<==>organisatorischer Pflegeübergang; mögliche Kooperation<
 >own offered services<==>eigene angebotene Leistungen<
 >historical source metadata<==>historische Quellenmetadaten<
->Extract jobs<==>Stellen extrahieren<
->Display jobs<==>Stellen anzeigen<
 >Use stored job signals for matching<==>Gespeicherte Stellensignale für Matching nutzen<
 >Statement date (when evidenced)<==>Aussagedatum (sofern belegt)<
 >Organization assignment<==>Organisationszuordnung<
@@ -6597,7 +6595,6 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Job policies<==>Stellen-Einstellungen<
 >actual employer<==>tatsächlicher Arbeitgeber<
 >Source availability, vacancy status and system statements are separate. Historical evidence survives live object cleanup. A competence requirement does not confirm internal system use. Assessments are not measured probabilities.<==>Quellenverfügbarkeit, Anzeigenstatus und Systemaussagen sind getrennt. Historische Belege bleiben bei Bereinigung der Live-Objekte erhalten. Geforderte Kenntnisse bestätigen keinen internen Systemeinsatz. Bewertungen sind keine gemessenen Wahrscheinlichkeiten.<
->Job extraction, job display and use of stored job signals for matching are independent policies, not permissions. Switching them off deletes no knowledge. New matching rules belong to a later package.<==>Stellenextraktion, Stellenanzeige und Nutzung gespeicherter Stellensignale für Matching sind unabhängige Einstellungen, keine Berechtigungen. Abschalten löscht kein Wissen. Neue Matching-Regeln folgen in einem späteren Paket.<
 >Last evidenced on %1; the current situation has not been reconfirmed.<==>Zuletzt belegt am %1; der heutige Stand ist nicht erneut bestätigt.<
 >Vacancy search status<==>Status der Personalsuche<
 >SAP family (specific product unknown)<==>SAP-Familie (konkretes Produkt unbekannt)<
@@ -6630,7 +6627,42 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Statement assessment<==>Aussagebewertung<
 >Text location<==>Textstelle<
 >live source object removed; reachability unknown (no vacancy or shutdown conclusion)<==>Live-Quellenobjekt entfernt; Erreichbarkeit unbekannt (keine Aussage über Stellenende oder Abschaltung)<
-
+>All services with a current price<==>Alle Leistungen mit aktuellem Preis<
+>Services with a price<==>Leistungen mit Preis<
+>Every row is one published price of one provider's own service, exactly as published: amount, currency, unit, conditions and date. Prices of different providers are never mixed, converted or averaged. A price is current when a current page of the collection confirms it, it has not expired, it is within the collection's price age and no other price of the same service contradicts it; the counts of the service names use the same rule.<==>Jede Zeile ist ein veröffentlichter Preis der eigenen Leistung eines Anbieters, genau wie veröffentlicht: Betrag, Währung, Einheit, Bedingungen und Datum. Preise verschiedener Anbieter werden nie vermischt, umgerechnet oder gemittelt. Ein Preis ist aktuell, wenn eine aktuelle Seite der Collection ihn bestätigt, er nicht abgelaufen ist, er innerhalb des Preisalters der Collection liegt und kein anderer Preis derselben Leistung ihm widerspricht; die Zählungen der Leistungsnamen folgen derselben Regel.<
+>Current prices<==>Aktuelle Preise<
+>Conflicting prices<==>Widersprüchliche Preise<
+>Outdated or expired prices<==>Veraltete oder abgelaufene Preise<
+>Uncertain prices<==>Unsichere Preise<
+>All prices<==>Alle Preise<
+>As of and validity<==>Stand und Gültigkeit<
+>With a price (any status)<==>Mit Preis (jeder Status)<
+>Service categories could not be loaded: %1<==>Leistungskategorien konnten nicht geladen werden: %1<
+>No service categories: no vocabulary is assigned to %1. Categories come only from a vocabulary profile of the collection, never from its name.<==>Keine Leistungskategorien: %1 ist kein Vokabular zugeordnet. Kategorien entstehen nur aus einem Vokabularprofil der Collection, nie aus ihrem Namen.<
+>An administrator assigns one under Knowledge graph operations, column Vocabulary; the pages of that collection are then read again.<==>Ein Administrator ordnet eines unter Wissensgraph-Betrieb, Spalte Vokabular, zu; die Seiten dieser Collection werden danach neu gelesen.<
+>No service categories found in the visible pages yet.<==>In den sichtbaren Seiten wurden noch keine Leistungskategorien gefunden.<
+>Prices of %1<==>Preise von %1<
+>No price of this kind is visible.<==>Kein Preis dieser Art ist sichtbar.<
+>Only the first %1 services with a price were read: narrow the list by a service name or a category.<==>Nur die ersten %1 Leistungen mit Preis wurden gelesen: Grenzen Sie die Liste mit einem Leistungsnamen oder einer Kategorie ein.<
+>Current<==>Aktuell<
+>Conflicting<==>Widersprüchlich<
+>Outdated or expired<==>Veraltet oder abgelaufen<
+>The four job policies are independent and none of them is a permission; switching one off deletes no knowledge.<==>Die vier Stellen-Richtlinien sind unabhängig voneinander und keine davon ist eine Berechtigung; Ausschalten löscht kein Wissen.<
+>Extract jobs as objects<==>Stellen als Objekte erfassen<
+>: job objects with title, employer, place, salary and dates. Changing it reads every page of every collection again.<==>: Stellenobjekte mit Titel, Arbeitgeber, Ort, Gehalt und Daten. Eine Änderung liest alle Seiten aller Collections neu.<
+>Read software hints from job ads<==>Softwarehinweise aus Stellenanzeigen auswerten<
+> (on unless switched off): software and system mentions of a job advertisement are kept for its declared employer, also without job objects. A required or desirable skill stays a requirement, never a proof of own use or of a purchase; "we use" counts as internal use, work for clients as client work; an advertisement of an intermediary is attributed to no company. Changing it checks the pages of the collection again and reads only its job pages again.<==> (an, solange nicht ausgeschaltet): Software- und Systemnennungen einer Stellenanzeige werden für den ausgewiesenen Arbeitgeber gespeichert, auch ohne Stellenobjekte. Eine geforderte oder erwünschte Kenntnis bleibt eine Anforderung, nie ein Nachweis eigener Nutzung oder eines Kaufs; „wir nutzen“ gilt als interne Nutzung, Arbeit für Kunden als Kundenarbeit; die Anzeige eines Vermittlers wird keinem Unternehmen zugeordnet. Eine Änderung prüft die Seiten der Collection erneut und liest nur ihre Stellenseiten neu.<
+>Show job objects<==>Stellenobjekte anzeigen<
+>: whether job objects appear in the company view and in the chat. It hides nothing else and changes no extraction; software hints stay visible at the company.<==>: ob Stellenobjekte in der Unternehmensansicht und im Chat erscheinen. Es blendet nichts anderes aus und ändert keine Extraktion; Softwarehinweise bleiben am Unternehmen sichtbar.<
+>: whether hints from job objects and job advertisements may feed customer suggestions; a requirement alone stays a weak signal.<==>: ob Hinweise aus Stellenobjekten und Stellenanzeigen in Kundenvorschläge einfließen dürfen; eine Anforderung allein bleibt ein schwaches Signal.<
+>shown: %1 · software hints: %2<==>angezeigt: %1 · Softwarehinweise: %2<
+>The graph checks the pages of this collection again and reads only its job pages again.<==>Der Graph prüft die Seiten dieser Collection erneut und liest nur ihre Stellenseiten neu.<
+>Software and systems<==>Software und Systeme<
+>Software and system mentions with their context. A required or desirable skill from a job advertisement is a requirement, not a proof of own use or of a purchase; client work describes the client's systems.<==>Software- und Systemnennungen mit ihrem Kontext. Eine geforderte oder erwünschte Kenntnis aus einer Stellenanzeige ist eine Anforderung, kein Nachweis eigener Nutzung oder eines Kaufs; Kundenarbeit beschreibt die Systeme des Kunden.<
+>from a job advertisement<==>aus einer Stellenanzeige<
+>from a reference page<==>aus einer Referenzseite<
+>from the company's own pages<==>aus den eigenen Seiten des Unternehmens<
+>Job pages read again for<==>Stellenseiten neu gelesen für<
 #File: scoutro-login.html
 #---------------------------
 >Sign in with your Scoutro account.<==>Melden Sie sich mit Ihrem Scoutro-Konto an.<

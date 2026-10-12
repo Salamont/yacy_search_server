@@ -386,6 +386,7 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "reconcile": {"type": "object", "description": "Every start and reactivation schedules a full reconcile. Deletions happen only after a complete scan, a real-time-get verification and below the mass-deletion brake; an aborted run deletes nothing and resumes from its cursor.", "properties": {
             "pending": {"type": "boolean"}, "reason": {"type": ["string", "null"], "description": "start, unclean_start, collections_changed, extractor_changed, query_delete, overflow, queue_full, lost_changes (a rescan once lost changes are visible to a search), daily, admin, resume, full_reset."},
             "dueAt": {"type": ["integer", "null"]}, "reextract": {"type": "boolean"},
+            "jobRecheck": {"type": "array", "items": {"type": "string"}, "description": "0.10.2: collections whose job reading changed; the reconcile extracts only their job pages again, then the list is emptied."},
             "current": {"type": ["object", "null"], "properties": {"id": {"type": "integer"}, "kind": {"type": "string", "enum": ["reconcile", "backfill"]},
                 "state": {"type": "string", "enum": ["running", "completed", "aborted", "suspect"]}, "phase": {"type": "string", "enum": ["scan", "verify", "delete", "done"]},
                 "reason": {"type": ["string", "null"]}, "startedAt": {"type": "integer"}, "cursor": {"type": ["string", "null"]},
@@ -485,7 +486,8 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "collection": {"type": "string"}, "followed": {"type": "boolean", "description": "scoutro.kg.collections names it or is *."},
         "vocabulary": {"type": ["string", "null"], "description": "The vocabulary in force: scoutro.kg.vocab.<collection> (also under *), else the mapping of the vocabulary files; null for none."},
         "vocabularySource": {"type": "string", "enum": ["setting", "vocabulary_files", "none"]}, "vocabularyKnown": {"type": "boolean", "description": "false: the named vocabulary does not exist (state unknown_vocabulary)."},
-        "jobs": {"type": "boolean", "description": "Followed and enabled by the job display policy; extraction and later signal use are separate collection settings."}, "llm": {"type": "boolean", "description": "The LLM tier reads it (scoutro.kg.llm.collections)."},
+        "jobs": {"type": "boolean", "description": "Followed and enabled by the job display policy; extraction and later signal use are separate collection settings."},
+        "jobSignals": {"type": "boolean", "description": "0.10.2: followed, and the software hints of its job advertisements are read (scoutro.kg.jobs.signals)."}, "llm": {"type": "boolean", "description": "The LLM tier reads it (scoutro.kg.llm.collections)."},
         "documents": {"type": ["integer", "null"], "description": "Documents of the collection in the graph, at most 10 s old; null while the graph is not running."},
         "state": {"type": "string", "enum": ["following", "waiting", "not_followed", "unknown_vocabulary"], "description": "waiting: followed, no document yet."}}}},
     "upgrade": {"type": ["object", "null"], "description": "The last schema migration of this graph (current schema 5 with durable observations); null if it was never upgraded. Before it: PRAGMA quick_check (a failed or unfinished check keeps the graph off, state unavailable, reason upgrade_blocked, file unchanged) and a verified copy graph-<UTC>-before-upgrade.db. Without room for the copy the additive migration still runs, but re-extraction with the current extractors waits (waiting) until a verified backup exists.", "properties": {
@@ -754,6 +756,10 @@ schemas["KgBusinessView"] = {"type": "object", "description": "The object view: 
     "contacts": {"type": "object", "description": "Organisation contacts only (phone, fax, email of role mailboxes, contact_point, contact_form, opening_hours, directions, social_profile, url); never persons.", "additionalProperties": {"type": "array", "items": ref("KgLiteral")}},
     "relations": {"type": "object", "properties": {"facts": {"type": "array", "items": KG_REL}, "derived": {"type": "object", "properties": {"linked_to": {"type": "array", "items": ref("KgDerived")}, "same_operator": {"type": "array", "items": ref("KgDerived")}}}}},
     "jobs": {"type": "object", "properties": {"items": {"type": "array", "items": ref("KgJob")}, "hidden_ended": {"type": "integer"}}}, "job": ref("KgJob"),
+    "systems": {"type": "array", "description": "0.10.2: software and system mentions of a company (at most 50), with context and source; also from its job advertisements and the hints of its job objects (the job not named), whether job objects are shown or not. A required or desirable competence is a requirement, never a proof of own use or of a purchase.",
+        "items": {"type": "object", "properties": {"statement": {"type": "string"}, "product": {"type": "string"}, "context": {"type": "string", "description": "internal_use, required_competence, desirable_competence, customer_projects, stated_competence, offered_service, …"},
+            "source": {"type": "string", "enum": ["job_ad", "references", "company"]}, "asserted_date": {"type": ["string", "null"]}, "system_role": {"type": ["string", "null"]},
+            "status": KG_STATUS, "sources": {"type": "integer"}, "kinds": {"type": "array", "items": {"type": "string"}}}}},
     "audiences": {"type": "object", "description": "Three layers, never mixed.", "properties": {
         "declared": {"type": "object", "description": "declared_audience: customer_type, audience_segment, target_industry, target_category, company_size, need, serves_place.", "additionalProperties": {"type": "array"}},
         "observed": {"type": "array", "items": KG_REL, "description": "observed_customer: published customer_of / reference_for relations."},
@@ -784,7 +790,13 @@ schemas["KgDerivedPage"] = {"type": "object", "required": ["schema", "offset", "
 KG_FACET = {"type": "array", "items": {"type": "object", "properties": {"code": {"type": "string"}, "entities": {"type": "integer"}, "label": {"type": ["string", "null"]}, "label_de": {"type": ["string", "null"]}, "label_en": {"type": ["string", "null"]}}}}
 schemas["KgFacets"] = {"type": "object", "properties": {"schema": KG_BUSINESS_SCHEMA, "industries": KG_FACET, "categories": KG_FACET, "customer_types": KG_FACET, "segments": KG_FACET,
     "target_industries": KG_FACET, "employment_types": KG_FACET,
-    "counts": {"type": "object", "properties": {"jobs": {"type": "integer"}, "services": {"type": "integer"}, "prices": {"type": "integer"}, "derived": {"type": "object", "additionalProperties": {"type": "integer"}}}}, "lag": KG_LAG}}
+    "counts": {"type": "object", "properties": {"jobs": {"type": "integer"}, "services": {"type": "integer"}, "prices": {"type": "integer"},
+        "derived": {"type": ["object", "null"], "additionalProperties": {"type": "integer"}, "description": "null when the derived rows could not be read (derived_error)."},
+        "derived_error": {"type": "string", "description": "0.10.2: the error code of the derived counts' own read (for example timeout); the other values stay."}},
+        "description": "Absent with counts=false."},
+    "profiles": {"type": "array", "description": "0.10.2: the vocabulary profile of each visible collection. Service categories come only from a profile; a collection without one has none, whatever its name.",
+        "items": {"type": "object", "properties": {"collection": {"type": "string"}, "vocabulary": {"type": ["string", "null"]}, "source": {"type": "string", "enum": ["setting", "vocabulary_files", "none"]}}}},
+    "lag": KG_LAG}}
 KG_BOOL = lambda name, default, text: q(name, {"type": "boolean", "default": default}, text)
 schemas["KgBusinessView"]["properties"]["suggestions"] = ref("KgSuggestionPage")
 KG_SUGGESTION_NOTE = " The collection parameter selects the origin and its normal facts; only customer/partner suggestions may reach all server-authorized collections. Grouping precedes pagination, target_collection selects navigation, other_collections marks external memberships, and contributions contain all independent authorized reasons, with scoped live statements or durable observations (including assignment quotes). Scores are sorting values, not measured probabilities. Normal facts, weak/structural derivations, facets, general exports and change feeds keep their collection filter."
@@ -819,7 +831,8 @@ KG_GROUP = {"type": "object", "description": "Services of one name for reading o
     "services": {"type": "integer"}, "providers": {"type": "integer", "description": "Distinct visible providers (offers)."}, "without_provider": {"type": "integer"},
     "collections": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "services": {"type": "integer"}}}, "description": "The viewer's collections only."},
     "places": {"type": "array", "items": {"type": "object", "properties": {"name": {"type": "string"}, "providers": {"type": "integer"}}}, "description": "Places of the providers (locality, else the places they are in), at most 10."},
-    "with_price": {"type": "integer", "description": "Services with a current published price."}, "with_current_source": {"type": "integer"},
+    "with_price": {"type": "integer", "description": "Services with a current published price (the rule of GET kg/services/prices with status=current, same collections and viewer)."},
+    "with_any_price": {"type": "integer", "description": "0.10.2: services with any visible published price, whatever its status."}, "with_current_source": {"type": "integer"},
     "truncated": {"type": "boolean", "description": "More than 5000 services: the counts cover the first 5000."}}}
 schemas["KgServiceGroupPage"] = {"type": "object", "required": ["schema", "offset", "limit", "total", "items"], "properties": {"schema": KG_BUSINESS_SCHEMA,
     "offset": {"type": "integer"}, "limit": {"type": "integer"}, "total": {"type": "integer", "description": "Service names (groups) the viewer sees."}, "items": {"type": "array", "items": KG_GROUP}, "note": {"type": "string"}, "lag": KG_LAG}}
@@ -859,7 +872,25 @@ paths["/v1/kg/services/network"] = {"get": op("kg.services.network", "Network of
     q("name", {"type": "string", "maxLength": 200}, "The service name; compared in lower case without surrounding spaces.", True), q("category", {"type": "string", "maxLength": 80, "pattern": KG_CODE_PATTERN}, "Only services of this category."),
     KG_OFFSET, q("limit", {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}, "Providers per page (strongest line first)."),
     q("include", {"type": "string", "enum": ["stale"]}, "Also outdated offers."), KG_COLLECTION])}
-paths["/v1/kg/facets"] = {"get": op("kg.facets", "Filter values of the knowledge graph", "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows." + KG_READ_NOTE, ["knowledge"], {**ok("Facets.", "KgFacets"), **KG_ERRS}, params=[KG_COLLECTION])}
+KG_PRICE_STATUS = ["current", "conflicting", "outdated", "uncertain", "all"]
+schemas["KgServicePrices"] = {"type": "object", "required": ["schema", "status", "offset", "limit", "total", "counts", "items"], "properties": {"schema": KG_BUSINESS_SCHEMA,
+    "group": {"anyOf": [KG_GROUP, {"type": "null"}], "description": "With name: the group of the name (as in GET kg/services); null without a name."}, "category": {"type": ["string", "null"]},
+    "status": {"type": "string", "enum": KG_PRICE_STATUS}, "offset": {"type": "integer"}, "limit": {"type": "integer"},
+    "total": {"type": "integer", "description": "Published prices of the status (rows)."},
+    "counts": {"type": "object", "description": "Published prices of each status (outdated also covers expired).", "properties": {s: {"type": "integer"} for s in ("current", "conflicting", "outdated", "uncertain")}},
+    "services_with_current": {"type": "integer", "description": "Equals with_price of GET kg/services for the same name, category, collection and viewer."},
+    "truncated": {"type": "boolean", "description": "More than 2000 services with a price: only the first 2000 were read; narrow by name or category."},
+    "items": {"type": "array", "items": {"type": "object", "description": "One published price of one provider's own service, exactly as published; never mixed with another provider's. Sorted by service name, then statement.", "properties": {
+        "service": {"type": "object", "properties": {"id": {"type": "string"}, "name": {"type": ["string", "null"]}, **KG_DISPLAY}},
+        "providers": {"type": "array", "items": KG_PROVIDER, "description": "The visible providers of the service (offers), with their hosts and collections."},
+        "price": ref("KgPrice")}}},
+    "note": {"type": "string"}, "lag": KG_LAG}}
+paths["/v1/kg/services/prices"] = {"get": op("kg.services.prices", "Services with a published price, one by one", "0.10.2: the services behind the count \"with a current price\": one item per published price of a provider's own service, exactly as published (amount or range, currency, unit, kind, conditions, VAT, date and validity, source). One status rule for the count and the list (BusinessView.servicePrices: the collection's price age, expiry and conflicts); no average, conversion or mixing of providers. Name and category are optional, so it works without a vocabulary. 404 not_found when a name is given and no visible service has it." + KG_READ_NOTE, ["knowledge"], {**ok("Prices of services.", "KgServicePrices"), **KG_ERRS}, params=[
+    q("name", {"type": "string", "maxLength": 200}, "Only services of this name (lower case, without surrounding spaces)."), q("category", {"type": "string", "maxLength": 80, "pattern": KG_CODE_PATTERN}, "Only services of this category."),
+    q("status", {"type": "string", "enum": KG_PRICE_STATUS, "default": "current"}, "Which prices: current (default), conflicting, outdated (also expired), uncertain or all."),
+    KG_OFFSET, KG_LIMIT(25, 50), KG_COLLECTION])}
+paths["/v1/kg/facets"] = {"get": op("kg.facets", "Filter values of the knowledge graph", "The industries (NACE), service categories, customer types, segments, target industries and employment types the visible graph holds, with entity counts; and counts of jobs, services, prices and derived rows. 0.10.2: profiles names the vocabulary of each visible collection (a collection without one has no categories); counts=false leaves out every count (quick, for selects); derived counts are read on their own and give derived:null with derived_error when that read fails." + KG_READ_NOTE, ["knowledge"], {**ok("Facets.", "KgFacets"), **KG_ERRS}, params=[
+    q("counts", {"type": "boolean", "default": True}, "false: the filter values without counts."), KG_COLLECTION])}
 
 # Scope exception is limited to the origin's suggestions, also in the graph.
 for _path in ("/v1/kg/entities/{id}/business", "/v1/kg/entities/{id}/neighborhood"):
@@ -916,11 +947,13 @@ paths["/v1/kg/observations/{id}/history"] = {"get": op("kg.observation.history",
     {**ok("Events.", "KgObservationEventPage"), **KG_ERRS}, params=[KG_OID, KG_AFTER, KG_LIMIT(25,100), KG_COLLECTION])}
 for field, desc in (("jobsExtraction", "Extract new job facts. Disabling keeps knowledge."),
                     ("jobsDisplay", "Show live job sections independently of extraction."),
-                    ("jobsMatching", "Allow later matching to use stored job signals. Initially inherits the existing jobs opt-in; package B adds no matching rules.")):
+                    ("jobsMatching", "Allow later matching to use stored job signals. Initially inherits the existing jobs opt-in; package B adds no matching rules."),
+                    ("jobsSignals", "0.10.2: read the software hints of job advertisements for their declared employer, also without job objects (scoutro.kg.jobs.signals.<collection>; unset: on). No part of the extraction identity: a change re-reads only the job pages of the collection (recheckJobs).")):
     definition = {"type": "boolean", "description": desc + " This is not an access permission."}
     KG_COLLECTION_ROW["properties"][field] = definition
     schemas["KgCollectionChange"]["properties"][field] = definition
-paths["/v1/kg/collections/{collection}"]["patch"]["description"] += " Also accepts independent jobsExtraction, jobsDisplay and jobsMatching; initial legacy opt-ins are frozen before the first policy change. Only extraction changes require re-extraction."
+paths["/v1/kg/collections/{collection}"]["patch"]["description"] += " Also accepts independent jobsExtraction, jobsSignals, jobsDisplay and jobsMatching; initial legacy opt-ins are frozen before the first policy change. Only extraction changes require re-extraction; a changed jobsSignals re-reads only the collection's job pages (recheckJobs)."
+schemas["KgCollectionChanged"]["properties"]["recheckJobs"] = {"type": "boolean", "description": "0.10.2: the job reading of the collection changed without changing the extraction identity: the next reconcile extracts only its job pages again (status sync.reconcile.jobRecheck, event job_reading_changed)."}
 schemas["KgJob"]["properties"]["status"]["enum"] = ["open", "ended", "deadline_passed", "unknown"]
 schemas["KgJob"]["properties"].update({"status_reason": {"type": "string"}, "source_status": {"type": "string"}, "position_filled": {"const": "unknown"}})
 
@@ -1632,14 +1665,15 @@ mcp.update({'kg.entities': 'scoutro_kg_entities', 'kg.entity': 'scoutro_kg_entit
 cli.update({'kg.entities': 'HTTP GET /scoutro/api/v1/kg/entities?q=&type=&host=&quality=&collection=', 'kg.entity': 'HTTP GET /scoutro/api/v1/kg/entities/{id}', 'kg.entity.statements': 'HTTP GET /scoutro/api/v1/kg/entities/{id}/statements?direction=out|in', 'kg.statement': 'HTTP GET /scoutro/api/v1/kg/statements/{id}', 'kg.statement.evidence': 'HTTP GET /scoutro/api/v1/kg/statements/{id}/evidence', 'kg.host.entities': 'HTTP GET /scoutro/api/v1/kg/hosts/{host}/entities', 'kg.source': 'HTTP GET /scoutro/api/v1/kg/sources/{docId}'})
 mcp.update({'kg.entity.contributions': 'scoutro_kg_entity_contributions', 'kg.entity.business': 'scoutro_kg_entity_business', 'kg.entity.suggestions': 'scoutro_kg_entity_suggestions', 'kg.entity.neighborhood': 'scoutro_kg_entity_neighborhood', 'kg.compare': 'scoutro_kg_compare',
             'kg.derived': 'scoutro_kg_derived', 'kg.facets': 'scoutro_kg_facets', 'kg.services': 'scoutro_kg_services',
-            'kg.services.providers': 'scoutro_kg_services_providers', 'kg.services.network': 'scoutro_kg_services_network',
+            'kg.services.providers': 'scoutro_kg_services_providers', 'kg.services.network': 'scoutro_kg_services_network', 'kg.services.prices': 'scoutro_kg_services_prices',
             'kg.collections': 'scoutro_kg_collections', 'kg.collection.update': 'scoutro_kg_collection_update'})
 cli.update({'kg.entity.contributions': 'HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions/{proposal}/contributions?collection=ORIGIN&offset=0&limit=25', 'kg.entity.business': 'scoutroctl kg business ID [--include-hidden-jobs]', 'kg.entity.suggestions': 'HTTP GET /scoutro/api/agent/v1/kg/entities/{id}/suggestions?collection=ORIGIN&offset=0&limit=25', 'kg.entity.neighborhood': 'scoutroctl kg neighborhood ID [--depth 1|2] [--weak] [--suggested] [--prices] [--types T,T]',
-            'kg.compare': 'scoutroctl kg compare CATEGORY', 'kg.derived': 'scoutroctl kg derived [--kind K] [--entity ID]', 'kg.facets': 'scoutroctl kg facets',
+            'kg.compare': 'scoutroctl kg compare CATEGORY', 'kg.derived': 'scoutroctl kg derived [--kind K] [--entity ID]', 'kg.facets': 'scoutroctl kg facets [--no-counts]',
             'kg.services': 'scoutroctl kg services [--q TEXT] [--category C]', 'kg.services.providers': 'scoutroctl kg service-providers NAME [--category C]',
             'kg.services.network': 'scoutroctl kg service-network NAME [--category C] [--limit N] [--offset N] [--include-stale]',
+            'kg.services.prices': 'scoutroctl kg service-prices [--name N] [--category C] [--status current|conflicting|outdated|uncertain|all] [--limit N] [--offset N]',
             'kg.collections': 'scoutroctl kg collections (administrator)',
-            'kg.collection.update': 'scoutroctl kg collection NAME [--on|--off] [--vocabulary V|--no-vocabulary|--default-vocabulary] [--llm|--no-llm] (administrator)'})
+            'kg.collection.update': 'scoutroctl kg collection NAME [--on|--off] [--vocabulary V|--no-vocabulary|--default-vocabulary] [--llm|--no-llm] [--[no-]jobs-extraction] [--[no-]job-signals] [--[no-]jobs-display] [--[no-]jobs-matching] (administrator)'})
 mcp.update({'kg.export': 'scoutro_kg_export', 'kg.changes': 'scoutro_kg_changes', 'kg.download': 'scoutro_kg_download',
             'kg.backups': 'scoutro_kg_backups', 'kg.backup.download': 'scoutro_kg_backup_download'})
 cli.update({'kg.prompt': 'no scoutroctl command: GET /scoutro/api/v1/kg/prompt (administrator)',

@@ -218,8 +218,12 @@ public final class BusinessRules {
             industryStatements(run);
         }
         contacts(run, outbound);
-        if (ctx.jobs && kinds.contains(PageKind.CAREERS)) {
-            jobs(run);
+        if (kinds.contains(PageKind.CAREERS)) {
+            if (ctx.jobs) {
+                jobs(run);
+            } else if (ctx.jobSignals) {
+                jobHints(run);
+            }
         }
         audiences(run);
         areas(run, 0, text.length(), subject, kinds.contains(PageKind.AUDIENCE) || kinds.contains(PageKind.ABOUT) || kinds.contains(PageKind.HOME)
@@ -730,7 +734,8 @@ public final class BusinessRules {
             + "|stellenangebot|wir\\s+stellen\\s+ein|we\\s+are\\s+hiring)\\s*:?\\s*");
     private static final Pattern WORK_PLACE = Pattern.compile("(?iu)\\b(?:standort|einsatzort|arbeitsort|location)\\s*:?\\s*(\\p{Lu}[\\p{L}\\-]{2,40})");
 
-    private void jobs(final Run run) {
+    /** The job titles of a careers page: {start, end, gender marker}, at most {@link #MAX_JOBS}. */
+    private List<int[]> jobTitles(final Run run) {
         final Matcher g = GENDER.matcher(run.text);
         final List<int[]> titles = new ArrayList<>();
         while (g.find() && titles.size() < MAX_JOBS) {
@@ -739,6 +744,43 @@ public final class BusinessRules {
                 titles.add(new int[] {start, g.end(), g.start()});
             }
         }
+        return titles;
+    }
+
+    /** Phrases with which a careers page declares its operator as the employer of its advertisements. */
+    private static final Pattern SELF_HIRING = Pattern.compile("(?iu)wir suchen|bei uns|unser Team|we are hiring|join our team");
+
+    /**
+     * The software and system hints of the job advertisements of a careers page without job objects (0.10.2): for the site
+     * operator only where the page declares it the employer ({@link #SELF_HIRING}) and no intermediary advertises, read from
+     * the text of each advertisement (section {@code job_ad_text}): a required skill stays a requirement, a system "we use"
+     * internal use; nothing is a job object.
+     */
+    private void jobHints(final Run run) {
+        final List<int[]> titles = jobTitles(run);
+        if (titles.isEmpty()) {
+            return;
+        }
+        final String lead = run.text.substring(0, titles.get(0)[0]);
+        for (int i = 0; i < titles.size(); i++) {
+            final int[] t = titles.get(i);
+            final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
+            if (Normalizers.key(title) == null || BusinessFacts.personLike(title)) {
+                continue;
+            }
+            final int windowEnd = Math.min(i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length(), t[1] + 6000);
+            final String jobText = run.text.substring(t[0], windowEnd);
+            if (BusinessSignals.INTERMEDIARY.matcher(jobText + " " + lead).find()
+                    || !SELF_HIRING.matcher(jobText).find() && !SELF_HIRING.matcher(lead).find()) {
+                continue; // the employer is not declared: whose systems these are stays unclear
+            }
+            BusinessSignals.extract(run.text.substring(t[1], windowEnd), run.subject, run.out, 2, Claim.KIND_RULE, BusinessSignals.JOB_AD + "text",
+                    "text:" + t[1]);
+        }
+    }
+
+    private void jobs(final Run run) {
+        final List<int[]> titles = jobTitles(run);
         for (int i = 0; i < titles.size(); i++) {
             final int[] t = titles.get(i);
             final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
@@ -766,7 +808,9 @@ public final class BusinessRules {
             }
             if(!employerAssigned)job.jobKey="unresolved:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+":"+t[0]))+"|"+key;
             else job.jobKey+="|posting:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+":"+t[0]));
-            BusinessSignals.extract(run.text.substring(t[1],windowEnd),job,run.out,2,Claim.KIND_RULE,"text","text:"+t[1]);
+            if (run.ctx.jobSignals) {
+                BusinessSignals.extract(run.text.substring(t[1],windowEnd),job,run.out,2,Claim.KIND_RULE,"text","text:"+t[1]);
+            }
             final Set<String> types = new LinkedHashSet<>();
             for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, t[1], Math.min(windowEnd, t[1] + 400))) {
                 if (types.add(h.entry.id)) {

@@ -171,6 +171,10 @@ After `ant compile`, run `discovery-live-smoke.py` with the same JAVA/NODE_PATH/
 
 `knowledge-process-ui-test.mjs` checks the process display of the knowledge graph status offline with the real localized page (EN/DE, 390 and 1280 px) and status fixtures for running work, empty queues, planned and resource waits, a pause, errors, missing data and a graph that is not running: units and time bases, document tasks without double counting, skipped tasks as no backlog, matching run values, collection scope, keyboard (Enter/Space), the technical diagnosis and that the display only reads (no request other than GET).
 
+`knowledge-services-prices-ui-test.mjs` checks the category selects and the price list of the knowledge graph page offline (EN/DE, 390 and 1280 px): a failed facets read, a collection without a vocabulary profile and a profile without categories are told apart; a collection switch drops the category; *With a current price* opens the prices of the same name and category, with status filter and paging, and its count equals the current list.
+
+`knowledge-jobs-systems-ui-test.mjs` checks the four job policies of a collection with their help (EN/DE, 390 and 1280 px): only the changed policy is sent, the targeted re-check of the job pages is reported and shown in the diagnosis, the overview names job objects and software hints apart, and the company view lists *Software and systems* with context and source also where job objects are not shown.
+
 ## SEO / Host Analysis smoke
 
 After compiling, run `python3 test/scoutro-ui/seo-live-smoke.py` with `JAVA`,

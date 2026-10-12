@@ -81,6 +81,24 @@ class Contracts(unittest.TestCase):
    prefix='/agent/v1' if token else '/v1'
    for argv,path in [(['host','resolve','https://EXAMPLE.com/path','--collection','test-web'],'/hosts/resolve'),(['collections'],'/collections'),(['automation','status'],'/discovery/status')]:
     args,_=self.call(argv,token);self.assertEqual(args[:2],('GET',prefix+path))
+ def test_service_prices_facets_and_job_policies_share_cli_and_descriptions(self):
+  # 0.10.2: the prices behind "with a current price", the quick facets and the fourth job policy
+  for token in ['','test']:
+   prefix='/agent/v1' if token else '/v1'
+   args,_=self.call(['kg','service-prices','--status','conflicting','--category','care/pflege','--collection','test-web'],token)
+   self.assertEqual(args[:2],('GET',prefix+'/kg/services/prices'));self.assertEqual(args[2]['status'],'conflicting');self.assertIsNone(args[2]['name'])
+   args,_=self.call(['kg','facets','--no-counts','--collection','test-web'],token)
+   self.assertEqual(args[:2],('GET',prefix+'/kg/facets'));self.assertEqual(args[2]['counts'],'false')
+  args,kwargs=self.call(['kg','collection','test-web','--no-job-signals'])
+  self.assertEqual(args,('PATCH','/v1/kg/collections/test-web'));self.assertEqual(kwargs['body'],{'jobsSignals':False})
+  spec=json.loads((ROOT/'htroot/env/scoutro/api/openapi.json').read_text())
+  op=spec['paths']['/v1/kg/services/prices']['get']
+  self.assertEqual({p['name'] for p in op['parameters']},{'name','category','status','offset','limit','collection'})
+  self.assertIn('jobsSignals',spec['components']['schemas']['KgCollectionChange']['properties'])
+  self.assertIn('recheckJobs',spec['components']['schemas']['KgCollectionChanged']['properties'])
+  catalog=json.loads((ROOT/'htroot/env/scoutro/api/actions.json').read_text())
+  action=next(a for a in catalog['actions'] if a['name']=='kg.services.prices')
+  self.assertEqual(action['agent']['grant'],'kg.read');self.assertTrue(action['agent']['http']['path'].endswith('/kg/services/prices'))
  def test_system_questions_and_metrics_are_shared_by_cli_and_descriptions(self):
   grants={g['name']:g for g in self.actions['agentAccess']['grants']}
   self.assertTrue(grants['index.metrics']['scoped']);self.assertFalse(grants['index.metrics']['presetable']);self.assertNotIn('system.questions',grants)
