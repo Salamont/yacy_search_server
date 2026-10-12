@@ -25,15 +25,22 @@ public class LlmContinuationTest extends LlmFixture {
     /** A model failing once at a given call. */
     static final class FailingFake extends LlmServiceTest.Fake {
         volatile int failAt = -1;
-        /** Calls failing from {@link #failAt} on. */
+        /** Calls failing from {@link #failAt} on, or requests matching {@link #failWhen}. */
         volatile int failTimes = 1;
+        /** If set: the first {@link #failTimes} requests whose user message matches fail (instead of {@link #failAt}). */
+        volatile java.util.function.Predicate<String> failWhen;
         final AtomicInteger seen = new AtomicInteger();
+        final AtomicInteger failed = new AtomicInteger();
 
         @Override
         public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis)
                 throws IOException {
             final int n = this.seen.incrementAndGet();
-            if (this.failAt > 0 && n >= this.failAt && n < this.failAt + this.failTimes) {
+            final java.util.function.Predicate<String> when = this.failWhen;
+            final boolean fail = when != null ? when.test(user) && this.failed.get() < this.failTimes
+                    : this.failAt > 0 && n >= this.failAt && n < this.failAt + this.failTimes;
+            if (fail) {
+                this.failed.incrementAndGet();
                 this.calls.incrementAndGet();
                 throw new IOException("Request failed with response code 503");
             }
