@@ -141,6 +141,69 @@ public class JobAdHintsTest {
         assertEquals("switched off", List.of(), hints(rules(own, "https://www.muster-handel.example/karriere", ctx(false, false))));
     }
 
+    /** The names of the job objects of an extraction, sorted. */
+    private static List<String> jobNames(final Extraction ex) {
+        final Set<String> out = new TreeSet<>();
+        for (final Mention m : ex.mentions()) {
+            if (Vocabulary.JOB.equals(m.type)) {
+                out.add(m.name);
+            }
+        }
+        return new ArrayList<>(out);
+    }
+
+    /**
+     * 0.10.2 regression: two gender markers without a break between them ("Buchhalter (m/w/d) oder Controller (m/w/d)", a
+     * page text without line breaks) gave the second title a start before the end of the first, so the window of the first
+     * ended before it began and the extraction of the page failed with a range error, again on every retry.
+     */
+    @Test
+    public void titlesInOneSentenceDoNotOverlapAndThePageIsRead() {
+        final String list = "Karriere bei Muster Handel. Wir suchen: Buchhalter (m/w/d) oder Controller (m/w/d) in Vollzeit."
+                + " Wir nutzen SAP S/4HANA intern. SAP Kenntnisse erforderlich. Muster Handel GmbH, Musterstraße 1, 10115 Berlin.";
+        final String url = "https://www.muster-handel.example/karriere";
+        final List<String> found = hints(rules(list, url, ctx(false, true)));
+        assertTrue(found.toString(), found.stream().anyMatch(h -> h.endsWith("|sap|required_competence|job_ad_text")));
+        assertTrue(found.toString(), found.stream().anyMatch(h -> h.endsWith("|sap-s4hana|internal_use|job_ad_text")));
+        final Extraction objects = rules(list, url, ctx(true, true));
+        assertEquals("each title once, the joining word not part of it", List.of("Buchhalter (m/w/d)", "Controller (m/w/d)"), jobNames(objects));
+        // the declaration inside the first title stays its own: the second one keeps no employer from it, nothing fails
+        final String inline = list.replace("Wir suchen: ", "Wir suchen ");
+        rules(inline, url, ctx(false, true));
+        assertEquals(List.of("Buchhalter (m/w/d)", "Controller (m/w/d)"), jobNames(rules(inline, url, ctx(true, true))));
+    }
+
+    @Test
+    public void noArrangementOfGenderMarkersBreaksTheExtraction() {
+        final String[] joins = {" ", " oder ", " und ", ", ", " / ", " & ", "", " - ", ". ", ": ", "\n", " bzw. ", " sowie "};
+        final String[] titles = {"Buchhalter", "Pflegefachkraft", "Wir suchen Controller", "IT-Administrator", "Koch", "AB"};
+        final String[] markers = {"(m/w/d)", "(w/m/d)", "(gn)", "( m / w / d )"};
+        int pages = 0;
+        for (final String join : joins) {
+            for (int a = 0; a < titles.length; a++) {
+                final StringBuilder text = new StringBuilder("Karriere. Wir suchen: ");
+                for (int k = 0; k < 4; k++) {
+                    text.append(titles[(a + k) % titles.length]).append(' ').append(markers[(a + k) % markers.length]).append(join);
+                }
+                text.append("Wir nutzen SAP S/4HANA intern. SAP Kenntnisse erforderlich. Gehalt 3.500 EUR brutto monatlich. Bewerbung bis 31.12.2026"
+                        + " an jobs@muster-handel.example. Standort: Berlin");
+                for (final boolean jobs : new boolean[] {true, false}) {
+                    final Extraction ex = rules(text.toString(), "https://www.muster-handel.example/karriere", ctx(jobs, true));
+                    for (final String name : jobNames(ex)) {
+                        final java.util.regex.Matcher g = java.util.regex.Pattern.compile("\\([^)]*\\)").matcher(name);
+                        int markersInName = 0;
+                        while (g.find()) {
+                            markersInName++;
+                        }
+                        assertEquals("one title, one marker: " + name + " in " + text, 1, markersInName);
+                    }
+                    pages++;
+                }
+            }
+        }
+        assertEquals(joins.length * titles.length * 2, pages);
+    }
+
     @Test
     public void theSharedParserReadsAnAdvertisementAsAPosting() {
         // a company's own competence statement stays no requirement; the same sentence in an advertisement is one

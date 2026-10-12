@@ -190,7 +190,9 @@ public class CollectionRemoveTest {
                 new JSONObject().put("state", "running").put("collections", new JSONArray().put("andere-web").put("neu-web")),
                 new JSONObject().put("state", "paused").put("collections", new JSONArray().put("neu-web")),
                 new JSONObject().put("state", "terminated").put("collections", new JSONArray().put("neu-web")),
-                new JSONObject().put("state", "running"));
+                new JSONObject().put("state", "running"),
+                // the push API's profile of the collection: it crawls nothing and never ends
+                new JSONObject().put("state", "running").put("name", "push_neu-web").put("collections", new JSONArray().put("neu-web")));
         final Map<String, Integer> uses = ScoutroActions.collectionUses("neu-web",
                 List.of(Scope.of(List.of("neu-web")), Scope.of(List.of("neu-web", "andere-web")), Scope.ALL, Scope.of(List.of("andere-web"))),
                 agents.agents(), List.of("neu-web"), crawls);

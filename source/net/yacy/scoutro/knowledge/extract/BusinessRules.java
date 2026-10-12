@@ -422,11 +422,39 @@ public final class BusinessRules {
     private static final Pattern NOT_A_NAME = Pattern.compile("(?iu)^(?:wir|sie|ich|es|mehr|weitere|alle|unsere?|hier|jetzt|kontakt|impressum"
             + "|datenschutz|home|startseite|leistungen|über|ueber|news|aktuelles|zurück|weiter|mehr\\s+erfahren|termin|anfrage|copyright)\\b");
 
+    /**
+     * The wording of a consent banner (0.10.3): "an unsere Partner für soziale Medien, Werbung und Analysen weiter", "with our
+     * partners for social media, advertising and analytics". Its "partners" are the recipients of tracking data, never partners.
+     */
+    private static final Pattern CONSENT = Pattern.compile("(?iu)\\bcookies?\\b|einwilligung|zustimm|\\bconsent\\b|datenschutzeinstellung"
+            + "|privacy\\s+settings|\\btracking\\b|soziale(?:n)?\\s+medien|social\\s+media|werbung\\s+und\\s+analyse|advertising\\s+and\\s+analytics"
+            + "|verwendung\\s+unserer\\s+(?:web)?seite|use\\s+of\\s+our\\s+(?:site|website)");
+    /** A marker followed by a preposition is used in a sentence ("an unsere Partner für …"), it opens no list of names. */
+    private static final Pattern PREPOSITION_AFTER = Pattern.compile("(?u)^\\s*(?:für|fuer|in|im|aus|bei|von|vom|mit|zu|zur|zum|über|ueber|an|auf"
+            + "|weiter|for|with|to|from|on|of|at)\\b");
+
+    /** The sentence around {@code [from, to)}: back to and on to the next sentence end or line break (at most 300 characters). */
+    private static String sentence(final String text, final int from, final int to) {
+        int a = from;
+        while (a > 0 && from - a < 300 && ".!?\n".indexOf(text.charAt(a - 1)) < 0) {
+            a--;
+        }
+        int b = to;
+        while (b < text.length() && b - to < 300 && ".!?\n".indexOf(text.charAt(b)) < 0) {
+            b++;
+        }
+        return text.substring(a, b);
+    }
+
     private void relations(final Run run) {
         final Set<String> seen = new LinkedHashSet<>();
         for (final Marker mk : MARKERS) {
             final Matcher m = mk.pattern.matcher(run.text);
             while (m.find() && run.relations < MAX_RELATIONS) {
+                if (CONSENT.matcher(sentence(run.text, m.start(), m.end())).find()
+                        || mk.list && PREPOSITION_AFTER.matcher(run.text).region(m.end(), run.text.length()).lookingAt()) {
+                    continue; // a consent text or a marker in a sentence: no relation
+                }
                 final int from = m.end();
                 final int to = Math.min(run.text.length(), from + (mk.list ? 600 : 160));
                 final List<int[]> names = mk.list ? names(run.text, from, to) : first(run.text, from, to);
@@ -557,6 +585,11 @@ public final class BusinessRules {
     /** Lower-case words to the end of the item, without any capitalised word: a predicate, not part of a name. */
     private static final Pattern PREDICATE_TAIL = Pattern.compile("(?<=\\S)\\s+\\p{Ll}[\\p{Ll}\\-]*(?:\\s+\\p{Ll}[\\p{Ll}\\-]*)*\\s*[.!]?$");
 
+    /** Common words that are no brand when they stand alone in a list (0.10.3). */
+    private static final Pattern GENERIC_WORD = Pattern.compile("(?iu)werbung|werbepartner|analysen?|analytics|analytik|marketing|medien|media"
+            + "|statistik(?:en)?|tracking|cookies?|personalisierung|funktionen|inhalte|anzeigen|dienste|services|partner|partnern|kunden|daten"
+            + "|informationen|social|advertising");
+
     /** A sentence, not a list item, starts with an article, a pronoun or a preposition. */
     private static final Pattern SENTENCE_START = Pattern.compile("^(?:Die|Der|Das|Den|Dem|Des|Ein|Eine|Wir|Sie|Es|Er|Ihr|Ihre|Unser|Unsere"
             + "|Seit|Mit|Als|In|Auf|Für|Bei|Durch|Zu|Zur|Zum|Nach|Von|Vom|Im|Am|Hier|Damit|Dabei|Auch|So|Und|The|We|Our|With|In)\\s");
@@ -579,8 +612,10 @@ public final class BusinessRules {
         if (INSTITUTION.matcher(item).find()) {
             return true;
         }
-        // a brand in a customer or partner list: one word ("Siemens", "DHL", "SAP"); "Max Mustermann" is no organisation
-        return list && words.length == 1 && item.length() >= 2 && item.length() <= 30 && item.matches("[\\p{Lu}\\p{N}][\\p{L}\\p{N}&+.\\-]*");
+        // a brand in a customer or partner list: one word ("Siemens", "DHL", "SAP"); "Max Mustermann" is no organisation, nor a
+        // common word ("Werbung", "Analysen")
+        return list && words.length == 1 && item.length() >= 2 && item.length() <= 30 && item.matches("[\\p{Lu}\\p{N}][\\p{L}\\p{N}&+.\\-]*")
+                && !GENERIC_WORD.matcher(item).matches();
     }
 
     // ------------------------------------------------------------- industry
@@ -734,17 +769,33 @@ public final class BusinessRules {
             + "|stellenangebot|wir\\s+stellen\\s+ein|we\\s+are\\s+hiring)\\s*:?\\s*");
     private static final Pattern WORK_PLACE = Pattern.compile("(?iu)\\b(?:standort|einsatzort|arbeitsort|location)\\s*:?\\s*(\\p{Lu}[\\p{L}\\-]{2,40})");
 
-    /** The job titles of a careers page: {start, end, gender marker}, at most {@link #MAX_JOBS}. */
+    /** A word or mark joining two titles in one sentence ("Buchhalter (m/w/d) oder Controller (m/w/d)"); no part of a title. */
+    private static final Pattern TITLE_JOIN = Pattern.compile("(?:[/,&+]|(?:und|oder|bzw\\.|sowie|or|and)(?=[\\s/,&+]))[\\s\\-/,&+]*");
+
+    /**
+     * The job titles of a careers page: {start, end, gender marker}, at most {@link #MAX_JOBS}. A title never reaches back over
+     * the marker before it, so the titles do not overlap and the text of each advertisement ({@link #windowEnd}) has no
+     * negative length.
+     */
     private List<int[]> jobTitles(final Run run) {
         final Matcher g = GENDER.matcher(run.text);
         final List<int[]> titles = new ArrayList<>();
+        int floor = 0;
         while (g.find() && titles.size() < MAX_JOBS) {
-            final int start = titleStart(run.text, g.start());
+            final int start = titleStart(run.text, g.start(), floor);
             if (start >= 0 && g.start() - start >= 3) {
                 titles.add(new int[] {start, g.end(), g.start()});
             }
+            floor = g.end();
         }
         return titles;
+    }
+
+    /** End of the text of advertisement {@code i}: the next title, at most 6000 characters; never before the end of its own. */
+    private static int windowEnd(final Run run, final List<int[]> titles, final int i) {
+        final int[] t = titles.get(i);
+        final int next = i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length();
+        return Math.max(t[1], Math.min(Math.min(next, run.text.length()), t[1] + 6000));
     }
 
     /** Phrases with which a careers page declares its operator as the employer of its advertisements. */
@@ -768,7 +819,7 @@ public final class BusinessRules {
             if (Normalizers.key(title) == null || BusinessFacts.personLike(title)) {
                 continue;
             }
-            final int windowEnd = Math.min(i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length(), t[1] + 6000);
+            final int windowEnd = windowEnd(run, titles, i);
             final String jobText = run.text.substring(t[0], windowEnd);
             if (BusinessSignals.INTERMEDIARY.matcher(jobText + " " + lead).find()
                     || !SELF_HIRING.matcher(jobText).find() && !SELF_HIRING.matcher(lead).find()) {
@@ -788,7 +839,7 @@ public final class BusinessRules {
             if (key == null || BusinessFacts.personLike(title)) {
                 continue;
             }
-            final int windowEnd = Math.min(i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length(),t[1]+6000);
+            final int windowEnd = windowEnd(run, titles, i);
             final Mention job = run.out.add(new Mention("rule:job:" + key+":"+t[0], Vocabulary.JOB, 2));
             job.name = title;
             final Matcher wp = WORK_PLACE.matcher(run.text).region(t[1], windowEnd);
@@ -865,11 +916,14 @@ public final class BusinessRules {
         }
     }
 
-    /** Start of a job title that ends at {@code markerAt}: back to a line break, a sentence end or a list mark; -1 if none. */
-    private static int titleStart(final String text, final int markerAt) {
+    /**
+     * Start of a job title that ends at {@code markerAt}: back to a line break, a sentence end, a list mark or the end of the
+     * marker before ({@code floor}), there without the word that joins both titles; -1 if none.
+     */
+    private static int titleStart(final String text, final int markerAt, final int floor) {
         int i = markerAt;
-        final int floor = Math.max(0, markerAt - 90);
-        while (i > floor) {
+        final int stop = Math.max(Math.max(0, floor), markerAt - 90);
+        while (i > stop) {
             final char c = text.charAt(i - 1);
             if (c == '\n' || c == '•' || c == '|' || c == ':' || c == ';' || c == '#' || c == '*'
                     || c == '.' && (i >= markerAt - 1 || Character.isWhitespace(text.charAt(i)))) {
@@ -877,8 +931,15 @@ public final class BusinessRules {
             }
             i--;
         }
+        final boolean afterMarker = i == floor && floor > 0;
         while (i < markerAt && (Character.isWhitespace(text.charAt(i)) || text.charAt(i) == '-')) {
             i++;
+        }
+        if (afterMarker && i < markerAt) {
+            final Matcher join = TITLE_JOIN.matcher(text).region(i, markerAt);
+            if (join.lookingAt()) {
+                i = join.end();
+            }
         }
         if (i >= markerAt || !Character.isUpperCase(text.codePointAt(i)) && !Character.isDigit(text.charAt(i))) {
             return -1;

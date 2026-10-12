@@ -14781,8 +14781,8 @@
     <trans-unit id="34d3939a" xml:space="preserve" approved="no" translate="yes">
        <source>Remove collection</source>
     </trans-unit>
-    <trans-unit id="10eec56d" xml:space="preserve" approved="no" translate="yes">
-       <source>Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.</source>
+    <trans-unit id="a9fd3ad2" xml:space="preserve" approved="no" translate="yes">
+       <source>An empty collection created in Scoutro is removed. A collection with pages is hidden: it leaves the dashboard and every choice, the knowledge graph stops reading it (its data stay) and its pages stay in the index; it can be shown again. On request its pages are deleted from the index as well. Not possible while a Discovery profile, an account, an agent, the guest access or a running crawl uses the collection.</source>
     </trans-unit>
     <trans-unit id="f078abe" xml:space="preserve" approved="no" translate="yes">
        <source>Collection</source>
@@ -14796,8 +14796,8 @@
     <trans-unit id="28a5ca0" xml:space="preserve" approved="no" translate="yes">
        <source>Cannot be removed</source>
     </trans-unit>
-    <trans-unit id="f0c4e780" xml:space="preserve" approved="no" translate="yes">
-       <source>No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.</source>
+    <trans-unit id="5eaaa1a3" xml:space="preserve" approved="no" translate="yes">
+       <source>No collection can be removed or hidden: each one comes from a Discovery profile.</source>
     </trans-unit>
     <trans-unit id="608fd750" xml:space="preserve" approved="no" translate="yes">
        <source>%1 pages</source>
@@ -14817,8 +14817,8 @@
     <trans-unit id="38527efc" xml:space="preserve" approved="no" translate="yes">
        <source>Collection removed:</source>
     </trans-unit>
-    <trans-unit id="cfd32bb0" xml:space="preserve" approved="no" translate="yes">
-       <source>The index holds pages of this collection, so it stays. Pages are never deleted here.</source>
+    <trans-unit id="d3df4993" xml:space="preserve" approved="no" translate="yes">
+       <source>The index holds pages of this collection: hide it or delete its pages.</source>
     </trans-unit>
     <trans-unit id="ede44f20" xml:space="preserve" approved="no" translate="yes">
        <source>A Discovery profile names this collection. Change the profile first.</source>
@@ -14855,6 +14855,63 @@
     </trans-unit>
     <trans-unit id="b81b5dcc" xml:space="preserve" approved="no" translate="yes">
        <source>The collection could not be removed.</source>
+    </trans-unit>
+    <trans-unit id="92e5fc3f" xml:space="preserve" approved="no" translate="yes">
+       <source>Hidden collections</source>
+    </trans-unit>
+    <trans-unit id="90f3a9b3" xml:space="preserve" approved="no" translate="yes">
+       <source>Not offered anywhere; their pages stay in the index.</source>
+    </trans-unit>
+    <trans-unit id="bd9d4c5d" xml:space="preserve" approved="no" translate="yes">
+       <source>Also delete its pages from the index</source>
+    </trans-unit>
+    <trans-unit id="e7e64b78" xml:space="preserve" approved="no" translate="yes">
+       <source>This cannot be undone. Pages that also belong to another collection stay; the collection is then hidden.</source>
+    </trans-unit>
+    <trans-unit id="5c2854d" xml:space="preserve" approved="no" translate="yes">
+       <source>empty</source>
+    </trans-unit>
+    <trans-unit id="fcecf2cc" xml:space="preserve" approved="no" translate="yes">
+       <source>It is removed from the list.</source>
+    </trans-unit>
+    <trans-unit id="a47b7087" xml:space="preserve" approved="no" translate="yes">
+       <source>It is hidden; its %1 pages stay in the index.</source>
+    </trans-unit>
+    <trans-unit id="f4f0d191" xml:space="preserve" approved="no" translate="yes">
+       <source>Type %1 to confirm:</source>
+    </trans-unit>
+    <trans-unit id="52be641c" xml:space="preserve" approved="no" translate="yes">
+       <source>Hide collection</source>
+    </trans-unit>
+    <trans-unit id="8536b12f" xml:space="preserve" approved="no" translate="yes">
+       <source>Delete pages</source>
+    </trans-unit>
+    <trans-unit id="3932a06e" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection hidden:</source>
+    </trans-unit>
+    <trans-unit id="66f4234f" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages stay in the index.</source>
+    </trans-unit>
+    <trans-unit id="8eaf1605" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages deleted.</source>
+    </trans-unit>
+    <trans-unit id="d047e21b" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 pages also belong to other collections and stay, so the collection is hidden.</source>
+    </trans-unit>
+    <trans-unit id="8a4aa0eb" xml:space="preserve" approved="no" translate="yes">
+       <source>Collection shown again:</source>
+    </trans-unit>
+    <trans-unit id="4d670c9d" xml:space="preserve" approved="no" translate="yes">
+       <source>Show again</source>
+    </trans-unit>
+    <trans-unit id="76c73410" xml:space="preserve" approved="no" translate="yes">
+       <source>The knowledge graph could not be switched over; check the collection in the knowledge graph settings.</source>
+    </trans-unit>
+    <trans-unit id="724fd99f" xml:space="preserve" approved="no" translate="yes">
+       <source>Type the collection id exactly as shown.</source>
+    </trans-unit>
+    <trans-unit id="6e8c6f54" xml:space="preserve" approved="no" translate="yes">
+       <source>This collection is not hidden any more. The page is reloaded.</source>
     </trans-unit>
   </body>
 </file>

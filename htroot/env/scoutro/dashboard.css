@@ -76,4 +76,14 @@
 .scoutro-dash-tool:focus-visible { outline: 3px solid var(--scoutro-accent); outline-offset: 2px; }
 #scoutro-dash-collection-status { margin: 0 0 16px; }
 .scoutro-dash-remove-body { display: grid; gap: 12px; }
+.scoutro-dash-remove-pages, .scoutro-dash-remove-pages > div { display: grid; gap: 8px; }
+.scoutro-dash-remove-pages[hidden], .scoutro-dash-remove-pages > div[hidden] { display: none; }
+.scoutro-dash-check { display: flex; gap: 8px; align-items: center; font-weight: 600; cursor: pointer; }
+.scoutro-dash-check input { width: 20px; height: 20px; margin: 0; }
+.scoutro-collection-warning { margin: 0; padding: 8px 12px; border-radius: 8px; background: #fff4e5; color: #7a4100; overflow-wrap: anywhere; }
+.scoutro-dash-hidden { margin-top: 16px; }
+.scoutro-dash-hidden[hidden] { display: none; }
+.scoutro-dash-hidden h3 { margin: 0 0 4px; font-size: 1rem; }
+.scoutro-dash-hidden-list { margin: 8px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.scoutro-dash-hidden-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--scoutro-border); border-radius: 10px; background: var(--scoutro-surface); overflow-wrap: anywhere; }
 .scoutro-collection-dialog select { width: 100%; min-width: 0; min-height: 44px; box-sizing: border-box; }

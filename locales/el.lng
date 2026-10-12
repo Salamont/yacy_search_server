@@ -4609,18 +4609,18 @@ Location==Τοποθεσία
 "New collection"=="New collection"
 "Remove collection"=="Remove collection"
 >Remove collection<==>Remove collection<
->Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.<==>Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.<
+>An empty collection created in Scoutro is removed. A collection with pages is hidden: it leaves the dashboard and every choice, the knowledge graph stops reading it (its data stay) and its pages stay in the index; it can be shown again. On request its pages are deleted from the index as well. Not possible while a Discovery profile, an account, an agent, the guest access or a running crawl uses the collection.<==>An empty collection created in Scoutro is removed. A collection with pages is hidden: it leaves the dashboard and every choice, the knowledge graph stops reading it (its data stay) and its pages stay in the index; it can be shown again. On request its pages are deleted from the index as well. Not possible while a Discovery profile, an account, an agent, the guest access or a running crawl uses the collection.<
 >Cancel<==>Cancel<
 >Choose a collection<==>Choose a collection<
 >Cannot be removed<==>Cannot be removed<
->No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.<==>No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.<
+>No collection can be removed or hidden: each one comes from a Discovery profile.<==>No collection can be removed or hidden: each one comes from a Discovery profile.<
 >%1 pages<==>%1 pages<
 >Discovery profile<==>Discovery profile<
 >from the index<==>from the index<
 >Loading the collections …<==>Loading the collections …<
 >Collection created:<==>Collection created:<
 >Collection removed:<==>Collection removed:<
->The index holds pages of this collection, so it stays. Pages are never deleted here.<==>The index holds pages of this collection, so it stays. Pages are never deleted here.<
+>The index holds pages of this collection: hide it or delete its pages.<==>The index holds pages of this collection: hide it or delete its pages.<
 >A Discovery profile names this collection. Change the profile first.<==>A Discovery profile names this collection. Change the profile first.<
 >Only a collection created in Scoutro can be removed.<==>Only a collection created in Scoutro can be removed.<
 >This collection does not exist any more. The page is reloaded.<==>This collection does not exist any more. The page is reloaded.<
@@ -4633,6 +4633,25 @@ Location==Τοποθεσία
 >The collection list cannot be written. Nothing was removed.<==>The collection list cannot be written. Nothing was removed.<
 >It cannot be checked who uses this collection. Nothing was removed.<==>It cannot be checked who uses this collection. Nothing was removed.<
 >The collection could not be removed.<==>The collection could not be removed.<
+>Hidden collections<==>Hidden collections<
+>Not offered anywhere; their pages stay in the index.<==>Not offered anywhere; their pages stay in the index.<
+>Also delete its pages from the index<==>Also delete its pages from the index<
+>This cannot be undone. Pages that also belong to another collection stay; the collection is then hidden.<==>This cannot be undone. Pages that also belong to another collection stay; the collection is then hidden.<
+>empty<==>empty<
+>It is removed from the list.<==>It is removed from the list.<
+>It is hidden; its %1 pages stay in the index.<==>It is hidden; its %1 pages stay in the index.<
+>Type %1 to confirm:<==>Type %1 to confirm:<
+>Hide collection<==>Hide collection<
+>Delete pages<==>Delete pages<
+>Collection hidden:<==>Collection hidden:<
+>%1 pages stay in the index.<==>%1 pages stay in the index.<
+>%1 pages deleted.<==>%1 pages deleted.<
+>%1 pages also belong to other collections and stay, so the collection is hidden.<==>%1 pages also belong to other collections and stay, so the collection is hidden.<
+>Collection shown again:<==>Collection shown again:<
+>Show again<==>Show again<
+>The knowledge graph could not be switched over; check the collection in the knowledge graph settings.<==>The knowledge graph could not be switched over; check the collection in the knowledge graph settings.<
+>Type the collection id exactly as shown.<==>Type the collection id exactly as shown.<
+>This collection is not hidden any more. The page is reloaded.<==>This collection is not hidden any more. The page is reloaded.<
 >Discovery Automation<==>Αυτοματοποίηση ανακάλυψης<
 >Jobs, schedules and persistent discovery backlog<==>Jobs, schedules and persistent discovery backlog<
 >Disabled<==>Disabled<

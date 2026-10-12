@@ -2,6 +2,60 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.10.3 / 1.942-scoutro.27 — patch: the knowledge graph sync no longer stalls; no partners from consent banners; hide a collection or delete its pages
+
+Patch of the installed 0.10.2. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.3.md). Knowledge
+graph schema stays **6**, the extractor identity and every setting stay. The
+upgrade extracts again only the pages that carry a relation of the rule tier
+(event `relation_rules_recheck`, once, at low priority); no other page.
+
+- **The knowledge graph sync no longer stalls (0.10.2 regression).** Two
+  gender markers in one sentence of a careers page ("Buchhalter (m/w/d) oder
+  Controller (m/w/d)", page text without line breaks) gave the second job
+  title a start before the end of the first, so the text of the first
+  advertisement had a negative length: `IndexOutOfBoundsException: start > end`
+  and `StringIndexOutOfBoundsException: Range [x, y)`. A job title now never
+  reaches back over the marker before it, and a joining word (und, oder, bzw.,
+  sowie, a slash, comma, & or +) is no part of it.
+- **One failing page no longer holds up the others.** A runtime error while
+  extracting a page left it at the head of the sync queue without counting an
+  attempt, so every step took it again and nothing behind it was published
+  (`sync.processed.published` stood still while `extractions` rose). Such a
+  failure now counts against the page alone: retried with backoff, after five
+  tries dropped with event `doc_failed` (`<id>: extract_failed`, logged once with
+  its trace) and read again with its next change, as other failures of a single
+  page already were.
+- **No partners from consent banners.** The banner text "Wir geben
+  Informationen zu Ihrer Verwendung unserer Website an unsere Partner für
+  soziale Medien, Werbung und Analysen weiter" made *Werbung* and *Analysen*
+  partner organisations of the site, on every page of a site with that banner.
+  A relation marker in a consent sentence (cookies, consent, tracking, social
+  media, "Werbung und Analysen", "use of our website") gives no relation; a
+  list marker followed by a preposition ("an unsere Partner für …", "im Raum
+  …") opens no list; common words (Werbung, Analysen, Marketing, Medien, …)
+  are no one-word brand in a list. Real partner lists stay. The pages already
+  read with relations of the rule tier are extracted again once
+  (`relation_rules_recheck`; `sync.relationRecheck` counts the pages left), so
+  the wrong partners leave the graph without a global re-extraction.
+- **Hide a collection or delete its pages (Dashboard "−").** The dialog lists
+  every collection with its page count and says what happens before anything
+  changes: an empty collection created in Scoutro is removed as before; a
+  collection with pages is **hidden** (`POST /v1/collections/{id}/hide`): it
+  leaves the dashboard and every choice, the knowledge graph stops reading it
+  (switched off, its data stay) and its pages stay in the index. **Also delete
+  its pages from the index**, confirmed by typing the collection id, deletes
+  the pages that belong to no other collection (`POST …/{id}/delete-pages`,
+  irreversible); a page that also belongs to another collection stays and the
+  collection is then hidden. Hidden collections are listed below the cards
+  with **Show again** (`POST …/{id}/show`). Not while a Discovery profile, an
+  account, agent, guest access or running crawl uses the collection (the push
+  API's profile `push_<collection>` crawls nothing and no longer counts as a
+  running crawl, so a collection filled through the push API can be hidden or
+  removed). Kept in
+  `DATA/SCOUTRO/collections-hidden.json`; administrator only, never an agent or
+  MCP tool; audited as `api.collections.hide`, `.show` and `.delete-pages`.
+
 ## 0.10.2 / 1.942-scoutro.26 — release candidate: service categories, prices one by one, software hints of job advertisements
 
 0.10.1 was published but not rolled out; 0.10.2 contains all of it and is the

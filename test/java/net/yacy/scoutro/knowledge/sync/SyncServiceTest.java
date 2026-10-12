@@ -70,6 +70,9 @@ public class SyncServiceTest {
         final AtomicInteger scanCalls = new AtomicInteger();
         volatile int failScanAt = -1;
         volatile int partialScanAt = -1;
+        /** A page whose extraction fails with a runtime error (a defect of the extraction), and how often it did. */
+        volatile String failText;
+        final AtomicInteger textFailures = new AtomicInteger();
 
         Hooked(final SolrSource inner) {
             this.inner = inner;
@@ -88,6 +91,10 @@ public class SyncServiceTest {
 
         @Override
         public String text(final String id) throws IOException {
+            if (id.equals(this.failText)) {
+                this.textFailures.incrementAndGet();
+                throw new IllegalStateException("injected extraction defect");
+            }
             return this.inner.text(id);
         }
 
@@ -281,6 +288,36 @@ public class SyncServiceTest {
         for (final String f : d.getFieldNames()) {
             assertFalse("graph state in Solr: " + f, f.startsWith("kg_"));
         }
+    }
+
+    /**
+     * 0.10.2 in production: the extraction of a page failed with a runtime error (a range error of the job titles); the step
+     * ended, the page stayed claimed at the head of the queue, every step took it again and nothing behind it was published.
+     * Such a failure now counts against the page alone: retried with backoff, dropped after {@link SyncService#MAX_FAILURES}
+     * with an event, read again with its next change.
+     */
+    @Test
+    public void aPageWhoseExtractionFailsDoesNotHoldUpTheQueue() throws Exception {
+        settle();
+        this.source.failText = "AAAAAAhost01";
+        add("AAAAAAhost01", "https://www.muster.de/", org("Muster Pflege gGmbH", "030 1111111"));
+        add("BBBBBBhost02", "https://www.beispiel.de/", org("Beispiel Technik GmbH", "040 2222222"));
+        commit();
+        settle();
+        assertTrue("the page behind it is published", tracked("BBBBBBhost02"));
+        assertEquals(List.of("+49402222222"), phones());
+        assertFalse(tracked("AAAAAAhost01"));
+        assertEquals("tried again, then given up", SyncService.MAX_FAILURES, this.source.textFailures.get());
+        assertEquals(1L, this.sync.counters.failedDocs.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'doc_failed' AND detail = 'AAAAAAhost01: extract_failed'"));
+        assertEquals(0L, queue());
+        // the defect is gone: the next change of the page is read
+        this.source.failText = null;
+        add("AAAAAAhost01", "https://www.muster.de/", org("Muster Pflege gGmbH", "030 1111111"));
+        commit();
+        settle();
+        assertTrue(tracked("AAAAAAhost01"));
+        assertEquals(List.of("+49301111111", "+49402222222"), phones());
     }
 
     @Test
@@ -939,6 +976,47 @@ public class SyncServiceTest {
         settle();
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
         assertEquals(Reconciler.REASON_START, strings("SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1").get(0));
+    }
+
+    /**
+     * 0.10.3: a consent banner made purposes partner organisations. Pages processed before the corrected rules that carry a relation
+     * of the rule tier are extracted again once, at low priority, and no other page; a restart does not repeat it.
+     */
+    @Test
+    public void pagesWithRelationsOfTheRuleTierAreExtractedAgainOnce() throws Exception {
+        final SolrInputDocument partners = doc("PARTNEhost01", "https://www.partner.example/partner", "c1", null);
+        partners.setField("text_t", List.of("Unsere Partner: Muster Software GmbH und Beispiel AG."));
+        client().add(partners);
+        add("AAAAAAhost02", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        commit();
+        settle();
+        final String relations = "SELECT count(*) FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v"
+                + " ON v.term_id = s.pred WHERE v.name = 'partner_of' AND e.tier = 2";
+        assertEquals("two partners of the rule tier", 2L, count(relations));
+        assertEquals("a new graph has nothing to check again", 1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
+        // a graph of 0.10.2: the check never ran
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.deleteMeta(tx, "relation_recheck_since");
+            KgStore.deleteMeta(tx, "relation_recheck_done");
+            return null;
+        });
+        final String a = hash("AAAAAAhost02");
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals("only the page with relations of the rule tier is extracted again", 1L, this.sync.counters.extractions.get());
+        assertEquals(a, hash("AAAAAAhost02"));
+        assertEquals(2L, count(relations));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck' AND detail LIKE '1 pages %'"));
+        assertEquals(0, this.sync.status().getInt("relationRecheck"));
+        // a restart: nothing again, the check is done
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
     }
 
     @Test

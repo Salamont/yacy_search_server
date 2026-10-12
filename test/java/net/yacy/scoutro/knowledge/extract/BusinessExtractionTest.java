@@ -369,6 +369,44 @@ public class BusinessExtractionTest {
         }
     }
 
+    /**
+     * Production finding (0.10.2): the consent banner "Wir geben Informationen zu Ihrer Verwendung unserer Website an unsere Partner
+     * für soziale Medien, Werbung und Analysen weiter" made "Werbung" and "Analysen" partner organisations of the site, on every page
+     * of a site with that banner. "unsere Partner" followed by a preposition is no list, the purposes of a consent text are no
+     * organisations, and a consent text names no partner at all.
+     */
+    @Test
+    public void aConsentBannerNamesNoPartner() {
+        final String banner = "Diese Website verwendet Cookies. Wir geben Informationen zu Ihrer Verwendung unserer Website an unsere Partner"
+                + " für soziale Medien, Werbung und Analysen weiter. Unsere Partner führen diese Informationen möglicherweise mit weiteren Daten"
+                + " zusammen. Muster Software GmbH, Musterstraße 1, 10115 Berlin.";
+        for (final String url : List.of("https://www.muster-software.example/de/blog", "https://www.muster-software.example/partner")) {
+            final Extraction ex = rules(banner, url, vocabulary("software", "stackfinder-web"), List.of());
+            for (final String predicate : List.of(Vocabulary.PARTNER_OF, Vocabulary.COOPERATION_WITH, Vocabulary.CUSTOMER_OF)) {
+                assertEquals(url + " " + predicate, List.of(), relations(ex, predicate));
+            }
+            for (final Mention m : ex.mentions()) {
+                assertFalse("no purpose becomes an organisation: " + m, m.name != null && List.of("Werbung", "Analysen", "soziale Medien").contains(m.name));
+            }
+        }
+        // the English banner and one with brand names in it ("our partners Google and Meta") name no partner either
+        final String english = "We share information about your use of our site with our partners for social media, advertising and analytics."
+                + " Cookie settings. Unsere Partner Google und Meta verarbeiten Daten zu Werbung und Analysen, wenn Sie zustimmen.";
+        assertEquals(List.of(), relations(rules(english, "https://www.muster-software.example/", vocabulary("software", "stackfinder-web"),
+                List.of()), Vocabulary.PARTNER_OF));
+        // "an unsere Partner im Raum …": a marker in a sentence opens no list (Hamburg and München are no partners)
+        assertEquals(List.of(), relations(rules("Wir geben Ihre Anfrage an unsere Partner im Raum Berlin, Hamburg und München weiter.",
+                "https://www.muster-pflege.example/kontakt", care(false), List.of()), Vocabulary.PARTNER_OF));
+        // a list of partners stays one, also one that starts without a colon and one of one-word brands
+        final Extraction list = rules("Unsere Partner Siemens, DHL und SAP. Partner: Muster Software GmbH.",
+                "https://www.muster-pflege.example/partner", care(false), List.of());
+        assertEquals(List.of("null -> Siemens", "null -> DHL", "null -> SAP", "null -> Muster Software GmbH"), relations(list, Vocabulary.PARTNER_OF));
+        // generic words are no brands in a list either
+        final Extraction words = rules("Unsere Partner: Werbung, Analysen und Beispiel AG.", "https://www.muster-pflege.example/partner",
+                care(false), List.of());
+        assertEquals(List.of("null -> Beispiel AG"), relations(words, Vocabulary.PARTNER_OF));
+    }
+
     @Test
     public void theIndustryOfAnImprintAndTheSafeLevelOfAService() {
         final String imprint = "Impressum Angaben gemäß § 5 TMG Muster Bedachungen GmbH Dachstraße 1 12345 Musterstadt Telefon: 030 1234567 "

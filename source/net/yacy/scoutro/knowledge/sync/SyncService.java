@@ -37,6 +37,7 @@ import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
 import net.yacy.scoutro.knowledge.extract.Extraction;
+import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.publish.Aggregates;
 import net.yacy.scoutro.knowledge.publish.Publisher;
 import net.yacy.scoutro.knowledge.publish.Terms;
@@ -192,6 +193,65 @@ public final class SyncService {
 
     /** kg_meta: how each followed collection reads job advertisements ({@link KgConfig#jobMode}), as JSON, since 0.10.2. */
     static final String META_JOB_MODES = "job_modes";
+    /**
+     * kg_meta (0.10.3): when the relation rules that ignore consent banners started; an active page processed before it with a
+     * relation of the rule tier is extracted again once ({@link #relationRecheck}). {@code META_RELATION_RECHECK_DONE} ends it.
+     */
+    static final String META_RELATION_RECHECK = "relation_recheck_since";
+    static final String META_RELATION_RECHECK_DONE = "relation_recheck_done";
+    /** The relations the rule tier reads after a marker (BusinessRules); the consent fix of 0.10.3 may change them. */
+    static final List<String> RECHECK_RELATIONS = List.of(Vocabulary.CARRIER_OF, Vocabulary.SUBSIDIARY_OF, Vocabulary.PARENT_OF,
+            Vocabulary.BRAND_OF, Vocabulary.COOPERATION_WITH, Vocabulary.PARTNER_OF, Vocabulary.CUSTOMER_OF, Vocabulary.REFERENCE_FOR,
+            Vocabulary.MEMBER_OF, Vocabulary.ASSOCIATION_MEMBER, Vocabulary.CERTIFIED_BY, Vocabulary.FUNDED_BY, Vocabulary.SPONSORED_BY,
+            Vocabulary.SUPPLIER_OF, Vocabulary.SERVICE_PROVIDER_FOR);
+    /** Pages extracted again although their input is unchanged ({@link #relationRecheck}); removed once extracted. */
+    private final java.util.Set<String> recheckRelations = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * 0.10.3: a consent banner ("an unsere Partner für soziale Medien, Werbung und Analysen weiter") made purposes partner
+     * organisations. The active pages processed before the corrected rules with a relation of the rule tier are extracted again
+     * once, at low priority, and only they; their input is unchanged, so they are named here. Restart-safe: a page extracted
+     * since then is not named again, and an empty selection ends the check for good.
+     */
+    private List<String> relationRecheck(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
+        if (KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
+            return List.of();
+        }
+        final String stored = KgStore.getMeta(tx, META_RELATION_RECHECK);
+        final long since = stored == null ? now : Long.parseLong(stored);
+        if (stored == null) {
+            KgStore.putMeta(tx, META_RELATION_RECHECK, Long.toString(since));
+        }
+        final List<String> ids = new ArrayList<>();
+        final StringBuilder in = new StringBuilder();
+        for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
+            in.append(i == 0 ? "?" : ", ?");
+        }
+        try (java.sql.PreparedStatement ps = tx.prepareStatement("SELECT d.doc_id FROM kg_doc d WHERE d.state = " + Aggregates.STATE_ACTIVE
+                + " AND (d.processed_at IS NULL OR d.processed_at < ?) AND EXISTS (SELECT 1 FROM kg_evidence e"
+                + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred"
+                + " WHERE e.doc_rowid = d.doc_rowid AND e.tier = 2 AND v.name IN (" + in + ")) ORDER BY d.doc_id")) {
+            ps.setLong(1, since);
+            for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
+                ps.setString(i + 2, RECHECK_RELATIONS.get(i));
+            }
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    ids.add(rs.getString(1));
+                }
+            }
+        }
+        if (ids.isEmpty()) {
+            KgStore.putMeta(tx, META_RELATION_RECHECK_DONE, Long.toString(now));
+            return ids;
+        }
+        if (stored == null) {
+            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations of the rule tier extracted again"
+                    + " (consent banners are no partners); no other page", now);
+        }
+        WorkQueue.scanned(tx, ids, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_REEXTRACT, 0L, now, this.queueMax);
+        return ids;
+    }
 
     /**
      * Compares the job reading of the followed collections with the stored one (0.10.2) and returns the collections whose
@@ -289,6 +349,8 @@ public final class SyncService {
             } // an upgrade without its copy: the old identity stays, so the re-extraction runs once the hold is released
             this.reconciler.onStart(tx, now);
             final String jobs = jobReading(tx, now);
+            this.recheckRelations.clear();
+            this.recheckRelations.addAll(relationRecheck(tx, now));
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
                     KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold, jobs};
         });
@@ -568,7 +630,7 @@ public final class SyncService {
         if (state != Aggregates.STATE_ACTIVE) {
             doc.inputHash = null; // keeps the stored hash: an unchanged return needs no new extraction
             action = Action.LIFECYCLE;
-        } else if (cur != null && Arrays.equals(input, cur.inputHash)) {
+        } else if (cur != null && Arrays.equals(input, cur.inputHash) && !this.recheckRelations.contains(item.docId)) {
             doc.inputHash = input;
             action = Action.LIFECYCLE;
         } else {
@@ -593,6 +655,9 @@ public final class SyncService {
                 solrFailed(e);
                 release(item, now + SOLR_RETRY_MILLIS, false);
                 return false;
+            } catch (final RuntimeException e) {
+                // a defect of the extraction of this page: it counts against the page, the pages behind it go on
+                return failed(item, "extract_failed", e);
             }
         }
         return publish(item, doc, ex, action == Action.EXTRACT ? WriteClass.GROWTH : WriteClass.MAINTENANCE);
@@ -673,6 +738,7 @@ public final class SyncService {
         }
         switch ((Publisher.Outcome) outcome[0]) {
             case PUBLISHED:
+                this.recheckRelations.remove(item.docId);
                 this.counters.published.incrementAndGet();
                 JsonLdCapture.synced(item.docId);
                 final Runnable wake = this.llmWake;
@@ -681,6 +747,7 @@ public final class SyncService {
                 }
                 break;
             case UNCHANGED:
+                this.recheckRelations.remove(item.docId);
                 this.counters.unchanged.incrementAndGet();
                 JsonLdCapture.synced(item.docId);
                 break;
@@ -798,14 +865,29 @@ public final class SyncService {
             this.nextClaimAt = now + REFUSED_RETRY_MILLIS;
             return false;
         }
-        this.lastError = e.code() + ": " + e.getMessage();
-        LOG.warn("knowledge graph: processing " + item.docId + " failed: " + e.code() + " " + e.getMessage());
-        if (item.attempts + 1 >= MAX_FAILURES) {
+        return failed(item, e.code(), e);
+    }
+
+    /**
+     * A failure of this item alone: released with backoff and counted; after {@link #MAX_FAILURES} it is dropped with event
+     * {@code doc_failed} (visible in the status, retried by the next reconcile or change). The last attempt logs the trace.
+     */
+    private boolean failed(final WorkQueue.Item item, final String code, final Exception e) {
+        final long now = this.clock.getAsLong();
+        final String message = e instanceof KgException ? e.getMessage() : e.toString();
+        this.lastError = code + ": " + message;
+        final boolean last = item.attempts + 1 >= MAX_FAILURES;
+        if (last && !(e instanceof KgException)) {
+            LOG.warn("knowledge graph: processing " + item.docId + " failed: " + code + " " + message, e);
+        } else {
+            LOG.warn("knowledge graph: processing " + item.docId + " failed: " + code + " " + message);
+        }
+        if (last) {
             this.counters.failedDocs.incrementAndGet();
             try {
                 this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
                     WorkQueue.complete(tx, item);
-                    KgStore.event(tx, 2, "doc_failed", item.docId + ": " + e.code(), now);
+                    KgStore.event(tx, 2, "doc_failed", item.docId + ": " + code, now);
                     return null;
                 });
             } catch (final KgException ignored) {
@@ -899,7 +981,7 @@ public final class SyncService {
                 "changes", this.dirty.status(), "queue", KgJson.obj("items", queued, "maxItems", this.queueMax,
                         "oldestAgeSeconds", oldest),
                 "processed", this.counters.json(), "versionCheckpoint", this.versionCheckpoint > 0L ? this.versionCheckpoint : null,
-                "reconcile", this.reconciler.status(), "retention", this.retention.status(),
+                "reconcile", this.reconciler.status(), "relationRecheck", this.recheckRelations.size(), "retention", this.retention.status(),
                 "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending(),
                         "byType", this.pendingByType));
     }

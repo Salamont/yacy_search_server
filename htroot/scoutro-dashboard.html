@@ -74,6 +74,11 @@
           </a>
           #{/collections}#
         </div>
+        #(dashAdmin)#::<div class="scoutro-dash-hidden" id="scoutro-dash-hidden" hidden>
+          <h3 id="scoutro-dash-hidden-title">Hidden collections</h3>
+          <p class="scoutro-dash-caption">Not offered anywhere; their pages stay in the index.</p>
+          <ul class="scoutro-dash-hidden-list" id="scoutro-dash-hidden-list" aria-labelledby="scoutro-dash-hidden-title"></ul>
+        </div>#(/dashAdmin)#
         <p class="scoutro-dash-note">Collections can overlap. Links open the standard Index Browser.</p>
       </section>
       #(dashCollect)#::
@@ -163,23 +168,46 @@
     <dialog class="scoutro-collection-dialog" id="scoutro-dash-remove-dialog" aria-labelledby="scoutro-dash-remove-title">
       <div class="scoutro-dash-remove-body">
         <h2 id="scoutro-dash-remove-title">Remove collection</h2>
-        <p class="scoutro-collection-intro">Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.</p>
+        <p class="scoutro-collection-intro">An empty collection created in Scoutro is removed. A collection with pages is hidden: it leaves the dashboard and every choice, the knowledge graph stops reading it (its data stay) and its pages stay in the index; it can be shown again. On request its pages are deleted from the index as well. Not possible while a Discovery profile, an account, an agent, the guest access or a running crawl uses the collection.</p>
         <label for="scoutro-dash-remove-id">Collection<select id="scoutro-dash-remove-id" class="form-control" required></select></label>
         <p class="scoutro-collection-hint" id="scoutro-dash-remove-hint"></p>
+        <div class="scoutro-dash-remove-pages" id="scoutro-dash-remove-pages-box" hidden>
+          <label class="scoutro-dash-check"><input type="checkbox" id="scoutro-dash-remove-pages"> <span>Also delete its pages from the index</span></label>
+          <div id="scoutro-dash-remove-confirm-box" hidden>
+            <p class="scoutro-collection-warning">This cannot be undone. Pages that also belong to another collection stay; the collection is then hidden.</p>
+            <label for="scoutro-dash-remove-confirm"><span id="scoutro-dash-remove-confirm-label"></span><input type="text" id="scoutro-dash-remove-confirm" class="form-control" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+          </div>
+        </div>
         <p class="scoutro-collection-error" id="scoutro-dash-remove-error" role="alert" hidden></p>
         <div class="scoutro-collection-actions"><button type="button" class="btn btn-danger" id="scoutro-dash-remove-save">Remove collection</button> <button type="button" class="btn btn-default" id="scoutro-dash-remove-cancel">Cancel</button></div>
       </div>
       <div hidden aria-hidden="true">
         <span data-scoutro-dash-label="choose">Choose a collection</span>
         <span data-scoutro-dash-label="kept">Cannot be removed</span>
-        <span data-scoutro-dash-label="none">No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.</span>
+        <span data-scoutro-dash-label="none">No collection can be removed or hidden: each one comes from a Discovery profile.</span>
         <span data-scoutro-dash-label="pages">%1 pages</span>
+        <span data-scoutro-dash-label="empty">empty</span>
+        <span data-scoutro-dash-label="plan_remove">It is removed from the list.</span>
+        <span data-scoutro-dash-label="plan_hide">It is hidden; its %1 pages stay in the index.</span>
+        <span data-scoutro-dash-label="confirm_label">Type %1 to confirm:</span>
+        <span data-scoutro-dash-label="button_remove">Remove collection</span>
+        <span data-scoutro-dash-label="button_hide">Hide collection</span>
+        <span data-scoutro-dash-label="button_delete">Delete pages</span>
+        <span data-scoutro-dash-label="hidden">Collection hidden:</span>
+        <span data-scoutro-dash-label="kept_pages">%1 pages stay in the index.</span>
+        <span data-scoutro-dash-label="deleted_pages">%1 pages deleted.</span>
+        <span data-scoutro-dash-label="shared_kept">%1 pages also belong to other collections and stay, so the collection is hidden.</span>
+        <span data-scoutro-dash-label="shown">Collection shown again:</span>
+        <span data-scoutro-dash-label="show">Show again</span>
+        <span data-scoutro-dash-label="graph_failed">The knowledge graph could not be switched over; check the collection in the knowledge graph settings.</span>
+        <span data-scoutro-dash-label="confirm_mismatch">Type the collection id exactly as shown.</span>
+        <span data-scoutro-dash-label="collection_not_hidden">This collection is not hidden any more. The page is reloaded.</span>
         <span data-scoutro-dash-label="from_profile">Discovery profile</span>
         <span data-scoutro-dash-label="from_index">from the index</span>
         <span data-scoutro-dash-label="loading">Loading the collections …</span>
         <span data-scoutro-dash-label="created">Collection created:</span>
         <span data-scoutro-dash-label="removed">Collection removed:</span>
-        <span data-scoutro-dash-label="collection_has_documents">The index holds pages of this collection, so it stays. Pages are never deleted here.</span>
+        <span data-scoutro-dash-label="collection_has_documents">The index holds pages of this collection: hide it or delete its pages.</span>
         <span data-scoutro-dash-label="collection_from_profile">A Discovery profile names this collection. Change the profile first.</span>
         <span data-scoutro-dash-label="collection_not_created">Only a collection created in Scoutro can be removed.</span>
         <span data-scoutro-dash-label="collection_not_found">This collection does not exist any more. The page is reloaded.</span>

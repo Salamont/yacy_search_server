@@ -223,6 +223,15 @@ public class ScoutroApiServlet extends HttpServlet {
                     if (body.length() > 0) throw ApiException.invalid(body.keys().next(), "Unknown field.");
                     return this.actions.collectionRemove(parts[3]);
                 }
+                if (parts.length == 5 && !"reassign".equals(parts[3])
+                        && ("hide".equals(parts[4]) || "show".equals(parts[4]) || "delete-pages".equals(parts[4]))) {
+                    // 0.10.3: hide (pages stay), show again, delete the pages (confirmed with the id); each audited by its own path
+                    expect(method, parts, 5, "POST");
+                    final JSONObject body = jsonBody(request, MAX_COLLECTION_BODY_BYTES);
+                    if ("delete-pages".equals(parts[4])) return this.actions.collectionDeletePages(parts[3], body);
+                    if (body.length() > 0) throw ApiException.invalid(body.keys().next(), "Unknown field.");
+                    return "hide".equals(parts[4]) ? this.actions.collectionHide(parts[3]) : this.actions.collectionShow(parts[3]);
+                }
                 if (parts.length == 4 && "reassign".equals(parts[3])) {
                     // preview without "confirm", apply with the preview's token; one domain, same origin, small body
                     expect(method, parts, 4, "POST");

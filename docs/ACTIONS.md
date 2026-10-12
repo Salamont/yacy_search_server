@@ -70,6 +70,9 @@ Other findings:
 | `collections.create` | `POST /scoutro/api/v1/collections` | **yes** | admin | `collections create NAME [--id ID] [--description TEXT]` | `scoutro_collections_create` |
 | `collections.reassign` | `POST /scoutro/api/v1/collections/reassign` | **yes** | admin | `collections reassign DOMAIN [--add NAME] [--remove NAME] [--confirm TOKEN]` | `scoutro_collections_reassign` |
 | `collections.remove` | `DELETE /scoutro/api/v1/collections/{id}` | **yes** | admin | browser: Dashboard > Scoutro Collections "−" | – |
+| `collections.hide` | `POST /scoutro/api/v1/collections/{id}/hide` | **yes** | admin | browser: Dashboard > Scoutro Collections "−" | – |
+| `collections.show` | `POST /scoutro/api/v1/collections/{id}/show` | **yes** | admin | browser: Dashboard > Hidden collections > Show again | – |
+| `collections.delete-pages` | `POST /scoutro/api/v1/collections/{id}/delete-pages` | **yes** | admin | browser: Dashboard > Scoutro Collections "−" > Also delete its pages | – |
 | `config.get` | `GET /scoutro/api/v1/config` | no | admin | `config get` | `scoutro_config_get` |
 | `config.set` | `PATCH /scoutro/api/v1/config` | **yes** | admin | `config set KEY VALUE` | `scoutro_config_set` |
 | `ui.routes` | `GET /scoutro/api/v1/ui/routes` | no | public | `ui routes` | `scoutro_ui_routes` |

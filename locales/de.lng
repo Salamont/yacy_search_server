@@ -5016,18 +5016,18 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 "New collection"=="Neue Collection"
 "Remove collection"=="Collection entfernen"
 >Remove collection<==>Collection entfernen<
->Only an empty collection created in Scoutro can be removed, and only while no account, agent, guest access or running crawl uses it. Pages in the index are never deleted here.<==>Entfernen lässt sich nur eine leere, in Scoutro angelegte Collection, und nur solange kein Konto, kein Agent, kein Gastzugang und kein laufender Crawl sie verwendet. Seiten im Index werden hier nie gelöscht.<
+>An empty collection created in Scoutro is removed. A collection with pages is hidden: it leaves the dashboard and every choice, the knowledge graph stops reading it (its data stay) and its pages stay in the index; it can be shown again. On request its pages are deleted from the index as well. Not possible while a Discovery profile, an account, an agent, the guest access or a running crawl uses the collection.<==>Eine leere, in Scoutro angelegte Collection wird entfernt. Eine Collection mit Seiten wird ausgeblendet: Sie verschwindet aus dem Dashboard und allen Auswahlen, der Wissensgraph liest sie nicht mehr (seine Daten bleiben) und ihre Seiten bleiben im Index; sie lässt sich wieder einblenden. Auf Wunsch werden ihre Seiten zusätzlich aus dem Index gelöscht. Nicht möglich, solange ein Discovery-Profil, ein Konto, ein Agent, der Gastzugang oder ein laufender Crawl die Collection verwendet.<
 >Cancel<==>Abbrechen<
 >Choose a collection<==>Collection wählen<
 >Cannot be removed<==>Nicht entfernbar<
->No collection can be removed: each one holds pages, comes from a Discovery profile or from the index.<==>Keine Collection lässt sich entfernen: Jede enthält Seiten oder stammt aus einem Discovery-Profil oder aus dem Index.<
+>No collection can be removed or hidden: each one comes from a Discovery profile.<==>Keine Collection lässt sich entfernen oder ausblenden: Jede stammt aus einem Discovery-Profil.<
 >%1 pages<==>%1 Seiten<
 >Discovery profile<==>Discovery-Profil<
 >from the index<==>aus dem Index<
 >Loading the collections …<==>Collections werden geladen …<
 >Collection created:<==>Collection angelegt:<
 >Collection removed:<==>Collection entfernt:<
->The index holds pages of this collection, so it stays. Pages are never deleted here.<==>Der Index enthält Seiten dieser Collection, daher bleibt sie bestehen. Seiten werden hier nie gelöscht.<
+>The index holds pages of this collection: hide it or delete its pages.<==>Der Index enthält Seiten dieser Collection: Blenden Sie sie aus oder löschen Sie ihre Seiten.<
 >A Discovery profile names this collection. Change the profile first.<==>Ein Discovery-Profil nennt diese Collection. Ändern Sie zuerst das Profil.<
 >Only a collection created in Scoutro can be removed.<==>Entfernen lässt sich nur eine in Scoutro angelegte Collection.<
 >This collection does not exist any more. The page is reloaded.<==>Diese Collection gibt es nicht mehr. Die Seite wird neu geladen.<
@@ -5040,6 +5040,25 @@ Agents &amp; Access==Agenten &amp; Zugriffe
 >The collection list cannot be written. Nothing was removed.<==>Die Collection-Liste kann nicht geschrieben werden. Es wurde nichts entfernt.<
 >It cannot be checked who uses this collection. Nothing was removed.<==>Es lässt sich nicht prüfen, wer diese Collection verwendet. Es wurde nichts entfernt.<
 >The collection could not be removed.<==>Die Collection konnte nicht entfernt werden.<
+>Hidden collections<==>Ausgeblendete Collections<
+>Not offered anywhere; their pages stay in the index.<==>Nirgends zur Auswahl; ihre Seiten bleiben im Index.<
+>Also delete its pages from the index<==>Seiten auch aus dem Index löschen<
+>This cannot be undone. Pages that also belong to another collection stay; the collection is then hidden.<==>Das lässt sich nicht rückgängig machen. Seiten, die auch zu einer anderen Collection gehören, bleiben; die Collection wird dann ausgeblendet.<
+>empty<==>leer<
+>It is removed from the list.<==>Sie wird aus der Liste entfernt.<
+>It is hidden; its %1 pages stay in the index.<==>Sie wird ausgeblendet; ihre %1 Seiten bleiben im Index.<
+>Type %1 to confirm:<==>Zum Bestätigen %1 eintippen:<
+>Hide collection<==>Collection ausblenden<
+>Delete pages<==>Seiten löschen<
+>Collection hidden:<==>Collection ausgeblendet:<
+>%1 pages stay in the index.<==>%1 Seiten bleiben im Index.<
+>%1 pages deleted.<==>%1 Seiten gelöscht.<
+>%1 pages also belong to other collections and stay, so the collection is hidden.<==>%1 Seiten gehören auch zu anderen Collections und bleiben, daher ist die Collection ausgeblendet.<
+>Collection shown again:<==>Collection wieder eingeblendet:<
+>Show again<==>Wieder einblenden<
+>The knowledge graph could not be switched over; check the collection in the knowledge graph settings.<==>Der Wissensgraph konnte nicht umgeschaltet werden; prüfen Sie die Collection in den Wissensgraph-Einstellungen.<
+>Type the collection id exactly as shown.<==>Tippen Sie die Kennung der Collection genau wie angezeigt ein.<
+>This collection is not hidden any more. The page is reloaded.<==>Diese Collection ist nicht mehr ausgeblendet. Die Seite wird neu geladen.<
 Share of the pages in your collections==Anteil an den Seiten Ihrer Collections
 "Overview of your collections"=="Übersicht Ihrer Collections"
 Your collections at a glance==Ihre Collections auf einen Blick
