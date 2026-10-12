@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /* Scoutro contributors, GPL-2.0-or-later. The administrator's "+" and "−" of the dashboard's collection list.
-   Called only by dashboard-live-smoke.py on a disposable peer: creates and removes one collection of its own. */
+   Called only by dashboard-live-smoke.py on a disposable peer: creates and removes one collection of its own, hides a
+   collection with pages and shows it again (0.10.3); deleting pages is checked by the harness through the API. */
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -35,15 +36,31 @@ try {
   await page.locator(card('ui-test-portal')).waitFor();
   check((await page.locator(card('ui-test-portal')).textContent()).includes('UI Test Portal'),'en: the new collection is a card');
   check((await page.locator('#scoutro-dash-collection-status').textContent()).trim()==='Collection created: UI Test Portal · ui-test-portal','en: creation confirmed after the reload');
-  // "−": only empty collections created here can be chosen; the others say why not
+  // "−": every collection with its page count; an empty one created here is removed, one with pages is hidden
   await page.locator('#scoutro-dash-collection-remove').click();
   await page.locator('#scoutro-dash-remove-dialog').waitFor({state:'visible'});
-  const select=page.locator('#scoutro-dash-remove-id');
+  const select=page.locator('#scoutro-dash-remove-id'), save=page.locator('#scoutro-dash-remove-save');
   await page.waitForFunction(()=>!document.getElementById('scoutro-dash-remove-id').disabled);
   check(await select.locator('option[value="ui-test-portal"]').evaluate(o=>!o.disabled),'en: the new, empty collection can be removed');
-  const kept=await select.locator('option[value="stackfinder-web"]');
-  check(await kept.evaluate(o=>o.disabled) && (await kept.textContent()).includes('2 pages'),'en: a collection with pages is listed as kept, with the reason');
-  await shot(page,'dashboard-collections-remove-1280-en-US.png');
+  const withPages=await select.locator('option[value="test-web"]');
+  check(await withPages.evaluate(o=>!o.disabled) && (await withPages.textContent()).includes('6 pages'),'en: a collection with pages can be chosen, with its page count');
+  const profile=await select.locator('option[value="stackfinder-web"]');
+  check(await profile.evaluate(o=>o.disabled) && (await profile.textContent()).includes('Discovery profile'),'en: a collection of a Discovery profile is kept, with the reason');
+  await select.selectOption('ui-test-portal');
+  check((await save.textContent()).trim()==='Remove collection' && await page.locator('#scoutro-dash-remove-pages-box').isHidden(),'en: an empty collection is removed, no page option');
+  await select.selectOption('test-web');
+  check((await save.textContent()).trim()==='Hide collection' && await save.isEnabled(),'en: a collection with pages is hidden');
+  check((await page.locator('#scoutro-dash-remove-hint').textContent()).includes('6 pages stay in the index'),'en: the dialog says the pages stay');
+  await page.locator('#scoutro-dash-remove-pages').check();
+  check(await page.locator('#scoutro-dash-remove-confirm').isVisible() && (await save.textContent()).trim()==='Delete pages' && await save.isDisabled(),
+    'en: deleting pages waits for the typed id');
+  await page.locator('#scoutro-dash-remove-confirm').fill('test');
+  check(await save.isDisabled(),'en: a different id does not confirm');
+  await page.locator('#scoutro-dash-remove-confirm').fill('test-web');
+  check(await save.isEnabled(),'en: the exact id confirms');
+  await shot(page,'dashboard-collections-delete-pages-1280-en-US.png');
+  await page.locator('#scoutro-dash-remove-pages').uncheck();
+  check((await save.textContent()).trim()==='Hide collection' && await page.locator('#scoutro-dash-remove-confirm').isHidden(),'en: unticked it hides again');
   await page.locator('#scoutro-dash-remove-cancel').click();
   check(!(await page.locator('#scoutro-dash-remove-dialog').isVisible()) && await page.locator(card('ui-test-portal')).count()===1,'en: cancel removes nothing');
   await page.locator('#scoutro-dash-collection-remove').click();
@@ -54,6 +71,23 @@ try {
   check(await page.locator(card('ui-test-portal')).count()===0,'en: the removed collection has no card');
   check((await page.locator('#scoutro-dash-collection-status').textContent()).trim()==='Collection removed: UI Test Portal · ui-test-portal','en: removal confirmed after the reload');
   check(await page.locator(card('stackfinder-web')).count()===1,'en: the other collections stay');
+  // hide a collection with pages, then show it again from the list below the cards
+  await page.locator('#scoutro-dash-collection-remove').click();
+  await page.waitForFunction(()=>!document.getElementById('scoutro-dash-remove-id').disabled);
+  await select.selectOption('test-web');
+  await Promise.all([page.waitForNavigation(), save.click()]);
+  await page.locator('#scoutro-dash-collection-status').waitFor({state:'visible'});
+  check((await page.locator('#scoutro-dash-collection-status').textContent()).trim()==='Collection hidden: Testseiten · test-web 6 pages stay in the index.','en: hiding confirmed after the reload');
+  check(await page.locator(card('test-web')).count()===0,'en: a hidden collection has no card');
+  await page.locator('#scoutro-dash-hidden').waitFor({state:'visible'});
+  const hiddenItem=page.locator('#scoutro-dash-hidden-list li');
+  check(await hiddenItem.count()===1 && (await hiddenItem.textContent()).includes('Testseiten · test-web — 6 pages'),'en: listed as hidden with its pages');
+  await shot(page,'dashboard-collections-hidden-1280-en-US.png');
+  await Promise.all([page.waitForNavigation(), hiddenItem.locator('button').click()]);
+  await page.locator('#scoutro-dash-collection-status').waitFor({state:'visible'});
+  check((await page.locator('#scoutro-dash-collection-status').textContent()).trim()==='Collection shown again: Testseiten · test-web','en: shown again after the reload');
+  await page.locator(card('test-web')).waitFor();
+  check(await page.locator('#scoutro-dash-hidden').isHidden(),'en: no hidden collection left');
   check(errors.length===0,`en: no JS errors ${errors}`);
   await context.close();
   // phone: the same controls fit (German labels: accounts-ui-test.mjs, which runs the peer with the browser language)
@@ -67,7 +101,10 @@ try {
   await page.locator('#scoutro-dash-remove-dialog').waitFor({state:'visible'});
   await page.waitForFunction(()=>document.querySelectorAll('#scoutro-dash-remove-id option').length>1);
   check((await page.locator('#scoutro-dash-remove-title').textContent()).trim()==='Remove collection','390: dialog title');
-  check((await page.locator('#scoutro-dash-remove-id optgroup').getAttribute('label'))==='Cannot be removed','390: kept collections grouped');
+  check(await page.locator('#scoutro-dash-remove-id option[value="test-web"]').evaluate(o=>!o.disabled),'390: a collection with pages can be chosen');
+  await page.locator('#scoutro-dash-remove-id').selectOption('test-web');
+  await page.locator('#scoutro-dash-remove-pages').check();
+  check(await page.locator('#scoutro-dash-remove-confirm').isVisible(),'390: the confirmation fits');
   check(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),'390: no horizontal overflow');
   await shot(page,'dashboard-collections-remove-390-en-US.png');
   await page.locator('#scoutro-dash-remove-cancel').tap();

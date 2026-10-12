@@ -153,6 +153,16 @@ final class KgCollectionSettings {
         return KgConfig.read(this.settings::get, this.settings.keys());
     }
 
+    /** True if the graph follows {@code collection} with the stored settings. */
+    boolean follows(final String collection) {
+        return config().follows(collection);
+    }
+
+    /** True if {@code collection} is switched off for the graph (its data kept). */
+    boolean holds(final String collection) {
+        return config().holds(collection);
+    }
+
     /** {@code GET /v1/kg/collections}. */
     JSONObject list() {
         final KgConfig cfg = config();

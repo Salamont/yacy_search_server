@@ -96,10 +96,15 @@ final class ScoutroActions {
     }
 
     ScoutroActions(final Upstream upstream) {
+        this(upstream, null);
+    }
+
+    /** With a catalog of its own (tests); null: the running peer's, or one in memory for a test transport. */
+    ScoutroActions(final Upstream upstream, final CollectionCatalog catalog) {
         this.yacy = upstream;
         this.crawlLedger = new CrawlLedger(upstream::crawlMetadataPath);
         // the running peer shares one catalog with its pages and the chat; a test transport keeps its own in memory
-        this.catalog = upstream instanceof YaCyLoopback ? CollectionCatalog.current()
+        this.catalog = catalog != null ? catalog : upstream instanceof YaCyLoopback ? CollectionCatalog.current()
                 : new CollectionCatalog(null, this::indexCollectionCounts, java.util.List::of);
     }
 
@@ -325,6 +330,7 @@ final class ScoutroActions {
         }
         final JSONArray items = new JSONArray();
         for (final CollectionCatalog.Entry e : this.catalog.entries(true)) {
+            if (e.hidden && !administrator) continue; // a hidden collection is the administrator's business only (0.10.3)
             final JSONObject o = e.json();
             final JSONObject g = graph.get(e.id);
             if (administrator) Json.put(o, "graph", g == null || e.internal() ? null : Json.obj("followed", g.optBoolean("followed"),
@@ -346,7 +352,92 @@ final class ScoutroActions {
      * index or another store is deleted.
      */
     JSONObject collectionRemove(final String id) throws ApiException {
-        return Json.obj("collection", this.catalog.remove(id, this::collectionUses).json(), "removed", true);
+        return Json.obj("collection", this.catalog.remove(id, this.uses).json(), "removed", true);
+    }
+
+    /**
+     * The knowledge graph's switch of a collection (package 6.2, {@code scoutro.kg.collections.inactive}) as hiding uses it
+     * (0.10.3): off keeps the graph data and extracts nothing new; true if the graph followed the collection before.
+     */
+    interface GraphSwitch {
+        boolean off(String id) throws ApiException;
+
+        void on(String id) throws ApiException;
+    }
+
+    /** The running peer's knowledge graph settings; nothing where the graph does not follow the collection. */
+    static final GraphSwitch KG_SWITCH = new GraphSwitch() {
+        @Override
+        public boolean off(final String id) throws ApiException {
+            final KgCollectionSettings s = KgCollectionSettings.current();
+            if (s == null || !s.follows(id)) return false;
+            s.update(id, Json.obj("active", false));
+            return true;
+        }
+
+        @Override
+        public void on(final String id) throws ApiException {
+            final KgCollectionSettings s = KgCollectionSettings.current();
+            if (s != null && s.holds(id)) s.update(id, Json.obj("active", true));
+        }
+    };
+
+    GraphSwitch graphSwitch = KG_SWITCH;
+    /** Who names a collection; the running peer's stores unless a test sets its own. */
+    CollectionCatalog.Uses uses = this::collectionUses;
+
+    /**
+     * collections.hide (administrator, 0.10.3): the collection leaves every choice and the dashboard, the knowledge
+     * graph stops reading it (its data stay), its pages stay in the index ({@link CollectionCatalog#hide}). Refused
+     * while a Discovery profile, an account, agent, guest access or running crawl names it.
+     */
+    JSONObject collectionHide(final String id) throws ApiException {
+        final CollectionCatalog.Outcome o = this.catalog.hide(id, this.uses);
+        return Json.put(o.json(), "graph", switchGraphOff(id));
+    }
+
+    /**
+     * collections.delete-pages (administrator, 0.10.3): deletes the pages of the collection that belong to no other
+     * collection, confirmed with its id; without pages left it goes from the lists, otherwise it is hidden
+     * ({@link CollectionCatalog#deletePages}). Irreversible.
+     */
+    JSONObject collectionDeletePages(final String id, final JSONObject body) throws ApiException {
+        for (final String key : body.keySet()) {
+            if (!"confirm".equals(key)) throw ApiException.invalid(key, "Unknown field.");
+        }
+        final Object confirm = body.opt("confirm");
+        final CollectionCatalog.Outcome o = this.catalog.deletePages(id, confirm instanceof String ? (String) confirm : null, this.uses);
+        return Json.put(o.json(), "graph", o.hidden ? switchGraphOff(id) : null);
+    }
+
+    /** collections.show (administrator, 0.10.3): a hidden collection is offered again; the graph reads it again if hiding switched it off. */
+    JSONObject collectionShow(final String id) throws ApiException {
+        final JSONObject record = this.catalog.show(id);
+        JSONObject graph = Json.obj("switchedOn", false);
+        if (record.optBoolean("graphSwitchedOff")) {
+            try {
+                this.graphSwitch.on(id);
+                graph = Json.obj("switchedOn", true);
+            } catch (final ApiException e) {
+                graph = Json.obj("switchedOn", false, "error", e.code());
+            }
+        }
+        CollectionCatalog.Entry shown = null;
+        for (final CollectionCatalog.Entry e : this.catalog.entries(false)) {
+            if (e.id.equals(id)) shown = e;
+        }
+        return Json.obj("collection", shown == null ? Json.obj("id", id) : shown.json(), "shown", true, "graph", graph);
+    }
+
+    /** Switches the graph off for a hidden collection; a refusal (backup running, write refused) is reported, the collection stays hidden. */
+    private JSONObject switchGraphOff(final String id) throws ApiException {
+        try {
+            final boolean off = this.graphSwitch.off(id);
+            if (off) this.catalog.hiddenSwitchedGraphOff(id);
+            return Json.obj("switchedOff", off);
+        } catch (final ApiException e) {
+            return Json.obj("switchedOff", false, "error", e.code());
+        }
     }
 
     /** What names a collection explicitly on the running peer; a store that cannot be read refuses the removal. */

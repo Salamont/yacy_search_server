@@ -92,21 +92,35 @@ account never does; the API refuses it with `403` anyway).
   (`POST /scoutro/api/v1/collections`): display name, ID (suggested from the
   name, cannot be changed later) and an optional description. After the server
   confirmed it the page reloads and shows the new, empty collection as a card.
-- **−** opens **Remove collection**. The list offers only collections created
-  in Scoutro that hold no page and that no Discovery profile names; every other
-  collection is listed as *Cannot be removed* with the reason (pages, Discovery
-  profile, from the index). Removing calls
-  `DELETE /scoutro/api/v1/collections/{id}`. The server reads the page count
-  anew and refuses while an account, an agent (not revoked), the guest access or
-  a crawl that is not terminated names the collection; the dialog then names
-  them (for example "1 accounts, 2 agents"). Remove the collection there first.
-- Removing deletes **no page** and changes no other store: only the entry with
-  name and description leaves the collection list. Knowledge-graph settings of
-  that name stay and apply again if a collection of the same ID is created later.
-  A collection that holds pages stays; moving pages between collections is
-  `POST /v1/collections/reassign`, deleting pages is YaCy's index administration.
+- **−** opens **Remove collection**. The list offers every collection with its
+  page count; one that a Discovery profile names is listed as *Cannot be
+  removed* (the profile would crawl into it again). What happens depends on the
+  choice, and the dialog says it before anything changes:
+  - an **empty collection created in Scoutro** is removed from the list
+    (`DELETE /scoutro/api/v1/collections/{id}`): only the entry with name and
+    description goes; knowledge-graph settings of that name stay and apply again
+    if a collection of the same ID is created later;
+  - a **collection with pages** is **hidden** (`POST …/{id}/hide`, 0.10.3): it
+    leaves the dashboard and every choice (crawl start, filters, chat, agent
+    grants), the knowledge graph stops reading it (its data stay, nothing is
+    extracted again) and its pages stay in the index. A search without a
+    collection filter still finds them;
+  - ticking **Also delete its pages from the index** and typing the collection
+    ID deletes its pages (`POST …/{id}/delete-pages`). This cannot be undone.
+    Only pages that belong to no other collection are deleted; a page that also
+    belongs to another collection stays, and the collection is then hidden. The
+    knowledge graph drops the deleted pages by itself.
+  The server reads the page count anew and refuses while an account, an agent
+  (not revoked), the guest access or a crawl that is not terminated names the
+  collection; the dialog then names them (for example "1 accounts, 2 agents").
+  Remove the collection there first. Moving pages between collections is
+  `POST /v1/collections/reassign`.
+- **Hidden collections** are listed below the cards with their page count and
+  **Show again** (`POST …/{id}/show`): every choice offers the collection
+  again, and the knowledge graph reads it again if hiding had switched it off.
 - Every change is in the user audit log (`api.collections POST`,
-  `api.collections DELETE` with the collection as target).
+  `api.collections DELETE`, `api.collections.hide POST`, `api.collections.show POST`,
+  `api.collections.delete-pages POST`, each with the collection as target).
 
 ## Automation and verification
 

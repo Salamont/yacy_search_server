@@ -4698,8 +4698,121 @@
       }
     },
     {
+      "name": "collections.hide",
+      "description": "Administrator only, same origin; send an empty JSON object as body. 0.10.3: the collection leaves every collection choice (crawl start, filters, chat, agent grants, knowledge graph) and the dashboard; the knowledge graph stops reading it if it followed it (scoutro.kg.collections.inactive, its data stay, nothing is re-extracted); its pages, crawl profiles and every other store stay. Hiding a hidden collection changes nothing. Refused while a Discovery profile names it (409 collection_from_profile) or an account, agent (not revoked), guest access or crawl that is not terminated names it explicitly (409 collection_in_use, details.uses). graph.error: the knowledge graph could not be switched (a backup runs); the collection is hidden anyway. 400 invalid_request, 404 collection_not_found (unknown or YaCy's own robot_… collection), 503 index_unavailable, 503 collection_uses_unavailable, 503 collection_store_unavailable. Agents cannot hide collections.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/{id}/hide",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "path",
+          "required": true,
+          "description": "Collection id."
+        }
+      },
+      "returns": "CollectionHidden",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "browser: Dashboard > Scoutro Collections \"−\" (administrator); HTTP POST /scoutro/api/v1/collections/{id}/hide",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.show",
+      "description": "Administrator only, same origin; send an empty JSON object as body. 0.10.3: every choice offers the collection again; the knowledge graph reads it again if hiding had switched it off (graph.switchedOn). 404 collection_not_hidden. Agents cannot show collections.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/{id}/show",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "path",
+          "required": true,
+          "description": "Collection id."
+        }
+      },
+      "returns": "CollectionShown",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        413,
+        415,
+        503
+      ],
+      "cli": "browser: Dashboard > Hidden collections > Show again (administrator); HTTP POST /scoutro/api/v1/collections/{id}/show",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
+      "name": "collections.delete-pages",
+      "description": "Administrator only, same origin, body {\"confirm\": \"<id>\"} (400 confirm_mismatch unless it is the id exactly; any other field 400 invalid_request). 0.10.3, irreversible: deletes the pages of the collection that belong to no other collection from the index (and their webgraph edges), as YaCy's deletion by collection does; a page that also belongs to another collection stays, so no other collection loses a page. Without pages left the collection goes from the lists (removed); with shared pages left it is hidden as by hide (sharedWith names the other collections). The knowledge graph drops the deleted pages through its sync. Refused like hide (409 collection_from_profile, 409 collection_in_use). 404 collection_not_found, 503 index_unavailable (the index could not be read or changed; check the pages of the collection), 503 collection_uses_unavailable, 503 collection_store_unavailable. Agents cannot delete pages.",
+      "mutating": true,
+      "auth": "admin",
+      "permission": "admin",
+      "http": {
+        "method": "POST",
+        "path": "/scoutro/api/v1/collections/{id}/delete-pages",
+        "successStatus": 200
+      },
+      "parameters": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "in": "path",
+          "required": true,
+          "description": "Collection id."
+        },
+        "confirm": {
+          "type": "string",
+          "description": "The collection id, typed exactly: confirms the irreversible deletion.",
+          "in": "body",
+          "required": true
+        }
+      },
+      "returns": "CollectionHidden",
+      "errors": [
+        400,
+        401,
+        403,
+        404,
+        409,
+        413,
+        415,
+        503
+      ],
+      "cli": "browser: Dashboard > Scoutro Collections \"−\" > Also delete its pages (administrator); HTTP POST /scoutro/api/v1/collections/{id}/delete-pages",
+      "agent": {
+        "grantable": false
+      }
+    },
+    {
       "name": "collections.remove",
-      "description": "Administrator only, same origin; send an empty JSON object as body (unknown field 400 invalid_request, at most 4 KiB). Removes a collection created with POST /v1/collections from the collection list, nothing else: only while the index holds no page of it (read anew, not from the catalog cache), no Discovery profile names it and no account, agent (not revoked), guest access or crawl that is not terminated names it explicitly. Pages, crawl profiles, knowledge-graph settings and data, and every other store stay as they are; a grant of all collections names none. The same id can be created again later. 400 invalid_request, 404 collection_not_found (unknown or YaCy's own robot_… collection), 409 collection_has_documents (details.documents), 409 collection_from_profile, 409 collection_not_created, 409 collection_in_use (details.uses: accounts, agents, guest, crawls with counts), 503 index_unavailable, 503 collection_uses_unavailable, 503 collection_store_unavailable. Agents cannot remove collections.",
+      "description": "Administrator only, same origin; send an empty JSON object as body (unknown field 400 invalid_request, at most 4 KiB). Removes a collection created with POST /v1/collections from the collection list, nothing else: only while the index holds no page of it (read anew, not from the catalog cache), no Discovery profile names it and no account, agent (not revoked), guest access or crawl that is not terminated names it explicitly. Pages, crawl profiles, knowledge-graph settings and data, and every other store stay as they are; a grant of all collections names none. The same id can be created again later. 400 invalid_request, 404 collection_not_found (unknown or YaCy's own robot_… collection), 409 collection_has_documents (details.documents; hide it or delete its pages instead), 409 collection_from_profile, 409 collection_not_created (also removes the entry of a hidden collection whose pages are gone), 409 collection_in_use (details.uses: accounts, agents, guest, crawls with counts), 503 index_unavailable, 503 collection_uses_unavailable, 503 collection_store_unavailable. Agents cannot remove collections.",
       "mutating": true,
       "auth": "admin",
       "permission": "admin",
@@ -19504,7 +19617,11 @@
         },
         "selectable": {
           "type": "boolean",
-          "description": "Offered in every collection choice. Equal to chat, knowledgeGraph and crawlTarget: one definition for all uses."
+          "description": "Offered in every collection choice. Equal to chat, knowledgeGraph and crawlTarget: one definition for all uses. False for a hidden collection."
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "0.10.3: hidden by an administrator (POST /v1/collections/{id}/hide): in no choice and not on the dashboard, its pages stay in the index; POST /v1/collections/{id}/show offers it again."
         },
         "chat": {
           "type": "boolean"
@@ -19634,6 +19751,87 @@
         },
         "removed": {
           "const": true
+        }
+      }
+    },
+    "CollectionHidden": {
+      "type": "object",
+      "description": "0.10.3: the outcome of hide or delete-pages.",
+      "properties": {
+        "collection": {
+          "$ref": "#/components/schemas/CollectionEntry"
+        },
+        "removed": {
+          "type": "boolean",
+          "description": "No page of it is left: it went from the lists (delete-pages only)."
+        },
+        "hidden": {
+          "type": "boolean",
+          "description": "Pages of it are left in the index: it is hidden."
+        },
+        "deletedPages": {
+          "type": "integer"
+        },
+        "keptPages": {
+          "type": "integer"
+        },
+        "sharedWith": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "delete-pages: the other collections of the kept pages, with how many pages each shares."
+        },
+        "graph": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "description": "The knowledge graph switch of the collection: switchedOff true if the graph followed it and was switched off (its data stay); error: the code of a refused switch, the collection is hidden anyway.",
+          "properties": {
+            "switchedOff": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "CollectionShown": {
+      "type": "object",
+      "properties": {
+        "collection": {
+          "$ref": "#/components/schemas/CollectionEntry"
+        },
+        "shown": {
+          "const": true
+        },
+        "graph": {
+          "type": "object",
+          "properties": {
+            "switchedOn": {
+              "type": "boolean",
+              "description": "The graph reads it again: hiding had switched it off."
+            },
+            "error": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "CollectionDeletePages": {
+      "type": "object",
+      "required": [
+        "confirm"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "confirm": {
+          "type": "string",
+          "description": "The collection id, typed exactly: confirms the irreversible deletion."
         }
       }
     },

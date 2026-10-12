@@ -124,7 +124,7 @@ invalid name `400`.
 | `export` | `/v1/index/domains/export`, `/v1/kg/export`, `/v1/kg/export/download`, `/v1/kg/changes` | Also needs `read`. |
 | `collect` | `/v1/crawls*`, `/v1/reports/*`, `/v1/discovery/{catalog,status,jobs*}` | Crawls: only crawls of own collections (others `404 crawl_not_found`); a start needs an own collection, refuses `scope=wide` (`403 scope_not_allowed`) and hosts with documents outside the scope (`409 host_indexed_elsewhere`), and stays on exactly its host. Discovery: only jobs whose profile writes into an own collection (others `404 job_not_found`), no global action in `status`. Reports: as for agents. |
 | `chat` | `POST /v1/chat/completions` | One own collection (the only one, or `400 collection_required`); a foreign one `403 collection_not_allowed`; no peer-to-peer search; no `search` tool of the model without all collections; system questions `403 system_forbidden`. The account's session decides, not its address. |
-| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `DELETE /v1/collections/{id}`, `/v1/collections/reassign`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}`, `/v1/discovery/attempts/{id}/defer` | `403 forbidden` for accounts. |
+| `admin` | `/v1/system*`, `/v1/config`, `POST /v1/collections`, `DELETE /v1/collections/{id}`, `POST /v1/collections/{id}/{hide,show,delete-pages}`, `/v1/collections/reassign`, `/v1/users*`, `/v1/access*`, `/v1/kg/{status,control,backups,collections,prompt,llm-*}`, `/v1/discovery/{enable,disable,pause,resume,export}`, `/v1/discovery/attempts/{id}/defer` | `403 forbidden` for accounts. |
 
 Tools keep using HTTP Digest; the login page never answers them. Every
 changing `/v1` call of a person is written to the audit log
@@ -416,7 +416,42 @@ filters, crawl starts and agent grants all take their choices from it.
   index_unavailable`, `503 collection_uses_unavailable`, `503
   collection_store_unavailable` (the list cannot be written or is damaged).
   Pages, crawl profiles, knowledge-graph settings and data stay; the same id can
-  be created again. Agents cannot remove collections.
+  be created again. Agents cannot remove collections. It also removes the entry
+  of a hidden collection whose pages are gone.
+- `POST /v1/collections/{id}/hide` (administrator, same origin, body `{}`;
+  0.10.3, the Dashboard's "−" for a collection with pages): the collection
+  leaves every choice (crawl start, filters, chat, agent grants, knowledge
+  graph) and the dashboard; `GET /v1/collections` lists it with
+  `"hidden": true, "selectable": false`. If the knowledge graph followed it, it
+  is switched off for it (`scoutro.kg.collections.inactive`: its data stay,
+  nothing new is extracted, no re-extraction). Its pages stay in the index (a
+  search without a collection filter still finds them), crawl profiles and
+  every other store stay. Refused like the removal while a Discovery profile
+  (`409 collection_from_profile`) or an account, agent, guest access or crawl
+  that is not terminated (`409 collection_in_use`) names it. Kept in
+  `DATA/SCOUTRO/collections-hidden.json`.
+  `200 {"collection":{...},"removed":false,"hidden":true,"deletedPages":0,"keptPages":74,"sharedWith":{},"graph":{"switchedOff":true}}`;
+  `graph.error` names a refused switch (for example while a backup runs): the
+  collection is hidden anyway, check it in the knowledge graph settings.
+- `POST /v1/collections/{id}/show` (administrator, body `{}`): offered again
+  everywhere; the knowledge graph reads it again if hiding had switched it off
+  (`graph.switchedOn`). `404 collection_not_hidden`.
+- `POST /v1/collections/{id}/delete-pages` (administrator, body
+  `{"confirm":"<id>"}`, `400 confirm_mismatch` unless it is the id exactly):
+  **irreversible**. Deletes the pages of the collection that belong to no other
+  collection from the index (and their webgraph edges), as YaCy's deletion by
+  collection does; a page that also belongs to another collection stays, so no
+  other collection loses a page. Without pages left the collection goes from the
+  lists (`"removed": true`); otherwise it is hidden (`"hidden": true`,
+  `keptPages`, `sharedWith` with the other collections). The knowledge graph
+  drops the deleted pages through its sync (deletion by query, then a reconcile).
+  Refusals as for hide; `503 index_unavailable` if the index could not be read
+  or changed (check the pages of the collection).
+
+  ```sh
+  curl --digest -u admin -X POST -H 'Content-Type: application/json' -d '{"confirm":"test-web"}' \
+    http://scoutro:8090/scoutro/api/v1/collections/test-web/delete-pages
+  ```
 - `POST /v1/collections/reassign` (administrator, same-origin JSON, at most
   4 KiB): moves the indexed pages of **one registrable domain** (and its
   subdomains) between collections without crawling them again, e.g. a domain

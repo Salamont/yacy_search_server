@@ -16,6 +16,7 @@ import socket
 import subprocess
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 
 REPO = Path(__file__).resolve().parents[2]
@@ -102,10 +103,6 @@ with tempfile.TemporaryDirectory(prefix="scoutro-dashboard-") as temporary:
             shots = os.environ.get("SCOUTRO_SCREENSHOTS", "/tmp/scoutro-dashboard-shots")
             for script in ["dashboard-ui-test.mjs", "scoutro-ui-test.mjs"]:
                 subprocess.run(["node", str(REPO / "test/scoutro-ui" / script), "--screenshots", shots], cwd=REPO, env=env, check=True)
-            # "+" and "−" of the collection list (administrator): the browser flow changes only its own collection
-            index = digests(root / "DATA/INDEX/webportal/SEGMENTS")
-            subprocess.run(["node", str(REPO / "test/scoutro-ui/dashboard-collections-ui-test.mjs"), "--screenshots", shots], cwd=REPO, env=env, check=True)
-
             def call(method, path, body=None, authenticated=True, headers=None):
                 hs = {"Accept": "application/json", **({"Content-Type": "application/json"} if body is not None else {}), **(headers or {})}
                 request = urllib.request.Request(BASE + "/scoutro/api/v1/" + path, method=method, headers=hs,
@@ -121,6 +118,18 @@ with tempfile.TemporaryDirectory(prefix="scoutro-dashboard-") as temporary:
 
             def code(result):
                 return result[1]["error"]["code"] if isinstance(result[1], dict) and "error" in result[1] else None
+
+            # 0.10.3: a collection with pages that no Discovery profile names (the shipped profiles name the four fixture
+            # collections): test-web gets the pages of edel.example out of edelsenior-web (pages 0-2, its own) and joins the
+            # pages of bau.example (4: stackfinder-web, 5 and 6: bauteamcheck-web, shared), by the reassignment of 0.10.1
+            assert call("POST", "collections", {"id": "test-web", "name": "Testseiten"})[0] == 201
+            for move in ({"domain": "edel.example", "add": ["test-web"], "remove": ["edelsenior-web"]}, {"domain": "bau.example", "add": ["test-web"]}):
+                preview = call("POST", "collections/reassign", move)
+                assert preview[0] == 200 and preview[1].get("token"), preview
+                assert call("POST", "collections/reassign", {**move, "confirm": preview[1]["token"]})[0] == 200
+            # "+" and "−" of the collection list (administrator): the browser flow changes only its own collection
+            index = digests(root / "DATA/INDEX/webportal/SEGMENTS")
+            subprocess.run(["node", str(REPO / "test/scoutro-ui/dashboard-collections-ui-test.mjs"), "--screenshots", shots], cwd=REPO, env=env, check=True)
 
             counted = [0]
             def check(value, label):
@@ -151,6 +160,60 @@ with tempfile.TemporaryDirectory(prefix="scoutro-dashboard-") as temporary:
                   f"API: removals audited with the collection as target {removals}")
             check(digests(root / "DATA/INDEX/webportal/SEGMENTS") == index, "API: no page of the index changed")
             print(f"PASS: {counted[0]} live collection +/− API checks", flush=True)
+
+            # 0.10.3: hide, show again and delete pages, against the real index
+            counted[0] = 0
+            def solr(q):
+                with client.open(BASE + "/solr/select?" + urllib.parse.urlencode({"q": q, "rows": 50, "wt": "json", "fl": "sku,collection_sxt"}), timeout=15) as r:
+                    return {d["sku"]: sorted(d.get("collection_sxt", [])) for d in json.loads(r.read().decode())["response"]["docs"]}
+            before_pages = solr("*:*")
+            check(before_pages["https://bau.example/page-4"] == ["stackfinder-web", "test-web"] and before_pages["https://edel.example/page-0"] == ["test-web"],
+                  f"test-web: own and shared pages {before_pages}")
+            check(code(call("POST", "collections/stackfinder-web/hide", {})) == "collection_from_profile", "hide: a collection of a Discovery profile stays")
+            check(call("POST", "collections/test-web/hide", None)[0] == 415, "hide: needs a JSON body")
+            check(code(call("POST", "collections/test-web/hide", {"pages": "keep"})) == "invalid_request", "hide: no field accepted")
+            check(call("POST", "collections/test-web/hide", {}, authenticated=False)[0] == 401, "hide: anonymous refused")
+            check(call("POST", "collections/test-web/hide", {}, headers={"Origin": "https://foreign.invalid"})[0] in (401, 403), "hide: cross origin refused")
+            check(call("GET", "collections/test-web/hide")[0] == 405, "hide: POST only")
+            hidden = call("POST", "collections/test-web/hide", {})
+            check(hidden[0] == 200 and hidden[1]["hidden"] and hidden[1]["keptPages"] == 6 and hidden[1]["graph"] == {"switchedOff": False},
+                  f"hide: hidden, its pages kept, the graph did not follow it {hidden}")
+            entry = {c["id"]: c for c in call("GET", "collections")[1]["collections"]}["test-web"]
+            check(entry["hidden"] and not entry["selectable"] and not entry["crawlTarget"], f"hide: listed as hidden, in no choice {entry}")
+            with client.open(BASE + "/scoutro-dashboard.html", timeout=15) as response:
+                check('data-collection="test-web"' not in response.read().decode(), "hide: no dashboard card")
+            check(solr("*:*") == before_pages, "hide: no page changed")
+            stored = json.loads((root / "DATA/SCOUTRO/collections-hidden.json").read_text())
+            check([h["id"] for h in stored["hidden"]] == ["test-web"], f"hide: kept in collections-hidden.json {stored}")
+            check(code(call("POST", "collections", {"id": "test-web", "name": "Neu"})) == "collection_hidden", "hide: no new collection over it")
+            shown = call("POST", "collections/test-web/show", {})
+            check(shown[0] == 200 and shown[1]["shown"] and shown[1]["collection"]["selectable"], f"show: offered again {shown}")
+            check(code(call("POST", "collections/test-web/show", {})) == "collection_not_hidden", "show: only a hidden one")
+            mismatch = call("POST", "collections/test-web/delete-pages", {"confirm": "Test-web"})
+            check(mismatch[0] == 400 and code(mismatch) == "confirm_mismatch", f"delete: the id confirms exactly {mismatch}")
+            check(code(call("POST", "collections/test-web/delete-pages", {"confirm": "test-web", "all": True})) == "invalid_request", "delete: no other field")
+            check(call("PATCH", "access", {"guestCollections": ["test-web"]})[0] == 200, "delete: the guest access names it")
+            check(code(call("POST", "collections/test-web/delete-pages", {"confirm": "test-web"})) == "collection_in_use", "delete: refused while in use")
+            check(call("PATCH", "access", {"guestCollections": []})[0] == 200, "delete: guest access released")
+            check(solr("*:*") == before_pages, "delete: refusals deleted nothing")
+            deleted = call("POST", "collections/test-web/delete-pages", {"confirm": "test-web"})
+            check(deleted[0] == 200 and deleted[1]["deletedPages"] == 3 and deleted[1]["keptPages"] == 3 and deleted[1]["hidden"]
+                  and deleted[1]["sharedWith"] == {"bauteamcheck-web": 2, "stackfinder-web": 1}, f"delete: only the pages of no other collection {deleted}")
+            after_pages = solr("*:*")
+            expected = {k: v for k, v in before_pages.items() if k not in {f"https://edel.example/page-{i}" for i in range(3)}}
+            check(after_pages == expected, f"delete: exactly pages 0-2 gone, every other page and its collections unchanged {after_pages}")
+            entry = {c["id"]: c for c in call("GET", "collections")[1]["collections"]}["test-web"]
+            check(entry["hidden"] and entry["documents"] == 3, f"delete: the shared pages keep it hidden {entry}")
+            # an empty collection created here: nothing to delete, it goes from the lists
+            check(call("POST", "collections", {"id": "wegwerf-web", "name": "Wegwerf"})[0] == 201, "delete: create an empty one")
+            gone = call("POST", "collections/wegwerf-web/delete-pages", {"confirm": "wegwerf-web"})
+            check(gone[0] == 200 and gone[1]["removed"] and gone[1]["deletedPages"] == 0, f"delete: an empty one is removed {gone}")
+            audit = [json.loads(line) for line in (root / "DATA/SETTINGS/scoutro-user-audit.jsonl").read_text().splitlines() if line.strip()]
+            done = {(a.get("action"), a.get("target")) for a in audit if a.get("result") == "ok"}
+            check({("api.collections.hide POST", "test-web"), ("api.collections.show POST", "test-web"),
+                   ("api.collections.delete-pages POST", "test-web"), ("api.collections.delete-pages POST", "wegwerf-web")} <= done,
+                  f"audit: each step with the collection as target {sorted(a for a in done if a[0] and 'collections' in a[0])}")
+            print(f"PASS: {counted[0]} live hide/show/delete-pages checks", flush=True)
         finally:
             if process is not None and process.poll() is None:
                 process.terminate()

@@ -28,7 +28,8 @@ Read from `GET /scoutro/api/v1/collections`; creation through
 `POST /scoutro/api/v1/collections` (administrator).
 
 The Dashboard offers the same creation as **+** next to *Scoutro Collections*
-and **−** to remove a collection: only one created in Scoutro that holds no
-page, that no Discovery profile names and that no account, agent, guest access
-or running crawl uses (`DELETE /scoutro/api/v1/collections/{id}`). No page is
-ever deleted; see [Scoutro Dashboard](scoutro-dashboard.md).
+and **−** to remove an empty collection created in Scoutro, to hide a
+collection with pages (its pages stay in the index; **Show again** below the
+cards) or, ticked and confirmed with its ID, to delete its pages that belong to
+no other collection. Not while a Discovery profile, an account, agent, guest
+access or running crawl uses it; see [Scoutro Dashboard](scoutro-dashboard.md).

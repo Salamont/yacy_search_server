@@ -37,6 +37,11 @@ import net.yacy.search.Switchboard;
  * offered for choice, chat, knowledge graph or crawl. Every page and API takes
  * its choices from here, so no page filters collections on its own, and a
  * collection name never has to be typed: a new one is created explicitly.
+ * <p>
+ * A collection can be hidden (0.10.3, {@link #hide}): it leaves every choice,
+ * the dashboard and the knowledge graph, its pages stay in the index, and it can
+ * be shown again. The hidden ones are kept in {@code DATA/SCOUTRO/collections-hidden.json},
+ * apart from the created ones, so an older version never rewrites them.
  */
 public final class CollectionCatalog {
 
@@ -65,6 +70,16 @@ public final class CollectionCatalog {
         default long count(final String id) throws ApiException {
             return counts().getOrDefault(id, 0L);
         }
+
+        /** The other collections of the pages of {@code id}, each with the number of pages it shares with {@code id}. */
+        default Map<String, Long> sharedWith(final String id) throws ApiException {
+            throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was deleted.");
+        }
+
+        /** Deletes the pages of {@code id} that belong to none of {@code others}; returns how many there were. */
+        default long deleteOnly(final String id, final Collection<String> others) throws ApiException {
+            throw new ApiException(503, "index_unavailable", "The index cannot be changed; nothing was deleted.");
+        }
     }
 
     /** One collection as the catalog knows it. */
@@ -77,9 +92,16 @@ public final class CollectionCatalog {
         public final boolean created;
         public final boolean profile;
         public final String createdAt;
+        /** Hidden (0.10.3): in no choice and not on the dashboard; its pages stay in the index. */
+        public final boolean hidden;
 
         Entry(final String id, final String name, final String description, final long documents, final boolean indexed,
                 final boolean created, final boolean profile, final String createdAt) {
+            this(id, name, description, documents, indexed, created, profile, createdAt, false);
+        }
+
+        Entry(final String id, final String name, final String description, final long documents, final boolean indexed,
+                final boolean created, final boolean profile, final String createdAt, final boolean hidden) {
             this.id = id;
             this.name = name == null || name.isEmpty() ? id : name;
             this.description = description == null ? "" : description;
@@ -88,6 +110,7 @@ public final class CollectionCatalog {
             this.created = created;
             this.profile = profile;
             this.createdAt = createdAt;
+            this.hidden = hidden;
         }
 
         /** YaCy's own collection: never a choice. */
@@ -95,9 +118,9 @@ public final class CollectionCatalog {
             return isInternal(this.id);
         }
 
-        /** Offered in every collection choice, as a chat scope, for the knowledge graph and as a crawl target. */
+        /** Offered in every collection choice, as a chat scope, for the knowledge graph and as a crawl target; never when hidden. */
         public boolean selectable() {
-            return !internal();
+            return !internal() && !this.hidden;
         }
 
         public JSONObject json() {
@@ -107,7 +130,8 @@ public final class CollectionCatalog {
             if (this.profile) sources.put("profile");
             final boolean use = selectable();
             final JSONObject o = Json.obj("id", this.id, "name", this.name, "description", this.description, "documents", this.documents,
-                    "internal", internal(), "selectable", use, "chat", use, "knowledgeGraph", use, "crawlTarget", use, "sources", sources);
+                    "internal", internal(), "selectable", use, "chat", use, "knowledgeGraph", use, "crawlTarget", use, "sources", sources,
+                    "hidden", this.hidden);
             Json.put(o, "createdAt", this.createdAt);
             return o;
         }
@@ -122,6 +146,11 @@ public final class CollectionCatalog {
     private long loadedSize = -1L;
     private volatile Map<String, Long> indexCache;
     private volatile long indexCachedAt;
+    private final Path hiddenFile;
+    private final Map<String, JSONObject> hiddenMemory = new LinkedHashMap<>(); // without a registry file (tests)
+    private Map<String, JSONObject> hiddenLoaded = Collections.emptyMap();
+    private long hiddenModified = -1L;
+    private long hiddenSize = -1L;
 
     /**
      * @param registry the file of the created collections; null keeps them in memory
@@ -132,6 +161,7 @@ public final class CollectionCatalog {
         this.registry = registry;
         this.index = index;
         this.profiles = profiles == null ? List::of : profiles;
+        this.hiddenFile = registry == null ? null : registry.resolveSibling("collections-hidden.json");
     }
 
     /** The catalog of the running peer: index by loopback, registry in DATA/SCOUTRO, Discovery profiles. */
@@ -146,6 +176,10 @@ public final class CollectionCatalog {
                             new Index() {
                                 @Override public Map<String, Long> counts() throws ApiException { return loopbackCounts(); }
                                 @Override public long count(final String id) throws ApiException { return loopbackCount(id); }
+                                @Override public Map<String, Long> sharedWith(final String id) throws ApiException { return loopbackShared(id); }
+                                @Override public long deleteOnly(final String id, final Collection<String> others) throws ApiException {
+                                    return embeddedDeleteOnly(id, others);
+                                }
                             }, AgentAdmin::profilePrimaryCollections);
                     current = c;
                 }
@@ -184,6 +218,7 @@ public final class CollectionCatalog {
 
     private List<Entry> entries(final Map<String, Long> counts) {
         final Map<String, JSONObject> created = created();
+        final Map<String, JSONObject> hidden = hidden();
         final Set<String> fromProfiles = new java.util.HashSet<>();
         for (final String p : this.profiles.get()) {
             if (p != null && ID.matcher(p).matches()) fromProfiles.add(p);
@@ -192,12 +227,14 @@ public final class CollectionCatalog {
         final Set<String> ids = new java.util.HashSet<>(counts.keySet());
         ids.addAll(created.keySet());
         ids.addAll(fromProfiles);
+        ids.addAll(hidden.keySet()); // a hidden one stays listed until it is shown again or removed
         for (final String id : ids) {
             if (!ID.matcher(id).matches()) continue;
             final JSONObject c = created.get(id);
             final Long n = counts.get(id);
             out.put(id, new Entry(id, c == null ? null : c.optString("name", null), c == null ? null : c.optString("description", null),
-                    n == null ? 0L : n, n != null, c != null, fromProfiles.contains(id), c == null ? null : c.optString("createdAt", null)));
+                    n == null ? 0L : n, n != null, c != null, fromProfiles.contains(id), c == null ? null : c.optString("createdAt", null),
+                    hidden.containsKey(id) && !isInternal(id)));
         }
         return new ArrayList<>(out.values());
     }
@@ -251,6 +288,10 @@ public final class CollectionCatalog {
         }
         synchronized (this) {
             for (final Entry e : entries(true)) {
+                if (e.id.equalsIgnoreCase(id) && e.hidden) {
+                    throw new ApiException(409, "collection_hidden", "A hidden collection has this name; show it again instead.",
+                            Json.obj("field", "id", "collection", e.id));
+                }
                 if (e.id.equalsIgnoreCase(id)) {
                     throw new ApiException(409, "collection_exists", "A collection with this name exists already; choose it from the list.",
                             Json.obj("field", "id"));
@@ -306,23 +347,207 @@ public final class CollectionCatalog {
             }
             if (documents > 0) {
                 throw new ApiException(409, "collection_has_documents",
-                        "The index holds pages of this collection; it stays. Pages are never deleted here.", Json.obj("documents", documents));
+                        "The index holds pages of this collection; hide it or delete its pages instead.", Json.obj("documents", documents));
             }
             if (found.profile) {
                 throw new ApiException(409, "collection_from_profile", "A Discovery profile names this collection; change the profile first.");
             }
-            if (!found.created) {
+            if (!found.created && !found.hidden) {
                 throw new ApiException(409, "collection_not_created", "Only a collection created in Scoutro can be removed.");
             }
             final Map<String, Integer> using = uses == null ? Map.of() : uses.of(id);
             if (!using.isEmpty()) {
                 throw new ApiException(409, "collection_in_use", "Still in use; remove it there first.", Json.obj("uses", new JSONObject(using)));
             }
+            forget(id);
+            return found;
+        }
+    }
+
+    /** Takes a collection without pages out of both lists: the created one and the hidden one. */
+    private void forget(final String id) throws ApiException {
+        if (created().containsKey(id)) {
             final Map<String, JSONObject> next = new LinkedHashMap<>(created());
             next.remove(id);
             store(next);
-            return found;
         }
+        if (hidden().containsKey(id)) {
+            final Map<String, JSONObject> next = new LinkedHashMap<>(hidden());
+            next.remove(id);
+            storeHidden(next);
+        }
+    }
+
+    /** The result of {@link #hide} and {@link #deletePages}. */
+    public static final class Outcome {
+        public final Entry collection;
+        /** Gone from both lists: no page of it is left. */
+        public final boolean removed;
+        /** Hidden: pages of it are left in the index. */
+        public final boolean hidden;
+        public final long deleted;
+        public final long kept;
+        /** The other collections of the pages that were kept, with how many pages each shares. */
+        public final Map<String, Long> sharedWith;
+
+        Outcome(final Entry collection, final boolean removed, final boolean hidden, final long deleted, final long kept,
+                final Map<String, Long> sharedWith) {
+            this.collection = collection;
+            this.removed = removed;
+            this.hidden = hidden;
+            this.deleted = deleted;
+            this.kept = kept;
+            this.sharedWith = sharedWith;
+        }
+
+        public JSONObject json() {
+            return Json.obj("collection", this.collection.json(), "removed", this.removed, "hidden", this.hidden, "deletedPages", this.deleted,
+                    "keptPages", this.kept, "sharedWith", new JSONObject(this.sharedWith));
+        }
+    }
+
+    /**
+     * The collection to hide or to empty: it exists, is not YaCy's own, no Discovery profile names it (a profile would
+     * crawl into it again) and nothing names it explicitly ({@code uses}). Read anew from the index.
+     */
+    private Entry changeable(final String id, final Uses uses) throws ApiException {
+        if (id == null || !ID.matcher(id).matches()) throw ApiException.invalid("id", "Unknown collection id.");
+        final Map<String, Long> counts;
+        try {
+            counts = Collections.unmodifiableMap(new LinkedHashMap<>(this.index.counts()));
+        } catch (final RuntimeException e) {
+            throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was changed.");
+        }
+        this.indexCache = counts;
+        this.indexCachedAt = System.currentTimeMillis();
+        Entry found = null;
+        for (final Entry e : entries(counts)) {
+            if (e.id.equals(id)) found = e;
+        }
+        if (found == null || found.internal()) {
+            throw new ApiException(404, "collection_not_found", "This collection does not exist.", Json.obj("field", "id"));
+        }
+        if (found.profile) {
+            throw new ApiException(409, "collection_from_profile", "A Discovery profile names this collection; change the profile first.");
+        }
+        final Map<String, Integer> using = uses == null ? Map.of() : uses.of(id);
+        if (!using.isEmpty()) {
+            throw new ApiException(409, "collection_in_use", "Still in use; remove it there first.", Json.obj("uses", new JSONObject(using)));
+        }
+        return found;
+    }
+
+    private long exactCount(final Entry e) throws ApiException {
+        try {
+            return e.documents > 0 ? e.documents : this.index.count(e.id);
+        } catch (final RuntimeException x) {
+            throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was changed.");
+        }
+    }
+
+    /**
+     * Hides a collection (0.10.3): it leaves every choice and the dashboard; its pages, crawl profiles and graph data
+     * stay. Hiding one that is hidden already changes nothing. Shown again with {@link #show}.
+     */
+    public Outcome hide(final String id, final Uses uses) throws ApiException {
+        synchronized (this) {
+            final Entry found = changeable(id, uses);
+            final long documents = exactCount(found);
+            if (!found.hidden) {
+                final Map<String, JSONObject> next = new LinkedHashMap<>(hidden());
+                next.put(id, Json.obj("id", id, "hiddenAt", Instant.now().toString(), "graphSwitchedOff", false));
+                storeHidden(next);
+            }
+            return new Outcome(entry(id, found), false, true, 0L, documents, Map.of());
+        }
+    }
+
+    /**
+     * Deletes the pages of a collection from the index (0.10.3), confirmed by its id: only the pages that belong to no
+     * other collection, so no other collection loses a page. Without pages left the collection goes from both lists;
+     * with shared pages left it is hidden. Irreversible; the knowledge graph drops the deleted pages through its sync.
+     */
+    public Outcome deletePages(final String id, final String confirm, final Uses uses) throws ApiException {
+        synchronized (this) {
+            final Entry found = changeable(id, uses);
+            if (!id.equals(confirm)) {
+                throw new ApiException(400, "confirm_mismatch", "Type the collection id exactly to confirm the deletion.", Json.obj("field", "confirm"));
+            }
+            final Map<String, Long> shared = new TreeMap<>(ORDER);
+            long deleted = 0L;
+            long kept;
+            try {
+                if (exactCount(found) > 0) {
+                    shared.putAll(this.index.sharedWith(id));
+                    shared.remove(id);
+                    deleted = this.index.deleteOnly(id, shared.keySet());
+                }
+                kept = this.index.count(id);
+            } catch (final RuntimeException e) {
+                throw new ApiException(503, "index_unavailable", "The index cannot be changed; check the pages of the collection.");
+            }
+            this.indexCache = null;
+            if (kept > 0) {
+                if (!found.hidden) {
+                    final Map<String, JSONObject> next = new LinkedHashMap<>(hidden());
+                    next.put(id, Json.obj("id", id, "hiddenAt", Instant.now().toString(), "graphSwitchedOff", false));
+                    storeHidden(next);
+                }
+                return new Outcome(entry(id, found), false, true, deleted, kept, shared);
+            }
+            forget(id);
+            return new Outcome(found, true, false, deleted, 0L, Map.of());
+        }
+    }
+
+    /** The hidden record of a collection (0.10.3); null if it is not hidden. */
+    public JSONObject hiddenRecord(final String id) {
+        final JSONObject r = hidden().get(id);
+        return r == null ? null : copy(r);
+    }
+
+    private static JSONObject copy(final JSONObject o) {
+        final JSONObject out = new JSONObject();
+        for (final String k : o.keySet()) Json.put(out, k, o.opt(k));
+        return out;
+    }
+
+    /** Notes that hiding switched the knowledge graph off for the collection, so that showing it switches it on again. */
+    public void hiddenSwitchedGraphOff(final String id) throws ApiException {
+        synchronized (this) {
+            final JSONObject r = hidden().get(id);
+            if (r == null) return;
+            final Map<String, JSONObject> next = new LinkedHashMap<>(hidden());
+            next.put(id, Json.put(copy(r), "graphSwitchedOff", true));
+            storeHidden(next);
+        }
+    }
+
+    /** Shows a hidden collection again; returns its former record (with {@code graphSwitchedOff}). */
+    public JSONObject show(final String id) throws ApiException {
+        if (id == null || !ID.matcher(id).matches()) throw ApiException.invalid("id", "Unknown collection id.");
+        synchronized (this) {
+            final JSONObject r = hidden().get(id);
+            if (r == null) {
+                throw new ApiException(404, "collection_not_hidden", "This collection is not hidden.", Json.obj("field", "id"));
+            }
+            final Map<String, JSONObject> next = new LinkedHashMap<>(hidden());
+            next.remove(id);
+            storeHidden(next);
+            return copy(r);
+        }
+    }
+
+    /** The entry of {@code id} as it is now (after a change), else {@code fallback}. */
+    private Entry entry(final String id, final Entry fallback) {
+        try {
+            for (final Entry e : entries(false)) {
+                if (e.id.equals(id)) return e;
+            }
+        } catch (final ApiException e) {
+            // entries(false) does not throw for the index
+        }
+        return fallback;
     }
 
     /**
@@ -375,6 +600,67 @@ public final class CollectionCatalog {
             return response.getLong("numFound");
         } catch (final JSONException e) {
             throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was removed.");
+        }
+    }
+
+    /** The other collections of the pages of {@code id} in the embedded Solr core, with the pages each shares. */
+    static Map<String, Long> loopbackShared(final String id) throws ApiException {
+        if (id == null || !ID.matcher(id).matches()) throw ApiException.invalid("id", "Unknown collection id.");
+        try {
+            final String body = new YaCyLoopback().getAdmin("solr/select", new YaCyLoopback.Params()
+                    .add("q", "*:*").add("fq", "collection_sxt:\"" + id + "\"").add("rows", 0).add("wt", "json").add("facet", "true")
+                    .add("facet.field", "collection_sxt").add("facet.limit", -1).add("facet.mincount", 1));
+            final Map<String, Long> out = new LinkedHashMap<>(facetCounts(new JSONObject(body)));
+            out.remove(id);
+            return out;
+        } catch (final JSONException e) {
+            throw new ApiException(503, "index_unavailable", "The index cannot be read; nothing was deleted.");
+        }
+    }
+
+    /** The query of the pages of {@code id} that belong to none of {@code others}. */
+    static String onlyQuery(final String id, final Collection<String> others) {
+        final StringBuilder q = new StringBuilder("collection_sxt:\"").append(id).append('"');
+        for (final String o : others) {
+            if (ID.matcher(o).matches() && !o.equals(id)) q.append(" AND -collection_sxt:\"").append(o).append('"');
+        }
+        return q.toString();
+    }
+
+    /**
+     * Deletes the pages of {@code id} that belong to none of {@code others} from the embedded index (and their webgraph
+     * edges), as YaCy's own deletion by collection does, and commits. The knowledge graph sees the deletion by query.
+     */
+    static long embeddedDeleteOnly(final String id, final Collection<String> others) throws ApiException {
+        if (id == null || !ID.matcher(id).matches()) throw ApiException.invalid("id", "Unknown collection id.");
+        final Switchboard sb = Switchboard.getSwitchboard();
+        if (sb == null || sb.index == null || sb.index.fulltext().getDefaultConnector() == null) {
+            throw new ApiException(503, "index_unavailable", "The local index is unavailable; nothing was deleted.");
+        }
+        final String query = onlyQuery(id, others);
+        try {
+            final net.yacy.cora.federate.solr.connector.SolrConnector pages = sb.index.fulltext().getDefaultConnector();
+            final long n = pages.getCountByQuery(query);
+            if (n > 0) {
+                pages.deleteByQuery(query);
+                pages.commit(true);
+                if (sb.index.fulltext().useWebgraph()) {
+                    final net.yacy.cora.federate.solr.connector.SolrConnector edges = sb.index.fulltext().getWebgraphConnector();
+                    if (edges != null) {
+                        edges.deleteByQuery(query);
+                        edges.commit(true);
+                    }
+                }
+                sb.index.fulltext().clearCaches();
+                try {
+                    sb.index.loadTimeIndex().clear();
+                } catch (final IOException e) {
+                    // only a cache of load times
+                }
+            }
+            return n;
+        } catch (final IOException e) {
+            throw new ApiException(503, "index_unavailable", "The index could not be changed completely; check the pages of the collection.");
         }
     }
 
@@ -444,6 +730,59 @@ public final class CollectionCatalog {
             throw new ApiException(503, "collection_store_unavailable", "The collection list cannot be written.");
         }
         this.loadedModified = -1L; // read back at the next access
+    }
+
+    // ------------------------------------------------------------------ hidden (0.10.3)
+
+    private synchronized Map<String, JSONObject> hidden() {
+        if (this.hiddenFile == null) return new LinkedHashMap<>(this.hiddenMemory);
+        try {
+            if (!Files.exists(this.hiddenFile)) {
+                this.hiddenLoaded = Collections.emptyMap();
+                this.hiddenModified = -1L;
+                this.hiddenSize = -1L;
+                return this.hiddenLoaded;
+            }
+            final long modified = Files.getLastModifiedTime(this.hiddenFile).toMillis();
+            final long size = Files.size(this.hiddenFile);
+            if (modified != this.hiddenModified || size != this.hiddenSize) {
+                final Map<String, JSONObject> out = new LinkedHashMap<>();
+                final JSONArray list = new JSONObject(new String(Files.readAllBytes(this.hiddenFile), StandardCharsets.UTF_8)).optJSONArray("hidden");
+                for (int i = 0; list != null && i < list.length(); i++) {
+                    final JSONObject c = list.optJSONObject(i);
+                    if (c != null && ID.matcher(c.optString("id")).matches()) out.put(c.optString("id"), c);
+                }
+                this.hiddenLoaded = Collections.unmodifiableMap(out);
+                this.hiddenModified = modified;
+                this.hiddenSize = size;
+            }
+            return this.hiddenLoaded;
+        } catch (final IOException | JSONException e) {
+            return this.hiddenLoaded; // a damaged file is never overwritten silently: storeHidden() fails
+        }
+    }
+
+    private synchronized void storeHidden(final Map<String, JSONObject> next) throws ApiException {
+        if (this.hiddenFile == null) {
+            this.hiddenMemory.clear();
+            this.hiddenMemory.putAll(next);
+            return;
+        }
+        final JSONArray list = new JSONArray();
+        for (final JSONObject c : next.values()) list.put(c);
+        try {
+            final byte[] content = Json.obj("schema", "scoutro.collections.hidden.v1", "hidden", list).toString(2).getBytes(StandardCharsets.UTF_8);
+            Files.createDirectories(this.hiddenFile.getParent());
+            if (Files.exists(this.hiddenFile)) {
+                new JSONObject(new String(Files.readAllBytes(this.hiddenFile), StandardCharsets.UTF_8)); // refuse to replace a damaged file
+            }
+            final Path tmp = this.hiddenFile.resolveSibling(this.hiddenFile.getFileName() + ".tmp");
+            Files.write(tmp, content);
+            Files.move(tmp, this.hiddenFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (final IOException | JSONException e) {
+            throw new ApiException(503, "collection_store_unavailable", "The collection list cannot be written.");
+        }
+        this.hiddenModified = -1L; // read back at the next access
     }
 
     private static String text(final JSONObject body, final String field, final int max, final boolean required) throws ApiException {
