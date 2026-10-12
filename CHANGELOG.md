@@ -2,7 +2,11 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased — service categories, prices one by one, software hints of job advertisements
+## 0.10.2 / 1.942-scoutro.26 — release candidate: service categories, prices one by one, software hints of job advertisements
+
+0.10.1 was published but not rolled out; 0.10.2 contains all of it and is the
+upgrade target of an installed 0.10.0. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.2.md).
 
 Upgrade from 0.10.1 (from 0.10.0 the steps of 0.10.1 below come first):
 knowledge graph schema stays **6**, the extractor identity stays the same and
