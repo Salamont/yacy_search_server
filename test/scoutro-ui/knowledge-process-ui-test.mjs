@@ -40,6 +40,9 @@ const SCENARIOS = {
   firstcall: () => { const s = busy(); s.llm.processed = { calls: 1, requestStarts: 1, requestsFinished: 0, averageCallMillis: 0, averageRequestMillis: null }; return s; },
   // work queued, nothing running, no wait reason: ready, not working
   ready: () => { const s = busy(); s.llm.timing = { waitReason: null, runningRequests: 0 }; s.llm.queue = { items: 181, claimed: 0 }; return s; },
+  // long pages: a first reading is done but no full coverage; pages read to the end, cut and without text apart
+  longpages: () => { const s = busy(); s.llm.documents.coverage = { whole: 2900, fullText: 120, partial: 40, textCut: 30, textMissing: 3 };
+    s.llm.continuation = { pendingDocuments: 40, remainingChars: 812345 }; return s; },
   // the same storage reason on every step
   storage: () => { const s = busy(); s.storage.growthAllowed = false; s.storage.reasons = [{ code: 'storage_error', detail: 'SQLITE_IOERR' }];
     s.sync.growthRefusal = 'storage_error'; s.sync.growthBlocked = true; s.llm.timing = { waitReason: 'storage_error', runningRequests: 0 }; return s; },
@@ -172,6 +175,18 @@ for (const language of ['en', 'de']) for (const width of [390, 1280]) {
     'a running request is not measured' + where);
   await load('ready');
   check(await chip('ai') === await L('pr_k_scheduled') && (await lines('ai')).includes(await L('pr_ai_ready')), 'queued work with nothing running is ready, not working' + where);
+  check(!(await lines('ai')).includes((await L('pr_ai_partial')).replace('%1', n(40))), 'a server without coverage shows no read-on pages' + where);
+
+  // long pages read on: shown as open work, never as covered; the other kinds apart
+  await load('longpages');
+  check((await lines('ai')).includes((await L('pr_ai_partial')).replace('%1', n(40))), 'long pages still read on are open work' + where);
+  await station('ai').locator('.skg-station-head').click();
+  const lp = await detail('ai');
+  check(lp.includes(await L('pr_d_partial')) && lp.includes((await L('pr_d_partial_value')).replace('%1', n(40)).replace('%2', n(812345))),
+    'read-on pages with the characters of their content still to read' + where);
+  check(lp.includes(await L('pr_d_fulltext')) && lp.includes((await L('pr_unit_docs')).replace('%1', n(120))), 'pages read to the end of their content' + where);
+  check(lp.includes(await L('pr_d_textcut')) && lp.includes((await L('pr_unit_docs')).replace('%1', n(30))), 'pages with text left unread' + where);
+  check(lp.includes(await L('pr_d_textmissing')) && lp.includes((await L('pr_unit_docs')).replace('%1', n(3))), 'pages whose text is missing' + where);
 
   // waiting reasons: planned versus resources
   await load('waiting');
