@@ -13,8 +13,10 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   text after it, and a JSON-LD block with a `<` in a string is captured
   intact. Script code is no longer part of the text of an enclosing link or
   heading. `&lt;` and `&gt;` in text are decoded after the tags are
-  stripped, so they no longer cut the rest of the text. What is crawled and
-  fetched is unchanged.
+  stripped, so they no longer cut the rest of the text. A page with a few
+  stray control characters (at most 8, at most one per 100 characters) is
+  parsed with them read as spaces instead of being rejected as binary;
+  binary data is still rejected. What is crawled and fetched is unchanged.
   Pages already indexed benefit after their next recrawl; no recrawl is
   triggered.
 

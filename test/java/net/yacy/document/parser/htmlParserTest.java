@@ -5,6 +5,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -687,5 +688,49 @@ public class htmlParserTest {
         assertTrue(text, text.contains("Since 5 > 3 & 2 < 3, all is well"));
         assertTrue(text, text.contains("Paragraph after the entity"));
         assertTrue(text, text.contains("Last paragraph of the page"));
+    }
+
+    /** A few stray control characters in a text page do not make it binary. */
+    @Test
+    public void testParseStrayControlCharacter() throws Exception {
+        final String text = parseLikeCrawler(page("", "<p>Paragraph before the control character.</p>"
+                + "<p>A stray \u0003 control character and a \u0000 null.</p>"
+                + "<p>Paragraph after the control character.</p>")).getTextString();
+        assertTrue(text, text.contains("A stray control character and a null"));
+        assertTrue(text, text.contains("Paragraph after the control character"));
+        assertTrue(text, text.contains("Last paragraph of the page"));
+    }
+
+    /** Binary data offered as text/html is still rejected, as is text full of control characters. */
+    @Test
+    public void testParseBinaryIsStillRejected() throws Exception {
+        final String[] binaries = { "image_green_sd.png", "YaCyLogo_120ppi.jpg", "umlaute_html_utf8.html.gz",
+                "umlaute_windows.pdf" };
+        for (final String binary : binaries) {
+            final File file = new File("test" + File.separator + "parsertest" + File.separator + binary);
+            for (final Charset charset : new Charset[] { StandardCharsets.UTF_8, StandardCharsets.ISO_8859_1 }) {
+                try (final InputStream sourceStream = new FileInputStream(file)) {
+                    new htmlParser().parse(new AnchorURL("http://example.org/" + binary), "text/html", charset.name(),
+                            TagValency.EVAL, new HashSet<String>(), new VocabularyScraper(), 0, sourceStream);
+                    fail(binary + " (" + charset + ") must be rejected as binary");
+                } catch (final Parser.Failure e) {
+                    assertTrue(e.getMessage(), e.getMessage().startsWith("Binary data"));
+                }
+            }
+        }
+        final StringBuilder controls = new StringBuilder();
+        for (int i = 0; i < 9; i++) controls.append("<p>Paragraph ").append(i).append(" \u0001</p>");
+        final String[] texts = {
+                page("", controls.toString()), // more than a few control characters
+                "<p>short \u0002 text</p>" // one control character in fewer than 100 characters
+        };
+        for (final String html : texts) {
+            try {
+                parseLikeCrawler(html);
+                fail("must be rejected as binary: " + html);
+            } catch (final Parser.Failure e) {
+                assertTrue(e.getMessage(), e.getMessage().startsWith("Binary data"));
+            }
+        }
     }
 }

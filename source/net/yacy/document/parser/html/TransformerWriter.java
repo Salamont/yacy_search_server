@@ -57,6 +57,14 @@ public final class TransformerWriter extends Writer {
     /** a '<' that starts no tag is text; it is kept as this entity so that stripping tags from the text does not cut it */
     private static final char[] lt = "&lt;".toCharArray();
 
+    /**
+     * A text document may contain a few stray control characters (see {@link #binaryHint(char)}):
+     * at most this many, and at most one per {@link #CONTROL_CHAR_SPACING} characters.
+     * Binary data (images, archives, compressed streams, UTF-16 text) holds far more.
+     */
+    private static final int MAX_STRAY_CONTROL_CHARS = 8;
+    private static final int CONTROL_CHAR_SPACING = 100;
+
     private final OutputStream outStream;
     private OutputStreamWriter out;
     private CharBuffer buffer;
@@ -67,6 +75,8 @@ public final class TransformerWriter extends Writer {
     private boolean inComment;
     private boolean binaryUnsuspect;
     private final boolean passbyIfBinarySuspect;
+    private long charCount;
+    private int controlCharCount;
 
     public TransformerWriter(
             final OutputStream outStream,
@@ -388,11 +398,17 @@ public final class TransformerWriter extends Writer {
      * The tokens are then parsed with the filterSentence method
      */
     @Override
-    public void write(final int c) throws IOException {
+    public void write(int c) throws IOException {
         //System.out.println((char) c);
-        if ((this.binaryUnsuspect) && (binaryHint((char)c))) {
-            this.binaryUnsuspect = false;
-            if (this.passbyIfBinarySuspect) this.close();
+        this.charCount++;
+        if (binaryHint((char)c)) {
+            this.controlCharCount++;
+            if (this.binaryUnsuspect) {
+                this.binaryUnsuspect = false;
+                if (this.passbyIfBinarySuspect) this.close();
+            }
+            // read a stray control character like a space; binarySuspect() judges the whole document
+            if (!this.passbyIfBinarySuspect) c = ' ';
         }
 
         if (this.binaryUnsuspect || !this.passbyIfBinarySuspect) {
@@ -604,7 +620,11 @@ public final class TransformerWriter extends Writer {
     }
 
     public boolean binarySuspect() {
-        return !this.binaryUnsuspect;
+        if (this.binaryUnsuspect) return false;
+        if (this.passbyIfBinarySuspect) return true; // the parse stopped at the first control character
+        // a few stray control characters do not make a text document binary
+        return this.controlCharCount > MAX_STRAY_CONTROL_CHARS
+                || (long) this.controlCharCount * CONTROL_CHAR_SPACING > this.charCount;
     }
 
 }
