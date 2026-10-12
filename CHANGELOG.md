@@ -2,7 +2,20 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased
+## 0.10.1 / 1.942-scoutro.25 — release candidate: Discovery recovery, collections, process display, LLM coverage
+
+Upgrade from 0.10.0: knowledge graph schema stays **6** and no page is
+extracted again. The first start carries the former collection defaults once
+into `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json` and
+records `scoutro.kg.migration.collectionProfiles`, the only key it adds to
+`yacy.conf`; the extractor identity stays the same. The two new LLM settings
+are optional and keep their defaults; long pages read before are audited and
+read on at low priority. Access mode, cookie and sign-in limits are unchanged.
+A Discovery batch blocked by an unconfirmed start stays blocked until an
+administrator defers it. Rollback to 0.10.0: let an open batch with a deferred
+start complete first, pause the job whose website was deferred and keep the
+migrated vocabulary file. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.1.md).
 
 - HTML parser: a single stray quote or `<` no longer drops all text after
   it from the indexed text (`text_t`). A quote opens an attribute value only
@@ -72,8 +85,9 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   input hash it was published with. New status blocks `llm.selection`,
   `llm.context`, `llm.continuation`, `llm.documents.coverage`,
   `llm.refusalSamples`, `llm.storage`, `llm.backlog` and counters (queue
-  wait, intake, retries). No schema change and no new setting; no page is
-  read again from its start.
+  wait, intake, retries). No schema change; the two new settings are
+  optional and not written to `yacy.conf`; no page is read again from its
+  start.
 
 - Discovery: an administrator can defer an unconfirmed crawl start that
   blocks all Discovery batches (`needs_review`, `submitted_unknown`, no crawl
