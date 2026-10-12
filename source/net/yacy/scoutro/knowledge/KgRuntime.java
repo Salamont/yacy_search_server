@@ -1117,6 +1117,15 @@ public final class KgRuntime {
     }
 
     /**
+     * Samples of what the LLM tier dropped or refused since the start, newest first ({@code GET /kg/llm-refusals}):
+     * in memory, bounded, without person names or contact data; empty while the tier does not run.
+     */
+    public JSONObject llmRefusals(final String reason, final int limit) {
+        final LlmService l = this.llm;
+        return l == null ? KgJson.obj("samples", new org.json.JSONArray(), "summary", null) : l.refusals(reason, limit);
+    }
+
+    /**
      * Makes the documents the LLM tier gave up on due again
      * ({@code POST /kg/control {"action":"llm_retry"}}); also closes the
      * circuit breaker.

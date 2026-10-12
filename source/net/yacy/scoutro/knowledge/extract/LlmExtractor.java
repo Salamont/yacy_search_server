@@ -273,6 +273,12 @@ public final class LlmExtractor {
          * rule it breaks in the order the validator checks them, so the counts add up to {@link #droppedInvalid}.
          */
         public final Map<String, Integer> droppedInvalidByReason = new LinkedHashMap<>();
+        /**
+         * Up to {@link #SAMPLES} dropped items for the refusal diagnostics, without person names, e-mail addresses or
+         * phone numbers ({@link #redact}): the reason, the kind of item, the predicate, the types and states of its
+         * references, its position and an excerpt of its quote.
+         */
+        public final List<JSONObject> samples = new ArrayList<>();
 
         Result(final JSONObject accepted, final String refused) {
             this.accepted = accepted;
@@ -283,6 +289,34 @@ public final class LlmExtractor {
             this.droppedInvalid++;
             this.droppedInvalidByReason.merge(reason, 1, Integer::sum);
         }
+
+        void sample(final String reason, final String item, final String predicate, final String subjectType, final String subjectRef,
+                final String objectType, final String objectRef, final String quote) {
+            if (this.samples.size() < SAMPLES) {
+                this.samples.add(item("reason", reason, "item", item, "predicate", predicate, "subjectType", subjectType,
+                        "subject", subjectRef, "objectType", objectType, "object", objectRef, "excerpt", redact(quote)));
+            }
+        }
+    }
+
+    /** Dropped items of one answer kept for the refusal diagnostics ({@link Result#samples}). */
+    public static final int SAMPLES = 8;
+    /** Characters of a quote or an answer kept in a diagnostic sample. */
+    public static final int SAMPLE_CHARS = 160;
+    private static final Pattern EMAIL = Pattern.compile("[\\p{L}\\p{N}._%+-]+@[\\p{L}\\p{N}.-]+\\.[\\p{L}]{2,}");
+    private static final Pattern PHONE = Pattern.compile("(?<![\\p{L}\\p{N}])\\+?\\d(?:[\\s/().-]*\\d){6,}");
+
+    /**
+     * An excerpt for the diagnostics: at most {@link #SAMPLE_CHARS} characters, person names replaced
+     * ({@link Normalizers#redactPersons}), every e-mail address and phone number masked.
+     */
+    public static String redact(final String text) {
+        if (text == null) {
+            return null;
+        }
+        final String clipped = text.length() > SAMPLE_CHARS ? text.substring(0, SAMPLE_CHARS) : text;
+        final String persons = Normalizers.redactPersons(clipped);
+        return PHONE.matcher(EMAIL.matcher(persons).replaceAll("[e-mail]")).replaceAll("[phone]");
     }
 
     /**
@@ -316,6 +350,7 @@ public final class LlmExtractor {
             "claim_missing_quote", "claim_malformed_quote", "claim_quote_too_long",
             "claim_invalid_hedged", // hedged present but no boolean
             "claim_unresolved_subject", "claim_unresolved_object", // no known entity and no entity accepted in the answer
+            "claim_entity_dropped", // an end is an entity of the answer that was dropped (its own reason counts it)
             "claim_subject_type_mismatch", "claim_object_type_mismatch", // the type rules of the relation
             "claim_employer_unresolved", // hiring_organization quoted on behalf of a client (an intermediary, not the employer)
             // values
@@ -359,15 +394,27 @@ public final class LlmExtractor {
         return out;
     }
 
-    /** Known entities of tiers 1 and 2 (organisations, facilities, sites, services with a name), numbered. */
+    /**
+     * Known entities of tiers 1 and 2 (organisations, facilities, sites, services, jobs with a name), numbered: one per
+     * type and name, organisations first, then in the order of {@link #TYPES}. So the page's operator is offered even
+     * if the structured data lists more services than {@link #MAX_ITEMS}, and an organisation that the structured data
+     * and the imprint both name is offered once (two ids for one name led the model to relate it to itself).
+     */
     public static List<Known> known(final Extraction tiers12) {
         final List<Known> out = new ArrayList<>();
         if (tiers12 == null) {
             return out;
         }
-        for (final Mention m : tiers12.mentions()) {
-            if (m.name != null && TYPES.contains(m.type) && out.size() < MAX_ITEMS) {
-                out.add(new Known("k" + (out.size() + 1), m));
+        final Set<String> seen = new HashSet<>();
+        for (final String type : TYPES) {
+            // the declared operator of the site before the other organisations
+            for (final boolean operator : new boolean[] {true, false}) {
+                for (final Mention m : tiers12.mentions()) {
+                    if (m.name != null && type.equals(m.type) && m.siteOperator == operator && out.size() < MAX_ITEMS
+                            && seen.add(type + "\u0000" + Normalizers.key(m.name))) {
+                        out.add(new Known("k" + (out.size() + 1), m));
+                    }
+                }
             }
         }
         return out;
@@ -529,10 +576,15 @@ public final class LlmExtractor {
         final JSONArray okEntities = new JSONArray();
         final JSONArray okClaims = new JSONArray();
         final Result r = new Result(new JSONObject(), null);
+        // entities of the answer that were dropped, with the reason: a claim about one is no unresolved reference
+        final Map<String, String> dropped = new LinkedHashMap<>();
+        // a new entity of the type and name of a known one is that entity (as apply() resolves it)
+        final Map<String, String> alias = new LinkedHashMap<>();
         for (int i = 0; i < entities.length(); i++) {
             final JSONObject e = entities.optJSONObject(i);
             if (e == null || !onlyKeys(e, ENTITY_KEYS)) {
                 r.invalid(e == null ? "entity_not_object" : "entity_extra_field");
+                r.sample(e == null ? "entity_not_object" : "entity_extra_field", "entity", null, null, null, null, null, null);
                 continue;
             }
             final String id = string(e, "id");
@@ -542,12 +594,24 @@ public final class LlmExtractor {
             final String invalid = invalidEntity(e, id, type, name, quote, names);
             if (invalid != null) {
                 r.invalid(invalid);
+                r.sample(invalid, "entity", null, type, null, null, null, quote);
+                if (id != null && !names.containsKey(id)) {
+                    dropped.putIfAbsent(id, invalid);
+                }
                 continue;
             }
             final int at = groundedAt(text, quote, List.of(name));
             if (at < 0) {
                 r.droppedUngrounded++;
+                r.sample("ungrounded", "entity", null, type, null, null, null, quote);
+                dropped.putIfAbsent(id, "ungrounded");
                 continue;
+            }
+            for (final Known k : known) {
+                if (k.mention.type.equals(type) && java.util.Objects.equals(Normalizers.key(k.mention.name), Normalizers.key(name))) {
+                    alias.put(id, k.id);
+                    break;
+                }
             }
             String kind = string(e, "kind");
             kind = kind == null ? null : kind.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
@@ -565,30 +629,48 @@ public final class LlmExtractor {
                 r.invalid(c == null ? "claim_not_object" : "claim_extra_field");
                 continue;
             }
-            final String subject = string(c, "subject");
+            final String rawSubject = string(c, "subject");
             final String predicate = string(c, "predicate");
-            final String object = string(c, "object");
+            final String rawObject = string(c, "object");
             final String quote = string(c, "quote");
             final Object hedgedValue = c.opt("hedged");
-            final String invalid = invalidClaim(c, subject, predicate, object, quote, hedgedValue);
+            final String invalid = invalidClaim(c, rawSubject, predicate, rawObject, quote, hedgedValue);
             if (invalid != null) {
                 r.invalid(invalid);
+                r.sample(invalid, "claim", predicate, null, state(rawSubject, names, dropped), null, state(rawObject, names, dropped), quote);
                 continue;
             }
+            final Set<String>[] rule = RELATION_TYPES.get(predicate);
+            final String subject = alias.getOrDefault(rawSubject, rawSubject);
+            final String object = alias.getOrDefault(rawObject, rawObject);
             final String[] s = names.get(subject);
             final String[] ob = names.get(object);
-            final Set<String>[] rule = RELATION_TYPES.get(predicate);
+            if (s != null && ob != null && (subject.equals(object) || java.util.Objects.equals(Normalizers.key(s[1]), Normalizers.key(ob[1])))) {
+                // both ends are one entity (a new id for a known one, or two entities of one name): no relation
+                r.invalid("claim_self_reference");
+                r.sample("claim_self_reference", "claim", predicate, s[0], state(rawSubject, names, dropped), ob[0],
+                        state(rawObject, names, dropped), quote);
+                continue;
+            }
             if (s == null || ob == null || !rule[0].contains(s[0]) || !rule[1].contains(ob[0])) {
-                r.invalid(s == null ? "claim_unresolved_subject" : ob == null ? "claim_unresolved_object"
-                        : !rule[0].contains(s[0]) ? "claim_subject_type_mismatch" : "claim_object_type_mismatch");
+                final String why = s == null && dropped.containsKey(rawSubject) || ob == null && dropped.containsKey(rawObject)
+                        ? "claim_entity_dropped" : s == null ? "claim_unresolved_subject" : ob == null ? "claim_unresolved_object"
+                        : !rule[0].contains(s[0]) ? "claim_subject_type_mismatch" : "claim_object_type_mismatch";
+                r.invalid(why);
+                r.sample(why, "claim", predicate, s == null ? null : s[0], state(rawSubject, names, dropped), ob == null ? null : ob[0],
+                        state(rawObject, names, dropped), quote);
                 continue;
             }
             if (groundedAt(text, quote, List.of(s[1], ob[1])) < 0) {
                 r.droppedUngrounded++;
+                r.sample("ungrounded", "claim", predicate, s[0], state(rawSubject, names, dropped), ob[0], state(rawObject, names, dropped),
+                        quote);
                 continue;
             }
             if(Vocabulary.HIRING_ORGANIZATION.equals(predicate)&&BusinessSignals.INTERMEDIARY.matcher(quote).find()) {
-                r.invalid("claim_employer_unresolved");continue;
+                r.invalid("claim_employer_unresolved");
+                r.sample("claim_employer_unresolved", "claim", predicate, s[0], null, ob[0], null, quote);
+                continue;
             }
             final boolean hedged = Boolean.TRUE.equals(hedgedValue) || HEDGE.matcher(quote).find();
             okClaims.put(item("subject", subject, "predicate", predicate, "object", object, "hedged", hedged,
@@ -602,31 +684,39 @@ public final class LlmExtractor {
                 r.invalid(v == null ? "value_not_object" : "value_extra_field");
                 continue;
             }
-            final String subject = string(v, "subject");
+            final String rawSubject = string(v, "subject");
             final String predicate = string(v, "predicate");
             final String quote = string(v, "quote");
+            final String subject = rawSubject == null ? null : alias.getOrDefault(rawSubject, rawSubject);
             final String[] s = subject == null ? null : names.get(subject);
             final String invalid = invalidValue(v, subject, s, predicate, quote);
             if (invalid != null) {
                 r.invalid(invalid);
+                r.sample(invalid, "value", predicate, s == null ? null : s[0], state(rawSubject, names, dropped), null, null, quote);
                 continue;
             }
             if (groundedAt(text, quote, List.of()) < 0) {
                 r.droppedUngrounded++; // a value the page does not state verbatim
+                r.sample("ungrounded", "value", predicate, s[0], state(rawSubject, names, dropped), null, null, quote);
                 continue;
             }
             if (signalPredicate(predicate)) {
                 // Named actor grounding prevents a company's client from becoming that company's own need.
                 final long jobsOnPage=names.values().stream().filter(n->Vocabulary.JOB.equals(n[0])).count();
                 if((!Vocabulary.JOB.equals(s[0])||jobsOnPage>1) && groundedAt(text,quote,List.of(s[1]))<0) {
-                    r.droppedUngrounded++;continue;
+                    r.droppedUngrounded++;
+                    r.sample("ungrounded", "value", predicate, s[0], null, null, null, quote);
+                    continue;
                 }
                 if(BusinessSignals.read(predicate,quote,"text",s[0],s[1]).isEmpty()) {
-                    r.invalid("value_signal_context_missing");continue;
+                    r.invalid("value_signal_context_missing");
+                    r.sample("value_signal_context_missing", "value", predicate, s[0], null, null, null, quote);
+                    continue;
                 }
             }
             if ((Vocabulary.PRICE.equals(predicate) || Vocabulary.SALARY.equals(predicate)) && Values.prices(quote, 0, quote.length()).isEmpty()) {
                 r.droppedUngrounded++; // the quote holds no amount with a currency
+                r.sample("no_amount", "value", predicate, s[0], null, null, null, quote);
                 continue;
             }
             okValues.put(item("subject", subject, "predicate", predicate, "quote", Normalizers.text(quote),
@@ -639,6 +729,20 @@ public final class LlmExtractor {
             return new Result(null, "invalid_json");
         }
         return r;
+    }
+
+    /** The state of a reference for the diagnostics: known, new, dropped (and why), unknown id, a name or missing. */
+    private static String state(final String ref, final Map<String, String[]> names, final Map<String, String> dropped) {
+        if (ref == null) {
+            return "missing";
+        }
+        if (names.containsKey(ref)) {
+            return ref.startsWith("k") ? "known" : "new";
+        }
+        if (dropped.containsKey(ref)) {
+            return "dropped_entity:" + dropped.get(ref);
+        }
+        return ID.matcher(ref).matches() ? "unknown_id" : "name_like";
     }
 
     /*
@@ -795,6 +899,10 @@ public final class LlmExtractor {
                 m = out.add(new Mention(ref, type, TIER));
                 m.name = name;
                 m.subkind = e.isNull("kind") ? null : e.optString("kind", null);
+                if (Vocabulary.ORGANIZATION.equals(type)) {
+                    // a legal name joins the declared operator of the domain, as an organisation of the rules does
+                    m.legalName = Normalizers.legalName(name);
+                }
             }
             if (named.add(ref)) {
                 out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, locator(e), e.optString("quote")));

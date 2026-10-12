@@ -57,6 +57,8 @@ public final class SolrDoc {
     public static final String PUBLISHER = "publisher_t";
     public static final String COORDINATE = "coordinate_p";
     public static final String TEXT = "text_t";
+    /** Bytes of the delivered HTML: with a near-empty text, the text is missing rather than thin (never part of a hash). */
+    public static final String SIZE = "size_i";
     /** Outbound links without the protocol ({@code host/path}); the registrable domains feed the weak relation linked_to. */
     public static final String OUTBOUND = "outboundlinks_urlstub_sxt";
     /** Outbound links a document keeps at most (distinct registrable domains). */
@@ -67,7 +69,7 @@ public final class SolrDoc {
 
     /** Fields of a real-time get for processing (the text is read separately, for tier 2 candidates only). */
     public static final List<String> PROCESS_FIELDS = List.of(ID, VERSION, SKU, HOST, HOST_ID, HTTPSTATUS, FAILTYPE, SIGNATURE,
-            COLLECTIONS, LANGUAGE, LOAD_DATE, LD_JSON, TITLE, DESCRIPTION, PUBLISHER, COORDINATE, OUTBOUND);
+            COLLECTIONS, LANGUAGE, LOAD_DATE, LD_JSON, TITLE, DESCRIPTION, PUBLISHER, COORDINATE, OUTBOUND, SIZE);
 
     /** The extractor versions of schema 3 (package 5): a document the LLM tier read under them has the same content. */
     static final String EXTRACTORS_V1 = "jsonld/2,metadata/1,rule/2";
@@ -106,6 +108,8 @@ public final class SolrDoc {
     public String publisher;
     public String coordinate;
     public List<String> outbound = Collections.emptyList();
+    /** {@link #SIZE}; null if Solr has none. */
+    public Integer htmlBytes;
 
     /** Reads a Solr document given as a field map (SolrDocument implements {@code Map<String, Object>}). */
     public static SolrDoc of(final Map<String, Object> d) {
@@ -135,6 +139,8 @@ public final class SolrDoc {
         s.publisher = string(d.get(PUBLISHER));
         s.coordinate = string(d.get(COORDINATE));
         s.outbound = strings(d.get(OUTBOUND));
+        final Object size = d.get(SIZE);
+        s.htmlBytes = size instanceof Number ? ((Number) size).intValue() : null;
         return s;
     }
 

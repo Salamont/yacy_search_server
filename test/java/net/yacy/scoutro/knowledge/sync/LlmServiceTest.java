@@ -444,13 +444,15 @@ public class LlmServiceTest {
         assertEquals("auto", this.model.structuredOutput);
         assertEquals("auto", st.getJSONObject("structuredOutput").getString("setting"));
         assertEquals("fake", st.getJSONObject("structuredOutput").getString("mode"));
-        // the items of the answer: the claim about the dropped holding is invalid (its object was not accepted)
+        // the items of the answer: the claim about the dropped holding is invalid (its object, an entity of the answer, was
+        // dropped as ungrounded: counted as such, not as an unknown id)
         final JSONObject p = st.getJSONObject("processed");
         assertEquals(3L, p.getLong("entitiesAccepted"));
         assertEquals(3L, p.getLong("claimsAccepted"));
         assertEquals(0L, p.getLong("valuesAccepted"));
         assertEquals(1L, p.getLong("droppedInvalid"));
-        assertEquals(1L, p.getJSONObject("droppedInvalidByReason").getLong("claim_unresolved_object"));
+        assertEquals(1L, p.getJSONObject("droppedInvalidByReason").getLong("claim_entity_dropped"));
+        assertEquals(0L, p.getJSONObject("droppedInvalidByReason").getLong("claim_unresolved_object"));
         assertEquals(p.getLong("droppedInvalid"), sum(p.getJSONObject("droppedInvalidByReason")));
         // timing is measured over ended requests only; the backlog of pages not yet examined is reported apart from the queue
         assertEquals("every started request has ended", p.getLong("requestStarts"), p.getLong("requestsFinished"));

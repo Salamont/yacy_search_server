@@ -115,6 +115,19 @@ public final class LlmService {
     /** kg_meta: the audit's position (a row ID) and the last row it checks (the newest page done when it started). */
     static final String META_AUDIT_AT = "llm_audit_at";
     static final String META_AUDIT_END = "llm_audit_end";
+    /** The backlog is sampled at most this often, and this many samples are kept (a day). */
+    static final long BACKLOG_SAMPLE_MILLIS = 15L * 60_000L;
+    static final int BACKLOG_SAMPLES = 96;
+    /** Characters of its own text (without the title and Markdown marks) under which a page is thin ({@link #thinText}). */
+    static final int THIN_TEXT_CHARS = 200;
+    /** {@link #thinText} of a page that is just short: read whole, counted, no mark. */
+    static final String THIN = "thin";
+    /** Bytes of delivered HTML from which a thin text is missing text rather than a thin page ({@link LlmQueue#TEXT_MISSING}). */
+    static final int TEXT_MISSING_HTML_BYTES = 20_000;
+    /** The text of a page rendered by a script only. */
+    private static final java.util.regex.Pattern SCRIPT_ONLY = java.util.regex.Pattern.compile("(?iu)enable javascript"
+            + "|javascript (?:aktivieren|einschalten|is (?:required|disabled))|requires javascript|ben(?:ö|oe)tigt javascript"
+            + "|please enable js|you need to enable javascript");
     /**
      * Legal pages are not continued: their length is legal text, not the business information the tier extracts. Only
      * the URL's path counts (a host named after one of the words is no legal page).
@@ -204,6 +217,18 @@ public final class LlmService {
         final AtomicLong continuationRetries = new AtomicLong();
         /** Continuations ended because the page's statements reached {@code extract.maxStatementsPerDoc}. */
         final AtomicLong statementCapDocs = new AtomicLong();
+        /**
+         * Time items waited in the queue until they were taken (per take: an item taken again after a retry counts again,
+         * with its whole wait), first readings and continuations apart.
+         */
+        final AtomicLong firstWaits = new AtomicLong();
+        final AtomicLong firstWaitMillis = new AtomicLong();
+        final AtomicLong firstWaitMaxMillis = new AtomicLong();
+        final AtomicLong continuationWaits = new AtomicLong();
+        final AtomicLong continuationWaitMillis = new AtomicLong();
+        /** Pages read whole with hardly any text of their own, and pages whose text is missing ({@link #thinText}). */
+        final AtomicLong thinTextDocs = new AtomicLong();
+        final AtomicLong textMissingDocs = new AtomicLong();
         /** Pages read before the continuations existed: checked by the audit, and marked for a continuation. */
         final AtomicLong auditedDocs = new AtomicLong();
         final AtomicLong backfilledDocs = new AtomicLong();
@@ -341,6 +366,16 @@ public final class LlmService {
                     this.continuationRetries.get(),
                     "statementCapDocs",
                     this.statementCapDocs.get(),
+                    "queueWait",
+                    KgJson.obj("firstReadings", this.firstWaits.get(), "firstReadingAverageMillis",
+                            this.firstWaits.get() == 0 ? null : this.firstWaitMillis.get() / this.firstWaits.get(),
+                            "firstReadingMaxMillis", this.firstWaitMaxMillis.get(), "continuations", this.continuationWaits.get(),
+                            "continuationAverageMillis", this.continuationWaits.get() == 0 ? null
+                                    : this.continuationWaitMillis.get() / this.continuationWaits.get()),
+                    "thinTextDocs",
+                    this.thinTextDocs.get(),
+                    "textMissingDocs",
+                    this.textMissingDocs.get(),
                     "auditedDocs",
                     this.auditedDocs.get(),
                     "backfilledDocs",
@@ -358,6 +393,8 @@ public final class LlmService {
     private final LlmTiming timing;
     private static final String LAST_START="llm_last_actual_start";
     private final Map<String,PendingProgress> pendingProgress=new ConcurrentHashMap<>();
+    /** Samples of dropped items and refused answers, bounded and in memory ({@link RefusalSamples}). */
+    private final RefusalSamples refusalSamples = new RefusalSamples();
     private final Object progressLock=new Object();
     private volatile long pendingDocuments;
     private volatile long pruneAt;
@@ -401,9 +438,14 @@ public final class LlmService {
     private volatile long nextAt;
     private volatile long countsAt;
     private volatile long[] docCounts = new long[3];
-    private volatile long[] textCounts = new long[3];
+    private volatile long[] textCounts = new long[LlmQueue.TEXT_REASONS.size()];
     /** Characters of content the continuations have still to read, and the audit's position and end (as of the last count). */
     private volatile long unreadChars;
+    /** Rows and bytes the tier keeps between readings: progress rows and checkpoints (as of the last count). */
+    private volatile long[] progressRows = new long[2];
+    private volatile long[] checkpointRows = new long[2];
+    /** The backlog over the last day: one sample per {@link #BACKLOG_SAMPLE_MILLIS}, in memory ({@link #backlog()}). */
+    private final java.util.ArrayDeque<long[]> backlogSamples = new java.util.ArrayDeque<>();
     private volatile long auditAt;
     private volatile long auditEnd;
     private volatile long queueSize;
@@ -609,6 +651,17 @@ public final class LlmService {
             }
             this.state = "running";
             this.reason = null;
+            if (item.enqueuedAt > 0L) {
+                final long waited = Math.max(0L, now - item.enqueuedAt);
+                if (item.priority == LlmQueue.CONTINUATION_PRIORITY) {
+                    this.counters.continuationWaits.incrementAndGet();
+                    this.counters.continuationWaitMillis.addAndGet(waited);
+                } else {
+                    this.counters.firstWaits.incrementAndGet();
+                    this.counters.firstWaitMillis.addAndGet(waited);
+                    this.counters.firstWaitMaxMillis.accumulateAndGet(waited, Math::max);
+                }
+            }
             LlmTiming.Session session;
             try{session=this.timing.begin(item.docId);}
             catch(LlmTiming.Deferred e){release(item,now,false);
@@ -877,7 +930,17 @@ public final class LlmService {
         final int max = this.cfg.extractMaxInputChars;
         final String text = this.solr.text(docId);
         if (text == null || text.length() <= max) {
-            return; // read whole
+            // read whole; a page with hardly any text of its own shows as such
+            if (text == null || text.length() < THIN_TEXT_CHARS + 1000) {
+                final SolrDoc d = this.solr.get(Collections.singletonList(docId), SolrDoc.PROCESS_FIELDS).get(docId);
+                final String thin = d == null ? null : thinText(text, d);
+                if (THIN.equals(thin)) {
+                    this.counters.thinTextDocs.incrementAndGet();
+                } else if (thin != null && markAudited(docId, row.llmInput(), thin, null)) {
+                    this.counters.textMissingDocs.incrementAndGet();
+                }
+            }
+            return;
         }
         // the layout of the part not read yet: navigation behind the reading's end moves behind the content
         final PageText rest = PageText.fromRanges(text, layout(docId, row.hostId, text).rangesFrom(max));
@@ -885,21 +948,8 @@ public final class LlmService {
         final String reason = contentRead ? LlmQueue.FULL_TEXT
                 : this.cfg.llmContinuationChunks == 0 || legal(row.url) ? LlmQueue.TEXT_CUT : LlmQueue.MORE_TEXT;
         final byte[] input = row.llmInput();
-        final boolean marked = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
-            try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_reason = ? WHERE doc_id = ? AND llm_status = "
-                    + LlmQueue.STATUS_DONE + " AND llm_reason IS NULL AND state = 1 AND " + LlmQueue.LLM_INPUT + " = ?")) {
-                ps.setString(1, reason);
-                ps.setString(2, docId);
-                ps.setBytes(3, input);
-                if (ps.executeUpdate() == 0) {
-                    return false; // changed meanwhile: the new input is read from the start anyway
-                }
-            }
-            if (LlmQueue.MORE_TEXT.equals(reason)) {
-                new ReadProgress(max, rest.contentEnd, text.length(), ReadProgress.input(input), rest.ranges, 0).save(tx, docId);
-            }
-            return true;
-        });
+        final boolean marked = markAudited(docId, input, reason, LlmQueue.MORE_TEXT.equals(reason)
+                ? new ReadProgress(max, rest.contentEnd, text.length(), ReadProgress.input(input), rest.ranges, 0) : null);
         if (!marked) {
             return;
         }
@@ -912,6 +962,26 @@ public final class LlmService {
             this.counters.fullTextDocs.incrementAndGet();
             this.counters.navigationSkippedChars.addAndGet(rest.moved);
         }
+    }
+
+    /** The audit's mark of a page done before this version, if it is still so (and its progress, for a continuation). */
+    private boolean markAudited(final String docId, final byte[] input, final String reason, final ReadProgress progress)
+            throws KgException {
+        return this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+            try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_doc SET llm_reason = ? WHERE doc_id = ? AND llm_status = "
+                    + LlmQueue.STATUS_DONE + " AND llm_reason IS NULL AND state = 1 AND " + LlmQueue.LLM_INPUT + " = ?")) {
+                ps.setString(1, reason);
+                ps.setString(2, docId);
+                ps.setBytes(3, input);
+                if (ps.executeUpdate() == 0) {
+                    return false; // changed meanwhile: the new input is read from the start anyway
+                }
+            }
+            if (progress != null) {
+                progress.save(tx, docId);
+            }
+            return true;
+        });
     }
 
     /**
@@ -1156,6 +1226,7 @@ public final class LlmService {
         final Extraction base;
         final PageText pageText;
         final int storedLength;
+        final String thin;
         try {
             base = this.tiers.extract(d, page);
             if (!continuation && !RuleExtractor.candidate(d.url, d.titles, base)) {
@@ -1169,6 +1240,7 @@ public final class LlmService {
                 return;
             }
             storedLength = stored == null ? 0 : stored.length();
+            thin = continuation ? null : thinText(stored, d);
             pageText = continuation ? PageText.fromRanges(stored, read.moved) : layout(item.docId, row.hostId, stored);
         } catch (final IOException e) {
             this.lastError = "solr: " + e.getMessage();
@@ -1188,8 +1260,9 @@ public final class LlmService {
         final int readUpTo = !continuation ? Math.min(contentEnd, this.cfg.extractMaxInputChars)
                 : chunks.isEmpty() ? read.readUpTo : chunks.get(chunks.size() - 1).offset + chunks.get(chunks.size() - 1).text.length();
         final boolean contentRead = readUpTo >= contentEnd || pageText.text.substring(readUpTo, contentEnd).isBlank();
-        // null: the page fits the input; full_text: a long page read to the end of its content (now or over passes)
-        final String reason = !continuation && pageText.moved == 0 && contentRead ? null
+        // null: the page fits the input (thin_text or text_missing: with hardly any text of its own); full_text: a long
+        // page read to the end of its content (now or over passes)
+        final String reason = !continuation && pageText.moved == 0 && contentRead ? thin
                 : contentRead ? LlmQueue.FULL_TEXT
                 : !continuation && (this.cfg.llmContinuationChunks == 0 || legal(d.url)) ? LlmQueue.TEXT_CUT
                 : LlmQueue.MORE_TEXT;
@@ -1262,6 +1335,14 @@ public final class LlmService {
             }
             this.breaker.success();
             final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, partKnown, kinds);
+            final long sampledAt = this.clock.getAsLong();
+            if (r.refused != null) {
+                this.refusalSamples.add(sampledAt, item.docId, chunk.offset, domain, p.hash,
+                        KgJson.obj("reason", r.refused, "item", "answer", "excerpt", LlmExtractor.redact(answer)));
+            }
+            for (final JSONObject sample : r.samples) {
+                this.refusalSamples.add(sampledAt, item.docId, chunk.offset, domain, p.hash, sample);
+            }
             final JSONObject value;
             final int status;
             if (r.refused != null) {
@@ -1622,6 +1703,9 @@ public final class LlmService {
             release(item, now, false);
             return false;
         }
+        // a short page is read whole: counted, no mark
+        final boolean thinPage = THIN.equals(reason);
+        final String mark = thinPage ? null : reason;
         final Publisher.Doc doc = new Publisher.Doc();
         doc.docId = d.id;
         doc.url = d.url;
@@ -1640,8 +1724,8 @@ public final class LlmService {
                     return null;
                 }
                 result[0] = continuation
-                        ? this.publisher.applyLlmMore(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), reason, now)
-                        : this.publisher.applyLlm(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), reason, now);
+                        ? this.publisher.applyLlmMore(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), mark, now)
+                        : this.publisher.applyLlm(tx, doc, row.llmInput(), ex, this.terms.llmExtractor(tx, m, promptHash), mark, now);
                 ExtractionCache.touch(tx, keys, now);
                 if (result[0].outcome == Publisher.Outcome.PUBLISHED) {
                     // the progress goes with the publication: kept for the next pass, or removed once the page is done
@@ -1690,6 +1774,10 @@ public final class LlmService {
             } else if (LlmQueue.FULL_TEXT.equals(reason)) {
                 this.counters.fullTextDocs.incrementAndGet();
                 this.counters.navigationSkippedChars.addAndGet(navigationSkipped);
+            } else if (thinPage) {
+                this.counters.thinTextDocs.incrementAndGet();
+            } else if (LlmQueue.TEXT_MISSING.equals(reason)) {
+                this.counters.textMissingDocs.incrementAndGet();
             }
         } else {
             this.counters.changedAborts.incrementAndGet();
@@ -1755,6 +1843,28 @@ public final class LlmService {
             this.counters.textCutDocs.incrementAndGet();
             this.counters.textCutChars.addAndGet(unread[0]);
         }
+    }
+
+    /**
+     * Whether a page has hardly any text of its own: under {@link #THIN_TEXT_CHARS} characters without its title and
+     * Markdown marks. Then its text is missing ({@link LlmQueue#TEXT_MISSING}, a mark: the page is not covered) if the
+     * delivered HTML is large ({@link #TEXT_MISSING_HTML_BYTES}) or the text asks for JavaScript, else the page is just
+     * short ({@link #THIN}: read whole, only counted); null for a page with text. Nothing is made up for either: what is
+     * there is read.
+     */
+    static String thinText(final String text, final SolrDoc d) {
+        String body = text == null ? "" : text;
+        for (final String title : d == null ? List.<String>of() : d.titles) {
+            if (title != null && !title.isBlank()) {
+                body = body.replace(title.trim(), " ");
+            }
+        }
+        body = body.replaceAll("[*#_>`|]+", " ").replaceAll("\\s+", " ").trim();
+        if (body.length() >= THIN_TEXT_CHARS) {
+            return null;
+        }
+        final boolean large = d != null && d.htmlBytes != null && d.htmlBytes >= TEXT_MISSING_HTML_BYTES;
+        return large || SCRIPT_ONLY.matcher(text == null ? "" : text).find() ? LlmQueue.TEXT_MISSING : THIN;
     }
 
     /** Statements of the LLM tier the page holds evidence for (the per-document limit counts over all its readings). */
@@ -1882,8 +1992,19 @@ public final class LlmService {
                 this.queueOldest = LlmQueue.oldest(c);
                 this.cacheEntries = ExtractionCache.entries(c);
                 this.cacheBytes = ExtractionCache.bytes(c);
+                this.progressRows = LlmQueue.metaRows(c, LlmQueue.LAYOUT_PREFIX);
+                this.checkpointRows = LlmQueue.metaRows(c, LlmProgress.PREFIX);
                 return null;
             });
+            synchronized (this.backlogSamples) {
+                final long[] last = this.backlogSamples.peekLast();
+                if (last == null || now - last[0] >= BACKLOG_SAMPLE_MILLIS) {
+                    this.backlogSamples.addLast(new long[] {now, this.pendingDocuments, this.queueSize, this.textCounts[0], this.unreadChars});
+                    while (this.backlogSamples.size() > BACKLOG_SAMPLES) {
+                        this.backlogSamples.removeFirst();
+                    }
+                }
+            }
         } catch (final KgException e) {
             // the next refresh tries again
         }
@@ -1926,7 +2047,9 @@ public final class LlmService {
                 "documents",
                 // done/failed/skipped: the current LLM status of the pages in the graph; pending: pages of the LLM
                 // collections not examined yet (the queue included), the backlog the queue is refilled from
-                KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2], "pending", this.pendingDocuments),
+                KgJson.obj("done", docs[0], "failed", docs[1], "skipped", docs[2], "pending", this.pendingDocuments,
+                        // done pages by how much of their text was read: a first reading of a long page is no full coverage
+                        "coverage", coverage(docs[0])),
                 "cache",
                 KgJson.obj(
                         "entries",
@@ -1956,12 +2079,63 @@ public final class LlmService {
                 this.timing.status(actualWaitReason()),
                 "pendingResultCheckpoints",
                 this.pendingProgress.size(),
+                "storage",
+                // what the tier keeps between its readings: progress rows of long pages and checkpoints of unfinished ones
+                KgJson.obj("progressRows", this.progressRows[0], "progressBytes", this.progressRows[1], "checkpointRows",
+                        this.checkpointRows[0], "checkpointBytes", this.checkpointRows[1]),
+                "backlog",
+                backlog(),
+                "refusalSamples",
+                this.refusalSamples.summary(this.clock.getAsLong()),
                 "structuredOutput",
                 this.client.structuredOutput(this.cfg.llmStructuredOutput),
                 "prompt",
                 this.prompt.json(),
                 "lastError",
                 this.lastError);
+    }
+
+    /**
+     * The backlog over the last day (in memory, since the start): per sample its time, the pages still to examine, the
+     * queue, the long pages a continuation reads on and their unread characters; and the change of the pages to examine
+     * per hour between the oldest and the newest sample (negative: the backlog shrinks).
+     */
+    private JSONObject backlog() {
+        final org.json.JSONArray out = new org.json.JSONArray();
+        long[] first = null;
+        long[] last = null;
+        synchronized (this.backlogSamples) {
+            for (final long[] b : this.backlogSamples) {
+                out.put(KgJson.obj("at", b[0], "pending", b[1], "queue", b[2], "partial", b[3], "remainingChars", b[4]));
+                first = first == null ? b : first;
+                last = b;
+            }
+        }
+        final Long perHour = first == null || last[0] - first[0] < BACKLOG_SAMPLE_MILLIS ? null
+                : (last[1] - first[1]) * 3600_000L / (last[0] - first[0]);
+        return KgJson.obj("samples", out, "pendingPerHour", perHour, "sampleMinutes", BACKLOG_SAMPLE_MILLIS / 60_000L);
+    }
+
+    /**
+     * Done pages by how much of their own text the tier read: {@code whole} (the page fits the input), {@code fullText}
+     * (a long page read to the end of its content), {@code partial} (a continuation reads on), {@code textCut} (text
+     * left unread) and {@code textMissing} (the text is missing although the HTML is not empty).
+     */
+    private JSONObject coverage(final long done) {
+        final long[] t = this.textCounts;
+        long others = 0L;
+        for (final long n : t) {
+            others += n;
+        }
+        return KgJson.obj("whole", Math.max(0L, done - others), "fullText", t[2], "partial", t[0], "textCut", t[1], "textMissing", t[3]);
+    }
+
+    /**
+     * Samples of what the tier dropped or refused, newest first ({@link RefusalSamples}): of one reason or all, at most
+     * {@code limit}.
+     */
+    public JSONObject refusals(final String reason, final int limit) {
+        return this.refusalSamples.list(this.clock.getAsLong(), reason, limit);
     }
 
     /**

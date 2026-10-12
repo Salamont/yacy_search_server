@@ -123,6 +123,9 @@ final class KnowledgeApi {
                 allow(method, "POST");
                 noParameters(query);
                 return llmRun(body.get());
+            case "llm-refusals":
+                allow(method, "GET");
+                return llmRefusals(query);
             case "status":
                 allow(method, "GET");
                 return status();
@@ -154,6 +157,35 @@ final class KnowledgeApi {
         if (!query.isEmpty())
             throw ApiException.invalid(
                     query.keySet().iterator().next(), "This global route takes no parameters.");
+    }
+
+    /** Samples of dropped items and refused answers ({@link KgRuntime#llmRefusals}): {@code reason}, {@code limit} (1-100, 50). */
+    private JSONObject llmRefusals(final java.util.Map<String, String> query) throws ApiException {
+        for (final String key : query.keySet()) {
+            if (!"reason".equals(key) && !"limit".equals(key)) {
+                throw ApiException.invalid(key, "Unknown parameter; reason and limit are allowed.");
+            }
+        }
+        final String reason = query.get("reason");
+        if (reason != null && !reason.matches("^[a-z_]{1,64}$")) {
+            throw ApiException.invalid("reason", "A reason code (lower-case letters and underscores).");
+        }
+        int limit = 50;
+        if (query.containsKey("limit")) {
+            try {
+                limit = Integer.parseInt(query.get("limit"));
+            } catch (final NumberFormatException e) {
+                limit = -1;
+            }
+            if (limit < 1 || limit > 100) {
+                throw ApiException.invalid("limit", "1 to 100.");
+            }
+        }
+        final KgRuntime r = this.runtime.get();
+        if (r == null) {
+            throw toApi(new KgException(KgException.DISABLED, "not started"));
+        }
+        return r.llmRefusals(reason, limit);
     }
 
     private JSONObject llmRun(JSONObject body) throws ApiException {

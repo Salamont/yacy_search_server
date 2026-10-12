@@ -67,6 +67,12 @@ final class LlmQueue {
      * navigation moved behind the content ({@link PageText}) is not read.
      */
     static final String FULL_TEXT = "full_text";
+    /**
+     * Done: the page's text is missing, although the delivered HTML is large or the text asks for JavaScript (the parser
+     * lost it, or only a script renders it); what was there was read, the page counts as not covered. A page that is
+     * just short is read whole and gets no reason (it is counted, {@link LlmService#thinText}).
+     */
+    static final String TEXT_MISSING = "text_missing";
     /** Queue priority of a continuation: after every first reading, until it waited {@link #AGING_MILLIS}. */
     static final int CONTINUATION_PRIORITY = 8;
     /**
@@ -88,11 +94,20 @@ final class LlmQueue {
         final String docId;
         final String hostId;
         final int attempts;
+        /** When the item was queued, and its priority ({@link #CONTINUATION_PRIORITY} for a continuation). */
+        final long enqueuedAt;
+        final int priority;
 
         Item(final String docId, final String hostId, final int attempts) {
+            this(docId, hostId, attempts, 0L, 0);
+        }
+
+        Item(final String docId, final String hostId, final int attempts, final long enqueuedAt, final int priority) {
             this.docId = docId;
             this.hostId = hostId;
             this.attempts = attempts;
+            this.enqueuedAt = enqueuedAt;
+            this.priority = priority;
         }
     }
 
@@ -288,18 +303,35 @@ final class LlmQueue {
         return out;
     }
 
-    /** Done pages per reason: {{@link #MORE_TEXT}, {@link #TEXT_CUT}, {@link #FULL_TEXT}}. */
+    /** The reasons of done pages {@link #textCounts} counts, in its order. */
+    static final List<String> TEXT_REASONS = List.of(MORE_TEXT, TEXT_CUT, FULL_TEXT, TEXT_MISSING);
+
+    /** Done pages per reason, in the order of {@link #TEXT_REASONS}. */
     static long[] textCounts(final Connection c) throws SQLException {
-        final long[] out = new long[3];
-        final List<String> reasons = List.of(MORE_TEXT, TEXT_CUT, FULL_TEXT);
+        final long[] out = new long[TEXT_REASONS.size()];
+        final List<String> reasons = TEXT_REASONS;
         try (PreparedStatement ps = c.prepareStatement("SELECT llm_reason, count(*) FROM kg_doc INDEXED BY kg_doc_llm_status"
-                + " WHERE llm_status = 1 AND llm_reason IN ('" + MORE_TEXT + "', '" + TEXT_CUT + "', '" + FULL_TEXT + "') GROUP BY llm_reason");
+                + " WHERE llm_status = 1 AND llm_reason IN ('" + String.join("', '", TEXT_REASONS) + "') GROUP BY llm_reason");
                 ResultSet rs = ps.executeQuery()) {
             while (rs.next()) {
                 out[reasons.indexOf(rs.getString(1))] = rs.getLong(2);
             }
         }
         return out;
+    }
+
+    /**
+     * Rows and bytes of {@code kg_meta} under a key prefix (the progress rows {@link #LAYOUT_PREFIX}, the checkpoints
+     * {@link LlmProgress#PREFIX}): what the tier keeps between its readings.
+     */
+    static long[] metaRows(final Connection c, final String prefix) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement("SELECT count(*), coalesce(sum(length(key) + length(value)), 0) FROM kg_meta"
+                + " WHERE key GLOB ?")) {
+            ps.setString(1, prefix + "*");
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? new long[] {rs.getLong(1), rs.getLong(2)} : new long[2];
+            }
+        }
     }
 
     /**
@@ -385,7 +417,7 @@ final class LlmQueue {
         if(only!=null&&only.isEmpty())return null;
         String scope=only==null?"":" AND doc_id IN ("+String.join(",",java.util.Collections.nCopies(only.size(),"?"))+")";
         final Item item;
-        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_id, host_id, attempts FROM kg_llm_work"
+        try (PreparedStatement ps = tx.prepareStatement("SELECT doc_id, host_id, attempts, enqueued_at, priority FROM kg_llm_work"
                 + " WHERE claimed_at IS NULL AND not_before <= ?"+scope
                 + " ORDER BY CASE WHEN enqueued_at <= ? THEN 0 ELSE priority END, not_before, doc_id LIMIT 1")) {
             ps.setLong(1, now);
@@ -396,7 +428,7 @@ final class LlmQueue {
                 if (!rs.next()) {
                     return null;
                 }
-                item = new Item(rs.getString(1), rs.getString(2), rs.getInt(3));
+                item = new Item(rs.getString(1), rs.getString(2), rs.getInt(3), rs.getLong(4), rs.getInt(5));
             }
         }
         try (PreparedStatement ps = tx.prepareStatement("UPDATE kg_llm_work SET claimed_at = ? WHERE doc_id = ?")) {
