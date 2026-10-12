@@ -328,7 +328,7 @@ schemas["KgStatus"] = {"type": "object", "required": ["schema", "enabled", "stat
         "collections": {"type": "array", "items": {"type": "string"}}, "llmCollections": {"type": "array", "items": {"type": "string"}, "description": "scoutro.kg.llm.collections; * for every followed collection."},
         "llmIgnoredCollections": {"type": "array", "items": {"type": "string"}, "description": "LLM collections that are not followed and therefore ignored."},
         "jobsCollections": {"type": "array", "items": {"type": "string"}, "description": "scoutro.kg.jobs.collections (* for every followed collection); jobs are read for no other collection, a new collection never gets them by itself."},
-        "llmKinds": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}, "description": "Facility kinds the LLM tier may assign per collection: the start vocabulary or scoutro.kg.llm.kinds.<collection>."}}},
+        "llmKinds": {"type": "object", "additionalProperties": {"type": "array", "items": {"type": "string"}}, "description": "Facility kinds the LLM tier may assign per named LLM collection: scoutro.kg.llm.kinds.<collection>, else the kinds of its vocabulary profile (llm_kinds of the vocabulary files); empty without a vocabulary, never derived from the name."}}},
     "paths": {"type": "object", "properties": {"dir": {"type": "string", "examples": ["DATA/SCOUTRO/knowledge"]}}},
     "storage": {"type": "object", "description": "Application budget over every file of the graph directory (not a filesystem quota).", "properties": {
         "budgetBytes": {"type": "integer"}, "usedBytes": {"type": "integer"}, "pauseAtBytes": {"type": "integer"}, "resumeAtBytes": {"type": "integer"},
@@ -544,7 +544,7 @@ KG_COLLECTION_ROW = {"type": "object", "required": ["collection", "active", "ina
     "followedBy": {"type": "string", "enum": ["list", "all", "inactive", "none"], "description": "Why: named in scoutro.kg.collections, * (every collection), switched off, or neither."},
     "vocabulary": {"type": ["string", "null"], "description": "The vocabulary in force; null for none."},
     "vocabularySetting": {"type": ["string", "null"], "description": "scoutro.kg.vocab.<collection>: a name, \"\" for no vocabulary, null when not set (the default)."},
-    "defaultVocabulary": {"type": ["string", "null"], "description": "The default of the vocabulary files (categories.json); never guessed from the name."},
+    "defaultVocabulary": {"type": ["string", "null"], "description": "The default of the vocabulary files (a collections map in DATA/SCOUTRO/knowledge/vocabulary; the shipped categories.json maps none); never guessed from the name."},
     "vocabularySource": {"type": "string", "enum": ["setting", "vocabulary_files", "none"]}, "vocabularyKnown": {"type": "boolean"},
     "graphDocuments": {"type": ["integer", "null"], "description": "Documents of the collection in the graph; null while the graph is not running."},
     "jobs": {"type": ["boolean", "null"]},

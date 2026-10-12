@@ -7728,7 +7728,7 @@
                   "type": "string"
                 }
               },
-              "description": "Facility kinds the LLM tier may assign per collection: the start vocabulary or scoutro.kg.llm.kinds.<collection>."
+              "description": "Facility kinds the LLM tier may assign per named LLM collection: scoutro.kg.llm.kinds.<collection>, else the kinds of its vocabulary profile (llm_kinds of the vocabulary files); empty without a vocabulary, never derived from the name."
             },
             "llmSchedule": {
               "$ref": "#/components/schemas/KgLlmSchedule"
@@ -10234,7 +10234,7 @@
                   "string",
                   "null"
                 ],
-                "description": "The default of the vocabulary files (categories.json); never guessed from the name."
+                "description": "The default of the vocabulary files (a collections map in DATA/SCOUTRO/knowledge/vocabulary; the shipped categories.json maps none); never guessed from the name."
               },
               "vocabularySource": {
                 "type": "string",
@@ -10413,7 +10413,7 @@
                 "string",
                 "null"
               ],
-              "description": "The default of the vocabulary files (categories.json); never guessed from the name."
+              "description": "The default of the vocabulary files (a collections map in DATA/SCOUTRO/knowledge/vocabulary; the shipped categories.json maps none); never guessed from the name."
             },
             "vocabularySource": {
               "type": "string",

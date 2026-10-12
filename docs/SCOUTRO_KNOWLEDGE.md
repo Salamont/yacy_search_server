@@ -57,15 +57,17 @@ Scoutro:
 | Key | Value | Why |
 |---|---|---|
 | `scoutro.kg.enabled` | `true` | Turns the graph on |
-| `scoutro.kg.collections` | e.g. `edelsenior-web,bauteamcheck-web`, or `*` for all | The collections the graph follows; nothing outside them is read. Also under *Knowledge graph → Settings*, per collection ([5.4](#54-collections-o5)) |
+| `scoutro.kg.collections` | e.g. `my-portal-web,example-care`, or `*` for all | The collections the graph follows; nothing outside them is read. Also under *Knowledge graph → Settings*, per collection ([5.4](#54-collections-o5)) |
 | `scoutro.kg.jsonld.enabled` | `true` | Captures `<script type="application/ld+json">` while crawling. Without it, tier 1 only has metadata, and only pages crawled after the switch carry JSON-LD |
-| `scoutro.kg.llm.collections` | optional, e.g. `edelsenior-web` | The optional LLM tier ([5.3](#53-the-optional-llm-tier)) |
-| `scoutro.kg.jobs.collections` | optional, e.g. `edelsenior-web,bauteamcheck-web` | Job postings ([4.4](#44-business-facts-vocabulary-2)); off by default |
+| `scoutro.kg.llm.collections` | optional, e.g. `my-portal-web` | The optional LLM tier ([5.3](#53-the-optional-llm-tier)) |
+| `scoutro.kg.jobs.collections` | optional, e.g. `my-portal-web,example-care` | Job postings ([4.4](#44-business-facts-vocabulary-2)); off by default |
 
 Further settings of the business facts (defaults in brackets):
-- `scoutro.kg.vocab.<collection>`: the business vocabulary of a collection.
-  The four Scoutro collections have one (`care`, `coaching`, `software`,
-  `construction`); empty means none.
+- `scoutro.kg.vocab.<collection>`: the business vocabulary (profile) of a
+  collection, for example `care`, `coaching`, `software` or `construction`;
+  empty means none. Without it a collection has the vocabulary a file of
+  `DATA/SCOUTRO/knowledge/vocabulary/` maps it to, else none: no collection
+  has one by its name ([5.4](#54-collections-o5)).
 - `scoutro.kg.prices.staleDays[.<collection>]` (180): after how many days a
   price without a validity date counts as possibly outdated.
 - `scoutro.kg.jobs.endedVisibleDays` (90): how long an ended posting stays
@@ -257,9 +259,14 @@ A changed vocabulary re-extracts the pages at low priority.
   requests by format. The validator checks every answer the same way in
   every mode; existing cache entries stay valid (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 6.3).
 - **Kinds per collection (O2).** The facility kinds the model may assign come
-  from `scoutro.kg.llm.kinds.<collection>`, a comma-separated list such as
-  `nursinghome,assistedliving`. Start lists exist for the four Scoutro
-  collections. A new kind needs no schema change.
+  with the collection's vocabulary profile (`llm_kinds` of the vocabulary in
+  the vocabulary files; for example care: `nursinghome`, `assistedliving`, …),
+  or from `scoutro.kg.llm.kinds.<collection>`, a comma-separated list such as
+  `nursinghome,assistedliving`, which replaces them. A collection without a
+  vocabulary has none; no collection gets kinds because of its name. A page
+  in several collections gets the kinds of all of them. A new kind needs no
+  schema change, and changed kinds read no page again (they are part of the
+  prompt and the cache key, not of the extractor identity).
 - **The cache.** Validated answers are stored (`cache.maxPercent` of the
   budget), so a recrawl without changes, a reconcile or an identity rebuild
   calls the model only for changed text.
@@ -310,7 +317,7 @@ A changed vocabulary re-extracts the pages at low priority.
   provider: "SAP" of one company and "SAP" of another are two objects, each
   with its own provider, prices and sources, and they are never merged.
   - The object list shows each hit with its provider and domain
-    (`SAP` · `CTcon GmbH · ctcon.de · stackfinder-web`), its collection,
+    (`SAP` · `Example Consulting GmbH · example.com · my-portal-web`), its collection,
     place, quality, sources and last confirmation. A service whose provider
     the selected collection does not show says *No provider assigned*.
   - *Services* counts the services of one name for reading only ("SAP · 133
@@ -335,20 +342,35 @@ A changed vocabulary re-extracts the pages at low priority.
   only the named collections are. The overview's *Collections* table lists
   every collection with its vocabulary, jobs, LLM tier, documents in the
   graph and state.
+  - The operator chooses the names of the collections. A vocabulary (care,
+    coaching, software, construction or an own one) is a profile the
+    operator gives a collection: its service categories, audiences and the
+    facility kinds of the LLM tier. Scoutro ships no collection names and
+    gives no collection a vocabulary by itself.
   - A collection without a vocabulary is shown as *No vocabulary assigned*.
     It gets generic facts (names, addresses, contacts, relations, the
     industry of a declared business type), but no service categories; a
-    vocabulary is never guessed from a collection's name. The defaults are
-    `edelsenior-web` care, `checkthecoach-web` coaching, `stackfinder-web`
-    software and `bauteamcheck-web` construction.
-  - Assign an existing vocabulary with
+    vocabulary is never guessed from a collection's name.
+  - Assign an existing vocabulary under *Knowledge graph → Settings* or with
     `scoutro.kg.vocab.<collection>=<vocabulary>` (for example
     `scoutro.kg.vocab.newportal-web=software`); this works under `*` as well
     since package 6.1. An empty value switches a default off. A new
-    vocabulary or mapping is a file in `DATA/SCOUTRO/knowledge/vocabulary/`
-    in the format of `defaults/scoutro/knowledge/categories.json`; no schema
-    change is needed. Both take effect at the next start and re-extract the
-    pages concerned.
+    vocabulary, or a default mapping of collections
+    (`"collections": {"my-portal-web": "software"}`), is a file in
+    `DATA/SCOUTRO/knowledge/vocabulary/` in the format of
+    `defaults/scoutro/knowledge/categories.json`; no schema change is
+    needed. Both take effect at the next start and re-extract the pages
+    concerned.
+  - Up to 0.10.0 the shipped `categories.json` mapped four collections of one
+    installation. An installation that may rely on that (it has a graph or a
+    backup, or its `scoutro.kg.*` settings name one of those collections)
+    keeps the mapping: the first start writes it once into
+    `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json` (with
+    the facility kinds a collection had, where its profile would give others)
+    and records `scoutro.kg.migration.collectionProfiles`. The extractor
+    identity and the LLM cache keys stay the same, no page is read again;
+    a new installation gets nothing of it (docs/SCOUTRO_KNOWLEDGE_GRAPH.md,
+    section 28).
   - Jobs are read only for collections named in
     `scoutro.kg.jobs.collections` (or `*`). A new collection never gets them
     by itself.

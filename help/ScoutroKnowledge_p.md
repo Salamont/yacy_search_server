@@ -216,11 +216,11 @@ not run additional matching. Reuse existing graph data; no re-extraction needed.
 
 ## Services of the same name
 
-A service belongs to its provider: "SAP" of CTcon GmbH (ctcon.de) and "SAP"
-of another company are two objects, each with its own provider, prices and
-sources; nothing is merged, and the IDs stay as they are. The object list
-therefore shows each service with its provider and domain
-(`SAP` · `CTcon GmbH · ctcon.de · stackfinder-web`); a service whose provider
+A service belongs to its provider: "SAP" of Example Consulting GmbH
+(example.com) and "SAP" of another company are two objects, each with its own
+provider, prices and sources; nothing is merged, and the IDs stay as they are.
+The object list therefore shows each service with its provider and domain
+(`SAP` · `Example Consulting GmbH · example.com · my-portal-web`); a service whose provider
 the selected collection does not show says **No provider assigned**.
 
 Searching a name that several providers use adds a line above the list
@@ -406,18 +406,28 @@ uncertain, each with a quote of the page).
 
 - With `scoutro.kg.collections=*` a new collection (for example
   `newportal-web`) is followed at once; with a fixed list only the named ones.
+- You choose the names of your collections. A vocabulary (care, coaching,
+  software, construction or one of your own) is a profile you give a
+  collection; Scoutro gives no collection one by itself. The profile brings
+  its service categories and audiences, and the facility kinds the LLM
+  enrichment may assign on the collection's pages.
 - A collection without a vocabulary is shown as **No vocabulary assigned**:
   it gets generic facts (names, addresses, contacts, relations, the industry
   of a declared business type) but no service categories. Its vocabulary is
-  never guessed from its name. The defaults are `edelsenior-web` care,
-  `checkthecoach-web` coaching, `stackfinder-web` software and
-  `bauteamcheck-web` construction.
-- Assign an existing vocabulary with `scoutro.kg.vocab.<collection>=<vocabulary>`
-  (for example `scoutro.kg.vocab.newportal-web=software`, also under `*`);
-  an empty value switches a default off. A new vocabulary, or a mapping, is a
-  JSON file in `DATA/SCOUTRO/knowledge/vocabulary/` in the format of
+  never guessed from its name.
+- Assign a vocabulary under **Settings** (column **Vocabulary**) or with
+  `scoutro.kg.vocab.<collection>=<vocabulary>` (for example
+  `scoutro.kg.vocab.newportal-web=software`, also under `*`); an empty value
+  switches a default off. A new vocabulary, or a default mapping of your
+  collections (`"collections": {"my-portal-web": "software"}`), is a JSON file
+  in `DATA/SCOUTRO/knowledge/vocabulary/` in the format of
   `defaults/scoutro/knowledge/categories.json`, without a schema change. Both
   take effect at the next start and re-extract the pages concerned.
+- An installation that used the collection defaults earlier versions of
+  Scoutro shipped keeps them: the first start of this version writes them
+  once into `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`
+  (your file from then on) and records that in
+  `scoutro.kg.migration.collectionProfiles`; no page is read again.
 - Job extraction initially follows collections named in
   `scoutro.kg.jobs.collections` (shown under Settings); a new collection never
   gets them by itself.
@@ -442,11 +452,12 @@ itself, without a vocabulary, and is followed only under `*`; YaCy's internal
   reconcile deletes nothing of it and nothing new is read from it, also under
   `*`. A page deleted from the index still leaves the graph, as always; a page
   that also belongs to a followed collection is still read through that one.
-- **Vocabulary:** **Default** (of the vocabulary files, e.g. `care` for
-  `edelsenior-web`, else none), one of the vocabularies, or **No vocabulary**
-  (`scoutro.kg.vocab.<collection>`: unset, a name, empty). A new vocabulary of
-  a followed collection makes the graph read its pages again in the
-  background.
+- **Vocabulary:** **Default** (a mapping of your vocabulary files, e.g.
+  `care` for `my-portal-web`; none for a new collection), one of the
+  vocabularies, or **No vocabulary** (`scoutro.kg.vocab.<collection>`: unset,
+  a name, empty). A new vocabulary of a followed collection makes the graph
+  read its pages again in the background (`reextract`); the LLM enrichment
+  then uses the facility kinds of that vocabulary.
 - Only the keys of that one collection change; the other collections, jobs,
   the LLM tier and all other settings stay as they are. A change takes effect
   at once: the graph is closed cleanly and opened again (a manual pause

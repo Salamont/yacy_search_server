@@ -1107,7 +1107,9 @@ All keys use the `scoutro.kg.` prefix and have code defaults (the Scoutro conven
 |---|---|---|
 | `enabled` | `false` | yes |
 | `collections` / `llm.collections` | empty | yes |
-| `llm.kinds.<collection>` | start vocabulary for `edelsenior-web`, `checkthecoach-web`, `stackfinder-web`, `bauteamcheck-web`; empty otherwise | advanced |
+| `llm.kinds.<collection>` | the facility kinds of the collection's vocabulary profile (`llm_kinds` in the vocabulary files, [28](#28-collections-named-by-the-operator-vocabulary-profiles)); empty without a vocabulary | advanced |
+| `vocab.<collection>` | the mapping of the vocabulary files; none for a new collection | yes |
+| `migration.collectionProfiles` | written once by the upgrade of [28](#28-collections-named-by-the-operator-vocabulary-profiles), never set by hand | no |
 | `budget.*`, `disk.*`, `wal.*`, `tmp.maxBytes`, `read.maxTransactionMillis`, `integrity.maxMillis` | [7.2](#72-settings) | budget and disk yes, rest advanced |
 | `jsonld.*` | [7.2](#72-settings) | yes |
 | `queue.maxItems`, `capture.maxPending` | 200 000, 100 000 | no |
@@ -1308,7 +1310,7 @@ Recommendation: **`1.942-scoutro.13` with alias `0.7.0`** (a minor step: new fea
 | # | Point | Effect | Needed from |
 |---|---|---|---|
 | O1 | ~~Budgets~~ — decided: configurable, 10 GiB graph and 2 GiB JSON-LD as protection limits (package 5, measured in [22.4](#224-measurements-and-budget-evaluation)). Still open: the real Olares figures (free space on `DATA`, index size, whether `limitedDisk: 20Gi` is enforced) | If `limitedDisk: 20Gi` is enforced, the budgets need lowering ([22.4](#224-measurements-and-budget-evaluation)) | Operations |
-| O2 | ~~Industry vocabulary~~ — decided: extensible, collection-specific vocabulary without a schema rebuild; package 2b ships a small start vocabulary of facility kinds for `edelsenior-web`, `checkthecoach-web`, `stackfinder-web` and `bauteamcheck-web`, replaced per collection by `llm.kinds.<collection>`; kinds are entity attributes, so new ones need no schema change | Tier-3 quality; kinds are merge discriminators | Owner (further terms) |
+| O2 | ~~Industry vocabulary~~ — decided: extensible, collection-specific vocabulary without a schema rebuild; package 2b shipped a small start vocabulary of facility kinds for four collections of one installation; since [28](#28-collections-named-by-the-operator-vocabulary-profiles) the kinds come with the vocabulary profile a collection is given (`llm_kinds`), replaced per collection by `llm.kinds.<collection>`, never with a collection's name; kinds are entity attributes, so new ones need no schema change | Tier-3 quality; kinds are merge discriminators | Owner (further terms) |
 | O3 | ~~LLM host and model~~ — decided: the existing LLM selection is reused (usage `knowledge`, opt-in column); the LLM is optional and the graph works without it. Throughput on the target hardware is measured in package 5 | `llm.maxDocsPerHost`, heap gate | Operations (model choice) |
 | O4 | ~~Fate of branch `ccr-e3e5f88b-1fqp77`~~ — resolved: merged into `main` as PR #13 (`5ee2d29`) | Packages 3/4 integrate into the domain view and reuse its export pattern | — |
 | O5 | Existing chat gap: clients choose any collection, guests included | The graph does not widen it (guests get no facts). Fixing content RAG scoping is out of scope. | Owner decision |
@@ -1952,14 +1954,14 @@ Deletions, reconcile, retention, integrity and state checks continue. The status
 ### 23.2 Vocabulary 2 and schema 4 (E)
 
 - **The vocabulary.** The job type; predicates for service categories, descriptions and prices; fifteen directed relations between organisations (`parent_of`, `subsidiary_of`, `carrier_of`, `member_of`, `association_member`, `partner_of`, `cooperation_with`, `customer_of`, `reference_for`, `supplier_of`, `service_provider_for`, `brand_of`, `certified_by`, `funded_by`, `sponsored_by`); the industry (NACE Rev. 2.1 / WZ 2025 code at the safe level, and the Scoutro industry group); organisation contacts; job fields; the declared audience. Claims carry a confidence; evidence stores it.
-- **Business vocabularies.** `categories.json` holds the seed vocabularies of the four Scoutro collections:
+- **Business vocabularies.** `categories.json` holds four seed vocabularies, profiles an operator gives a collection (it maps no collection, [28](#28-collections-named-by-the-operator-vocabulary-profiles)):
 
-  | Vocabulary | Collection | Categories | Groups |
+  | Vocabulary | Categories | Groups | Facility kinds (LLM tier) |
   |---|---|---|---|
-  | care | `edelsenior-web` | 22 | 6 |
-  | coaching | `checkthecoach-web` | 34 | 7 |
-  | software | `stackfinder-web` | 35 | 8 |
-  | construction | `bauteamcheck-web` | 110 | 14 |
+  | care | 22 | 6 | 7 |
+  | coaching | 34 | 7 | 4 |
+  | software | 35 | 8 | 2 |
+  | construction | 110 | 14 | 8 |
 
   It also holds segments, customer types, company sizes and employment types. Files in `DATA/SCOUTRO/knowledge/vocabulary/*.json` extend it; NACE Rev. 2.1 comes from `nace-2.1.csv`. The vocabulary and the per-collection settings are part of the extractor identity: a change re-extracts at low priority.
 - **Schema 4** only adds:
@@ -2480,3 +2482,28 @@ A read-only analysis of the validator (the only measured shares are those of 0.9
 - **Additional model requests** come only from continuations, splits by the budget, and an answer re-asked after a page changed during its call. A page of 20,000 characters costs 2 to 3 requests more and is read whole; the example reference page of about 67,000 characters costs about 14 more requests in three passes (about 55,000 characters), spread behind the first readings. In the sample of the analysis 5 to 15 % of the pages are longer than 12,000 characters. Navigation behind a page's content costs nothing any more (27.4).
 - **Fewer wasted requests:** pages are no longer re-asked after a restart because they were found again, a vocabulary change no longer throws answers away, and an audited page is never read again from its start.
 - **Not addressed here:** PDF price lists (blacklisted), the crawl's 15 pages per domain, the per-host cap of 25 for large sites, pages that only a script renders, and model errors the validator must refuse. robots.txt, the blacklist and the validator's rules are unchanged.
+
+## 28. Collections named by the operator, vocabulary profiles
+
+Up to 0.10.0 the code and the shipped defaults named four collections of one installation: `categories.json` mapped them to the vocabularies care, coaching, software and construction, `KgConfig` always read their per-collection keys, and `KindHints` gave them the facility kinds of the LLM tier by their names. Collections are the operator's, with names of the operator's choice; nothing in the knowledge graph needs particular names any more.
+
+### 28.1 Profiles
+
+- A **vocabulary is a profile** an operator gives a collection: its service categories, groups and audiences, and its facility kinds for the LLM tier (`llm_kinds` of the vocabulary, in `categories.json` and in the operator's vocabulary files; a later file replaces a vocabulary's kinds as a whole). The four shipped profiles carry the kinds the four collections had (care 7, coaching 4, software 2, construction 8).
+- **No collection has a profile by itself.** The shipped `categories.json` maps none. A collection gets its profile from `scoutro.kg.vocab.<collection>` (Settings column *Vocabulary*, `PATCH /scoutro/api/v1/kg/collections/{collection}` with `vocabulary`, unchanged) or from a `collections` map in a file of `DATA/SCOUTRO/knowledge/vocabulary/`.
+- **Facility kinds** of a collection the LLM tier reads: `scoutro.kg.llm.kinds.<collection>` where it applied before (a collection named in `llm.collections`, or followed by name under `llm.collections=*`); else the kinds a vocabulary file fixes for the collection (`collection_llm_kinds`, see 28.2); else the kinds of its profile (`KgConfig.defaultLlmKinds`); none without a profile. A page in several collections gets the union, as before. Kinds are in the prompt, the validation and the cache key of a request, not in the extractor identity and not in `llmSelectionKey`.
+- **Identity:** `llm_kinds` and `collection_llm_kinds` are no part of `Categories.version`; a `collections` map is, as before (a new mapping re-extracts the pages concerned).
+
+### 28.2 The upgrade of an existing installation
+
+`CollectionMigration` runs once, at the start of the runtime and before the settings are read, also while the graph is off:
+
+- **Existing installation:** the graph directory holds `graph.db` or a backup, or a `scoutro.kg.*` setting names one of the four collections (as the end of its key or in its value). Anything else is a new installation: only `scoutro.kg.migration.collectionProfiles=` (empty) is written; no file, no directory.
+- It writes the former map into `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json` (schema `scoutro.kg.categories`), without an entry an operator file already maps (by `Categories.mappedCollections`: a valid name with a valid vocabulary name). The merged map is then the one of the former defaults overlaid by the operator files, so `Categories.version` stays the same, whatever the order of the files.
+- Where a collection's profile would give other facility kinds than its name gave (its vocabulary was set by `scoutro.kg.vocab.<collection>`, also to none, or an operator file maps it), the former kinds are fixed for it in the same file (`collection_llm_kinds`). This covers every collection that may have a vocabulary: the four, every mapped one, every one with a `scoutro.kg.vocab.<collection>` key. The kinds are not written as `scoutro.kg.llm.kinds.<collection>`: that key is not read for a collection that is followed only through `*` while `llm.collections=*`, so it could not keep the cache keys of such an installation.
+- `scoutro.kg.migration.collectionProfiles` is set to the four collections: `KgConfig` reads their per-collection keys (`vocab`, `prices.staleDays`, `jobs.extract`, `jobs.display`, `jobs.matching`) as it always did, also while they are not followed, so `extractionKey()` stays the same. Collections mapped only by operator files are read, as before, when they are followed, switched off or keyed under `*`.
+- **Once:** the marker stops the step. If the file exists without the marker (it could not be recorded), only the marker is recorded; the file, the installation's own from then on, is never written again. Without a settings writer (tests) the step does not run. A file that cannot be written keeps the graph off for this start (`start_failed`), rather than extracting every page again.
+- **Check:** at the start in which the step ran, when the graph runs, the stored `kg_meta.extractors` is compared with `SolrDoc.extractors(config)`; event `collection_profiles_migrated` (identity unchanged) or `collection_profiles_identity_changed` (level 2, both values).
+- The settings page and the status read the operator's vocabulary directory also while the graph is off.
+
+**Verified** (`CollectionMigrationTest`, `CollectionProfilesUpgradeTest`): for fifteen setups (no override; `vocab.<four>=""` under `*` and a list; `vocab.newportal-web=software`; a fixed list with keys of collections it does not follow; operator files that remap, remap before the migrated file, map to an unknown vocabulary, or map another collection; kinds keys; the graph off) the extractor identity, `extractionKey()`, the vocabulary and the facility kinds of each collection and the LLM cache keys equal those the code of 0.10.0 computed (kept in the test). A graph built under the former defaults keeps `kg_meta.extractors` and every `kg_doc.input_hash` through the upgrade and two restarts, without a re-extraction scan; without the step every page is extracted again.

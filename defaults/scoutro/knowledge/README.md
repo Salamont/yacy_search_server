@@ -5,7 +5,7 @@ Files read by the knowledge graph (vocabulary 2, package 6; see
 
 | File | Content |
 |------|---------|
-| `categories.json` | Seed vocabularies of the Scoutro collections (care, coaching, software, construction): service categories with German and English labels, match terms, the Scoutro group (industry subcategory) and the safe NACE Rev. 2.1 level of each category; audience segments; customer types, company sizes and employment types. Versioned by content; not a closed list. |
+| `categories.json` | Seed vocabularies (care, coaching, software, construction), profiles an operator gives a collection: service categories with German and English labels, match terms, the Scoutro group (industry subcategory) and the safe NACE Rev. 2.1 level of each category; audience segments; the facility kinds of the LLM tier (`llm_kinds`, not versioned); customer types, company sizes and employment types. Versioned by content; not a closed list. It maps no collection. |
 | `nace-2.1.csv` | The statistical classification of economic activities NACE Rev. 2.1 (sections, divisions, groups and classes, English titles). |
 
 ## Extending the vocabularies
@@ -18,9 +18,18 @@ against `nace-2.1.csv`; invalid entries are left out and listed in the
 knowledge status. A changed vocabulary re-extracts the documents at low
 priority (it is part of the extractor identity).
 
-The vocabulary of a collection comes from `collections` in
-`categories.json` and can be set per collection with
-`scoutro.kg.vocab.<collection>=<vocabulary>` (empty: none).
+Collections are named by the operator, and no collection has a vocabulary
+by itself. A collection gets one with
+`scoutro.kg.vocab.<collection>=<vocabulary>` (empty: none; also on the
+knowledge graph's settings page), or by a `collections` map in a file of
+`DATA/SCOUTRO/knowledge/vocabulary/`, for example
+`"collections": {"my-portal-web": "software"}`. The vocabulary also brings
+the facility kinds the LLM tier may assign on the collection's pages
+(`llm_kinds`; `scoutro.kg.llm.kinds.<collection>` replaces them, a file may
+fix them for one collection with `collection_llm_kinds`). An installation
+that used the collection map earlier versions shipped here keeps it as
+`DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`, written
+once at the upgrade.
 
 ## Source and licence of the NACE data
 

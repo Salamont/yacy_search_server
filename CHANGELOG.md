@@ -20,6 +20,19 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   Pages already indexed benefit after their next recrawl; no recrawl is
   triggered.
 
+- Knowledge graph, collections: Scoutro no longer names collections. The
+  shipped `categories.json` maps none, and no collection gets a vocabulary or
+  facility kinds of the LLM tier by its name: a vocabulary (care, coaching,
+  software, construction or an own one) is a profile the operator gives a
+  collection (Settings, `scoutro.kg.vocab.<collection>` or a vocabulary file),
+  and it brings its facility kinds (`llm_kinds`, replaced by
+  `scoutro.kg.llm.kinds.<collection>`). An existing installation keeps the
+  collection defaults earlier versions shipped: the first start writes them
+  once into `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`
+  and records `scoutro.kg.migration.collectionProfiles`; the extractor
+  identity and the LLM cache keys stay the same and no page is read again
+  (docs/SCOUTRO_KNOWLEDGE_GRAPH.md 28). No new setting is needed.
+
 - Knowledge graph, LLM tier (follow-up of the 0.10.0 coverage analysis,
   docs/SCOUTRO_KNOWLEDGE_GRAPH.md 27): a queue item is never dropped while
   its page is still to do (a page left unconfirmed is retried with a backoff
