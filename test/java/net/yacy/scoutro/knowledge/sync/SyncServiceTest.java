@@ -922,6 +922,8 @@ public class SyncServiceTest {
         assertEquals("the company pages keep their input", a, hash("AAAAAAhost01"));
         assertEquals(c, hash("CCCCCChost03"));
         assertFalse("the job page is read again", job.equals(hash("JOBSAAhost02")));
+        // the other pages are checked, not extracted: one extraction since the start (a processed page counts its generation up)
+        assertEquals("only the job page is extracted again", 1L, this.sync.counters.published.get());
         assertEquals("the hints of the advertisement belong to its declared employer, as advertisement",
                 List.of("Job GmbH|internal_use|job_ad_description", "Job GmbH|required_competence|job_ad_description"),
                 strings("SELECT n.obj_val || '|' || json_extract(s.obj_val, '$.context') || '|' || json_extract(s.obj_val, '$.section')"
@@ -962,6 +964,7 @@ public class SyncServiceTest {
         assertEquals(a, hash("AAAAAAhost01"));
         assertEquals(2L, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'system_signal'"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
+        assertEquals("only the job page is extracted again", 1L, this.sync.counters.published.get());
     }
 
     @Test
@@ -983,6 +986,7 @@ public class SyncServiceTest {
         settle();
         assertFalse(job.equals(hash("JOBSAAhost02")));
         assertEquals(a, hash("AAAAAAhost01"));
+        assertEquals("only the job page is extracted again", 1L, this.sync.counters.published.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
         assertEquals(2L, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'system_signal'"));
     }
