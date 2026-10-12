@@ -815,6 +815,7 @@
         <include name="docs/SCOUTRO_RELEASE_0.10.0.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.10.1.md"/>
         <include name="docs/SCOUTRO_RELEASE_0.10.2.md"/>
+        <include name="docs/SCOUTRO_RELEASE_0.10.3.md"/>
         <include name="readme.txt"/>
         <include name="gpl.txt"/>
         <include name="ChangeLog"/>
