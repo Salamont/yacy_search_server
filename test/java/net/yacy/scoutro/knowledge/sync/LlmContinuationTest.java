@@ -363,8 +363,9 @@ public class LlmContinuationTest extends LlmFixture {
         settleSync();
         settleLlm();
         assertEquals("the content is read, the menu behind it is not", "1:" + LlmQueue.FULL_TEXT, llmStatus(LlmNavigationTest.TARGET));
-        assertTrue("no request about the menu", this.model.users.stream().noneMatch(u -> u.contains("Pflege Absatz")
+        assertTrue("no request of the page holds its menu", this.model.users.stream().noneMatch(u -> u.contains("title: Tagespflege")
                 && u.contains("Leistungsbereich Nummer")));
+        assertTrue("its content was asked", this.model.users.stream().anyMatch(u -> u.contains(LlmNavigationTest.QUOTE)));
         assertEquals("no continuation", 0L, processed().getLong("continuationDocs"));
         assertEquals((long) LlmNavigationTest.menu().length(), processed().getLong("navigationSkippedChars"));
         assertEquals(0L, leftovers());
@@ -399,7 +400,8 @@ public class LlmContinuationTest extends LlmFixture {
                 strings("SELECT e.locator FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
                         + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred WHERE e.tier = 3"
                         + " AND d.doc_id = '" + LlmNavigationTest.TARGET + "' AND v.name = 'operates'"));
-        assertTrue("the moved menu is never asked", this.model.users.stream().noneMatch(u -> u.contains("Leistungsbereich Nummer 30 der")));
+        assertTrue("the moved menu is never asked", this.model.users.stream().noneMatch(u -> u.contains("title: Tagespflege")
+                && u.contains("Leistungsbereich Nummer")));
         assertEquals("the menu counts as navigation left unread", (long) LlmNavigationTest.menu().length(),
                 processed().getLong("navigationSkippedChars"));
         assertEquals(0L, leftovers());
