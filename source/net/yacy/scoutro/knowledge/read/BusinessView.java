@@ -365,6 +365,12 @@ public final class BusinessView {
         if (jobs.length() > 0 || hidden > 0) {
             KgJson.put(out, "jobs", KgJson.obj("items", jobs, "hidden_ended", hidden));
         }
+        // software and systems (0.10.2): the entity's own system signals and those of the advertisements that declare it the
+        // employer, each with its context and source; shown also where job objects are not
+        final JSONArray systems = systems(c, ent, byPredicate.get(Vocabulary.SYSTEM_SIGNAL), in, v, now, docs);
+        if (systems.length() > 0) {
+            KgJson.put(out, "systems", systems);
+        }
         // audiences: declared, observed, suggested; never mixed
         final JSONObject declared = new JSONObject();
         for (final String p : DECLARED_AUDIENCE) {
@@ -591,9 +597,6 @@ public final class BusinessView {
     }
 
     /** Loads the collection names once per view (on the view's own connection). */
-
-
-    /** Loads the collection names once per view (on the view's own connection). */
     private void loadCollections(final Connection c) throws SQLException {
         final Map<Integer, String> m = new HashMap<>();
         try (PreparedStatement ps = c.prepareStatement("SELECT coll_id, name FROM kg_collection"); ResultSet rs = ps.executeQuery()) {
@@ -645,6 +648,55 @@ public final class BusinessView {
                 }
             }
         }
+    }
+
+    /** System signals one business view lists at most. */
+    static final int MAX_SYSTEMS = 50;
+    private static final List<String> SYSTEM_CONTEXTS = List.of("internal_use", "planned_migration", "completed_migration", "shutdown",
+            "required_competence", "desirable_competence", "stated_competence", "offered_capability", "customer_projects");
+
+    /**
+     * The system signals of an entity as its business view lists them (0.10.2): its own (company text, references,
+     * advertisements read for it as employer) and those of its job objects, whether or not job objects are shown (the job
+     * itself is not named). {@code source} tells where a signal comes from: {@code job_ad} (an advertisement: a required or
+     * desirable skill is a requirement, never a proof of own use or of a purchase), {@code references} (work for clients) or
+     * {@code company} (the company's own text).
+     */
+    private JSONArray systems(final Connection c, final long ent, final List<Fact> own, final List<Fact> in, final Viewer v, final long now,
+            final Set<String> docs) throws SQLException {
+        final List<Fact> all = new ArrayList<>(own == null ? List.of() : own);
+        for (final Fact f : in) {
+            if (Vocabulary.HIRING_ORGANIZATION.equals(f.stat.predicate) && all.size() < 4 * MAX_SYSTEMS && visible(c, f.stat.subj, v)) {
+                all.addAll(facts(c, f.stat.subj, false, List.of(Vocabulary.SYSTEM_SIGNAL), v, now, 50));
+            }
+        }
+        final List<JSONObject> items = new ArrayList<>();
+        final Map<JSONObject, Fact> factOf = new java.util.IdentityHashMap<>();
+        for (final Fact f : all) {
+            final JSONObject value = Values.json(f.stat.objVal);
+            if (value == null || value.optString("product", "").isEmpty()) {
+                continue;
+            }
+            final String section = value.optString("section", "text");
+            final String source = f.stat.subj != ent || net.yacy.scoutro.knowledge.extract.BusinessSignals.jobAd(section) ? "job_ad"
+                    : net.yacy.scoutro.knowledge.extract.BusinessSignals.REFERENCES.equals(section) ? "references" : "company";
+            final JSONObject item = KgJson.obj("statement", f.stat.publicId, "product", value.optString("product"), "context",
+                    value.optString("context"), "source", source, "asserted_date", value.opt("asserted_date"), "system_role",
+                    value.opt("system_role"));
+            fact(item, f);
+            items.add(item);
+            factOf.put(item, f);
+        }
+        items.sort(java.util.Comparator.comparing((JSONObject x) -> x.optString("product")).thenComparingInt(x -> {
+            final int i = SYSTEM_CONTEXTS.indexOf(x.optString("context"));
+            return i < 0 ? SYSTEM_CONTEXTS.size() : i;
+        }).thenComparing(x -> x.optString("statement")));
+        final JSONArray out = new JSONArray();
+        for (final JSONObject item : items.subList(0, Math.min(items.size(), MAX_SYSTEMS))) {
+            out.put(item);
+            collect(factOf.get(item), docs); // the sources of what is shown
+        }
+        return out;
     }
 
     /** One job: observed search, explicit end, published deadline passed or unknown current status. */

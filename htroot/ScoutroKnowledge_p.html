@@ -49,7 +49,7 @@
 </details>
 <section class="sseo-panel" aria-labelledby="skg-colls-title"><h3 id="skg-colls-title">Collections</h3>
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards" id="skg-collections"><thead><tr><th>Collection</th><th>Followed</th><th>Vocabulary</th><th>Jobs</th><th>LLM tier</th><th>Documents in the graph</th><th>Status</th></tr></thead><tbody></tbody></table></div>
-<p class="sseo-note">With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Jobs are read only for the collections named in scoutro.kg.jobs.collections.</p></section>
+<p class="sseo-note">With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&lt;collection&gt;=&lt;vocabulary&gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Job objects are read only for the collections named in scoutro.kg.jobs.collections or switched on in the settings; the software hints of job advertisements are read for every collection unless switched off (scoutro.kg.jobs.signals).</p></section>
 <section class="sseo-panel" aria-labelledby="skg-controls-title"><h3 id="skg-controls-title">Controls</h3>
 <div class="sseo-controls" id="skg-controls">
 <button class="btn btn-default" type="button" data-skg-action="pause">Pause growth</button>
@@ -239,7 +239,13 @@
 <p class="sseo-note">The LLM enrichment reads the pages of the collections switched on for it in addition, with the model of the LLM selection that has the usage knowledge; there is no second model setting. It is never switched on by itself, and without it the knowledge graph works as before.</p>
 <p class="skg-kgc-llm" id="skg-kgc-llm-state"></p>
 <p><span id="skg-kgc-model"></span> <a href="LLMSelection_p.html">LLM selection</a></p>
-<p>Job extraction, job display and use of stored job signals for matching are independent policies, not permissions. Switching them off deletes no knowledge. New matching rules belong to a later package.</p>
+<p>The four job policies are independent and none of them is a permission; switching one off deletes no knowledge.</p>
+<ul class="sseo-note skg-job-policies">
+<li><strong>Extract jobs as objects</strong>: job objects with title, employer, place, salary and dates. Changing it reads every page of every collection again.</li>
+<li><strong>Read software hints from job ads</strong> (on unless switched off): software and system mentions of a job advertisement are kept for its declared employer, also without job objects. A required or desirable skill stays a requirement, never a proof of own use or of a purchase; "we use" counts as internal use, work for clients as client work; an advertisement of an intermediary is attributed to no company. Changing it checks the pages of the collection again and reads only its job pages again.</li>
+<li><strong>Show job objects</strong>: whether job objects appear in the company view and in the chat. It hides nothing else and changes no extraction; software hints stay visible at the company.</li>
+<li><strong>Use stored job signals for matching</strong>: whether hints from job objects and job advertisements may feed customer suggestions; a requirement alone stays a weak signal.</li>
+</ul>
 <div class="sseo-scroll"><table class="table table-striped scoutro-cards skg-kgc" id="skg-kgc"><thead><tr><th>Collection</th><th>Pages in the index</th><th>Knowledge graph</th><th>Vocabulary</th><th>LLM enrichment</th><th>Job policies</th><th>Documents in the graph</th><th>Status</th><th>Save</th></tr></thead><tbody></tbody></table></div>
 <p id="skg-kgc-message" class="sseo-note" role="status" aria-live="polite"></p>
 </section>
@@ -520,6 +526,7 @@
 <span data-skg-label="sync_scanned">Documents scanned in current reconcile</span>
 <span data-skg-label="sync_cursor">Current reconcile cursor</span>
 <span data-skg-label="awaiting">Waiting for confirmation</span>
+<span data-skg-label="job_recheck">Job pages read again for</span>
 <span data-skg-label="model">Model</span>
 <span data-skg-label="breaker">Circuit breaker</span>
 <span data-skg-label="open">open</span>
@@ -897,9 +904,17 @@
 <span data-skg-label="ctx_organizational_transition">organizational care transition; possible cooperation</span>
 <span data-skg-label="ctx_own_offered_services">own offered services</span>
 <span data-skg-label="ctx_metadata">historical source metadata</span>
-<span data-skg-label="jobs_extraction">Extract jobs</span>
-<span data-skg-label="jobs_display">Display jobs</span>
+<span data-skg-label="jobs_extraction">Extract jobs as objects</span>
+<span data-skg-label="jobs_signals">Read software hints from job ads</span>
+<span data-skg-label="jobs_display">Show job objects</span>
 <span data-skg-label="jobs_matching">Use stored job signals for matching</span>
+<span data-skg-label="jobs_cell">shown: %1 · software hints: %2</span>
+<span data-skg-label="kgc_recheck_jobs">The graph checks the pages of this collection again and reads only its job pages again.</span>
+<span data-skg-label="sec_systems">Software and systems</span>
+<span data-skg-label="systems_note">Software and system mentions with their context. A required or desirable skill from a job advertisement is a requirement, not a proof of own use or of a purchase; client work describes the client's systems.</span>
+<span data-skg-label="src_job_ad">from a job advertisement</span>
+<span data-skg-label="src_references">from a reference page</span>
+<span data-skg-label="src_company">from the company's own pages</span>
 <span data-skg-label="asserted_at">Statement date (when evidenced)</span>
 <span data-skg-label="actor_status">Organization assignment</span>
 <span data-skg-label="actor_unresolved">unresolved; defer job matching</span>

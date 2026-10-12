@@ -1237,6 +1237,30 @@ Initial opt-ins inherit scoutro.kg.jobs.collections; changing the first policy
 freezes legacy display/matching opt-ins. Off deletes no historical knowledge.
 Only extraction changes affect extraction identity. No new matching rules in B.
 
+0.10.2: PATCH and GET add jobsSignals (software hints of job advertisements for
+their declared employer, on unless switched off; also without job objects). It
+is no part of the extraction identity: a change answers recheckJobs:true and
+the next reconcile re-reads only the job pages of that collection
+(status sync.reconcile.jobRecheck, event job_reading_changed);
+status.collections[].jobSignals shows the effective value. A required or
+desirable skill stays a requirement (system_signal context
+required_competence/desirable_competence), never internal use or a need; an
+intermediary's advertisement gives no hint. The business view adds systems
+(product, context, source job_ad|references|company, status, statement).
+
+GET kg/facets accepts counts=false (filter values without counts, for selects)
+and returns profiles (collection, vocabulary, source setting|vocabulary_files|
+none) so a client can tell a collection without a vocabulary from a read
+error; derived counts that could not be read give derived:null with
+derived_error. GET kg/services adds with_any_price. GET kg/services/prices
+(agent kg.read: /agent/v1/kg/services/prices) lists services with published
+prices: name, category, status=current|conflicting|outdated|uncertain|all,
+offset, limit 1–50, collection; each item is one published price (price, as
+published) with its service and providers; counts of prices per status,
+services_with_current (equals with_price), total, truncated (more than 2000
+services with a price); 404 for a name no visible service has. with_price and the current list share one
+status rule and the same collection filter.
+
 Global versioned product/need vocabularies and the LLM value schema/validator/
 grounding/application are updated together; custom prompt text remains.
 System mentions alone are not assertions of software use or procurement.

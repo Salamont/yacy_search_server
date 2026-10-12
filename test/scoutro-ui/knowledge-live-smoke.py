@@ -367,6 +367,19 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             rows = get(c, "/scoutro/api/v1/kg/services/providers?name=SAP&collection=kgb")
             assert rows["total"] == 2 and sorted(r["prices"]["current"] for r in rows["items"]) == [0, 1], rows
             assert "Gamma" not in json.dumps(rows) and "kga" not in json.dumps(rows["items"]), "no other collection in the group"
+            # 0.10.2: the prices behind "with a current price", one by one, under the same rule and the same collection
+            prices = get(c, "/scoutro/api/v1/kg/services/prices?name=SAP&collection=kgb")
+            assert prices["services_with_current"] == group("&collection=kgb")["with_price"] == 1 \
+                and prices["counts"]["current"] == prices["total"] >= 1 and prices["status"] == "current", prices
+            assert all(i["providers"] and i["price"]["status"] == "current" for i in prices["items"]) \
+                and "kga" not in json.dumps(prices["items"]), prices
+            assert get(c, "/scoutro/api/v1/kg/services/prices?collection=kgb&status=all")["total"] >= prices["total"]
+            assert status(c, "/scoutro/api/v1/kg/services/prices?status=cheap") == 400
+            # the quick facets of the selects: no counts, the profile of each visible collection
+            quick = get(c, "/scoutro/api/v1/kg/facets?collection=kgb&counts=false")
+            assert "counts" not in quick and {f["code"] for f in quick["categories"]} == {"software/sap", "software/cloud"} \
+                and quick["profiles"] == [{"collection": "kgb", "vocabulary": "software", "source": "setting"}], quick
+            checks += 5
             # package 6.2: the network of all providers of the name; each line names its provider's own service, nothing merged
             gnet = get(c, "/scoutro/api/v1/kg/services/network?name=SAP&collection=kgb")
             assert gnet["aggregated"] and gnet["center"] == "service_group:sap" and gnet["neighbours"] == 2, gnet
@@ -385,7 +398,10 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             names_s = [r["collection"] for r in rows_s]
             assert {"kga", "kgb", "kgc"} <= set(names_s) and not any(n.startswith("robot_") for n in names_s), names_s
             assert all(r["inCatalog"] and r["active"] for r in rows_s if r["collection"] in ("kga", "kgb", "kgc")), rows_s
-            checks += 6
+            # 0.10.2: the hints of job advertisements are on by default, apart from job objects (only kga extracts them)
+            assert {r["collection"]: (r["jobsExtraction"], r["jobsSignals"]) for r in rows_s if r["collection"] in ("kga", "kgb")} \
+                == {"kga": (True, True), "kgb": (False, True)}, rows_s
+            checks += 7
             ctcon = sap["context"]["providers"][0]["id"]
             snet = get(c, f"/scoutro/api/v1/kg/entities/{sap['id']}/neighborhood?collection=kgb&depth=2")
             assert any(e["from"] == ctcon and e["to"] == sap["id"] and e["type"] == "offers" and e["direction"] == "in" for e in snet["edges"]), snet["edges"]
@@ -408,6 +424,7 @@ with tempfile.TemporaryDirectory(prefix="scoutro-kg-ui-") as temporary:
             kgc = rows_c["kgc"]
             assert kgc["followed"] and kgc["vocabulary"] is None and kgc["vocabularySource"] == "none" and not kgc["jobs"] and kgc["documents"] == 1, kgc
             assert rows_c["kga"]["vocabulary"] == "care" and rows_c["kga"]["jobs"] and rows_c["kgb"]["vocabularySource"] == "setting", rows_c
+            assert rows_c["kgb"]["jobSignals"] and not rows_c["kgb"]["jobs"], rows_c
             assert get(c, "/scoutro/api/v1/kg/facets?collection=kgc")["categories"] == [], "no guessed category for kgc"
             checks += 16
             print(f"PASS: {checks} live knowledge read API checks (collection isolation, vocabulary 2, services across providers)", flush=True)

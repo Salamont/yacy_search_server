@@ -112,7 +112,9 @@ public final class MatchingRules {
         if(BusinessSignals.referencePage(signal.url))return null;
         String context=signal.value.optString("context");
         Assessment result=new Assessment();result.fit="explicit_rule";result.score=60;result.strength="qualified";
-        boolean jobBased="job".equals(signal.type);
+        // a hint read from a job advertisement for its employer (0.10.2) is job-based like a posting's own signal
+        boolean jobAd=BusinessSignals.jobAd(signal.value.optString("section"));
+        boolean jobBased="job".equals(signal.type)||jobAd;
         if(!jobBased&&hasPosting(c,signal)) {
             Observation employer=postingEmployer(c,signal,extras,permitted);if(employer==null)return null;
             result.extra.add(employer);jobBased=true;
@@ -128,7 +130,7 @@ public final class MatchingRules {
             if(!"system_signal".equals(signal.predicate)||!offer.key.equals(signal.value.optString("product"))
                     ||!List.of("internal_use","required_competence","desirable_competence","planned_migration").contains(context))return null;
             // A requirement belongs to a posting; a company's own competence statement is no need (often its offer).
-            if(context.endsWith("_competence")&&!"job".equals(signal.type))return null;
+            if(context.endsWith("_competence")&&!"job".equals(signal.type)&&!jobAd)return null;
             // The stored context must still be what the shared parser reads in the stored quote (veto only, never an upgrade).
             if(!contextConfirmed(signal,context))return null;
             if(List.of("internal_use","planned_migration").contains(context)&&systemRetired(c,signal))return null;

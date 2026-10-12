@@ -29,13 +29,14 @@ price comparison, and the evidence behind each fact. Operator guide:
 | --- | --- | --- |
 | Overview | `ScoutroKnowledge_p.html` | The process display (see below); under **Technical diagnosis** the state cards, storage and JSON-LD budgets with their levels, synchronisation, LLM tier, vocabulary and derived relations; then the collections (see below), controls, backups, identity rebuild, recent events |
 | Objects | `?view=objects&q=&type=&quality=&host=&industry=&category=&audience=` | Search by name, filter by type, quality, host, industry (NACE code; a section or division finds everything below it), service category and audience; 25 per page. Every hit shows its type, its provider and domain (a service: who offers it; a job: its employer; others: their own domain), its collection, place, quality, sources and last confirmation, with **Open provider**, **Network**, **Sources** and, for a service, **All providers** |
-| Services | `?view=services&q=&category=` · `?view=services&name=SAP` | Services of the same name across providers ("SAP · 133 providers") and, for one name, every provider's service in its own row (see below) |
+| Services | `?view=services&q=&category=` · `?view=services&name=SAP` | Services of the same name across providers ("SAP · 133 providers") and, for one name, every provider's service in its own row (see below); the category list says why it is empty (see [Service categories](#service-categories)) |
+| Prices | `?view=prices&status=current&name=&category=` | Every service with a published price, one row per provider's own service, paged (see [Prices of services](#prices-of-services)) |
 | Network of a name | `?view=network&group=SAP&category=&s=current,stale&list=1` | All providers of one service name around the name (see below) |
-| Object | `?view=object&id=kge_…` | Sections with content only: Overview, Industry, Services, Prices, Contacts, Relations, Jobs, Audiences, Suggested matches, Evidence and sources, all facts and relations, relations pointing to it; evidence per fact; link to the network |
+| Object | `?view=object&id=kge_…` | Sections with content only: Overview, Industry, Services, Prices, Contacts, Relations, Jobs, Software and systems, Audiences, Suggested matches, Evidence and sources, all facts and relations, relations pointing to it; evidence per fact; link to the network |
 | Network | `?view=network&id=kge_…&depth=2&f=…&list=1` | The neighbourhood of one object as a drawing and as a list (see below) |
-| Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published |
+| Compare | `?view=compare&category=care/tagespflege` | One service category across providers with the prices as published; **With a current price** opens the price list of the category |
 | Source | `?view=source&doc=<Solr id>` | What the graph holds from one page: state, tiers, LLM status, every fact with its evidence |
-| Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary (see below) |
+| Settings | `?view=settings` | The effective settings and their problems, and the knowledge graph settings of each collection: on or off, vocabulary, LLM enrichment and the four job policies (see below) |
 
 ### Status: the process display
 
@@ -165,11 +166,20 @@ all collections and the page says so.
   cooperation, customer and reference, supplier, service provider, brand,
   certification, funding and sponsoring, with their direction. **Derived,
   no facts:** "same operator" and weak link signals (linked pages).
-- **Jobs** (display policy initially inherits `scoutro.kg.jobs.collections`): title, employment type,
+- **Jobs** (only where job objects are extracted and shown, see [Job policies](#job-policies-settings)): title, employment type,
   place, salary with unit and date, dates and how to apply. A published deadline is marked separately from a confirmed end. A missing
   page or old undated posting does not prove an end; current search may be unknown.
   Ended/deadline-passed jobs stay visible for
   `scoutro.kg.jobs.endedVisibleDays` (90) days.
+- **Software and systems:** software and system mentions of the company with
+  their context and source: its own pages (**from the company's own pages**),
+  its reference pages (**from a reference page**) and its own job
+  advertisements (**from a job advertisement**). The context keeps what the
+  page says: **internal use** ("we use SAP"), **required** or **desirable
+  competence** (a requirement of an advertisement), **client work** (systems
+  of its clients), a stated competence or offer. A required or desirable skill
+  is a requirement, never a proof of own use or of a purchase. Shown whether
+  or not job objects are shown; the job itself is never named here.
 - **Audiences** in three layers that never mix: the declared audience
   (customer types, segments, sizes, target industries, sought services,
   service area), published customers and references, and **suggestions**.
@@ -231,6 +241,53 @@ many a current source. **All providers** lists every service of the name in
 its own row with its provider, domain, collection, place, price count,
 quality and sources. Prices are never mixed between providers; each row's
 prices are its own service's.
+
+## Service categories
+
+The category lists of **Services**, **Compare** and **Prices** show the
+service categories of the selected collection, or of every visible
+collection. They come only from the vocabulary profile of a collection, never
+from its name, so the same rule holds for every collection name you choose.
+When a list has nothing to offer it says why:
+
+- **Service categories could not be loaded: …** — the read failed (for
+  example a timeout); this is no statement about your data. Reload the page.
+- **No service categories: no vocabulary is assigned to …** — the collection
+  has no profile. An administrator assigns one under Settings, column
+  **Vocabulary**; the pages of that collection are then read again.
+- **No service categories found in the visible pages yet.** — the
+  collection has a profile, but no visible page states one of its
+  categories yet.
+
+Choosing another collection removes a chosen category: a category belongs to
+the vocabulary of a collection and does not carry over. The list is read
+without counts (`facets?counts=false`) and kept for at most a minute.
+
+## Prices of services
+
+**With a current price** in **Services** (the count of each name, and the
+counts of one name) and in **Compare** is a link, and **Prices** is a view of
+its own: it lists the services with a published price, also without a
+category. Every row is one published
+price of one provider's own service, exactly as published: provider (with
+domain), service, amount or range, currency and unit, conditions, the date and
+the source page. Prices of different providers are never mixed, converted or
+averaged.
+
+- **Status:** **Current prices** (default), **Conflicting prices** (two
+  different published amounts for the same thing), **Outdated or expired
+  prices** (older than the collection's price age, or past a validity date of
+  the source), **Uncertain prices** and **All prices**. The counts above the
+  list belong to the same rule as the count **With a current price**: the
+  number of services with a current price in **Services** equals the
+  services the list shows under **Current prices**, for the same collection
+  and the same rights.
+- **Filters:** a service name and a category (both optional); 25 prices per
+  page with **Previous** and **Next**. At most the first 2,000 services with
+  a price are read per request; the page says so, narrow the list by a name
+  or a category then.
+- **Rights:** the list shows only what the selected collection and your
+  rights show; an agent sees only its collections.
 
 ## Network of all providers of a name
 
@@ -428,9 +485,11 @@ uncertain, each with a quote of the page).
   once into `DATA/SCOUTRO/knowledge/vocabulary/000-migrated-collections.json`
   (your file from then on) and records that in
   `scoutro.kg.migration.collectionProfiles`; no page is read again.
-- Job extraction initially follows collections named in
-  `scoutro.kg.jobs.collections` (shown under Settings); a new collection never
-  gets them by itself.
+- Job objects are extracted only for collections named in
+  `scoutro.kg.jobs.collections` (shown under Settings) or switched on per
+  collection; a new collection never gets them by itself. The software hints
+  of job advertisements are read for every followed collection unless
+  switched off (see [Job policies](#job-policies-settings)).
 
 ### Switching collections on and off (Settings)
 
@@ -464,6 +523,43 @@ itself, without a vocabulary, and is followed only under `*`; YaCy's internal
   stays). While a backup, restore or rebuild runs, nothing is saved (409).
 - An identity rebuild builds the graph from the followed collections only:
   switch a collection on again before a rebuild if its data should stay.
+
+### Job policies (Settings)
+
+The column **Job policies** of each row holds four independent switches.
+None of them is a permission, and switching one off deletes no knowledge.
+
+| Switch | Key | What it does | Change |
+| --- | --- | --- | --- |
+| **Extract jobs as objects** | `scoutro.kg.jobs.extract.<collection>` (initially `scoutro.kg.jobs.collections`) | Job objects with title, employer, place, salary and dates | Reads every page of every collection again |
+| **Read software hints from job ads** | `scoutro.kg.jobs.signals.<collection>` (unset: on; or the list `scoutro.kg.jobs.signals.collections`) | Software and system mentions of a job advertisement are kept for its declared employer, also without job objects | Checks the pages of that collection and reads only its job pages again |
+| **Show job objects** | `scoutro.kg.jobs.display.<collection>` | Whether job objects appear in the company view and in the chat | Reading only; nothing is extracted again |
+| **Use stored job signals for matching** | `scoutro.kg.jobs.matching.<collection>` | Whether hints of job objects and job advertisements may feed customer suggestions | Reading only; a requirement alone stays a weak signal |
+
+- **Software hints** are read from job pages (a page with a `JobPosting` in
+  its structured data, or a careers page) of the collection, for the
+  employer the advertisement declares: one `hiringOrganization`, or a careers
+  page whose operator says it is hiring ("wir suchen", "we are hiring"). An advertisement of an
+  intermediary ("for our client"), one without a declared employer and one
+  with several employers give no hint to any company.
+- **Kept apart:** internal use ("we use", "our system"), required or
+  desirable competence (a requirement of the advertisement) and client work
+  (systems the company works on for its clients). A requirement is never a
+  proof of own use or of a purchase, and it is never turned into a need.
+- **Independent of the display:** the hints are shown under **Software and
+  systems** of the company whether job objects are shown or not.
+- **Explicit settings stay:** the upgrade changes none of the three former
+  switches, and a stored `false` of the new one stays off; only collections
+  without a setting read the hints.
+- **Targeted re-check:** a changed policy (also the first start of 0.10.2
+  with an existing graph) gives the event `job_reading_changed` and a re-check
+  of the collections concerned: their
+  pages are checked against the index, only their job pages are extracted
+  again; no other page, no PDF and no download is read, and the extractor
+  identity does not change. Its progress is under Overview › Technical
+  diagnosis (`sync.reconcile.jobRecheck` of `kg/status`).
+- The LLM enrichment adds no software hints of job advertisements while job
+  objects are off.
 
 ### LLM enrichment per collection (Settings)
 
@@ -529,12 +625,13 @@ text; links to crawled pages open in a new tab without a referrer.
 | `/scoutro/api/v1/kg/entities/{id}/neighborhood` | GET | Nodes (with hosts, collections, places, quality, sources) and edges (with `direction` at the centre) (`depth`, `limit` ≤ 200, `offset`, `types`, `weak`, `derived`, `suggested`, `values`, `prices`, `include=stale`) |
 | `/scoutro/api/v1/kg/services` | GET | Services of the same name across providers, read-only groups (`q`, `category`, `offset`, `limit` ≤ 50) |
 | `/scoutro/api/v1/kg/services/providers` | GET | The services of one name, each with its provider (`name`, `category`, `offset`, `limit`) |
+| `/scoutro/api/v1/kg/services/prices` | GET | The services with a published price, one item per provider's own service with its prices exactly as published (`name`, `category`, `status` = `current` (default), `conflicting`, `outdated`, `uncertain` or `all`, `offset`, `limit` ≤ 50, `collection`); `counts` per status and `services_with_current` follow the same rule as `with_price` of `kg/services` |
 | `/scoutro/api/v1/kg/services/network` | GET | All providers of one name around a virtual centre (`center` `service_group:<name>`), one line per provider's own `offers` with its own `service` (`name`, `category`, `offset`, `limit` ≤ 200, `include=stale`) |
-| `/scoutro/api/v1/kg/collections` | GET | Administrator: the knowledge graph settings of each collection (`active`, `inactive`, `vocabulary`, `vocabularySetting`, `defaultVocabulary`, documents, `state`) |
-| `/scoutro/api/v1/kg/collections/{collection}` | PATCH | Administrator: `{"active": true|false, "vocabulary": "care"|""|null}`; changes only that collection's keys and reopens the graph (`applied`, `backfill`, `kept`, `reextract`) |
+| `/scoutro/api/v1/kg/collections` | GET | Administrator: the knowledge graph settings of each collection (`active`, `inactive`, `vocabulary`, `vocabularySetting`, `defaultVocabulary`, documents, `state`, `llm`, `jobsExtraction`, `jobsSignals`, `jobsDisplay`, `jobsMatching`) |
+| `/scoutro/api/v1/kg/collections/{collection}` | PATCH | Administrator: `{"active": true|false, "vocabulary": "care"|""|null, "llm": …, "jobsExtraction": …, "jobsSignals": …, "jobsDisplay": …, "jobsMatching": …}`; changes only that collection's keys and reopens the graph (`applied`, `backfill`, `kept`, `reextract`, `recheckJobs`) |
 | `/scoutro/api/v1/kg/compare` | GET | One service category across providers (`category`) |
 | `/scoutro/api/v1/kg/derived` | GET | Derived rows (`kind`, `entity`) |
-| `/scoutro/api/v1/kg/facets` | GET | Industries, categories, audiences and counts of the visible graph |
+| `/scoutro/api/v1/kg/facets` | GET | Industries, categories, audiences and counts of the visible graph, and `profiles` (the vocabulary of each visible collection and where it comes from); `counts=false` gives the values without counts, quickly; derived counts that could not be read give `derived: null` with `derived_error` |
 | `/scoutro/api/v1/kg/entities/{id}` | GET | Object (or `{"redirect":…}` after a merge) |
 | `/scoutro/api/v1/kg/entities/{id}/statements` | GET | Facts and relations (`direction=out|in`, `predicate`, `include=stale`) |
 | `/scoutro/api/v1/kg/statements/{id}` / `…/evidence` | GET | One fact and its evidence (≤ 50 per page) |

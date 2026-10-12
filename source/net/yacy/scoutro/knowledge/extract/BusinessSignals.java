@@ -46,6 +46,14 @@ public final class BusinessSignals {
     /** A named legal entity (Muster Energie AG); used to tell an unnamed "we" from the company the sentence is about. */
     private static final Pattern LEGAL_ENTITY=Pattern.compile("(?u)\\b(?:[\\p{Lu}][\\p{L}\\p{N}&'.-]*\\s+){1,4}"
             +"(?:gGmbH|GmbH|AG|SE|KGaA|KG|OHG|GbR|UG|mbH|e\\.\\s?V\\.|Ltd\\.?|Inc\\.?|LLC|plc|S\\.A\\.|B\\.V\\.|N\\.V\\.)(?![\\p{L}])");
+    /**
+     * Prefix of the sections of signals read from a job advertisement for its declared employer without a job object
+     * (0.10.2, {@code job_ad_description}, {@code job_ad_skills}, {@code job_ad_qualifications}, {@code job_ad_text}): they are
+     * read as on a posting (a skill is a requirement, the posting resolves its employer) and only as system signals.
+     */
+    public static final String JOB_AD="job_ad_";
+    /** True for a section of a job advertisement read for its employer ({@link #JOB_AD}). */
+    public static boolean jobAd(String section){return section!=null&&section.startsWith(JOB_AD);}
     /** Section of signals read on a reference page ({@link #referencePage}). */
     public static final String REFERENCES="references";
     private BusinessSignals() { }
@@ -83,6 +91,8 @@ public final class BusinessSignals {
             // Locator starts before trim, as with Matcher.start().
             for(String predicate:List.of(Vocabulary.SYSTEM_SIGNAL,Vocabulary.BUSINESS_NEED_SIGNAL,Vocabulary.BUSINESS_ROLE_EVIDENCE,Vocabulary.JOB_STATUS)) {
                 if(Vocabulary.JOB_STATUS.equals(predicate)&&!Vocabulary.JOB.equals(actor.type))continue;
+                // an advertisement read for its employer gives system hints only, never a need or a role of the company
+                if(jobAd(section)&&!Vocabulary.SYSTEM_SIGNAL.equals(predicate))continue;
                 if((Vocabulary.BUSINESS_NEED_SIGNAL.equals(predicate)||Vocabulary.BUSINESS_ROLE_EVIDENCE.equals(predicate))
                         && !Vocabulary.ORGANIZATION.equals(actor.type)&&!Vocabulary.FACILITY.equals(actor.type))continue;
                 for(String value:read(predicate,quote,section,actor.type,actor.name))
@@ -137,21 +147,24 @@ public final class BusinessSignals {
         List<String> out=new ArrayList<>();boolean own=OWN.matcher(quote).find();
         boolean named=actorName!=null&&quote.toLowerCase(Locale.ROOT).contains(actorName.toLowerCase(Locale.ROOT));
         boolean references=REFERENCES.equals(section);
+        // a job advertisement read for its employer is read as its posting: its field decides skills and qualifications
+        boolean posting=Vocabulary.JOB.equals(actorType)||jobAd(section);
+        String field=jobAd(section)?section.substring(JOB_AD.length()):section;
         if(Vocabulary.SYSTEM_SIGNAL.equals(predicate)) {
             String context=null;
             boolean customer=CUSTOMERS.matcher(quote).find();
             if(NEGATION.matcher(quote).find())return out;
             // An unnamed "we" next to another named company: whose system it is stays unclear (postings resolve their employer).
-            if(own&&!named&&!Vocabulary.JOB.equals(actorType)&&otherCompanyNamed(quote,actorName,vocab))own=false;
+            if(own&&!named&&!posting&&otherCompanyNamed(quote,actorName,vocab))own=false;
             if(OFFER.matcher(quote).find()&&p("Beratung|Integration|Implementierung|Support|Unterstützung|Schulung|Training|consulting|implementation").matcher(quote).find())context="offered_capability";
             else if(customer)context="customer_projects";
             else if(SHUTDOWN.matcher(quote).find()&&(own||named)) context="shutdown";
             else if(MIGRATION.matcher(quote).find()&&COMPLETED.matcher(quote).find()&&(own||named))context="completed_migration";
             else if(MIGRATION.matcher(quote).find()&&PLAN.matcher(quote).find()&&(own||named))context="planned_migration";
             else if(USE.matcher(quote).find()&&(own||named))context="internal_use";
-            else if(KNOWLEDGE.matcher(quote).find()||"skills".equals(section)||"qualifications".equals(section))
+            else if(KNOWLEDGE.matcher(quote).find()||"skills".equals(field)||"qualifications".equals(field))
                 // A requirement belongs to a posting; a company's own competence statement (Kernkompetenz) is no need.
-                context=!Vocabulary.JOB.equals(actorType)&&!"skills".equals(section)&&!"qualifications".equals(section)?"stated_competence"
+                context=!posting&&!"skills".equals(field)&&!"qualifications".equals(field)?"stated_competence"
                         :DESIRED.matcher(quote).find()?"desirable_competence":"required_competence";
             if(context==null)return out;
             // Simultaneous internal/customer claims need finer context; never assert internal use from them.

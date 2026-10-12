@@ -2,6 +2,54 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased — service categories, prices one by one, software hints of job advertisements
+
+Upgrade from 0.10.1 (from 0.10.0 the steps of 0.10.1 below come first):
+knowledge graph schema stays **6**, the extractor identity stays the same and
+the upgrade changes or adds no setting. Collections without job objects read the software hints of their
+job advertisements from then on: the first start gives the event
+`job_reading_changed` and one targeted reconcile that extracts only their job
+pages again (`sync.reconcile.jobRecheck`); no other page, no PDF, no download.
+
+- **Service categories that explain themselves.** The category lists of
+  Services, Compare and the new Prices view say why they are empty: the read
+  failed (with its code), the collection has no vocabulary profile (with how
+  to assign one), or no visible page states a category yet. `kg/facets`
+  answers `counts=false` quickly for the selects and names the profile of
+  each visible collection (`profiles`); derived counts are read on their own
+  (`derived_error`). The page keeps the values for at most a minute, never
+  fills a select with the reply of a former collection, and drops a chosen
+  category on a collection switch. Nothing depends on collection names.
+- **Prices one by one.** "With a current price" is a link to the new Prices
+  view and `GET kg/services/prices` (agent grant `kg.read`): every published
+  price of a provider's own service, exactly as published, with provider,
+  currency and unit, conditions, date and source; filters for status
+  (current, conflicting, outdated, uncertain, all), name and category, also
+  without a category; 25 per page. The count and the list use one status
+  rule (the collection's price age, expiry, conflicts) and the same rights;
+  `kg/services` adds `with_any_price`. No average, no conversion, no mixing of
+  providers.
+- **Software hints of job advertisements.** A fourth job policy, *Read
+  software hints from job ads* (`scoutro.kg.jobs.signals.<collection>`, on
+  unless switched off), keeps the software and system mentions of an
+  advertisement for its declared employer, also without job objects and
+  whatever the job display says. Internal use, required or desirable
+  competence and client work stay apart; a requirement is never a proof of
+  own use, of a purchase or of a need. An intermediary's advertisement, one
+  without a declared employer and one with several employers give no hint.
+  The company view shows them as **Software and systems** with context and
+  source. Matching uses them only under *Use stored job signals for
+  matching*, a requirement alone stays weak. The labels and help of the
+  three former switches now say what they do (*Extract jobs as objects*,
+  *Show job objects*); explicit settings are kept. A changed policy re-reads
+  only the job pages of the collection (`recheckJobs`).
+- **Tests:** `ServicePricesTest`, `JobAdHintsTest`, `CompanySystemsTest`,
+  `JobReadingHashTest`, additions to `SyncServiceTest`, `MatchingTest`,
+  `KgCollectionSettingsTest` and `AgentCatalogTest`; browser tests
+  `knowledge-services-prices-ui-test.mjs` and
+  `knowledge-jobs-systems-ui-test.mjs` (EN/DE, phone and desktop).
+  Details: docs/SCOUTRO_KNOWLEDGE_GRAPH.md, section 29.
+
 ## 0.10.1 / 1.942-scoutro.25 — release candidate: Discovery recovery, collections, process display, LLM coverage
 
 Upgrade from 0.10.0: knowledge graph schema stays **6** and no page is

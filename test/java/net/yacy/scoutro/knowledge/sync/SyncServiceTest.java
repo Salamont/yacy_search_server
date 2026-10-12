@@ -892,6 +892,101 @@ public class SyncServiceTest {
         assertEquals(1L,count("SELECT count(*) FROM kg_observation WHERE assertion_status='recorded'"));
     }
 
+    // ------------------------------------------- job advertisements (0.10.2)
+
+    private static final String POSTING = "{\"@type\":\"JobPosting\",\"title\":\"Buchhalter (m/w/d)\",\"description\":\"Wir nutzen SAP"
+            + " intern. SAP Kenntnisse erforderlich.\",\"hiringOrganization\":{\"@type\":\"Organization\",\"name\":\"Job GmbH\","
+            + "\"url\":\"https://www.job.example/\"}}";
+
+    private String hash(final String docId) throws Exception {
+        return strings("SELECT hex(input_hash) FROM kg_doc WHERE doc_id = '" + docId + "'").get(0);
+    }
+
+    @Test
+    public void aChangedJobReadingReadsOnlyTheJobPagesAgain() throws Exception {
+        // the hints of job advertisements switched off for c1 (an explicit setting)
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.JOBS_SIGNALS_PREFIX + "c1", "false", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        add("JOBSAAhost02", "https://www.job.example/stellen/buchhalter", POSTING);
+        add("CCCCCChost03", "https://www.drei.example/", org("C GmbH", "040 1111111"));
+        commit();
+        settle();
+        final String extractors = strings("SELECT value FROM kg_meta WHERE key = 'extractors'").get(0);
+        final String a = hash("AAAAAAhost01"), job = hash("JOBSAAhost02"), c = hash("CCCCCChost03");
+        assertEquals("no hint and no job object while switched off", 0L, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v"
+                + " ON v.term_id = s.pred WHERE v.name = 'system_signal'"));
+        // switched on (the setting removed: on by default): the extractor identity stays, only the job page is read again
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        settle();
+        assertEquals(extractors, strings("SELECT value FROM kg_meta WHERE key = 'extractors'").get(0));
+        assertEquals("the company pages keep their input", a, hash("AAAAAAhost01"));
+        assertEquals(c, hash("CCCCCChost03"));
+        assertFalse("the job page is read again", job.equals(hash("JOBSAAhost02")));
+        assertEquals("the hints of the advertisement belong to its declared employer, as advertisement",
+                List.of("Job GmbH|internal_use|job_ad_description", "Job GmbH|required_competence|job_ad_description"),
+                strings("SELECT n.obj_val || '|' || json_extract(s.obj_val, '$.context') || '|' || json_extract(s.obj_val, '$.section')"
+                        + " FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred JOIN kg_statement n ON n.subj = s.subj"
+                        + " JOIN kg_vocab nv ON nv.term_id = n.pred WHERE v.name = 'system_signal' AND nv.name = 'name' ORDER BY 1"));
+        assertEquals("no job object without job extraction", 0L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab t ON t.term_id = e.type"
+                + " WHERE t.name = 'job'"));
+        assertEquals("the check is done", 0L, count("SELECT count(*) FROM kg_meta WHERE key = 'job_recheck'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
+        assertFalse("no re-extraction of every page", this.sync.reconciler().status().optBoolean("reextract"));
+        // a restart with the same reading checks nothing again
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        settle();
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
+        assertEquals(Reconciler.REASON_START, strings("SELECT reason FROM kg_scan ORDER BY run_id DESC LIMIT 1").get(0));
+    }
+
+    @Test
+    public void anUpgradedGraphReadsTheHintsOfItsJobPagesOnce() throws Exception {
+        // a graph of 0.10.1: no stored job reading, jobs not extracted; the hints are on by default
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        add("JOBSAAhost02", "https://www.job.example/stellen/buchhalter", POSTING);
+        commit();
+        settle();
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.deleteMeta(tx, "job_modes");
+            try (java.sql.Statement st = tx.createStatement()) {
+                // as 0.10.1 read the job page: without hints, under an input hash without the job reading
+                st.execute("DELETE FROM kg_statement WHERE pred = (SELECT term_id FROM kg_vocab WHERE kind = 2 AND name = 'system_signal')");
+                st.execute("UPDATE kg_doc SET input_hash = zeroblob(16) WHERE doc_id = 'JOBSAAhost02'");
+            }
+            return null;
+        });
+        final String a = hash("AAAAAAhost01");
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(a, hash("AAAAAAhost01"));
+        assertEquals(2L, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'system_signal'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
+    }
+
+    @Test
+    public void aCollectionSwitchedOnAgainIsComparedWithTheReadingItsPagesWereReadWith() throws Exception {
+        // c2 read without hints of its job advertisements
+        restartWith(KgConfig.COLLECTIONS, "c1,c2", KgConfig.JOBS_SIGNALS_PREFIX + "c2", "false", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        add("AAAAAAhost01", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        client().add(doc("JOBSAAhost02", "https://www.job.example/stellen/buchhalter", "c2", POSTING));
+        commit();
+        settle();
+        final String a = hash("AAAAAAhost01"), job = hash("JOBSAAhost02");
+        // switched off, and meanwhile its hint setting removed (on by default): nothing of it is read
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.INACTIVE_COLLECTIONS, "c2", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        settle();
+        assertEquals(job, hash("JOBSAAhost02"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
+        // switched on again: compared with the reading its pages were read with, so its job page is read again
+        restartWith(KgConfig.COLLECTIONS, "c1,c2", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        settle();
+        assertFalse(job.equals(hash("JOBSAAhost02")));
+        assertEquals(a, hash("AAAAAAhost01"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'job_reading_changed'"));
+        assertEquals(2L, count("SELECT count(*) FROM kg_statement s JOIN kg_vocab v ON v.term_id = s.pred WHERE v.name = 'system_signal'"));
+    }
+
     // ------------------------------------------- collections switched off (6.2)
 
     /** Restarts the runtime with these settings (the settings page reopens the graph the same way). */

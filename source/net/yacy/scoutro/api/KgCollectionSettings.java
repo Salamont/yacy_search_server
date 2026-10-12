@@ -77,7 +77,7 @@ final class KgCollectionSettings {
         boolean apply() throws KgException;
     }
 
-    static final Set<String> FIELDS = Set.of("active", "vocabulary", "llm","jobsExtraction","jobsDisplay","jobsMatching");
+    static final Set<String> FIELDS = Set.of("active", "vocabulary", "llm","jobsExtraction","jobsDisplay","jobsMatching","jobsSignals");
     private static final Object LOCK = new Object();
 
     private final Settings settings;
@@ -221,7 +221,7 @@ final class KgCollectionSettings {
             throw ApiException.invalid("llm", "Field 'llm' must be true or false.");
         }
         final Boolean llm = (Boolean) lo;
-        for(String key:List.of("jobsExtraction","jobsDisplay","jobsMatching"))
+        for(String key:List.of("jobsExtraction","jobsDisplay","jobsMatching","jobsSignals"))
             if(body.has(key)&&!(body.opt(key) instanceof Boolean))throw ApiException.invalid(key,"Field '"+key+"' must be true or false.");
         final KgVocabularies.Snapshot v = KgVocabularies.get();
         if (vocabulary != null && !vocabulary.isEmpty() && !v.categories.vocabularies.containsKey(vocabulary)) {
@@ -255,6 +255,15 @@ final class KgCollectionSettings {
                         String value=Boolean.toString(body.optBoolean(pair[0]));
                         if(!value.equals(this.settings.get(pair[1]+collection)))writes.put(pair[1]+collection,value);
                     }
+            }
+            // software hints of job advertisements (0.10.2): on unless switched off; only an actual change is written
+            if (body.has("jobsSignals")) {
+                final String value = Boolean.toString(body.optBoolean("jobsSignals"));
+                final String key = KgConfig.JOBS_SIGNALS_PREFIX + collection;
+                if (before.jobSignalsRead(collection) != body.optBoolean("jobsSignals") || this.settings.get(key) != null
+                        && !value.equals(this.settings.get(key))) {
+                    writes.put(key, value);
+                }
             }
             if (active != null) {
                 final String list = this.settings.get(KgConfig.COLLECTIONS);
@@ -324,7 +333,12 @@ final class KgCollectionSettings {
             final JSONObject out = Json.obj("collection", row(collection, catalogEntries().get(collection), after, v, graphStates().get(collection), m),
                     "changed", changed, "applied", applied, "backfill", changed && !before.follows(collection) && after.follows(collection),
                     "kept", changed && before.follows(collection) && after.holds(collection),
-                    "reextract", changed && !before.extractionKey().equals(after.extractionKey()), "keys", new JSONArray(changedKeys(writes, removes)));
+                    "reextract", changed && !before.extractionKey().equals(after.extractionKey()),
+                    // the job reading changed without the extractor identity: the collection's pages are checked again, only
+                    // its job pages are extracted again (docs/SCOUTRO_KNOWLEDGE_GRAPH.md 29)
+                    "recheckJobs", changed && before.extractionKey().equals(after.extractionKey())
+                            && !before.jobMode(collection).equals(after.jobMode(collection)),
+                    "keys", new JSONArray(changedKeys(writes, removes)));
             Json.put(out, "applyError", applyError);
             // the LLM tier reads with the model of the LLM selection; without one it waits (and the deterministic graph runs on)
             Json.put(out, "llmModel", m);
@@ -359,6 +373,7 @@ final class KgCollectionSettings {
                         && model != null);
         Json.put(o, "jobs", graph == null ? null : graph.opt("jobs"));
         Json.put(o,"jobsExtraction",cfg.jobsExtracted(c));Json.put(o,"jobsDisplay",cfg.jobsShown(c));Json.put(o,"jobsMatching",cfg.jobSignalsMatching(c));
+        Json.put(o,"jobsSignals",cfg.jobSignalsRead(c));
         return o;
     }
 

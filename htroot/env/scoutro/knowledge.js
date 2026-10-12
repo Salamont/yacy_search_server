@@ -236,7 +236,8 @@
       ['queue', sy.queue?.items], ['lag', sy.lag?.pending], ['pending_types', byType],
       ['published', sy.processed?.published],
       ['reconcile', sy.reconcile ? (sy.reconcile.pending ? (sy.reconcile.reason || '') : (sy.reconcile.last?.state || t('none'))) : null],
-      ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null]]);
+      ['awaiting', sy.reconcile ? t(sy.reconcile.awaitingConfirmation ? 'yes' : 'no') : null],
+      ['job_recheck', sy.reconcile?.jobRecheck?.length ? sy.reconcile.jobRecheck.join(', ') : null]]);
     const l = s.llm || {}, lp = l.processed || {}, so = l.structuredOutput && typeof l.structuredOutput === 'object' ? l.structuredOutput : null;
     stats('llm', [['kg_llm', layers.llm], ['state', l.state + (l.reason ? ' · ' + l.reason : '')], ['model', l.model || t('kg_no_model')],
       ['structured_output', so?.mode ? t('so_mode_' + so.mode) + (so.capability ? ' · ' + t('so_cap_' + so.capability) : '')
@@ -571,7 +572,8 @@
         vocab.append(node('span', t('no_vocabulary'), 'skg-novocab'));
         if (c.vocabularySource === 'setting') vocab.append(' ', node('span', '(' + t('vocab_from_setting') + ')', 'sseo-note'));
       }
-      const row = rowInto(body, heads, [c.collection, t(c.followed ? 'yes' : 'no'), vocab, t(c.jobs ? 'yes' : 'no'), t(c.llm ? 'yes' : 'no'),
+      const row = rowInto(body, heads, [c.collection, t(c.followed ? 'yes' : 'no'), vocab,
+        t('jobs_cell').replace('%1', t(c.jobs ? 'yes' : 'no')).replace('%2', t(c.jobSignals ? 'yes' : 'no')), t(c.llm ? 'yes' : 'no'),
         c.documents == null ? t('missing') : fmt(c.documents), t('vstate_' + c.state)]);
       row.dataset.collection = c.collection; row.dataset.state = c.state;
     }
@@ -1065,7 +1067,15 @@
     li.append(dl);
     return li;
   }
-  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'contacts', 'relations', 'jobs', 'audiences', 'matches', 'sources', 'facts'];
+  const SECTIONS = ['overview', 'industry', 'services', 'prices', 'contacts', 'relations', 'jobs', 'systems', 'audiences', 'matches', 'sources', 'facts'];
+  // a software or system mention with its context and source (0.10.2): a requirement is no proof of use, client work is the client's
+  function systemItem(x) {
+    const head = node('div', null, 'skg-statement-head');
+    head.append(node('span', x.product, 'skg-value'), ' · ', node('span', t('ctx_' + x.context), 'skg-predicate skg-ctx-' + x.context),
+      ' · ', node('span', t('src_' + x.source), 'sseo-note'));
+    if (x.asserted_date) head.append(' · ', node('span', x.asserted_date, 'sseo-note'));
+    const li = factItem(head, x); li.dataset.context = x.context; li.dataset.source = x.source; return li;
+  }
   function businessInto(b) {
     const box = $('business'); box.replaceChildren();
     if (b.industry && (b.industry.main || b.industry.secondary?.length || b.industry.categories?.length)) {
@@ -1103,6 +1113,7 @@
     const jobs = b.jobs?.items || (b.job ? [b.job] : []);
     if (jobs.length || b.jobs?.hidden_ended) box.append(section('jobs', jobs.length ? list(jobs, jobItem) : null,
       b.jobs?.hidden_ended ? node('p', t('hidden_ended').replace('%1', fmt(b.jobs.hidden_ended)), 'sseo-note') : null));
+    if (b.systems?.length) box.append(section('systems', node('p', t('systems_note'), 'sseo-note'), list(b.systems, systemItem)));
     if (b.audiences) {
       const a = b.audiences, parts = [];
       const declared = []; for (const [p, l] of Object.entries(a.declared || {})) for (const i of l) declared.push([p, i]);
@@ -2037,7 +2048,7 @@
       if (c.llm && !c.llmActive) llmCell.append(' ', node('span', '(' + t(!lm.model ? 'llm_reason_no_model' : 'kgc_llm_waits') + ')', 'sseo-note'));
       const save = node('button', t('kgc_save'), 'btn btn-default btn-sm'); save.type = 'button'; save.disabled = true;
       const jobs = node('span'); const jobControls = [];
-      for (const [field, key] of [['jobsExtraction', 'jobs_extraction'], ['jobsDisplay', 'jobs_display'], ['jobsMatching', 'jobs_matching']]) {
+      for (const [field, key] of [['jobsExtraction', 'jobs_extraction'], ['jobsSignals', 'jobs_signals'], ['jobsDisplay', 'jobs_display'], ['jobsMatching', 'jobs_matching']]) {
         const label = node('label'); const input = node('input'); input.type = 'checkbox'; input.checked = Boolean(c[field]); input.dataset.field = field;
         label.append(input, ' ', t(key)); jobs.append(label, node('br')); jobControls.push(input);
       }
@@ -2073,6 +2084,7 @@
     }
     const done = !body.changed ? t('kgc_unchanged') : body.applied ? t('kgc_saved') : t('kgc_stored');
     const text = [done.replace('%1', c.name), body.backfill ? t('kgc_backfill') : '', body.reextract ? t('kgc_reextract') : '',
+      body.recheckJobs ? t('kgc_recheck_jobs') : '',
       body.llmWarning === 'no_model' ? t('kgc_llm_warn_no_model') : body.llmWarning === 'collection_not_active' ? t('kgc_llm_warn_not_active') : '']
       .filter(Boolean).join(' ');
     await settings();

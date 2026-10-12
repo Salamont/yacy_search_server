@@ -217,7 +217,10 @@ public final class JsonLdExtractor {
             return null;
         }
         if (Vocabulary.JOB.equals(type) && !run.ctx.jobs) {
-            return null; // jobs are switched on per collection
+            if (run.ctx.jobSignals) {
+                jobHints(run, o, p, depth); // the software hints of the advertisement, for its declared employer only
+            }
+            return null; // job objects are switched on per collection
         }
         final Mention existing = run.out.mention(p);
         if (existing != null) {
@@ -1013,15 +1016,45 @@ public final class JsonLdExtractor {
         if (o.opt("directApply") instanceof Boolean && (Boolean) o.opt("directApply") && run.pageUrl != null) {
             literal(run, m, Vocabulary.APPLICATION_ROUTE, Normalizers.url(run.pageUrl), p + "/directApply", "directApply: true");
         }
-        for(String signalField:List.of("description","skills","qualifications")) {
-            for(String text:strings(o.opt(signalField)))
-                BusinessSignals.extract(text,m,run.out,1,Claim.KIND_JSONLD,signalField,p+"/"+signalField);
+        if (run.ctx.jobSignals) {
+            for(String signalField:List.of("description","skills","qualifications")) {
+                for(String text:strings(o.opt(signalField)))
+                    BusinessSignals.extract(text,m,run.out,1,Claim.KIND_JSONLD,signalField,p+"/"+signalField);
+            }
         }
         for(String[] role:new String[][]{{"publisher",Vocabulary.ADVERTISED_BY},{"provider",Vocabulary.RECRUITING_ORGANIZATION},
                 {"employmentUnit",Vocabulary.DEPLOYMENT_ORGANIZATION}}) {
             for(Object value:values(o.opt(role[0]))) if(value instanceof JSONObject) {
                 String ref=node(run,(JSONObject)value,p+"/"+role[0],depth+1,Vocabulary.ORGANIZATION);
                 if(ref!=null)relation(run,m.ref,role[1],ref,p+"/"+role[0]);
+            }
+        }
+    }
+
+    /**
+     * The software and system hints of a {@code JobPosting} without a job object (0.10.2): attributed only to the one
+     * declared {@code hiringOrganization} with a name, never to a recruiter, a publisher or the client an intermediary
+     * advertises for. The section ({@code job_ad_description}, {@code job_ad_skills}, {@code job_ad_qualifications})
+     * keeps the advertisement as their source: a required skill stays a requirement, never the employer's own use.
+     */
+    private void jobHints(final Run run, final JSONObject o, final String p, final int depth) {
+        final String description = string(o.opt("description"));
+        if (description != null && BusinessSignals.INTERMEDIARY.matcher(description).find()) {
+            return; // whose systems these are stays unclear
+        }
+        final List<Object> hiring = values(o.opt("hiringOrganization"));
+        if (hiring.size() != 1 || !(hiring.get(0) instanceof JSONObject)) {
+            return;
+        }
+        final String ref = node(run, (JSONObject) hiring.get(0), p + "/hiringOrganization", depth + 1, Vocabulary.ORGANIZATION);
+        final Mention employer = ref == null ? null : run.out.mention(ref);
+        if (employer == null || employer.name == null
+                || !(Vocabulary.ORGANIZATION.equals(employer.type) || Vocabulary.FACILITY.equals(employer.type))) {
+            return;
+        }
+        for (final String field : List.of("description", "skills", "qualifications")) {
+            for (final String text : strings(o.opt(field))) {
+                BusinessSignals.extract(text, employer, run.out, 1, Claim.KIND_JSONLD, BusinessSignals.JOB_AD + field, p + "/" + field);
             }
         }
     }

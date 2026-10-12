@@ -16393,8 +16393,8 @@
     <trans-unit id="5da7d82c" xml:space="preserve" approved="no" translate="yes">
        <source>Documents in the graph</source>
     </trans-unit>
-    <trans-unit id="297aaa8" xml:space="preserve" approved="no" translate="yes">
-       <source>With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&amp;lt;collection&amp;gt;=&amp;lt;vocabulary&amp;gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Jobs are read only for the collections named in scoutro.kg.jobs.collections.</source>
+    <trans-unit id="fb7ca67b" xml:space="preserve" approved="no" translate="yes">
+       <source>With scoutro.kg.collections=* a new collection is followed at once; with a fixed list only the named ones. A collection without a vocabulary gets generic facts only (names, addresses, contacts, relations), no service categories; its vocabulary is never guessed from its name. Assign an existing one with scoutro.kg.vocab.&amp;lt;collection&amp;gt;=&amp;lt;vocabulary&amp;gt; or a new one with a file in DATA/SCOUTRO/knowledge/vocabulary. Job objects are read only for the collections named in scoutro.kg.jobs.collections or switched on in the settings; the software hints of job advertisements are read for every collection unless switched off (scoutro.kg.jobs.signals).</source>
     </trans-unit>
     <trans-unit id="e20faad6" xml:space="preserve" approved="no" translate="yes">
        <source>Controls</source>
@@ -16660,6 +16660,9 @@
     <trans-unit id="4ce250ec" xml:space="preserve" approved="no" translate="yes">
        <source>Show comparison</source>
     </trans-unit>
+    <trans-unit id="bb821f2c" xml:space="preserve" approved="no" translate="yes">
+       <source>All services with a current price</source>
+    </trans-unit>
     <trans-unit id="c8fe6a11" xml:space="preserve" approved="no" translate="yes">
        <source>Provider</source>
     </trans-unit>
@@ -16701,6 +16704,30 @@
     </trans-unit>
     <trans-unit id="8efb646a" xml:space="preserve" approved="no" translate="yes">
        <source>Prices</source>
+    </trans-unit>
+    <trans-unit id="8c0977d2" xml:space="preserve" approved="no" translate="yes">
+       <source>Services with a price</source>
+    </trans-unit>
+    <trans-unit id="7be68f9c" xml:space="preserve" approved="no" translate="yes">
+       <source>Every row is one published price of one provider's own service, exactly as published: amount, currency, unit, conditions and date. Prices of different providers are never mixed, converted or averaged. A price is current when a current page of the collection confirms it, it has not expired, it is within the collection's price age and no other price of the same service contradicts it; the counts of the service names use the same rule.</source>
+    </trans-unit>
+    <trans-unit id="64a884f1" xml:space="preserve" approved="no" translate="yes">
+       <source>Current prices</source>
+    </trans-unit>
+    <trans-unit id="ca0fcfba" xml:space="preserve" approved="no" translate="yes">
+       <source>Conflicting prices</source>
+    </trans-unit>
+    <trans-unit id="61599b6a" xml:space="preserve" approved="no" translate="yes">
+       <source>Outdated or expired prices</source>
+    </trans-unit>
+    <trans-unit id="3dee0c81" xml:space="preserve" approved="no" translate="yes">
+       <source>Uncertain prices</source>
+    </trans-unit>
+    <trans-unit id="c8e15bc9" xml:space="preserve" approved="no" translate="yes">
+       <source>All prices</source>
+    </trans-unit>
+    <trans-unit id="a192d736" xml:space="preserve" approved="no" translate="yes">
+       <source>As of and validity</source>
     </trans-unit>
     <trans-unit id="93f5543b" xml:space="preserve" approved="no" translate="yes">
        <source>Source</source>
@@ -16771,8 +16798,20 @@
     <trans-unit id="3535ff9" xml:space="preserve" approved="no" translate="yes">
        <source>LLM selection</source>
     </trans-unit>
-    <trans-unit id="6f9a9833" xml:space="preserve" approved="no" translate="yes">
-       <source>Job extraction, job display and use of stored job signals for matching are independent policies, not permissions. Switching them off deletes no knowledge. New matching rules belong to a later package.</source>
+    <trans-unit id="5579e9d7" xml:space="preserve" approved="no" translate="yes">
+       <source>The four job policies are independent and none of them is a permission; switching one off deletes no knowledge.</source>
+    </trans-unit>
+    <trans-unit id="a0e92eba" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;strong&gt;Extract jobs as objects&lt;/strong&gt;: job objects with title, employer, place, salary and dates. Changing it reads every page of every collection again.</source>
+    </trans-unit>
+    <trans-unit id="9fa5bdf9" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;strong&gt;Read software hints from job ads&lt;/strong&gt; (on unless switched off): software and system mentions of a job advertisement are kept for its declared employer, also without job objects. A required or desirable skill stays a requirement, never a proof of own use or of a purchase; "we use" counts as internal use, work for clients as client work; an advertisement of an intermediary is attributed to no company. Changing it checks the pages of the collection again and reads only its job pages again.</source>
+    </trans-unit>
+    <trans-unit id="42a775bd" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;strong&gt;Show job objects&lt;/strong&gt;: whether job objects appear in the company view and in the chat. It hides nothing else and changes no extraction; software hints stay visible at the company.</source>
+    </trans-unit>
+    <trans-unit id="3493f628" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;strong&gt;Use stored job signals for matching&lt;/strong&gt;: whether hints from job objects and job advertisements may feed customer suggestions; a requirement alone stays a weak signal.</source>
     </trans-unit>
     <trans-unit id="a36f4624" xml:space="preserve" approved="no" translate="yes">
        <source>Pages in the index</source>
@@ -18565,14 +18604,38 @@
     <trans-unit id="19aee63e" xml:space="preserve" approved="no" translate="yes">
        <source>historical source metadata</source>
     </trans-unit>
-    <trans-unit id="2f17ecb5" xml:space="preserve" approved="no" translate="yes">
-       <source>Extract jobs</source>
+    <trans-unit id="e1f7f371" xml:space="preserve" approved="no" translate="yes">
+       <source>Extract jobs as objects</source>
     </trans-unit>
-    <trans-unit id="66963114" xml:space="preserve" approved="no" translate="yes">
-       <source>Display jobs</source>
+    <trans-unit id="dea467da" xml:space="preserve" approved="no" translate="yes">
+       <source>Read software hints from job ads</source>
+    </trans-unit>
+    <trans-unit id="55ab272e" xml:space="preserve" approved="no" translate="yes">
+       <source>Show job objects</source>
     </trans-unit>
     <trans-unit id="664ed050" xml:space="preserve" approved="no" translate="yes">
        <source>Use stored job signals for matching</source>
+    </trans-unit>
+    <trans-unit id="92f5b0c" xml:space="preserve" approved="no" translate="yes">
+       <source>shown: %1 · software hints: %2</source>
+    </trans-unit>
+    <trans-unit id="29f1fda3" xml:space="preserve" approved="no" translate="yes">
+       <source>The graph checks the pages of this collection again and reads only its job pages again.</source>
+    </trans-unit>
+    <trans-unit id="92962202" xml:space="preserve" approved="no" translate="yes">
+       <source>Software and systems</source>
+    </trans-unit>
+    <trans-unit id="52466864" xml:space="preserve" approved="no" translate="yes">
+       <source>Software and system mentions with their context. A required or desirable skill from a job advertisement is a requirement, not a proof of own use or of a purchase; client work describes the client's systems.</source>
+    </trans-unit>
+    <trans-unit id="66828b6d" xml:space="preserve" approved="no" translate="yes">
+       <source>from a job advertisement</source>
+    </trans-unit>
+    <trans-unit id="5e35f599" xml:space="preserve" approved="no" translate="yes">
+       <source>from a reference page</source>
+    </trans-unit>
+    <trans-unit id="59b810e" xml:space="preserve" approved="no" translate="yes">
+       <source>from the company's own pages</source>
     </trans-unit>
     <trans-unit id="2017ea7b" xml:space="preserve" approved="no" translate="yes">
        <source>Statement date (when evidenced)</source>
@@ -18759,6 +18822,36 @@
     </trans-unit>
     <trans-unit id="82230948" xml:space="preserve" approved="no" translate="yes">
        <source>Without a provider</source>
+    </trans-unit>
+    <trans-unit id="ed01d5ab" xml:space="preserve" approved="no" translate="yes">
+       <source>With a price (any status)</source>
+    </trans-unit>
+    <trans-unit id="39a3030f" xml:space="preserve" approved="no" translate="yes">
+       <source>Service categories could not be loaded: %1</source>
+    </trans-unit>
+    <trans-unit id="38d399bb" xml:space="preserve" approved="no" translate="yes">
+       <source>No service categories: no vocabulary is assigned to %1. Categories come only from a vocabulary profile of the collection, never from its name.</source>
+    </trans-unit>
+    <trans-unit id="5a01a96b" xml:space="preserve" approved="no" translate="yes">
+       <source>An administrator assigns one under Knowledge graph operations, column Vocabulary; the pages of that collection are then read again.</source>
+    </trans-unit>
+    <trans-unit id="e98a28c2" xml:space="preserve" approved="no" translate="yes">
+       <source>No service categories found in the visible pages yet.</source>
+    </trans-unit>
+    <trans-unit id="3a1b0c5f" xml:space="preserve" approved="no" translate="yes">
+       <source>Prices of %1</source>
+    </trans-unit>
+    <trans-unit id="1d032675" xml:space="preserve" approved="no" translate="yes">
+       <source>No price of this kind is visible.</source>
+    </trans-unit>
+    <trans-unit id="20c035f0" xml:space="preserve" approved="no" translate="yes">
+       <source>Only the first %1 services with a price were read: narrow the list by a service name or a category.</source>
+    </trans-unit>
+    <trans-unit id="6c9aab0" xml:space="preserve" approved="no" translate="yes">
+       <source>Conflicting</source>
+    </trans-unit>
+    <trans-unit id="b4f0a500" xml:space="preserve" approved="no" translate="yes">
+       <source>Outdated or expired</source>
     </trans-unit>
     <trans-unit id="226b25e" xml:space="preserve" approved="no" translate="yes">
        <source>Places of the providers</source>

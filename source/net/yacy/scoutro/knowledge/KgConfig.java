@@ -119,6 +119,14 @@ public final class KgConfig {
     public static final String JOBS_EXTRACT_PREFIX="scoutro.kg.jobs.extract.";
     public static final String JOBS_DISPLAY_PREFIX="scoutro.kg.jobs.display.";
     public static final String JOBS_MATCH_PREFIX="scoutro.kg.jobs.matching.";
+    /**
+     * Collections whose job advertisements are read for software and system hints of their declared employer (0.10.2),
+     * comma-separated or *; unset: every collection. Independent of job objects ({@link #JOBS_COLLECTIONS}), of their display
+     * and of matching; {@code .<collection>=false} keeps one off. Not part of the extractor identity: a change re-checks the
+     * pages of the collections concerned and extracts again only their job pages (docs/SCOUTRO_KNOWLEDGE_GRAPH.md 29).
+     */
+    public static final String JOBS_SIGNALS_COLLECTIONS = "scoutro.kg.jobs.signals.collections";
+    public static final String JOBS_SIGNALS_PREFIX = "scoutro.kg.jobs.signals.";
     /** Days an ended job stays visible as ended before it is hidden from views and chat. */
     public static final String JOBS_ENDED_VISIBLE_DAYS = "scoutro.kg.jobs.endedVisibleDays";
     /** Days after its date (or last confirmation) a price counts as stale; {@code .<collection>} overrides per collection. */
@@ -247,6 +255,9 @@ public final class KgConfig {
     public final boolean jobsAllCollections;
     public final Set<String> jobsDisplayCollections,jobsMatchCollections;
     public final Map<String,Boolean> jobsExtractOverrides,jobsDisplayOverrides,jobsMatchOverrides;
+    /** {@link #JOBS_SIGNALS_COLLECTIONS} (all collections while unset) and its per-collection settings. */
+    public final Set<String> jobsSignalCollections;
+    public final Map<String,Boolean> jobsSignalOverrides;
     public final long jobsEndedVisibleMillis;
     public final long priceStaleMillis;
     public final Map<String, Long> priceStaleByCollection;
@@ -364,7 +375,8 @@ public final class KgConfig {
         final List<String> keyed = new ArrayList<>();
         if (this.allCollections) {
             for (final String k : p.keys) {
-                for (final String prefix : new String[] {VOCAB_PREFIX, PRICES_STALE_DAYS + ".",JOBS_EXTRACT_PREFIX,JOBS_DISPLAY_PREFIX,JOBS_MATCH_PREFIX}) {
+                for (final String prefix : new String[] {VOCAB_PREFIX, PRICES_STALE_DAYS + ".",JOBS_EXTRACT_PREFIX,JOBS_DISPLAY_PREFIX,JOBS_MATCH_PREFIX,
+                    JOBS_SIGNALS_PREFIX}) {
                     final String c = k.startsWith(prefix) ? k.substring(prefix.length()) : null;
                     if (c != null && COLLECTION_NAME.matcher(c).matches() && !keyed.contains(k)) {
                         keyed.add(k);
@@ -399,6 +411,11 @@ public final class KgConfig {
         this.jobsExtractOverrides=jobOverrides(p,perCollection,JOBS_EXTRACT_PREFIX);
         this.jobsDisplayOverrides=jobOverrides(p,perCollection,JOBS_DISPLAY_PREFIX);
         this.jobsMatchOverrides=jobOverrides(p,perCollection,JOBS_MATCH_PREFIX);
+        this.jobsSignalCollections=Collections.unmodifiableSet(p.raw(JOBS_SIGNALS_COLLECTIONS)==null?Set.of(ALL_COLLECTIONS)
+                :p.collections(JOBS_SIGNALS_COLLECTIONS));
+        final Map<String,Boolean> signals=new TreeMap<>(jobOverrides(p,perCollection,JOBS_SIGNALS_PREFIX));
+        signals.remove("collections"); // the list key, not a collection
+        this.jobsSignalOverrides=Collections.unmodifiableMap(signals);
         this.jobsEndedVisibleMillis = DAY * p.longValue(JOBS_ENDED_VISIBLE_DAYS, 90, 0, 3650);
         this.derivedEnabled = p.bool(DERIVED_ENABLED, true);
         this.derivedIntervalMillis = 60_000L * p.longValue(DERIVED_INTERVAL_MINUTES, 60, 5, 1440);
@@ -578,6 +595,38 @@ public final class KgConfig {
     /** Input policy for existing job signals and future C rules, never authorization. */
     public boolean jobSignalsMatching(String c){return this.jobsMatchOverrides.getOrDefault(c,
             this.jobsMatchCollections.contains(ALL_COLLECTIONS)||this.jobsMatchCollections.contains(c));}
+    /**
+     * True if the job advertisements of this collection are read for software and system hints (0.10.2): on unless switched
+     * off for it ({@code scoutro.kg.jobs.signals.<collection>=false}) or left out of an explicit list.
+     */
+    public boolean jobSignalsRead(final String c) {
+        return c != null && this.jobsSignalOverrides.getOrDefault(c, this.jobsSignalCollections.contains(ALL_COLLECTIONS)
+                || this.jobsSignalCollections.contains(c));
+    }
+
+    /** True if job advertisements of a document in these collections are read for software hints (a followed collection reads them). */
+    public boolean jobSignalsFor(final Collection<String> docCollections) {
+        if (docCollections == null) {
+            return false;
+        }
+        for (final String c : docCollections) {
+            if (follows(c) && jobSignalsRead(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * How a collection reads job advertisements, as far as the result differs from what the extractor identity says
+     * ({@link #extractionKey}): {@code full} (job objects with their hints), {@code objects} (job objects without hints),
+     * {@code signals} (hints of the declared employer without job objects) or {@code none}.
+     */
+    public String jobMode(final String c) {
+        final boolean objects = jobsExtracted(c), hints = jobSignalsRead(c);
+        return objects ? (hints ? "full" : "objects") : hints ? "signals" : "none";
+    }
+
     private Set<String> legacyJobs(){Set<String> out=new TreeSet<>(this.jobsCollections);if(this.jobsAllCollections)out.add(ALL_COLLECTIONS);return out;}
     private static Map<String,Boolean> jobOverrides(Parser p,Collection<String> collections,String prefix){
         Map<String,Boolean> out=new TreeMap<>();for(String c:collections)if(p.raw(prefix+c)!=null)out.put(c,p.bool(prefix+c,false));return Collections.unmodifiableMap(out);

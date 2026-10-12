@@ -261,11 +261,16 @@ def build_parser():
     sn.add_argument("name", help="the service name (e.g. SAP)")
     sn.add_argument("--category")
     sn.add_argument("--include-stale", action="store_true", help="also outdated offers")
-    for k in (bv, nb, cmp_, der, fc, sg, sp, sn):
+    fc.add_argument("--no-counts", action="store_true", help="the filter values only, without counts (quick)")
+    spr = kg.add_parser("service-prices", help="published prices of services one by one, exactly as published (never mixed between providers)")
+    spr.add_argument("--name", help="only services of this name")
+    spr.add_argument("--category")
+    spr.add_argument("--status", choices=["current", "conflicting", "outdated", "uncertain", "all"], help="default current")
+    for k in (bv, nb, cmp_, der, fc, sg, sp, sn, spr):
         k.add_argument("--collection", help="only evidence of this collection (agent token: one of the agent's collections)")
-        if k in (nb, cmp_, der, sg, sp, sn):
+        if k in (nb, cmp_, der, sg, sp, sn, spr):
             k.add_argument("--limit", type=int)
-        if k in (nb, der, sg, sp, sn):
+        if k in (nb, der, sg, sp, sn, spr):
             k.add_argument("--offset", type=int)
     exp = kg.add_parser("export", help="one export page, or with --all every record as one JSON line")
     exp.add_argument("--cursor")
@@ -300,6 +305,13 @@ def build_parser():
     llm = kc.add_mutually_exclusive_group()
     llm.add_argument("--llm", action="store_true", help="also the LLM enrichment (the model of the LLM selection, usage knowledge)")
     llm.add_argument("--no-llm", action="store_true", help="no LLM enrichment for this collection")
+    for flag, field, text in (("jobs-extraction", "jobsExtraction", "job objects (re-reads every page)"),
+                              ("job-signals", "jobsSignals", "software hints of job advertisements (re-reads only the job pages)"),
+                              ("jobs-display", "jobsDisplay", "show job objects"),
+                              ("jobs-matching", "jobsMatching", "use stored job signals for matching")):
+        g = kc.add_mutually_exclusive_group()
+        g.add_argument("--" + flag, dest=field, action="store_const", const=True, help=text)
+        g.add_argument("--no-" + flag, dest=field, action="store_const", const=False)
     ctl = kg.add_parser("control", help="administrator")
     ctl.add_argument("action", choices=["pause", "resume", "reconcile", "confirm_reconcile", "llm_retry", "backup",
                                         "rebuild", "rebuild_cancel", "rebuild_confirm", "derive"])
@@ -423,8 +435,11 @@ def main(argv=None):
                 body["vocabulary"] = None
             if args.llm or args.no_llm:
                 body["llm"] = bool(args.llm)
+            for field in ("jobsExtraction", "jobsSignals", "jobsDisplay", "jobsMatching"):
+                if getattr(args, field) is not None:
+                    body[field] = getattr(args, field)
             if not body:
-                fail("invalid_request", "give --on or --off, a vocabulary option and/or --llm or --no-llm", 2)
+                fail("invalid_request", "give --on or --off, a vocabulary option, --llm or --no-llm and/or a job policy", 2)
             result = client.call("PATCH", "/v1/kg/collections/" + q(args.name), body=body)
         elif k == "control":
             result = client.call("POST", "/v1/kg/control", body={"action": args.action})
@@ -477,13 +492,16 @@ def main(argv=None):
             result = client.call("GET", v1 + "/kg/derived", {"kind": args.kind, "entity": args.entity, "limit": args.limit,
                                                           "offset": args.offset, "collection": args.collection})
         elif k == "facets":
-            result = client.call("GET", v1 + "/kg/facets", {"collection": args.collection})
+            result = client.call("GET", v1 + "/kg/facets", {"counts": "false" if args.no_counts else None, "collection": args.collection})
         elif k == "services":
             result = client.call("GET", v1 + "/kg/services", {"q": args.q, "category": args.category, "limit": args.limit,
                                                            "offset": args.offset, "collection": args.collection})
         elif k == "service-providers":
             result = client.call("GET", v1 + "/kg/services/providers", {"name": args.name, "category": args.category, "limit": args.limit,
                                                                      "offset": args.offset, "collection": args.collection})
+        elif k == "service-prices":
+            result = client.call("GET", v1 + "/kg/services/prices", {"name": args.name, "category": args.category, "status": args.status,
+                                                                  "limit": args.limit, "offset": args.offset, "collection": args.collection})
         elif k == "service-network":
             result = client.call("GET", v1 + "/kg/services/network", {"name": args.name, "category": args.category, "limit": args.limit,
                                                                    "offset": args.offset, "include": "stale" if args.include_stale else None,

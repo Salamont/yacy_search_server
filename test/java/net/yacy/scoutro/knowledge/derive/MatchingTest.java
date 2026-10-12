@@ -100,6 +100,32 @@ public class MatchingTest {
         store.write(WriteClass.SYSTEM,0,c->{MatchingService.invalidatePolicy(c,cfg,now+3);return null;});
         assertEquals(seq,(long)store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change")));
     }
+    /** A hint of a job advertisement read for its employer without a job object (0.10.2, section job_ad_*). */
+    private String jobAd(String text)throws Exception {
+        List<String> values=BusinessSignals.read("system_signal",text,BusinessSignals.JOB_AD+"description","organization","Candidate");
+        assertFalse(text,values.isEmpty());
+        return observation(candidate,"organization","system_signal",new JSONObject(values.get(0)),text,"b");
+    }
+    @Test public void jobAdvertisementHintsAreJobBasedAndFollowTheMatchingPolicy()throws Exception {
+        offer("SAP S/4HANA Beratung");jobAd("Wir nutzen SAP S/4HANA intern.");
+        Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());settings.put(KgConfig.JOBS_MATCH_COLLECTIONS,"");
+        new MatchingService(store,KgTestSupport.config(settings)).run(now);
+        assertEquals("matching of stored job signals switched off: no suggestion from an advertisement",0,count());
+        run();
+        JSONObject c=page("a","b").getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(0);
+        assertEquals("internal_use",c.getString("context"));assertEquals("qualified",c.getString("evidence_strength"));
+        assertTrue("the company's role stays unknown",c.getJSONArray("uncertainties").toString().contains("company_role_unknown"));
+    }
+    @Test public void aRequirementOfAnAdvertisementStaysWeakAndClientWorkNeverMatches()throws Exception {
+        offer("Revit Schulung");jobAd("Revit Kenntnisse wünschenswert.");run();
+        JSONObject c=page("a","b").getJSONArray("items").getJSONObject(0).getJSONArray("contributions").getJSONObject(0);
+        assertEquals("desirable_competence",c.getString("context"));assertEquals("weak",c.getString("evidence_strength"));
+        offer("Salesforce Integration");jobAd("Sie arbeiten mit Salesforce in Kundenprojekten.");run();
+        assertEquals("work in client projects is the client's, no need of the employer",1,page("a","b").getInt("total"));
+    }
+    @Test public void aCompanysOwnCompetenceStatementIsNoRequirement()throws Exception {
+        offer("Revit Schulung");signal("Revit Kenntnisse sind unsere Stärke.","organization");run();assertEquals(0,count());
+    }
     @Test public void genericSapDoesNotConfirmSpecificStack()throws Exception {offer("SAP S/4HANA Beratung");signal("SAP Kenntnisse erforderlich.","job");run();assertEquals(0,count());}
     @Test public void customerProjectsCannotBecomeOwnUse()throws Exception {offer("Salesforce Integration");signal("Sie arbeiten mit Salesforce in Kundenprojekten.","job");run();assertEquals(0,count());}
     @Test public void competenceIsWeakAndCompanyRoleUnknownIsVisible()throws Exception {

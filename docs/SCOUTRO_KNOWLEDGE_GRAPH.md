@@ -2009,7 +2009,7 @@ Deletions, reconcile, retention, integrity and state checks continue. The status
 
 ### 23.7 Jobs (H)
 
-- **Off by default.** `jobs.collections` lists the collections with job postings.
+- **Off by default.** `jobs.collections` lists the collections with job postings (job objects). The software hints of job advertisements are a policy of their own since 0.10.2 ([29.3](#293-software-hints-of-job-advertisements)).
 - **What a posting holds.** JSON-LD `JobPosting` and careers pages give the employer (never a recruiter), title, employment type, place, deadline, published salary with its unit and gross/net, and the application route.
 - **Lifecycle.**
   - A posting is open until its deadline.
@@ -2239,7 +2239,7 @@ Still an SVG drawn by `knowledge.js`, no library, no CDN.
 - **Fix:** under `*`, `scoutro.kg.vocab.<collection>` and `scoutro.kg.prices.staleDays.<collection>` were read only for the four Scoutro collections and the named ones, so an existing vocabulary could not be assigned to a new collection. The runtime now passes the set `scoutro.kg.*` keys to `KgConfig` (the rebuild the same per-collection keys); the keys found are part of the extraction identity as before, so assigning a vocabulary re-extracts that collection's pages. Such a key with an invalid value now counts like one of a named collection: it is listed under Settings and keeps the graph off. A fixed list behaves as before.
 - **Vocabulary:** a collection without a mapping has none; it gets generic facts and no service categories. No vocabulary is ever guessed from a collection's name. Override files in `DATA/SCOUTRO/knowledge/vocabulary/` can add a vocabulary and a mapping without a schema change.
 - **Status:** `status.collections` lists every collection the graph follows, maps or holds: `followed`, `vocabulary` (null for none), `vocabularySource` (`setting`, `vocabulary_files`, `none`), `vocabularyKnown`, `jobs`, `llm`, `documents` (counted from `kg_doc_collection` at most every 10 seconds) and `state` (`following`, `waiting`, `not_followed`, `unknown_vocabulary`); `config.jobsCollections` shows `scoutro.kg.jobs.collections`. The overview shows them as the *Collections* table with "No vocabulary assigned".
-- **Jobs:** only for collections named in `scoutro.kg.jobs.collections` (or `*`); a new collection never gets them by itself.
+- **Jobs:** job objects only for collections named in `scoutro.kg.jobs.collections` (or `*`); a new collection never gets them by itself. Software hints of job advertisements: see [29.3](#293-software-hints-of-job-advertisements).
 
 ### 24.5 Display names, never an ID
 
@@ -2507,3 +2507,50 @@ Up to 0.10.0 the code and the shipped defaults named four collections of one ins
 - The settings page and the status read the operator's vocabulary directory also while the graph is off.
 
 **Verified** (`CollectionMigrationTest`, `CollectionProfilesUpgradeTest`): for fifteen setups (no override; `vocab.<four>=""` under `*` and a list; `vocab.newportal-web=software`; a fixed list with keys of collections it does not follow; operator files that remap, remap before the migrated file, map to an unknown vocabulary, or map another collection; kinds keys; the graph off) the extractor identity, `extractionKey()`, the vocabulary and the facility kinds of each collection and the LLM cache keys equal those the code of 0.10.0 computed (kept in the test). A graph built under the former defaults keeps `kg_meta.extractors` and every `kg_doc.input_hash` through the upgrade and two restarts, without a re-extraction scan; without the step every page is extracted again.
+
+## 29. Service categories, prices one by one and software hints of job advertisements (0.10.2)
+
+Three findings of the mobile knowledge graph page: the category lists offered only "Every category", so the price comparison could not be used; "With a current price" was a number that led nowhere; and software mentions of job advertisements were read only together with job objects, so a collection without job objects learned nothing from its advertisements.
+
+### 29.1 Service categories
+
+- **Cause.** `kg/facets` lists only stored `category` statements, and a collection gets them only from its vocabulary profile ([28.1](#281-profiles)). A collection without a profile therefore has no categories, whatever its name. On a large graph the facets read could also time out; the page then swallowed the error and showed an empty list. Both looked the same.
+- **Read.** `GET kg/facets?counts=false` gives the filter values without counts (quick, for the selects); the page keeps them for at most 60 seconds per collection, and a reply of a former collection never fills the select of a later one. `profiles` lists each visible collection with its vocabulary and where it comes from (`setting`, `vocabulary_files`, `none`). The derived counts are read on their own: when that read fails, `derived` is `null` with `derived_error` and the other values stay.
+- **Shown.** Services, Compare and Prices say why a category list is empty: the read failed (with the error code; no statement about the data), the collection has no profile (with how an administrator assigns one), or the profile has no category on a visible page yet. A collection switch drops a chosen category, which belongs to the former collection's vocabulary.
+- **Any collection name.** Nothing depends on the four former names; the tests use collections named by the operator.
+
+### 29.2 Prices one by one
+
+- **One rule.** `BusinessView.servicePrices` decides the status of every published price of one service (current, conflicting, outdated or expired, uncertain), with the price age of the collection (`prices.staleDays.<collection>`) and the conflict rule of the business view. `with_price` of `kg/services` (a service with a current price), the new `with_any_price` and the price list use it alike, so the count and the list agree for every collection and every viewer (`ServicePricesTest`).
+- **List.** `GET kg/services/prices?name&category&status&offset&limit&collection` (`status` `current` default, `conflicting`, `outdated`, `uncertain`, `all`; `limit` 1–50) gives one item per published price: the provider's own service, its providers (name, domain, collections) and the price exactly as published (amount or range, currency, unit, kind, conditions, VAT, the date and validity, the source page), sorted by service name. `counts` of the prices per status, `services_with_current` (equal to `with_price`), `total` (prices of the status) and `truncated` (more than 2,000 services with a price; narrow by name or category). Name and category are optional, so the list also works without a vocabulary.
+- **Nothing mixed.** No average, no conversion, no price of one provider on another's row; historical and conflicting prices keep their status.
+- **Rights.** The read uses the viewer of the request: the selected collection and, for an agent, its granted collections (`kg.read`). Nothing is counted that is not shown.
+- **Page.** "With a current price" in Services and Compare is a link to `?view=prices` with the same name and category; the Prices view pages by 25 prices with status, name and category filters, phone and desktop.
+
+### 29.3 Software hints of job advertisements
+
+**The three switches before 0.10.2.** *Extract jobs* (`jobs.extract.<collection>`, initially `jobs.collections`) made job objects and, with them, the software mentions of the advertisement (as `system_signal` of the job); *Display jobs* (`jobs.display.<collection>`) only hid job objects in reads and the chat; *Use stored job signals for matching* (`jobs.matching.<collection>`) let the hints of job objects feed customer suggestions. A collection without job extraction got no hint from its advertisements, whatever the display said.
+
+**Now.** A fourth policy, *Read software hints from job ads*, is independent of job objects and of the display:
+
+- **Keys.** `scoutro.kg.jobs.signals.<collection>` (`true`/`false`) or the list `scoutro.kg.jobs.signals.collections` (unset: every followed collection; `*` and keyed collections as for the other per-collection keys). Unset means **on**. The policy is not part of `extractionKey()` and not of the extractor identity.
+- **What is read.** On a job page of the collection (a `JobPosting` in JSON-LD, or a careers page by the business rules), the software and system mentions of the description, skills, qualifications and text, for the employer the advertisement declares: exactly one `hiringOrganization` with a name in JSON-LD, or a careers page whose operator says it is hiring (`wir suchen`, `unser Team`, `we are hiring`, …). An intermediary ("for our client", `im Auftrag`), no declared employer or several employers: nothing, so a hint never lands on the wrong company and the existing protections against false customer matches stay.
+- **What it means.** The hints are `system_signal` statements of the employer with section `job_ad_…` and the reading of a posting: "we use" is internal use, a required or desirable skill is `required_competence` or `desirable_competence`, work for clients is `customer_projects`. A requirement is never a proof of own use, of a purchase or of a need; no `business_need_signal` and no `business_role_evidence` come from an advertisement. With job objects on, the hints stay on the job as before (unchanged statements and hashes).
+- **Matching.** A `job_ad_…` hint counts as job-based: it feeds suggestions only where *Use stored job signals for matching* is on, and a requirement alone stays weak (`MatchingRules`).
+- **Display.** The business view of a company gets **Software and systems** (`systems`, at most 50): product, context, source (`job_ad`, `references`, `company`), date and status, with the evidence of each statement; also the hints of its job objects, without naming the job. Shown whether job objects are shown or not.
+- **Settings.** The Settings row of a collection has four switches with their help; `PATCH kg/collections/{collection}` takes `jobsSignals`, writes the key only on a change and answers `recheckJobs: true` where the job reading of the collection changed without changing the extraction identity. `status.collections[].jobSignals` and `GET kg/collections` (`jobsSignals`) show it.
+
+**Targeted re-check instead of a global re-extraction.**
+
+- `SolrDoc.inputHash` gets a component only for job pages and only where the job reading differs from what the extractor identity implies (`jobs:signals` for hints without job objects, `jobs:objects` for job objects without hints). Every other page, and every job page under the former behaviour (objects with hints, or nothing), keeps its hash (`JobReadingHashTest`).
+- `SyncService` stores the job reading of each collection (`kg_meta.job_modes`: `full`, `objects`, `signals`, `none`). At the start it compares it with the current settings; a change gives the event `job_reading_changed` (the collections) and `kg_meta.job_recheck`. A graph without the key (0.10.1 and before) is compared with what those versions read (`full` where job objects were on, else `none`); an empty graph only records the current reading.
+- The reconciler then runs its normal pass with `jobRecheck` (`sync.reconcile.jobRecheck` of `kg/status`, shown in the diagnosis): it extracts again the documents of those collections whose input hash changed, which are their job pages only; the marker is removed when the pass completes, a re-extraction of everything replaces it. No other page, no PDF, no download, no crawl, no global re-extraction.
+- **First start of 0.10.2 on an existing graph.** Collections without job objects read hints from then on (`none` → `signals`): one targeted pass over their pages, extracting their job pages. A collection with job objects keeps its reading (`full`). A stored `jobs.signals.<collection>=false` keeps it off. The three former switches are not changed.
+
+**Limits.** The products a hint can name come from the versioned product vocabulary (nine products); a new product changes the global identity and is not part of this release. The LLM tier adds no hints of advertisements while job objects are off. The pass reads every document of a changed collection from the index to compare its hash, and extracts only the job pages.
+
+### 29.4 Tests
+
+- Java: `ServicePricesTest` (6: the count of a group equals its current list, for every group; no name, category or vocabulary needed; a viewer sees only its collections; stable paging; facets for the selects carry the profiles and no counts), `JobAdHintsTest` (7: employer without job objects, unchanged with job objects, off, intermediary/undeclared/ambiguous, careers page, posting semantics, policy keys and identity), `CompanySystemsTest` (2: systems with and without shown job objects), `JobReadingHashTest` (2), `SyncServiceTest` (+2: a changed job reading extracts only the job pages again; a graph of 0.10.1 reads the hints of its job pages once and records `job_reading_changed`), `MatchingTest` (+3: `job_ad` hints are job-based and follow the matching policy; a requirement stays weak and client work never matches; a company's own competence statement is no requirement), `KgCollectionSettingsTest` (+1: on by default, switched off explicitly, `recheckJobs` without re-extraction).
+- Browser (EN/DE, 390 and 1280 pixels): `knowledge-services-prices-ui-test.mjs` (category notes for error, no profile and none found; collection switch; price links, status, paging), `knowledge-jobs-systems-ui-test.mjs` (four switches with their help, only the changed one sent, the targeted re-check reported and shown, the overview's job cell, Software and systems with context and source, no jobs section where job objects are not shown).
+

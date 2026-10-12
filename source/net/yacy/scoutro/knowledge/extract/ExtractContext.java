@@ -40,11 +40,22 @@ public final class ExtractContext {
     public final List<Categories.Vocab> vocabularies;
     /** True if a collection of the document has jobs switched on ({@code scoutro.kg.jobs.collections}). */
     public final boolean jobs;
+    /**
+     * True if a collection of the document reads job advertisements for software and system hints
+     * ({@code scoutro.kg.jobs.signals}, 0.10.2): with {@link #jobs} on the job objects, without them on the declared employer.
+     */
+    public final boolean jobSignals;
     /** The document's followed collections. */
     public final List<String> collections;
 
+    /** A context whose job hints follow the job objects (the behaviour before 0.10.2). */
     public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
             final Collection<String> collections) {
+        this(vocab, vocabularyNames, jobs, jobs, collections);
+    }
+
+    public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
+            final boolean jobSignals, final Collection<String> collections) {
         this.categories = vocab.categories;
         this.nace = vocab.nace;
         final List<Categories.Vocab> v = new ArrayList<>();
@@ -56,6 +67,7 @@ public final class ExtractContext {
         }
         this.vocabularies = Collections.unmodifiableList(v);
         this.jobs = jobs;
+        this.jobSignals = jobSignals;
         this.collections = collections == null ? Collections.emptyList() : List.copyOf(collections);
     }
 
