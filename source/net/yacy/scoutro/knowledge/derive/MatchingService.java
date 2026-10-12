@@ -34,26 +34,66 @@ public final class MatchingService {
         policy.put("job_collections",new TreeSet<>(cfg.jobsMatchCollections));policy.put("job_overrides",new TreeMap<>(cfg.jobsMatchOverrides));
         return net.yacy.scoutro.knowledge.extract.Values.canonical(policy);
     }
+    /**
+     * Contributions whose notices one write publishes after a policy change (0.10.5). One write for all of them was refused
+     * for good once their estimate passed the WAL limit (87,764 contributions in production, 1 KiB each: more than 64 MiB).
+     */
+    static final int POLICY_BATCH=2000;
+    /** kg_meta: the policy whose notices are being published and the last contribution published, until all are out. */
+    static final String META_POLICY_PENDING="matching_policy_pending";
+    /**
+     * The estimate of the next write of {@link #invalidatePolicy(Connection,KgConfig,long)}; 0 once the policy is recorded and
+     * no publication of another policy is left half done.
+     */
     public static long policyEstimate(Connection c,KgConfig cfg)throws SQLException {
-        if(policyFingerprint(cfg).equals(KgStore.getMeta(c,"matching_policy")))return 0;
-        return 1024L+1024L*KgStore.queryLong(c,"SELECT count(*) FROM kg_match_contribution");
+        if(policyFingerprint(cfg).equals(KgStore.getMeta(c,"matching_policy")))return KgStore.getMeta(c,META_POLICY_PENDING)==null?0:1024L;
+        return 1024L+1024L*Math.min(POLICY_BATCH,KgStore.queryLong(c,"SELECT count(*) FROM kg_match_contribution"));
     }
-    public static void invalidatePolicy(Connection c,KgConfig cfg,long now)throws SQLException {
+    /**
+     * Publishes the notices of a changed policy for the next {@value #POLICY_BATCH} contributions (in id order, after the
+     * last one published for the same policy) and records the policy once all are out; true if it is recorded. Restart-safe:
+     * the position is kept with the policy it belongs to, and a different policy starts again from the first contribution.
+     */
+    public static boolean invalidatePolicy(Connection c,KgConfig cfg,long now)throws SQLException {
         String fingerprint=policyFingerprint(cfg);
-        if(fingerprint.equals(KgStore.getMeta(c,"matching_policy")))return;
+        if(fingerprint.equals(KgStore.getMeta(c,"matching_policy"))) {
+            KgStore.deleteMeta(c,META_POLICY_PENDING); // a policy left half published before this one came back: start it anew
+            return true;
+        }
+        String raw=KgStore.getMeta(c,META_POLICY_PENDING);
+        JSONObject pending=raw==null?new JSONObject():net.yacy.scoutro.knowledge.extract.Values.json(raw);
+        String after=fingerprint.equals(pending.optString("policy",null))?pending.optString("after",""):"";
         List<String> ids=new ArrayList<>();
-        try(Statement s=c.createStatement();ResultSet r=s.executeQuery("SELECT public_id FROM kg_match_contribution ORDER BY public_id")) {
-            while(r.next())ids.add(r.getString(1));
+        try(PreparedStatement p=c.prepareStatement("SELECT public_id FROM kg_match_contribution WHERE public_id>? ORDER BY public_id LIMIT ?")) {
+            p.setString(1,after);p.setInt(2,POLICY_BATCH);
+            try(ResultSet r=p.executeQuery()){while(r.next())ids.add(r.getString(1));}
         }
         for(String id:ids) {
             MatchingAccess.remember(c,id);
             KgChangeLog.record(c,KgChangeLog.Kind.MATCH_CONTRIBUTION,id,KgChangeLog.Op.UPSERT,null,Set.of(),Set.of(),now);
         }
+        if(ids.size()==POLICY_BATCH) {
+            KgStore.putMeta(c,META_POLICY_PENDING,KgJson.obj("policy",fingerprint,"after",ids.get(ids.size()-1)).toString());
+            return false;
+        }
         KgStore.putMeta(c,"matching_policy",fingerprint);
+        KgStore.deleteMeta(c,META_POLICY_PENDING);
+        return true;
+    }
+    /**
+     * Publishes the notices of a changed policy in writes of {@value #POLICY_BATCH} contributions, each admitted on its own
+     * (the WAL is checkpointed between them), at most {@code maxWrites} of them; true once the policy is recorded.
+     */
+    public static boolean invalidatePolicy(KgStore store,KgConfig cfg,long now,int maxWrites)throws KgException {
+        for(int i=0;i<maxWrites;i++) {
+            long estimate=store.read(c->policyEstimate(c,cfg));
+            if(estimate==0)return true;
+            if(store.write(WriteClass.SYSTEM,estimate,c->invalidatePolicy(c,cfg,now)))return true;
+        }
+        return store.read(c->policyEstimate(c,cfg))==0;
     }
     public JSONObject run(long now)throws KgException {
-        long estimate=store.read(c->policyEstimate(c,cfg));
-        if(estimate>0)store.write(WriteClass.SYSTEM,estimate,c->{invalidatePolicy(c,cfg,now);return null;});
+        invalidatePolicy(store,cfg,now,Integer.MAX_VALUE);
         if(cfg.matchesMax==0) {
             JSONObject disabled=KgJson.obj("version",MatchingRules.VERSION,"checked",0,"upserts",0,"completed_partitions",0,
                     "cycle_complete",false,"deferred","configuration_disabled");

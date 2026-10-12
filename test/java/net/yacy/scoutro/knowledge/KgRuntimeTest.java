@@ -268,6 +268,52 @@ public class KgRuntimeTest {
         } finally { r.close(); }
     }
 
+    /**
+     * Production 0.10.2/0.10.4: with a changed matching policy and more contributions than the WAL limit holds at 1 KiB each,
+     * every maintenance step was refused twice ({@code wal_limit}, before and after a forced checkpoint) and the status kept
+     * {@code policy_notice_deferred}, with an empty WAL. The notices now go in bounded writes and the backlog ends.
+     */
+    @Test
+    public void aLargeMatchingPolicyBacklogEndsWithoutRefusedWrites() throws Exception {
+        final Map<String, String> settings = new HashMap<>(KgTestSupport.enabled());
+        settings.put(KgConfig.WAL_MAX_BYTES, String.valueOf(4L * KgTestSupport.MIB));
+        settings.put(KgConfig.WAL_CHECKPOINT_BYTES, String.valueOf(KgTestSupport.MIB));
+        final KgRuntime first = runtime(settings, false);
+        first.open();
+        first.store().write(WriteClass.GROWTH, 0, c -> {
+            try (java.sql.PreparedStatement p = c.prepareStatement("INSERT INTO kg_match_contribution(public_id,proposal_id,kind,provider_id,"
+                    + "candidate_id,rule,rule_version,service_key,signal_key,corroboration_key,refs,computed_at,seen_generation)"
+                    + " VALUES(?,'p',3,'provider','candidate','it-support','1',?,?,'','[]',1,'g')")) {
+                for (int i = 0; i < 6000; i++) {
+                    p.setString(1, KgIds.derivedId("suggested_customer", "provider", "candidate", "contribution:" + i, "signal" + i));
+                    p.setString(2, "service" + i);
+                    p.setString(3, "signal" + i);
+                    p.addBatch();
+                }
+                p.executeBatch();
+            }
+            KgStore.putMeta(c, "matching_policy", "{\"version\":\"0\"}"); // the policy of an older release
+            return null;
+        });
+        first.close();
+        final KgRuntime r = runtime(settings, false);
+        r.open();
+        try {
+            for (int i = 0; i < 3; i++) {
+                r.tick();
+            }
+            final JSONObject storage = r.status().getJSONObject("storage");
+            assertFalse("no write refused at the WAL limit: " + storage.optJSONObject("refusedWrites"),
+                    storage.getJSONObject("refusedWrites").has(StorageGuard.WAL_LIMIT));
+            final JSONObject matching = r.status().getJSONObject("derived").optJSONObject("matching");
+            assertTrue(matching == null || !"policy_notice_deferred".equals(matching.optString("deferred")));
+            assertEquals(0L, (long) r.store().read(c -> net.yacy.scoutro.knowledge.derive.MatchingService.policyEstimate(c, r.config())));
+            assertEquals(6000L, (long) r.store().read(c -> KgStore.queryLong(c, "SELECT count(*) FROM kg_change WHERE kind=5")));
+        } finally {
+            r.close();
+        }
+    }
+
     @Test
     public void uncleanStartHoldsGraphWritesUntilTheIntegrityCheckPasses() throws Exception {
         crashOnce();
