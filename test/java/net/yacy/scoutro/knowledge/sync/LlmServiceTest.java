@@ -817,12 +817,15 @@ public class LlmServiceTest {
                 KgConfig.LLM_PARALLEL, "3", "scoutro.kg.llm.kinds.c1", "Pflege-Heim"));
         assertFalse(bad.valid());
         assertEquals(bad.problems().toString(), 2, bad.problems().size());
-        final KgConfig ok = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1,edelsenior-web",
-                KgConfig.LLM_COLLECTIONS, "*"));
+        final KgConfig ok = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1,example-care",
+                KgConfig.LLM_COLLECTIONS, "*", KgConfig.VOCAB_PREFIX + "example-care", "care"));
         assertTrue(ok.valid());
-        assertTrue(ok.llmFollows("edelsenior-web"));
-        assertTrue("start vocabulary of the collection", ok.llmKinds(List.of("edelsenior-web")).contains("nursinghome"));
+        assertTrue(ok.llmFollows("example-care"));
+        assertTrue("the kinds of the collection's vocabulary profile", ok.llmKinds(List.of("example-care")).contains("nursinghome"));
         assertTrue(ok.llmKinds(List.of("c1")).isEmpty());
+        // a name gives no kinds: the collections Scoutro once had kinds for are names like any other
+        final KgConfig named = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "edelsenior-web", KgConfig.LLM_COLLECTIONS, "*"));
+        assertTrue(named.llmKinds(List.of("edelsenior-web")).isEmpty());
         assertEquals("auto", ok.llmStructuredOutput);
         for (final String v : List.of("auto", "json_schema", "json_object", "none")) {
             final KgConfig so = KgTestSupport.config(KgTestSupport.enabled(KgConfig.COLLECTIONS, "c1", KgConfig.LLM_STRUCTURED_OUTPUT, v));

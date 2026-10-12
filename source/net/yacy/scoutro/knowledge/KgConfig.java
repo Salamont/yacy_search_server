@@ -32,6 +32,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import net.yacy.scoutro.knowledge.extract.KindHints;
+import net.yacy.scoutro.knowledge.vocab.Categories;
+import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
 import net.yacy.search.SwitchboardConstants;
 
 /**
@@ -126,9 +128,13 @@ public final class KgConfig {
     public static final String MATCHES_MAX_PER_ENTITY = "scoutro.kg.matches.maxPerEntity";
     public static final String MATCHES_MAX = "scoutro.kg.matches.max";
     public static final String SAME_OPERATOR_MAX_GROUP = "scoutro.kg.sameOperator.maxGroup";
-    /** The Scoutro collections that have a default vocabulary (their per-collection keys are read even with {@code *}). */
-    public static final java.util.List<String> SCOUTRO_COLLECTIONS = java.util.List.of("edelsenior-web", "checkthecoach-web",
-            "stackfinder-web", "bauteamcheck-web");
+    /**
+     * Written once by the upgrade that ended the collection defaults built into Scoutro ({@link CollectionMigration}), never needed
+     * otherwise: the collections whose former default vocabulary was carried over into the installation's vocabulary files. Their
+     * per-collection keys are read as before, also while they are not followed, so that the extraction identity stays the same.
+     * Empty on an installation that had nothing to carry over.
+     */
+    public static final String COLLECTION_PROFILES_MIGRATION = "scoutro.kg.migration.collectionProfiles";
 
     /** Collection names the graph follows; {@code *} follows every collection. */
     public static final String ALL_COLLECTIONS = "*";
@@ -231,8 +237,11 @@ public final class KgConfig {
     public final int chatMaxFacts;
     public final int chatMaxChars;
     public final long chatTimeoutMillis;
-    /** Facility kinds the LLM tier may assign, per LLM collection ({@link KindHints}). */
-    /** Vocabulary 2: collection -> vocabulary name set by the operator ("" = none); merged over the defaults of categories.json. */
+    /** The vocabulary files the defaults of a collection come from (its vocabulary, the facility kinds of its profile). */
+    public final Categories categories;
+    /** {@link #COLLECTION_PROFILES_MIGRATION}: collections whose per-collection keys are read also while they are not followed. */
+    public final Set<String> migratedCollections;
+    /** Vocabulary 2: collection -> vocabulary name set by the operator ("" = none); merged over the maps of the vocabulary files. */
     public final Map<String, String> vocabOverrides;
     public final Set<String> jobsCollections;
     public final boolean jobsAllCollections;
@@ -246,6 +255,10 @@ public final class KgConfig {
     public final int matchesMaxPerEntity;
     public final int matchesMax;
     public final int sameOperatorMaxGroup;
+    /**
+     * Facility kinds the LLM tier may assign, per named LLM collection ({@link KindHints}): {@code scoutro.kg.llm.kinds.<collection>},
+     * else {@link #defaultLlmKinds}.
+     */
     public final Map<String, Set<String>> llmKinds;
     /** LLM collections that are not followed (ignored, shown in the status). */
     public final Set<String> llmIgnored;
@@ -260,7 +273,8 @@ public final class KgConfig {
     public final long yacyUndershotBytes;
     private final List<Problem> problems;
 
-    private KgConfig(final Parser p) {
+    private KgConfig(final Parser p, final Categories categories) {
+        this.categories = categories;
         this.enabled = p.bool(ENABLED, false);
         // a protection limit, not a target or a reservation (package 5, O1)
         this.budgetMaxBytes = p.longValue(BUDGET_MAX_BYTES, 10 * GIB, MIN_BUDGET_BYTES, 16 * TIB);
@@ -336,8 +350,14 @@ public final class KgConfig {
         this.chatMaxFacts = (int) p.longValue(CHAT_MAX_FACTS, 8, 1, 30);
         this.chatMaxChars = (int) p.longValue(CHAT_MAX_CHARS, 1500, 300, 8000);
         this.chatTimeoutMillis = p.longValue(CHAT_TIMEOUT_MS, 300, 50, 5000);
+        final Set<String> migrated = p.collections(COLLECTION_PROFILES_MIGRATION);
+        if (migrated.remove(ALL_COLLECTIONS)) {
+            p.problem(COLLECTION_PROFILES_MIGRATION, "names collections, not *");
+        }
+        this.migratedCollections = Collections.unmodifiableSet(migrated);
         final Set<String> perCollection = new TreeSet<>(this.collections);
-        perCollection.addAll(SCOUTRO_COLLECTIONS);
+        // the collections of the former built-in defaults: their keys count as they always did (the extraction identity stays)
+        perCollection.addAll(this.migratedCollections);
         // a collection switched off keeps its settings: its vocabulary stays part of the extraction identity (no re-extraction)
         perCollection.addAll(this.inactiveCollections);
         // with *, every collection is followed: its per-collection keys count too, also for a collection named nowhere else
@@ -399,7 +419,7 @@ public final class KgConfig {
         }
         for (final String c : named) {
             final Set<String> k = p.kinds(KindHints.KEY_PREFIX + c);
-            kinds.put(c, k != null ? k : KindHints.start(c));
+            kinds.put(c, k != null ? k : defaultLlmKinds(c));
         }
         this.llmKinds = Collections.unmodifiableMap(kinds);
         // YaCy's keys are megabytes; read with YaCy's own code defaults (SwitchboardConstants)
@@ -437,10 +457,17 @@ public final class KgConfig {
     /**
      * Reads all settings; {@code keys} are the keys that are set (or some of
      * them), from which the per-collection keys of collections named nowhere
-     * else are taken when every collection is followed.
+     * else are taken when every collection is followed. The defaults of a
+     * collection come from the vocabularies in force ({@link KgVocabularies#get}).
      */
     public static KgConfig read(final Function<String, String> lookup, final Iterable<String> keys) {
-        return new KgConfig(new Parser(lookup, keys == null ? List.of() : keys));
+        return read(lookup, keys, KgVocabularies.get().categories);
+    }
+
+    /** {@link #read(Function, Iterable)} with the defaults of the given vocabularies. */
+    public static KgConfig read(final Function<String, String> lookup, final Iterable<String> keys, final Categories categories) {
+        return new KgConfig(new Parser(lookup, keys == null ? List.of() : keys), categories == null ? KgVocabularies.get().categories
+                : categories);
     }
 
     public boolean valid() {
@@ -512,10 +539,20 @@ public final class KgConfig {
         for (final String c : docCollections) {
             if (llmFollows(c)) {
                 final Set<String> k = this.llmKinds.get(c);
-                out.addAll(k != null ? k : KindHints.start(c));
+                out.addAll(k != null ? k : defaultLlmKinds(c));
             }
         }
         return out;
+    }
+
+    /**
+     * The facility kinds of a collection without {@code scoutro.kg.llm.kinds.<collection>}: those a vocabulary file fixes for it
+     * ({@code collection_llm_kinds}), else the kinds of its vocabulary profile ({@link #vocabularyOf}); none without a vocabulary.
+     * Never derived from the collection's name.
+     */
+    public Set<String> defaultLlmKinds(final String collection) {
+        final Set<String> fixed = this.categories.collectionLlmKinds.get(collection);
+        return fixed != null ? fixed : this.categories.llmKinds(vocabularyOf(collection, this.categories.collections));
     }
 
     /** True if job postings of a document in these collections are read (vocabulary 2, opt-in per collection). */
@@ -546,7 +583,10 @@ public final class KgConfig {
         Map<String,Boolean> out=new TreeMap<>();for(String c:collections)if(p.raw(prefix+c)!=null)out.put(c,p.bool(prefix+c,false));return Collections.unmodifiableMap(out);
     }
 
-    /** The vocabulary in force for a collection: the operator's setting, else the default; null for none. */
+    /**
+     * The vocabulary in force for a collection: the operator's setting, else the mapping of the vocabulary files
+     * ({@code defaults}); null for none.
+     */
     public String vocabularyOf(final String collection, final Map<String, String> defaults) {
         if (collection == null) {
             return null;
@@ -583,7 +623,10 @@ public final class KgConfig {
         return this.vocabOverrides + "|" + (this.jobsAllCollections ? ALL_COLLECTIONS : String.join(",", this.jobsCollections))+"|"+this.jobsExtractOverrides;
     }
 
-    /** Stable description of what the LLM tier selects (collections, kinds, per-host cap). */
+    /**
+     * Stable description of what the LLM tier selects (collections, per-host cap). The facility kinds are no part of it: they are
+     * in the prompt and the cache key of each request.
+     */
     public String llmSelectionKey() {
         return (this.llmAllCollections ? ALL_COLLECTIONS : String.join(",", this.llmCollections)) + "|" + this.llmMaxDocsPerHost;
     }

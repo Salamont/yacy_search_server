@@ -81,6 +81,14 @@ public class CollectionsStatusTest {
         return this.runtime;
     }
 
+    /** The installation's own map of a collection to a vocabulary (a file of DATA/SCOUTRO/knowledge/vocabulary). */
+    private void map(final String collection, final String vocabulary) throws Exception {
+        final File dir = new File(this.tmp.getRoot(), "DATA/SCOUTRO/knowledge/vocabulary");
+        assertTrue(dir.isDirectory() || dir.mkdirs());
+        Files.write(new File(dir, "portals.json").toPath(), ("{\"schema\":\"scoutro.kg.categories\",\"collections\":{\"" + collection
+                + "\":\"" + vocabulary + "\"}}").getBytes(StandardCharsets.UTF_8));
+    }
+
     private static JSONObject row(final KgRuntime r, final String collection) throws Exception {
         final JSONArray rows = r.status().getJSONArray("collections");
         for (int i = 0; i < rows.length(); i++) {
@@ -139,6 +147,7 @@ public class CollectionsStatusTest {
 
     @Test
     public void aNewCollectionUnderStarIsFollowedWithoutAVocabularyAndGetsGenericFactsOnly() throws Exception {
+        map("example-care", "care");
         final KgRuntime r = start(KgTestSupport.enabled(KgConfig.COLLECTIONS, "*"));
         assertTrue(r.config().follows("newportal-web"));
         publish(r, "NEWPO1host01", "https://www.neuportal.de/leistungen", "newportal-web", ORG, TEXT);
@@ -157,16 +166,21 @@ public class CollectionsStatusTest {
         assertEquals("never a guessed category", 0, count(r, "category", "newportal-web"));
         assertEquals(0, count(r, "industry_category", "newportal-web"));
         assertEquals(0, count(r, "hiring_organization", "newportal-web"));
-        // the four Scoutro collections keep their default vocabularies; a name that resembles one gets nothing
-        assertEquals("care", row(r, "edelsenior-web").getString("vocabulary"));
-        assertEquals("vocabulary_files", row(r, "edelsenior-web").getString("vocabularySource"));
-        assertEquals("waiting", row(r, "edelsenior-web").getString("state"));
-        assertNull(r.config().vocabularyOf("edelsenior-web-neu", KgVocabularies.get().categories.collections));
+        // a collection the installation maps keeps its vocabulary; a name that resembles it gets nothing
+        assertEquals("care", row(r, "example-care").getString("vocabulary"));
+        assertEquals("vocabulary_files", row(r, "example-care").getString("vocabularySource"));
+        assertEquals("waiting", row(r, "example-care").getString("state"));
+        assertNull(r.config().vocabularyOf("example-care-neu", KgVocabularies.get().categories.collections));
+        // the collections Scoutro used to map by itself are names like any other: none of them is mapped on a new installation
+        for (final String former : List.of("edelsenior-web", "checkthecoach-web", "stackfinder-web", "bauteamcheck-web")) {
+            assertNull(former, row(r, former));
+            assertNull(former, r.config().vocabularyOf(former, KgVocabularies.get().categories.collections));
+        }
     }
 
     @Test
     public void aFixedListDoesNotFollowANewCollection() throws Exception {
-        final KgRuntime r = start(KgTestSupport.enabled(KgConfig.COLLECTIONS, "edelsenior-web,stackfinder-web",
+        final KgRuntime r = start(KgTestSupport.enabled(KgConfig.COLLECTIONS, "example-care,example-software",
                 KgConfig.VOCAB_PREFIX + "newportal-web", "software"));
         assertFalse(r.config().follows("newportal-web"));
         assertNull("neither followed nor holding documents: not listed", row(r, "newportal-web"));
@@ -179,8 +193,8 @@ public class CollectionsStatusTest {
         assertTrue(row.isNull("vocabulary"));
         assertFalse(row.getBoolean("jobs"));
         assertEquals(0, count(r, "category", "newportal-web"));
-        assertTrue(row(r, "stackfinder-web").getBoolean("followed"));
-        assertEquals("waiting", row(r, "edelsenior-web").getString("state"));
+        assertTrue(row(r, "example-software").getBoolean("followed"));
+        assertEquals("waiting", row(r, "example-care").getString("state"));
     }
 
     @Test
@@ -200,11 +214,15 @@ public class CollectionsStatusTest {
         final JSONObject bad = row(unknown, "newportal-web");
         assertEquals("unknown_vocabulary", bad.getString("state"));
         assertFalse(bad.getBoolean("vocabularyKnown"));
-        // an empty value switches a default vocabulary off
+        // an empty value switches a default vocabulary (of the installation's map) off
         close();
-        final KgRuntime off = start(KgTestSupport.enabled(KgConfig.COLLECTIONS, "*", KgConfig.VOCAB_PREFIX + "edelsenior-web", ""));
-        assertTrue(row(off, "edelsenior-web").isNull("vocabulary"));
-        assertEquals("setting", row(off, "edelsenior-web").getString("vocabularySource"));
+        map("example-care", "care");
+        final KgRuntime mapped = start(KgTestSupport.enabled(KgConfig.COLLECTIONS, "*"));
+        assertEquals("care", row(mapped, "example-care").getString("vocabulary"));
+        close();
+        final KgRuntime off = start(KgTestSupport.enabled(KgConfig.COLLECTIONS, "*", KgConfig.VOCAB_PREFIX + "example-care", ""));
+        assertTrue(row(off, "example-care").isNull("vocabulary"));
+        assertEquals("setting", row(off, "example-care").getString("vocabularySource"));
     }
 
     @Test

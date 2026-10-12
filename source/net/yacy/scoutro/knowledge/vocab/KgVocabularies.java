@@ -33,10 +33,11 @@ import org.json.JSONObject;
  * The business vocabularies in force (NACE and the categories), loaded once
  * from the application's {@code defaults/scoutro/knowledge} directory and the
  * operator's {@code DATA/SCOUTRO/knowledge/vocabulary} overrides. The runtime
- * configures the directories at start; without that (tests, tools) the
- * defaults are read relative to the working directory. A missing or broken
- * file never stops the graph: the snapshot is then empty or partial and
- * lists its problems in the status.
+ * configures the directories at start, the overrides also while the graph is
+ * off (its settings page shows the collection maps of the files); without that
+ * (tests, tools) the defaults are read relative to the working directory. A
+ * missing or broken file never stops the graph: the snapshot is then empty or
+ * partial and lists its problems in the status.
  */
 public final class KgVocabularies {
 
@@ -110,6 +111,39 @@ public final class KgVocabularies {
         return get();
     }
 
+    /** The application's directory of the shipped vocabularies. */
+    public static File defaults() {
+        return defaultsDir;
+    }
+
+    /** The vocabularies of these directories as they are on disk now, without changing the snapshot in force. */
+    public static Snapshot read(final File defaults, final File overrides) {
+        return load(defaults, overrides);
+    }
+
+    /**
+     * The override files of a directory that the vocabularies read, in their order (by name): every {@code *.json} but the
+     * signal files {@code products.json} and {@code needs.json}; empty if there is no such directory.
+     */
+    public static List<File> overrideFiles(final File overrides) {
+        if (overrides == null || !overrides.isDirectory()) {
+            return Collections.emptyList();
+        }
+        final File[] list = overrides.listFiles((d, n) -> n.endsWith(".json") && !n.equals("products.json") && !n.equals("needs.json"));
+        if (list == null) {
+            return Collections.emptyList();
+        }
+        Arrays.sort(list);
+        return Arrays.asList(list);
+    }
+
+    /** One override file as the vocabularies read it; null if it is missing, too large or no JSON object (then it counts for nothing). */
+    public static JSONObject readOverride(final File f) {
+        final List<JSONObject> out = new ArrayList<>();
+        read(f, f.getName(), out, new ArrayList<>(), new ArrayList<>());
+        return out.isEmpty() ? null : out.get(0);
+    }
+
     static Snapshot load(final File defaults, final File overrides) {
         final List<String> problems = new ArrayList<>();
         final List<String> files = new ArrayList<>();
@@ -124,14 +158,8 @@ public final class KgVocabularies {
         final List<JSONObject> jsons = new ArrayList<>();
         final List<String> names = new ArrayList<>();
         read(new File(defaults, CATEGORIES_FILE), DEFAULTS + "/" + CATEGORIES_FILE, jsons, names, problems);
-        if (overrides != null && overrides.isDirectory()) {
-            final File[] list = overrides.listFiles((d, n) -> n.endsWith(".json") && !n.equals("products.json") && !n.equals("needs.json"));
-            if (list != null) {
-                Arrays.sort(list);
-                for (final File f : list) {
-                    read(f, OVERRIDES + "/" + f.getName(), jsons, names, problems);
-                }
-            }
+        for (final File f : overrideFiles(overrides)) {
+            read(f, OVERRIDES + "/" + f.getName(), jsons, names, problems);
         }
         files.addAll(names);
         final Categories.Problems p = new Categories.Problems();

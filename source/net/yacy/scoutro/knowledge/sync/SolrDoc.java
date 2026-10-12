@@ -79,16 +79,29 @@ public final class SolrDoc {
      * re-extracts at the next processing.
      */
     public static String extractors() {
+        return extractors(extractionKey);
+    }
+
+    /** {@link #extractors()} as it is under {@code cfg} (also before the sync configured it, e.g. to check an upgrade). */
+    public static String extractors(final KgConfig cfg) {
+        return extractors(key(cfg));
+    }
+
+    private static String extractors(final String key) {
         return JsonLdExtractor.NAME + "/" + JsonLdExtractor.VERSION + "," + MetadataExtractor.NAME + "/" + MetadataExtractor.VERSION + ","
                 + RuleExtractor.NAME + "/" + RuleExtractor.VERSION + ",vocabulary/" + net.yacy.scoutro.knowledge.extract.Vocabulary.VERSION
-                + "-" + net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version() + "," + extractionKey;
+                + "-" + net.yacy.scoutro.knowledge.vocab.KgVocabularies.get().version() + "," + key;
     }
 
     private static volatile String extractionKey = "";
 
     /** The configuration's part of the extractor identity (vocabulary per collection, jobs), set by the sync at start. */
     public static void configure(final KgConfig cfg) {
-        extractionKey = cfg == null ? "" : Integer.toHexString(cfg.extractionKey().hashCode());
+        extractionKey = key(cfg);
+    }
+
+    private static String key(final KgConfig cfg) {
+        return cfg == null ? "" : Integer.toHexString(cfg.extractionKey().hashCode());
     }
 
     public String id;
