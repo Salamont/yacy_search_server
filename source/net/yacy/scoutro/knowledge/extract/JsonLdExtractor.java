@@ -39,8 +39,10 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  * Operator rule: an organisation is the declared operator of the site
  * ({@code site_operator} key) only if it is the {@code publisher} or
  * {@code provider} of a WebSite/WebPage, or describes itself with a
- * {@code url} on the page's own registrable domain, and its name carries a
- * legal form.
+ * {@code url} or {@code sameAs} on the page's own registrable domain, and its
+ * name carries a legal form; on its own domain without a legal form (a short
+ * name) it is the domain's operator ({@code domain_operator} key, 0.10.6),
+ * joined to the domain's one declared operator.
  * <p>
  * Version 3 (vocabulary 2) adds: offers and prices ({@code Offer},
  * {@code price}, {@code priceCurrency}, {@code priceSpecification},
@@ -304,16 +306,38 @@ public final class JsonLdExtractor {
         contact(run, m, o, p);
         business(run, m, o, p, schemaType, depth);
 
-        // the organisation that describes itself on its own domain, or a declared publisher, is the site operator
-        if (Vocabulary.ORGANIZATION.equals(type) && legal != null) {
-            final String url = Normalizers.url(absolute(run, string(o.opt("url"))));
-            if (url != null && run.domain != null && run.domain.equals(Normalizers.registrableDomain(URI.create(url).getHost()))) {
+        // the organisation that describes itself on its own domain ({@code url} or {@code sameAs}), or a declared publisher, is the
+        // site operator; without a legal form it is the domain's operator by the name it uses, a short name (0.10.6)
+        if (Vocabulary.ORGANIZATION.equals(type) && ownDomain(run, o)) {
+            if (legal != null) {
                 m.siteOperator = true;
+            } else if (m.name != null) {
+                m.domainOperator = true;
             }
         }
 
         relations(run, m, o, p, depth);
         return m.ref;
+    }
+
+    /** The node links the page's own registrable domain with its {@code url} or its {@code sameAs}. */
+    private static boolean ownDomain(final Run run, final JSONObject o) {
+        if (run.domain == null) {
+            return false;
+        }
+        final List<String> links = new ArrayList<>(strings(o.opt("url")));
+        links.addAll(strings(o.opt("sameAs")));
+        for (final String link : links) {
+            final String url = Normalizers.url(absolute(run, link));
+            try {
+                if (url != null && run.domain.equals(Normalizers.registrableDomain(URI.create(url).getHost()))) {
+                    return true;
+                }
+            } catch (final IllegalArgumentException e) {
+                // no address
+            }
+        }
+        return false;
     }
 
     /** The graph type of the declared types of a node, the highest by {@link #rank}; null if none is one. */

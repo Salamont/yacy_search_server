@@ -2716,7 +2716,8 @@ were indexed and gave their position with its full title and its `required_compe
 employment type, although their imprint names the operator. The sixth page declares `noindex,nofollow`; YaCy refused to index
 it and it stays outside the graph (the knowledge graph reads only indexed documents). The page of a freelance position had,
 besides its job, a second job node from its JSON-LD, named after the organisation, with `FULL_TIME` and `datePosted`
-2023-08-30, whose employer and place referred to the posting itself.
+2023-08-30. (The rollout report's note that employer and place "referred to the posting itself" did not hold: the raw JSON-LD,
+read later, has no `@id` at all — 31.3.)
 
 ### 31.1 Causes (reproduced with neutral texts)
 
@@ -2730,7 +2731,8 @@ besides its job, a second job node from its JSON-LD, named after the organisatio
   requirements ("Erfahrung als Freelancer", "abgeschlossene Ausbildung"), compounds ("Praktikumsbetreuer"), and the positions
   next to a short advertisement ("Weitere Stellen: Praktikum Marketing, Werkstudent Vertrieb"). A type the offer states further
   down ("Wir bieten: eine unbefristete Stelle in Vollzeit") was missed. A default was never set, and none is now.
-- **JSON-LD references ignored the kind of a node.** A bare `{"@id": …}` reference resolved to whichever node of that id came
+- **JSON-LD references ignored the kind of a node** (a general weakness of the parser, found with the shapes tried before the raw
+  data were read; **not** the cause of the reported page, whose JSON-LD has no `@id`). A bare `{"@id": …}` reference resolved to whichever node of that id came
   first, of any kind, and a node met with a known id returned the first node's mention. A posting and an organisation that share
   an `@id` (an error of the source) lost one of them; the employer or place of a posting that names the posting's own `@id`
   resolved to the posting itself and was dropped without a trace.
@@ -2753,7 +2755,8 @@ besides its job, a second job node from its JSON-LD, named after the organisatio
   lead of a list announces its positions with a sentence ("Wir suchen ab sofort: …"); a navigation label in the lead
   ("Unser Team", "Karriere bei uns") declares nothing, and the lead of a detail page is its menu. The operator is the operator
   the imprint names, the declared operator of the structured data, an organisation of the structured data on the page's own
-  domain, or the domain's unnamed operator (joined in the graph only to the domain's one declared operator); never a name
+  domain (`url` or `sameAs`; with a legal form the declared operator, without one the domain's operator by its short name), or
+  the domain's unnamed operator (joined in the graph only to the domain's one declared operator); never a name
   derived from the domain, never another organisation of the page.
 - **Intermediaries and client projects.** Where the advertisement says that the position is a client's ("Für unseren
   Kunden …", "Für unseren Mandanten …", "Im Auftrag unseres Mandanten …", "on behalf of our client"), the operator is the
@@ -2786,19 +2789,39 @@ besides its job, a second job node from its JSON-LD, named after the organisatio
   statements. What either source leaves open contradicts nothing; the client as employer of an intermediary's advertisement
   agrees with it.
 
-### 31.3 The reported JSON-LD posting: source, parser or contradiction
+### 31.3 The reported JSON-LD posting: source error and contradicting statements
 
-The raw blocks of the page were not available to this analysis (the stored field `ld_json_txt` is in the production index,
-the public page was not reachable from the development environment). The parser was checked with every shape that fits the
-report; the decision for the real page is read from its raw blocks (31.4, step 1):
+**The raw data (owner, 13.10.2026), confirmed:** two separate JSON-LD blocks and no `@id` reference anywhere.
 
-| Raw JSON-LD of the page | Class | Graph with 0.10.5 | With rules 4 |
+1. A `JobPosting` with the company's name as its `title`, `employmentType` `FULL_TIME`, `datePosted` 2023-08-30 (with a time
+   and the offset `+0000`) and `validThrough` `null`; its `hiringOrganization` an inline `Organization` with the company's
+   short name and `sameAs` of the site's own domain; its `jobLocation` an inline `Place` with a `PostalAddress`; no `url` of
+   its own. The date gives `date_posted` 2023-08-30; the `null` end gives no `valid_through`.
+2. A `WebSite` with the company's full name and the site's own domain.
+
+The HTML title names the freelance Finance position.
+
+**Classification:**
+
+| Finding | Class | 0.10.5 | Rules 4 |
 | --- | --- | --- | --- |
-| `title` (or `name` without `title`) is the organisation's or site's name | source error (template value) | job named like the organisation | no name; the posting joins the job of the advertisement |
-| `hiringOrganization` / `jobLocation` name the posting's own `@id` (or the page's) | source error (self-reference) | employer and place silently dropped | resolved to nothing, as before; documented |
-| posting and organisation share one `@id` | source error, **mis-parsed** | the second node of the id lost (posting or organisation), employer could resolve to the posting | both nodes kept, employer resolves to the organisation |
-| `employmentType: FULL_TIME`, page title and text "freiberuflich" | contradicting statements | two job nodes, one per source | one job with `full_time` (tier 1, `jsonld:…/employmentType`) and `freelance` (tier 2, `text:…`) |
-| `datePosted` 2023-08-30 | statement of the source | kept | kept (tier 1); not judged |
+| `title` = the company's name | **source error**: a title that names no position | a job named like the company | no name from it; the posting joins the advertisement's job, named by the advertisement |
+| `FULL_TIME` (JSON-LD) against "Freiberufliche …" (HTML title and advertisement) | **contradicting statements** of the source | two job nodes, one type each | one job with `full_time` (tier 1, `jsonld:0/employmentType`) and `freelance` (tier 2, `text:…` of the heading), side by side; neither is chosen |
+| `datePosted` 2023-08-30 | a statement of the source | kept | kept (tier 1). An old posting date **does not end a position**: the job status is `ended` only by an explicit end (`job_status`), `deadline_passed` only by a passed `valid_through`, else open or not reconfirmed (`BusinessView`); the date is shown, not judged |
+| Employer: inline short name with `sameAs` of the own domain; full name in the `WebSite` and the imprint | no contradiction: the same company | — | the short name on its own domain is the domain's operator (`domain_operator`, joined to the declared operator of the imprint); the employer evidence of both sources stays |
+| Place: inline `Place` with a postal address | statement of the source | kept on the JSON-LD job | kept on the one job (tier 1) |
+
+**Not the case here:** no `@id` collision and no self-reference — the page has no `@id`. The type-aware resolution of `@id`
+references (31.1) stays as a general fix of the parser; it does not change this page.
+
+**Checked against the PR before this finding (`76472af`):** the real structure still gave **two** jobs there. The short name has
+no legal form and links its own domain only by `sameAs` (not `url`), so the identity check of the join (31.2) took it for
+another employer than the operator the advertisement declares. Now an organisation of the JSON-LD that links the page's own
+registrable domain by `url` **or** `sameAs` is the declared operator with a legal form and the domain's operator by its short
+name without one; a short name that links another domain, or none, secures no identity and keeps the posting a job of its own
+(`JobEvidenceTest.theReportedPageIsOneJobWithBothSourcesOfItsEmploymentType`, `aShortNameIsTheOperatorOnlyByTheSitesOwnDomain`).
+On a real store the short name and the full name of the imprint end on **one** organisation, the job's one employer; a short
+name of another domain stays an organisation of its own, and so does its posting (`ReportedPostingIdentityTest`).
 
 ### 31.4 The existing graph: a targeted re-check (rules 4)
 
@@ -2843,23 +2866,23 @@ Expected changes on a re-checked page:
 
 **Verification plan (read-only, production):**
 
-1. Before the upgrade, for the page of the freelance position: read its raw `ld_json_txt` from the index (Solr select with the
-   regular admin authentication, `fl=sku,ld_json_txt`) and the claims of the JSON-LD job (`kg/sources/{doc}`); classify by
-   31.3. Record `sync.relationRecheckLlmJobs` and the number of job nodes, `hiring_organization` and `employment_type`
-   statements of the host.
+1. Before the upgrade: ~~read the raw `ld_json_txt` of the freelance position's page~~ — done (31.3: source title and
+   contradicting employment types). Record `sync.relationRecheckLlmJobs` and the number of job nodes, `hiring_organization`
+   and `employment_type` statements of the host.
 2. After the upgrade: `sync.relationRecheckInfo` (`rules` 4, `scope` jobs, `pages`), `open` and `sync.relationRecheck` down to 0,
    then `done` set **without a restart** (`failed` 0; otherwise `failedPages` names the pages that keep it open, with their
    `doc_failed` events), `relationRecheckLlmJobsBefore` equal to the recorded count, no LLM request, no crawl.
 3. For each of the five indexed advertisements: one job with its full title, `hiring_organization` → the imprint's operator
    with an excerpt from the advertisement (not from menu or footer), `employment_type` only where the advertisement states it.
-   For the freelance position: one job, `freelance` (rule) and, if the source says so, `full_time` (JSON-LD), each with its own
-   evidence; no job named like the organisation.
+   For the freelance position: **one** job named by the advertisement, `freelance` (rule) and `full_time` (JSON-LD), each with
+   its own evidence; `hiring_organization` from both sources (the short name of the JSON-LD and the imprint's full name, one
+   operator); its place (JSON-LD); `date_posted` 2023-08-30 and the job not shown as ended; no job named like the company.
 4. The `noindex` page: still not in the index, no job.
 5. Count `identity_conflict` events of the check separately; they are expected for changed job keys.
 
 ### 31.5 Tests
 
-- Java: `JobEvidenceTest` (new, 12: the advertisement that declares its employer has the operator as it, with five forms of the
+- Java: `JobEvidenceTest` (new, 15: the advertisement that declares its employer has the operator as it, with five forms of the
   declaration and its evidence in the advertisement; domain and navigation declare no employer, on a detail page and a list;
   an intermediary recruits for its client, a project at a client stays the operator's position; another organisation of the
   page is not who "wir" is; the hints of an advertisement follow the same declaration; a type the advertisement does not
@@ -2868,7 +2891,13 @@ Expected changes on a re-checked page:
   place; a title that names the organisation is no position title; the JSON-LD posting of the page is its advertisement; a
   posting of another position stays its own job; +1 after review: a posting that contradicts the advertisement — another page
   by `url` or `@id`, another employer, the operator where the advertisement recruits for a client, another place — stays its
-  own job, agreeing or missing statements join it), `SyncServiceTest` (+1: a graph checked with the rules 3 checks only its job
+  own job, agreeing or missing statements join it; +2 with the raw data: the reported page as it is — two blocks, no `@id`,
+  title = the company's name, `FULL_TIME`, inline short-name employer with `sameAs` of the own domain, inline place, the site
+  with the full name — is one job named by the advertisement with both employment types and their locators, the employer
+  evidence of both sources (both the operator), its place and date, no end; a short name is the operator only by the site's
+  own domain), `ReportedPostingIdentityTest` (new, 2: the reported page through identity resolution on a store — one job with
+  `freelance` and `full_time`, its date, no status, one place, and one organisation with the short and the full name as its
+  employer; a short name of another domain stays apart with its own posting), `SyncServiceTest` (+1: a graph checked with the rules 3 checks only its job
   pages once, keeps the count before, is readable without its event and ends **in the running process**, a restart keeps the
   end; an incomplete check of the rules 3 gets the full check; +3 after review: a page that fails for good keeps the check open
   across a restart until its next publication ends it in that process; a refused write of the last page leaves the page and

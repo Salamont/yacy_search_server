@@ -76,6 +76,15 @@ public class JobEvidenceTest {
         return ex;
     }
 
+    /** Several JSON-LD blocks of a page and its text, as the sync runs them. */
+    private static Extraction extract(final List<String> blocks, final String text, final String url, final String title) {
+        final Extraction ex = new Extraction(400);
+        final String host = java.net.URI.create(url).getHost();
+        new JsonLdExtractor(200).extract(blocks, url, host, "de", ex, ctx(true, true));
+        new RuleExtractor(200, 65536).extract(text, url, host, "de", ex, ctx(true, true), List.of(title), List.of());
+        return ex;
+    }
+
     private static Extraction rules(final String text, final String url, final String title) {
         return extract(null, text, url, title, ctx(true, true));
     }
@@ -472,6 +481,98 @@ public class JobEvidenceTest {
         for (final String[] a : agreeing) {
             final Extraction ex = extract(postingGraph(a[1]), page(FINANCE, a[0]), FINANCE_URL, "Stellenangebote — " + FINANCE, ctx(true, true));
             assertEquals(a[2] + ": " + jobKeys(ex), 1, jobKeys(ex).size());
+        }
+    }
+
+    // ------------------------------------------------------------ the reported page as its raw JSON-LD is
+
+    /**
+     * The raw JSON-LD of the reported page (owner, 13.10.2026), with neutral values: two separate blocks and no {@code @id}
+     * anywhere. The posting is named like the company ({@code title} = its short name), says {@code FULL_TIME}, was posted in
+     * 2023; its employer is an inline organisation with the short name and {@code sameAs} of the site's own domain, its place an
+     * inline Place with a postal address; it has no {@code url} of its own; its date carries a time with an offset without a
+     * colon, its end is an explicit {@code null}. The second block is the site with the full name.
+     */
+    private static String reportedPosting(final String employer) {
+        return "{\"@context\":\"https://schema.org\",\"@type\":\"JobPosting\",\"title\":\"MUSTER\","
+                + "\"datePosted\":\"2023-08-30T12:52:28+0000\",\"validThrough\":null,\"employmentType\":\"FULL_TIME\","
+                + "\"hiringOrganization\":" + employer + ",\"jobLocation\":{\"@type\":\"Place\",\"address\":{\"@type\":\"PostalAddress\","
+                + "\"streetAddress\":\"Musterweg 1\",\"postalCode\":\"20095\",\"addressLocality\":\"Hamburg\",\"addressCountry\":\"DE\"}}}";
+    }
+
+    private static final String REPORTED_TITLE = "Stellenangebote — " + FINANCE;
+    public static final String REPORTED_URL = FINANCE_URL;
+    public static final String REPORTED_EMPLOYER = "{\"@type\":\"Organization\",\"name\":\"MUSTER\",\"sameAs\":\"" + HOST + "\"}";
+    private static final String REPORTED_SITE = "{\"@context\":\"https://schema.org\",\"@type\":\"WebSite\",\"name\":"
+            + "\"Muster Consulting AG\",\"url\":\"" + HOST + "/\"}";
+
+    /** Tiers 1 and 2 of the reported page with the given employer node, for its identity on a real store. */
+    public static Extraction reportedPage(final String employer) {
+        return extract(List.of(reportedPosting(employer), REPORTED_SITE), FINANCE_TEXT, FINANCE_URL, REPORTED_TITLE);
+    }
+
+    /**
+     * The reported page: its HTML title names the freelance position, its JSON-LD names the company as the title and says
+     * FULL_TIME. A title that is no position title (the source's error) and two employment types that contradict each other —
+     * no {@code @id} collision, no self-reference. With the employer's identity secured (the short name declares the site's own
+     * domain), it is one job named by the advertisement; employer and place keep their evidence; {@code full_time} (JSON-LD) and
+     * {@code freelance} (rule) stay side by side with their own sources, neither chosen; the old {@code datePosted} ends nothing.
+     */
+    @Test
+    public void theReportedPageIsOneJobWithBothSourcesOfItsEmploymentType() {
+        // the HTML title names the freelance position (as measured: "Stellenangebote — Freiberufliche … Finance")
+        final Extraction ex = extract(List.of(reportedPosting(REPORTED_EMPLOYER), REPORTED_SITE), FINANCE_TEXT, FINANCE_URL, REPORTED_TITLE);
+        assertEquals(jobKeys(ex).toString(), 1, jobKeys(ex).size());
+        assertEquals(2, jobs(ex).size());
+        // the advertisement names it; the company's name is no title
+        assertEquals(Set.of(FINANCE + "|2|text"), evidence(ex, Vocabulary.NAME));
+        // both employment types with their own source and place in it, neither chosen
+        assertEquals(Set.of("full_time|1|jsonld", "freelance|2|text"), evidence(ex, Vocabulary.EMPLOYMENT_TYPE));
+        final Set<String> locators = new TreeSet<>();
+        for (final Mention m : jobs(ex)) {
+            for (final Claim c : claims(ex, m, Vocabulary.EMPLOYMENT_TYPE)) {
+                locators.add(c.value + "@" + c.locator);
+            }
+        }
+        final int heading = FINANCE_TEXT.indexOf("** " + FINANCE) + 3;
+        assertEquals(Set.of("full_time@jsonld:0/employmentType", "freelance@text:" + heading + "+14"), locators);
+        // employer and place keep their evidence: the JSON-LD's short name and the imprint's full name are the operator
+        assertEquals(Set.of("MUSTER|1|jsonld", "Muster Consulting AG|2|text"), evidence(ex, Vocabulary.HIRING_ORGANIZATION));
+        for (final Mention m : jobs(ex)) {
+            for (final Claim c : claims(ex, m, Vocabulary.HIRING_ORGANIZATION)) {
+                final Mention employer = ex.mention(c.object);
+                assertTrue(employer.name + " is the operator", employer.siteOperator || employer.domainOperator);
+            }
+        }
+        final List<Claim> places = new ArrayList<>();
+        for (final Mention m : jobs(ex)) {
+            places.addAll(claims(ex, m, Vocabulary.JOB_LOCATION));
+        }
+        assertEquals(1, places.size());
+        assertEquals("Hamburg", ex.mention(places.get(0).object).address.locality);
+        // the date of the source stays (its day), it ends nothing; an end that is null is none
+        assertEquals(Set.of("2023-08-30|1|jsonld"), evidence(ex, Vocabulary.DATE_POSTED));
+        assertEquals(Set.of(), evidence(ex, Vocabulary.VALID_THROUGH));
+        assertEquals(Set.of(), evidence(ex, Vocabulary.JOB_STATUS));
+    }
+
+    /**
+     * The short name of the company is its operator only where it says so: {@code sameAs} (or {@code url}) of the site's own
+     * domain. A short name that links another domain, or none, secures no identity: the posting stays a job of its own, with
+     * all of its statements; nothing is guessed from the name or the domain.
+     */
+    @Test
+    public void aShortNameIsTheOperatorOnlyByTheSitesOwnDomain() {
+        final String own = "{\"@type\":\"Organization\",\"name\":\"MUSTER\",\"url\":\"" + HOST + "/karriere/\"}";
+        assertEquals(1, jobKeys(extract(List.of(reportedPosting(own), REPORTED_SITE), FINANCE_TEXT, FINANCE_URL, REPORTED_TITLE)).size());
+        for (final String employer : List.of("{\"@type\":\"Organization\",\"name\":\"MUSTER\",\"sameAs\":"
+                + "\"https://www.muster-holding.example\"}", "{\"@type\":\"Organization\",\"name\":\"MUSTER\"}")) {
+            final Extraction ex = extract(List.of(reportedPosting(employer), REPORTED_SITE), FINANCE_TEXT, FINANCE_URL, REPORTED_TITLE);
+            assertEquals(employer + ": " + jobKeys(ex), 2, jobKeys(ex).size());
+            assertTrue(evidence(ex, Vocabulary.EMPLOYMENT_TYPE).contains("full_time|1|jsonld"));
+            for (final Mention m : ex.mentions()) {
+                assertFalse(m.toString(), "MUSTER".equals(m.name) && (m.siteOperator || m.domainOperator));
+            }
         }
     }
 }
