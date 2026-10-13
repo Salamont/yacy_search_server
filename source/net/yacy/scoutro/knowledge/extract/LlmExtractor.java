@@ -893,6 +893,9 @@ public final class LlmExtractor {
             if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
                 continue; // jobs are switched on per collection
             }
+            if (Vocabulary.JOB.equals(type) && same == null && ctx.noPosting(name)) {
+                continue; // a menu entry or teaser link of the page (0.10.5): its claims go with it
+            }
             refs.put(e.optString("id"), ref);
             Mention m = out.mention(ref);
             if (m == null) {

@@ -426,6 +426,32 @@ public class BusinessExtractionTest {
                 + " Beta Ltd. und Gamma GmbH.", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.PARTNER_OF));
     }
 
+    /**
+     * Production 0.10.4 (owner finding "Mitglied von → Einkaufs"): a job advertisement's "Mitglied des Einkaufs" or "des
+     * Einkaufs- und Logistikteams" names a department or team, not an association; and the first half of a shortened compound
+     * ("Einkaufs-" of "Einkaufs- und Logistikteam") is no name at all. Real memberships stay.
+     */
+    @Test
+    public void aDepartmentIsNoMembership() {
+        final String url = "https://www.muster-software.example/jobs-karriere/stellenangebote/einkaeufer/";
+        for (final String text : List.of("Als Mitglied des Einkaufs- und Logistikteams verantworten Sie die Beschaffung.",
+                "Sie werden Mitglied des Einkaufs.", "Werde Mitglied im Einkaufs-Team.", "Als Mitglied unseres Vertriebs berätst du Kunden.",
+                "Mitglied der Geschäftsführung.")) {
+            final Extraction ex = rules(text, url, vocabulary("software", "stackfinder-web"), List.of());
+            assertEquals(text, List.of(), relations(ex, Vocabulary.MEMBER_OF));
+            assertEquals(text, List.of(), relations(ex, Vocabulary.ASSOCIATION_MEMBER));
+        }
+        // a shortened compound is no partner either, its full partner stays
+        assertEquals(List.of("null -> Marketinggemeinschaft Muster eG"), relations(rules("Mitglied der Einkaufs- und Marketinggemeinschaft"
+                + " Muster eG.", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.MEMBER_OF));
+        assertEquals(List.of("null -> IHK Berlin"), relations(rules("Wir sind Mitglied der IHK Berlin.", url,
+                vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.MEMBER_OF));
+        assertEquals(List.of("null -> Bitkom"), relations(rules("Wir sind Mitglied im Bitkom.", url, vocabulary("software", "stackfinder-web"),
+                List.of()), Vocabulary.MEMBER_OF));
+        assertEquals(List.of("null -> Bundesverband Musterhandel e. V."), relations(rules("Mitglied im Bundesverband Musterhandel e. V.", url,
+                vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.ASSOCIATION_MEMBER));
+    }
+
     @Test
     public void theIndustryOfAnImprintAndTheSafeLevelOfAService() {
         final String imprint = "Impressum Angaben gemäß § 5 TMG Muster Bedachungen GmbH Dachstraße 1 12345 Musterstadt Telefon: 030 1234567 "

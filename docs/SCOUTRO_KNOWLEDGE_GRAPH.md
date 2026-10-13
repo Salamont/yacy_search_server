@@ -2554,3 +2554,73 @@ Three findings of the mobile knowledge graph page: the category lists offered on
 - Java: `ServicePricesTest` (6: the count of a group equals its current list, for every group; no name, category or vocabulary needed; a viewer sees only its collections; stable paging; facets for the selects carry the profiles and no counts), `JobAdHintsTest` (7: employer without job objects, unchanged with job objects, off, intermediary/undeclared/ambiguous, careers page, posting semantics, policy keys and identity), `CompanySystemsTest` (2: systems with and without shown job objects), `JobReadingHashTest` (2), `SyncServiceTest` (+2: a changed job reading extracts only the job pages again; a graph of 0.10.1 reads the hints of its job pages once and records `job_reading_changed`), `MatchingTest` (+3: `job_ad` hints are job-based and follow the matching policy; a requirement stays weak and client work never matches; a company's own competence statement is no requirement), `KgCollectionSettingsTest` (+1: on by default, switched off explicitly, `recheckJobs` without re-extraction).
 - Browser (EN/DE, 390 and 1280 pixels): `knowledge-services-prices-ui-test.mjs` (category notes for error, no profile and none found; collection switch; price links, status, paging), `knowledge-jobs-systems-ui-test.mjs` (four switches with their help, only the changed one sent, the targeted re-check reported and shown, the overview's job cell, Software and systems with context and source, no jobs section where job objects are not shown).
 
+
+## 30. The positions of a careers page, departments and the status "confirmed" (0.10.5)
+
+A production finding of 0.10.4 (owner screenshots of a company graph): the same open position appeared as two job nodes with
+cut names, a benefits page of the careers section was the evidence of a job, and the company was "member of" a node named
+like its purchasing department, shown as *confirmed*.
+
+### 30.1 Causes (reproduced with neutral texts)
+
+- **Menu entries became jobs.** Every page whose address names a careers section (`/jobs-karriere/…`, `/karriere/…`) is a
+  careers page by the business rules, and on a careers page every title with a gender marker ("SAP-Berater (m/w/d)") was a
+  job of that page. A site repeats the menu of its open positions on every page of the section, so the benefits page, the
+  team page and every other page had all open positions as jobs, with the general text after the menu as their evidence.
+- **One position, several nodes.** Page texts carry no line breaks, so the start of a title reached back into the words
+  before it ("Jobs & Karriere Stellenangebote SAP-Berater (m/w/d)", "Benefits Team Kultur SAP-Berater (m/w/d)"); the job key
+  held the URL and the character offset of the title. The menu entry and the heading of the advertisement were two jobs of
+  the page, and a menu that grew by one position gave every position below it a new identity.
+- **A department as organisation.** "Als Mitglied des Einkaufs- und Logistikteams …" matched the membership marker
+  "Mitglied des …", and the hyphenated word was taken as the name of an organisation (`member_of` → "Einkaufs-").
+- **The LLM tier** received the menu jobs of the rules as known entities and could name the same menu entries itself.
+
+### 30.2 What the rules read now
+
+- **The positions a page advertises** (`BusinessRules.postings`). On a *detail page*, whose page title or last path segment
+  names a title, only the titles it names are jobs, cut to the named words ("SAP-Berater (m/w/d)"), once each. On any other
+  careers page a title is a position if its sentence announces it ("Wir suchen …", "Zur Verstärkung …"), if its terms follow it
+  ("in Vollzeit", "ab sofort", "zum 01.08.2027"), or if its own text follows it (tasks, profile, requirements) and it is no
+  entry of a list of titles (titles next to each other with a few words between them: a menu or teaser links). The heading of
+  an advertisement after the menu belongs to the advertisement, not to the menu. A page with several complete
+  advertisements keeps each of them; a title repeated on the page (menu and heading) is one job, read from its advertisement.
+- **Identity.** The posting key of a job is the URL of its page and its normalised title, no longer the offset of the title:
+  a changed menu keeps the job; a different position on its own page stays a different job.
+- **Hints of advertisements** (29.3) are read from the text of the positions only, not from the general text after a menu.
+- **The LLM tier** (`ExtractContext.withJobTitles`, `LlmExtractor.apply`) drops a job whose title, or the end of a title, the
+  rules see on that page only as a menu entry or teaser link; its claims go with it. A page without such titles, and the
+  position of a detail page, keep the model's job as before.
+- **Departments.** A membership whose object is a department or team ("Einkauf", "Vertrieb", "Geschäftsführung", "…abteilung",
+  "…team", hyphenated or not) is no membership; an association, a chamber or a cooperative stays one.
+
+### 30.3 The existing graph: a targeted re-check
+
+The relation re-check of 0.10.3/0.10.4 gets the rules version **3** (`kg_meta.relation_recheck_rules`). At the first start of
+0.10.5 the active pages processed before it that carry, in the rule tier, a relation, a job or a hint read from the text of an
+advertisement (`section` `job_ad_…`) are extracted again once, at low priority (event `relation_rules_recheck`); no other
+page, no crawl, no LLM request, no global re-extraction. Their new tier-2 evidence replaces the old one of the same page: the
+menu jobs of the benefits and team pages and the department memberships lose their evidence, the position of a detail page
+keeps its job, valid evidence of other statements is extracted again from the same page. A job keeps its node where its rule
+reference on the page is unchanged; a position whose earlier title had absorbed menu words gets one node with the cut title
+and the evidence of its page, and the nodes with the absorbed names leave the current graph with their evidence.
+
+The evidence of the LLM tier stays as it is (it is replaced only when the LLM tier reads the page again). Whether menu jobs of
+the LLM tier exist is measured (read-only) before any further step; a re-reading of those pages by the LLM tier is a
+separate decision.
+
+### 30.4 The status "confirmed"
+
+The business graph shows a statement as *confirmed* (`status: confirmed`) when its quality is `supported` and its confidence
+reaches `BusinessView.CONFIRMED` (0.6). A rule relation of one current page has 0.65. *Confirmed* therefore means "stated on a
+current page of the site and read by a rule", not "checked by a person" or "stated by several sources"; the sources of each
+statement are listed with it. The label is unchanged in this release.
+
+### 30.5 Tests
+
+- Java: `JobAdHintsTest` (+4: menu entries, a benefits page and teaser links of a careers section are no jobs; a position
+  belongs to its detail page with its application route and its hints; its identity survives a changed menu, another position
+  stays another job; several advertisements on one page stay separate), `BusinessExtractionTest` (+1: a department is no
+  membership, an association and a cooperative stay), `LlmExtractorTest` (+1: a model job that is only a menu entry of the
+  page is dropped with its claims; without page titles and on the detail page it stays), `SyncServiceTest` (+1: only the
+  pages with jobs of the rule tier are extracted again, once; the menu jobs of a benefits page go, the position keeps its
+  identity; a restart repeats nothing).

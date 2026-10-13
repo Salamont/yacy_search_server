@@ -1225,6 +1225,7 @@ public final class LlmService {
         final BaseTiers.Text page = new BaseTiers.Text(this.solr, item.docId);
         final Extraction base;
         final PageText pageText;
+        final String stored;
         final int storedLength;
         final String thin;
         try {
@@ -1234,7 +1235,7 @@ public final class LlmService {
                 markAndComplete(item, row.llmInput(), LlmQueue.STATUS_SKIPPED, LlmQueue.SKIP_NOT_CANDIDATE);
                 return;
             }
-            final String stored = page.get();
+            stored = page.get();
             if (continuation && (stored == null || stored.length() != read.length)) {
                 finishContinuation(item, LlmQueue.TEXT_CUT); // not the text the progress belongs to
                 return;
@@ -1365,7 +1366,9 @@ public final class LlmService {
         // the per-document limit of statements holds over the first reading and all continuations together
         final long held = continuation ? this.store.read(c -> tier3Statements(c, item.docId)) : 0L;
         final Extraction ex = new Extraction((int) Math.max(0L, this.cfg.extractMaxStatementsPerDoc - held));
-        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d);
+        // a job the rules see as no position of the page (a menu entry, 0.10.5) is none of the model's either
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d)
+                .withJobTitles(net.yacy.scoutro.knowledge.extract.BusinessRules.jobTitleKeys(stored, d.url, d.titles));
         for (int i = 0; i < accepted.size(); i++) {
             LlmExtractor.apply(atOrigin(accepted.get(i), pageText), acceptedKnown.get(i), ex, ctx);
         }

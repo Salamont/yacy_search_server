@@ -36,6 +36,7 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
+import net.yacy.scoutro.knowledge.extract.BusinessSignals;
 import net.yacy.scoutro.knowledge.extract.Extraction;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.publish.Aggregates;
@@ -201,10 +202,12 @@ public final class SyncService {
     static final String META_RELATION_RECHECK_DONE = "relation_recheck_done";
     /**
      * kg_meta (0.10.4): the version of the relation rules the check above belongs to. 1 (0.10.3, no row): consent banners name
-     * no partner; 2 (0.10.4): a list ends with its sentence. A graph checked with older rules is checked once more.
+     * no partner; 2 (0.10.4): a list ends with its sentence; 3 (0.10.5): a department is no membership ("Mitglied des
+     * Einkaufs"), and a careers page has the positions it advertises as jobs, not the entries of its menu. A graph checked with
+     * older rules is checked once more.
      */
     static final String META_RELATION_RULES = "relation_recheck_rules";
-    static final String RELATION_RULES = "2";
+    static final String RELATION_RULES = "3";
     /** The relations the rule tier reads after a marker (BusinessRules); the fixes of 0.10.3 and 0.10.4 may change them. */
     static final List<String> RECHECK_RELATIONS = List.of(Vocabulary.CARRIER_OF, Vocabulary.SUBSIDIARY_OF, Vocabulary.PARENT_OF,
             Vocabulary.BRAND_OF, Vocabulary.COOPERATION_WITH, Vocabulary.PARTNER_OF, Vocabulary.CUSTOMER_OF, Vocabulary.REFERENCE_FOR,
@@ -216,9 +219,12 @@ public final class SyncService {
     /**
      * 0.10.3: a consent banner ("an unsere Partner für soziale Medien, Werbung und Analysen weiter") made purposes partner
      * organisations; 0.10.4: a list went on into the next sentence ("… Beta AG. Muster GmbH, Musterstraße 1" made the operator of
-     * the imprint a partner). The active pages processed before the corrected rules with a relation of the rule tier are
-     * extracted again once per version of the rules ({@link #RELATION_RULES}), at low priority, and only they; their input is unchanged, so they are named here. Restart-safe: a page extracted
-     * since then is not named again, and an empty selection ends the check for good.
+     * the imprint a partner); 0.10.5: a department became an organisation the operator is a member of, and every page of a
+     * careers section had the positions of its menu as jobs (or read the hints of their advertisements from its general
+     * text). The active pages processed before the corrected rules with a relation, a job or a job advertisement hint of the
+     * rule tier are extracted again once per version of the rules ({@link #RELATION_RULES}), at low priority, and only they;
+     * their input is unchanged, so they are named here. Tiers 1 and 2 only: the evidence of the LLM tier stays. Restart-safe: a
+     * page extracted since then is not named again, and an empty selection ends the check for good.
      */
     private List<String> relationRecheck(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
         if (!RELATION_RULES.equals(KgStore.getMeta(tx, META_RELATION_RULES))) {
@@ -242,11 +248,17 @@ public final class SyncService {
         try (java.sql.PreparedStatement ps = tx.prepareStatement("SELECT d.doc_id FROM kg_doc d WHERE d.state = " + Aggregates.STATE_ACTIVE
                 + " AND (d.processed_at IS NULL OR d.processed_at < ?) AND EXISTS (SELECT 1 FROM kg_evidence e"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred"
-                + " WHERE e.doc_rowid = d.doc_rowid AND e.tier = 2 AND v.name IN (" + in + ")) ORDER BY d.doc_id")) {
+                + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
+                + " WHERE e.doc_rowid = d.doc_rowid AND e.tier = 2 AND (v.name IN (" + in + ") OR t.name = ?"
+                + " OR v.name = ? AND s.obj_val LIKE ? ESCAPE '\\')) ORDER BY d.doc_id")) {
             ps.setLong(1, since);
             for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
                 ps.setString(i + 2, RECHECK_RELATIONS.get(i));
             }
+            // a job of the rule tier, or a hint read from the text of an advertisement (BusinessSignals.JOB_AD)
+            ps.setString(RECHECK_RELATIONS.size() + 2, Vocabulary.JOB);
+            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.SYSTEM_SIGNAL);
+            ps.setString(RECHECK_RELATIONS.size() + 4, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
             try (java.sql.ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ids.add(rs.getString(1));
@@ -258,8 +270,9 @@ public final class SyncService {
             return ids;
         }
         if (stored == null) {
-            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations of the rule tier extracted again"
-                    + " (consent banners are no partners, a list ends with its sentence); no other page", now);
+            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations or jobs of the rule tier extracted again"
+                    + " (consent banners are no partners, a list ends with its sentence, a department is no membership, a menu entry"
+                    + " is no job); no other page", now);
         }
         WorkQueue.scanned(tx, ids, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_REEXTRACT, 0L, now, this.queueMax);
         return ids;
