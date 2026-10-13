@@ -671,12 +671,12 @@ public final class KgRuntime {
         }
     }
 
+    /** Writes of matching-policy notices per start or maintenance step; the rest follows with the next step (0.10.5). */
+    static final int POLICY_WRITES_PER_STEP=20;
+
     private void invalidateMatchingPolicy() throws KgException {
-        long estimate=this.store.read(c->net.yacy.scoutro.knowledge.derive.MatchingService.policyEstimate(c,this.config));
-        if(estimate>0)this.store.write(WriteClass.SYSTEM,estimate,c->{
-            net.yacy.scoutro.knowledge.derive.MatchingService.invalidatePolicy(c,this.config,this.env.clock.getAsLong());return null;
-        });
-        this.matchingPolicyPending=false;
+        if(net.yacy.scoutro.knowledge.derive.MatchingService.invalidatePolicy(this.store,this.config,this.env.clock.getAsLong(),
+                POLICY_WRITES_PER_STEP))this.matchingPolicyPending=false;
     }
 
     private void recordStart() throws KgException {

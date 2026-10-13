@@ -100,6 +100,88 @@ public class MatchingTest {
         store.write(WriteClass.SYSTEM,0,c->{MatchingService.invalidatePolicy(c,cfg,now+3);return null;});
         assertEquals(seq,(long)store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change")));
     }
+    /**
+     * Production 0.10.2/0.10.4: a changed matching policy with 87,764 stored contributions made its notices one write with an
+     * estimate of 1 KiB per contribution, larger than the WAL limit itself; every maintenance step and every matching run were
+     * refused ({@code wal_limit}) however empty the WAL was. The notices go in bounded, resumable batches.
+     */
+    @Test public void aChangedPolicyWithManyContributionsPublishesItsNoticesInBoundedWrites()throws Exception {
+        store.close();
+        Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());settings.put(KgConfig.JOBS_COLLECTIONS,"a,b,c");
+        settings.put(KgConfig.WAL_MAX_BYTES,String.valueOf(4L*KgTestSupport.MIB));settings.put(KgConfig.WAL_CHECKPOINT_BYTES,String.valueOf(KgTestSupport.MIB));
+        cfg=KgTestSupport.config(settings);KgPaths paths=new KgPaths(tmp.getRoot());
+        StorageGuard guard=new StorageGuard(cfg,paths,new KgTestSupport.Probe(),()->now);
+        store=KgStore.open(paths,cfg,guard,KgStore.SQLITE,()->now);reader=new KgReader(store,cfg,()->now);
+        final int n=6000; // 1 KiB each: more than the 4 MiB WAL limit of this test, as 87,764 were more than 64 MiB
+        store.write(WriteClass.GROWTH,0,c->{
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_match_contribution(public_id,proposal_id,kind,provider_id,candidate_id,rule,"
+                    +"rule_version,service_key,signal_key,corroboration_key,refs,computed_at,seen_generation) VALUES(?,?,3,?,?,'it-support','1',?,?,'',"
+                    +"'[]',?,'g')")) {
+                for(int i=0;i<n;i++) {
+                    p.setString(1,KgIds.derivedId("suggested_customer",provider,candidate,"contribution:"+i,"signal"+i));
+                    p.setString(2,KgIds.derivedId("suggested_customer",provider,candidate,"matching-v1",""));p.setString(3,provider);
+                    p.setString(4,candidate);p.setString(5,"service"+i);p.setString(6,"signal"+i);p.setLong(7,now);p.addBatch();
+                }
+                p.executeBatch();
+            }
+            KgStore.putMeta(c,"matching_policy","{\"version\":\"0\"}"); // the policy of an older release
+            return null;
+        });
+        final long before=store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change"));
+        final JSONObject result=run();
+        assertNull("the matching run is not refused",result.optString("refused",null));
+        assertEquals("every contribution got its notice",n,(long)store.read(c->KgStore.queryLong(c,
+                "SELECT count(*) FROM kg_change WHERE kind=5 AND seq>"+before)));
+        assertEquals("every contribution keeps its access chain",n,(long)store.read(c->KgStore.queryLong(c,"SELECT count(DISTINCT contribution_id) FROM kg_match_access")));
+        assertEquals("the policy is recorded once all notices are out",0L,(long)store.read(c->MatchingService.policyEstimate(c,cfg)));
+        assertTrue("no write was refused: "+guard.status(),guard.status().optJSONObject("refusedWrites")==null
+                ||guard.status().getJSONObject("refusedWrites").length()==0);
+        assertTrue("the WAL stayed below its limit",guard.walBytes()<=4L*KgTestSupport.MIB);
+    }
+
+    /** The notices of a policy go on from where a stopped publication ended; a policy changed meanwhile starts them again. */
+    @Test public void policyNoticesResumeAfterAStopAndRestartForAnotherPolicy()throws Exception {
+        final int n=MatchingService.POLICY_BATCH+500;
+        store.write(WriteClass.GROWTH,0,c->{
+            try(PreparedStatement p=c.prepareStatement("INSERT INTO kg_match_contribution(public_id,proposal_id,kind,provider_id,candidate_id,rule,"
+                    +"rule_version,service_key,signal_key,corroboration_key,refs,computed_at,seen_generation) VALUES(?,?,3,?,?,'it-support','1',?,?,'',"
+                    +"'[]',?,'g')")) {
+                for(int i=0;i<n;i++) {
+                    p.setString(1,KgIds.derivedId("suggested_customer",provider,candidate,"contribution:"+i,"signal"+i));
+                    p.setString(2,KgIds.derivedId("suggested_customer",provider,candidate,"matching-v1",""));p.setString(3,provider);
+                    p.setString(4,candidate);p.setString(5,"service"+i);p.setString(6,"signal"+i);p.setLong(7,now);p.addBatch();
+                }
+                p.executeBatch();
+            }
+            KgStore.putMeta(c,"matching_policy","{\"version\":\"0\"}");
+            return null;
+        });
+        final long before=store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change"));
+        // one write, then a stop: the position is kept with its policy, the policy is not yet recorded
+        assertFalse(MatchingService.invalidatePolicy(store,cfg,now,1));
+        assertEquals(MatchingService.POLICY_BATCH,(long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_change WHERE kind=5 AND seq>"+before)));
+        assertTrue(store.read(c->KgStore.getMeta(c,MatchingService.META_POLICY_PENDING)).contains("\"after\""));
+        assertTrue(store.read(c->MatchingService.policyEstimate(c,cfg))>0);
+        // the next step publishes the rest only
+        final long middle=store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change"));
+        assertTrue(MatchingService.invalidatePolicy(store,cfg,now,10));
+        assertEquals(500L,(long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_change WHERE kind=5 AND seq>"+middle)));
+        assertNull(store.read(c->KgStore.getMeta(c,MatchingService.META_POLICY_PENDING)));
+        assertEquals(0L,(long)store.read(c->MatchingService.policyEstimate(c,cfg)));
+        // another policy half published, then the recorded one back: nothing to publish, the half publication is dropped
+        Map<String,String> settings=new HashMap<>(KgTestSupport.enabled());settings.put(KgConfig.JOBS_MATCH_COLLECTIONS,"");
+        KgConfig other=KgTestSupport.config(settings);
+        assertFalse(MatchingService.invalidatePolicy(store,other,now+1,1));
+        final long back=store.read(c->KgStore.queryLong(c,"SELECT coalesce(max(seq),0) FROM kg_change"));
+        assertTrue(MatchingService.invalidatePolicy(store,cfg,now+2,10));
+        assertEquals(0L,(long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_change WHERE kind=5 AND seq>"+back)));
+        assertNull(store.read(c->KgStore.getMeta(c,MatchingService.META_POLICY_PENDING)));
+        // so the other policy, when it comes again, starts from the first contribution
+        assertTrue(MatchingService.invalidatePolicy(store,other,now+3,10));
+        assertEquals("all notices for the other policy",(long)n,
+                (long)store.read(c->KgStore.queryLong(c,"SELECT count(*) FROM kg_change WHERE kind=5 AND seq>"+back)));
+    }
+
     /** A hint of a job advertisement read for its employer without a job object (0.10.2, section job_ad_*). */
     private String jobAd(String text)throws Exception {
         List<String> values=BusinessSignals.read("system_signal",text,BusinessSignals.JOB_AD+"description","organization","Candidate");
