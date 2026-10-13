@@ -48,6 +48,12 @@ public final class Mention {
     public boolean domainOperator;
     /** A key of the {@code job_posting} scheme (employer, title, location), within the registrable domain. */
     public String jobKey;
+    /**
+     * A JSON-LD job posting (0.10.6): the page its {@code url} declares, and the key of its place of work; what it must not
+     * contradict to join the advertisement of its page.
+     */
+    public String postingUrl;
+    public String jobPlace;
     /** A key of the {@code place_name} scheme ({@code de|state|bayern}); global. */
     public String placeKey;
     /** A key of the {@code service_name} scheme (provider and category or name), within the registrable domain. */

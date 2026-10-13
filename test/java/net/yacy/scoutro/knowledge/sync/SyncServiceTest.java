@@ -1162,17 +1162,24 @@ public class SyncServiceTest {
         assertEquals(info.toString(), "4", info.getString("rules"));
         assertEquals(info.toString(), "jobs", info.getString("scope"));
         assertEquals(info.toString(), 2L, info.getLong("pages"));
-        assertTrue(info.toString(), info.isNull("done"));
-        // a restart: nothing again, the count before stays
+        // its end, written and shown in the running process, without a restart
+        assertEquals(info.toString(), 0L, info.getLong("open"));
+        assertEquals(info.toString(), 0L, info.getLong("failed"));
+        assertFalse(info.toString(), info.isNull("done"));
+        final String done = strings("SELECT value FROM kg_meta WHERE key = 'relation_recheck_done'").get(0);
+        assertEquals(done, Long.toString(info.getLong("done")));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck_done'"));
+        // a restart: nothing again, the count before and the end stay as they were
         stop(true);
         start(1000, false);
         settle();
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck_done'"));
         assertEquals(40L, this.sync.status().getJSONObject("relationRecheckLlmJobsBefore").getLong("menuEvidence"));
         final JSONObject ended = this.sync.status().getJSONObject("relationRecheckInfo");
         assertEquals(ended.toString(), 2L, ended.getLong("pages"));
-        assertFalse(ended.toString(), ended.isNull("done"));
+        assertEquals(ended.toString(), Long.parseLong(done), ended.getLong("done"));
         // a check of the rules 3 that did not complete: the full check once with the rules 4
         this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
             KgStore.putMeta(tx, "relation_recheck_rules", "3");
@@ -1185,6 +1192,154 @@ public class SyncServiceTest {
         start(1000, false);
         settle();
         assertEquals("the job pages and the page with partners", 3L, this.sync.counters.extractions.get());
+    }
+
+    private static final String CHECKED_DETAIL = "JOBDETmswr01";
+    private static final String CHECKED_POSTING = "JOBLDDmswr01";
+
+    /** Two job pages (an advertisement, a JSON-LD posting) and a page with partners, as 0.10.5 left them: the rules 3 checked. */
+    private void twoJobPagesCheckedWithRules3() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.JOBS_COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        client().add(careersPage(CHECKED_DETAIL, "https://www.muster-software.example/jobs-karriere/stellenangebote/freiberuflicher-sap-berater/",
+                "Freiberuflicher SAP-Berater (m/w/d) | Muster Software", ADVERTISEMENT));
+        client().add(doc(CHECKED_POSTING, "https://www.muster-software.example/stellen/buchhalter/", "c1", "{\"@type\":\"JobPosting\","
+                + "\"title\":\"Buchhalter (m/w/d)\",\"employmentType\":\"FULL_TIME\",\"hiringOrganization\":{\"@type\":\"Organization\","
+                + "\"name\":\"Muster Software GmbH\",\"url\":\"https://www.muster-software.example/\"}}"));
+        final SolrInputDocument partners = doc("PARTNEhost01", "https://www.partner.example/partner", "c1", null);
+        partners.setField("text_t", List.of("Unsere Partner: Muster Software GmbH und Beispiel AG."));
+        client().add(partners);
+        commit();
+        settle();
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.putMeta(tx, "relation_recheck_rules", "3");
+            return null;
+        });
+        this.clock.addAndGet(1000L);
+    }
+
+    private JSONObject recheck() throws Exception {
+        return this.sync.status().getJSONObject("relationRecheckInfo");
+    }
+
+    private long doneMeta() {
+        return count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'");
+    }
+
+    /**
+     * 0.10.6 (review): a page of the check whose extraction fails for good keeps the check open — in the running process and
+     * after a restart — with the page in the list of failed pages; once the page is published (its next change, or the next
+     * start), the check ends in that process, without another restart.
+     */
+    @Test
+    public void aFailedPageKeepsTheCheckOpenUntilItIsPublished() throws Exception {
+        twoJobPagesCheckedWithRules3();
+        stop(true);
+        start(1000, false);
+        this.source.failText = CHECKED_POSTING;
+        settle();
+        assertEquals(SyncService.MAX_FAILURES, this.source.textFailures.get());
+        JSONObject info = recheck();
+        assertEquals(info.toString(), 2L, info.getLong("pages"));
+        assertEquals(info.toString(), 1L, info.getLong("open"));
+        assertEquals(info.toString(), 1L, info.getLong("failed"));
+        assertEquals(info.toString(), CHECKED_POSTING, info.getJSONArray("failedPages").getString(0));
+        assertTrue(info.toString(), info.isNull("done"));
+        assertEquals(0L, doneMeta());
+        assertEquals("[\"" + CHECKED_POSTING + "\"]", strings("SELECT value FROM kg_meta WHERE key = 'relation_recheck_failed'").get(0));
+        // a restart: the failed page is named again, still failing; the other page is not extracted again
+        stop(true);
+        start(1000, false);
+        this.source.failText = CHECKED_POSTING;
+        settle();
+        assertEquals("only the failed page is tried again", SyncService.MAX_FAILURES, this.source.textFailures.get());
+        assertEquals(0L, this.sync.counters.published.get());
+        assertEquals(1L, recheck().getLong("failed"));
+        assertEquals(1L, recheck().getLong("open"));
+        assertTrue(recheck().isNull("done"));
+        assertEquals(0L, doneMeta());
+        // the defect is gone: the next change of the page is extracted, published, and ends the check in this process
+        this.source.failText = null;
+        client().add(doc(CHECKED_POSTING, "https://www.muster-software.example/stellen/buchhalter/", "c1", "{\"@type\":\"JobPosting\","
+                + "\"title\":\"Buchhalter (m/w/d)\",\"employmentType\":\"FULL_TIME\",\"hiringOrganization\":{\"@type\":\"Organization\","
+                + "\"name\":\"Muster Software GmbH\",\"url\":\"https://www.muster-software.example/\"}}"));
+        commit();
+        settle();
+        info = recheck();
+        assertEquals(info.toString(), 0L, info.getLong("open"));
+        assertEquals(info.toString(), 0L, info.getLong("failed"));
+        assertFalse(info.toString(), info.isNull("done"));
+        assertEquals(1L, doneMeta());
+        assertEquals(0L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_failed'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck_done'"));
+        assertTrue(count(JOBS_OF + "'" + CHECKED_POSTING + "'") > 0L);
+    }
+
+    /**
+     * 0.10.6 (review): a refused write publishes nothing and ends nothing. The last page of the check and the end of the check are
+     * one write: refused (growth paused while it is read), the page stays open and the check without its end; admitted again, the
+     * page is published and the check ends in the same process.
+     */
+    @Test
+    public void aRefusedWriteLeavesThePageAndTheCheckOpen() throws Exception {
+        twoJobPagesCheckedWithRules3();
+        stop(true);
+        start(1000, false);
+        final StorageGuard g = this.guard;
+        this.source.afterText = n -> {
+            if (n == 2) {
+                g.setManualPause(true); // the write of the last page of the check is refused
+            }
+        };
+        for (int i = 0; i < 60; i++) {
+            if (!this.sync.step()) {
+                this.clock.addAndGet(3000L);
+            }
+        }
+        assertEquals("one page published", 1L, this.sync.counters.published.get());
+        assertTrue(this.sync.counters.growthRefused.get() + this.sync.counters.deferred.get() >= 1L);
+        JSONObject info = recheck();
+        assertEquals(info.toString(), 1L, info.getLong("open"));
+        assertEquals(info.toString(), 0L, info.getLong("failed"));
+        assertTrue(info.toString(), info.isNull("done"));
+        assertEquals(0L, doneMeta());
+        assertEquals(0L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck_done'"));
+        // admitted again: the page and the end of the check, without a restart
+        this.source.afterText = null;
+        g.setManualPause(false);
+        this.clock.addAndGet(31_000L);
+        settle();
+        info = recheck();
+        assertEquals(info.toString(), 0L, info.getLong("open"));
+        assertFalse(info.toString(), info.isNull("done"));
+        assertEquals(1L, doneMeta());
+        assertEquals(2L, this.sync.counters.published.get());
+        // a restart extracts nothing again
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(info.getLong("done"), recheck().getLong("done"));
+    }
+
+    /** 0.10.6 (review): a page of the check that is gone (deleted) leaves it; the last one ends it in the running process. */
+    @Test
+    public void aPageThatIsGoneLeavesTheCheckAndEndsIt() throws Exception {
+        twoJobPagesCheckedWithRules3();
+        stop(true);
+        start(1000, false);
+        this.source.failText = CHECKED_POSTING;
+        settle();
+        assertEquals(1L, recheck().getLong("open"));
+        assertEquals(0L, doneMeta());
+        client().deleteById(CHECKED_POSTING);
+        commit();
+        settle();
+        final JSONObject info = recheck();
+        assertEquals(info.toString(), 0L, info.getLong("open"));
+        assertEquals(info.toString(), 0L, info.getLong("failed"));
+        assertFalse(info.toString(), info.isNull("done"));
+        assertEquals(1L, doneMeta());
+        assertFalse(tracked(CHECKED_POSTING));
     }
 
     /** Everything a page is the evidence of: subject, statement, predicate, object or value, tier and locator. */
@@ -1363,6 +1518,10 @@ public class SyncServiceTest {
         assertEquals("each page once over both runs", ids.size(), first + this.sync.counters.extractions.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
         assertEquals(0, this.sync.status().getInt("relationRecheck"));
+        // the resumed run ends the check itself (0.10.6): written and shown without another restart
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
+        assertFalse(this.sync.status().getJSONObject("relationRecheckInfo").isNull("done"));
+        assertEquals((long) ids.size(), this.sync.status().getJSONObject("relationRecheckInfo").getLong("pages"));
         for (final String id : ids) {
             assertEquals(id, before.get(id), evidenceOf(id));
         }

@@ -1070,6 +1070,8 @@ public final class JsonLdExtractor {
                 }
             }
         }
+        m.postingUrl = Normalizers.url(absolute(run, string(o.opt("url"))));
+        m.jobPlace = location == null ? null : Normalizers.key(location);
         if (o.optString("jobLocationType", "").toUpperCase(java.util.Locale.ROOT).contains("TELECOMMUTE")) {
             literal(run, m, Vocabulary.EMPLOYMENT_TYPE, "remote", p + "/jobLocationType", "jobLocationType: TELECOMMUTE");
         }

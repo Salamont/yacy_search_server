@@ -1290,7 +1290,7 @@ public final class BusinessRules {
                 claim(run, job, Vocabulary.APPLICATION_ROUTE, Normalizers.url(run.url), ap.start(), ap.end(), 0.6);
             }
             if (posted.page && postings.size() == 1) {
-                structuredPosting(run, job, title);
+                structuredPosting(run, job, title, place, employerAssigned);
             }
         }
     }
@@ -1446,9 +1446,11 @@ public final class BusinessRules {
     /**
      * The structured posting of the page of one position is that position's advertisement (0.10.6): the one {@code JobPosting}
      * of its JSON-LD joins the job of its rules where it names no title of its own ({@link JsonLdExtractor}: none, or the
-     * organisation's name) or the same title. Each statement keeps its tier and evidence; neither source decides for the other.
+     * organisation's name) or the same title, and nothing of its identity contradicts the advertisement ({@link #contradicts}).
+     * Each statement keeps its tier and evidence; neither source decides for the other.
      */
-    private static void structuredPosting(final Run run, final Mention job, final String title) {
+    private static void structuredPosting(final Run run, final Mention job, final String title, final String place,
+            final boolean operatorEmploys) {
         Mention structured = null;
         for (final Mention m : run.out.mentions()) {
             if (Vocabulary.JOB.equals(m.type) && m.tier == 1) {
@@ -1458,11 +1460,107 @@ public final class BusinessRules {
                 structured = m;
             }
         }
-        if (structured == null || structured.name != null && !java.util.Objects.equals(jobKey(structured.name), jobKey(title))) {
+        if (structured == null || structured.name != null && !java.util.Objects.equals(jobKey(structured.name), jobKey(title))
+                || contradicts(run, job, structured, place, operatorEmploys)) {
             return;
         }
         structured.jobKey = job.jobKey;
         structured.ldId = null; // the page's advertisement is the posting, not its id
+    }
+
+    /**
+     * A structured posting contradicts the advertisement of its page (0.10.6) if it declares another page (its {@code url}, or an
+     * {@code @id} that is the address of another page), another place of work than the advertisement's ("Standort: …"), or
+     * another employer: an organisation that is not the operator where the advertisement declares the operator, the operator
+     * where the advertisement recruits for a client, or an intermediary's posting where the advertisement is the operator's own.
+     * What either source leaves open contradicts nothing.
+     */
+    private static boolean contradicts(final Run run, final Mention job, final Mention structured, final String place,
+            final boolean operatorEmploys) {
+        if (structured.postingUrl != null && !samePage(structured.postingUrl, run.url)) {
+            return true;
+        }
+        if (structured.ldId != null && structured.ldId.matches("(?i)https?://.*") && !samePage(structured.ldId, run.url)) {
+            return true;
+        }
+        final String own = Normalizers.key(place);
+        if (own != null && structured.jobPlace != null && !own.equals(structured.jobPlace)) {
+            return true;
+        }
+        boolean recruits = false;
+        for (final Claim c : run.out.claims()) {
+            if (c.subject.equals(job.ref) && Vocabulary.RECRUITING_ORGANIZATION.equals(c.predicate)) {
+                recruits = true;
+            }
+        }
+        for (final Claim c : run.out.claims()) {
+            if (!c.subject.equals(structured.ref)) {
+                continue;
+            }
+            if (Vocabulary.RECRUITING_ORGANIZATION.equals(c.predicate) && operatorEmploys) {
+                return true; // the posting is an intermediary's, the advertisement the operator's own
+            }
+            if (Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)) {
+                final boolean operator = isOperator(run, run.out.mention(c.object));
+                if (operatorEmploys && !operator || recruits && operator) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The organisation is the page's operator: declared so, the subject of the page by its name, or on the page's own domain. */
+    private static boolean isOperator(final Run run, final Mention o) {
+        if (o == null) {
+            return false;
+        }
+        if (o.siteOperator || o.domainOperator || o.ref.equals(run.subject.ref)) {
+            return true;
+        }
+        final String legal = Normalizers.legalNameKey(o.legalName);
+        if (legal != null && legal.equals(Normalizers.legalNameKey(run.subject.legalName))) {
+            return true;
+        }
+        final String name = Normalizers.key(o.name);
+        if (name != null && (name.equals(Normalizers.key(run.subject.name)) || name.equals(Normalizers.key(run.subject.legalName)))) {
+            return true;
+        }
+        final String domain = Normalizers.registrableDomain(run.host);
+        for (final Claim c : run.out.claims()) {
+            if (domain != null && c.subject.equals(o.ref) && Vocabulary.WEBSITE.equals(c.predicate) && c.value != null) {
+                try {
+                    if (domain.equals(Normalizers.registrableDomain(new URI(c.value).getHost()))) {
+                        return true;
+                    }
+                } catch (final Exception e) {
+                    // no website
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Two addresses name the same page: host (without "www."), path (without a final "/") and query; scheme and fragment aside. */
+    private static boolean samePage(final String a, final String b) {
+        final String pa = page(a);
+        return pa != null && pa.equals(page(b));
+    }
+
+    private static String page(final String url) {
+        try {
+            final URI u = new URI(url.trim());
+            if (u.getHost() == null) {
+                return null;
+            }
+            String path = u.getRawPath() == null ? "" : u.getRawPath();
+            while (path.endsWith("/")) {
+                path = path.substring(0, path.length() - 1);
+            }
+            return u.getHost().toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "") + path + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery());
+        } catch (final Exception e) {
+            return null;
+        }
     }
 
     /** The hit is a term itself or a form of it (at most two more letters: "freiberufliche", "Praktikantin"), no compound. */

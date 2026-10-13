@@ -413,4 +413,65 @@ public class JobEvidenceTest {
         assertNotEquals(all.get(0).jobKey, all.get(1).jobKey);
         assertEquals(Set.of("Buchhalter (m/w/d)|1|jsonld", FINANCE + "|2|text"), evidence(ex, Vocabulary.NAME));
     }
+
+    // ------------------------------------------------------------ the identity of a joined posting
+
+    /** The page's graph with the operator's organisation and a posting named like it, with the given properties. */
+    private static String postingGraph(final String properties) {
+        return "{\"@context\":\"https://schema.org\",\"@graph\":[" + ORG + ",{\"@type\":\"JobPosting\",\"title\":\"MUSTER\","
+                + "\"employmentType\":\"FULL_TIME\"" + properties + "}]}";
+    }
+
+    private static Set<String> jobKeys(final Extraction ex) {
+        final Set<String> keys = new TreeSet<>();
+        for (final Mention m : jobs(ex)) {
+            keys.add(m.jobKey);
+        }
+        return keys;
+    }
+
+    /**
+     * The structured posting joins the advertisement of the page only where nothing of its identity contradicts it: a posting
+     * that declares another page (its {@code url} or {@code @id}), another employer than the operator the advertisement
+     * declares, the operator where the advertisement says it recruits for a client, or another place of work stays a job of its
+     * own, with all of its statements. Agreeing or missing statements join it.
+     */
+    @Test
+    public void aStructuredPostingThatContradictsTheAdvertisementStaysItsOwnJob() {
+        final String own = "Zur Verstärkung unseres Teams suchen wir Dich für Projekte im Rechnungswesen. Standort: Hamburg. Deine Aufgaben:."
+                + " - Beratung zu SAP S/4HANA Finance.";
+        final String client = "Für unseren Kunden, ein Industrieunternehmen, suchen wir Dich. Standort: Hamburg. Deine Aufgaben:. - Beratung"
+                + " zu SAP S/4HANA Finance.";
+        final String hamburg = ",\"jobLocation\":{\"@type\":\"Place\",\"address\":{\"@type\":\"PostalAddress\",\"addressLocality\":"
+                + "\"Hamburg\"}}";
+        final String munich = hamburg.replace("Hamburg", "München");
+        final String operator = ",\"hiringOrganization\":{\"@id\":\"" + ORG_ID + "\"}";
+        final String foreign = ",\"hiringOrganization\":{\"@type\":\"Organization\",\"name\":\"Beispiel Industrie GmbH\",\"url\":"
+                + "\"https://www.beispiel-industrie.example/\"}";
+        final String[][] contradicting = {
+            {own, ",\"url\":\"" + HOST + "/sap-senior-berater-m-w-d-co/\"", "another page by its url"},
+            {own, ",\"@id\":\"" + HOST + "/sap-senior-berater-m-w-d-co/#job\"", "another page by its @id"},
+            {own, foreign, "another employer than the operator"},
+            {client, operator, "the operator as employer where the advertisement recruits for a client"},
+            {own, munich, "another place of work"},
+        };
+        for (final String[] c : contradicting) {
+            final Extraction ex = extract(postingGraph(c[1]), page(FINANCE, c[0]), FINANCE_URL, "Stellenangebote — " + FINANCE, ctx(true, true));
+            assertEquals(c[2] + ": " + jobKeys(ex), 2, jobKeys(ex).size());
+            assertEquals(c[2], Set.of(FINANCE + "|2|text"), evidence(ex, Vocabulary.NAME));
+            assertTrue(c[2], evidence(ex, Vocabulary.EMPLOYMENT_TYPE).contains("full_time|1|jsonld"));
+        }
+        final String[][] agreeing = {
+            {own, "", "nothing declared"},
+            {own, ",\"url\":\"http://www.muster-consulting.example/freiberufl-sap-senior-berater-finance\"", "the page's own url"},
+            {own, ",\"@id\":\"" + FINANCE_URL + "#job\"", "an @id on the page"},
+            {own, operator, "the operator as employer"},
+            {own, hamburg, "the same place"},
+            {client, foreign, "the client as employer of an intermediary's advertisement"},
+        };
+        for (final String[] a : agreeing) {
+            final Extraction ex = extract(postingGraph(a[1]), page(FINANCE, a[0]), FINANCE_URL, "Stellenangebote — " + FINANCE, ctx(true, true));
+            assertEquals(a[2] + ": " + jobKeys(ex), 1, jobKeys(ex).size());
+        }
+    }
 }

@@ -2778,6 +2778,13 @@ besides its job, a second job node from its JSON-LD, named after the organisatio
   the advertisement, so they are one job. Each statement keeps its tier and evidence; neither source decides for the other: a
   page whose JSON-LD says `FULL_TIME` and whose title says "Freiberufliche …" has both employment types on the one position,
   each with its own source. A `JobPosting` of another position stays a job of its own; several postings are not guessed.
+  **Only without contradicting identity** (`BusinessRules.contradicts`): a posting that declares another page (its `url`, or
+  an `@id` that is the address of another page; host without "www.", path without a final "/" and query compared, scheme and
+  fragment aside), another place of work than the advertisement's ("Standort: …"), or another employer — an organisation that
+  is not the operator where the advertisement declares the operator, the operator where the advertisement recruits for a
+  client, an intermediary's posting where the advertisement is the operator's own — stays a job of its own with all of its
+  statements. What either source leaves open contradicts nothing; the client as employer of an intermediary's advertisement
+  agrees with it.
 
 ### 31.3 The reported JSON-LD posting: source, parser or contradiction
 
@@ -2806,7 +2813,19 @@ extractor identity stays, so no input hash changes); the evidence of the LLM tie
 `rules`). A page that declares `noindex` is not in the index and therefore neither checked nor extracted.
 
 **Readable without its event** (status `sync.relationRecheckInfo`): `rules`, `scope` (`jobs` or `all`), `pages` (the pages the
-check selected when it started, `kg_meta.relation_recheck_pages`), `since` and `done`. The event `relation_rules_recheck` is
+check selected when it started, `kg_meta.relation_recheck_pages`), `since`, `done`, and live `open` (pages of the check not yet
+extracted in this process), `failed` and `failedPages` (`kg_meta.relation_recheck_failed`, at most 200 IDs, the first 20 in the
+status).
+
+**The end of the check, in the running process** (review of this PR): a page leaves the check when it is published with the
+current rules or is no longer active (deleted, out of scope). The publication of the last page of the check and the end of the
+check are **one write**: inside it the selection of 30.3 is run again, and only if no page of it is left is
+`kg_meta.relation_recheck_done` written (event `relation_rules_recheck_done`) and the status shows `done` at once — no restart
+is needed, a later start finds the end and names nothing again. A refused write (growth paused, storage limits) publishes
+nothing and ends nothing: the page and the check stay open and the next admitted write completes both. A page whose extraction
+fails for good (`doc_failed`) stays in the check and in its list of failed pages: the check stays open (`done` null) until the
+page is published with its next change or at the next start, which names it again; then it leaves the list and the check can
+end. Pages of the selection beyond the queue limit of a run end it only at a later start. The event `relation_rules_recheck` is
 written once as before, but the bounded event log can lose it: a job whose key changes (an employer found or no longer found,
 a posting joined to its advertisement) is resolved to a new node, and the old node keeps the page-local key of the mention, so
 the resolver can report `identity_conflict` (`mention contradicts entity`) when the page is extracted again.
@@ -2828,8 +2847,9 @@ Expected changes on a re-checked page:
    regular admin authentication, `fl=sku,ld_json_txt`) and the claims of the JSON-LD job (`kg/sources/{doc}`); classify by
    31.3. Record `sync.relationRecheckLlmJobs` and the number of job nodes, `hiring_organization` and `employment_type`
    statements of the host.
-2. After the upgrade: `sync.relationRecheckInfo` (`rules` 4, `scope` jobs, `pages`), `sync.relationRecheck` down to 0,
-   `relationRecheckLlmJobsBefore` equal to the recorded count, no LLM request, no crawl.
+2. After the upgrade: `sync.relationRecheckInfo` (`rules` 4, `scope` jobs, `pages`), `open` and `sync.relationRecheck` down to 0,
+   then `done` set **without a restart** (`failed` 0; otherwise `failedPages` names the pages that keep it open, with their
+   `doc_failed` events), `relationRecheckLlmJobsBefore` equal to the recorded count, no LLM request, no crawl.
 3. For each of the five indexed advertisements: one job with its full title, `hiring_organization` → the imprint's operator
    with an excerpt from the advertisement (not from menu or footer), `employment_type` only where the advertisement states it.
    For the freelance position: one job, `freelance` (rule) and, if the source says so, `full_time` (JSON-LD), each with its own
@@ -2846,6 +2866,11 @@ Expected changes on a re-checked page:
   state stays unknown (requirements, compounds, neighbouring positions, JSON-LD without a type); a stated type is read
   wherever it stands; JSON-LD nodes with one id keep their kinds; a reference to the posting itself is no employer and no
   place; a title that names the organisation is no position title; the JSON-LD posting of the page is its advertisement; a
-  posting of another position stays its own job), `SyncServiceTest` (+1: a graph checked with the rules 3 checks only its job
-  pages once, keeps the count before and is readable without its event; an incomplete check of the rules 3 gets the full
-  check).
+  posting of another position stays its own job; +1 after review: a posting that contradicts the advertisement — another page
+  by `url` or `@id`, another employer, the operator where the advertisement recruits for a client, another place — stays its
+  own job, agreeing or missing statements join it), `SyncServiceTest` (+1: a graph checked with the rules 3 checks only its job
+  pages once, keeps the count before, is readable without its event and ends **in the running process**, a restart keeps the
+  end; an incomplete check of the rules 3 gets the full check; +3 after review: a page that fails for good keeps the check open
+  across a restart until its next publication ends it in that process; a refused write of the last page leaves the page and
+  the check open, the next admitted write publishes it and ends the check; a page that is deleted leaves the check and ends it;
+  the resumed run after a crash ends the check itself).
