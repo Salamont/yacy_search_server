@@ -2708,3 +2708,198 @@ them are menu entries.
   tier are counted, not changed).
 - Browser (`knowledge-ui-test.mjs`, EN/DE, five widths): a fact of the network shows *Extracted from source*, its tooltip and
   the legend say "no human review", confidence and number of sources stay in their own columns, no status "confirmed".
+
+## 31. The employer, the employment type and the JSON-LD posting of an advertisement (relation rules 4)
+
+Owner findings of the 0.10.5 rollout (13.10.2026): after a targeted crawl of six advertisements of a consultancy, five pages
+were indexed and gave their position with its full title and its `required_competence` hints, but no employer and no
+employment type, although their imprint names the operator. The sixth page declares `noindex,nofollow`; YaCy refused to index
+it and it stays outside the graph (the knowledge graph reads only indexed documents). The page of a freelance position had,
+besides its job, a second job node from its JSON-LD, named after the organisation, with `FULL_TIME` and `datePosted`
+2023-08-30. (The rollout report's note that employer and place "referred to the posting itself" did not hold: the raw JSON-LD,
+read later, has no `@id` at all — 31.3.)
+
+### 31.1 Causes (reproduced with neutral texts)
+
+- **The employer declaration was too narrow and read the navigation.** A rule job gets the page's operator as its employer
+  only where the advertisement declares it. The list of declarations was "wir suchen", "bei uns", "unser Team", "we are
+  hiring", "join our team": "Zur Verstärkung unseres Teams suchen wir Dich" matched none of them. Where one matched, the text
+  read ran from the title to the next title or 6,000 characters, so into the footer ("Jobs bei uns"), and the text before the
+  first title of a page (on a detail page: the navigation with "Unser Team", "Karriere bei uns") counted as well. "Wir" was
+  given to the page's subject even when that was another organisation of its structured data (a client, a portal).
+- **The employment type was read without sections.** The 400 characters after a title gave a type for every term in them:
+  requirements ("Erfahrung als Freelancer", "abgeschlossene Ausbildung"), compounds ("Praktikumsbetreuer"), and the positions
+  next to a short advertisement ("Weitere Stellen: Praktikum Marketing, Werkstudent Vertrieb"). A type the offer states further
+  down ("Wir bieten: eine unbefristete Stelle in Vollzeit") was missed. A default was never set, and none is now.
+- **JSON-LD references ignored the kind of a node** (a general weakness of the parser, found with the shapes tried before the raw
+  data were read; **not** the cause of the reported page, whose JSON-LD has no `@id`). A bare `{"@id": …}` reference resolved to whichever node of that id came
+  first, of any kind, and a node met with a known id returned the first node's mention. A posting and an organisation that share
+  an `@id` (an error of the source) lost one of them; the employer or place of a posting that names the posting's own `@id`
+  resolved to the posting itself and was dropped without a trace.
+- **A title that names the organisation became a job's name.** `title` (or `name`) of a `JobPosting` that is just the name of
+  the organisation, its site or its domain made a job of that name.
+- **The JSON-LD posting of a detail page and the job of its advertisement were two nodes.** Their keys never matched (the
+  rule job is keyed by the page and its title, the posting by its employer, title and `@id`), so the page had two jobs and a
+  contradiction between them (FULL_TIME / freelance) did not show on one position.
+
+### 31.2 What is read now
+
+- **The advertisement's own text** (`BusinessRules.adEnd`): from the sentence that announces the title to the first end of the
+  advertisement after its first section heading: the application ("Bewirb Dich", "Jetzt bewerben", the form), the positions
+  next to it ("Weitere Stellen", "Ähnliche Jobs") or the footer (imprint, privacy, copyright); else the end of its window as
+  before. An application button above the tasks ends nothing; the sentence of the application call still belongs to the
+  advertisement for its employer ("Bewirb Dich jetzt bei uns!"), the footer after it does not.
+- **The employer** (`BusinessRules.employer`): the page's operator where the advertisement's own text declares it ("wir
+  suchen", "suchen wir", "wir stellen ein", "bei uns", the team in any form: "Zur Verstärkung unseres Teams", "Verstärke unser
+  Team", "Werde Teil unseres Teams", "Komm in unser Team", "we are hiring", "we are looking for", "join our team"), or where the
+  lead of a list announces its positions with a sentence ("Wir suchen ab sofort: …"); a navigation label in the lead
+  ("Unser Team", "Karriere bei uns") declares nothing, and the lead of a detail page is its menu. The operator is the operator
+  the imprint names, the declared operator of the structured data, an organisation of the structured data on the page's own
+  domain (`url` or `sameAs`; with a legal form the declared operator, without one the domain's operator by its short name), or
+  the domain's unnamed operator (joined in the graph only to the domain's one declared operator); never a name
+  derived from the domain, never another organisation of the page.
+- **Intermediaries and client projects.** Where the advertisement says that the position is a client's ("Für unseren
+  Kunden …", "Für unseren Mandanten …", "Im Auftrag unseres Mandanten …", "on behalf of our client"), the operator is the
+  `recruiting_organization` with that phrase as its evidence and the employer stays unknown (the job stays `unresolved`). A
+  consultant who works in the projects of the operator's clients ("Projekte bei unseren Kunden") holds the operator's own
+  position.
+- **The employment type** (`BusinessRules.statedTypes`): from the title as before, or from the advertisement's own text,
+  wherever it stands in it, except in its requirements (from their heading — "Dein Profil", "Anforderungen", "Was du
+  mitbringst" … — to the next offer or tasks heading) and except a requirement in a sentence ("abgeschlossene Ausbildung",
+  "Erfahrung als Freelancer"); a term counts as a form of itself or as a compound of a position ("Teilzeitstelle",
+  "Ausbildungsplatz", "Werkstudentenjob"), not as another compound. Without such a statement the type stays unknown.
+- **JSON-LD references by kind** (`JsonLdExtractor.node`): a reference resolves to the node of its id that has the kind the
+  reference expects (an employer: an organisation or facility; a place: a site or facility; else its declared type), a node is
+  the same node again only with the same id *and* kind, and a reference whose id names only nodes of another kind (the posting
+  itself, a page) resolves to nothing. A posting and an organisation that share an id are two nodes again.
+- **A title that names the organisation** (`JsonLdExtractor`): a `JobPosting` whose `title` (or `name`) is the name, legal name
+  or alternate name of an organisation or site of the page's JSON-LD, or the name of the site's domain, has no name: no
+  position is made of it, and its other statements (employment type, dates, employer, salary) stay with their tier-1
+  provenance.
+- **The JSON-LD posting of the page of one position is that position** (`BusinessRules.structuredPosting`): where a detail page
+  has one advertisement and its JSON-LD one `JobPosting` that names no title of its own or the same title, both get the key of
+  the advertisement, so they are one job. Each statement keeps its tier and evidence; neither source decides for the other: a
+  page whose JSON-LD says `FULL_TIME` and whose title says "Freiberufliche …" has both employment types on the one position,
+  each with its own source. A `JobPosting` of another position stays a job of its own; several postings are not guessed.
+  **Only without contradicting identity** (`BusinessRules.contradicts`): a posting that declares another page (its `url`, or
+  an `@id` that is the address of another page; host without "www.", path without a final "/" and query compared, scheme and
+  fragment aside), another place of work than the advertisement's ("Standort: …"), or another employer — an organisation that
+  is not the operator where the advertisement declares the operator, the operator where the advertisement recruits for a
+  client, an intermediary's posting where the advertisement is the operator's own — stays a job of its own with all of its
+  statements. What either source leaves open contradicts nothing; the client as employer of an intermediary's advertisement
+  agrees with it.
+
+### 31.3 The reported JSON-LD posting: source error and contradicting statements
+
+**The raw data (owner, 13.10.2026), confirmed:** two separate JSON-LD blocks and no `@id` reference anywhere.
+
+1. A `JobPosting` with the company's name as its `title`, `employmentType` `FULL_TIME`, `datePosted` 2023-08-30 (with a time
+   and the offset `+0000`) and `validThrough` `null`; its `hiringOrganization` an inline `Organization` with the company's
+   short name and `sameAs` of the site's own domain; its `jobLocation` an inline `Place` with a `PostalAddress`; no `url` of
+   its own. The date gives `date_posted` 2023-08-30; the `null` end gives no `valid_through`.
+2. A `WebSite` with the company's full name and the site's own domain.
+
+The HTML title names the freelance Finance position.
+
+**Classification:**
+
+| Finding | Class | 0.10.5 | Rules 4 |
+| --- | --- | --- | --- |
+| `title` = the company's name | **source error**: a title that names no position | a job named like the company | no name from it; the posting joins the advertisement's job, named by the advertisement |
+| `FULL_TIME` (JSON-LD) against "Freiberufliche …" (HTML title and advertisement) | **contradicting statements** of the source | two job nodes, one type each | one job with `full_time` (tier 1, `jsonld:0/employmentType`) and `freelance` (tier 2, `text:…` of the heading), side by side; neither is chosen |
+| `datePosted` 2023-08-30 | a statement of the source | kept | kept (tier 1). An old posting date **does not end a position**: the job status is `ended` only by an explicit end (`job_status`), `deadline_passed` only by a passed `valid_through`, else open or not reconfirmed (`BusinessView`); the date is shown, not judged |
+| Employer: inline short name with `sameAs` of the own domain; full name in the `WebSite` and the imprint | no contradiction: the same company | — | the short name on its own domain is the domain's operator (`domain_operator`, joined to the declared operator of the imprint); the employer evidence of both sources stays |
+| Place: inline `Place` with a postal address | statement of the source | kept on the JSON-LD job | kept on the one job (tier 1) |
+
+**Not the case here:** no `@id` collision and no self-reference — the page has no `@id`. The type-aware resolution of `@id`
+references (31.1) stays as a general fix of the parser; it does not change this page.
+
+**Checked against the PR before this finding (`76472af`):** the real structure still gave **two** jobs there. The short name has
+no legal form and links its own domain only by `sameAs` (not `url`), so the identity check of the join (31.2) took it for
+another employer than the operator the advertisement declares. Now an organisation of the JSON-LD that links the page's own
+registrable domain by `url` **or** `sameAs` is the declared operator with a legal form and the domain's operator by its short
+name without one; a short name that links another domain, or none, secures no identity and keeps the posting a job of its own
+(`JobEvidenceTest.theReportedPageIsOneJobWithBothSourcesOfItsEmploymentType`, `aShortNameIsTheOperatorOnlyByTheSitesOwnDomain`).
+On a real store the short name and the full name of the imprint end on **one** organisation, the job's one employer; a short
+name of another domain stays an organisation of its own, and so does its posting (`ReportedPostingIdentityTest`).
+
+### 31.4 The existing graph: a targeted re-check (rules 4)
+
+The re-check of 30.3 gets the rules version **4**. A graph whose check with the rules 3 is complete
+(`kg_meta.relation_recheck_rules` = 3 and `relation_recheck_done` set, as after the rollout of 0.10.5) is checked once more,
+but only on its pages with a job of any tier (now also tier 1, the JSON-LD postings) or a hint read from an advertisement
+(tiers 1 and 2): `kg_meta.relation_recheck_scope` = `jobs`. A page with relations only is not extracted again. A graph whose
+check of the rules 3 did not complete, or that was checked with older rules, gets the full check once (relations, jobs and
+hints). Tiers 1 and 2 only, at low priority, restart-safe as in 30.3: no crawl, no LLM request, no global re-extraction (the
+extractor identity stays, so no input hash changes); the evidence of the LLM tier stays and its job evidence is counted again
+(`sync.relationRecheckLlmJobs`); the count of the check before stays readable as `sync.relationRecheckLlmJobsBefore` (with its
+`rules`). A page that declares `noindex` is not in the index and therefore neither checked nor extracted.
+
+**Readable without its event** (status `sync.relationRecheckInfo`): `rules`, `scope` (`jobs` or `all`), `pages` (the pages the
+check selected when it started, `kg_meta.relation_recheck_pages`), `since`, `done`, and live `open` (pages of the check not yet
+extracted in this process), `failed` and `failedPages` (`kg_meta.relation_recheck_failed`, at most 200 IDs, the first 20 in the
+status).
+
+**The end of the check, in the running process** (review of this PR): a page leaves the check when it is published with the
+current rules or is no longer active (deleted, out of scope). The publication of the last page of the check and the end of the
+check are **one write**: inside it the selection of 30.3 is run again, and only if no page of it is left is
+`kg_meta.relation_recheck_done` written (event `relation_rules_recheck_done`) and the status shows `done` at once — no restart
+is needed, a later start finds the end and names nothing again. A refused write (growth paused, storage limits) publishes
+nothing and ends nothing: the page and the check stay open and the next admitted write completes both. A page whose extraction
+fails for good (`doc_failed`) stays in the check and in its list of failed pages: the check stays open (`done` null) until the
+page is published with its next change or at the next start, which names it again; then it leaves the list and the check can
+end. Pages of the selection beyond the queue limit of a run end it only at a later start. The event `relation_rules_recheck` is
+written once as before, but the bounded event log can lose it: a job whose key changes (an employer found or no longer found,
+a posting joined to its advertisement) is resolved to a new node, and the old node keeps the page-local key of the mention, so
+the resolver can report `identity_conflict` (`mention contradicts entity`) when the page is extracted again.
+
+Expected changes on a re-checked page:
+
+- a position whose advertisement declares its employer gets `hiring_organization` → the operator (new key, new node); one whose
+  employer came only from navigation or footer loses it (`unresolved`); an intermediary's position gets
+  `recruiting_organization`;
+- employment types from requirements, compounds or neighbouring positions go; a type the offer states is added;
+- the JSON-LD job of a detail page that was named after the organisation loses that name and joins the advertisement's job; its
+  statements stay with their tier-1 evidence; the old node leaves the current graph;
+- relations, the operator, partners and every other statement of the page stay; the 40 menu evidence rows of the LLM tier
+  counted by the check of the rules 3 are neither changed nor deleted.
+
+**Verification plan (read-only, production):**
+
+1. Before the upgrade: ~~read the raw `ld_json_txt` of the freelance position's page~~ — done (31.3: source title and
+   contradicting employment types). Record `sync.relationRecheckLlmJobs` and the number of job nodes, `hiring_organization`
+   and `employment_type` statements of the host.
+2. After the upgrade: `sync.relationRecheckInfo` (`rules` 4, `scope` jobs, `pages`), `open` and `sync.relationRecheck` down to 0,
+   then `done` set **without a restart** (`failed` 0; otherwise `failedPages` names the pages that keep it open, with their
+   `doc_failed` events), `relationRecheckLlmJobsBefore` equal to the recorded count, no LLM request, no crawl.
+3. For each of the five indexed advertisements: one job with its full title, `hiring_organization` → the imprint's operator
+   with an excerpt from the advertisement (not from menu or footer), `employment_type` only where the advertisement states it.
+   For the freelance position: **one** job named by the advertisement, `freelance` (rule) and `full_time` (JSON-LD), each with
+   its own evidence; `hiring_organization` from both sources (the short name of the JSON-LD and the imprint's full name, one
+   operator); its place (JSON-LD); `date_posted` 2023-08-30 and the job not shown as ended; no job named like the company.
+4. The `noindex` page: still not in the index, no job.
+5. Count `identity_conflict` events of the check separately; they are expected for changed job keys.
+
+### 31.5 Tests
+
+- Java: `JobEvidenceTest` (new, 15: the advertisement that declares its employer has the operator as it, with five forms of the
+  declaration and its evidence in the advertisement; domain and navigation declare no employer, on a detail page and a list;
+  an intermediary recruits for its client, a project at a client stays the operator's position; another organisation of the
+  page is not who "wir" is; the hints of an advertisement follow the same declaration; a type the advertisement does not
+  state stays unknown (requirements, compounds, neighbouring positions, JSON-LD without a type); a stated type is read
+  wherever it stands; JSON-LD nodes with one id keep their kinds; a reference to the posting itself is no employer and no
+  place; a title that names the organisation is no position title; the JSON-LD posting of the page is its advertisement; a
+  posting of another position stays its own job; +1 after review: a posting that contradicts the advertisement — another page
+  by `url` or `@id`, another employer, the operator where the advertisement recruits for a client, another place — stays its
+  own job, agreeing or missing statements join it; +2 with the raw data: the reported page as it is — two blocks, no `@id`,
+  title = the company's name, `FULL_TIME`, inline short-name employer with `sameAs` of the own domain, inline place, the site
+  with the full name — is one job named by the advertisement with both employment types and their locators, the employer
+  evidence of both sources (both the operator), its place and date, no end; a short name is the operator only by the site's
+  own domain), `ReportedPostingIdentityTest` (new, 2: the reported page through identity resolution on a store — one job with
+  `freelance` and `full_time`, its date, no status, one place, and one organisation with the short and the full name as its
+  employer; a short name of another domain stays apart with its own posting), `SyncServiceTest` (+1: a graph checked with the rules 3 checks only its job
+  pages once, keeps the count before, is readable without its event and ends **in the running process**, a restart keeps the
+  end; an incomplete check of the rules 3 gets the full check; +3 after review: a page that fails for good keeps the check open
+  across a restart until its next publication ends it in that process; a refused write of the last page leaves the page and
+  the check open, the next admitted write publishes it and ends the check; a page that is deleted leaves the check and ends it;
+  the resumed run after a crash ends the check itself).

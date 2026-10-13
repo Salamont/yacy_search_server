@@ -38,7 +38,9 @@ public final class BusinessSignals {
     private static final Pattern NEED=p("Bedarf|benötigen|benötigt|brauchen|suchen.{0,40}(?:Unterstützung|Partner)|need|require|seeking.{0,40}support");
     private static final Pattern OWN_CARE=p("unser(?:e[nmrs]?)?.{0,80}(?:Entlassmanagement|Überleitungsmanagement|Pflegeüberleitung)|wir.{0,80}(?:organisieren|koordinieren).{0,80}(?:Entlass|Pflegeüber)|our.{0,80}discharge management");
     private static final Pattern CLOSED=p("Stelle (?:ist )?(?:besetzt|geschlossen)|Position (?:ist )?besetzt|Bewerbungsverfahren (?:ist )?beendet|vacancy (?:is )?(?:filled|closed)");
-    public static final Pattern INTERMEDIARY=p("im Auftrag (?:unseres|eines) Kunden|für unseren Kunden|für einen unserer Kunden|on behalf of (?:our|a) client|for our client");
+    /** An intermediary advertises for its client, also a recruiter for its "Mandant" (0.10.6). */
+    public static final Pattern INTERMEDIARY=p("im Auftrag (?:unseres|eines) (?:Kunden|Mandanten)|für unseren (?:Kunden|Mandanten)"
+            +"|für einen unserer (?:Kunden|Mandanten)|on behalf of (?:our|a) client|for our client");
     /** Reference, case-study and client pages: what they describe is work for clients, not the operator's own use or need.
      * Deliberately narrower than a general "projects" page, which can describe the operator's own projects. */
     private static final Pattern REFERENCE_PATH=Pattern.compile("(?iu)(?:^|/)(?:referenzen|referenz|references?|case-stud(?:y|ies)|fallstudien"

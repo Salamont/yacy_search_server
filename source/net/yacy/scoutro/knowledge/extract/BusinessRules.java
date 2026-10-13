@@ -891,19 +891,22 @@ public final class BusinessRules {
 
     /**
      * A position the page advertises (0.10.5): its title (start, end, gender marker) and the index of its title among all
-     * titles of the page ({@link #jobTitles}), which ends the text of its advertisement ({@link #windowEnd}).
+     * titles of the page ({@link #jobTitles}), which ends the text of its advertisement ({@link #windowEnd}); {@code page}: the
+     * page is the position's own, named by its title or path (0.10.6).
      */
     static final class Posting {
         final int start;
         final int end;
         final int marker;
         final int index;
+        final boolean page;
 
-        Posting(final int start, final int end, final int marker, final int index) {
+        Posting(final int start, final int end, final int marker, final int index, final boolean page) {
             this.start = start;
             this.end = end;
             this.marker = marker;
             this.index = index;
+            this.page = page;
         }
     }
 
@@ -984,7 +987,7 @@ public final class BusinessRules {
             }
         }
         for (final int i : new java.util.TreeSet<>(chosen.values())) {
-            out.add(new Posting(start[i], titles.get(i)[1], titles.get(i)[2], i));
+            out.add(new Posting(start[i], titles.get(i)[1], titles.get(i)[2], i, detail));
         }
         return out;
     }
@@ -1137,12 +1140,50 @@ public final class BusinessRules {
         return i + 1 < titles.size() && JOIN_GAP.matcher(text.substring(titles.get(i)[1], end)).matches() && immediate(text, titles, i + 1);
     }
 
-    /** Phrases with which a careers page declares its operator as the employer of its advertisements. */
-    private static final Pattern SELF_HIRING = Pattern.compile("(?iu)wir suchen|bei uns|unser Team|we are hiring|join our team");
+    /**
+     * Phrases with which an advertisement declares the site's operator its employer: "wir suchen", "suchen wir", "wir stellen
+     * ein", "bei uns", the team in any form ("Zur Verstärkung unseres Teams", "Verstärke unser Team", "Werde Teil unseres Teams",
+     * "Komm in unser Team"; 0.10.6), "we are hiring", "we are looking for", "join our team". Read in the advertisement's own text
+     * only ({@link #adEnd}): a menu or a footer ("Unser Team", "Karriere bei uns") declares nothing.
+     */
+    private static final Pattern SELF_HIRING = Pattern.compile("(?iu)\\b(?:wir\\s+suchen|suchen\\s+wir|wir\\s+stellen\\s+ein|bei\\s+uns"
+            + "|unser(?:e[mnrs]?)?\\s+teams?|we\\s+are\\s+(?:hiring|looking\\s+for)|we['’]re\\s+(?:hiring|looking\\s+for)|join\\s+our\\s+team)\\b");
+    /**
+     * The phrases of {@link #SELF_HIRING} that announce positions in a sentence (0.10.6): what the lead of a list must say, where
+     * the navigation before it names "Unser Team" or "Karriere bei uns".
+     */
+    private static final Pattern ANNOUNCED_HIRING = Pattern.compile("(?iu)\\b(?:wir\\s+suchen|suchen\\s+wir|wir\\s+stellen\\s+ein"
+            + "|verst(?:ä|ae)rk(?:ung|e|en\\s+sie)\\s+(?:f(?:ü|ue)r\\s+)?unser(?:e[mnrs]?)?\\s+teams?|we\\s+are\\s+(?:hiring|looking\\s+for)"
+            + "|we['’]re\\s+(?:hiring|looking\\s+for))\\b");
+    /**
+     * Where the own text of an advertisement ends (0.10.6): its application ("Bewirb Dich", "Jetzt bewerben", the form), the
+     * positions next to it ("Weitere Stellen", "Ähnliche Jobs") or the footer (imprint, privacy, copyright).
+     */
+    private static final Pattern AD_END = Pattern.compile("(?iu)\\b(?:bewirb\\s+dich|bewerben\\s+sie\\s+sich|jetzt\\s+bewerben"
+            + "|online\\s+bewerben|zur\\s+bewerbung|bewerbungsformular|apply\\s+(?:now|online)|(?:weitere|(?:ä|ae)hnliche|andere|alle)"
+            + "\\s+(?:stellen(?:angebote)?|jobs|positionen)|(?:related|similar|more|other)\\s+(?:jobs|positions)|impressum|datenschutz"
+            + "|imprint|privacy\\s+policy|copyright)\\b|©");
+    /** The application call that ends an advertisement ("Bewirb Dich jetzt bei uns!"): its sentence still belongs to it (0.10.6). */
+    private static final Pattern APPLY_CALL = Pattern.compile("(?iu)(?:bewirb\\s+dich|bewerben\\s+sie\\s+sich|jetzt\\s+bewerben"
+            + "|online\\s+bewerben|zur\\s+bewerbung|apply\\s+(?:now|online))");
+    /** The heading of an advertisement's requirements: what the applicant brings, not what the position is (0.10.6). */
+    private static final Pattern REQUIREMENTS = Pattern.compile("(?iu)\\b(?:(?:ihr|dein|your)\\s+profil|profil\\s*:|anforderungen"
+            + "|qualifikation(?:en)?\\s*:|voraussetzungen|was\\s+(?:du|sie)\\s+mitbring\\p{L}*|das\\s+bring(?:st\\s+du|en\\s+sie)\\s+mit"
+            + "|wir\\s+erwarten|requirements|what\\s+you\\s+bring)");
+    /** The heading of the section after the requirements: the offer or the tasks (0.10.6). */
+    private static final Pattern OFFER = Pattern.compile("(?iu)\\b(?:wir\\s+bieten|das\\s+bieten\\s+wir|was\\s+wir\\s+bieten"
+            + "|unser\\s+angebot|(?:deine|ihre|your)\\s+(?:vorteile|benefits|aufgaben|t(?:ä|ae)tigkeiten|tasks|responsibilities)|benefits"
+            + "|what\\s+we\\s+offer|we\\s+offer|aufgaben(?:gebiet|bereich)?\\s*:)");
+    /** A requirement in a sentence ("abgeschlossene Ausbildung", "Erfahrung als Freelancer"): no type of the position (0.10.6). */
+    private static final Pattern REQUIRED_BEFORE = Pattern.compile("(?iu)(?:abgeschlossen\\p{L}*|erfolgreich\\p{L}*"
+            + "|erfahrung(?:en)?\\s+(?:als|in|im|mit)|kenntnisse\\s+(?:als|in|im)|experience\\s+(?:as|in|with)|completed)\\s+(?:\\p{L}+\\s+){0,2}$");
+    /** The second part of a compound that names the position itself ("Teilzeitstelle", "Ausbildungsplatz"; 0.10.6), folded. */
+    private static final Set<String> POSITION_WORDS = Set.of("stelle", "stellen", "job", "jobs", "kraft", "kraefte", "platz", "plaetze",
+            "anstellung", "beschaeftigung", "position", "vertrag", "modell", "modelle");
 
     /**
      * The software and system hints of the job advertisements of a careers page without job objects (0.10.2): for the site
-     * operator only where the page declares it the employer ({@link #SELF_HIRING}) and no intermediary advertises, read from
+     * operator only where the advertisement declares it the employer ({@link #employer}) and no intermediary advertises, read from
      * the text of each advertisement (section {@code job_ad_text}): a required skill stays a requirement, a system "we use"
      * internal use; nothing is a job object.
      */
@@ -1152,7 +1193,6 @@ public final class BusinessRules {
         if (postings.isEmpty()) {
             return;
         }
-        final String lead = run.text.substring(0, titles.get(0)[0]);
         for (final Posting p : postings) {
             final int[] t = {p.start, p.end, p.marker};
             final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
@@ -1160,10 +1200,8 @@ public final class BusinessRules {
                 continue;
             }
             final int windowEnd = windowEnd(run.text, titles, p.index);
-            // with the lead words of the title: "Wir suchen" declares the employer
-            final String jobText = run.text.substring(Math.min(t[0], titles.get(p.index)[0]), windowEnd);
-            if (BusinessSignals.INTERMEDIARY.matcher(jobText + " " + lead).find()
-                    || !SELF_HIRING.matcher(jobText).find() && !SELF_HIRING.matcher(lead).find()) {
+            if (!employer(run, null, sentenceStart(run.text, Math.min(t[0], titles.get(p.index)[0])),
+                    withCall(run.text, adEnd(run.text, t[1], windowEnd), windowEnd), p.page ? 0 : titles.get(0)[0])) {
                 continue; // the employer is not declared: whose systems these are stays unclear
             }
             BusinessSignals.extract(run.text.substring(t[1], windowEnd), run.subject, run.out, 2, Claim.KIND_RULE, BusinessSignals.JOB_AD + "text",
@@ -1173,7 +1211,8 @@ public final class BusinessRules {
 
     private void jobs(final Run run) {
         final List<int[]> titles = jobTitles(run.text);
-        for (final Posting posted : postings(run.text, run.url, run.titles)) {
+        final List<Posting> postings = postings(run.text, run.url, run.titles);
+        for (final Posting posted : postings) {
             final int[] t = {posted.start, posted.end, posted.marker};
             final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
             final String key = Normalizers.key(title);
@@ -1188,18 +1227,12 @@ public final class BusinessRules {
             job.jobKey = (run.subject.name == null ? "" : Normalizers.key(run.subject.name)) + "|" + key + "|"
                     + (place == null ? "" : Normalizers.key(place));
             claim(run, job, Vocabulary.NAME, title, t[0], t[1], 0.7);
-            // with the lead words of the title: "Wir suchen" declares the employer
-            final int textStart=Math.min(t[0],titles.get(posted.index)[0]);
-            final String jobText=run.text.substring(textStart,windowEnd);
-            // The site operator is not automatically the employer. Keep unidentified jobs as such.
-            final String lead=run.text.substring(0,titles.isEmpty()?0:titles.get(0)[0]);
-            final Pattern selfHiring=Pattern.compile("(?iu)wir suchen|bei uns|unser Team|we are hiring|join our team");
-            final Matcher ownJob=selfHiring.matcher(jobText),ownList=selfHiring.matcher(lead);
-            boolean employerAssigned=false;
-            if(!BusinessSignals.INTERMEDIARY.matcher(jobText+" "+lead).find()) {
-                if(ownJob.find()){relation(run,job,Vocabulary.HIRING_ORGANIZATION,run.subject,textStart+ownJob.start(),textStart+ownJob.end(),0.7);employerAssigned=true;}
-                else if(ownList.find()){relation(run,job,Vocabulary.HIRING_ORGANIZATION,run.subject,ownList.start(),ownList.end(),0.7);employerAssigned=true;}
-            }
+            // the advertisement's own text, from the sentence that announces its title ("Wir suchen") to its end (0.10.6); the
+            // lead of a list announces its positions, the page of a position has its menu there. The site operator is not
+            // automatically the employer: unidentified jobs stay so.
+            final int adEnd = adEnd(run.text, t[1], windowEnd);
+            final boolean employerAssigned = employer(run, job, sentenceStart(run.text, Math.min(t[0], titles.get(posted.index)[0])),
+                    withCall(run.text, adEnd, windowEnd), posted.page ? 0 : titles.get(0)[0]);
             // the posting is the page and its title, not the title's position: a menu that grows keeps it (0.10.5)
             final String posting=java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+"|"+key));
             if(!employerAssigned)job.jobKey="unresolved:"+posting+"|"+key;
@@ -1208,13 +1241,15 @@ public final class BusinessRules {
                 BusinessSignals.extract(run.text.substring(t[1],windowEnd),job,run.out,2,Claim.KIND_RULE,"text","text:"+t[1]);
             }
             final Set<String> types = new LinkedHashSet<>();
-            // the title states it ("Freiberufliche SAP Berater", "Werkstudent …"): a form of the term, no compound ("Ausbildungsleiter")
+            // the title states it ("Freiberufliche SAP Berater", "Werkstudent …"): a form of the term or a compound of a position
+            // ("Teilzeitkraft"), no other compound ("Ausbildungsleiter")
             for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, t[0], t[2])) {
-                if (inflected(run.text, h) && types.add(h.entry.id)) {
+                if (stated(run.text, h) && types.add(h.entry.id)) {
                     claim(run, job, Vocabulary.EMPLOYMENT_TYPE, h.entry.id, h.start, h.end, 0.7);
                 }
             }
-            for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, t[1], Math.min(windowEnd, t[1] + 400))) {
+            // or the advertisement's own text, wherever (0.10.6): never its requirements, the positions next to it or a default
+            for (final TermMatcher.Hit<Categories.Entry> h : statedTypes(run, t[1], adEnd)) {
                 if (types.add(h.entry.id)) {
                     claim(run, job, Vocabulary.EMPLOYMENT_TYPE, h.entry.id, h.start, h.end, 0.7);
                 }
@@ -1254,6 +1289,277 @@ public final class BusinessRules {
             if (!route && ap.find() && run.url != null) {
                 claim(run, job, Vocabulary.APPLICATION_ROUTE, Normalizers.url(run.url), ap.start(), ap.end(), 0.6);
             }
+            if (posted.page && postings.size() == 1) {
+                structuredPosting(run, job, title, place, employerAssigned);
+            }
+        }
+    }
+
+    /**
+     * The employer of a posting (0.10.6): the operator of the page ({@link #operator}) where the advertisement's own text between
+     * {@code from} and {@code to} declares it ({@link #SELF_HIRING}) or the lead of a list before {@code leadEnd} announces it
+     * ({@link #ANNOUNCED_HIRING}); never by the domain, the navigation or another organisation of the page. Where an intermediary
+     * advertises for its client ({@link BusinessSignals#INTERMEDIARY}) the operator recruits and the employer stays unknown. With
+     * {@code job} null nothing is written. True if the operator is the employer.
+     */
+    private boolean employer(final Run run, final Mention job, final int from, final int to, final int leadEnd) {
+        final boolean operator = operator(run);
+        final Matcher own = BusinessSignals.INTERMEDIARY.matcher(run.text).region(from, Math.max(from, to));
+        final Matcher listed = BusinessSignals.INTERMEDIARY.matcher(run.text).region(0, leadEnd);
+        final Matcher client = own.find() ? own : listed.find() ? listed : null;
+        if (client != null) {
+            if (job != null && operator) {
+                relation(run, job, Vocabulary.RECRUITING_ORGANIZATION, run.subject, client.start(), client.end(), 0.7);
+            }
+            return false;
+        }
+        if (!operator) {
+            return false;
+        }
+        final Matcher declared = SELF_HIRING.matcher(run.text).region(from, Math.max(from, to));
+        final Matcher announced = ANNOUNCED_HIRING.matcher(run.text).region(0, leadEnd);
+        final Matcher at = declared.find() ? declared : announced.find() ? announced : null;
+        if (at == null) {
+            return false;
+        }
+        if (job != null) {
+            relation(run, job, Vocabulary.HIRING_ORGANIZATION, run.subject, at.start(), at.end(), 0.7);
+        }
+        return true;
+    }
+
+    /**
+     * The page's subject is its operator (0.10.6): the operator its imprint names, the declared operator of its structured data,
+     * an organisation of its structured data on the page's own domain, or the domain's unnamed operator, which the graph joins
+     * only to the domain's one declared operator. Another organisation the page names (a client, a portal) is not who "wir" is.
+     */
+    private static boolean operator(final Run run) {
+        final Mention s = run.subject;
+        if (s.siteOperator || s.domainOperator) {
+            return true;
+        }
+        final String own = Normalizers.registrableDomain(run.host);
+        for (final Claim c : run.out.claims()) {
+            if (own != null && c.subject.equals(s.ref) && Vocabulary.WEBSITE.equals(c.predicate) && c.value != null) {
+                try {
+                    if (own.equals(Normalizers.registrableDomain(new URI(c.value).getHost()))) {
+                        return true;
+                    }
+                } catch (final Exception e) {
+                    // no website
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Start of the sentence (at most 160 characters back) that contains {@code at}. */
+    private static int sentenceStart(final String text, final int at) {
+        int a = at;
+        while (a > 0 && at - a < 160 && ".!?\n".indexOf(text.charAt(a - 1)) < 0) {
+            a--;
+        }
+        return a;
+    }
+
+    /**
+     * The end of the own text of the advertisement whose title ends at {@code from} (0.10.6): the first {@link #AD_END} after its
+     * first section, so that an application button above its tasks ends nothing; {@code windowEnd} if there is none.
+     */
+    private static int adEnd(final String text, final int from, final int windowEnd) {
+        int start = from;
+        for (final Pattern section : List.of(AD_SECTION, REQUIREMENTS, OFFER)) {
+            final Matcher s = section.matcher(text).region(from, windowEnd);
+            if (s.find() && (start == from || s.start() < start)) {
+                start = s.start();
+            }
+        }
+        final Matcher e = AD_END.matcher(text).region(start, windowEnd);
+        return e.find() ? e.start() : windowEnd;
+    }
+
+    /** {@code adEnd}, or the end of its sentence (at most 160 characters) where the advertisement ends with its application call. */
+    private static int withCall(final String text, final int adEnd, final int windowEnd) {
+        if (!APPLY_CALL.matcher(text).region(adEnd, windowEnd).lookingAt()) {
+            return adEnd;
+        }
+        int b = adEnd;
+        while (b < windowEnd && b - adEnd < 160 && ".!?\n".indexOf(text.charAt(b)) < 0) {
+            b++;
+        }
+        return b;
+    }
+
+    /**
+     * The employment types the advertisement states between {@code from} and {@code to} (0.10.6): not in its requirements (from
+     * their heading to the next offer or tasks), not as a requirement in a sentence ("abgeschlossene Ausbildung", "Erfahrung als
+     * Freelancer"), only as a form of the term or a compound of a position ({@link #stated}).
+     */
+    private List<TermMatcher.Hit<Categories.Entry>> statedTypes(final Run run, final int from, final int to) {
+        final List<int[]> requirements = new ArrayList<>();
+        int at = from;
+        while (at < to) {
+            final Matcher r = REQUIREMENTS.matcher(run.text).region(at, to);
+            if (!r.find()) {
+                break;
+            }
+            final Matcher o = OFFER.matcher(run.text).region(r.end(), to);
+            final int end = o.find() ? o.start() : to;
+            requirements.add(new int[] {r.start(), end});
+            at = end;
+        }
+        final List<TermMatcher.Hit<Categories.Entry>> out = new ArrayList<>();
+        hits: for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, from, to)) {
+            for (final int[] r : requirements) {
+                if (h.start >= r[0] && h.start < r[1]) {
+                    continue hits;
+                }
+            }
+            if (stated(run.text, h) && !REQUIRED_BEFORE.matcher(run.text.substring(Math.max(from, h.start - 60), h.start)).find()) {
+                out.add(h);
+            }
+        }
+        return out;
+    }
+
+    /** {@link #inflected}, or a compound whose second part names a position ("Teilzeitstelle", "Ausbildungsplatz"; 0.10.6). */
+    private static boolean stated(final String text, final TermMatcher.Hit<Categories.Entry> h) {
+        if (inflected(text, h)) {
+            return true;
+        }
+        final String word = TermMatcher.fold(text.substring(h.start, h.end));
+        for (final String term : h.entry.terms) {
+            final String t = TermMatcher.fold(term);
+            if (word.startsWith(t)) {
+                final String rest = word.substring(t.length());
+                // with a linking element: "Praktikumsplatz", "Werkstudentenstelle"
+                if (POSITION_WORDS.contains(rest) || rest.startsWith("s") && POSITION_WORDS.contains(rest.substring(1))
+                        || rest.startsWith("en") && POSITION_WORDS.contains(rest.substring(2))
+                        || rest.startsWith("n") && POSITION_WORDS.contains(rest.substring(1))) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * The structured posting of the page of one position is that position's advertisement (0.10.6): the one {@code JobPosting}
+     * of its JSON-LD joins the job of its rules where it names no title of its own ({@link JsonLdExtractor}: none, or the
+     * organisation's name) or the same title, and nothing of its identity contradicts the advertisement ({@link #contradicts}).
+     * Each statement keeps its tier and evidence; neither source decides for the other.
+     */
+    private static void structuredPosting(final Run run, final Mention job, final String title, final String place,
+            final boolean operatorEmploys) {
+        Mention structured = null;
+        for (final Mention m : run.out.mentions()) {
+            if (Vocabulary.JOB.equals(m.type) && m.tier == 1) {
+                if (structured != null) {
+                    return; // several postings: which is the page's is not guessed
+                }
+                structured = m;
+            }
+        }
+        if (structured == null || structured.name != null && !java.util.Objects.equals(jobKey(structured.name), jobKey(title))
+                || contradicts(run, job, structured, place, operatorEmploys)) {
+            return;
+        }
+        structured.jobKey = job.jobKey;
+        structured.ldId = null; // the page's advertisement is the posting, not its id
+    }
+
+    /**
+     * A structured posting contradicts the advertisement of its page (0.10.6) if it declares another page (its {@code url}, or an
+     * {@code @id} that is the address of another page), another place of work than the advertisement's ("Standort: …"), or
+     * another employer: an organisation that is not the operator where the advertisement declares the operator, the operator
+     * where the advertisement recruits for a client, or an intermediary's posting where the advertisement is the operator's own.
+     * What either source leaves open contradicts nothing.
+     */
+    private static boolean contradicts(final Run run, final Mention job, final Mention structured, final String place,
+            final boolean operatorEmploys) {
+        if (structured.postingUrl != null && !samePage(structured.postingUrl, run.url)) {
+            return true;
+        }
+        if (structured.ldId != null && structured.ldId.matches("(?i)https?://.*") && !samePage(structured.ldId, run.url)) {
+            return true;
+        }
+        final String own = Normalizers.key(place);
+        if (own != null && structured.jobPlace != null && !own.equals(structured.jobPlace)) {
+            return true;
+        }
+        boolean recruits = false;
+        for (final Claim c : run.out.claims()) {
+            if (c.subject.equals(job.ref) && Vocabulary.RECRUITING_ORGANIZATION.equals(c.predicate)) {
+                recruits = true;
+            }
+        }
+        for (final Claim c : run.out.claims()) {
+            if (!c.subject.equals(structured.ref)) {
+                continue;
+            }
+            if (Vocabulary.RECRUITING_ORGANIZATION.equals(c.predicate) && operatorEmploys) {
+                return true; // the posting is an intermediary's, the advertisement the operator's own
+            }
+            if (Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)) {
+                final boolean operator = isOperator(run, run.out.mention(c.object));
+                if (operatorEmploys && !operator || recruits && operator) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** The organisation is the page's operator: declared so, the subject of the page by its name, or on the page's own domain. */
+    private static boolean isOperator(final Run run, final Mention o) {
+        if (o == null) {
+            return false;
+        }
+        if (o.siteOperator || o.domainOperator || o.ref.equals(run.subject.ref)) {
+            return true;
+        }
+        final String legal = Normalizers.legalNameKey(o.legalName);
+        if (legal != null && legal.equals(Normalizers.legalNameKey(run.subject.legalName))) {
+            return true;
+        }
+        final String name = Normalizers.key(o.name);
+        if (name != null && (name.equals(Normalizers.key(run.subject.name)) || name.equals(Normalizers.key(run.subject.legalName)))) {
+            return true;
+        }
+        final String domain = Normalizers.registrableDomain(run.host);
+        for (final Claim c : run.out.claims()) {
+            if (domain != null && c.subject.equals(o.ref) && Vocabulary.WEBSITE.equals(c.predicate) && c.value != null) {
+                try {
+                    if (domain.equals(Normalizers.registrableDomain(new URI(c.value).getHost()))) {
+                        return true;
+                    }
+                } catch (final Exception e) {
+                    // no website
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Two addresses name the same page: host (without "www."), path (without a final "/") and query; scheme and fragment aside. */
+    private static boolean samePage(final String a, final String b) {
+        final String pa = page(a);
+        return pa != null && pa.equals(page(b));
+    }
+
+    private static String page(final String url) {
+        try {
+            final URI u = new URI(url.trim());
+            if (u.getHost() == null) {
+                return null;
+            }
+            String path = u.getRawPath() == null ? "" : u.getRawPath();
+            while (path.endsWith("/")) {
+                path = path.substring(0, path.length() - 1);
+            }
+            return u.getHost().toLowerCase(Locale.ROOT).replaceFirst("^www\\.", "") + path + (u.getRawQuery() == null ? "" : "?" + u.getRawQuery());
+        } catch (final Exception e) {
+            return null;
         }
     }
 

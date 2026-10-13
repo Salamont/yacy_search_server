@@ -205,11 +205,32 @@ public final class SyncService {
     /**
      * kg_meta (0.10.4): the version of the relation rules the check above belongs to. 1 (0.10.3, no row): consent banners name
      * no partner; 2 (0.10.4): a list ends with its sentence; 3 (0.10.5): a department is no membership ("Mitglied des
-     * Einkaufs"), and a careers page has the positions it advertises as jobs, not the entries of its menu. A graph checked with
-     * older rules is checked once more.
+     * Einkaufs"), and a careers page has the positions it advertises as jobs, not the entries of its menu; 4 (0.10.6): the
+     * operator is a job's employer where the advertisement declares it, never by its domain or navigation, an intermediary
+     * recruits, an employment type is one the advertisement states, and the JSON-LD posting of a position's page is that
+     * position (its nodes keep their kinds, a title that names the organisation is none). A graph checked with older rules is
+     * checked once more; after a complete check of the rules 3 only its job pages ({@link #META_RELATION_RECHECK_SCOPE}).
      */
     static final String META_RELATION_RULES = "relation_recheck_rules";
-    static final String RELATION_RULES = "3";
+    static final String RELATION_RULES = "4";
+    /**
+     * kg_meta (0.10.6): {@code jobs} while the check covers only the pages with a job of any tier or a hint of an advertisement:
+     * the rules 4 changed nothing else, and the graph was completely checked with the rules 3. No row: every page of the check.
+     */
+    static final String META_RELATION_RECHECK_SCOPE = "relation_recheck_scope";
+    /**
+     * kg_meta (0.10.6): the number of pages the check of the current rules selected when it started. With the scope, the start
+     * and the end of the check it is in the status ({@code relationRecheckInfo}), since the event {@code relation_rules_recheck}
+     * may be displaced from the bounded event log (identity conflicts of changed job keys).
+     */
+    static final String META_RELATION_RECHECK_PAGES = "relation_recheck_pages";
+    /**
+     * kg_meta (0.10.6): the pages of the check whose extraction failed for good ({@code doc_failed}), as a JSON array of document
+     * IDs (at most {@link #RECHECK_FAILED_MAX}). They keep the check open, are extracted again with their next change or at the
+     * next start, and leave the list with their publication.
+     */
+    static final String META_RELATION_RECHECK_FAILED = "relation_recheck_failed";
+    static final int RECHECK_FAILED_MAX = 200;
     /** The relations the rule tier reads after a marker (BusinessRules); the fixes of 0.10.3 and 0.10.4 may change them. */
     static final List<String> RECHECK_RELATIONS = List.of(Vocabulary.CARRIER_OF, Vocabulary.SUBSIDIARY_OF, Vocabulary.PARENT_OF,
             Vocabulary.BRAND_OF, Vocabulary.COOPERATION_WITH, Vocabulary.PARTNER_OF, Vocabulary.CUSTOMER_OF, Vocabulary.REFERENCE_FOR,
@@ -224,10 +245,21 @@ public final class SyncService {
      * (no title of the rules). Counted only; nothing of the LLM tier is changed.
      */
     static final String META_RECHECK_LLM_JOBS = "relation_recheck_llm_jobs";
+    /**
+     * kg_meta (0.10.6): {@link #META_RECHECK_LLM_JOBS} of the check before, with its {@code rules}: a new check counts again,
+     * the count before stays readable (status {@code relationRecheckLlmJobsBefore}). Nothing of the LLM tier is changed.
+     */
+    static final String META_RECHECK_LLM_JOBS_BEFORE = "relation_recheck_llm_jobs_before";
     /** The audit of each page re-checked in the current batch, added to {@link #META_RECHECK_LLM_JOBS} with its publication. */
     private final Map<String, long[]> llmJobAudit = new java.util.concurrent.ConcurrentHashMap<>();
     /** {@link #META_RECHECK_LLM_JOBS} as last written (status). */
     private volatile JSONObject llmJobs = new JSONObject();
+    /** {@link #META_RECHECK_LLM_JOBS_BEFORE} (status). */
+    private volatile JSONObject llmJobsBefore = new JSONObject();
+    /** The check of the current rules as kg_meta has it: rules, scope, pages, since, done; written at the start and at its end. */
+    private volatile JSONObject recheckInfo = new JSONObject();
+    /** {@link #META_RELATION_RECHECK_FAILED} as last written (status). */
+    private final java.util.Set<String> recheckFailed = java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /**
      * 0.10.3: a consent banner ("an unsere Partner für soziale Medien, Werbung und Analysen weiter") made purposes partner
@@ -241,12 +273,32 @@ public final class SyncService {
      * page extracted since then is not named again, and an empty selection ends the check for good.
      */
     private List<String> relationRecheck(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
-        if (!RELATION_RULES.equals(KgStore.getMeta(tx, META_RELATION_RULES))) {
+        final String rules = KgStore.getMeta(tx, META_RELATION_RULES);
+        if (!RELATION_RULES.equals(rules)) {
+            // checked completely with the rules 3: the rules 4 changed only the reading of jobs, so only the job pages (0.10.6)
+            if ("3".equals(rules) && KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
+                KgStore.putMeta(tx, META_RELATION_RECHECK_SCOPE, "jobs");
+            } else {
+                KgStore.deleteMeta(tx, META_RELATION_RECHECK_SCOPE);
+            }
+            final String counted = KgStore.getMeta(tx, META_RECHECK_LLM_JOBS);
+            if (counted != null && rules != null) {
+                try {
+                    final JSONObject before = new JSONObject(counted);
+                    KgJson.put(before, "rules", rules);
+                    KgStore.putMeta(tx, META_RECHECK_LLM_JOBS_BEFORE, before.toString());
+                } catch (final org.json.JSONException e) {
+                    // unreadable: nothing to keep
+                }
+            }
             KgStore.deleteMeta(tx, META_RELATION_RECHECK); // checked with older rules (0.10.3) or never: once with these
             KgStore.deleteMeta(tx, META_RELATION_RECHECK_DONE);
+            KgStore.deleteMeta(tx, META_RELATION_RECHECK_PAGES);
+            KgStore.deleteMeta(tx, META_RELATION_RECHECK_FAILED);
             KgStore.deleteMeta(tx, META_RECHECK_LLM_JOBS); // counted by the check of these rules
             KgStore.putMeta(tx, META_RELATION_RULES, RELATION_RULES);
         }
+        final boolean jobsOnly = "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE));
         if (KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
             return List.of();
         }
@@ -255,6 +307,34 @@ public final class SyncService {
         if (stored == null) {
             KgStore.putMeta(tx, META_RELATION_RECHECK, Long.toString(since));
         }
+        final List<String> ids = recheckPages(tx, since, jobsOnly, -1);
+        if (stored == null) {
+            KgStore.putMeta(tx, META_RELATION_RECHECK_PAGES, Integer.toString(ids.size()));
+        }
+        if (ids.isEmpty()) {
+            finishRecheck(tx, now, stored != null);
+            return ids;
+        }
+        if (stored == null) {
+            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + (jobsOnly ? " pages with jobs or advertisement hints extracted again"
+                    + " (rules " + RELATION_RULES + ": the employer an advertisement declares, an intermediary recruits, the employment type"
+                    + " it states, the JSON-LD posting of a position's page); no other page"
+                    : " pages with relations or jobs extracted again (rules " + RELATION_RULES + ": consent banners are no partners, a list"
+                    + " ends with its sentence, a department is no membership, a menu entry is no job, the employer and employment type an"
+                    + " advertisement states); no other page"), now);
+        }
+        WorkQueue.scanned(tx, ids, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_REEXTRACT, 0L, now, this.queueMax);
+        return ids;
+    }
+
+    /**
+     * The active pages of the check not processed since it started ({@code since}), at most {@code limit} (-1: all): with a
+     * relation of the rule tier (not with the scope jobs), a job of any tier (the JSON-LD posting of 0.10.6 too), or a hint read
+     * from an advertisement (BusinessSignals.JOB_AD) of tiers 1 and 2; a job of the LLM tier: its page is extracted again (tiers 1
+     * and 2) and its evidence counted (llmJobAudit). The same selection decides at the start and at the end of the check.
+     */
+    private static List<String> recheckPages(final java.sql.Connection tx, final long since, final boolean jobsOnly, final int limit)
+            throws java.sql.SQLException {
         final List<String> ids = new ArrayList<>();
         final StringBuilder in = new StringBuilder();
         for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
@@ -264,35 +344,103 @@ public final class SyncService {
                 + " AND (d.processed_at IS NULL OR d.processed_at < ?) AND EXISTS (SELECT 1 FROM kg_evidence e"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred"
                 + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
-                + " WHERE e.doc_rowid = d.doc_rowid AND (e.tier = 2 AND (v.name IN (" + in + ") OR t.name = ?"
-                + " OR v.name = ? AND s.obj_val LIKE ? ESCAPE '\\') OR e.tier = 3 AND t.name = ?)) ORDER BY d.doc_id")) {
+                + " WHERE e.doc_rowid = d.doc_rowid AND (e.tier = 2 AND v.name IN (" + in + ") AND ? = 0 OR t.name = ?"
+                + " OR e.tier IN (1, 2) AND v.name = ? AND s.obj_val LIKE ? ESCAPE '\\')) ORDER BY d.doc_id"
+                + (limit >= 0 ? " LIMIT " + limit : ""))) {
             ps.setLong(1, since);
             for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
                 ps.setString(i + 2, RECHECK_RELATIONS.get(i));
             }
-            // a job of the rule tier, or a hint read from the text of an advertisement (BusinessSignals.JOB_AD)
-            ps.setString(RECHECK_RELATIONS.size() + 2, Vocabulary.JOB);
-            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.SYSTEM_SIGNAL);
-            ps.setString(RECHECK_RELATIONS.size() + 4, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
-            // a job of the LLM tier: its page is extracted again (tiers 1 and 2) and its evidence counted (llmJobAudit)
-            ps.setString(RECHECK_RELATIONS.size() + 5, Vocabulary.JOB);
+            ps.setInt(RECHECK_RELATIONS.size() + 2, jobsOnly ? 1 : 0);
+            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.JOB);
+            ps.setString(RECHECK_RELATIONS.size() + 4, Vocabulary.SYSTEM_SIGNAL);
+            ps.setString(RECHECK_RELATIONS.size() + 5, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
             try (java.sql.ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ids.add(rs.getString(1));
                 }
             }
         }
-        if (ids.isEmpty()) {
-            KgStore.putMeta(tx, META_RELATION_RECHECK_DONE, Long.toString(now));
-            return ids;
-        }
-        if (stored == null) {
-            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations or jobs of the rule tier extracted again"
-                    + " (consent banners are no partners, a list ends with its sentence, a department is no membership, a menu entry"
-                    + " is no job); no other page", now);
-        }
-        WorkQueue.scanned(tx, ids, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_REEXTRACT, 0L, now, this.queueMax);
         return ids;
+    }
+
+    /** Ends the check: {@link #META_RELATION_RECHECK_DONE} and, for a check that ran ({@code ran}), its event. */
+    private static void finishRecheck(final java.sql.Connection tx, final long now, final boolean ran) throws java.sql.SQLException {
+        KgStore.putMeta(tx, META_RELATION_RECHECK_DONE, Long.toString(now));
+        KgStore.deleteMeta(tx, META_RELATION_RECHECK_FAILED);
+        if (ran) {
+            final String pages = KgStore.getMeta(tx, META_RELATION_RECHECK_PAGES);
+            KgStore.event(tx, 1, "relation_rules_recheck_done", "rules " + RELATION_RULES + ": " + (pages == null ? "the" : pages)
+                    + " pages of the check extracted again or no longer active; none failed", now);
+        }
+    }
+
+    /**
+     * A page of the check leaves it (0.10.6): published with the current rules, or no longer active. Inside the write of that
+     * publication: the page leaves the list of failed pages, and if it is the last page of the check and no page of the selection
+     * is left, the check ends in the same write (no half-written end; a refused write leaves the page and the check open).
+     * Returns the time of the end, or null.
+     */
+    private Long recheckLeft(final java.sql.Connection tx, final String docId, final long now) throws java.sql.SQLException {
+        if (this.recheckFailed.contains(docId)) {
+            final java.util.Set<String> failed = new java.util.TreeSet<>(this.recheckFailed);
+            failed.remove(docId);
+            storeRecheckFailed(tx, failed);
+        }
+        if (this.recheckRelations.size() != 1 || !this.recheckRelations.contains(docId)
+                || KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
+            return null;
+        }
+        final String stored = KgStore.getMeta(tx, META_RELATION_RECHECK);
+        if (stored == null || !recheckPages(tx, Long.parseLong(stored), "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE)), 2)
+                .stream().allMatch(docId::equals)) {
+            return null; // pages of the selection outside this process's list (e.g. beyond the queue limit): the next start names them
+        }
+        finishRecheck(tx, now, true);
+        return now;
+    }
+
+    private static void storeRecheckFailed(final java.sql.Connection tx, final java.util.Set<String> failed) throws java.sql.SQLException {
+        if (failed.isEmpty()) {
+            KgStore.deleteMeta(tx, META_RELATION_RECHECK_FAILED);
+            return;
+        }
+        final org.json.JSONArray a = new org.json.JSONArray();
+        for (final String id : failed) {
+            if (a.length() >= RECHECK_FAILED_MAX) {
+                break;
+            }
+            a.put(id);
+        }
+        KgStore.putMeta(tx, META_RELATION_RECHECK_FAILED, a.toString());
+    }
+
+    /**
+     * The check as the status shows it: {@link #recheckInfo} (rules, scope, pages selected at its start, since, done) with the
+     * pages still open in this process and the pages that failed for good ({@code failed}, the first IDs in {@code failedPages}).
+     */
+    private JSONObject recheckStatus() {
+        final JSONObject info = json(this.recheckInfo.toString());
+        KgJson.put(info, "open", this.recheckRelations.size());
+        final java.util.Set<String> failed = new java.util.TreeSet<>(this.recheckFailed);
+        KgJson.put(info, "failed", failed.size());
+        final org.json.JSONArray ids = new org.json.JSONArray();
+        for (final String id : failed) {
+            if (ids.length() >= 20) {
+                break;
+            }
+            ids.put(id);
+        }
+        KgJson.put(info, "failedPages", ids);
+        return info;
+    }
+
+    /** The cached {@link #recheckInfo} with the end of the check. */
+    private void recheckDone(final long at) {
+        final JSONObject info = json(this.recheckInfo.toString());
+        KgJson.put(info, "done", at);
+        this.recheckInfo = info;
+        this.recheckFailed.clear();
     }
 
     /**
@@ -394,6 +542,26 @@ public final class SyncService {
             this.recheckRelations.clear();
             this.recheckRelations.addAll(relationRecheck(tx, now));
             this.llmJobs = llmJobAudit(tx);
+            this.llmJobsBefore = json(KgStore.getMeta(tx, META_RECHECK_LLM_JOBS_BEFORE));
+            final String pages = KgStore.getMeta(tx, META_RELATION_RECHECK_PAGES);
+            final String since = KgStore.getMeta(tx, META_RELATION_RECHECK);
+            final String done = KgStore.getMeta(tx, META_RELATION_RECHECK_DONE);
+            this.recheckFailed.clear();
+            final String failed = KgStore.getMeta(tx, META_RELATION_RECHECK_FAILED);
+            if (failed != null) {
+                try {
+                    final org.json.JSONArray a = new org.json.JSONArray(failed);
+                    for (int i = 0; i < a.length(); i++) {
+                        this.recheckFailed.add(a.optString(i));
+                    }
+                } catch (final org.json.JSONException e) {
+                    // unreadable: the pages are named again by the selection, only the list is lost
+                }
+            }
+            this.recheckInfo = KgJson.obj("rules", KgStore.getMeta(tx, META_RELATION_RULES), "scope",
+                    "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE)) ? "jobs" : "all", "pages",
+                    pages == null ? null : Long.valueOf(pages), "since", since == null ? null : Long.valueOf(since), "done",
+                    done == null ? null : Long.valueOf(done));
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
                     KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold, jobs};
         });
@@ -811,8 +979,12 @@ public final class SyncService {
 
     /** {@link #META_RECHECK_LLM_JOBS} as stored; empty if none or unreadable. */
     private static JSONObject llmJobAudit(final java.sql.Connection c) throws java.sql.SQLException {
+        return json(KgStore.getMeta(c, META_RECHECK_LLM_JOBS));
+    }
+
+    /** A stored JSON object; empty if none or unreadable. */
+    private static JSONObject json(final String stored) {
         try {
-            final String stored = KgStore.getMeta(c, META_RECHECK_LLM_JOBS);
             return stored == null ? new JSONObject() : new JSONObject(stored);
         } catch (final org.json.JSONException e) {
             return new JSONObject();
@@ -840,7 +1012,7 @@ public final class SyncService {
             throws KgException {
         final long now = this.clock.getAsLong();
         final long resetMark = this.handledResets;
-        final Object[] outcome = new Object[2];
+        final Object[] outcome = new Object[4];
         try {
             this.store.write(cls, cls == WriteClass.GROWTH ? PUBLISH_ESTIMATE : SMALL, tx -> {
                 if (this.dirty.hasNewer(item.docId, doc.solrVersion) || this.dirty.fullResets() != resetMark) {
@@ -857,6 +1029,13 @@ public final class SyncService {
                 final long[] audit = r.outcome == Publisher.Outcome.PUBLISHED ? this.llmJobAudit.get(item.docId) : null;
                 outcome[1] = audit == null ? null : addLlmJobAudit(tx, audit);
                 outcome[0] = r.outcome;
+                // a page of the check leaves it when it is published with the current rules or is no longer active (0.10.6)
+                if (this.recheckRelations.contains(item.docId) && (r.outcome == Publisher.Outcome.PUBLISHED
+                        || r.outcome == Publisher.Outcome.UNCHANGED || r.outcome == Publisher.Outcome.LIFECYCLE
+                        && doc.state != Aggregates.STATE_ACTIVE)) {
+                    outcome[2] = Boolean.TRUE;
+                    outcome[3] = recheckLeft(tx, item.docId, now);
+                }
                 return null;
             });
             if (outcome[1] != null) {
@@ -867,13 +1046,19 @@ public final class SyncService {
             this.terms.forgetCollections();
             return refused(item, e, cls);
         }
+        if (outcome[2] != null) {
+            this.recheckFailed.remove(item.docId);
+            this.recheckRelations.remove(item.docId);
+            if (outcome[3] != null) {
+                recheckDone((Long) outcome[3]);
+            }
+        }
         if ("superseded".equals(outcome[0])) {
             this.counters.supersededAborts.incrementAndGet();
             return true;
         }
         switch ((Publisher.Outcome) outcome[0]) {
             case PUBLISHED:
-                this.recheckRelations.remove(item.docId);
                 this.counters.published.incrementAndGet();
                 JsonLdCapture.synced(item.docId);
                 final Runnable wake = this.llmWake;
@@ -882,7 +1067,6 @@ public final class SyncService {
                 }
                 break;
             case UNCHANGED:
-                this.recheckRelations.remove(item.docId);
                 this.counters.unchanged.incrementAndGet();
                 JsonLdCapture.synced(item.docId);
                 break;
@@ -916,6 +1100,7 @@ public final class SyncService {
             return complete(item);
         }
         final boolean[] removed = new boolean[1];
+        final Long[] done = new Long[1];
         try {
             this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
                 // a pending event (a re-add after the read) decides instead
@@ -930,11 +1115,20 @@ public final class SyncService {
                 } else {
                     WorkQueue.complete(tx, item);
                     removed[0] = true;
+                    if (this.recheckRelations.contains(item.docId)) {
+                        done[0] = recheckLeft(tx, item.docId, this.clock.getAsLong()); // no longer in the graph: it leaves the check
+                    }
                 }
                 return null;
             });
         } catch (final KgException e) {
             return refused(item, e, WriteClass.MAINTENANCE);
+        }
+        if (removed[0] && this.recheckRelations.remove(item.docId)) {
+            this.recheckFailed.remove(item.docId);
+            if (done[0] != null) {
+                recheckDone(done[0]);
+            }
         }
         if (removed[0]) {
             this.counters.removed.incrementAndGet();
@@ -1019,12 +1213,22 @@ public final class SyncService {
         }
         if (last) {
             this.counters.failedDocs.incrementAndGet();
+            // a page of the check that fails for good keeps it open (0.10.6): it stays in the check and in its list of failed pages
+            final boolean checked = this.recheckRelations.contains(item.docId);
             try {
                 this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
                     WorkQueue.complete(tx, item);
                     KgStore.event(tx, 2, "doc_failed", item.docId + ": " + code, now);
+                    if (checked) {
+                        final java.util.Set<String> failed = new java.util.TreeSet<>(this.recheckFailed);
+                        failed.add(item.docId);
+                        storeRecheckFailed(tx, failed);
+                    }
                     return null;
                 });
+                if (checked) {
+                    this.recheckFailed.add(item.docId);
+                }
             } catch (final KgException ignored) {
                 // stays queued
             }
@@ -1117,7 +1321,9 @@ public final class SyncService {
                         "oldestAgeSeconds", oldest),
                 "processed", this.counters.json(), "versionCheckpoint", this.versionCheckpoint > 0L ? this.versionCheckpoint : null,
                 "reconcile", this.reconciler.status(), "relationRecheck", this.recheckRelations.size(),
-                "relationRecheckLlmJobs", this.llmJobs, "retention", this.retention.status(),
+                "relationRecheckInfo", recheckStatus(), "relationRecheckLlmJobs", this.llmJobs,
+                "relationRecheckLlmJobsBefore", this.llmJobsBefore,
+                "retention", this.retention.status(),
                 "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending(),
                         "byType", this.pendingByType));
     }
