@@ -1025,7 +1025,7 @@ public class SyncServiceTest {
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
-        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '3'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
         // a graph of 0.10.3: checked with the rules before (no version row); the current rules check the page once more
         this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
             KgStore.deleteMeta(tx, "relation_recheck_rules");
@@ -1107,13 +1107,84 @@ public class SyncServiceTest {
                 + " ON s.stmt_rowid = e.stmt_rowid JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
                 + " WHERE t.name = 'job'"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck' AND detail LIKE '2 pages %'"));
-        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '3'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
         // a restart: nothing again
         stop(true);
         start(1000, false);
         settle();
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+    }
+
+    /**
+     * 0.10.6: the rules of a job's employer, employment type and structured posting changed (rules 4). A graph whose check with
+     * the rules 3 is complete is checked once more, but only on its pages with a job of any tier or a hint of an advertisement;
+     * a page with relations only is not extracted again. The count of the LLM tier's job evidence of the check before stays.
+     */
+    @Test
+    public void aGraphCheckedWithRules3ChecksOnlyItsJobPagesOnce() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.JOBS_COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        client().add(careersPage("JOBDETmswr01", "https://www.muster-software.example/jobs-karriere/stellenangebote/freiberuflicher-sap-berater/",
+                "Freiberuflicher SAP-Berater (m/w/d) | Muster Software", ADVERTISEMENT));
+        // a structured posting only (tier 1)
+        client().add(doc("JOBLDDmswr01", "https://www.muster-software.example/stellen/buchhalter/", "c1", "{\"@type\":\"JobPosting\","
+                + "\"title\":\"Buchhalter (m/w/d)\",\"employmentType\":\"FULL_TIME\",\"hiringOrganization\":{\"@type\":\"Organization\","
+                + "\"name\":\"Muster Software GmbH\",\"url\":\"https://www.muster-software.example/\"}}"));
+        final SolrInputDocument partners = doc("PARTNEhost01", "https://www.partner.example/partner", "c1", null);
+        partners.setField("text_t", List.of("Unsere Partner: Muster Software GmbH und Beispiel AG."));
+        client().add(partners);
+        commit();
+        settle();
+        assertTrue(count(JOBS_OF + "'JOBDETmswr01'") > 0L);
+        assertTrue(count(JOBS_OF + "'JOBLDDmswr01'") > 0L);
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
+        final String partner = hash("PARTNEhost01");
+        // as 0.10.5 left it: the check of the rules 3 complete, with its count of the LLM tier's job evidence
+        final String counted = "{\"pages\":151,\"menuJobs\":39,\"menuEvidence\":40,\"positionEvidence\":8,\"otherEvidence\":344}";
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.putMeta(tx, "relation_recheck_rules", "3");
+            KgStore.putMeta(tx, "relation_recheck_llm_jobs", counted);
+            return null;
+        });
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals("the two job pages, not the page with partners", 2L, this.sync.counters.extractions.get());
+        assertEquals(partner, hash("PARTNEhost01"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck' AND detail LIKE '2 pages %'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
+        final JSONObject before = this.sync.status().getJSONObject("relationRecheckLlmJobsBefore");
+        assertEquals(before.toString(), "3", before.getString("rules"));
+        assertEquals(before.toString(), 40L, before.getLong("menuEvidence"));
+        // the check is readable without its event, which identity conflicts may displace from the bounded log
+        final JSONObject info = this.sync.status().getJSONObject("relationRecheckInfo");
+        assertEquals(info.toString(), "4", info.getString("rules"));
+        assertEquals(info.toString(), "jobs", info.getString("scope"));
+        assertEquals(info.toString(), 2L, info.getLong("pages"));
+        assertTrue(info.toString(), info.isNull("done"));
+        // a restart: nothing again, the count before stays
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+        assertEquals(40L, this.sync.status().getJSONObject("relationRecheckLlmJobsBefore").getLong("menuEvidence"));
+        final JSONObject ended = this.sync.status().getJSONObject("relationRecheckInfo");
+        assertEquals(ended.toString(), 2L, ended.getLong("pages"));
+        assertFalse(ended.toString(), ended.isNull("done"));
+        // a check of the rules 3 that did not complete: the full check once with the rules 4
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            KgStore.putMeta(tx, "relation_recheck_rules", "3");
+            KgStore.deleteMeta(tx, "relation_recheck_since");
+            KgStore.deleteMeta(tx, "relation_recheck_done");
+            return null;
+        });
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals("the job pages and the page with partners", 3L, this.sync.counters.extractions.get());
     }
 
     /** Everything a page is the evidence of: subject, statement, predicate, object or value, tier and locator. */

@@ -19,8 +19,10 @@ package net.yacy.scoutro.knowledge.extract;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -73,8 +75,12 @@ public final class JsonLdExtractor {
         final String country;
         final Extraction out;
         final ExtractContext ctx;
-        final Map<String, JSONObject> byId = new HashMap<>();
+        /** The described nodes of each {@code @id}: one id may name nodes of several kinds (an error of the source). */
+        final Map<String, List<JSONObject>> byId = new HashMap<>();
+        /** The mention of each node with an {@code @id}, by id and graph type ({@link #idKey}). */
         final Map<String, String> refById = new HashMap<>();
+        /** The names of the organisations and sites the blocks describe, and of the site's domain, as keys: no position title. */
+        final Set<String> names = new HashSet<>();
 
         Run(final String pageUrl, final String host, final String language, final Extraction out, final ExtractContext ctx) {
             this.pageUrl = pageUrl;
@@ -84,6 +90,11 @@ public final class JsonLdExtractor {
             this.country = BusinessFacts.country(host);
             this.out = out;
             this.ctx = ctx == null ? ExtractContext.none() : ctx;
+            final int dot = this.domain == null ? -1 : this.domain.indexOf('.');
+            final String label = dot > 0 ? Normalizers.key(this.domain.substring(0, dot)) : null;
+            if (label != null) {
+                this.names.add(label);
+            }
         }
     }
 
@@ -131,8 +142,23 @@ public final class JsonLdExtractor {
         } else if (v instanceof JSONObject) {
             final JSONObject o = (JSONObject) v;
             final String id = absoluteId(run, o.optString("@id", null));
-            if (id != null && o.length() > 1 && !run.byId.containsKey(id)) {
-                run.byId.put(id, o);
+            if (id != null && o.length() > 1) {
+                run.byId.computeIfAbsent(id, k -> new ArrayList<>()).add(o);
+            }
+            final String kind = graphType(JsonLdBlocks.types(o));
+            boolean site = false;
+            for (final String t : JsonLdBlocks.types(o)) {
+                site |= "website".equals(bare(t));
+            }
+            if (site || Vocabulary.ORGANIZATION.equals(kind) || Vocabulary.FACILITY.equals(kind)) {
+                for (final String key : new String[] {"name", "legalName", "alternateName"}) {
+                    for (final String n : strings(o.opt(key))) {
+                        final String k = Normalizers.key(n);
+                        if (k != null) {
+                            run.names.add(k);
+                        }
+                    }
+                }
             }
             for (final String k : o.keySet()) {
                 final Object c = o.opt(k);
@@ -178,14 +204,33 @@ public final class JsonLdExtractor {
         JSONObject o = in;
         String p = path;
         final String id = absoluteId(run, o.optString("@id", null));
-        if (id != null) {
-            final String known = run.refById.get(id);
+        if (id != null && o.length() <= 2) {
+            // a bare {"@id": ...} reference to a node described elsewhere on the page: the node of the kind the reference expects
+            // (0.10.6); an id that names only nodes of another kind (the posting itself, a page) names no such node
+            final String expected = graphType(JsonLdBlocks.types(o)) != null ? graphType(JsonLdBlocks.types(o)) : forcedType;
+            final String known = known(run, id, expected);
             if (known != null) {
                 return known;
             }
-            final JSONObject full = run.byId.get(id);
-            if (full != null && full != o && o.length() <= 2) {
-                o = full; // a bare {"@id": ...} reference to a node described elsewhere on the page
+            final List<JSONObject> described = run.byId.get(id);
+            if (described != null) {
+                JSONObject full = null;
+                boolean other = false;
+                for (final JSONObject d : described) {
+                    if (d == o) {
+                        continue;
+                    }
+                    if (!compatible(expected, d)) {
+                        other = true;
+                    } else if (full == null || rank(graphType(JsonLdBlocks.types(d))) > rank(graphType(JsonLdBlocks.types(full)))) {
+                        full = d;
+                    }
+                }
+                if (full != null) {
+                    o = full;
+                } else if (other) {
+                    return null;
+                }
             }
         }
         String type = null;
@@ -222,19 +267,26 @@ public final class JsonLdExtractor {
             }
             return null; // job objects are switched on per collection
         }
+        if (id != null && run.refById.get(idKey(id, type)) != null) {
+            return run.refById.get(idKey(id, type)); // the same node again (nested and at the top); another kind is another node
+        }
         final Mention existing = run.out.mention(p);
         if (existing != null) {
             return existing.ref;
         }
         final Mention m = run.out.add(new Mention(p, type, 1));
         if (id != null) {
-            run.refById.put(id, m.ref);
+            run.refById.put(idKey(id, type), m.ref);
             m.ldId = id;
         }
         m.subkind = Vocabulary.FACILITY.equals(type) ? Vocabulary.facilityKind(schemaType) : null;
 
-        final String name = Normalizers.clip(string(o.opt(Vocabulary.JOB.equals(type) && o.has("title") ? "title" : "name")), 300);
-        final String legal = Normalizers.legalName(string(o.opt("legalName")) != null ? string(o.opt("legalName")) : name);
+        String name = Normalizers.clip(string(o.opt(Vocabulary.JOB.equals(type) && o.has("title") ? "title" : "name")), 300);
+        if (Vocabulary.JOB.equals(type) && name != null && run.names.contains(Normalizers.key(name))) {
+            name = null; // the title names the organisation, its site or its domain: no position (0.10.6); the posting stays
+        }
+        final String legal = Vocabulary.JOB.equals(type) ? null
+                : Normalizers.legalName(string(o.opt("legalName")) != null ? string(o.opt("legalName")) : name);
         m.name = name != null ? name : legal;
         m.legalName = legal;
         literal(run, m, Vocabulary.NAME, m.name, p + "/name", "name: " + m.name);
@@ -264,8 +316,61 @@ public final class JsonLdExtractor {
         return m.ref;
     }
 
+    /** The graph type of the declared types of a node, the highest by {@link #rank}; null if none is one. */
+    private static String graphType(final List<String> declared) {
+        String type = null;
+        for (final String t : declared) {
+            final String g = Vocabulary.typeOf(t);
+            if (g != null && (type == null || rank(g) > rank(type))) {
+                type = g;
+            }
+        }
+        return type;
+    }
+
+    /** {@code id} and graph {@code type}: the key of a node's mention in {@link Run#refById}. */
+    private static String idKey(final String id, final String type) {
+        return id + "\u0000" + type;
+    }
+
+    /** The graph types a reference expecting {@code expected} may name: an organisation may be a facility, a place too. */
+    private static List<String> accepted(final String expected) {
+        if (Vocabulary.ORGANIZATION.equals(expected)) {
+            return List.of(Vocabulary.FACILITY, Vocabulary.ORGANIZATION);
+        }
+        if (Vocabulary.SITE.equals(expected)) {
+            return List.of(Vocabulary.FACILITY, Vocabulary.SITE);
+        }
+        return expected == null ? List.of(Vocabulary.FACILITY, Vocabulary.ORGANIZATION, Vocabulary.SITE, Vocabulary.SERVICE, Vocabulary.JOB)
+                : List.of(expected);
+    }
+
+    /** The mention of a node with {@code id} of a kind the reference expects; null if none is known yet. */
+    private static String known(final Run run, final String id, final String expected) {
+        for (final String type : accepted(expected)) {
+            final String ref = run.refById.get(idKey(id, type));
+            if (ref != null) {
+                return ref;
+            }
+        }
+        return null;
+    }
+
+    /** A described node may stand for a reference that expects {@code expected}: an untyped node always, a page never. */
+    private static boolean compatible(final String expected, final JSONObject node) {
+        final List<String> declared = JsonLdBlocks.types(node);
+        if (declared.isEmpty()) {
+            return true;
+        }
+        final String type = graphType(declared);
+        return type == null ? expected == null : accepted(expected).contains(type);
+    }
+
     /** Graph types win over each other in this order when a node has several types. */
     private static int rank(final String type) {
+        if (type == null) {
+            return 0;
+        }
         switch (type) {
             case Vocabulary.FACILITY:
                 return 4;

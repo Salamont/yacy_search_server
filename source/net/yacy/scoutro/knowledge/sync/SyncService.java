@@ -205,11 +205,25 @@ public final class SyncService {
     /**
      * kg_meta (0.10.4): the version of the relation rules the check above belongs to. 1 (0.10.3, no row): consent banners name
      * no partner; 2 (0.10.4): a list ends with its sentence; 3 (0.10.5): a department is no membership ("Mitglied des
-     * Einkaufs"), and a careers page has the positions it advertises as jobs, not the entries of its menu. A graph checked with
-     * older rules is checked once more.
+     * Einkaufs"), and a careers page has the positions it advertises as jobs, not the entries of its menu; 4 (0.10.6): the
+     * operator is a job's employer where the advertisement declares it, never by its domain or navigation, an intermediary
+     * recruits, an employment type is one the advertisement states, and the JSON-LD posting of a position's page is that
+     * position (its nodes keep their kinds, a title that names the organisation is none). A graph checked with older rules is
+     * checked once more; after a complete check of the rules 3 only its job pages ({@link #META_RELATION_RECHECK_SCOPE}).
      */
     static final String META_RELATION_RULES = "relation_recheck_rules";
-    static final String RELATION_RULES = "3";
+    static final String RELATION_RULES = "4";
+    /**
+     * kg_meta (0.10.6): {@code jobs} while the check covers only the pages with a job of any tier or a hint of an advertisement:
+     * the rules 4 changed nothing else, and the graph was completely checked with the rules 3. No row: every page of the check.
+     */
+    static final String META_RELATION_RECHECK_SCOPE = "relation_recheck_scope";
+    /**
+     * kg_meta (0.10.6): the number of pages the check of the current rules selected when it started. With the scope, the start
+     * and the end of the check it is in the status ({@code relationRecheckInfo}), since the event {@code relation_rules_recheck}
+     * may be displaced from the bounded event log (identity conflicts of changed job keys).
+     */
+    static final String META_RELATION_RECHECK_PAGES = "relation_recheck_pages";
     /** The relations the rule tier reads after a marker (BusinessRules); the fixes of 0.10.3 and 0.10.4 may change them. */
     static final List<String> RECHECK_RELATIONS = List.of(Vocabulary.CARRIER_OF, Vocabulary.SUBSIDIARY_OF, Vocabulary.PARENT_OF,
             Vocabulary.BRAND_OF, Vocabulary.COOPERATION_WITH, Vocabulary.PARTNER_OF, Vocabulary.CUSTOMER_OF, Vocabulary.REFERENCE_FOR,
@@ -224,10 +238,19 @@ public final class SyncService {
      * (no title of the rules). Counted only; nothing of the LLM tier is changed.
      */
     static final String META_RECHECK_LLM_JOBS = "relation_recheck_llm_jobs";
+    /**
+     * kg_meta (0.10.6): {@link #META_RECHECK_LLM_JOBS} of the check before, with its {@code rules}: a new check counts again,
+     * the count before stays readable (status {@code relationRecheckLlmJobsBefore}). Nothing of the LLM tier is changed.
+     */
+    static final String META_RECHECK_LLM_JOBS_BEFORE = "relation_recheck_llm_jobs_before";
     /** The audit of each page re-checked in the current batch, added to {@link #META_RECHECK_LLM_JOBS} with its publication. */
     private final Map<String, long[]> llmJobAudit = new java.util.concurrent.ConcurrentHashMap<>();
     /** {@link #META_RECHECK_LLM_JOBS} as last written (status). */
     private volatile JSONObject llmJobs = new JSONObject();
+    /** {@link #META_RECHECK_LLM_JOBS_BEFORE} (status). */
+    private volatile JSONObject llmJobsBefore = new JSONObject();
+    /** The check of the current rules as kg_meta has it at the start: rules, scope, pages, since, done (status). */
+    private volatile JSONObject recheckInfo = new JSONObject();
 
     /**
      * 0.10.3: a consent banner ("an unsere Partner für soziale Medien, Werbung und Analysen weiter") made purposes partner
@@ -241,12 +264,31 @@ public final class SyncService {
      * page extracted since then is not named again, and an empty selection ends the check for good.
      */
     private List<String> relationRecheck(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
-        if (!RELATION_RULES.equals(KgStore.getMeta(tx, META_RELATION_RULES))) {
+        final String rules = KgStore.getMeta(tx, META_RELATION_RULES);
+        if (!RELATION_RULES.equals(rules)) {
+            // checked completely with the rules 3: the rules 4 changed only the reading of jobs, so only the job pages (0.10.6)
+            if ("3".equals(rules) && KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
+                KgStore.putMeta(tx, META_RELATION_RECHECK_SCOPE, "jobs");
+            } else {
+                KgStore.deleteMeta(tx, META_RELATION_RECHECK_SCOPE);
+            }
+            final String counted = KgStore.getMeta(tx, META_RECHECK_LLM_JOBS);
+            if (counted != null && rules != null) {
+                try {
+                    final JSONObject before = new JSONObject(counted);
+                    KgJson.put(before, "rules", rules);
+                    KgStore.putMeta(tx, META_RECHECK_LLM_JOBS_BEFORE, before.toString());
+                } catch (final org.json.JSONException e) {
+                    // unreadable: nothing to keep
+                }
+            }
             KgStore.deleteMeta(tx, META_RELATION_RECHECK); // checked with older rules (0.10.3) or never: once with these
             KgStore.deleteMeta(tx, META_RELATION_RECHECK_DONE);
+            KgStore.deleteMeta(tx, META_RELATION_RECHECK_PAGES);
             KgStore.deleteMeta(tx, META_RECHECK_LLM_JOBS); // counted by the check of these rules
             KgStore.putMeta(tx, META_RELATION_RULES, RELATION_RULES);
         }
+        final boolean jobsOnly = "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE));
         if (KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
             return List.of();
         }
@@ -260,36 +302,43 @@ public final class SyncService {
         for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
             in.append(i == 0 ? "?" : ", ?");
         }
+        // a relation of the rule tier (not with the scope jobs), a job of any tier (the JSON-LD posting of 0.10.6 too), or a hint
+        // read from an advertisement (BusinessSignals.JOB_AD) of tiers 1 and 2; a job of the LLM tier: its page is extracted again
+        // (tiers 1 and 2) and its evidence counted (llmJobAudit)
         try (java.sql.PreparedStatement ps = tx.prepareStatement("SELECT d.doc_id FROM kg_doc d WHERE d.state = " + Aggregates.STATE_ACTIVE
                 + " AND (d.processed_at IS NULL OR d.processed_at < ?) AND EXISTS (SELECT 1 FROM kg_evidence e"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred"
                 + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
-                + " WHERE e.doc_rowid = d.doc_rowid AND (e.tier = 2 AND (v.name IN (" + in + ") OR t.name = ?"
-                + " OR v.name = ? AND s.obj_val LIKE ? ESCAPE '\\') OR e.tier = 3 AND t.name = ?)) ORDER BY d.doc_id")) {
+                + " WHERE e.doc_rowid = d.doc_rowid AND (e.tier = 2 AND v.name IN (" + in + ") AND ? = 0 OR t.name = ?"
+                + " OR e.tier IN (1, 2) AND v.name = ? AND s.obj_val LIKE ? ESCAPE '\\')) ORDER BY d.doc_id")) {
             ps.setLong(1, since);
             for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
                 ps.setString(i + 2, RECHECK_RELATIONS.get(i));
             }
-            // a job of the rule tier, or a hint read from the text of an advertisement (BusinessSignals.JOB_AD)
-            ps.setString(RECHECK_RELATIONS.size() + 2, Vocabulary.JOB);
-            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.SYSTEM_SIGNAL);
-            ps.setString(RECHECK_RELATIONS.size() + 4, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
-            // a job of the LLM tier: its page is extracted again (tiers 1 and 2) and its evidence counted (llmJobAudit)
-            ps.setString(RECHECK_RELATIONS.size() + 5, Vocabulary.JOB);
+            ps.setInt(RECHECK_RELATIONS.size() + 2, jobsOnly ? 1 : 0);
+            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.JOB);
+            ps.setString(RECHECK_RELATIONS.size() + 4, Vocabulary.SYSTEM_SIGNAL);
+            ps.setString(RECHECK_RELATIONS.size() + 5, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
             try (java.sql.ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ids.add(rs.getString(1));
                 }
             }
         }
+        if (stored == null) {
+            KgStore.putMeta(tx, META_RELATION_RECHECK_PAGES, Integer.toString(ids.size()));
+        }
         if (ids.isEmpty()) {
             KgStore.putMeta(tx, META_RELATION_RECHECK_DONE, Long.toString(now));
             return ids;
         }
         if (stored == null) {
-            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations or jobs of the rule tier extracted again"
-                    + " (consent banners are no partners, a list ends with its sentence, a department is no membership, a menu entry"
-                    + " is no job); no other page", now);
+            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + (jobsOnly ? " pages with jobs or advertisement hints extracted again"
+                    + " (rules " + RELATION_RULES + ": the employer an advertisement declares, an intermediary recruits, the employment type"
+                    + " it states, the JSON-LD posting of a position's page); no other page"
+                    : " pages with relations or jobs extracted again (rules " + RELATION_RULES + ": consent banners are no partners, a list"
+                    + " ends with its sentence, a department is no membership, a menu entry is no job, the employer and employment type an"
+                    + " advertisement states); no other page"), now);
         }
         WorkQueue.scanned(tx, ids, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_REEXTRACT, 0L, now, this.queueMax);
         return ids;
@@ -394,6 +443,14 @@ public final class SyncService {
             this.recheckRelations.clear();
             this.recheckRelations.addAll(relationRecheck(tx, now));
             this.llmJobs = llmJobAudit(tx);
+            this.llmJobsBefore = json(KgStore.getMeta(tx, META_RECHECK_LLM_JOBS_BEFORE));
+            final String pages = KgStore.getMeta(tx, META_RELATION_RECHECK_PAGES);
+            final String since = KgStore.getMeta(tx, META_RELATION_RECHECK);
+            final String done = KgStore.getMeta(tx, META_RELATION_RECHECK_DONE);
+            this.recheckInfo = KgJson.obj("rules", KgStore.getMeta(tx, META_RELATION_RULES), "scope",
+                    "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE)) ? "jobs" : "all", "pages",
+                    pages == null ? null : Long.valueOf(pages), "since", since == null ? null : Long.valueOf(since), "done",
+                    done == null ? null : Long.valueOf(done));
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
                     KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold, jobs};
         });
@@ -811,8 +868,12 @@ public final class SyncService {
 
     /** {@link #META_RECHECK_LLM_JOBS} as stored; empty if none or unreadable. */
     private static JSONObject llmJobAudit(final java.sql.Connection c) throws java.sql.SQLException {
+        return json(KgStore.getMeta(c, META_RECHECK_LLM_JOBS));
+    }
+
+    /** A stored JSON object; empty if none or unreadable. */
+    private static JSONObject json(final String stored) {
         try {
-            final String stored = KgStore.getMeta(c, META_RECHECK_LLM_JOBS);
             return stored == null ? new JSONObject() : new JSONObject(stored);
         } catch (final org.json.JSONException e) {
             return new JSONObject();
@@ -1117,7 +1178,9 @@ public final class SyncService {
                         "oldestAgeSeconds", oldest),
                 "processed", this.counters.json(), "versionCheckpoint", this.versionCheckpoint > 0L ? this.versionCheckpoint : null,
                 "reconcile", this.reconciler.status(), "relationRecheck", this.recheckRelations.size(),
-                "relationRecheckLlmJobs", this.llmJobs, "retention", this.retention.status(),
+                "relationRecheckInfo", this.recheckInfo, "relationRecheckLlmJobs", this.llmJobs,
+                "relationRecheckLlmJobsBefore", this.llmJobsBefore,
+                "retention", this.retention.status(),
                 "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending(),
                         "byType", this.pendingByType));
     }
