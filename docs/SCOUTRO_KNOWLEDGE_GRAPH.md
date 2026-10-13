@@ -2826,7 +2826,8 @@ name of another domain stays an organisation of its own, and so does its posting
 ### 31.4 The existing graph: a targeted re-check (rules 4)
 
 The re-check of 30.3 gets the rules version **4**. A graph whose check with the rules 3 is complete
-(`kg_meta.relation_recheck_rules` = 3 and `relation_recheck_done` set, as after the rollout of 0.10.5) is checked once more,
+(`kg_meta.relation_recheck_rules` = 3 and `relation_recheck_done` set; 0.10.5 writes that key only when it starts again after
+its check ended, so an installation of 0.10.5 not restarted since has no such key and gets the full check below) is checked once more,
 but only on its pages with a job of any tier (now also tier 1, the JSON-LD postings) or a hint read from an advertisement
 (tiers 1 and 2): `kg_meta.relation_recheck_scope` = `jobs`. A page with relations only is not extracted again. A graph whose
 check of the rules 3 did not complete, or that was checked with older rules, gets the full check once (relations, jobs and
@@ -2869,7 +2870,8 @@ Expected changes on a re-checked page:
 1. Before the upgrade: ~~read the raw `ld_json_txt` of the freelance position's page~~ — done (31.3: source title and
    contradicting employment types). Record `sync.relationRecheckLlmJobs` and the number of job nodes, `hiring_organization`
    and `employment_type` statements of the host.
-2. After the upgrade: `sync.relationRecheckInfo` (`rules` 4, `scope` jobs, `pages`), `open` and `sync.relationRecheck` down to 0,
+2. After the upgrade: `sync.relationRecheckInfo` (`rules` 4, `scope` `jobs` — or `all` where `relation_recheck_done` was missing
+   before the upgrade, see [the 0.10.6 upgrade notes](SCOUTRO_RELEASE_0.10.6.md#upgrade-from-the-installed-0105) — `pages`), `open` and `sync.relationRecheck` down to 0,
    then `done` set **without a restart** (`failed` 0; otherwise `failedPages` names the pages that keep it open, with their
    `doc_failed` events), `relationRecheckLlmJobsBefore` equal to the recorded count, no LLM request, no crawl.
 3. For each of the five indexed advertisements: one job with its full title, `hiring_organization` → the imprint's operator

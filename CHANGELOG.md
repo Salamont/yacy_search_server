@@ -2,6 +2,43 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.10.6 / 1.942-scoutro.30 — patch: the employer an advertisement declares, the employment type it states, one job per position page
+
+Patch of the installed 0.10.5. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.6.md).
+Knowledge graph schema stays **6**, the extractor identity (JSON-LD 5, rules 6)
+and every setting stay: no global re-extraction. The upgrade extracts again,
+once, the pages with a job of any tier or a job-ad hint (rules version 4,
+scope `jobs`) where the check of 0.10.5 is recorded as complete; otherwise the
+full check of relations, jobs and hints, once. No LLM request, no crawl.
+
+- **The employer an advertisement declares.** "Zur Verstärkung unseres Teams
+  suchen wir Dich", "Werde Teil unseres Teams", "wir stellen ein" and similar
+  declarations in the advertisement's own text make the site's operator the
+  job's employer, with that sentence as evidence. Menu, footer ("Jobs bei
+  uns") and the domain declare nothing; another organisation of the page is
+  not who "wir" is. "Für unseren Kunden/Mandanten …": the operator recruits
+  (`recruiting_organization`), the employer stays unknown.
+- **The employment type the advertisement states.** Not from requirements
+  ("Erfahrung als Freelancer", "abgeschlossene Ausbildung"), compounds or
+  neighbouring positions; a type stated anywhere in the advertisement ("Wir
+  bieten: … in Vollzeit") counts. No default: an unstated type stays unknown.
+- **One job per position page.** The JSON-LD posting of a position's page and
+  its advertisement are one job when nothing contradicts it (another page,
+  employer or place keeps it apart); a posting title that is the company's
+  name is no job title. Contradicting statements stay side by side with their
+  own sources (`full_time` from JSON-LD and `freelance` from the text); none is
+  chosen. A short company name that links the site's own domain (`url` or
+  `sameAs`) is the operator, one organisation with its full name.
+- **JSON-LD references keep their kinds:** nodes that share an `@id` are no
+  longer lost or mixed up.
+- **The re-check ends in the running process.** Status
+  `sync.relationRecheckInfo` (`rules`, `scope`, `pages`, `since`, `done`,
+  `open`, `failed`, `failedPages`) is readable without the event log; `done` is
+  set with the last page, without a restart; a refused write or a failed page
+  keeps the check open. The LLM count of the check before stays readable
+  (`sync.relationRecheckLlmJobsBefore`); the LLM tier's evidence is unchanged.
+
 ## 0.10.5 / 1.942-scoutro.29 — patch: derived/matching no longer refused at the WAL limit; a careers page has the jobs it advertises
 
 Patch of the installed 0.10.4. See the
