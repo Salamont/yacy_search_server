@@ -2,6 +2,36 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## 0.10.5 / 1.942-scoutro.29 — patch: derived/matching no longer refused at the WAL limit; a careers page has the jobs it advertises
+
+Patch of the installed 0.10.4. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.5.md).
+Knowledge graph schema stays **6**, the extractor identity, the WAL limit and
+every setting stay. The upgrade publishes the pending matching-policy notices
+in bounded writes and extracts again, once, only the pages with relations,
+jobs or job-ad hints of the rule tier and those with LLM-tier jobs (event
+`relation_rules_recheck`, rules version 3); no LLM request, no other page.
+
+- **Derived/matching runs again.** A changed matching policy wrote one feed
+  notice per stored contribution in a single write whose estimate exceeded the
+  WAL limit (87,764 contributions ≈ 85.7 MiB > 64 MiB), so it was refused about
+  twice a second and every derived pass ended with `write_refused`. The notices
+  are now published 2,000 contributions per write, resumable.
+- **A careers page has the positions it advertises as jobs, not its menu.**
+  The culture or benefits page of a careers section no longer has the open
+  positions of its menu as jobs (nor their employer or application route); a
+  position is one job from its advertisement, with its full title including
+  the specialisation ("… (m/w/d) Finance"); a changed menu keeps the job.
+- **Employment types and memberships.** "Internationale" or "Internet" name no
+  internship; "Freiberufliche …" in a title is freelance. A department
+  ("Mitglied des Einkaufs") or a person in a role ("eines Beraters als Mitglied
+  des …") is no membership of the page's organisation.
+- **Status "Extracted from source"** (*Aus Quelle extrahiert*) instead of
+  "confirmed" in the network and service lists, with the note that no human
+  review is implied; confidence and number of sources stay separate.
+- The LLM tier's job evidence of the re-checked pages is counted
+  (`sync.relationRecheckLlmJobs`), not changed.
+
 ## 0.10.4 / 1.942-scoutro.28 — patch: a list of relations ends with its sentence
 
 Patch of the installed 0.10.2 that contains 0.10.3 (published, not rolled out).
