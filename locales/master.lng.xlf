@@ -18244,8 +18244,11 @@
     <trans-unit id="b1f6a725" xml:space="preserve" approved="no" translate="yes">
        <source>expired</source>
     </trans-unit>
-    <trans-unit id="d012435f" xml:space="preserve" approved="no" translate="yes">
-       <source>confirmed</source>
+    <trans-unit id="7c0f1df1" xml:space="preserve" approved="no" translate="yes">
+       <source>Extracted from source</source>
+    </trans-unit>
+    <trans-unit id="70439f4" xml:space="preserve" approved="no" translate="yes">
+       <source>Extracted from a current page of the source; no human review. Confidence and the number of sources are shown separately.</source>
     </trans-unit>
     <trans-unit id="97516050" xml:space="preserve" approved="no" translate="yes">
        <source>weak signal</source>
@@ -18790,8 +18793,8 @@
     <trans-unit id="aeb2cddb" xml:space="preserve" approved="no" translate="yes">
        <source>centre</source>
     </trans-unit>
-    <trans-unit id="6ca8a9bd" xml:space="preserve" approved="no" translate="yes">
-       <source>fact with evidence</source>
+    <trans-unit id="ddf3cf98" xml:space="preserve" approved="no" translate="yes">
+       <source>extracted from source (no human review)</source>
     </trans-unit>
     <trans-unit id="32b64043" xml:space="preserve" approved="no" translate="yes">
        <source>uncertain fact</source>

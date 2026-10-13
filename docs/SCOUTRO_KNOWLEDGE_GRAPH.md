@@ -2596,24 +2596,57 @@ like its purchasing department, shown as *confirmed*.
 ### 30.3 The existing graph: a targeted re-check
 
 The relation re-check of 0.10.3/0.10.4 gets the rules version **3** (`kg_meta.relation_recheck_rules`). At the first start of
-0.10.5 the active pages processed before it that carry, in the rule tier, a relation, a job or a hint read from the text of an
-advertisement (`section` `job_ad_…`) are extracted again once, at low priority (event `relation_rules_recheck`); no other
-page, no crawl, no LLM request, no global re-extraction. Their new tier-2 evidence replaces the old one of the same page: the
-menu jobs of the benefits and team pages and the department memberships lose their evidence, the position of a detail page
-keeps its job, valid evidence of other statements is extracted again from the same page. A job keeps its node where its rule
-reference on the page is unchanged; a position whose earlier title had absorbed menu words gets one node with the cut title
-and the evidence of its page, and the nodes with the absorbed names leave the current graph with their evidence.
+0.10.5 the active pages processed before it are extracted again once, at low priority (event `relation_rules_recheck`): those
+that carry, in the rule tier, a relation, a job or a hint read from the text of an advertisement (`section` `job_ad_…`), and
+those with a job of the LLM tier. Tiers 1 and 2 only: no other page, no crawl, no LLM request, no global re-extraction. The new
+tier-2 evidence of a page replaces its old one:
 
-The evidence of the LLM tier stays as it is (it is replaced only when the LLM tier reads the page again). Whether menu jobs of
-the LLM tier exist is measured (read-only) before any further step; a re-reading of those pages by the LLM tier is a
-separate decision.
+- The menu jobs of the benefits and team pages and the department memberships lose their evidence.
+- The position of a detail page keeps its job with every other statement of it (salary, employment type, application route,
+  employer, software hints of the advertisement), and the page keeps its other statements (partners, the operator of its
+  JSON-LD) under the same identifiers (`SyncServiceTest.theRecheckKeepsAPositionWithItsEvidenceAndHints`).
+- A job keeps its node where its rule reference on the page is unchanged. A position whose earlier title had absorbed menu
+  words gets one node with the cut title and the evidence of its page; the nodes with the absorbed names leave the current
+  graph unless the LLM tier also names them.
+- **Restart-safe:** the check keeps its start (`kg_meta.relation_recheck_since`); after a stop or a crash only the pages not
+  yet extracted since then are named again, none twice; an empty selection at a later start ends it for good
+  (`relation_recheck_done`; `SyncServiceTest.anInterruptedRecheckGoesOnWhereItStopped`).
 
-### 30.4 The status "confirmed"
+**The LLM tier: counted, not changed.** Its evidence stays until the LLM tier reads the page again. For each re-checked page the
+re-check classifies the jobs of the LLM tier with the rules of the page text (the same rule that now keeps new menu jobs out of
+the LLM tier, `ExtractContext.noPosting`) and adds up `kg_meta.relation_recheck_llm_jobs`, shown as
+`sync.relationRecheckLlmJobs` of `kg/status`:
 
-The business graph shows a statement as *confirmed* (`status: confirmed`) when its quality is `supported` and its confidence
-reaches `BusinessView.CONFIRMED` (0.6). A rule relation of one current page has 0.65. *Confirmed* therefore means "stated on a
-current page of the site and read by a rule", not "checked by a person" or "stated by several sources"; the sources of each
-statement are listed with it. The label is unchanged in this release.
+| Field | Meaning |
+| --- | --- |
+| `pages` | re-checked pages with jobs of the LLM tier |
+| `menuJobs`, `menuEvidence` | jobs (and their tier-3 evidence rows) the page has only as a menu entry or teaser link: **wrong** |
+| `positionEvidence` | tier-3 evidence of a position the page advertises: kept |
+| `otherEvidence` | tier-3 evidence of a job the rules see no title of (no gender marker): kept, not judged |
+
+A new version of the rules starts the count again; a restart keeps it and counts no page twice
+(`SyncServiceTest.theRecheckCountsTheJobsOfTheLlmTierWithoutChangingThem`).
+
+**Proposal for the wrong LLM evidence (owner decision after the count):**
+
+1. *Recommended:* remove exactly the tier-3 evidence the re-check counted as `menuEvidence`, deterministically with the same
+   rule, as a versioned one-time step of a later release: no model request, no GPU load, every other tier-3 evidence (positions,
+   other jobs) stays; a job node without evidence leaves the current graph.
+2. *Not recommended:* let the LLM tier read the affected careers pages again. It replaces the evidence, but its requests miss
+   the cache where the known entities of a page changed, and it adds GPU load (a separate operational finding).
+3. *Leave them:* LLM-only facts are never shown as extracted facts (quality uncertain), but the nodes stay visible.
+
+A job of the LLM tier with a different name than the rule job of the same page is a node of its own; the count shows such
+positions under `positionEvidence`, and option 1 leaves them alone.
+
+### 30.4 The status "Extracted from source" (formerly "confirmed")
+
+The business graph and the service lists show a statement as `status: confirmed` when its quality is `supported` and its
+confidence reaches `BusinessView.CONFIRMED` (0.6). A rule relation of one current page has 0.65. It means "stated on a current
+page of the source and read by a rule or from structured data", not "checked by a person" or "stated by several sources".
+Owner decision (13.10.2026): the label is **Extracted from source** (*Aus Quelle extrahiert*); its tooltip and the legend of the
+network say that no human review is implied. The confidence and the number of sources stay separate next to it (list,
+details, the line of a phone). The API keeps the value `confirmed`.
 
 ### 30.5 Tests
 
@@ -2621,6 +2654,9 @@ statement are listed with it. The label is unchanged in this release.
   belongs to its detail page with its application route and its hints; its identity survives a changed menu, another position
   stays another job; several advertisements on one page stay separate), `BusinessExtractionTest` (+1: a department is no
   membership, an association and a cooperative stay), `LlmExtractorTest` (+1: a model job that is only a menu entry of the
-  page is dropped with its claims; without page titles and on the detail page it stays), `SyncServiceTest` (+1: only the
-  pages with jobs of the rule tier are extracted again, once; the menu jobs of a benefits page go, the position keeps its
-  identity; a restart repeats nothing).
+  page is dropped with its claims; without page titles and on the detail page it stays), `SyncServiceTest` (+4: only the
+  pages with jobs of the rule tier are extracted again, once; a position keeps all of its evidence and identifiers and the
+  benefits page only loses its menu jobs; an interrupted check goes on where it stopped, each page once; the jobs of the LLM
+  tier are counted, not changed).
+- Browser (`knowledge-ui-test.mjs`, EN/DE, five widths): a fact of the network shows *Extracted from source*, its tooltip and
+  the legend say "no human review", confidence and number of sources stay in their own columns, no status "confirmed".

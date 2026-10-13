@@ -95,19 +95,28 @@ public final class ExtractContext {
         return keys == null || keys.size() < 2 ? this : new ExtractContext(this, keys.get(0), keys.get(1));
     }
 
-    /**
-     * True if a job of this name is no position of the page by the rules: its title, or the end of a title (a title that
-     * absorbed the menu words before it), is one the page has only as a menu entry or teaser link, never as an advertisement.
-     */
-    public boolean noPosting(final String name) {
+    /** True if a job of this name is a position the page advertises by the rules (its title, or the end of one). */
+    public boolean posting(final String name) {
         final String key = BusinessRules.jobKey(name);
         if (key == null) {
             return false;
         }
         for (final String posting : this.postingTitles) {
             if (posting.equals(key) || posting.endsWith(" " + key)) {
-                return false;
+                return true;
             }
+        }
+        return false;
+    }
+
+    /**
+     * True if a job of this name is no position of the page by the rules: its title, or the end of a title (a title that
+     * absorbed the menu words before it), is one the page has only as a menu entry or teaser link, never as an advertisement.
+     */
+    public boolean noPosting(final String name) {
+        final String key = BusinessRules.jobKey(name);
+        if (key == null || posting(name)) {
+            return false;
         }
         for (final String other : this.otherTitles) {
             if (other.equals(key) || other.endsWith(" " + key)) {
