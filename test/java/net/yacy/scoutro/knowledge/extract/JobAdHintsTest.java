@@ -265,6 +265,147 @@ public class JobAdHintsTest {
                 jobNames(rules(text, "https://www.beispiel-pflege.example/karriere", List.of("Karriere | Beispiel Pflege"), ctx(true, true))));
     }
 
+    // ---- a consultancy's careers section, reconstructed (neutral) from the excerpts of the production measurement of 0.10.4
+
+    private static final String CONSULTING = "https://www.muster-consulting.example";
+    /** The menu of every page: the open positions, which differ only by their specialisation after the marker. */
+    private static final String CONSULTING_MENU = "Startseite. - Leistungen. - Jobs & Karriere. - Stellenangebote. - Freiberufliche SAP Senior"
+            + " Berater (m/w/d) SAC. - Freiberufliche SAP Senior Berater (m/w/d) Finance. Suche nach:. ** ";
+    private static final String CONSULTING_IMPRINT = " Muster Consulting AG, Musterweg 1, 20095 Hamburg.";
+
+    /** The page of a position: its title line, the menu, then the advertisement under its heading. */
+    private static String advertisement(final String specialisation, final String body) {
+        return "Stellenangebote — Freiberufliche SAP Senior Berater (m/w/d) " + specialisation + ". Skip to content - * " + CONSULTING_MENU
+                + "Freiberufliche SAP Senior Berater (m/w/d) " + specialisation + ". " + body + " Bewirb Dich ganz unkompliziert über unser."
+                + " Bewerbungsformular. Ansprechpartnerin Erika Musterfrau." + CONSULTING_IMPRINT;
+    }
+
+    private static final String FINANCE = advertisement("Finance", "Zur Verstärkung unseres Teams suchen wir Dich für Projekte im"
+            + " Rechnungswesen. Deine Aufgaben:. - Beratung zu SAP S/4HANA Finance. - Konzeption und Customizing. Dein Profil:. - Erfahrung"
+            + " mit Advanced Financial Closing. - Internationale Rechnungslegung. - SAP New GL.");
+    private static final String SAC = advertisement("SAC", "Zur Verstärkung unseres Teams suchen wir Dich für Projekte im Reporting."
+            + " Deine Aufgaben:. - Dashboards mit SAP Analytics Cloud. - Planung und Datenmodelle. Dein Profil:. - Erfahrung mit SAP BW.");
+
+    private static List<Mention> jobMentions(final Extraction ex) {
+        final List<Mention> out = new ArrayList<>();
+        for (final Mention m : ex.mentions()) {
+            if (Vocabulary.JOB.equals(m.type)) {
+                out.add(m);
+            }
+        }
+        return out;
+    }
+
+    private static List<Claim> claimsOf(final Extraction ex, final Mention m) {
+        final List<Claim> out = new ArrayList<>();
+        for (final Claim c : ex.claims()) {
+            if (c.subject.equals(m.ref)) {
+                out.add(c);
+            }
+        }
+        return out;
+    }
+
+    private static List<String> values(final Extraction ex, final Mention m, final String predicate) {
+        final List<String> out = new ArrayList<>();
+        for (final Claim c : claimsOf(ex, m)) {
+            if (predicate.equals(c.predicate)) {
+                out.add(c.value);
+            }
+        }
+        return out;
+    }
+
+    private static int at(final Claim c) {
+        return Integer.parseInt(c.locator.replaceAll("^text:(\\d+)\\D.*$", "$1"));
+    }
+
+    /**
+     * Production 0.10.4 (owner measurement): the page of one advertisement gave four jobs ("e — Freiberufliche SAP Senior Berater
+     * (m/w/d)" from its title line "Stellenangebote — …", the two entries of the menu, the heading), all without the specialisation
+     * "Finance", and the employment type "internship" from the word "Internationale". The page of a position has one job: its full
+     * title, freelance by its title, every piece of evidence in the advertisement, the name at its heading.
+     */
+    @Test
+    public void theAdvertisementOfAConsultancyIsOneJobWithItsFullTitleAndItsOwnEvidence() {
+        final String url = CONSULTING + "/freiberufl-sap-senior-berater-finance/";
+        final Extraction ex = rules(FINANCE, url, List.of("Stellenangebote — Freiberufliche SAP Senior Berater (m/w/d) Finance"), ctx(true, true));
+        final List<Mention> jobs = jobMentions(ex);
+        assertEquals(jobs.toString(), 1, jobs.size());
+        final Mention job = jobs.get(0);
+        assertEquals("Freiberufliche SAP Senior Berater (m/w/d) Finance", job.name);
+        assertEquals("freelance by its title; \"Internationale Rechnungslegung\" names no internship", List.of("freelance"),
+                values(ex, job, Vocabulary.EMPLOYMENT_TYPE));
+        final int heading = FINANCE.indexOf("** Freiberufliche") + 3;
+        final int end = FINANCE.indexOf(CONSULTING_IMPRINT);
+        for (final Claim c : claimsOf(ex, job)) {
+            assertTrue(c + " lies in the advertisement", at(c) >= heading && at(c) < end);
+        }
+        assertEquals("the name at the heading of the advertisement", List.of("text:" + heading + "+" + job.name.length()),
+                claimsOf(ex, job).stream().filter(c -> Vocabulary.NAME.equals(c.predicate)).map(c -> c.locator).toList());
+        assertEquals("the application route of its text", List.of(url), values(ex, job, Vocabulary.APPLICATION_ROUTE));
+        // a page title that does not name the position: the shortened path ("freiberufl-…") names it, the title stays complete
+        assertEquals(List.of("Freiberufliche SAP Senior Berater (m/w/d) Finance"), jobNames(rules(FINANCE, url,
+                List.of("Stellenangebot | Muster Consulting"), ctx(true, true))));
+    }
+
+    /** Positions that differ only by their specialisation stay separate jobs: on their own pages and on one page with both ads. */
+    @Test
+    public void positionsThatDifferByTheirSpecialisationStaySeparate() {
+        final Extraction finance = rules(FINANCE, CONSULTING + "/freiberufl-sap-senior-berater-finance/",
+                List.of("Stellenangebote — Freiberufliche SAP Senior Berater (m/w/d) Finance"), ctx(true, true));
+        final Extraction sac = rules(SAC, CONSULTING + "/freiberufl-sap-senior-berater-sac/",
+                List.of("Stellenangebote — Freiberufliche SAP Senior Berater (m/w/d) SAC"), ctx(true, true));
+        assertEquals(List.of("Freiberufliche SAP Senior Berater (m/w/d) SAC"), jobNames(sac));
+        assertEquals(1, jobKeys(sac).size());
+        assertNotEquals(jobKeys(finance), jobKeys(sac));
+        final String both = "Karriere. Freiberufliche SAP Senior Berater (m/w/d) Finance. Ihre Aufgaben: Abschlüsse nach HGB und IFRS."
+                + " Freiberufliche SAP Senior Berater (m/w/d) SAC. Ihre Aufgaben: Dashboards und Planung. Bei uns arbeitest du remote."
+                + CONSULTING_IMPRINT;
+        assertEquals(List.of("Freiberufliche SAP Senior Berater (m/w/d) Finance", "Freiberufliche SAP Senior Berater (m/w/d) SAC"),
+                jobNames(rules(both, CONSULTING + "/jobs-karriere/stellenangebote/", List.of("Stellenangebote | Muster Consulting"), ctx(true, true))));
+    }
+
+    /**
+     * Production 0.10.4: the benefits and the culture page of the careers section had the positions of the menu as jobs, with "bei
+     * uns … gut bezahlt" as the evidence of their employer and the application form of the page as their route. No job, no employer.
+     */
+    @Test
+    public void theBenefitsAndTheCultureOfACareersSectionGiveNoJob() {
+        final String benefits = "Benefits für maximale Flexibilität. Skip to content - * " + CONSULTING_MENU + "Benefits für maximale"
+                + " Flexibilität. Wir sorgen dafür, dass Du optimale Arbeitsbedingungen vorfindest. Darüber hinaus wirst Du bei uns natürlich"
+                + " gut bezahlt." + CONSULTING_IMPRINT;
+        final String culture = "Unternehmenskultur. Skip to content - * " + CONSULTING_MENU + "Unternehmenskultur. Bei uns hilft jede"
+                + " Kollegin und jeder Kollege. Bei unseren Meetings und Events fühlen sich alle willkommen. Bewirb Dich ganz unkompliziert über"
+                + " unser. Bewerbungsformular." + CONSULTING_IMPRINT;
+        for (final String[] page : List.of(new String[] {benefits, "/jobs-karriere/team-werden/benefits/", "Benefits für maximale Flexibilität"},
+                new String[] {culture, "/jobs-karriere/team-werden/unternehmenskultur/", "Unternehmenskultur"})) {
+            final Extraction ex = rules(page[0], CONSULTING + page[1], List.of(page[2]), ctx(true, true));
+            assertEquals(page[1], List.of(), jobMentions(ex));
+            assertTrue(page[1], ex.claims().stream().noneMatch(c -> Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)
+                    || Vocabulary.APPLICATION_ROUTE.equals(c.predicate) || Vocabulary.EMPLOYMENT_TYPE.equals(c.predicate)));
+        }
+    }
+
+    /** The term "intern" starts "Internationale", "Internet", "interne": no internship; a title states its kind of employment. */
+    @Test
+    public void internationalOrInternalIsNoInternship() {
+        final String url = "https://www.muster-handel.example/karriere";
+        final Extraction ex = rules("Karriere. Wir suchen Buchhalter (m/w/d) in Vollzeit. Internationale Rechnungslegung, Recherche im Internet"
+                + " und interne Schulungen." + CONSULTING_IMPRINT, url, List.of("Karriere"), ctx(true, true));
+        assertEquals(List.of("full_time"), values(ex, jobMentions(ex).get(0), Vocabulary.EMPLOYMENT_TYPE));
+        final Extraction english = rules("Careers. We are hiring a Marketing Intern (m/f/d) for six months." + CONSULTING_IMPRINT,
+                "https://www.muster-handel.example/careers", List.of("Careers"), ctx(true, true));
+        assertEquals(List.of("internship"), values(english, jobMentions(english).get(0), Vocabulary.EMPLOYMENT_TYPE));
+        final Extraction intern = rules("Karriere. Wir suchen eine Praktikantin Marketing (m/w/d) für sechs Monate." + CONSULTING_IMPRINT, url,
+                List.of("Karriere"), ctx(true, true));
+        assertEquals(List.of("internship"), values(intern, jobMentions(intern).get(0), Vocabulary.EMPLOYMENT_TYPE));
+        // a compound in a title states nothing: the head of a training centre is no apprenticeship
+        final Extraction lead = rules("Karriere. Wir suchen Ausbildungsleiter (m/w/d) in Vollzeit." + CONSULTING_IMPRINT, url, List.of("Karriere"),
+                ctx(true, true));
+        assertEquals(List.of("full_time"), values(lead, jobMentions(lead).get(0), Vocabulary.EMPLOYMENT_TYPE));
+    }
+
     @Test
     public void noArrangementOfGenderMarkersBreaksTheExtraction() {
         final String[] joins = {" ", " oder ", " und ", ", ", " / ", " & ", "", " - ", ". ", ": ", "\n", " bzw. ", " sowie "};

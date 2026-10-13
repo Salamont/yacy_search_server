@@ -2648,12 +2648,60 @@ Owner decision (13.10.2026): the label is **Extracted from source** (*Aus Quelle
 network say that no human review is implied. The confidence and the number of sources stay separate next to it (list,
 details, the line of a phone). The API keeps the value `confirmed`.
 
-### 30.5 Tests
+### 30.5 The owner measurement of 0.10.4 and what followed from it
 
-- Java: `JobAdHintsTest` (+4: menu entries, a benefits page and teaser links of a careers section are no jobs; a position
+A read-only measurement of production (13.10.2026, copy of the graph opened read-only) found, for one consultancy, 13 job nodes
+named "Freiberufliche SAP Senior Berater (m/w/d)" (one of them "e — …", one in capitals) from three pages: the advertisement
+of the position "… (m/w/d) Finance" and two pages of the careers section (culture, benefits). Their 34 statements were all of
+the rule tier (tier 2); none had LLM evidence. Besides the menu jobs of 30.1 it showed four more errors of the rules, each
+reproduced with a neutral reconstruction of the pages and fixed:
+
+- **The lead word cut the title.** "Stellenangebot" of the lead words (`JOB_LEAD`) matched the start of "Stellenangebote — X",
+  the title became "e — X". Lead words are whole words now ("Stellenangebot(e)", "Stellenanzeige(n)", also with ":", "|" or a
+  dash after them).
+- **The specialisation was cut off.** A title ended at its gender marker, so "… (m/w/d) Finance" and "… (m/w/d) SAC" were the
+  same title. Up to three capitalised words or acronyms after the marker that end the sentence or the list entry belong to the
+  title (`TITLE_SUFFIX`: "Finance", "SAC", "S/4HANA", "FI/CO"); the terms of the position, a place of work and the words of a
+  menu or a sentence do not ("in Vollzeit", "Jetzt bewerben", "Standort Köln", "Skip to content"). A detail page names its
+  position with the specialisation; its path may shorten the words ("freiberufl-sap-senior-berater-finance", at least five
+  letters of a word, two words or more), its page title names them exactly.
+- **"Internationale" was an internship.** The term "intern" matched as the start of a longer word ("Internationale
+  Rechnungslegung", "Internet", "interne Schulungen"). Only the words "intern(s)" and "internship(s)" name one now. The title
+  itself states its kind of employment ("Freiberufliche …", "Werkstudent …", "Praktikantin …") in a form of the term, never in a
+  compound ("Ausbildungsleiter" is no apprenticeship); the terms after the title are read as before.
+- **A person's membership was the organisation's.** "… durch den Einsatz eines [company]-Beraters als Mitglied des Einkaufs"
+  (of a client, on a reference page) made the consultancy "member of" an organisation "Einkaufs". A membership marker after a
+  person in a role in the same sentence (consultant, employee, head of …, managing director, owner, founder, contact, Herr,
+  Frau) is that person's membership, not the page's; not after a number of people ("Mit über 200 Mitarbeitern ist die … GmbH
+  Mitglied …") and not where "wir" is the member ("Als Hersteller von Leitern sind wir Mitglied …").
+- The evidence "bei uns … gut bezahlt" of the benefits page as the employer of a job, and the application form of the culture
+  page as its route, go with the menu jobs of these pages (30.2).
+
+Expected result per page, before (0.10.4) and after (0.10.5), neutral reconstruction of the measured pages:
+
+| Page | 0.10.4 | 0.10.5 |
+| --- | --- | --- |
+| Advertisement "… (m/w/d) Finance" (detail page) | 4 jobs: "e — Freiberufliche SAP Senior Berater (m/w/d)", the two menu entries, the heading, none with "Finance"; `employment_type` internship at "Internationale" | 1 job "Freiberufliche SAP Senior Berater (m/w/d) Finance": name at its heading, `employment_type` freelance at "Freiberufliche" of the title, application route at "Bewerbungsformular" of its text |
+| Advertisement "… (m/w/d) SAC" (detail page) | 4 jobs as above, without "SAC" | 1 job "… (m/w/d) SAC", freelance, its software hint (SAP BW, `required_competence`) and its route |
+| Benefits, culture (careers section, menu only) | 2 menu jobs each; employer from "bei uns", route from the form of the page | no job, no employer, no route, no employment type |
+| Reference page ("eines …-Beraters als Mitglied des Einkaufs") | `member_of` → "Einkaufs" | no membership |
+
+**Scope.** The measurement also counted *suspects* over the whole copy: 230 job names repeated on three or more pages of one
+host and 2,130 `member_of` statements (2,105 objects, many of them fragments). They are not cleaned by pattern: the targeted
+re-check of 30.3 extracts tiers 1 and 2 of exactly the pages with jobs, job-ad hints or relations of the rule tier again with
+the rules above, so a statement goes only where the page no longer gives it, and a correct membership or position stays. The
+129 tier-3 evidence rows of jobs in the copy belong to all hosts, not to this company; the count of 30.3 tells how many of
+them are menu entries.
+
+### 30.6 Tests
+
+- Java: `JobAdHintsTest` (+8: menu entries, a benefits page and teaser links of a careers section are no jobs; a position
   belongs to its detail page with its application route and its hints; its identity survives a changed menu, another position
-  stays another job; several advertisements on one page stay separate), `BusinessExtractionTest` (+1: a department is no
-  membership, an association and a cooperative stay), `LlmExtractorTest` (+1: a model job that is only a menu entry of the
+  stays another job; several advertisements on one page stay separate; the advertisement of a consultancy is one job with its
+  full title, its own evidence and no internship; positions that differ by their specialisation stay separate; benefits and
+  culture pages give no job, employer or route; "Internationale", "Internet", "interne" name no internship),
+  `BusinessExtractionTest` (+2: a department is no membership, an association and a cooperative stay; a person's membership is
+  no membership of the organisation, the organisation's own stays), `LlmExtractorTest` (+1: a model job that is only a menu entry of the
   page is dropped with its claims; without page titles and on the detail page it stays), `SyncServiceTest` (+4: only the
   pages with jobs of the rule tier are extracted again, once; a position keeps all of its evidence and identifiers and the
   benefits page only loses its menu jobs; an interrupted check goes on where it stopped, each page once; the jobs of the LLM

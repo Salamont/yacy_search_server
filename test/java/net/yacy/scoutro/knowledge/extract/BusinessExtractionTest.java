@@ -452,6 +452,33 @@ public class BusinessExtractionTest {
                 vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.ASSOCIATION_MEMBER));
     }
 
+    /**
+     * Production 0.10.4 (owner measurement): a reference page of a consultancy said "Unterstützung durch den Einsatz eines
+     * [company]-Beraters als Mitglied des Einkaufs" (of the client) and the consultancy became "member of" an organisation
+     * "Einkaufs". A person in a role is the member, not the organisation of the page; the organisation's own memberships stay.
+     */
+    @Test
+    public void aPersonsMembershipIsNoMembershipOfTheOrganisation() {
+        final String url = "https://www.muster-consulting.example/referenzen/projekt-beispiele/";
+        for (final String text : List.of("Unterstützung durch den Einsatz eines Muster-Consulting-Beraters als Mitglied des Einkaufs."
+                + " - zur konzeptionellen und fachlichen Begleitung.", "Einsatz eines Beraters als Mitglied des Projektteams der Beispiel AG.",
+                "Unsere Geschäftsführerin ist Mitglied im Vorstand der Muster Stiftung.", "Herr Mustermann ist Mitglied des Beirats der Beispiel AG.",
+                "Unsere Projektleiterin arbeitet als Mitglied im Lenkungskreis der Beispiel Handel GmbH.")) {
+            final Extraction ex = rules(text, url, vocabulary("software", "stackfinder-web"), List.of());
+            assertEquals(text, List.of(), relations(ex, Vocabulary.MEMBER_OF));
+            assertEquals(text, List.of(), relations(ex, Vocabulary.ASSOCIATION_MEMBER));
+        }
+        // the organisation is the member: it stays
+        assertEquals(List.of("null -> Bundesverband Musterhandel e. V."), relations(rules("Als Mitglied im Bundesverband Musterhandel e. V."
+                + " engagieren wir uns für faire Standards.", url, vocabulary("software", "stackfinder-web"), List.of()), Vocabulary.ASSOCIATION_MEMBER));
+        for (final String text : List.of("Unsere Beraterinnen und Berater arbeiten bundesweit. Wir sind Mitglied der IHK Berlin.",
+                "Mit über 200 Mitarbeitern ist die Muster Handel GmbH Mitglied der IHK Berlin.",
+                "Als Hersteller von Leitern und Gerüsten sind wir Mitglied der IHK Berlin.")) {
+            assertEquals(text, List.of("null -> IHK Berlin"), relations(rules(text, url, vocabulary("software", "stackfinder-web"), List.of()),
+                    Vocabulary.MEMBER_OF));
+        }
+    }
+
     @Test
     public void theIndustryOfAnImprintAndTheSafeLevelOfAService() {
         final String imprint = "Impressum Angaben gemäß § 5 TMG Muster Bedachungen GmbH Dachstraße 1 12345 Musterstadt Telefon: 030 1234567 "
