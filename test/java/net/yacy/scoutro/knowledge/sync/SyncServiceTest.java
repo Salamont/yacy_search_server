@@ -73,6 +73,9 @@ public class SyncServiceTest {
         /** A page whose extraction fails with a runtime error (a defect of the extraction), and how often it did. */
         volatile String failText;
         final AtomicInteger textFailures = new AtomicInteger();
+        /** Called with the number of texts read so far, after each one (an interruption in the middle of a batch). */
+        volatile java.util.function.IntConsumer afterText;
+        final AtomicInteger texts = new AtomicInteger();
 
         Hooked(final SolrSource inner) {
             this.inner = inner;
@@ -95,7 +98,12 @@ public class SyncServiceTest {
                 this.textFailures.incrementAndGet();
                 throw new IllegalStateException("injected extraction defect");
             }
-            return this.inner.text(id);
+            final String text = this.inner.text(id);
+            final java.util.function.IntConsumer hook = this.afterText;
+            if (hook != null) {
+                hook.accept(this.texts.incrementAndGet());
+            }
+            return text;
         }
 
         @Override
@@ -1017,8 +1025,8 @@ public class SyncServiceTest {
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
-        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '2'"));
-        // a graph of 0.10.3: checked with the rules before (no version row); the rules of 0.10.4 check the page once more
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '3'"));
+        // a graph of 0.10.3: checked with the rules before (no version row); the current rules check the page once more
         this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
             KgStore.deleteMeta(tx, "relation_recheck_rules");
             return null;
@@ -1035,6 +1043,265 @@ public class SyncServiceTest {
         settle();
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(2L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+    }
+
+    /** A page of a careers section (neutral example): the menu of the open positions, then the page's own text. */
+    private SolrInputDocument careersPage(final String id, final String url, final String title, final String text) {
+        final SolrInputDocument d = doc(id, url, "c1", null);
+        d.setField("title", List.of(title));
+        d.setField("text_t", List.of("Jobs & Karriere Stellenangebote Freiberuflicher SAP-Berater (m/w/d) SAP Basis Administrator (m/w/d)"
+                + " Projektleiter IT (m/w/d) Benefits Team Kultur " + text + " Muster Software GmbH, Musterstraße 1, 10115 Berlin."));
+        return d;
+    }
+
+    private static final String JOBS_OF = "SELECT count(*) FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid"
+            + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type JOIN kg_doc d ON d.doc_rowid = e.doc_rowid"
+            + " WHERE t.name = 'job' AND d.doc_id = ";
+
+    /**
+     * 0.10.5 (production finding of 0.10.4): every page of a careers section had the positions of its menu as jobs. The pages
+     * with jobs of the rule tier are extracted again once with the corrected rules: a page that only repeats the menu keeps no
+     * job, the page of a position keeps its job with its identity, and no other page is extracted.
+     */
+    @Test
+    public void pagesWithJobsOfTheRuleTierAreExtractedAgainOnce() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.JOBS_COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        client().add(careersPage("JOBDETmswr01", "https://www.muster-software.example/jobs-karriere/stellenangebote/freiberuflicher-sap-berater/",
+                "Freiberuflicher SAP-Berater (m/w/d) | Muster Software", "Freiberuflicher SAP-Berater (m/w/d) Ihre Aufgaben: Beratung"
+                        + " unserer Kunden zu SAP S/4HANA. Ihr Profil: SAP Kenntnisse erforderlich. Bei uns arbeitest du remote."));
+        client().add(careersPage("JOBBENmswr01", "https://www.muster-software.example/jobs-karriere/team-werden/benefits/",
+                "Benefits | Muster Software", "Benefits bei uns Wir bieten flexible Arbeitszeiten und ein starkes Team. Jetzt bewerben!"));
+        add("AAAAAAhost02", "https://www.muster.de/", org("A GmbH", "030 1111111"));
+        commit();
+        settle();
+        assertTrue("the page of the position has its job", count(JOBS_OF + "'JOBDETmswr01'") > 0L);
+        assertEquals("the benefits page has none", 0L, count(JOBS_OF + "'JOBBENmswr01'"));
+        final List<String> job = strings("SELECT DISTINCT n.public_id FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid"
+                + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type WHERE t.name = 'job'");
+        assertEquals("one job: the position of its page", 1, job.size());
+        // a graph of 0.10.4: the benefits page had the positions of its menu as jobs; checked with the relation rules 2
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.execute("INSERT INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id, kind, certainty, confidence, locator, excerpt,"
+                        + " observed_at) SELECT e.stmt_rowid, (SELECT doc_rowid FROM kg_doc WHERE doc_id = 'JOBBENmswr01'), e.tier, e.ext_id,"
+                        + " e.kind, e.certainty, e.confidence, e.locator, e.excerpt, e.observed_at FROM kg_evidence e JOIN kg_statement s"
+                        + " ON s.stmt_rowid = e.stmt_rowid JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
+                        + " WHERE t.name = 'job' AND e.tier = 2 AND e.doc_rowid = (SELECT doc_rowid FROM kg_doc WHERE doc_id = 'JOBDETmswr01')");
+            }
+            KgStore.putMeta(tx, "relation_recheck_rules", "2");
+            KgStore.deleteMeta(tx, "relation_recheck_since");
+            KgStore.deleteMeta(tx, "relation_recheck_done");
+            return null;
+        });
+        assertTrue(count(JOBS_OF + "'JOBBENmswr01'") > 0L);
+        final String a = hash("AAAAAAhost02");
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals("only the two pages with jobs of the rule tier are extracted again", 2L, this.sync.counters.extractions.get());
+        assertEquals(a, hash("AAAAAAhost02"));
+        assertEquals("the menu entries of the benefits page are no jobs", 0L, count(JOBS_OF + "'JOBBENmswr01'"));
+        assertTrue(count(JOBS_OF + "'JOBDETmswr01'") > 0L);
+        assertEquals("the position keeps its identity", job, strings("SELECT DISTINCT n.public_id FROM kg_evidence e JOIN kg_statement s"
+                + " ON s.stmt_rowid = e.stmt_rowid JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
+                + " WHERE t.name = 'job'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck' AND detail LIKE '2 pages %'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '3'"));
+        // a restart: nothing again
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+    }
+
+    /** Everything a page is the evidence of: subject, statement, predicate, object or value, tier and locator. */
+    private List<String> evidenceOf(final String docId) throws Exception {
+        return strings("SELECT n.public_id || '|' || s.public_id || '|' || v.name || '|' || coalesce(o.public_id, s.obj_val) || '|' || e.tier"
+                + " || '|' || coalesce(e.locator, '') FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid"
+                + " JOIN kg_vocab v ON v.term_id = s.pred JOIN kg_entity n ON n.ent_rowid = s.subj LEFT JOIN kg_entity o ON o.ent_rowid = s.obj_ent"
+                + " JOIN kg_doc d ON d.doc_rowid = e.doc_rowid WHERE d.doc_id = '" + docId + "' ORDER BY 1");
+    }
+
+    /** As 0.10.4 left it: the rules of version 2 checked, the menu jobs of the detail page also on the benefits page. */
+    private void asCheckedWithRules2(final String detail, final String benefits) throws Exception {
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.execute("INSERT INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id, kind, certainty, confidence, locator, excerpt,"
+                        + " observed_at) SELECT e.stmt_rowid, (SELECT doc_rowid FROM kg_doc WHERE doc_id = '" + benefits + "'), e.tier, e.ext_id,"
+                        + " e.kind, e.certainty, e.confidence, e.locator, e.excerpt, e.observed_at FROM kg_evidence e JOIN kg_statement s"
+                        + " ON s.stmt_rowid = e.stmt_rowid JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
+                        + " WHERE t.name = 'job' AND e.tier = 2 AND e.doc_rowid = (SELECT doc_rowid FROM kg_doc WHERE doc_id = '" + detail + "')");
+            }
+            KgStore.putMeta(tx, "relation_recheck_rules", "2");
+            KgStore.deleteMeta(tx, "relation_recheck_since");
+            KgStore.deleteMeta(tx, "relation_recheck_done");
+            return null;
+        });
+    }
+
+    private static final String ADVERTISEMENT = "Freiberuflicher SAP-Berater (m/w/d) in Vollzeit. Ihre Aufgaben: Beratung unserer Kunden zu"
+            + " SAP S/4HANA. Ihr Profil: SAP Kenntnisse erforderlich. Vergütung: 4.000 – 5.000 € brutto monatlich. Bei uns arbeitest du"
+            + " remote. Bewerbung an jobs@muster-software.example. Unsere Partner: Alpha Systeme GmbH und Beta Logistik AG.";
+
+    /**
+     * 0.10.5: the re-check keeps what is valid. The page of a position keeps its job with every other statement of it (salary,
+     * employment type, application route, employer, software hints of the advertisement) and the other statements of the page
+     * (partners, the operator of JSON-LD), under the same identifiers; the benefits page loses only the menu jobs.
+     */
+    @Test
+    public void theRecheckKeepsAPositionWithItsEvidenceAndHints() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.JOBS_COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        final SolrInputDocument detail = careersPage("JOBDETmswr01",
+                "https://www.muster-software.example/jobs-karriere/stellenangebote/freiberuflicher-sap-berater/",
+                "Freiberuflicher SAP-Berater (m/w/d) | Muster Software", ADVERTISEMENT);
+        detail.setField("ld_json_txt", List.of("{\"@type\":\"Organization\",\"name\":\"Muster Software GmbH\",\"url\":"
+                + "\"https://www.muster-software.example/\",\"telephone\":\"030 2222222\"}"));
+        client().add(detail);
+        client().add(careersPage("JOBBENmswr01", "https://www.muster-software.example/jobs-karriere/team-werden/benefits/",
+                "Benefits | Muster Software", "Benefits bei uns Wir bieten flexible Arbeitszeiten und ein starkes Team."
+                        + " Unsere Partner: Alpha Systeme GmbH und Beta Logistik AG."));
+        commit();
+        settle();
+        final List<String> position = evidenceOf("JOBDETmswr01");
+        final List<String> benefits = evidenceOf("JOBBENmswr01");
+        for (final String p : List.of("|name|", "|salary|", "|employment_type|", "|application_route|", "|hiring_organization|",
+                "|system_signal|", "|partner_of|", "|phone|")) {
+            assertTrue(p + " " + position, position.stream().anyMatch(e -> e.contains(p)));
+        }
+        assertTrue(benefits.toString(), benefits.stream().anyMatch(e -> e.contains("|partner_of|")));
+        asCheckedWithRules2("JOBDETmswr01", "JOBBENmswr01");
+        assertTrue(evidenceOf("JOBBENmswr01").size() > benefits.size());
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(2L, this.sync.counters.extractions.get());
+        assertEquals("the position keeps all of its evidence, identifiers included", position, evidenceOf("JOBDETmswr01"));
+        assertEquals("the benefits page keeps everything but the menu jobs", benefits, evidenceOf("JOBBENmswr01"));
+    }
+
+    /** Copies the evidence of the job of page {@code from} to page {@code to} as evidence of the LLM tier. */
+    private void asLlmJobEvidence(final String from, final String to) throws Exception {
+        this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
+            try (java.sql.Statement st = tx.createStatement()) {
+                st.execute("INSERT INTO kg_evidence (stmt_rowid, doc_rowid, tier, ext_id, kind, certainty, confidence, locator, excerpt,"
+                        + " observed_at) SELECT e.stmt_rowid, (SELECT doc_rowid FROM kg_doc WHERE doc_id = '" + to + "'), 3, e.ext_id,"
+                        + " e.kind, e.certainty, e.confidence, e.locator, e.excerpt, e.observed_at FROM kg_evidence e JOIN kg_statement s"
+                        + " ON s.stmt_rowid = e.stmt_rowid JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
+                        + " WHERE t.name = 'job' AND e.tier = 2 AND e.doc_rowid = (SELECT doc_rowid FROM kg_doc WHERE doc_id = '" + from + "')");
+            }
+            return null;
+        });
+    }
+
+    private static final String TIER3 = "SELECT count(*) FROM kg_evidence e JOIN kg_doc d ON d.doc_rowid = e.doc_rowid WHERE e.tier = 3"
+            + " AND d.doc_id = ";
+
+    /**
+     * 0.10.5: the re-check counts the jobs of the LLM tier on its pages and changes none of them: a job that is only a menu entry
+     * of its page (wrong), the position of a detail page (right). A page with jobs of the LLM tier only is checked as well.
+     */
+    @Test
+    public void theRecheckCountsTheJobsOfTheLlmTierWithoutChangingThem() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.JOBS_COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        client().add(careersPage("JOBDETmswr01", "https://www.muster-software.example/jobs-karriere/stellenangebote/freiberuflicher-sap-berater/",
+                "Freiberuflicher SAP-Berater (m/w/d) | Muster Software", ADVERTISEMENT));
+        client().add(careersPage("JOBBENmswr01", "https://www.muster-software.example/jobs-karriere/team-werden/benefits/",
+                "Benefits | Muster Software", "Benefits bei uns Wir bieten flexible Arbeitszeiten und ein starkes Team."
+                        + " Unsere Partner: Alpha Systeme GmbH und Beta Logistik AG."));
+        client().add(careersPage("JOBTEAmswr01", "https://www.muster-software.example/jobs-karriere/team-werden/kultur/",
+                "Kultur | Muster Software", "Unsere Kultur: offen, fair und neugierig."));
+        commit();
+        settle();
+        assertEquals("nothing of the rules on the culture page", 0L, count("SELECT count(*) FROM kg_evidence e JOIN kg_doc d"
+                + " ON d.doc_rowid = e.doc_rowid WHERE e.tier = 2 AND d.doc_id = 'JOBTEAmswr01'"));
+        asLlmJobEvidence("JOBDETmswr01", "JOBDETmswr01");
+        asLlmJobEvidence("JOBDETmswr01", "JOBBENmswr01");
+        asLlmJobEvidence("JOBDETmswr01", "JOBTEAmswr01");
+        asCheckedWithRules2("JOBDETmswr01", "JOBBENmswr01");
+        final long detail = count(TIER3 + "'JOBDETmswr01'"), benefits = count(TIER3 + "'JOBBENmswr01'"), team = count(TIER3 + "'JOBTEAmswr01'");
+        assertTrue(detail > 1L && benefits == detail && team == detail);
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals("the three pages, the culture page for its jobs of the LLM tier", 3L, this.sync.counters.extractions.get());
+        final JSONObject audit = this.sync.status().getJSONObject("relationRecheckLlmJobs");
+        assertEquals(audit.toString(), 3L, audit.getLong("pages"));
+        assertEquals(audit.toString(), 2L, audit.getLong("menuJobs"));
+        assertEquals(audit.toString(), benefits + team, audit.getLong("menuEvidence"));
+        assertEquals(audit.toString(), detail, audit.getLong("positionEvidence"));
+        assertEquals(audit.toString(), 0L, audit.getLong("otherEvidence"));
+        assertEquals("counted, not changed", List.of(detail, benefits, team), List.of(count(TIER3 + "'JOBDETmswr01'"),
+                count(TIER3 + "'JOBBENmswr01'"), count(TIER3 + "'JOBTEAmswr01'")));
+        // a restart keeps the counts and counts nothing twice
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(audit.toString(), this.sync.status().getJSONObject("relationRecheckLlmJobs").toString());
+    }
+
+    /**
+     * 0.10.5: a re-check interrupted by a crash goes on with the pages not yet extracted; none is extracted twice, the check ends
+     * once and a later start repeats nothing.
+     */
+    @Test
+    public void anInterruptedRecheckGoesOnWhereItStopped() throws Exception {
+        restartWith(KgConfig.COLLECTIONS, "c1", KgConfig.JOBS_COLLECTIONS, "c1", KgConfig.RECONCILE_BRAKE_MIN_DOCS, "3");
+        final String[] positions = {"Freiberuflicher SAP-Berater", "SAP Basis Administrator", "Projektleiter IT"};
+        final List<String> ids = new ArrayList<>();
+        for (int i = 0; i < positions.length; i++) {
+            final String slug = positions[i].toLowerCase(java.util.Locale.ROOT).replace(' ', '-');
+            ids.add("JOBDE" + i + "mswr01");
+            client().add(careersPage(ids.get(ids.size() - 1), "https://www.muster-software.example/jobs-karriere/stellenangebote/" + slug + "/",
+                    positions[i] + " (m/w/d) | Muster Software", ADVERTISEMENT.replace("Freiberuflicher SAP-Berater", positions[i])));
+            ids.add("JOBBE" + i + "mswr01");
+            client().add(careersPage(ids.get(ids.size() - 1), "https://www.muster-software.example/jobs-karriere/seite-" + i + "/",
+                    "Seite " + i + " | Muster Software", "Wir bieten ein starkes Team. Unsere Partner: Alpha Systeme GmbH und Beta Logistik AG."));
+        }
+        commit();
+        settle();
+        final java.util.Map<String, List<String>> before = new java.util.TreeMap<>();
+        for (final String id : ids) {
+            before.put(id, evidenceOf(id));
+        }
+        asCheckedWithRules2("JOBDE0mswr01", "JOBBE0mswr01");
+        this.clock.addAndGet(1000L);
+        stop(true);
+        start(1000, false);
+        // the check starts, two pages are extracted again, then the process dies in the middle of the batch
+        final SyncService interrupted = this.sync;
+        this.source.afterText = n -> {
+            if (n == 2) {
+                interrupted.requestStop();
+            }
+        };
+        for (int i = 0; i < 500 && this.source.texts.get() < 2; i++) {
+            if (!this.sync.step()) {
+                this.clock.addAndGet(3000L);
+            }
+        }
+        final long first = this.sync.counters.extractions.get();
+        assertTrue("stopped in the middle: " + first, first >= 1 && first < ids.size());
+        stop(false);
+        this.clock.addAndGet(1000L);
+        start(1000, true);
+        settle();
+        assertEquals("each page once over both runs", ids.size(), first + this.sync.counters.extractions.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
+        assertEquals(0, this.sync.status().getInt("relationRecheck"));
+        for (final String id : ids) {
+            assertEquals(id, before.get(id), evidenceOf(id));
+        }
+        // the next start finds nothing left and ends the check for good
+        stop(true);
+        start(1000, false);
+        settle();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
     }
 
     @Test

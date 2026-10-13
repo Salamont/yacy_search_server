@@ -329,8 +329,8 @@ next.
 - **Lines** point in the direction the source states and carry their
   relation: offers, partner of, customer of, same carrier, belongs to,
   location, audience, weak link signal, suggested customer or partner. Solid
-  lines are facts with evidence, dashed lines uncertain facts, dotted lines
-  derived rows, which are no facts. On a crowded drawing the labels appear
+  lines are facts extracted from a source, dashed lines uncertain facts,
+  dotted lines derived rows, which are no facts. On a crowded drawing the labels appear
   for the lines of the node you point at or select.
 - **Around a service** its providers are shown above it (the incoming
   `offers`: `CTcon GmbH → offers → SAP`), with their facilities and, at depth
@@ -349,6 +349,14 @@ next.
   confirmation and its relation to the centre, with **Open object**,
   **Network of this object** and **Open sources**. A line shows its status
   and evidence.
+- **Status *Extracted from source*** (formerly *confirmed*): the
+  statement was extracted from a current page of a source by a rule or from
+  structured data, with a confidence of at least 60 %. It is not reviewed by a
+  person, and one page is enough: a rule relation of one page has 65 %. The
+  confidence and the number of sources are shown separately next to the status
+  (list, details and the line of a phone); **Open sources** shows each page and
+  its excerpt. The API keeps the value `confirmed`. The legend and the tooltip
+  of the status say the same.
 - **Layout:** on a narrow screen (and for many nodes) the drawing is layered:
   what points to the centre above it, what it points to below, wrapped to the
   width, as high as its content; for a few neighbours on a wide screen it is

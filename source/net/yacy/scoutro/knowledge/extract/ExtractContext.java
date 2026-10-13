@@ -47,6 +47,12 @@ public final class ExtractContext {
     public final boolean jobSignals;
     /** The document's followed collections. */
     public final List<String> collections;
+    /**
+     * The job titles of the page as keys ({@link BusinessRules#jobKey}, 0.10.5): the positions it advertises and the other
+     * titles (menu entries, teaser links), as the rules read them ({@link BusinessRules#jobTitleKeys}); empty if not known.
+     */
+    public final Set<String> postingTitles;
+    public final Set<String> otherTitles;
 
     /** A context whose job hints follow the job objects (the behaviour before 0.10.2). */
     public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
@@ -69,6 +75,55 @@ public final class ExtractContext {
         this.jobs = jobs;
         this.jobSignals = jobSignals;
         this.collections = collections == null ? Collections.emptyList() : List.copyOf(collections);
+        this.postingTitles = Set.of();
+        this.otherTitles = Set.of();
+    }
+
+    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles) {
+        this.categories = c.categories;
+        this.nace = c.nace;
+        this.vocabularies = c.vocabularies;
+        this.jobs = c.jobs;
+        this.jobSignals = c.jobSignals;
+        this.collections = c.collections;
+        this.postingTitles = Set.copyOf(postingTitles);
+        this.otherTitles = Set.copyOf(otherTitles);
+    }
+
+    /** This context with the job titles of the page: {postings, others} of {@link BusinessRules#jobTitleKeys}. */
+    public ExtractContext withJobTitles(final List<Set<String>> keys) {
+        return keys == null || keys.size() < 2 ? this : new ExtractContext(this, keys.get(0), keys.get(1));
+    }
+
+    /** True if a job of this name is a position the page advertises by the rules (its title, or the end of one). */
+    public boolean posting(final String name) {
+        final String key = BusinessRules.jobKey(name);
+        if (key == null) {
+            return false;
+        }
+        for (final String posting : this.postingTitles) {
+            if (posting.equals(key) || posting.endsWith(" " + key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True if a job of this name is no position of the page by the rules: its title, or the end of a title (a title that
+     * absorbed the menu words before it), is one the page has only as a menu entry or teaser link, never as an advertisement.
+     */
+    public boolean noPosting(final String name) {
+        final String key = BusinessRules.jobKey(name);
+        if (key == null || posting(name)) {
+            return false;
+        }
+        for (final String other : this.otherTitles) {
+            if (other.equals(key) || other.endsWith(" " + key)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** A context without vocabularies and without jobs (version 1 behaviour, and tests of the base extractors). */

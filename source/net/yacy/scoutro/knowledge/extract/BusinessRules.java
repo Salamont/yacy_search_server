@@ -162,12 +162,15 @@ public final class BusinessRules {
         final ExtractContext ctx;
         final Set<PageKind> kinds;
         final Mention subject;
+        /** The page's titles as Solr has them (its {@code <title>}); empty if unknown. */
+        final List<String> titles;
         int relations;
 
         Run(final String text, final String url, final String host, final String language, final Extraction out, final ExtractContext ctx,
-                final Set<PageKind> kinds, final Mention subject) {
+                final Set<PageKind> kinds, final Mention subject, final List<String> titles) {
             this.text = text;
             this.url = url;
+            this.titles = titles == null ? List.of() : titles;
             this.host = host;
             this.country = BusinessFacts.country(host);
             this.callingCode = Normalizers.countryCallingCode(host, language);
@@ -205,10 +208,16 @@ public final class BusinessRules {
      */
     public void extract(final String text, final String url, final String host, final String language, final List<String> outbound,
             final Extraction out, final ExtractContext ctx, final Set<PageKind> kinds, final Mention subject) {
+        extract(text, url, host, language, outbound, out, ctx, kinds, subject, List.of());
+    }
+
+    /** {@link #extract} with the page's titles, which name the position of a job's detail page. */
+    public void extract(final String text, final String url, final String host, final String language, final List<String> outbound,
+            final Extraction out, final ExtractContext ctx, final Set<PageKind> kinds, final Mention subject, final List<String> titles) {
         if (text == null || text.isEmpty() || subject == null || ctx == null) {
             return;
         }
-        final Run run = new Run(text, url, host, language, out, ctx, kinds, subject);
+        final Run run = new Run(text, url, host, language, out, ctx, kinds, subject, titles);
         final boolean servicePage = kinds.contains(PageKind.SERVICES) || kinds.contains(PageKind.PRICES);
         if (servicePage || kinds.contains(PageKind.HOME)) {
             services(run, servicePage ? SERVICE_PAGE_CONFIDENCE : HOME_PAGE_CONFIDENCE);
@@ -446,6 +455,26 @@ public final class BusinessRules {
         return text.substring(a, b);
     }
 
+    /**
+     * A person in a role right before a membership marker is its member, not the page's organisation (0.10.5: "durch den Einsatz eines
+     * Muster-Beraters als Mitglied des Einkaufs" of a client): the role nouns of people, in the same sentence. Not a number of people
+     * ("mit 200 Mitarbeitern ist die … Mitglied") and not where "wir" is the member ("Als Hersteller von Leitern sind wir Mitglied").
+     */
+    private static final Pattern PERSON_ACTOR = Pattern.compile("(?iu)(?<![\\p{L}])(?<![0-9][ \\t])(?:\\p{L}+-)*(?:berater(?:in(?:nen)?|s|n)?"
+            + "|consultants?|mitarbeiter(?:in(?:nen)?|s|n)?|kolleg(?:e|en|in|innen)|\\p{L}*(?<!halb)leiter(?:in(?:nen)?|s|n)?|expert(?:e|en|in|innen)"
+            + "|entwickler(?:in(?:nen)?|s|n)?|manager(?:in(?:nen)?|s)?|gesch(?:ä|ae)ftsf(?:ü|ue)hrer(?:in(?:nen)?|s)?|inhaber(?:in(?:nen)?|s)?"
+            + "|gr(?:ü|ue)nder(?:in(?:nen)?|s)?|ansprechpartner(?:in(?:nen)?|s)?|herrn?|frau)(?![\\p{L}])"
+            + "(?:(?!(?<![\\p{L}])(?:wir|uns)(?![\\p{L}]))[^.!?\\n]){0,40}$");
+
+    /** The sentence before {@code markerAt} (at most 80 characters) names a person in a role ({@link #PERSON_ACTOR}). */
+    private static boolean personActor(final String text, final int markerAt) {
+        int a = markerAt;
+        while (a > 0 && markerAt - a < 80 && ".!?\n".indexOf(text.charAt(a - 1)) < 0) {
+            a--;
+        }
+        return PERSON_ACTOR.matcher(text.substring(a, markerAt)).find();
+    }
+
     private void relations(final Run run) {
         final Set<String> seen = new LinkedHashSet<>();
         for (final Marker mk : MARKERS) {
@@ -454,6 +483,9 @@ public final class BusinessRules {
                 if (CONSENT.matcher(sentence(run.text, m.start(), m.end())).find()
                         || mk.list && PREPOSITION_AFTER.matcher(run.text).region(m.end(), run.text.length()).lookingAt()) {
                     continue; // a consent text or a marker in a sentence: no relation
+                }
+                if (Vocabulary.MEMBER_OF.equals(mk.predicate) && personActor(run.text, m.start())) {
+                    continue; // a person's membership ("eines Beraters als Mitglied des …"), not the organisation's
                 }
                 final int from = m.end();
                 final int to = Math.min(run.text.length(), from + (mk.list ? 600 : 160));
@@ -606,6 +638,10 @@ public final class BusinessRules {
             + "|statistik(?:en)?|tracking|cookies?|personalisierung|funktionen|inhalte|anzeigen|dienste|services|partner|partnern|kunden|daten"
             + "|informationen|social|advertising");
 
+    /** A department or team of a company, also as a compound ("Einkaufsteam", "Einkaufs-Team"), not an organisation (0.10.5). */
+    private static final Pattern ORG_UNIT = Pattern.compile("(?iu)(?:\\p{L}+-)?(?:einkaufs?|vertriebs?|vorstands?|betriebsrats?|managements?"
+            + "|marketings?|personals?|controllings?|gesch(?:ä|ae)fts(?:f(?:ü|ue)hrung|leitung)|\\p{L}*abteilung(?:en)?|bereichs?|\\p{L}*teams?)");
+
     /** A sentence, not a list item, starts with an article, a pronoun or a preposition. */
     private static final Pattern SENTENCE_START = Pattern.compile("^(?:Die|Der|Das|Den|Dem|Des|Ein|Eine|Wir|Sie|Es|Er|Ihr|Ihre|Unser|Unsere"
             + "|Seit|Mit|Als|In|Auf|Für|Bei|Durch|Zu|Zur|Zum|Nach|Von|Vom|Im|Am|Hier|Damit|Dabei|Auch|So|Und|The|We|Our|With|In)\\s");
@@ -614,6 +650,9 @@ public final class BusinessRules {
     static boolean qualifies(final String item, final boolean list) {
         if (item.length() < 2 || item.length() > 100 || BusinessFacts.personLike(item) || NOT_A_NAME.matcher(item).find()) {
             return false;
+        }
+        if (item.endsWith("-") || item.startsWith("-")) {
+            return false; // half of a shortened compound ("Einkaufs- und Logistikteam"), no name (0.10.5)
         }
         if (!Character.isUpperCase(item.codePointAt(0)) && !Character.isDigit(item.charAt(0))) {
             return false;
@@ -624,6 +663,9 @@ public final class BusinessRules {
         }
         if (LEGAL_FORM.matcher(item).find()) {
             return true;
+        }
+        if (ORG_UNIT.matcher(item).matches()) {
+            return false; // "Mitglied des Einkaufs", "… der Geschäftsführung": a department or team of the page's own company
         }
         if (INSTITUTION.matcher(item).find()) {
             return true;
@@ -779,12 +821,27 @@ public final class BusinessRules {
             + "((?:[0-3]?[0-9]\\.\\s?[01]?[0-9]\\.\\s?20[0-9]{2})|20[0-9]{2}-[01][0-9]-[0-3][0-9])");
     private static final Pattern APPLY_ONLINE = Pattern.compile("(?iu)\\b(?:online\\s+bewerben|jetzt\\s+bewerben|bewerbungsformular|apply\\s+now|apply\\s+online)\\b");
     private static final Pattern SALARY_WORD = Pattern.compile("(?iu)\\b(?:gehalt|vergütung|verguetung|lohn|stundenlohn|brutto|salary|pay|entgelt|tvöd|tv-l|avr)\\b");
-    /** Words before a title that are not part of it ("Wir suchen", "Gesucht:"). */
+    /**
+     * Words before a title that are not part of it ("Wir suchen", "Gesucht:", "Stellenangebote — "). Whole words (0.10.5: the lead
+     * "Stellenangebot" cut "Stellenangebote — X" to the title "e — X"), with the colon or dash after them.
+     */
     private static final Pattern JOB_LEAD = Pattern.compile("(?iu)^(?:(?:zur\\s+verstärkung\\s+(?:unseres\\s+teams\\s+)?)?(?:suchen\\s+wir|wir\\s+suchen)"
             + "(?:\\s+(?:ab\\s+sofort|zum\\s+nächstmöglichen\\s+zeitpunkt|für\\s+unser(?:e|en)?\\s+\\S+|eine?n?))*|gesucht(?:\\s+wird)?"
-            + "|stellenangebot|wir\\s+stellen\\s+ein|we\\s+are\\s+hiring)\\s*:?\\s*");
+            + "|stellenangebote?|stellenanzeigen?|wir\\s+stellen\\s+ein|we\\s+are\\s+hiring)(?![\\p{L}\\p{N}])\\s*[:|\\-–—]?\\s*");
     private static final Pattern WORK_PLACE = Pattern.compile("(?iu)\\b(?:standort|einsatzort|arbeitsort|location)\\s*:?\\s*(\\p{Lu}[\\p{L}\\-]{2,40})");
 
+    /**
+     * The specialisation after the gender marker that ends a title (0.10.5: "Freiberufliche SAP Senior Berater (m/w/d) Finance." and
+     * "… (m/w/d) SAC." are two positions): one to three capitalised words or acronyms ("S/4HANA", "FI/CO") right before the end of a
+     * sentence, a list mark or a line break. Terms of the position, places of work and the words of a menu or a sentence are none.
+     */
+    private static final Pattern TITLE_SUFFIX = Pattern.compile("(?u)\\G[ \\t]+((?:[\\p{Lu}\\p{N}][\\p{L}\\p{N}]*(?:[/&+.\\-][\\p{L}\\p{N}]+)*)"
+            + "(?:[ \\t]+(?:[\\p{Lu}\\p{N}][\\p{L}\\p{N}]*(?:[/&+.\\-][\\p{L}\\p{N}]+)*|&)){0,2})"
+            + "(?=[ \\t]*(?:[.!?;|•·](?:\\s|$)|$|\\n)|[ \\t]+[\\-–—][ \\t])");
+    private static final Pattern SUFFIX_STOP = Pattern.compile("(?iu)^(?:vollzeit|teilzeit|minijob|werkstudent\\p{L}*|aushilfe|festanstellung"
+            + "|befristet|unbefristet|remote|homeoffice|hybrid|jetzt|mehr|details|weiterlesen|bewerb\\p{L}*|standort|einsatzort|arbeitsort|ort"
+            + "|start|beginn|ab|zum|zur|im|in|für|fuer|wir|ihre?|deine?|unsere?|sie|du|das|die|der|ein|eine|gesucht|stellenangebote?"
+            + "|jobs?|karriere|skip|suche|home|startseite|und|oder|&)$");
     /** A word or mark joining two titles in one sentence ("Buchhalter (m/w/d) oder Controller (m/w/d)"); no part of a title. */
     private static final Pattern TITLE_JOIN = Pattern.compile("(?:[/,&+]|(?:und|oder|bzw\\.|sowie|or|and)(?=[\\s/,&+]))[\\s\\-/,&+]*");
 
@@ -793,25 +850,291 @@ public final class BusinessRules {
      * the marker before it, so the titles do not overlap and the text of each advertisement ({@link #windowEnd}) has no
      * negative length.
      */
-    private List<int[]> jobTitles(final Run run) {
-        final Matcher g = GENDER.matcher(run.text);
+    private static List<int[]> jobTitles(final String text) {
+        final Matcher g = GENDER.matcher(text);
         final List<int[]> titles = new ArrayList<>();
         int floor = 0;
         while (g.find() && titles.size() < MAX_JOBS) {
-            final int start = titleStart(run.text, g.start(), floor);
+            final int start = titleStart(text, g.start(), floor);
+            final int end = suffixEnd(text, g.end());
             if (start >= 0 && g.start() - start >= 3) {
-                titles.add(new int[] {start, g.end(), g.start()});
+                // {start, end (with its specialisation), start of the marker, end of the marker}
+                titles.add(new int[] {start, end, g.start(), g.end()});
             }
-            floor = g.end();
+            floor = end;
         }
         return titles;
     }
 
+    /** End of the specialisation after a marker that ends at {@code markerEnd} ({@link #TITLE_SUFFIX}); the marker's end if none. */
+    private static int suffixEnd(final String text, final int markerEnd) {
+        final Matcher m = TITLE_SUFFIX.matcher(text).region(markerEnd, text.length());
+        if (!m.lookingAt() || m.group(1).length() > 40) {
+            return markerEnd;
+        }
+        for (final String word : m.group(1).split("[ \\t]+")) {
+            if (SUFFIX_STOP.matcher(word).matches()) {
+                return markerEnd;
+            }
+        }
+        return m.end(1);
+    }
+
     /** End of the text of advertisement {@code i}: the next title, at most 6000 characters; never before the end of its own. */
-    private static int windowEnd(final Run run, final List<int[]> titles, final int i) {
+    private static int windowEnd(final String text, final List<int[]> titles, final int i) {
         final int[] t = titles.get(i);
-        final int next = i + 1 < titles.size() ? titles.get(i + 1)[0] : run.text.length();
-        return Math.max(t[1], Math.min(Math.min(next, run.text.length()), t[1] + 6000));
+        final int next = i + 1 < titles.size() ? titles.get(i + 1)[0] : text.length();
+        return Math.max(t[1], Math.min(Math.min(next, text.length()), t[1] + 6000));
+    }
+
+    // ------------------------------------------------------------ postings
+
+    /**
+     * A position the page advertises (0.10.5): its title (start, end, gender marker) and the index of its title among all
+     * titles of the page ({@link #jobTitles}), which ends the text of its advertisement ({@link #windowEnd}).
+     */
+    static final class Posting {
+        final int start;
+        final int end;
+        final int marker;
+        final int index;
+
+        Posting(final int start, final int end, final int marker, final int index) {
+            this.start = start;
+            this.end = end;
+            this.marker = marker;
+            this.index = index;
+        }
+    }
+
+    /** The sentence of a title announces it ("Wir suchen: …", "Zur Verstärkung …"); a menu says no such thing. */
+    private static final Pattern ANNOUNCE = Pattern.compile("(?iu)\\b(?:wir\\s+suchen|suchen\\s+wir|gesucht|wir\\s+stellen\\s+ein"
+            + "|zur\\s+verst(?:ä|ae)rkung|we\\s+are\\s+hiring|we\\s+are\\s+looking\\s+for)\\b");
+    /** The terms of a position right after its title ("in Vollzeit", "– Teilzeit", "(Minijob)", "ab sofort", "zum 01.08.2027"). */
+    private static final Pattern IMMEDIATE = Pattern.compile("(?iu)[\\s\\-–—|·:,(]*(?:(?:in\\s+|als\\s+|zum\\s+)?(?:vollzeit|teilzeit|minijob"
+            + "|werkstudent(?:in)?|aushilfe|festanstellung|befristet|unbefristet|ab\\s+sofort|full[\\s-]?time|part[\\s-]?time)\\b"
+            + "|(?:zum|ab(?:\\s+dem)?)\\s+[0-3]?\\d\\.\\s?(?:[01]?\\d\\.|\\p{L}{3,9}\\s)\\s?(?:20)?\\d{2})");
+    /** The own text of an advertisement: its tasks or its requirements, as headings. */
+    private static final Pattern AD_SECTION = Pattern.compile("(?iu)\\b(?:(?:ihre|deine|your)\\s+(?:aufgaben|t(?:ä|ae)tigkeiten|tasks"
+            + "|responsibilities)|aufgaben(?:gebiet|bereich)?\\s*:|(?:ihr|dein|your)\\s+profil\\b|profil\\s*:|anforderungen\\s*:"
+            + "|qualifikation(?:en)?\\s*:|was\\s+(?:du|sie)\\s+mitbring|das\\s+bring(?:st\\s+du|en\\s+sie)\\s+mit|responsibilities|requirements)");
+    /** Nothing but a joining word or mark between two titles: one sentence names both ("A (m/w/d) oder B (m/w/d)"). */
+    private static final Pattern JOIN_GAP = Pattern.compile("(?iu)\\s*(?:[/,&+]|und|oder|bzw\\.|sowie|or|and)\\s*");
+    /** Characters between two titles below which they form a list (a menu, teaser links), unless the gap is part of an advertisement. */
+    static final int LIST_GAP = 60;
+
+    /**
+     * The positions a page advertises (0.10.5). A careers page often repeats the menu of the open positions, and a site's
+     * text has no line breaks; a title with a gender marker is no position of the page by itself:
+     * <ul>
+     * <li>a detail page: the page title or the last segment of its path names a title; then only the titles it names, cut to
+     * the name ("Jobs & Karriere Stellenangebote SAP-Berater (m/w/d)" of a page text without line breaks becomes
+     * "SAP-Berater (m/w/d)"), once each;</li>
+     * <li>any other page: a title its sentence announces ("Wir suchen: …"), one with its terms right after it ("in
+     * Vollzeit"), or one with its own advertisement text (tasks, profile) that is no entry of a list of titles (a menu,
+     * teaser links: titles next to each other with a few words between them).</li>
+     * </ul>
+     * A title appears once even where the page repeats it (menu and heading).
+     */
+    static List<Posting> postings(final String text, final String url, final List<String> pageTitles) {
+        final List<int[]> titles = jobTitles(text);
+        final List<Posting> out = new ArrayList<>();
+        if (titles.isEmpty()) {
+            return out;
+        }
+        final List<PageName> names = pageNames(url, pageTitles);
+        final int n = titles.size();
+        final boolean[] own = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            own[i] = AD_SECTION.matcher(text).region(titles.get(i)[1], windowEnd(text, titles, i)).find();
+        }
+        // a list: titles next to each other; the heading of an advertisement that follows a menu is none of its entries
+        final boolean[] listed = new boolean[n];
+        for (int i = 0; i + 1 < n; i++) {
+            final String gap = text.substring(titles.get(i)[1], titles.get(i + 1)[0]);
+            if (gap.length() < LIST_GAP && !JOIN_GAP.matcher(gap).matches() && !IMMEDIATE.matcher(gap).lookingAt() && !AD_SECTION.matcher(gap).find()) {
+                listed[i] = true;
+                listed[i + 1] |= !own[i + 1];
+            }
+        }
+        final int[] start = new int[n];
+        final boolean[] named = new boolean[n];
+        boolean detail = false;
+        for (int i = 0; i < n; i++) {
+            final int[] t = titles.get(i);
+            final int s = namedStart(text, t, names);
+            // a specialisation is part of the name: the page of "… (m/w/d) Finance" names no "… (m/w/d) SAC" of its menu
+            named[i] = s >= 0 && (t[1] == t[3] || namedBy(names, tokens(text.substring(t[3], t[1]))));
+            start[i] = leadEnd(text, s >= 0 ? s : t[0], t[2]);
+            detail |= named[i];
+        }
+        final Map<String, Integer> chosen = new LinkedHashMap<>();
+        for (int i = 0; i < n; i++) {
+            final int[] t = titles.get(i);
+            final boolean posting = detail ? named[i] : announced(text, start[i]) || immediate(text, titles, i) || !listed[i] && own[i];
+            final String key = jobKey(text.substring(start[i], t[1]));
+            if (!posting || key == null) {
+                continue;
+            }
+            // of a repeated title the occurrence with its own text, else the one outside a list, else the one with the longest text
+            final Integer before = chosen.get(key);
+            if (before == null || rank(own, listed, i) > rank(own, listed, before) || rank(own, listed, i) == rank(own, listed, before)
+                    && windowEnd(text, titles, i) - t[1] > windowEnd(text, titles, before) - titles.get(before)[1]) {
+                chosen.put(key, i);
+            }
+        }
+        for (final int i : new java.util.TreeSet<>(chosen.values())) {
+            out.add(new Posting(start[i], titles.get(i)[1], titles.get(i)[2], i));
+        }
+        return out;
+    }
+
+    private static int rank(final boolean[] own, final boolean[] listed, final int i) {
+        return (own[i] ? 2 : 0) + (listed[i] ? 0 : 1);
+    }
+
+    /**
+     * The titles of a page with gender markers as comparison keys without the marker ({@link #jobKey}): {postings, others}.
+     * The LLM tier names no job the rules see as no position of the page (0.10.5).
+     */
+    public static List<Set<String>> jobTitleKeys(final String text, final String url, final List<String> pageTitles) {
+        final Set<String> postings = new LinkedHashSet<>();
+        final Set<String> others = new LinkedHashSet<>();
+        if (text == null) {
+            return List.of(postings, others);
+        }
+        for (final Posting p : postings(text, url, pageTitles)) {
+            final String k = jobKey(text.substring(p.start, p.end));
+            if (k != null) {
+                postings.add(k);
+            }
+        }
+        for (final int[] t : jobTitles(text)) {
+            final String k = jobKey(text.substring(leadEnd(text, t[0], t[2]), t[1]));
+            if (k != null && !postings.contains(k)) {
+                others.add(k);
+            }
+        }
+        return List.of(postings, others);
+    }
+
+    /** The comparison key of a job title: without its gender marker, umlauts written out. */
+    public static String jobKey(final String title) {
+        return title == null ? null : fold(Normalizers.key(GENDER.matcher(title).replaceAll(" ")));
+    }
+
+    private static String fold(final String key) {
+        return key == null ? null : key.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue");
+    }
+
+    /** The words of a text as comparison keys (umlauts written out). */
+    private static List<String> tokens(final String text) {
+        final String k = fold(Normalizers.key(text));
+        return k == null ? List.of() : List.of(k.split(" "));
+    }
+
+    /** A name of the page: the words of a page title, or of the last segment of its path. */
+    private static final class PageName {
+        final List<String> words;
+        final boolean path;
+
+        PageName(final List<String> words, final boolean path) {
+            this.words = words;
+            this.path = path;
+        }
+    }
+
+    /**
+     * True if one of the names holds the words in a row. In a path, a word of two or more may be shortened (at least five letters: the
+     * path "freiberufl-sap-senior-berater-finance" names "Freiberufliche SAP Senior Berater", 0.10.5); a page title names exactly.
+     */
+    private static boolean namedBy(final List<PageName> names, final List<String> words) {
+        if (words.isEmpty()) {
+            return false;
+        }
+        for (final PageName name : names) {
+            final boolean shortened = name.path && words.size() >= 2;
+            next: for (int i = 0; i + words.size() <= name.words.size(); i++) {
+                for (int k = 0; k < words.size(); k++) {
+                    final String a = name.words.get(i + k), w = words.get(k);
+                    if (!a.equals(w) && !(shortened && a.length() >= 5 && w.startsWith(a))) {
+                        continue next;
+                    }
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Start of a title after its lead words ({@link #JOB_LEAD}): "Stellenangebote — X" starts at X; {@code start} if none. */
+    private static int leadEnd(final String text, final int start, final int markerAt) {
+        final Matcher m = JOB_LEAD.matcher(text).region(start, markerAt);
+        return m.lookingAt() && m.end() < markerAt ? m.end() : start;
+    }
+
+    /** The page title(s) and the last segment of the path, as words: what names the position of a detail page. */
+    private static List<PageName> pageNames(final String url, final List<String> pageTitles) {
+        final List<PageName> out = new ArrayList<>();
+        for (final String t : pageTitles == null ? List.<String>of() : pageTitles) {
+            final List<String> k = tokens(t);
+            if (!k.isEmpty()) {
+                out.add(new PageName(k, false));
+            }
+        }
+        try {
+            final String path = url == null ? null : new URI(url).getPath();
+            if (path != null) {
+                final String[] parts = path.split("/");
+                for (int i = parts.length - 1; i >= 0; i--) {
+                    if (!parts[i].isEmpty()) {
+                        final List<String> k = tokens(parts[i].replaceAll("\\.[a-z0-9]{2,5}$", "").replace('-', ' ').replace('_', ' '));
+                        if (String.join(" ", k).length() >= 3) {
+                            out.add(new PageName(k, true));
+                        }
+                        break;
+                    }
+                }
+            }
+        } catch (final Exception e) {
+            // no path: the page titles only
+        }
+        return out;
+    }
+
+    /** Start of the longest end of the title (whole words before its marker) that a page name contains ({@link #namedBy}); -1 if none does. */
+    private static int namedStart(final String text, final int[] t, final List<PageName> names) {
+        if (names.isEmpty()) {
+            return -1;
+        }
+        for (int w = t[0]; w < t[2]; w++) {
+            if (!Character.isLetterOrDigit(text.charAt(w)) || w > t[0] && !Character.isWhitespace(text.charAt(w - 1))) {
+                continue;
+            }
+            final List<String> words = tokens(text.substring(w, t[2]));
+            if (String.join(" ", words).length() >= 3 && namedBy(names, words)) {
+                return w;
+            }
+        }
+        return -1;
+    }
+
+    /** The sentence before {@code from} (at most 160 characters) announces positions. */
+    private static boolean announced(final String text, final int from) {
+        int a = from;
+        while (a > 0 && from - a < 160 && ".!?\n".indexOf(text.charAt(a - 1)) < 0) {
+            a--;
+        }
+        return ANNOUNCE.matcher(text.substring(a, from)).find();
+    }
+
+    /** The terms of the position follow its title, or the title it is joined to in one sentence ("A (m/w/d) oder B (m/w/d) in Vollzeit"). */
+    private static boolean immediate(final String text, final List<int[]> titles, final int i) {
+        final int end = i + 1 < titles.size() ? titles.get(i + 1)[0] : text.length();
+        if (IMMEDIATE.matcher(text).region(titles.get(i)[1], end).lookingAt()) {
+            return true;
+        }
+        return i + 1 < titles.size() && JOIN_GAP.matcher(text.substring(titles.get(i)[1], end)).matches() && immediate(text, titles, i + 1);
     }
 
     /** Phrases with which a careers page declares its operator as the employer of its advertisements. */
@@ -824,19 +1147,21 @@ public final class BusinessRules {
      * internal use; nothing is a job object.
      */
     private void jobHints(final Run run) {
-        final List<int[]> titles = jobTitles(run);
-        if (titles.isEmpty()) {
+        final List<int[]> titles = jobTitles(run.text);
+        final List<Posting> postings = postings(run.text, run.url, run.titles);
+        if (postings.isEmpty()) {
             return;
         }
         final String lead = run.text.substring(0, titles.get(0)[0]);
-        for (int i = 0; i < titles.size(); i++) {
-            final int[] t = titles.get(i);
+        for (final Posting p : postings) {
+            final int[] t = {p.start, p.end, p.marker};
             final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
             if (Normalizers.key(title) == null || BusinessFacts.personLike(title)) {
                 continue;
             }
-            final int windowEnd = windowEnd(run, titles, i);
-            final String jobText = run.text.substring(t[0], windowEnd);
+            final int windowEnd = windowEnd(run.text, titles, p.index);
+            // with the lead words of the title: "Wir suchen" declares the employer
+            final String jobText = run.text.substring(Math.min(t[0], titles.get(p.index)[0]), windowEnd);
             if (BusinessSignals.INTERMEDIARY.matcher(jobText + " " + lead).find()
                     || !SELF_HIRING.matcher(jobText).find() && !SELF_HIRING.matcher(lead).find()) {
                 continue; // the employer is not declared: whose systems these are stays unclear
@@ -847,15 +1172,15 @@ public final class BusinessRules {
     }
 
     private void jobs(final Run run) {
-        final List<int[]> titles = jobTitles(run);
-        for (int i = 0; i < titles.size(); i++) {
-            final int[] t = titles.get(i);
+        final List<int[]> titles = jobTitles(run.text);
+        for (final Posting posted : postings(run.text, run.url, run.titles)) {
+            final int[] t = {posted.start, posted.end, posted.marker};
             final String title = JOB_LEAD.matcher(run.text.substring(t[0], t[1]).replaceAll("\\s+", " ").trim()).replaceFirst("");
             final String key = Normalizers.key(title);
             if (key == null || BusinessFacts.personLike(title)) {
                 continue;
             }
-            final int windowEnd = windowEnd(run, titles, i);
+            final int windowEnd = windowEnd(run.text, titles, posted.index);
             final Mention job = run.out.add(new Mention("rule:job:" + key+":"+t[0], Vocabulary.JOB, 2));
             job.name = title;
             final Matcher wp = WORK_PLACE.matcher(run.text).region(t[1], windowEnd);
@@ -863,22 +1188,32 @@ public final class BusinessRules {
             job.jobKey = (run.subject.name == null ? "" : Normalizers.key(run.subject.name)) + "|" + key + "|"
                     + (place == null ? "" : Normalizers.key(place));
             claim(run, job, Vocabulary.NAME, title, t[0], t[1], 0.7);
-            final String jobText=run.text.substring(t[0],windowEnd);
+            // with the lead words of the title: "Wir suchen" declares the employer
+            final int textStart=Math.min(t[0],titles.get(posted.index)[0]);
+            final String jobText=run.text.substring(textStart,windowEnd);
             // The site operator is not automatically the employer. Keep unidentified jobs as such.
-            final String lead=run.text.substring(0,titles.get(0)[0]);
+            final String lead=run.text.substring(0,titles.isEmpty()?0:titles.get(0)[0]);
             final Pattern selfHiring=Pattern.compile("(?iu)wir suchen|bei uns|unser Team|we are hiring|join our team");
             final Matcher ownJob=selfHiring.matcher(jobText),ownList=selfHiring.matcher(lead);
             boolean employerAssigned=false;
             if(!BusinessSignals.INTERMEDIARY.matcher(jobText+" "+lead).find()) {
-                if(ownJob.find()){relation(run,job,Vocabulary.HIRING_ORGANIZATION,run.subject,t[0]+ownJob.start(),t[0]+ownJob.end(),0.7);employerAssigned=true;}
+                if(ownJob.find()){relation(run,job,Vocabulary.HIRING_ORGANIZATION,run.subject,textStart+ownJob.start(),textStart+ownJob.end(),0.7);employerAssigned=true;}
                 else if(ownList.find()){relation(run,job,Vocabulary.HIRING_ORGANIZATION,run.subject,ownList.start(),ownList.end(),0.7);employerAssigned=true;}
             }
-            if(!employerAssigned)job.jobKey="unresolved:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+":"+t[0]))+"|"+key;
-            else job.jobKey+="|posting:"+java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+":"+t[0]));
+            // the posting is the page and its title, not the title's position: a menu that grows keeps it (0.10.5)
+            final String posting=java.util.HexFormat.of().formatHex(net.yacy.scoutro.knowledge.KgIds.objectKey(run.url+"|"+key));
+            if(!employerAssigned)job.jobKey="unresolved:"+posting+"|"+key;
+            else job.jobKey+="|posting:"+posting;
             if (run.ctx.jobSignals) {
                 BusinessSignals.extract(run.text.substring(t[1],windowEnd),job,run.out,2,Claim.KIND_RULE,"text","text:"+t[1]);
             }
             final Set<String> types = new LinkedHashSet<>();
+            // the title states it ("Freiberufliche SAP Berater", "Werkstudent …"): a form of the term, no compound ("Ausbildungsleiter")
+            for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, t[0], t[2])) {
+                if (inflected(run.text, h) && types.add(h.entry.id)) {
+                    claim(run, job, Vocabulary.EMPLOYMENT_TYPE, h.entry.id, h.start, h.end, 0.7);
+                }
+            }
             for (final TermMatcher.Hit<Categories.Entry> h : run.ctx.categories.employmentTypes(run.text, t[1], Math.min(windowEnd, t[1] + 400))) {
                 if (types.add(h.entry.id)) {
                     claim(run, job, Vocabulary.EMPLOYMENT_TYPE, h.entry.id, h.start, h.end, 0.7);
@@ -920,6 +1255,18 @@ public final class BusinessRules {
                 claim(run, job, Vocabulary.APPLICATION_ROUTE, Normalizers.url(run.url), ap.start(), ap.end(), 0.6);
             }
         }
+    }
+
+    /** The hit is a term itself or a form of it (at most two more letters: "freiberufliche", "Praktikantin"), no compound. */
+    private static boolean inflected(final String text, final TermMatcher.Hit<Categories.Entry> h) {
+        final String word = TermMatcher.fold(text.substring(h.start, h.end));
+        for (final String term : h.entry.terms) {
+            final String t = TermMatcher.fold(term);
+            if (word.equals(t) || word.startsWith(t) && word.length() - t.length() <= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void date(final Run run, final Mention job, final String predicate, final Pattern p, final int from, final int to) {

@@ -293,4 +293,44 @@ public class LlmExtractorTest {
         assertEquals(1, on.mentions().stream().filter(m -> Vocabulary.JOB.equals(m.type)).count());
         assertEquals(1, on.claims().stream().filter(c -> Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)).count());
     }
+    /**
+     * Production 0.10.4 (owner finding): the model named the open positions of a careers menu as jobs of every page of the
+     * section, a benefits page among them. A job the rules see as a menu entry of the page is none of the model's either; on
+     * the page of the position the model's job stays.
+     */
+    @Test
+    public void aJobOfTheModelThatIsOnlyAMenuEntryOfThePageIsDropped() throws Exception {
+        final String menu = "Muster Pflege gGmbH Jobs & Karriere Stellenangebote Freiberuflicher SAP-Berater (m/w/d) SAP Basis Administrator"
+                + " (m/w/d) Projektleiter IT (m/w/d) Benefits Team Kultur ";
+        final String benefits = menu + "Benefits bei uns Wir bieten flexible Arbeitszeiten und ein starkes Team.";
+        final String answer = "{\"entities\":[{\"id\":\"j1\",\"type\":\"job\",\"name\":\"Freiberuflicher SAP-Berater (m/w/d)\",\"quote\":"
+                + "\"Freiberuflicher SAP-Berater (m/w/d)\"}],\"claims\":[{\"subject\":\"j1\",\"predicate\":\"hiring_organization\","
+                + "\"object\":\"k1\",\"quote\":\"Muster Pflege gGmbH Jobs & Karriere Stellenangebote Freiberuflicher SAP-Berater (m/w/d)\"}],"
+                + "\"values\":[]}";
+        final ExtractContext jobs = new ExtractContext(net.yacy.scoutro.knowledge.vocab.KgVocabularies.get(), Set.of(), true, List.of("it-web"));
+        final String url = "https://www.muster-software.example/jobs-karriere/team-werden/benefits/";
+        final LlmExtractor.Result r = LlmExtractor.validate(answer, LlmExtractor.chunks(benefits, 12_000).get(0), known(), Set.of());
+        assertEquals(1, r.entities);
+        assertEquals(1, r.claims);
+        final Extraction menuPage = new Extraction(100);
+        LlmExtractor.apply(r.accepted, known(), menuPage,
+                jobs.withJobTitles(BusinessRules.jobTitleKeys(benefits, url, List.of("Benefits | Muster Software"))));
+        assertTrue(menuPage.mentions().toString(), menuPage.mentions().stream().noneMatch(m -> Vocabulary.JOB.equals(m.type)));
+        assertTrue("its claims go with it", menuPage.claims().stream().noneMatch(c -> Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)));
+        // without the titles of the page (an older caller), the model's job stays as before
+        final Extraction unknown = new Extraction(100);
+        LlmExtractor.apply(r.accepted, known(), unknown, jobs);
+        assertEquals(1, unknown.mentions().stream().filter(m -> Vocabulary.JOB.equals(m.type)).count());
+        assertEquals(1, unknown.claims().stream().filter(c -> Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)).count());
+        // the page of the position: the same menu, then its advertisement
+        final String detail = menu + "Freiberuflicher SAP-Berater (m/w/d) Ihre Aufgaben: Beratung zu SAP S/4HANA. Ihr Profil: SAP Kenntnisse.";
+        final String detailUrl = "https://www.muster-software.example/jobs-karriere/stellenangebote/freiberuflicher-sap-berater/";
+        final LlmExtractor.Result d = LlmExtractor.validate(answer, LlmExtractor.chunks(detail, 12_000).get(0), known(), Set.of());
+        assertEquals(1, d.claims);
+        final Extraction own = new Extraction(100);
+        LlmExtractor.apply(d.accepted, known(), own,
+                jobs.withJobTitles(BusinessRules.jobTitleKeys(detail, detailUrl, List.of("Freiberuflicher SAP-Berater (m/w/d) | Muster Software"))));
+        assertEquals(1, own.mentions().stream().filter(m -> Vocabulary.JOB.equals(m.type)).count());
+        assertEquals(1, own.claims().stream().filter(c -> Vocabulary.HIRING_ORGANIZATION.equals(c.predicate)).count());
+    }
 }

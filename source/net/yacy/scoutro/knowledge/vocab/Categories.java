@@ -238,8 +238,19 @@ public final class Categories {
         return this.companySizeMatcher.find(text, from, to);
     }
 
+    private static final Set<String> INTERNSHIP_WORDS = Set.of("intern", "interns", "internship", "internships");
+
     public List<TermMatcher.Hit<Entry>> employmentTypes(final String text, final int from, final int to) {
-        return this.employmentTypeMatcher.find(text, from, to);
+        final List<TermMatcher.Hit<Entry>> out = new ArrayList<>();
+        for (final TermMatcher.Hit<Entry> h : this.employmentTypeMatcher.find(text, from, to)) {
+            // the term "intern" starts "Internationale", "Internet", "interne": only the word itself or "internship" names one (0.10.5)
+            final String word = TermMatcher.fold(text.substring(h.start, h.end));
+            if (word.startsWith("intern") && !INTERNSHIP_WORDS.contains(word)) {
+                continue;
+            }
+            out.add(h);
+        }
+        return out;
     }
 
     public int categoryCount() {

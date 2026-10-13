@@ -2554,3 +2554,157 @@ Three findings of the mobile knowledge graph page: the category lists offered on
 - Java: `ServicePricesTest` (6: the count of a group equals its current list, for every group; no name, category or vocabulary needed; a viewer sees only its collections; stable paging; facets for the selects carry the profiles and no counts), `JobAdHintsTest` (7: employer without job objects, unchanged with job objects, off, intermediary/undeclared/ambiguous, careers page, posting semantics, policy keys and identity), `CompanySystemsTest` (2: systems with and without shown job objects), `JobReadingHashTest` (2), `SyncServiceTest` (+2: a changed job reading extracts only the job pages again; a graph of 0.10.1 reads the hints of its job pages once and records `job_reading_changed`), `MatchingTest` (+3: `job_ad` hints are job-based and follow the matching policy; a requirement stays weak and client work never matches; a company's own competence statement is no requirement), `KgCollectionSettingsTest` (+1: on by default, switched off explicitly, `recheckJobs` without re-extraction).
 - Browser (EN/DE, 390 and 1280 pixels): `knowledge-services-prices-ui-test.mjs` (category notes for error, no profile and none found; collection switch; price links, status, paging), `knowledge-jobs-systems-ui-test.mjs` (four switches with their help, only the changed one sent, the targeted re-check reported and shown, the overview's job cell, Software and systems with context and source, no jobs section where job objects are not shown).
 
+
+## 30. The positions of a careers page, departments and the status "confirmed" (0.10.5)
+
+A production finding of 0.10.4 (owner screenshots of a company graph): the same open position appeared as two job nodes with
+cut names, a benefits page of the careers section was the evidence of a job, and the company was "member of" a node named
+like its purchasing department, shown as *confirmed*.
+
+### 30.1 Causes (reproduced with neutral texts)
+
+- **Menu entries became jobs.** Every page whose address names a careers section (`/jobs-karriere/…`, `/karriere/…`) is a
+  careers page by the business rules, and on a careers page every title with a gender marker ("SAP-Berater (m/w/d)") was a
+  job of that page. A site repeats the menu of its open positions on every page of the section, so the benefits page, the
+  team page and every other page had all open positions as jobs, with the general text after the menu as their evidence.
+- **One position, several nodes.** Page texts carry no line breaks, so the start of a title reached back into the words
+  before it ("Jobs & Karriere Stellenangebote SAP-Berater (m/w/d)", "Benefits Team Kultur SAP-Berater (m/w/d)"); the job key
+  held the URL and the character offset of the title. The menu entry and the heading of the advertisement were two jobs of
+  the page, and a menu that grew by one position gave every position below it a new identity.
+- **A department as organisation.** "Als Mitglied des Einkaufs- und Logistikteams …" matched the membership marker
+  "Mitglied des …", and the hyphenated word was taken as the name of an organisation (`member_of` → "Einkaufs-").
+- **The LLM tier** received the menu jobs of the rules as known entities and could name the same menu entries itself.
+
+### 30.2 What the rules read now
+
+- **The positions a page advertises** (`BusinessRules.postings`). On a *detail page*, whose page title or last path segment
+  names a title, only the titles it names are jobs, cut to the named words ("SAP-Berater (m/w/d)"), once each. On any other
+  careers page a title is a position if its sentence announces it ("Wir suchen …", "Zur Verstärkung …"), if its terms follow it
+  ("in Vollzeit", "ab sofort", "zum 01.08.2027"), or if its own text follows it (tasks, profile, requirements) and it is no
+  entry of a list of titles (titles next to each other with a few words between them: a menu or teaser links). The heading of
+  an advertisement after the menu belongs to the advertisement, not to the menu. A page with several complete
+  advertisements keeps each of them; a title repeated on the page (menu and heading) is one job, read from its advertisement.
+- **Identity.** The posting key of a job is the URL of its page and its normalised title, no longer the offset of the title:
+  a changed menu keeps the job; a different position on its own page stays a different job.
+- **Hints of advertisements** (29.3) are read from the text of the positions only, not from the general text after a menu.
+- **The LLM tier** (`ExtractContext.withJobTitles`, `LlmExtractor.apply`) drops a job whose title, or the end of a title, the
+  rules see on that page only as a menu entry or teaser link; its claims go with it. A page without such titles, and the
+  position of a detail page, keep the model's job as before.
+- **Departments.** A membership whose object is a department or team ("Einkauf", "Vertrieb", "Geschäftsführung", "…abteilung",
+  "…team", hyphenated or not) is no membership; an association, a chamber or a cooperative stays one.
+
+### 30.3 The existing graph: a targeted re-check
+
+The relation re-check of 0.10.3/0.10.4 gets the rules version **3** (`kg_meta.relation_recheck_rules`). At the first start of
+0.10.5 the active pages processed before it are extracted again once, at low priority (event `relation_rules_recheck`): those
+that carry, in the rule tier, a relation, a job or a hint read from the text of an advertisement (`section` `job_ad_…`), and
+those with a job of the LLM tier. Tiers 1 and 2 only: no other page, no crawl, no LLM request, no global re-extraction. The new
+tier-2 evidence of a page replaces its old one:
+
+- The menu jobs of the benefits and team pages and the department memberships lose their evidence.
+- The position of a detail page keeps its job with every other statement of it (salary, employment type, application route,
+  employer, software hints of the advertisement), and the page keeps its other statements (partners, the operator of its
+  JSON-LD) under the same identifiers (`SyncServiceTest.theRecheckKeepsAPositionWithItsEvidenceAndHints`).
+- A job keeps its node where its rule reference on the page is unchanged. A position whose earlier title had absorbed menu
+  words gets one node with the cut title and the evidence of its page; the nodes with the absorbed names leave the current
+  graph unless the LLM tier also names them.
+- **Restart-safe:** the check keeps its start (`kg_meta.relation_recheck_since`); after a stop or a crash only the pages not
+  yet extracted since then are named again, none twice; an empty selection at a later start ends it for good
+  (`relation_recheck_done`; `SyncServiceTest.anInterruptedRecheckGoesOnWhereItStopped`).
+
+**The LLM tier: counted, not changed.** Its evidence stays until the LLM tier reads the page again. For each re-checked page the
+re-check classifies the jobs of the LLM tier with the rules of the page text (the same rule that now keeps new menu jobs out of
+the LLM tier, `ExtractContext.noPosting`) and adds up `kg_meta.relation_recheck_llm_jobs`, shown as
+`sync.relationRecheckLlmJobs` of `kg/status`:
+
+| Field | Meaning |
+| --- | --- |
+| `pages` | re-checked pages with jobs of the LLM tier |
+| `menuJobs`, `menuEvidence` | jobs (and their tier-3 evidence rows) the page has only as a menu entry or teaser link: **wrong** |
+| `positionEvidence` | tier-3 evidence of a position the page advertises: kept |
+| `otherEvidence` | tier-3 evidence of a job the rules see no title of (no gender marker): kept, not judged |
+
+A new version of the rules starts the count again; a restart keeps it and counts no page twice
+(`SyncServiceTest.theRecheckCountsTheJobsOfTheLlmTierWithoutChangingThem`).
+
+**Proposal for the wrong LLM evidence (owner decision after the count):**
+
+1. *Recommended:* remove exactly the tier-3 evidence the re-check counted as `menuEvidence`, deterministically with the same
+   rule, as a versioned one-time step of a later release: no model request, no GPU load, every other tier-3 evidence (positions,
+   other jobs) stays; a job node without evidence leaves the current graph.
+2. *Not recommended:* let the LLM tier read the affected careers pages again. It replaces the evidence, but its requests miss
+   the cache where the known entities of a page changed, and it adds GPU load (a separate operational finding).
+3. *Leave them:* LLM-only facts are never shown as extracted facts (quality uncertain), but the nodes stay visible.
+
+A job of the LLM tier with a different name than the rule job of the same page is a node of its own; the count shows such
+positions under `positionEvidence`, and option 1 leaves them alone.
+
+### 30.4 The status "Extracted from source" (formerly "confirmed")
+
+The business graph and the service lists show a statement as `status: confirmed` when its quality is `supported` and its
+confidence reaches `BusinessView.CONFIRMED` (0.6). A rule relation of one current page has 0.65. It means "stated on a current
+page of the source and read by a rule or from structured data", not "checked by a person" or "stated by several sources".
+Owner decision (13.10.2026): the label is **Extracted from source** (*Aus Quelle extrahiert*); its tooltip and the legend of the
+network say that no human review is implied. The confidence and the number of sources stay separate next to it (list,
+details, the line of a phone). The API keeps the value `confirmed`.
+
+### 30.5 The owner measurement of 0.10.4 and what followed from it
+
+A read-only measurement of production (13.10.2026, copy of the graph opened read-only) found, for one consultancy, 13 job nodes
+named "Freiberufliche SAP Senior Berater (m/w/d)" (one of them "e — …", one in capitals) from three pages: the advertisement
+of the position "… (m/w/d) Finance" and two pages of the careers section (culture, benefits). Their 34 statements were all of
+the rule tier (tier 2); none had LLM evidence. Besides the menu jobs of 30.1 it showed four more errors of the rules, each
+reproduced with a neutral reconstruction of the pages and fixed:
+
+- **The lead word cut the title.** "Stellenangebot" of the lead words (`JOB_LEAD`) matched the start of "Stellenangebote — X",
+  the title became "e — X". Lead words are whole words now ("Stellenangebot(e)", "Stellenanzeige(n)", also with ":", "|" or a
+  dash after them).
+- **The specialisation was cut off.** A title ended at its gender marker, so "… (m/w/d) Finance" and "… (m/w/d) SAC" were the
+  same title. Up to three capitalised words or acronyms after the marker that end the sentence or the list entry belong to the
+  title (`TITLE_SUFFIX`: "Finance", "SAC", "S/4HANA", "FI/CO"); the terms of the position, a place of work and the words of a
+  menu or a sentence do not ("in Vollzeit", "Jetzt bewerben", "Standort Köln", "Skip to content"). A detail page names its
+  position with the specialisation; its path may shorten the words ("freiberufl-sap-senior-berater-finance", at least five
+  letters of a word, two words or more), its page title names them exactly.
+- **"Internationale" was an internship.** The term "intern" matched as the start of a longer word ("Internationale
+  Rechnungslegung", "Internet", "interne Schulungen"). Only the words "intern(s)" and "internship(s)" name one now. The title
+  itself states its kind of employment ("Freiberufliche …", "Werkstudent …", "Praktikantin …") in a form of the term, never in a
+  compound ("Ausbildungsleiter" is no apprenticeship); the terms after the title are read as before.
+- **A person's membership was the organisation's.** "… durch den Einsatz eines [company]-Beraters als Mitglied des Einkaufs"
+  (of a client, on a reference page) made the consultancy "member of" an organisation "Einkaufs". A membership marker after a
+  person in a role in the same sentence (consultant, employee, head of …, managing director, owner, founder, contact, Herr,
+  Frau) is that person's membership, not the page's; not after a number of people ("Mit über 200 Mitarbeitern ist die … GmbH
+  Mitglied …") and not where "wir" is the member ("Als Hersteller von Leitern sind wir Mitglied …").
+- The evidence "bei uns … gut bezahlt" of the benefits page as the employer of a job, and the application form of the culture
+  page as its route, go with the menu jobs of these pages (30.2).
+
+Expected result per page, before (0.10.4) and after (0.10.5), neutral reconstruction of the measured pages:
+
+| Page | 0.10.4 | 0.10.5 |
+| --- | --- | --- |
+| Advertisement "… (m/w/d) Finance" (detail page) | 4 jobs: "e — Freiberufliche SAP Senior Berater (m/w/d)", the two menu entries, the heading, none with "Finance"; `employment_type` internship at "Internationale" | 1 job "Freiberufliche SAP Senior Berater (m/w/d) Finance": name at its heading, `employment_type` freelance at "Freiberufliche" of the title, application route at "Bewerbungsformular" of its text |
+| Advertisement "… (m/w/d) SAC" (detail page) | 4 jobs as above, without "SAC" | 1 job "… (m/w/d) SAC", freelance, its software hint (SAP BW, `required_competence`) and its route |
+| Benefits, culture (careers section, menu only) | 2 menu jobs each; employer from "bei uns", route from the form of the page | no job, no employer, no route, no employment type |
+| Reference page ("eines …-Beraters als Mitglied des Einkaufs") | `member_of` → "Einkaufs" | no membership |
+
+**Scope.** The measurement also counted *suspects* over the whole copy: 230 job names repeated on three or more pages of one
+host and 2,130 `member_of` statements (2,105 objects, many of them fragments). They are not cleaned by pattern: the targeted
+re-check of 30.3 extracts tiers 1 and 2 of exactly the pages with jobs, job-ad hints or relations of the rule tier again with
+the rules above, so a statement goes only where the page no longer gives it, and a correct membership or position stays. The
+129 tier-3 evidence rows of jobs in the copy belong to all hosts, not to this company; the count of 30.3 tells how many of
+them are menu entries.
+
+### 30.6 Tests
+
+- Java: `JobAdHintsTest` (+8: menu entries, a benefits page and teaser links of a careers section are no jobs; a position
+  belongs to its detail page with its application route and its hints; its identity survives a changed menu, another position
+  stays another job; several advertisements on one page stay separate; the advertisement of a consultancy is one job with its
+  full title, its own evidence and no internship; positions that differ by their specialisation stay separate; benefits and
+  culture pages give no job, employer or route; "Internationale", "Internet", "interne" name no internship),
+  `BusinessExtractionTest` (+2: a department is no membership, an association and a cooperative stay; a person's membership is
+  no membership of the organisation, the organisation's own stays), `LlmExtractorTest` (+1: a model job that is only a menu entry of the
+  page is dropped with its claims; without page titles and on the detail page it stays), `SyncServiceTest` (+4: only the
+  pages with jobs of the rule tier are extracted again, once; a position keeps all of its evidence and identifiers and the
+  benefits page only loses its menu jobs; an interrupted check goes on where it stopped, each page once; the jobs of the LLM
+  tier are counted, not changed).
+- Browser (`knowledge-ui-test.mjs`, EN/DE, five widths): a fact of the network shows *Extracted from source*, its tooltip and
+  the legend say "no human review", confidence and number of sources stay in their own columns, no status "confirmed".

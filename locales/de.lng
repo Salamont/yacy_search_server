@@ -6308,7 +6308,8 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >certification<==>Zertifizierung<
 >company profile<==>Unternehmensprofil<
 >company size<==>Unternehmensgröße<
->confirmed<==>bestätigt<
+>Extracted from source<==>Aus Quelle extrahiert<
+>Extracted from a current page of the source; no human review. Confidence and the number of sources are shown separately.<==>Aus einer aktuellen Seite der Quelle extrahiert; keine menschliche Prüfung. Konfidenz und Anzahl der Quellen werden getrennt angezeigt.<
 >contact form<==>Kontaktformular<
 >contact point<==>Ansprechstelle<
 >cooperates with<==>kooperiert mit<
@@ -6323,7 +6324,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >ended<==>beendet<
 >excl. VAT<==>zzgl. MwSt.<
 >expired<==>abgelaufen<
->fact with evidence<==>Fakt mit Beleg<
+>extracted from source (no human review)<==>aus Quelle extrahiert (keine menschliche Prüfung)<
 >fax<==>Fax<
 >from %1<==>ab %1<
 >gross<==>brutto<

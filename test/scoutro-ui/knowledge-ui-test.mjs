@@ -273,6 +273,15 @@ try {
         const edges = await page.locator('#skg-net-svg .skg-edge').count();
         check(edges >= 6 && await page.locator('#skg-net-table tbody tr').count() === edges, 'every line is also a list row' + where);
         check(await page.locator('#skg-net-svg .skg-edge.skg-e-suggested').count() === 0, 'no suggestions unless asked' + where);
+        // 0.10.5 (owner decision): a fact read from a source is "extracted from source", not "confirmed"; no human review is implied,
+        // and its confidence and number of sources stay apart from the status
+        const factRow = page.locator('#skg-net-table tbody tr', { has: page.locator('.skg-s-confirmed') }).first();
+        const factCells = (await factRow.locator('td').allTextContents()).map(c => c.trim());
+        check(factCells[3] === L('Extracted from source', 'Aus Quelle extrahiert'), 'status extracted from source: ' + factCells[3] + where);
+        check(/^\d+ %$/.test(factCells[4]) && /^\d+/.test(factCells[5]), 'confidence and number of sources apart: ' + factCells.slice(4).join(' | ') + where);
+        check((await factRow.locator('.skg-s-confirmed').getAttribute('title')).includes(L('no human review', 'keine menschliche Prüfung')), 'the status says: no human review' + where);
+        check((await page.locator('#skg-net-legend').textContent()).includes(L('no human review', 'keine menschliche Prüfung')), 'so does the legend' + where);
+        check(!(await page.locator('#skg-net-table').textContent()).includes(L('confirmed', 'bestätigt')), 'no status "confirmed"' + where);
         check(await noOverflow(page), 'no horizontal overflow (network)' + where);
         const birke = page.locator('#skg-net-svg .skg-node', { hasText: 'Haus Birke' }).first();
         await birke.focus();

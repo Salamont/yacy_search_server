@@ -926,7 +926,12 @@
     const label = codeLabel(item);
     return label && label !== v ? label + ' (' + v + ')' : String(v ?? '');
   }
-  function statusBadge(status) { return badge(t('s_' + status), 's-' + status); }
+  function statusBadge(status) {
+    const b = badge(t('s_' + status), 's-' + status);
+    // extracted from a source, not reviewed by a person: said where the status is shown
+    if (status === 'confirmed') b.title = t('s_confirmed_hint');
+    return b;
+  }
   function factMeta(item) {
     const meta = node('div', null, 'skg-meta');
     if (item.status) meta.append(statusBadge(item.status));
@@ -1584,8 +1589,11 @@
     }
     for (const [st, key] of [['confirmed', 'legend_fact'], ['uncertain', 'legend_uncertain'], ['derived', 'legend_derived'], ['weak', 'legend_weak'], ['suggested', 'legend_suggested']]) {
       const li = node('li'); const s = svg('svg', { width: '36', height: '10', 'aria-hidden': 'true' });
-      s.append(svg('line', { x1: '0', y1: '5', x2: '36', y2: '5', class: 'skg-line skg-e-' + st })); li.append(s, ' ', t(key)); legend.append(li);
+      s.append(svg('line', { x1: '0', y1: '5', x2: '36', y2: '5', class: 'skg-line skg-e-' + st })); li.append(s, ' ', t(key));
+      if (st === 'confirmed') li.title = t('s_confirmed_hint');
+      legend.append(li);
     }
+    legend.append(node('li', t('s_confirmed_hint'), 'sseo-note skg-legend-note'));
     $('net-count').textContent = t('net_count').replace('%1', fmt(nodes.length)).replace('%2', fmt(edges.length)) + (g.truncated ? ' · ' + t('net_more_hint') : '');
     $('net-more').hidden = !g.truncated || g.next == null;
     const json = new Blob([JSON.stringify({ schema: 'scoutro.kg.business.v1', center: g.center, collection: collection || null,

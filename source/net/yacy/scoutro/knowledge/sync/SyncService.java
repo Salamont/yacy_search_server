@@ -36,6 +36,9 @@ import net.yacy.scoutro.knowledge.KgException;
 import net.yacy.scoutro.knowledge.KgJson;
 import net.yacy.scoutro.knowledge.budget.StorageGuard;
 import net.yacy.scoutro.knowledge.budget.StorageGuard.WriteClass;
+import net.yacy.scoutro.knowledge.extract.BusinessRules;
+import net.yacy.scoutro.knowledge.extract.BusinessSignals;
+import net.yacy.scoutro.knowledge.extract.ExtractContext;
 import net.yacy.scoutro.knowledge.extract.Extraction;
 import net.yacy.scoutro.knowledge.extract.Vocabulary;
 import net.yacy.scoutro.knowledge.publish.Aggregates;
@@ -201,10 +204,12 @@ public final class SyncService {
     static final String META_RELATION_RECHECK_DONE = "relation_recheck_done";
     /**
      * kg_meta (0.10.4): the version of the relation rules the check above belongs to. 1 (0.10.3, no row): consent banners name
-     * no partner; 2 (0.10.4): a list ends with its sentence. A graph checked with older rules is checked once more.
+     * no partner; 2 (0.10.4): a list ends with its sentence; 3 (0.10.5): a department is no membership ("Mitglied des
+     * Einkaufs"), and a careers page has the positions it advertises as jobs, not the entries of its menu. A graph checked with
+     * older rules is checked once more.
      */
     static final String META_RELATION_RULES = "relation_recheck_rules";
-    static final String RELATION_RULES = "2";
+    static final String RELATION_RULES = "3";
     /** The relations the rule tier reads after a marker (BusinessRules); the fixes of 0.10.3 and 0.10.4 may change them. */
     static final List<String> RECHECK_RELATIONS = List.of(Vocabulary.CARRIER_OF, Vocabulary.SUBSIDIARY_OF, Vocabulary.PARENT_OF,
             Vocabulary.BRAND_OF, Vocabulary.COOPERATION_WITH, Vocabulary.PARTNER_OF, Vocabulary.CUSTOMER_OF, Vocabulary.REFERENCE_FOR,
@@ -212,18 +217,34 @@ public final class SyncService {
             Vocabulary.SUPPLIER_OF, Vocabulary.SERVICE_PROVIDER_FOR);
     /** Pages extracted again although their input is unchanged ({@link #relationRecheck}); removed once extracted. */
     private final java.util.Set<String> recheckRelations = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    /**
+     * kg_meta (0.10.5): what the re-check found in the job evidence of the LLM tier on its pages, as JSON ({@link #llmJobAudit}):
+     * {@code pages} with such evidence, {@code menuJobs} and {@code menuEvidence} (a job the rules see on the page only as a
+     * menu entry or teaser link: wrong), {@code positionEvidence} (a position the page advertises) and {@code otherEvidence}
+     * (no title of the rules). Counted only; nothing of the LLM tier is changed.
+     */
+    static final String META_RECHECK_LLM_JOBS = "relation_recheck_llm_jobs";
+    /** The audit of each page re-checked in the current batch, added to {@link #META_RECHECK_LLM_JOBS} with its publication. */
+    private final Map<String, long[]> llmJobAudit = new java.util.concurrent.ConcurrentHashMap<>();
+    /** {@link #META_RECHECK_LLM_JOBS} as last written (status). */
+    private volatile JSONObject llmJobs = new JSONObject();
 
     /**
      * 0.10.3: a consent banner ("an unsere Partner für soziale Medien, Werbung und Analysen weiter") made purposes partner
      * organisations; 0.10.4: a list went on into the next sentence ("… Beta AG. Muster GmbH, Musterstraße 1" made the operator of
-     * the imprint a partner). The active pages processed before the corrected rules with a relation of the rule tier are
-     * extracted again once per version of the rules ({@link #RELATION_RULES}), at low priority, and only they; their input is unchanged, so they are named here. Restart-safe: a page extracted
-     * since then is not named again, and an empty selection ends the check for good.
+     * the imprint a partner); 0.10.5: a department became an organisation the operator is a member of, and every page of a
+     * careers section had the positions of its menu as jobs (or read the hints of their advertisements from its general
+     * text). The active pages processed before the corrected rules with a relation, a job or a job advertisement hint of the
+     * rule tier are extracted again once per version of the rules ({@link #RELATION_RULES}), at low priority, and only they;
+     * their input is unchanged, so they are named here. Tiers 1 and 2 only: the evidence of the LLM tier stays; a page with a
+     * job of the LLM tier is also checked, and that evidence is counted ({@link #META_RECHECK_LLM_JOBS}). Restart-safe: a
+     * page extracted since then is not named again, and an empty selection ends the check for good.
      */
     private List<String> relationRecheck(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
         if (!RELATION_RULES.equals(KgStore.getMeta(tx, META_RELATION_RULES))) {
             KgStore.deleteMeta(tx, META_RELATION_RECHECK); // checked with older rules (0.10.3) or never: once with these
             KgStore.deleteMeta(tx, META_RELATION_RECHECK_DONE);
+            KgStore.deleteMeta(tx, META_RECHECK_LLM_JOBS); // counted by the check of these rules
             KgStore.putMeta(tx, META_RELATION_RULES, RELATION_RULES);
         }
         if (KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
@@ -242,11 +263,19 @@ public final class SyncService {
         try (java.sql.PreparedStatement ps = tx.prepareStatement("SELECT d.doc_id FROM kg_doc d WHERE d.state = " + Aggregates.STATE_ACTIVE
                 + " AND (d.processed_at IS NULL OR d.processed_at < ?) AND EXISTS (SELECT 1 FROM kg_evidence e"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred"
-                + " WHERE e.doc_rowid = d.doc_rowid AND e.tier = 2 AND v.name IN (" + in + ")) ORDER BY d.doc_id")) {
+                + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
+                + " WHERE e.doc_rowid = d.doc_rowid AND (e.tier = 2 AND (v.name IN (" + in + ") OR t.name = ?"
+                + " OR v.name = ? AND s.obj_val LIKE ? ESCAPE '\\') OR e.tier = 3 AND t.name = ?)) ORDER BY d.doc_id")) {
             ps.setLong(1, since);
             for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
                 ps.setString(i + 2, RECHECK_RELATIONS.get(i));
             }
+            // a job of the rule tier, or a hint read from the text of an advertisement (BusinessSignals.JOB_AD)
+            ps.setString(RECHECK_RELATIONS.size() + 2, Vocabulary.JOB);
+            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.SYSTEM_SIGNAL);
+            ps.setString(RECHECK_RELATIONS.size() + 4, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
+            // a job of the LLM tier: its page is extracted again (tiers 1 and 2) and its evidence counted (llmJobAudit)
+            ps.setString(RECHECK_RELATIONS.size() + 5, Vocabulary.JOB);
             try (java.sql.ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ids.add(rs.getString(1));
@@ -258,8 +287,9 @@ public final class SyncService {
             return ids;
         }
         if (stored == null) {
-            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations of the rule tier extracted again"
-                    + " (consent banners are no partners, a list ends with its sentence); no other page", now);
+            KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + " pages with relations or jobs of the rule tier extracted again"
+                    + " (consent banners are no partners, a list ends with its sentence, a department is no membership, a menu entry"
+                    + " is no job); no other page", now);
         }
         WorkQueue.scanned(tx, ids, WorkQueue.REASON_RECONCILE, WorkQueue.PRIO_REEXTRACT, 0L, now, this.queueMax);
         return ids;
@@ -363,6 +393,7 @@ public final class SyncService {
             final String jobs = jobReading(tx, now);
             this.recheckRelations.clear();
             this.recheckRelations.addAll(relationRecheck(tx, now));
+            this.llmJobs = llmJobAudit(tx);
             return new String[] {collections, extractors, KgStore.getMeta(tx, KgSchema.META_RESET_IN_PROGRESS),
                     KgStore.getMeta(tx, KgSchema.META_VERSION_CHECKPOINT), hold, jobs};
         });
@@ -662,7 +693,14 @@ public final class SyncService {
                 return release(item, now + (this.gateClosed != null ? GATE_RETRY_MILLIS : GROWTH_RETRY_MILLIS), false);
             }
             try {
-                ex = extract(d);
+                final BaseTiers.Text text = new BaseTiers.Text(this.solr, d.id);
+                ex = extract(d, text);
+                if (this.recheckRelations.contains(item.docId)) {
+                    final long[] audit = llmJobAudit(d, text);
+                    if (audit != null) {
+                        this.llmJobAudit.put(item.docId, audit);
+                    }
+                }
             } catch (final IOException e) {
                 solrFailed(e);
                 release(item, now + SOLR_RETRY_MILLIS, false);
@@ -710,8 +748,87 @@ public final class SyncService {
 
     /** Tiers 1 and 2; the text is read only for tier-2 candidates. */
     private Extraction extract(final SolrDoc d) throws IOException {
+        return extract(d, new BaseTiers.Text(this.solr, d.id));
+    }
+
+    private Extraction extract(final SolrDoc d, final BaseTiers.Text text) throws IOException {
         this.counters.extractions.incrementAndGet();
-        return this.tiers.extract(d, new BaseTiers.Text(this.solr, d.id));
+        return this.tiers.extract(d, text);
+    }
+
+    /**
+     * The job evidence of the LLM tier on a re-checked page (0.10.5), counted, not changed: {menu evidence, position evidence,
+     * other evidence, menu jobs}, or null if the page has none. A job of the model is a menu entry where the rules see its
+     * title on the page only as an entry of a list of titles ({@link ExtractContext#noPosting}), as the LLM tier now drops it.
+     */
+    private long[] llmJobAudit(final SolrDoc d, final BaseTiers.Text text) throws IOException {
+        final List<Object[]> jobs;
+        final ExtractContext titles;
+        try {
+            jobs = this.store.read(c -> tier3Jobs(c, d.id));
+            if (jobs.isEmpty()) {
+                return null;
+            }
+            titles = ExtractContext.none().withJobTitles(BusinessRules.jobTitleKeys(text.get(), d.url, d.titles));
+        } catch (final KgException | RuntimeException e) {
+            return null; // a diagnosis only: the page and the re-check go on without it
+        }
+        final long[] out = new long[4];
+        for (final Object[] job : jobs) {
+            final String name = (String) job[0];
+            final long evidence = (Long) job[1];
+            if (titles.noPosting(name)) {
+                out[0] += evidence;
+                out[3]++;
+            } else if (titles.posting(name)) {
+                out[1] += evidence;
+            } else {
+                out[2] += evidence;
+            }
+        }
+        return out;
+    }
+
+    /** The jobs with evidence of the LLM tier on a page: {their name on it, their tier-3 evidence rows on it}. */
+    private static List<Object[]> tier3Jobs(final java.sql.Connection c, final String docId) throws java.sql.SQLException {
+        final List<Object[]> out = new ArrayList<>();
+        try (java.sql.PreparedStatement ps = c.prepareStatement("SELECT min(nm.obj_val), (SELECT count(*) FROM kg_evidence x"
+                + " JOIN kg_statement xs ON xs.stmt_rowid = x.stmt_rowid WHERE x.doc_rowid = d.doc_rowid AND x.tier = 3 AND xs.subj = n.ent_rowid)"
+                + " FROM kg_doc d JOIN kg_evidence e ON e.doc_rowid = d.doc_rowid AND e.tier = 3 JOIN kg_statement nm ON nm.stmt_rowid = e.stmt_rowid"
+                + " JOIN kg_vocab nv ON nv.term_id = nm.pred JOIN kg_entity n ON n.ent_rowid = nm.subj JOIN kg_vocab t ON t.term_id = n.type"
+                + " WHERE d.doc_id = ? AND nv.name = ? AND t.name = ? AND nm.obj_val IS NOT NULL GROUP BY n.ent_rowid")) {
+            ps.setString(1, docId);
+            ps.setString(2, Vocabulary.NAME);
+            ps.setString(3, Vocabulary.JOB);
+            try (java.sql.ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    out.add(new Object[] {rs.getString(1), rs.getLong(2)});
+                }
+            }
+        }
+        return out;
+    }
+
+    /** {@link #META_RECHECK_LLM_JOBS} as stored; empty if none or unreadable. */
+    private static JSONObject llmJobAudit(final java.sql.Connection c) throws java.sql.SQLException {
+        try {
+            final String stored = KgStore.getMeta(c, META_RECHECK_LLM_JOBS);
+            return stored == null ? new JSONObject() : new JSONObject(stored);
+        } catch (final org.json.JSONException e) {
+            return new JSONObject();
+        }
+    }
+
+    /** Adds the audit of a published page to {@link #META_RECHECK_LLM_JOBS}; returns the new totals. */
+    private static JSONObject addLlmJobAudit(final java.sql.Connection tx, final long[] audit) throws java.sql.SQLException {
+        final JSONObject total = llmJobAudit(tx);
+        final String[] keys = {"menuEvidence", "positionEvidence", "otherEvidence", "menuJobs"};
+        for (int i = 0; i < keys.length; i++) {
+            KgJson.put(total, keys[i], total.optLong(keys[i]) + audit[i]);
+        }
+        KgJson.put(total, "pages", total.optLong("pages") + 1);
+        KgStore.putMeta(tx, META_RECHECK_LLM_JOBS, total.toString());
+        return total;
     }
 
     /**
@@ -723,7 +840,7 @@ public final class SyncService {
             throws KgException {
         final long now = this.clock.getAsLong();
         final long resetMark = this.handledResets;
-        final Object[] outcome = new Object[1];
+        final Object[] outcome = new Object[2];
         try {
             this.store.write(cls, cls == WriteClass.GROWTH ? PUBLISH_ESTIMATE : SMALL, tx -> {
                 if (this.dirty.hasNewer(item.docId, doc.solrVersion) || this.dirty.fullResets() != resetMark) {
@@ -737,9 +854,15 @@ public final class SyncService {
                 } else {
                     WorkQueue.complete(tx, item);
                 }
+                final long[] audit = r.outcome == Publisher.Outcome.PUBLISHED ? this.llmJobAudit.get(item.docId) : null;
+                outcome[1] = audit == null ? null : addLlmJobAudit(tx, audit);
                 outcome[0] = r.outcome;
                 return null;
             });
+            if (outcome[1] != null) {
+                this.llmJobAudit.remove(item.docId);
+                this.llmJobs = (JSONObject) outcome[1];
+            }
         } catch (final KgException e) {
             this.terms.forgetCollections();
             return refused(item, e, cls);
@@ -993,7 +1116,8 @@ public final class SyncService {
                 "changes", this.dirty.status(), "queue", KgJson.obj("items", queued, "maxItems", this.queueMax,
                         "oldestAgeSeconds", oldest),
                 "processed", this.counters.json(), "versionCheckpoint", this.versionCheckpoint > 0L ? this.versionCheckpoint : null,
-                "reconcile", this.reconciler.status(), "relationRecheck", this.recheckRelations.size(), "retention", this.retention.status(),
+                "reconcile", this.reconciler.status(), "relationRecheck", this.recheckRelations.size(),
+                "relationRecheckLlmJobs", this.llmJobs, "retention", this.retention.status(),
                 "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending(),
                         "byType", this.pendingByType));
     }
