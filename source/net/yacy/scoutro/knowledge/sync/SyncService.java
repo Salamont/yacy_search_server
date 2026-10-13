@@ -331,7 +331,11 @@ public final class SyncService {
      * The active pages of the check not processed since it started ({@code since}), at most {@code limit} (-1: all): with a
      * relation of the rule tier (not with the scope jobs), a job of any tier (the JSON-LD posting of 0.10.6 too), or a hint read
      * from an advertisement (BusinessSignals.JOB_AD) of tiers 1 and 2; a job of the LLM tier: its page is extracted again (tiers 1
-     * and 2) and its evidence counted (llmJobAudit). The same selection decides at the start and at the end of the check.
+     * and 2) and its evidence counted (llmJobAudit). The same selection decides at the start and at the end of the check, and after
+     * a restart. Only evidence published before the check started counts ({@code observed_at}, the time of its publication): the
+     * LLM tier publishes on pages without processing them ({@code processed_at} stays), so a job it read on an old page during the
+     * check made that page look like a page of the check never extracted again, and the check never ended (0.10.6 production
+     * finding C29). With it the selection only shrinks: a page leaves it when it is processed or no longer active, none joins.
      */
     private static List<String> recheckPages(final java.sql.Connection tx, final long since, final boolean jobsOnly, final int limit)
             throws java.sql.SQLException {
@@ -344,17 +348,18 @@ public final class SyncService {
                 + " AND (d.processed_at IS NULL OR d.processed_at < ?) AND EXISTS (SELECT 1 FROM kg_evidence e"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred"
                 + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
-                + " WHERE e.doc_rowid = d.doc_rowid AND (e.tier = 2 AND v.name IN (" + in + ") AND ? = 0 OR t.name = ?"
+                + " WHERE e.doc_rowid = d.doc_rowid AND e.observed_at < ? AND (e.tier = 2 AND v.name IN (" + in + ") AND ? = 0 OR t.name = ?"
                 + " OR e.tier IN (1, 2) AND v.name = ? AND s.obj_val LIKE ? ESCAPE '\\')) ORDER BY d.doc_id"
                 + (limit >= 0 ? " LIMIT " + limit : ""))) {
             ps.setLong(1, since);
+            ps.setLong(2, since);
             for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
-                ps.setString(i + 2, RECHECK_RELATIONS.get(i));
+                ps.setString(i + 3, RECHECK_RELATIONS.get(i));
             }
-            ps.setInt(RECHECK_RELATIONS.size() + 2, jobsOnly ? 1 : 0);
-            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.JOB);
-            ps.setString(RECHECK_RELATIONS.size() + 4, Vocabulary.SYSTEM_SIGNAL);
-            ps.setString(RECHECK_RELATIONS.size() + 5, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
+            ps.setInt(RECHECK_RELATIONS.size() + 3, jobsOnly ? 1 : 0);
+            ps.setString(RECHECK_RELATIONS.size() + 4, Vocabulary.JOB);
+            ps.setString(RECHECK_RELATIONS.size() + 5, Vocabulary.SYSTEM_SIGNAL);
+            ps.setString(RECHECK_RELATIONS.size() + 6, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
             try (java.sql.ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ids.add(rs.getString(1));
@@ -394,7 +399,7 @@ public final class SyncService {
         final String stored = KgStore.getMeta(tx, META_RELATION_RECHECK);
         if (stored == null || !recheckPages(tx, Long.parseLong(stored), "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE)), 2)
                 .stream().allMatch(docId::equals)) {
-            return null; // pages of the selection outside this process's list (e.g. beyond the queue limit): the next start names them
+            return null; // pages of the selection outside this process's list: it ends once they are processed (recheckEnd)
         }
         finishRecheck(tx, now, true);
         return now;
@@ -433,6 +438,51 @@ public final class SyncService {
         }
         KgJson.put(info, "failedPages", ids);
         return info;
+    }
+
+    /** How often the end of a check without a page left in this process is looked at ({@link #recheckEnd}). */
+    static final long RECHECK_END_EVERY_MILLIS = 5L * 60_000L;
+    /** When {@link #recheckEnd} looks next. */
+    private long recheckEndAt;
+
+    /**
+     * The end of the check without a publication (0.10.6 production finding C29): no page of the check is left in this process,
+     * none failed, and the check has no end, because its last page left while the selection still named a page outside this
+     * process's list. Once the selection is empty, the check ends as with its last page: in one write, with its event, once.
+     * Nothing is extracted for it; the selection is read at most every {@link #RECHECK_END_EVERY_MILLIS}, and a refused write
+     * leaves the check open for the next look.
+     */
+    private void recheckEnd(final long now) {
+        if (!this.recheckRelations.isEmpty() || !this.recheckFailed.isEmpty() || now < this.recheckEndAt) {
+            return;
+        }
+        final JSONObject info = this.recheckInfo;
+        if (info.isNull("since") || !info.isNull("done")) {
+            return;
+        }
+        this.recheckEndAt = now + RECHECK_END_EVERY_MILLIS;
+        final Long done;
+        try {
+            done = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+                final String ended = KgStore.getMeta(tx, META_RELATION_RECHECK_DONE);
+                if (ended != null) {
+                    return Long.valueOf(ended);
+                }
+                final String stored = KgStore.getMeta(tx, META_RELATION_RECHECK);
+                if (stored == null || !RELATION_RULES.equals(KgStore.getMeta(tx, META_RELATION_RULES))
+                        || KgStore.getMeta(tx, META_RELATION_RECHECK_FAILED) != null || !recheckPages(tx, Long.parseLong(stored),
+                                "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE)), 1).isEmpty()) {
+                    return null;
+                }
+                finishRecheck(tx, now, true);
+                return now;
+            });
+        } catch (final KgException e) {
+            return; // refused or failed: looked at again later
+        }
+        if (done != null) {
+            recheckDone(done);
+        }
     }
 
     /** The cached {@link #recheckInfo} with the end of the check. */
@@ -643,6 +693,7 @@ public final class SyncService {
             }
             boolean more = this.reconciler.step();
             more |= processBatch();
+            recheckEnd(this.clock.getAsLong());
             more |= this.retention.step();
             if (!more && this.reconciler.waitsForQueueRoom()
                     && this.store.read(WorkQueue::size) < Math.max(1L, this.queueMax / 2L)) {

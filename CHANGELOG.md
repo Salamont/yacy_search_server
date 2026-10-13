@@ -2,6 +2,30 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased — fix: the relation re-check ends in the running process (0.10.6 rollout, C29)
+
+- **The end of the check (C29).** Production ran 0.10.6 without a restart; the
+  full check published all its pages, nothing was open or failed, and its end
+  (`sync.relationRecheckInfo.done`) was never written. A job the LLM tier read
+  on an old page while the check ran put that page into the check's selection
+  (the LLM tier does not touch `processed_at`), so the last page did not end
+  it. The selection now counts only evidence published before the check
+  started: fixed at the start, it only shrinks. The running process also ends
+  a check whose selection empties without a page of it (looked at every five
+  minutes while that is so). A check whose pages were all published while its
+  end is missing — the graph 0.10.6 leaves — ends at the first start without
+  extracting any page again; start, scope and page count stay; the end and its
+  event are written once. No rules version change, no new check, no LLM
+  request, no crawl; refused writes, failed pages and crashes keep the check
+  open as before.
+- **Correction (C32).** "Zur Verstärkung unseres Teams suchen wir Dich" is a
+  neutral phrase of the tests, never the wording of the reported pages; they
+  say "Bei uns wirst Du." and "Bei uns gestaltest Du …", which the rules read
+  ("bei uns"). Why their jobs have no employer (where the phrases stand, or
+  the operator's identity) is open; no rule is changed. Their employment type
+  stays unknown, as is correct. Details:
+  [docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 31.6](docs/SCOUTRO_KNOWLEDGE_GRAPH.md).
+
 ## 0.10.6 / 1.942-scoutro.30 — patch: the employer an advertisement declares, the employment type it states, one job per position page
 
 Patch of the installed 0.10.5. See the
@@ -12,9 +36,10 @@ once, the pages with a job of any tier or a job-ad hint (rules version 4,
 scope `jobs`) where the check of 0.10.5 is recorded as complete; otherwise the
 full check of relations, jobs and hints, once. No LLM request, no crawl.
 
-- **The employer an advertisement declares.** "Zur Verstärkung unseres Teams
-  suchen wir Dich", "Werde Teil unseres Teams", "wir stellen ein" and similar
-  declarations in the advertisement's own text make the site's operator the
+- **The employer an advertisement declares.** Declarations such as "wir
+  suchen", "bei uns", "Werde Teil unseres Teams" or "wir stellen ein" (phrases
+  of the tests, not the wording of the reported pages; correction above)
+  in the advertisement's own text make the site's operator the
   job's employer, with that sentence as evidence. Menu, footer ("Jobs bei
   uns") and the domain declare nothing; another organisation of the page is
   not who "wir" is. "Für unseren Kunden/Mandanten …": the operator recruits
