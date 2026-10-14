@@ -228,6 +228,7 @@ public class ServiceOfferEvidenceTest {
         }
         final LlmExtractor.Result r = check(text, answer(entities, new JSONArray(), new JSONArray()));
         assertEquals("the actual object of the offer stays; earlier menu labels do not inherit its verb", 1, r.entities);
+        assertEquals("Tagespflege", r.accepted.getJSONArray("entities").getJSONObject(0).getString("name"));
         assertEquals(Integer.valueOf(3), r.droppedInvalidByReason.get("entity_service_not_offered"));
     }
 }

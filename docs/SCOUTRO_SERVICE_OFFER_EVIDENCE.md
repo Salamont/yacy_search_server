@@ -152,6 +152,14 @@ rule keeps only the service named as the offer's object. The final new test
 classes contain 20 tests; the focused target also runs the broader quality
 check and isolation regressions (90 tests in total).
 
+Supplemental reproduction: compile the baseline `LlmExtractor`, `ExtractContext`
+and `LlmReading` sources from `da72b5586` into an isolated class directory and
+run the final two new test classes with those classes first on the classpath.
+The unchanged surrounding extraction/publication code and dependencies are
+shared. Result: **14 failures out of 20** on the baseline, **20/20 passed** on
+the fix. The flattened-navigation assertion checks the retained name itself,
+not just the accepted count.
+
 The existing navigation counterexample now uses an explicitly delimited list;
 its formerly unbounded flat-menu assumption is the bug being removed. One
 PR #71 diagnosis expectation is updated: a service whose own quote contains
