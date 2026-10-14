@@ -90,7 +90,10 @@ sign-in limit contract of 0.10.0 is unchanged:
   served.
 - **Quality check of a candidate model for the knowledge graph (#69).** It is
   a new section of the LLM selection, for administrators only. Details:
-  [SCOUTRO_LLM_QUALITY_CHECK.md](SCOUTRO_LLM_QUALITY_CHECK.md).
+  [SCOUTRO_LLM_QUALITY_CHECK.md](SCOUTRO_LLM_QUALITY_CHECK.md). Its
+  evaluation 2 counted a rule statement the model repeated as the model's;
+  replaced by evaluation 3 with a fixed baseline and a diagnosis in
+  [0.10.8](SCOUTRO_RELEASE_0.10.8.md).
   - **How it reads.** It reads ten versioned reference pages (test set
     `kg-reference` version 2, evaluation version 2) with the candidate. The
     steps are the graph's own: client, active prompt, chunks, budget, validator
