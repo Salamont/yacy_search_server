@@ -20,6 +20,15 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   The default prompt says so too. A new prompt reads no document again. Evidence accepted before stays; a reviewable cleanup
   plan is documented. Details:
   [docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 33.1](docs/SCOUTRO_KNOWLEDGE_GRAPH.md).
+- **The log report's call fits the model's window.** The log lines alone used to be sized to the window minus the output cap
+  at four characters per token. With `num_ctx` 131,072 and `max_tokens` 65,536 that made about 263,600 characters, which a
+  strict endpoint refuses together with the cap; this is the likely cause of the production HTTP 400s, still a hypothesis.
+  - The whole call is now planned: template and instructions included, log lines at 2.5 characters per token, a margin of
+    5 %, the configured cap (lowered only where a configured window cannot hold it).
+  - Lines that do not fit are omitted visibly: warnings and errors first, then the newest lines, with the count in the prompt,
+    the report and the log line.
+  - A call that cannot fit is not sent.
+  - No model-specific rule, no retry.
 - **HTTP errors of a model endpoint name their reason.** The error body is read, at most 16 KiB. The message adds the
   provider's code, the rejected parameter, a router's upstream provider and up to 300 characters of the provider's message. It
   never includes the prompt, the request, a router's raw answer or a key.
@@ -27,7 +36,7 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
     assumes and whether they exceed it.
   - The knowledge graph's `lastError` names the status and the provider code.
   - No parameter was removed and no fallback was added.
-  - The cause of the six production failures stays open until such a line is read (33.2).
+  - A provider's message on the next failure confirms or refutes the context overflow (33.2).
 - **Provenance.** The time axes of evidence and observations are documented: which time says what, and that no time names a
   model (33.3).
   - A model switch between reading the selection and admitting a request now defers it.

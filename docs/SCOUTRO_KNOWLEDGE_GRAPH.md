@@ -3007,20 +3007,60 @@ No global re-extraction and no LLM request is needed for it.
 **Finding.** On 2026-10-14 at 08:24Z production logged six `LOGREPORT phase=write result=failure` lines, each with
 `java.io.IOException: Request failed with response code 400` and without the provider's reason.
 
+OpenCode then read the call lines of these runs:
+
+- **The six failed calls** each had about 263,600 prompt characters.
+- **One successful call** had 39,775.
+- **The same model, backend and output settings applied to all:** `max_tokens` 65,536, `numCtx` 131,072, `stream: true`,
+  `temperature` 0.1, the stop tokens, no `response_format`, no retry.
+- **Missing:** the provider's code and body, the real provider and the real prompt tokens.
+
 **The paths compared:**
 
 | | log report (`LogReportService`) | knowledge graph (`YacyLlmClient`) |
 | --- | --- | --- |
 | selection | `llmFromUsage(logreport, runId, caller)`: the first row of `ai.production_models` with the usage flag | `llmFromUsageQuiet(knowledge)` |
-| endpoint | `LLM.chatStream`: always `POST <hoststub>/v1/chat/completions`, `stream: true`, `Accept: text/event-stream` | Ollama: `/api/chat`; others: `/v1/chat/completions` with `stream: false` |
-| parameters | `model`, `temperature` 0.1, `max_tokens` = the row's, `num_ctx`, 8 `stop` tokens, `reasoning_effort: none`, `enable_thinking: false` | the same on `/v1/chat/completions`, plus `response_format` (`json_schema` or `json_object`) |
-| prompt size | payload = max(512, num_ctx/4, num_ctx − max_tokens) tokens at **4** characters per token; header and noise summary not counted | `RequestBudget`: prompt + answer reserve ≤ window, else split or refused |
-| timeouts | none (connect and read unbounded) | connect 10 s, read `llm.timeout` |
+| endpoint | `LLM.chatStream`: always `POST <hoststub>/v1/chat/completions`, `stream: true` | Ollama: `/api/chat`; others: `/v1/chat/completions` with `stream: false` |
+| parameters | `model`, `temperature` 0.1, `max_tokens` = the row's, `num_ctx`, 8 `stop` tokens, `reasoning_effort: none`, `enable_thinking: false` | the same on `/v1/chat/completions`, plus `response_format` |
+| prompt size (before) | log lines = max(512, num_ctx/4, num_ctx − max_tokens) tokens at **4** characters per token; template and noise summary not counted | `RequestBudget`: prompt + answer reserve ≤ window, else split or refused |
+| timeouts | none | connect 10 s, read `llm.timeout` |
 | retries | none (a failed hour is tried at the next run while its lines are in memory) | one retry without the format after an HTTP 400 with a format; queue backoff |
 | error body | not read | not read |
 
+**Cause: a context overflow, as a hypothesis until a provider's message confirms it.** The budget explains the measured
+sizes exactly:
+
+- With `num_ctx` 131,072 and `max_tokens` 65,536 the log lines got 131,072 − 65,536 = 65,536 tokens at four characters each:
+  262,144 characters.
+- With the template, the prompt had about 263,600 characters (the replica: 262,882).
+- Log lines with timestamps, paths, URLs and numbers have fewer than four characters per token. At three, the prompt alone
+  needs about 88,000 tokens, which together with the cap of 65,536 exceeds the window. A strict OpenAI-compatible endpoint
+  refuses that with HTTP 400; Ollama truncates.
+- The successful call (39,775 characters, about 13,000 tokens) fits.
+- The same row's knowledge graph calls fit, because their requests are planned against the window (`RequestBudget`).
+- Reproduced with neutral log lines against a mocked strict endpoint (three characters per token, the cap counted): the
+  code before builds 262,882 characters and is refused; the code now builds 147,472 and is answered.
+
 **What changed:**
 
+- **The whole call is planned against the window** (`LogReportService.callBudget`). The window is the service's `num_ctx`
+  (configured, or assumed when not configured) and the output cap is the row's `max_tokens`; no model or provider is named.
+  - A margin of 5 % of the window (at least 256 tokens) stays free.
+  - The prompt gets the rest, at least a quarter of the window, and counts its template and instructions as prose at 3.5
+    characters per token and its log lines at 2.5. The estimate is conservative.
+  - Where the window is configured and the output cap leaves the prompt less than a quarter of it, the cap sent for this call
+    is lowered to what is left. Where the window is only assumed, the configured cap is sent as before.
+  - Production settings: the cap stays 65,536 and the prompt gets 58,982 tokens. The production-like hour of the replica gets
+    147,472 characters, about 58,932 tokens.
+- **No silent cut.** If the log lines that are no noise do not fit, they are selected in this order:
+  1. warnings and errors (`W`, `E`), the newest first;
+  2. the newest other lines, until the next one does not fit.
+
+  The kept lines stay in their order. The prompt says how many lines were omitted and how many of them were warnings or
+  errors; so do the report's header ("Sent to the model: …") and the call's log line (`inputlines`, `sentlines`,
+  `omittedlines`). The daily report keeps the newest whole hourly reports and says how many it omitted.
+- **A call that cannot fit a configured window is not sent.** This applies when the template alone is too large; the log line
+  names the reason. Nothing is retried; the next run tries again.
 - **The provider's reason is kept.** `LLM` reads at most 16 KiB of an error body (`LlmHttpError`) in every path. The message
   keeps its form, "Request failed with response code N", and adds in parentheses:
   - the provider's error code or type;
@@ -3028,38 +3068,29 @@ No global re-extraction and no LLM request is needed for it.
   - the upstream provider a router names;
   - at most 300 characters of its message.
 
-  Never part of it: the request, the prompt, the whole body, a router's raw upstream answer, an API key or a bearer token
-  (masked wherever the provider repeats it). The fallback of the structured output still recognises "response code 400".
-- **The log report's lines name the call.** The model-call line and the failure line carry: `function=logreport`, the service
-  type, the model, `promptChars`, `estPromptTokens` (three characters per token, an estimate), `maxTokens`, `numCtx` with
-  `numCtxConfigured`, and `windowExceeded`. A failure also carries `httpStatus`, `providerCode`, `providerParam`, `provider`,
-  `providerMessage` and `errorBodyBytes`. The `runId` of every line is the correlation id.
-- **The knowledge graph's status names the error.** `lastError` names the HTTP status and the provider code
-  (`llm: http_400 context_length_exceeded`).
+  Never part of it: the request, the prompt, the whole body, a router's raw upstream answer, an API key or a bearer token.
+  The fallback of the structured output still recognises "response code 400".
+- **The log report's lines name the call.** The model-call and failure lines carry `function=logreport`, the service type,
+  the model, `promptChars`, `estPromptTokens`, `promptTokenBudget`, `maxTokensConfigured`, `maxTokensSent`, `numCtx` with
+  `numCtxConfigured`, `windowExceeded`, and the input sent and omitted. A failure also carries `httpStatus`, `providerCode`,
+  `providerParam`, `provider`, `providerMessage` and `errorBodyBytes`. The `runId` of every line is the correlation id.
+- **The knowledge graph's status names the error.** `lastError` names the HTTP status and the provider code.
 
-No parameter was removed and no fallback was added; the behaviour of every call is unchanged.
+No request parameter was removed, no retry and no fallback to another model was added, and there is no rule for one model.
 
-**Cause: open.** Without the provider's message the 400 cannot be attributed. Reproduced with a mocked strict endpoint
-(`LlmHttpErrorTest`): an exceeded window, a rejected parameter, a router error and a wrong key all looked the same before
-("Request failed with response code 400"). Now they are told apart.
+**Limits:**
 
-One candidate follows from the code. With a configured window the report's budget can exceed it:
+- The estimate is not the provider's tokenizer: 2.5 characters per log token is chosen to be safe. Real prompt tokens of the
+  streamed call are not reported (no `usage` in the stream) and are not measured here.
+- A large hour now sends fewer log lines than before, with the warnings and errors first and the omission named. Splitting an
+  hour into several calls would keep every line at the cost of more calls; it is not done.
 
-- With `num_ctx` 131,072 and `max_tokens` 65,536, the log lines get 65,536 tokens at four characters each.
-- At three characters per token, the prompt and the cap exceed the window (`LogReportDiagnosticsTest`).
-- A strict provider refuses such a request with HTTP 400; Ollama truncates it.
+**Read-only check for OpenCode after the next run:**
 
-With the assumed window (4,096, not configured) the log lines get 1,024 tokens and the prompt stays small. Whether the
-production row has a configured window is not known.
-
-**Read-only check for OpenCode:**
-
-- In the log of 2026-10-14 08:2x Z, take the `runId` of the six failures and read its `event=model-routing` line: `service`,
-  `model`, `maxTokens`, `numCtx`.
-- Read its `phase=model-call` lines: `promptChars`, `maxTokens`.
-- Read the same fields for the knowledge row (status `llm.model`, the row in `LLMSelection_p`) and whether `logreport` and
-  `knowledge` use the same row.
-- After this version runs, the next failure line names the provider's reason.
+- the call line's `estPromptTokens`, `promptTokenBudget`, `maxTokensSent`, `windowExceeded=false` and the `omittedlines` of the
+  hours before;
+- no new failure line; if one comes, its `httpStatus`, `providerCode` and `providerMessage` confirm or refute the context
+  overflow.
 
 ### 33.3 Provenance and the time axes of LLM evidence
 
@@ -3117,8 +3148,19 @@ statement's current evidence.
 - `LlmHttpErrorTest` (new, 5, a mocked strict endpoint through `LLM.chatStream`): an exceeded window, a rejected parameter, a
   router's error with its provider but without its raw answer, a masked key, and a bounded huge body. Red before this change:
   5 of 5 (no reason).
-- `LogReportDiagnosticsTest` (new, 4): the report's own prompt and budget exceed a configured window; an assumed window is
-  marked; the failure fields carry the reason and never the prompt or the key.
+- `LogReportDiagnosticsTest` (new, 8, neutral log lines and a mocked strict endpoint):
+  - a full hour with the production settings fits the window with its cap and is answered, all warnings and errors kept, the
+    omission named;
+  - an hour that fits is sent whole;
+  - an output cap that would fill a configured window is lowered for the call;
+  - an assumed window keeps the configured cap;
+  - warnings and errors come first and the order stays;
+  - the daily prompt keeps the newest whole reports;
+  - a prompt that cannot fit is not sent;
+  - the failure fields carry the provider's reason, never the prompt or the key.
+
+  Red evidence: the code before, run with the same lines and the same strict endpoint, builds a prompt of 262,882 characters
+  and is refused with a bare HTTP 400.
 - `YacyLlmClientTest` (+2): the served model and provider are counted; a model switched before the admission defers the
   request.
 - `LlmFullReadingTest`: its fixture names a customer project an organisation; as a service no offer states it is refused.
