@@ -144,6 +144,23 @@ public class LlmEntityContextTest extends LlmFixture {
         assertEquals(List.of(), entities("AAAAAActx009"));
     }
 
+    /**
+     * An offer stated with an inflected verb ("verkauft", "vertreibt", "vermietet", "sells") is an offer: the product a company
+     * sells stays a service. The quality check's reference page "page tool vs product" found the gap (0.10.7 integration).
+     */
+    @Test
+    public void aProductTheCompanySaysItSellsIsAService() throws Exception {
+        read("AAAAAActx011", "/produkte/mustertext", "MusterText Pro. Die Muster Software GmbH verkauft MusterText Pro, eine Software"
+                + " für Kanzleien.", u -> answer(entity("e1", "service", "MusterText Pro", "Die Muster Software GmbH verkauft MusterText Pro")));
+        assertEquals(List.of("service:MusterText Pro"), entities("AAAAAActx011"));
+        read("AAAAAActx012", "/geraete", "Geräteverleih. Die Muster Technik GmbH vermietet Hubarbeitsbühnen an Handwerksbetriebe.",
+                u -> answer(entity("e1", "service", "Hubarbeitsbühnen", "Die Muster Technik GmbH vermietet Hubarbeitsbühnen")));
+        assertEquals(List.of("service:Hubarbeitsbühnen"), entities("AAAAAActx012"));
+        read("AAAAAActx013", "/en/products", "Products. Muster Software Ltd sells MusterText Pro to law firms.",
+                u -> answer(entity("e1", "service", "MusterText Pro", "Muster Software Ltd sells MusterText Pro")));
+        assertEquals(List.of("service:MusterText Pro"), entities("AAAAAActx013"));
+    }
+
     /** The read-only query of the cleanup plan (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 33.1), verbatim. */
     static final String CANDIDATES = "SELECT t.name AS type, n.obj_val AS name, d.url, substr(e.excerpt, 1, 160) AS excerpt, x.model,"
             + " (SELECT group_concat(substr(oe.excerpt, 1, 120), ' | ') FROM kg_statement o JOIN kg_vocab ov ON ov.term_id = o.pred"

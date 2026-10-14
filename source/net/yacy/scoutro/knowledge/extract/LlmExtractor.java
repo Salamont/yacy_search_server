@@ -134,6 +134,8 @@ public final class LlmExtractor {
      */
     static final Pattern OFFER = Pattern.compile("(?iu)\\b(?:(?:an)?biete[nt]?|bietet|anbieten|angeboten|offer(?:s|ed|ing)?"
             + "|provide[sd]?|providing|kaufen|bestellen|buchen|beauftragen|vertreiben|verkaufen|vermieten|mieten|buy|purchase"
+            // the inflected forms of a seller's verbs: "Die … GmbH verkauft MusterText Pro" (0.10.7, found by the quality check)
+            + "|verkauft|vertreibt|vermietet|sells?|selling|sold"
             + "|book(?:ing)?|subscribe|pricing|prices|services|products|solutions|portfolio|sortiment)\\b"
             + "|\\p{L}*(?:leistung(?:en)?|angebot(?:e|en|s)?|produkte?n?|l(?:ö|oe)sung(?:en)?|lizenz(?:en)?|preise?|preisliste|tarife?)\\b");
     /** A team, a department or staff: the name of a group of people, no service (0.10.7). */

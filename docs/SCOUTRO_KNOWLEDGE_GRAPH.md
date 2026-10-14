@@ -3267,7 +3267,8 @@ before this change):**
 - **A service named as a team, a department or staff is none.** Examples: "Service team", "Vertriebsteam",
   "IT-Abteilung"; reason `entity_service_team_or_role`.
 - **Any other service needs an offer** (reason `entity_service_not_offered`). The offer can stand in one of four places:
-  - in its quote ("wir bieten", "Leistungen", "kaufen", "services", "offer", "provide", …);
+  - in its quote ("wir bieten", "Leistungen", "kaufen", "verkauft", "vertreibt", "vermietet", "services", "offer", "sells",
+    "provide", …);
   - in the heading its quote stands under: reading back from the quote over the short segments right before it (labels of at
     most three words, such as the entries of a navigation) to a heading such as "Leistungen" or "Unsere Produkte";
   - in an `offers` statement of the answer about it, whose quote holds its name and an offer;
@@ -3295,7 +3296,11 @@ team member").
 - services listed under "Leistungen" in a navigation (also an entry quoted alone);
 - a spell check a company offers (by its offer or by its price);
 - a job advertisement with its title;
-- a software product sold ("als Jahreslizenz kaufen").
+- a software product sold ("als Jahreslizenz kaufen");
+- a product a company says it sells ("Die … GmbH verkauft MusterText Pro", "vermietet", "sells"). The integration with the
+  quality check (0.10.7) found that only the infinitive "verkaufen" was read as an offer: the reference page
+  `page_tool_vs_product` lost its product. The inflected forms "verkauft", "vertreibt", "vermietet" and "sells", "selling",
+  "sold" are offers now (`LlmEntityContextTest.aProductTheCompanySaysItSellsIsAService`).
 
 Not changed:
 
@@ -3463,11 +3468,12 @@ statement's current evidence.
 
 ### 33.4 Tests
 
-- `LlmEntityContextTest` (new, 8, the real sync, LLM tier, validator and publisher with a modelled answer):
+- `LlmEntityContextTest` (new, 9, the real sync, LLM tier, validator and publisher with a modelled answer):
   - the sidebar's tools are no services;
   - a team of a contact text is no service;
   - counter-checks: services under their heading in a navigation, a spell check offered or priced, a job advertisement, a
-    software product sold;
+    software product sold, a product a company says it sells, rents out or sells in English (added in the 0.10.7
+    integration; red before the inflected forms);
   - a team list without a vacancy has no job and no service;
   - a product used internally is no service.
 

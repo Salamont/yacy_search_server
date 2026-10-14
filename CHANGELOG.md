@@ -62,7 +62,9 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   - a job without an advertisement.
 
   Kept: services listed under their heading in a navigation, an offered spell check, a job advertisement and a software
-  product sold.
+  product sold. The integration with the quality check found that only the infinitive "verkaufen" counted as an offer, so
+  "Die … GmbH verkauft MusterText Pro" lost its product; "verkauft", "vertreibt", "vermietet", "sells", "selling" and
+  "sold" are offers too.
 
   The default prompt says so too. A new prompt reads no document again. Evidence accepted before stays; a reviewable cleanup
   plan is documented. Details:

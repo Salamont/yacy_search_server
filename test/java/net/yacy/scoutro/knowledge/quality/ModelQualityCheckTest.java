@@ -179,11 +179,12 @@ public class ModelQualityCheckTest {
     public void deviationsShowTheSourceTheExpectationAndTheActualStatement() throws Exception {
         this.f.answer = a -> {
             if ("team_vs_service".equals(a.caseId)) {
-                // a team as a service, and a listed service as an organisation
+                // a team as an organisation of its own, a team as a service, and a listed service as an organisation
                 return QualityFixture.answer(List.of(
-                        QualityFixture.entity("e1", "service", "Serviceteam", "Unser Serviceteam erreichen Sie werktags"),
+                        QualityFixture.entity("e1", "organization", "Serviceteam", "Unser Serviceteam erreichen Sie werktags"),
                         QualityFixture.entity("e2", "organization", "Heizungswartung", "Unsere Leistungen: Heizungswartung und Badsanierung"),
-                        QualityFixture.entity("e3", "service", "Badsanierung", "Unsere Leistungen: Heizungswartung und Badsanierung")),
+                        QualityFixture.entity("e3", "service", "Badsanierung", "Unsere Leistungen: Heizungswartung und Badsanierung"),
+                        QualityFixture.entity("e4", "service", "Kundendienst-Team", "Das Kundendienst-Team beantwortet Ihre Fragen gern")),
                         List.of(), List.of());
             }
             if ("intermediary".equals(a.caseId)) {
@@ -225,6 +226,18 @@ public class ModelQualityCheckTest {
         assertNotNull(team.toString(), wrongType);
         assertTrue(wrongType.optJSONObject("expected").optString("statement").startsWith("service"));
         assertTrue(wrongType.optJSONObject("actual").optString("statement").startsWith("organization"));
+        // the team as a service never reaches the publication: the validator drops it (0.10.7), the technical result says so
+        for (final JSONObject d : team) {
+            assertFalse(d.toString(), String.valueOf(d.optJSONObject("actual")).contains("Kundendienst"));
+        }
+        JSONObject teamTech = null;
+        final JSONArray techCases = r.optJSONObject("technical").optJSONArray("cases");
+        for (int i = 0; i < techCases.length(); i++) {
+            if ("team_vs_service".equals(techCases.optJSONObject(i).optString("case"))) {
+                teamTech = techCases.optJSONObject(i);
+            }
+        }
+        assertEquals(String.valueOf(teamTech), 1, teamTech.optJSONObject("validatorDrops").optInt("entity_service_team_or_role"));
         // the relation to Heizungswartung is missing as well (its service was not read as one)
         final List<JSONObject> agency = deviations(r, "intermediary");
         assertEquals(agency.toString(), 2, agency.size()); // the agency as employer, and an employer at all
