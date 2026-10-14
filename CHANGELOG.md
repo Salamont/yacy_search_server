@@ -4,6 +4,14 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
 ## Unreleased
 
+## 0.10.9 / 1.942-scoutro.33 — patch: service offer evidence before publication
+
+Release candidate stacked on application PR #73; not published.
+[Release, upgrade, rollback and acceptance](docs/SCOUTRO_RELEASE_0.10.9.md).
+The original heading/list review findings are closed. The additional standalone
+price/provider finding remains **open and explicitly deferred**; no further
+price-evidence or provider-check change is included.
+
 - Service names proposed by the LLM need independent source offer evidence;
   flat navigation and boilerplate no longer inherit arbitrary earlier offer
   headings or type themselves through words in their names. Explicit menu
