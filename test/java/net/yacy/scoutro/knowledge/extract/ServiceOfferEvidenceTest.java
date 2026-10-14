@@ -333,4 +333,68 @@ public class ServiceOfferEvidenceTest {
             assertTrue(quote, ex.claims().stream().anyMatch(c -> Vocabulary.PRICE.equals(c.predicate)));
         }
     }
+
+    @Test
+    public void aDeniedListDoesNotPoisonALaterRealOfferOfTheSameName() throws Exception {
+        final String denied = ORG + " – Nicht angebotene Leistungen:\n- Tagespflege";
+        final String offered = ORG + " – Unsere Leistungen:\n- Tagespflege, 12 EUR pro Tag";
+        final String text = denied + "\n\n" + offered;
+        final JSONObject a = listAnswer(offered);
+        a.getJSONArray("entities").getJSONObject(0).put("quote", "Tagespflege");
+        a.getJSONArray("claims").put(claim("k1", "e1", denied));
+        final LlmExtractor.Result r = check(text, a);
+        assertEquals(1, r.entities);
+        assertEquals("only the positive list supplies the relation", 1, r.claims);
+        assertEquals(1, r.values);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+        assertEquals(1, r.samples.get(0).getInt("index"));
+        assertEquals(LlmExtractor.normal(offered.substring(0, offered.indexOf(", 12"))),
+                r.accepted.getJSONArray("entities").getJSONObject(0).getString("quote"));
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(a, known(), ex, ExtractContext.none().withServiceText(text));
+        assertEquals(1L, ex.claims().stream().filter(c -> Vocabulary.OFFERS.equals(c.predicate)).count());
+        assertTrue(ex.claims().stream().filter(c -> Vocabulary.OFFERS.equals(c.predicate))
+                .allMatch(c -> c.object.equals("llm:service:tagespflege")));
+        assertTrue(ex.claims().stream().filter(c -> Vocabulary.PRICE.equals(c.predicate))
+                .allMatch(c -> c.subject.equals("llm:service:tagespflege")));
+    }
+
+    @Test
+    public void aShortPriceQuoteCannotHideItsNegatedSourceHeading() throws Exception {
+        final String price = "Tagespflege, 12 EUR pro Tag";
+        for (final String text : List.of(ORG + " – Nicht angebotene Leistungen: " + price,
+                ORG + " – Nicht angebotene Leistungen:\n- " + price)) {
+            for (final String entityQuote : List.of("Tagespflege", price)) {
+                final JSONObject a = listAnswer(text);
+                a.getJSONArray("entities").getJSONObject(0).put("quote", entityQuote);
+                a.getJSONArray("values").getJSONObject(0).put("quote", price);
+                final LlmExtractor.Result r = check(text, a);
+                assertEquals(entityQuote + " in " + text, 0, r.entities);
+                assertEquals(0, r.claims);
+                assertEquals(0, r.values);
+                final Extraction ex = new Extraction(100);
+                LlmExtractor.apply(a, known(), ex, ExtractContext.none().withServiceText(text));
+                assertFalse(ex.mentions().stream().anyMatch(m -> Vocabulary.SERVICE.equals(m.type)));
+                assertTrue(ex.claims().isEmpty());
+            }
+        }
+    }
+
+    @Test
+    public void aShortOfferQuoteForAKnownServiceCannotHideItsDeniedList() throws Exception {
+        final Mention m = new Mention("existing-service", Vocabulary.SERVICE, 1);
+        m.name = "Tagespflege";
+        final List<LlmExtractor.Known> known = List.of(known().get(0), new LlmExtractor.Known("k2", m));
+        final String quote = ORG + " bietet Tagespflege an";
+        final String text = "Nicht angebotene Leistungen:\n- " + quote;
+        final JSONObject a = answer(new JSONArray(), new JSONArray().put(claim("k1", "k2", quote)), new JSONArray());
+        final LlmExtractor.Result r = LlmExtractor.validate(a.toString(), new LlmExtractor.Chunk(text, 0), known, Set.of());
+        assertEquals(0, r.claims);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(a, known, ex, ExtractContext.none().withServiceText(text));
+        assertTrue(ex.claims().isEmpty());
+        assertEquals("the trusted service itself is not removed", 1L,
+                ex.mentions().stream().filter(x -> Vocabulary.SERVICE.equals(x.type)).count());
+    }
 }

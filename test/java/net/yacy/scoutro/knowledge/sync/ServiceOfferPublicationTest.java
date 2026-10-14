@@ -164,4 +164,27 @@ public class ServiceOfferPublicationTest extends LlmFixture {
         assertTrue(got.toString(), got.contains("offers:Tagespflege"));
         assertTrue(got.toString(), got.stream().anyMatch(s -> s.startsWith("price:") && s.contains("12")));
     }
+
+    private static JSONObject shortPriceAnswer(final String text) throws Exception {
+        final JSONObject a = listAnswer(text);
+        a.getJSONArray("entities").getJSONObject(0).put("quote", "Tagespflege, 12 EUR pro Tag");
+        a.getJSONArray("values").getJSONObject(0).put("quote", "Tagespflege, 12 EUR pro Tag");
+        return a;
+    }
+
+    @Test
+    public void aShortFreshPriceQuoteStillReadsTheDeniedSourceHeading() throws Exception {
+        final String text = "Muster Pflege gGmbH – Nicht angebotene Leistungen: Tagespflege, 12 EUR pro Tag";
+        read("AAAAAAoff009", text, shortPriceAnswer(text));
+        assertEquals(List.of(), statements("AAAAAAoff009"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id=e.type WHERE v.name='service'"));
+    }
+
+    @Test
+    public void aShortCachedPriceQuoteStillReadsTheDeniedSourceHeading() throws Exception {
+        final String text = "Muster Pflege gGmbH – Nicht angebotene Leistungen:\n- Tagespflege, 12 EUR pro Tag";
+        readCache("AAAAAAoff010", text, shortPriceAnswer(text));
+        assertEquals(List.of(), statements("AAAAAAoff010"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id=e.type WHERE v.name='service'"));
+    }
 }
