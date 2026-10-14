@@ -28,7 +28,8 @@ public class LlmExtractorInvalidReasonTest {
      * client (claim_employer_unresolved) and a named product without a usage context (value_signal_context_missing).
      */
     static final String TEXT = LlmExtractorTest.TEXT + "\nWir suchen im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die"
-            + " Muster Pflege gGmbH. Die Muster Pflege gGmbH und SAP werden genannt.";
+            + " Muster Pflege gGmbH. Die Muster Pflege gGmbH und SAP werden genannt.\nUnser Pflegeteam erreicht Sie werktags. Die"
+            + " Software Musterplan nutzen wir intern. Die Verwaltungsleitung sitzt in Berlin.";
 
     /** k1 is the known "Muster Pflege gGmbH" ({@link LlmExtractorTest#known()}), kj the known posting. */
     static List<LlmExtractor.Known> known() {
@@ -106,6 +107,13 @@ public class LlmExtractorInvalidReasonTest {
                 C1, V1));
         m.put("entity_quote_too_long", answer(e + "{\"id\":\"e3\",\"type\":\"facility\",\"name\":\"Haus Am See\",\"quote\":\"" + LONG201 + "\"}",
                 C1, V1));
+        // the type needs the context that states it (0.10.7)
+        m.put("entity_service_team_or_role", answer(e + "{\"id\":\"e3\",\"type\":\"service\",\"name\":\"Pflegeteam\","
+                + "\"quote\":\"Unser Pflegeteam erreicht Sie werktags\"}", C1, V1));
+        m.put("entity_service_not_offered", answer(e + "{\"id\":\"e3\",\"type\":\"service\",\"name\":\"Musterplan\","
+                + "\"quote\":\"Die Software Musterplan nutzen wir intern\"}", C1, V1));
+        m.put("entity_job_not_advertised", answer(e + "{\"id\":\"e3\",\"type\":\"job\",\"name\":\"Verwaltungsleitung\","
+                + "\"quote\":\"Die Verwaltungsleitung sitzt in Berlin\"}", C1, V1));
         // claims
         final String c = C1 + ",";
         m.put("claim_not_object", answer(E1 + "," + E2, c + "[\"e1\",\"offers\",\"e2\"]", V1));

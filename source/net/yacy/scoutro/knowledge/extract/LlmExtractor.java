@@ -127,6 +127,25 @@ public final class LlmExtractor {
     /** A person (salutation or title first) or contact data instead of a name: never an entity (O7). */
     private static final Pattern PERSON_OR_CONTACT = Pattern.compile("(?iu)^(?:herr|frau|hr\\.|fr\\.|dr\\.|prof\\.|mr\\.?|mrs\\.?|ms\\.?)\\s"
             + "|@|https?://|(?:\\d[\\s/().-]*){6,}");
+    /**
+     * Words that state an offer (0.10.7): a service of the answer needs one in its quote, in the heading its quote stands
+     * under ({@link #underHeading}), in an {@code offers} statement about it, or a price of it. A tool of the page (a spell
+     * check, an image list, a print view), a product used internally or a menu label without such a heading is no service.
+     */
+    static final Pattern OFFER = Pattern.compile("(?iu)\\b(?:(?:an)?biete[nt]?|bietet|anbieten|angeboten|offer(?:s|ed|ing)?"
+            + "|provide[sd]?|providing|kaufen|bestellen|buchen|beauftragen|vertreiben|verkaufen|vermieten|mieten|buy|purchase"
+            // the inflected forms of a seller's verbs: "Die … GmbH verkauft MusterText Pro" (0.10.7, found by the quality check)
+            + "|verkauft|vertreibt|vermietet|sells?|selling|sold"
+            + "|book(?:ing)?|subscribe|pricing|prices|services|products|solutions|portfolio|sortiment)\\b"
+            + "|\\p{L}*(?:leistung(?:en)?|angebot(?:e|en|s)?|produkte?n?|l(?:ö|oe)sung(?:en)?|lizenz(?:en)?|preise?|preisliste|tarife?)\\b");
+    /** A team, a department or staff: the name of a group of people, no service (0.10.7). */
+    static final Pattern TEAM = Pattern.compile("(?iu)(?:team|teams|abteilung|department|staff|crew|mitarbeiter(?:in|innen)?"
+            + "|ansprechpartner(?:in|innen)?|belegschaft|kollegium)$");
+    /** Words that advertise a position (0.10.7): a job of the answer needs one, a gender marker or a hiring statement. */
+    static final Pattern POSTING = Pattern.compile("(?iu)\\b(?:wir\\s+suchen|suchen\\s+wir|sucht|gesucht|stellenangebot\\p{L}*"
+            + "|stellenanzeige\\p{L}*|stellenausschreibung\\p{L}*|offene\\s+stellen?|zur\\s+verst(?:ä|ae)rkung|bewerb\\p{L}*|vakanz\\p{L}*"
+            + "|we(?:'re|\\s+are)\\s+(?:hiring|looking\\s+for)|hiring|vacanc\\p{L}*|job\\s+opening\\p{L}*|apply)\\b"
+            + "|\\(\\s*(?:[mwdfx]|div|divers)(?:\\s*[/|,]\\s*(?:[mwdfx]|div|divers|\\*))+\\s*\\)");
     private static final Set<String> ENTITY_KEYS = Set.of("id", "type", "name", "kind", "quote");
     private static final Set<String> CLAIM_KEYS = Set.of("subject", "predicate", "object", "hedged", "quote");
     private static final Set<String> VALUE_KEYS = Set.of("subject", "predicate", "quote");
@@ -144,7 +163,9 @@ public final class LlmExtractor {
             + " (at most 200 characters) that contains the names involved.\n"
             + "4. Do not extract persons or private individuals, and no e-mail addresses or phone numbers.\n"
             + "5. Types: organization, facility (a physical place of business or care with its own name), site (a building or"
-            + " location), service (a service or product offered), job (a job posting with its title). Relations: operates"
+            + " location), service (a service or product the organisation offers, stated as offered: in its list of services, an offer"
+            + " or a price; not a tool of the web page such as print or spell check, not a team or a role), job (a job posting with its"
+            + " title, advertised as a vacancy; not the role of a team member). Relations: operates"
             + " (organization -> facility or site), offers (organization or facility -> service), located_at (organization, facility"
             + " or service -> site or facility), part_of (organization or facility -> organization), hiring_organization (job ->"
             + " organization or facility), and between organisations, in the direction the text states: parent_of, subsidiary_of,"
@@ -339,6 +360,10 @@ public final class LlmExtractor {
             "entity_person_or_contact", // a salutation or title first, an e-mail address, a URL or a phone number (O7)
             "entity_missing_quote", "entity_malformed_quote",
             "entity_quote_too_long", // over MAX_QUOTE characters
+            // the type needs the context that states it, not only a quote with the name (0.10.7, checked after grounding)
+            "entity_service_team_or_role", // a "service" named as a team, a department or staff ("Service team", "Vertriebsteam")
+            "entity_service_not_offered", // a "service" no offer states: not its quote, its heading, an offer or a price of the answer
+            "entity_job_not_advertised", // a "job" no advertisement states: no vacancy, no gender marker, no hiring statement
             // claims
             "claim_not_object",
             "claim_extra_field", // a field other than subject, predicate, object, hedged, quote
@@ -580,6 +605,8 @@ public final class LlmExtractor {
         final Map<String, String> dropped = new LinkedHashMap<>();
         // a new entity of the type and name of a known one is that entity (as apply() resolves it)
         final Map<String, String> alias = new LinkedHashMap<>();
+        // the quotes of the answer's own offers, prices and hiring statements about its entities: context of their type
+        final Map<String, List<String>> context = context(claims, values);
         for (int i = 0; i < entities.length(); i++) {
             final JSONObject e = entities.optJSONObject(i);
             if (e == null || !onlyKeys(e, ENTITY_KEYS)) {
@@ -612,6 +639,14 @@ public final class LlmExtractor {
                     alias.put(id, k.id);
                     break;
                 }
+            }
+            // a known entity has its type from another tier; a new service or job needs the context that states its type
+            final String untyped = alias.containsKey(id) ? null : unstatedType(type, id, name, quote, text, chunk.text, context);
+            if (untyped != null) {
+                r.invalid(untyped);
+                r.sample(untyped, "entity", null, type, null, null, null, quote);
+                dropped.putIfAbsent(id, untyped);
+                continue;
             }
             String kind = string(e, "kind");
             kind = kind == null ? null : kind.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
@@ -729,6 +764,121 @@ public final class LlmExtractor {
             return new Result(null, "invalid_json");
         }
         return r;
+    }
+
+    /**
+     * The quotes of the answer's statements that state the type of an entity (0.10.7): {@code offer:<id>} for an
+     * {@code offers} statement about it, {@code price:<id>} for a price of it, {@code hiring:<id>} for a hiring statement of
+     * it. Read before the entities are checked; each quote still has to be grounded and to state what it is used for.
+     */
+    private static Map<String, List<String>> context(final JSONArray claims, final JSONArray values) {
+        final Map<String, List<String>> out = new LinkedHashMap<>();
+        for (int i = 0; i < claims.length(); i++) {
+            final JSONObject c = claims.optJSONObject(i);
+            final Object quote = c == null ? null : c.opt("quote");
+            if (!(quote instanceof String)) {
+                continue;
+            }
+            final String predicate = c.optString("predicate");
+            if (Vocabulary.OFFERS.equals(predicate) && c.opt("object") instanceof String) {
+                out.computeIfAbsent("offer:" + c.optString("object"), k -> new ArrayList<>()).add((String) quote);
+            } else if (Vocabulary.HIRING_ORGANIZATION.equals(predicate) && c.opt("subject") instanceof String) {
+                out.computeIfAbsent("hiring:" + c.optString("subject"), k -> new ArrayList<>()).add((String) quote);
+            }
+        }
+        for (int i = 0; i < values.length(); i++) {
+            final JSONObject v = values.optJSONObject(i);
+            if (v != null && Vocabulary.PRICE.equals(v.optString("predicate")) && v.opt("subject") instanceof String
+                    && v.opt("quote") instanceof String) {
+                out.computeIfAbsent("price:" + v.optString("subject"), k -> new ArrayList<>()).add(v.optString("quote"));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Why a new service or job of the answer is dropped although its quote holds its name, or null (0.10.7). A quote that
+     * only contains the name proves the name, not the type:
+     * <ul>
+     * <li>a service named as a team, a department or staff is none ("Our service team is looking forward to providing any
+     * support"); a service needs an offer: in its quote, in the heading its quote stands under ("Leistungen" above the entries
+     * of a navigation, {@link #underHeading}), in an {@code offers} statement about it whose quote holds its name and an
+     * offer, or in a price of it whose quote holds an amount;</li>
+     * <li>a job needs an advertisement: a vacancy or a gender marker in its name, its quote or the heading its quote stands
+     * under, or a hiring statement about it that advertises it. The role of a team member is no job.</li>
+     * </ul>
+     * Other types are not checked here.
+     */
+    private static String unstatedType(final String type, final String id, final String name, final String quote, final String text,
+            final String raw, final Map<String, List<String>> context) {
+        if (Vocabulary.SERVICE.equals(type)) {
+            if (TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
+                return "entity_service_team_or_role";
+            }
+            if (OFFER.matcher(quote).find() || underHeading(raw, quote, OFFER)) {
+                return null;
+            }
+            for (final String q : context.getOrDefault("offer:" + id, List.of())) {
+                if (OFFER.matcher(q).find() && groundedAt(text, q, List.of(name)) >= 0) {
+                    return null;
+                }
+            }
+            for (final String q : context.getOrDefault("price:" + id, List.of())) {
+                if (groundedAt(text, q, List.of()) >= 0 && !Values.prices(q, 0, q.length()).isEmpty()) {
+                    return null;
+                }
+            }
+            return "entity_service_not_offered";
+        }
+        if (Vocabulary.JOB.equals(type)) {
+            if (POSTING.matcher(name).find() || POSTING.matcher(quote).find() || underHeading(raw, quote, POSTING)) {
+                return null;
+            }
+            for (final String q : context.getOrDefault("hiring:" + id, List.of())) {
+                if (POSTING.matcher(q).find() && groundedAt(text, q, List.of(name)) >= 0) {
+                    return null;
+                }
+            }
+            return "entity_job_not_advertised";
+        }
+        return null;
+    }
+
+    /** Separators of the segments of a page text: the end of a sentence, a list mark, a line, a dash between words. */
+    private static final Pattern SEGMENT = Pattern.compile("[.!?|\u2022\u00b7:;\\n\\r*]+|\\s[-\u2013\u2014]\\s");
+    private static final Pattern WORD = Pattern.compile("\\p{L}[\\p{L}\\p{N}'\u2019-]+");
+    /** Characters before a quote read for its heading. */
+    static final int HEADING_CHARS = 200;
+
+    /**
+     * True if the quote stands under a heading that matches {@code cue} (0.10.7): reading back from the quote over the short
+     * segments right before it (labels of at most three words: the entries of a navigation or a list), one of them is the
+     * heading ("Leistungen", "Unsere Produkte", "Stellenangebote"). A sentence before the quote ends the heading; so do
+     * {@link #HEADING_CHARS} characters. The tools of a sidebar ("Werkzeuge") stand under no heading of an offer.
+     */
+    static boolean underHeading(final String raw, final String quote, final Pattern cue) {
+        final int at = rawOffset(raw, quote);
+        if (at <= 0) {
+            return false;
+        }
+        final String[] segments = SEGMENT.split(raw.substring(Math.max(0, at - HEADING_CHARS), at));
+        for (int i = segments.length - 1; i >= 0; i--) {
+            final String segment = segments[i].trim();
+            if (segment.isEmpty()) {
+                continue;
+            }
+            int words = 0;
+            for (final Matcher w = WORD.matcher(segment); w.find();) {
+                words++;
+            }
+            if (words > 3) {
+                return false;
+            }
+            if (cue.matcher(segment).find()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** The state of a reference for the diagnostics: known, new, dropped (and why), unknown id, a name or missing. */

@@ -2,7 +2,19 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased — fix: the end of the relation re-check (C29) and the advertisement of a position's page (C32, relation rules 5)
+## 0.10.7 / 1.942-scoutro.31 — patch: the end of the re-check, the advertisement of a position's page, LLM entity types, the log report's window, a quality check of models
+
+Patch of the installed 0.10.6. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.7.md).
+Knowledge graph schema stays **6**, the extractor identity of tiers 1 and 2
+(JSON-LD 5, rules 6), the LLM extractor version (`llm/4`) and every setting
+stay: no global re-extraction. The upgrade closes the re-check of the rules 4
+that 0.10.6 left without its end, without extracting a page for it, and then
+extracts again, once, only the pages with a job or an advertisement hint
+(relation rules 5, scope `jobs`). The compiled-in default prompt has a new
+hash; done documents are not read again. Integrates #67, #68 and #69.
+
+### fix: the end of the relation re-check (C29) and the advertisement of a position's page (C32, relation rules 5)
 
 - **The end of the check (C29).** Production ran 0.10.6 without a restart; the
   full check published all its pages, nothing was open or failed, and its end
@@ -46,6 +58,67 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   with a job or an advertisement hint (rules 5, scope `jobs`). No global
   re-extraction, no LLM request, no crawl. Details:
   [docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 31.6 and 32](docs/SCOUTRO_KNOWLEDGE_GRAPH.md).
+
+### fix: the type of an LLM entity, the log report's HTTP 400, the provenance of LLM evidence
+
+- **A service needs an offer, a job an advertisement.** The LLM tier accepted every entity whose quote held its name. So:
+  - a page's sidebar tools ("Rechtschreibprüfung", an image list) became services;
+  - a team in a contact text ("Our service team …") became the service "Service team";
+  - a team member's role became a job.
+
+  The validator now refuses three kinds of entity, each counted under its own reason:
+  - a service named as a team, a department or staff;
+  - a service without an offer in its quote, its heading, an offer statement or a price;
+  - a job without an advertisement.
+
+  Kept: services listed under their heading in a navigation, an offered spell check, a job advertisement and a software
+  product sold. The integration with the quality check found that only the infinitive "verkaufen" counted as an offer, so
+  "Die … GmbH verkauft MusterText Pro" lost its product; "verkauft", "vertreibt", "vermietet", "sells", "selling" and
+  "sold" are offers too.
+
+  The default prompt says so too. A new prompt reads no document again. Evidence accepted before stays; a reviewable cleanup
+  plan is documented. Details:
+  [docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 33.1](docs/SCOUTRO_KNOWLEDGE_GRAPH.md).
+- **The log report's call fits the model's window.** The log lines alone used to be sized to the window minus the output cap
+  at four characters per token. With `num_ctx` 131,072 and `max_tokens` 65,536 that made about 263,600 characters, which a
+  strict endpoint refuses together with the cap; this is the likely cause of the production HTTP 400s, still a hypothesis.
+  - The whole call is now planned: template and instructions included, log lines at 2.5 characters per token, a margin of
+    5 %, the configured cap (lowered only where a configured window cannot hold it).
+  - Lines that do not fit are omitted visibly: warnings and errors first, then the newest lines, with the count in the prompt,
+    the report and the log line.
+  - A call that cannot fit is not sent.
+  - No model-specific rule, no retry.
+- **HTTP errors of a model endpoint name their reason.** The error body is read, at most 16 KiB. The message adds the
+  provider's code, the rejected parameter, a router's upstream provider and up to 300 characters of the provider's message. It
+  never includes the prompt, the request, a router's raw answer or a key.
+  - The log report's lines name the function, service, model, prompt size, estimated tokens, output cap, the window Scoutro
+    assumes and whether they exceed it.
+  - The knowledge graph's `lastError` names the status and the provider code.
+  - No parameter was removed and no fallback was added.
+  - A provider's message on the next failure confirms or refutes the context overflow (33.2).
+- **Provenance.** The time axes of evidence and observations are documented: which time says what, and that no time names a
+  model (33.3).
+  - A model switch between reading the selection and admitting a request now defers it.
+  - The model and provider an endpoint says it served are counted in `llm.context.measured`.
+
+### feat: quality check of a candidate model for the knowledge graph
+
+- **Quality check of a model for the knowledge graph** (LLM selection, docs/SCOUTRO_LLM_QUALITY_CHECK.md).
+  A candidate is checked explicitly against ten versioned, invented reference pages, read exactly as the
+  LLM tier reads a page (its client, active prompt, chunks, budget, validator and publication preparation)
+  but without publishing: correct, missing and wrong statements, wrong types and relations, unfitting
+  evidence, API, schema and validator errors, cut answers, calls with retries, duration, tokens and an
+  estimated cost, each deviation with its passage, expectation and actual statement; no overall score.
+  Each page lists what a correct reading must state, may state besides (allowed) and must not state. A
+  statement the validator accepted that the test set neither expects, allows nor forbids is listed as not
+  rated, and the result is then `passed_with_unrated` ("No deviation, but accepted statements not rated"),
+  never a plain pass. Scope and an estimate of the cost are shown before the start; every cost is an
+  estimate (2 characters per token, `max_tokens`, the price as given), no guaranteed maximum. Calls
+  (retries included), tokens and the estimated cost are capped; an unknown cost must be accepted
+  explicitly; a run can be cancelled. Results keep their provenance (model, served
+  model and provider, parameters, prompt, schema, validator, rules, test set) and become stale on a change,
+  without a new run. Choosing or checking a model activates nothing: the knowledge model changes only after
+  a confirmation. The check writes only its own result (`DATA/SCOUTRO/llm-quality/`).
 
 ## 0.10.6 / 1.942-scoutro.30 — patch: the employer an advertisement declares, the employment type it states, one job per position page
 

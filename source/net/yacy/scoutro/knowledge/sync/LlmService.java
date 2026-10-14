@@ -32,7 +32,6 @@ import java.util.function.LongSupplier;
 
 import org.json.JSONObject;
 
-import net.yacy.ai.PromptGuard;
 import net.yacy.cora.util.ConcurrentLog;
 import net.yacy.scoutro.knowledge.KgConfig;
 import net.yacy.scoutro.knowledge.KgException;
@@ -47,7 +46,6 @@ import net.yacy.scoutro.knowledge.extract.RequestBudget;
 import net.yacy.scoutro.knowledge.extract.RuleExtractor;
 import net.yacy.scoutro.knowledge.publish.Publisher;
 import net.yacy.scoutro.knowledge.publish.Terms;
-import net.yacy.scoutro.knowledge.resolve.Normalizers;
 import net.yacy.scoutro.knowledge.store.KgSchema;
 import net.yacy.scoutro.knowledge.store.KgStore;
 
@@ -1248,11 +1246,12 @@ public final class LlmService {
             release(item, now + SOLR_RETRY_MILLIS, false);
             return;
         }
-        final List<LlmExtractor.Known> known = LlmExtractor.known(base);
-        final Set<String> kinds = this.cfg.llmKinds(row.collections);
-        final String host = BaseTiers.host(d);
-        final String domain = Normalizers.registrableDomain(host);
-        final String title = d.titles.isEmpty() ? null : d.titles.get(0);
+        // what the requests say about the page: the same steps as the model quality check's (LlmReading)
+        final LlmReading reading = LlmReading.of(this.cfg, d, row.collections, base);
+        final List<LlmExtractor.Known> known = reading.known;
+        final Set<String> kinds = reading.kinds;
+        final String domain = reading.domain;
+        final String title = reading.title;
         // the page's own content ends at contentEnd: navigation moved behind it is never asked (it recurs on the host's
         // other pages, which read it where they fit the input unchanged)
         final int contentEnd = continuation ? read.contentEnd : pageText.contentEnd;
@@ -1269,7 +1268,7 @@ public final class LlmService {
                 : LlmQueue.MORE_TEXT;
         final int unread = contentRead ? 0 : contentEnd - readUpTo;
         final RequestBudget budget = budget(p);
-        final RequestBudget.Plan plan = budget.plan(chunks, known, title, domain, d.language, kinds);
+        final RequestBudget.Plan plan = reading.plan(budget, chunks);
         if (plan.refused) {
             // a request that does not fit the window is never sent (the model would drop the start of the prompt)
             this.counters.contextRefused.incrementAndGet();
@@ -1320,9 +1319,7 @@ public final class LlmService {
             final java.util.concurrent.atomic.AtomicBoolean breakerLease=new java.util.concurrent.atomic.AtomicBoolean();
             final java.util.concurrent.atomic.AtomicBoolean logicalCounted=new java.util.concurrent.atomic.AtomicBoolean();
             try {
-                answer = this.client.complete(p.text,
-                        LlmExtractor.userPrompt(new PromptGuard(), chunk, title, domain, d.language, partKnown, kinds),
-                        LlmExtractor.SCHEMA, this.cfg.llmTimeoutMillis, this.cfg.llmStructuredOutput,
+                answer = reading.ask(this.client, this.cfg, p, part,
                         ()->startRequest(item,row,continuation,m,session,breakerLease,logicalCounted));
             } catch (LlmClient.Deferred e) {
                 if(breakerLease.get())this.breaker.deferred();
@@ -1335,7 +1332,7 @@ public final class LlmService {
                 return;
             }
             this.breaker.success();
-            final LlmExtractor.Result r = LlmExtractor.validate(answer, chunk, partKnown, kinds);
+            final LlmExtractor.Result r = reading.check(answer, part);
             final long sampledAt = this.clock.getAsLong();
             if (r.refused != null) {
                 this.refusalSamples.add(sampledAt, item.docId, chunk.offset, domain, p.hash,
@@ -1367,8 +1364,7 @@ public final class LlmService {
         final long held = continuation ? this.store.read(c -> tier3Statements(c, item.docId)) : 0L;
         final Extraction ex = new Extraction((int) Math.max(0L, this.cfg.extractMaxStatementsPerDoc - held));
         // a job the rules see as no position of the page (a menu entry, 0.10.5) is none of the model's either
-        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = BaseTiers.context(this.cfg, d)
-                .withJobTitles(net.yacy.scoutro.knowledge.extract.BusinessRules.jobTitleKeys(stored, d.url, d.titles));
+        final net.yacy.scoutro.knowledge.extract.ExtractContext ctx = LlmReading.context(this.cfg, d, stored);
         for (int i = 0; i < accepted.size(); i++) {
             LlmExtractor.apply(atOrigin(accepted.get(i), pageText), acceptedKnown.get(i), ex, ctx);
         }
@@ -1406,9 +1402,7 @@ public final class LlmService {
     }
 
     private RequestBudget budget(final KnowledgePrompt p, final LlmClient.Window w) {
-        final int window = w == null ? RequestBudget.DEFAULT_WINDOW : w.tokens;
-        final int reserve = w == null ? this.cfg.llmAnswerReserveTokens : Math.min(this.cfg.llmAnswerReserveTokens, w.maxOutputTokens);
-        return new RequestBudget(window, reserve, p.text, w == null || w.schemaInPrompt ? LlmExtractor.SCHEMA : null);
+        return LlmReading.budget(this.cfg, p, w);
     }
 
     /**
@@ -1635,14 +1629,16 @@ public final class LlmService {
      */
     private void transportFailure(final LlmQueue.Item item, final DocRow row, final ReadProgress read, final IOException e)
             throws KgException {
-        final String why =
-                e instanceof SocketTimeoutException ? "timeout" : e.getClass().getSimpleName();
+        // an HTTP status names itself and the provider's error code (0.10.7: the error body is read, bounded and cleaned)
+        final String why = e instanceof SocketTimeoutException ? "timeout"
+                : e instanceof net.yacy.ai.LlmHttpError ? "http_" + ((net.yacy.ai.LlmHttpError) e).status : e.getClass().getSimpleName();
         this.counters.callFailures.incrementAndGet();
         if (e instanceof SocketTimeoutException) {
             this.counters.timeouts.incrementAndGet();
         }
         this.breaker.failure(why);
-        this.lastError = "llm: " + why;
+        final String code = e instanceof net.yacy.ai.LlmHttpError ? ((net.yacy.ai.LlmHttpError) e).code : null;
+        this.lastError = "llm: " + why + (code == null ? "" : " " + code);
         if (item.attempts + 1 < this.cfg.llmMaxAttempts) {
             release(item, this.clock.getAsLong() + (FIRST_RETRY_MILLIS << Math.min(6, item.attempts)), true);
         } else if (read == null) {

@@ -6199,6 +6199,339 @@
     <trans-unit id="1df8e0dd" xml:space="preserve" approved="no" translate="yes">
        <source>Actions</source>
     </trans-unit>
+    <trans-unit id="6c04610d" xml:space="preserve" approved="no" translate="yes">
+       <source>Quality check for the knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="5652ab18" xml:space="preserve" approved="no" translate="yes">
+       <source>Choosing a candidate here activates nothing. A quality check reads the reference pages of the test set with the candidate exactly as the knowledge graph reads a page and compares the result with expectations set by hand. Nothing is published, no setting changes, and the active model stays active until you switch deliberately. The result applies to the knowledge usage only, not to log-report or chat.</source>
+    </trans-unit>
+    <trans-unit id="1e519583" xml:space="preserve" approved="no" translate="yes">
+       <source>candidate</source>
+    </trans-unit>
+    <trans-unit id="86530f68" xml:space="preserve" approved="no" translate="yes">
+       <source>price per million tokens</source>
+    </trans-unit>
+    <trans-unit id="2e7ae1" xml:space="preserve" approved="no" translate="yes">
+       <source>caps</source>
+    </trans-unit>
+    <trans-unit id="65f21789" xml:space="preserve" approved="no" translate="yes">
+       <source>Show scope and estimated cost</source>
+    </trans-unit>
+    <trans-unit id="dea7e9c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Check quality</source>
+    </trans-unit>
+    <trans-unit id="3f992693" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancel the check</source>
+    </trans-unit>
+    <trans-unit id="48d8bed" xml:space="preserve" approved="no" translate="yes">
+       <source>Scope and limits</source>
+    </trans-unit>
+    <trans-unit id="4e9a151" xml:space="preserve" approved="no" translate="yes">
+       <source>Value</source>
+    </trans-unit>
+    <trans-unit id="a229168f" xml:space="preserve" approved="no" translate="yes">
+       <source>Reference pages</source>
+    </trans-unit>
+    <trans-unit id="61d95ec0" xml:space="preserve" approved="no" translate="yes">
+       <source>Planned requests</source>
+    </trans-unit>
+    <trans-unit id="c8e2546f" xml:space="preserve" approved="no" translate="yes">
+       <source>Calls at most, retries included</source>
+    </trans-unit>
+    <trans-unit id="d5a94bc7" xml:space="preserve" approved="no" translate="yes">
+       <source>Tokens, estimated worst case</source>
+    </trans-unit>
+    <trans-unit id="d1405ba" xml:space="preserve" approved="no" translate="yes">
+       <source>Cost, estimated worst case</source>
+    </trans-unit>
+    <trans-unit id="aebae7a1" xml:space="preserve" approved="no" translate="yes">
+       <source>Context window</source>
+    </trans-unit>
+    <trans-unit id="6ab7f7bb" xml:space="preserve" approved="no" translate="yes">
+       <source>Content of the reading</source>
+    </trans-unit>
+    <trans-unit id="3e460ef" xml:space="preserve" approved="no" translate="yes">
+       <source>Count</source>
+    </trans-unit>
+    <trans-unit id="9c27404a" xml:space="preserve" approved="no" translate="yes">
+       <source>Correct</source>
+    </trans-unit>
+    <trans-unit id="a2f71946" xml:space="preserve" approved="no" translate="yes">
+       <source>Missing</source>
+    </trans-unit>
+    <trans-unit id="723fd615" xml:space="preserve" approved="no" translate="yes">
+       <source>Wrong (a forbidden statement)</source>
+    </trans-unit>
+    <trans-unit id="82bb71ed" xml:space="preserve" approved="no" translate="yes">
+       <source>Wrong type</source>
+    </trans-unit>
+    <trans-unit id="fa124b2f" xml:space="preserve" approved="no" translate="yes">
+       <source>Wrong relation</source>
+    </trans-unit>
+    <trans-unit id="1f786791" xml:space="preserve" approved="no" translate="yes">
+       <source>Unfitting evidence</source>
+    </trans-unit>
+    <trans-unit id="d4cfc3e1" xml:space="preserve" approved="no" translate="yes">
+       <source>Given by the rules, not rated</source>
+    </trans-unit>
+    <trans-unit id="f3f8a260" xml:space="preserve" approved="no" translate="yes">
+       <source>Technical result</source>
+    </trans-unit>
+    <trans-unit id="4adb0c51" xml:space="preserve" approved="no" translate="yes">
+       <source>API errors</source>
+    </trans-unit>
+    <trans-unit id="728d4f26" xml:space="preserve" approved="no" translate="yes">
+       <source>Answers refused by the schema check</source>
+    </trans-unit>
+    <trans-unit id="4482e56" xml:space="preserve" approved="no" translate="yes">
+       <source>Statements dropped by the validator</source>
+    </trans-unit>
+    <trans-unit id="9a9999cf" xml:space="preserve" approved="no" translate="yes">
+       <source>Answers cut at the output limit</source>
+    </trans-unit>
+    <trans-unit id="521731e2" xml:space="preserve" approved="no" translate="yes">
+       <source>Calls, of them retries</source>
+    </trans-unit>
+    <trans-unit id="8d1eb1b4" xml:space="preserve" approved="no" translate="yes">
+       <source>Duration</source>
+    </trans-unit>
+    <trans-unit id="bdc0c992" xml:space="preserve" approved="no" translate="yes">
+       <source>Tokens: prompt, answer, estimated</source>
+    </trans-unit>
+    <trans-unit id="1043733b" xml:space="preserve" approved="no" translate="yes">
+       <source>Cost, estimated</source>
+    </trans-unit>
+    <trans-unit id="a2d4f832" xml:space="preserve" approved="no" translate="yes">
+       <source>Deviations</source>
+    </trans-unit>
+    <trans-unit id="d0054574" xml:space="preserve" approved="no" translate="yes">
+       <source>No deviation within the scope of the test set.</source>
+    </trans-unit>
+    <trans-unit id="4f8db664" xml:space="preserve" approved="no" translate="yes">
+       <source>Reference page</source>
+    </trans-unit>
+    <trans-unit id="78dd9461" xml:space="preserve" approved="no" translate="yes">
+       <source>Deviation</source>
+    </trans-unit>
+    <trans-unit id="ee389244" xml:space="preserve" approved="no" translate="yes">
+       <source>Expected or forbidden</source>
+    </trans-unit>
+    <trans-unit id="27f5217d" xml:space="preserve" approved="no" translate="yes">
+       <source>Actual statement</source>
+    </trans-unit>
+    <trans-unit id="f87be315" xml:space="preserve" approved="no" translate="yes">
+       <source>Passage of the page</source>
+    </trans-unit>
+    <trans-unit id="7cc3de41" xml:space="preserve" approved="no" translate="yes">
+       <source>Provenance</source>
+    </trans-unit>
+    <trans-unit id="2444d8f6" xml:space="preserve" approved="no" translate="yes">
+       <source>Provenance of the result</source>
+    </trans-unit>
+    <trans-unit id="59f6175" xml:space="preserve" approved="no" translate="yes">
+       <source>Model and endpoint</source>
+    </trans-unit>
+    <trans-unit id="88ce3e7b" xml:space="preserve" approved="no" translate="yes">
+       <source>Served by, as the endpoint reports</source>
+    </trans-unit>
+    <trans-unit id="92299e0a" xml:space="preserve" approved="no" translate="yes">
+       <source>Parameters</source>
+    </trans-unit>
+    <trans-unit id="efb2b366" xml:space="preserve" approved="no" translate="yes">
+       <source>Knowledge prompt</source>
+    </trans-unit>
+    <trans-unit id="960db90b" xml:space="preserve" approved="no" translate="yes">
+       <source>Schema, validator and rules</source>
+    </trans-unit>
+    <trans-unit id="32f0b2d1" xml:space="preserve" approved="no" translate="yes">
+       <source>Test set and evaluation</source>
+    </trans-unit>
+    <trans-unit id="58391b6c" xml:space="preserve" approved="no" translate="yes">
+       <source>Checked at</source>
+    </trans-unit>
+    <trans-unit id="b7d6caa3" xml:space="preserve" approved="no" translate="yes">
+       <source>A passed check means: every reference page was read, no deviation was found within the stated scope, and every statement the validator accepted was rated as expected, allowed or forbidden. With statements not rated, the check is no plain pass. It is no guarantee for other pages and no acceptance for log-report, chat or any other usage. There is no overall score.</source>
+    </trans-unit>
+    <trans-unit id="57f62784" xml:space="preserve" approved="no" translate="yes">
+       <source>Use for the knowledge graph &amp;hellip;</source>
+    </trans-unit>
+    <trans-unit id="3d83935a" xml:space="preserve" approved="no" translate="yes">
+       <source>not checked</source>
+    </trans-unit>
+    <trans-unit id="84fb67a9" xml:space="preserve" approved="no" translate="yes">
+       <source>Test passed within its scope</source>
+    </trans-unit>
+    <trans-unit id="ce9f3614" xml:space="preserve" approved="no" translate="yes">
+       <source>Deviations found</source>
+    </trans-unit>
+    <trans-unit id="5a7a7b93" xml:space="preserve" approved="no" translate="yes">
+       <source>Technically failed</source>
+    </trans-unit>
+    <trans-unit id="6b67c712" xml:space="preserve" approved="no" translate="yes">
+       <source>Stale since the check: %1 changed. The result is kept; nothing is run again on its own.</source>
+    </trans-unit>
+    <trans-unit id="8106248c" xml:space="preserve" approved="no" translate="yes">
+       <source>active for the knowledge graph</source>
+    </trans-unit>
+    <trans-unit id="3fbe8166" xml:space="preserve" approved="no" translate="yes">
+       <source>missing</source>
+    </trans-unit>
+    <trans-unit id="7d046bc" xml:space="preserve" approved="no" translate="yes">
+       <source>wrong statement</source>
+    </trans-unit>
+    <trans-unit id="be995cd" xml:space="preserve" approved="no" translate="yes">
+       <source>wrong type</source>
+    </trans-unit>
+    <trans-unit id="35cb7f0f" xml:space="preserve" approved="no" translate="yes">
+       <source>wrong relation</source>
+    </trans-unit>
+    <trans-unit id="b1b4ab71" xml:space="preserve" approved="no" translate="yes">
+       <source>unfitting evidence</source>
+    </trans-unit>
+    <trans-unit id="2247a5ec" xml:space="preserve" approved="no" translate="yes">
+       <source>stated by the model, dropped by the validator</source>
+    </trans-unit>
+    <trans-unit id="5c4c93a2" xml:space="preserve" approved="no" translate="yes">
+       <source>accepted, dropped when the publication was prepared</source>
+    </trans-unit>
+    <trans-unit id="d288550f" xml:space="preserve" approved="no" translate="yes">
+       <source>the whole answer was refused</source>
+    </trans-unit>
+    <trans-unit id="f2ed3a71" xml:space="preserve" approved="no" translate="yes">
+       <source>not stated by the model</source>
+    </trans-unit>
+    <trans-unit id="2d191c2" xml:space="preserve" approved="no" translate="yes">
+       <source>Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5</source>
+    </trans-unit>
+    <trans-unit id="532ce7f8" xml:space="preserve" approved="no" translate="yes">
+       <source>Cancelling: no further request is sent; the request in flight is answered or times out.</source>
+    </trans-unit>
+    <trans-unit id="bdbaf91b" xml:space="preserve" approved="no" translate="yes">
+       <source>The check was cancelled.</source>
+    </trans-unit>
+    <trans-unit id="196e99bb" xml:space="preserve" approved="no" translate="yes">
+       <source>The check stopped early: %1</source>
+    </trans-unit>
+    <trans-unit id="2f528ba4" xml:space="preserve" approved="no" translate="yes">
+       <source>the cap of calls was reached</source>
+    </trans-unit>
+    <trans-unit id="4a2145c1" xml:space="preserve" approved="no" translate="yes">
+       <source>the cap of tokens was reached</source>
+    </trans-unit>
+    <trans-unit id="db71091e" xml:space="preserve" approved="no" translate="yes">
+       <source>the cost limit was reached (estimated cost)</source>
+    </trans-unit>
+    <trans-unit id="be6c9578" xml:space="preserve" approved="no" translate="yes">
+       <source>an internal error of the check</source>
+    </trans-unit>
+    <trans-unit id="2d2bd5dc" xml:space="preserve" approved="no" translate="yes">
+       <source>the knowledge graph would not ask about this page</source>
+    </trans-unit>
+    <trans-unit id="2409f733" xml:space="preserve" approved="no" translate="yes">
+       <source>the request does not fit the context window</source>
+    </trans-unit>
+    <trans-unit id="2a4e44c5" xml:space="preserve" approved="no" translate="yes">
+       <source>unknown, no price given</source>
+    </trans-unit>
+    <trans-unit id="5eb1c2aa" xml:space="preserve" approved="no" translate="yes">
+       <source>price from the provider's model list</source>
+    </trans-unit>
+    <trans-unit id="511f7018" xml:space="preserve" approved="no" translate="yes">
+       <source>price entered by hand</source>
+    </trans-unit>
+    <trans-unit id="2ddbb158" xml:space="preserve" approved="no" translate="yes">
+       <source>No price known: enter one, or start without a price.</source>
+    </trans-unit>
+    <trans-unit id="8c4ff1a0" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 of %2 reference pages read (test set %3, version %4): %5 statements expected of the model, %6 given by the rules, %7 forbidden statements checked. Valid for the knowledge usage only.</source>
+    </trans-unit>
+    <trans-unit id="aa063ac1" xml:space="preserve" approved="no" translate="yes">
+       <source>Use %1 for the knowledge graph instead of %2? Quality check of %1: %3. If you cancel, the current model stays active.</source>
+    </trans-unit>
+    <trans-unit id="15a920f" xml:space="preserve" approved="no" translate="yes">
+       <source>Stop using %1 for the knowledge graph? The graph then reads without a language model until another one is chosen.</source>
+    </trans-unit>
+    <trans-unit id="cf64080a" xml:space="preserve" approved="no" translate="yes">
+       <source>no model</source>
+    </trans-unit>
+    <trans-unit id="3aeaf153" xml:space="preserve" approved="no" translate="yes">
+       <source>The knowledge graph does not run: no check can start.</source>
+    </trans-unit>
+    <trans-unit id="f30f48a3" xml:space="preserve" approved="no" translate="yes">
+       <source>Deploy a model in the matrix above first; deploying it activates nothing.</source>
+    </trans-unit>
+    <trans-unit id="e2aa30c8" xml:space="preserve" approved="no" translate="yes">
+       <source>own job advertisement</source>
+    </trans-unit>
+    <trans-unit id="fba56f09" xml:space="preserve" approved="no" translate="yes">
+       <source>recruitment agency</source>
+    </trans-unit>
+    <trans-unit id="9680162f" xml:space="preserve" approved="no" translate="yes">
+       <source>job portal</source>
+    </trans-unit>
+    <trans-unit id="f1f3d645" xml:space="preserve" approved="no" translate="yes">
+       <source>team name or offered service</source>
+    </trans-unit>
+    <trans-unit id="31639a84" xml:space="preserve" approved="no" translate="yes">
+       <source>page tool or offered product</source>
+    </trans-unit>
+    <trans-unit id="ea8c8666" xml:space="preserve" approved="no" translate="yes">
+       <source>navigation next to the content</source>
+    </trans-unit>
+    <trans-unit id="4a8e9ebc" xml:space="preserve" approved="no" translate="yes">
+       <source>price with service, unit and condition</source>
+    </trans-unit>
+    <trans-unit id="ce57a483" xml:space="preserve" approved="no" translate="yes">
+       <source>software competence or internal use</source>
+    </trans-unit>
+    <trans-unit id="603dd025" xml:space="preserve" approved="no" translate="yes">
+       <source>contradictory statements</source>
+    </trans-unit>
+    <trans-unit id="e8402668" xml:space="preserve" approved="no" translate="yes">
+       <source>missing data stays unknown</source>
+    </trans-unit>
+    <trans-unit id="588deb42" xml:space="preserve" approved="no" translate="yes">
+       <source>Every cost shown here is an estimate, no guaranteed maximum: prompts at 2 characters per token, answers at the row's max_tokens, times the price per million tokens as given. The provider counts and bills by its own tokenizer and prices, cached or reasoning tokens included, so its bill can differ. The cost limit is checked against this estimate.</source>
+    </trans-unit>
+    <trans-unit id="3c556bb2" xml:space="preserve" approved="no" translate="yes">
+       <source>Allowed, stated by the page as well</source>
+    </trans-unit>
+    <trans-unit id="90f8257d" xml:space="preserve" approved="no" translate="yes">
+       <source>Accepted, but not rated</source>
+    </trans-unit>
+    <trans-unit id="ecbc5e74" xml:space="preserve" approved="no" translate="yes">
+       <source>Accepted statements not rated</source>
+    </trans-unit>
+    <trans-unit id="499a3fe9" xml:space="preserve" approved="no" translate="yes">
+       <source>The validator accepted these statements and the publication would take them, but the test set neither expects, allows nor forbids them. The check says nothing about them: read them before you switch.</source>
+    </trans-unit>
+    <trans-unit id="a23c66e2" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement of the model</source>
+    </trans-unit>
+    <trans-unit id="1aae0277" xml:space="preserve" approved="no" translate="yes">
+       <source>Evidence</source>
+    </trans-unit>
+    <trans-unit id="6e24906c" xml:space="preserve" approved="no" translate="yes">
+       <source>No deviation, but accepted statements not rated: read them before switching</source>
+    </trans-unit>
+    <trans-unit id="c7c495e1" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 more not listed</source>
+    </trans-unit>
+    <trans-unit id="6d43a02a" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;label&gt;input &lt;input</source>
+    </trans-unit>
+    <trans-unit id="2a28cfc7" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;label&gt;output &lt;input</source>
+    </trans-unit>
+    <trans-unit id="bd1e5743" xml:space="preserve" approved="no" translate="yes">
+       <source>Start without a price: only the caps of calls and tokens apply, the cost stays unknown</source>
+    </trans-unit>
+    <trans-unit id="922c4745" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;label&gt;at most calls, retries included &lt;input</source>
+    </trans-unit>
+    <trans-unit id="afebbc16" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;label&gt;cost limit, against the estimate &lt;input</source>
+    </trans-unit>
   </body>
 </file>
 
@@ -17712,6 +18045,15 @@
     </trans-unit>
     <trans-unit id="b20ccd95" xml:space="preserve" approved="no" translate="yes">
        <source>Entity: quote too long</source>
+    </trans-unit>
+    <trans-unit id="3936a002" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: a team, department or staff, no service</source>
+    </trans-unit>
+    <trans-unit id="4ac64c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: service without an offer in its context</source>
+    </trans-unit>
+    <trans-unit id="b5e58f86" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: job without an advertisement in its context</source>
     </trans-unit>
     <trans-unit id="bc90d96" xml:space="preserve" approved="no" translate="yes">
        <source>Statement: not a JSON object</source>

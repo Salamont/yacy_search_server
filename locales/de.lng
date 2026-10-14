@@ -4291,6 +4291,118 @@ remove the stored api_key on the next save==gespeicherten api_key beim nächsten
 Check the hoststub and endpoint availability from the Scoutro server.==Prüfen Sie den hoststub und die Erreichbarkeit des Endpunkts vom Scoutro-Server aus.
 Check the hoststub and try again.==Prüfen Sie den hoststub und versuchen Sie es erneut.
 No models found on this endpoint. Load a model in the service, then retry.==An diesem Endpunkt wurden keine Modelle gefunden. Laden Sie ein Modell im Dienst und versuchen Sie es erneut.
+# Scoutro: quality check of a candidate for the knowledge graph (docs/SCOUTRO_LLM_QUALITY_CHECK.md)
+>Quality check for the knowledge graph<==>Qualitätsprüfung für den Wissensgraphen<
+>Choosing a candidate here activates nothing. A quality check reads the reference pages of the test set with the candidate exactly as the knowledge graph reads a page and compares the result with expectations set by hand. Nothing is published, no setting changes, and the active model stays active until you switch deliberately. The result applies to the knowledge usage only, not to log-report or chat.<==>Die Wahl eines Kandidaten hier aktiviert nichts. Eine Qualitätsprüfung liest die Referenzseiten des Testsets mit dem Kandidaten genau so, wie der Wissensgraph eine Seite liest, und vergleicht das Ergebnis mit von Hand festgelegten Erwartungen. Nichts wird veröffentlicht, keine Einstellung ändert sich, und das aktive Modell bleibt aktiv, bis Sie bewusst wechseln. Das Ergebnis gilt nur für die Nutzung knowledge, nicht für log-report oder chat.<
+>candidate<==>Kandidat<
+>price per million tokens<==>Preis pro Million Tokens<
+>caps<==>Obergrenzen<
+>Show scope and estimated cost<==>Umfang und geschätzte Kosten anzeigen<
+>Check quality<==>Qualität prüfen<
+>Cancel the check<==>Prüfung abbrechen<
+>Scope and limits<==>Umfang und Grenzen<
+>Value<==>Wert<
+>Reference pages<==>Referenzseiten<
+>Planned requests<==>Geplante Anfragen<
+>Calls at most, retries included<==>Aufrufe höchstens, Wiederholungen eingeschlossen<
+>Tokens, estimated worst case<==>Tokens, geschätzter ungünstigster Fall<
+>Cost, estimated worst case<==>Kosten, geschätzter ungünstigster Fall<
+>Context window<==>Kontextfenster<
+>Content of the reading<==>Inhalt der Auswertung<
+>Count<==>Anzahl<
+>Correct<==>Richtig<
+>Missing<==>Fehlend<
+>Wrong (a forbidden statement)<==>Falsch (eine verbotene Aussage)<
+>Wrong type<==>Falscher Typ<
+>Wrong relation<==>Falsche Relation<
+>Unfitting evidence<==>Unpassender Beleg<
+>Given by the rules, not rated<==>Bereits durch die Regeln gegeben, nicht bewertet<
+>Technical result<==>Technisches Ergebnis<
+>API errors<==>API-Fehler<
+>Answers refused by the schema check<==>Von der Schemaprüfung abgelehnte Antworten<
+>Statements dropped by the validator<==>Vom Validator verworfene Aussagen<
+>Answers cut at the output limit<==>Am Ausgabelimit abgeschnittene Antworten<
+>Calls, of them retries<==>Aufrufe, davon Wiederholungen<
+>Duration<==>Dauer<
+>Tokens: prompt, answer, estimated<==>Tokens: Prompt, Antwort, geschätzt<
+>Cost, estimated<==>Kosten, geschätzt<
+>Deviations<==>Abweichungen<
+>No deviation within the scope of the test set.<==>Keine Abweichung im Umfang des Testsets.<
+>Reference page<==>Referenzseite<
+>Deviation<==>Abweichung<
+>Expected or forbidden<==>Erwartet oder verboten<
+>Actual statement<==>Tatsächliche Aussage<
+>Passage of the page<==>Textstelle der Seite<
+>Provenance<==>Herkunft<
+>Provenance of the result<==>Herkunft des Ergebnisses<
+>Model and endpoint<==>Modell und Endpunkt<
+>Served by, as the endpoint reports<==>Bedient von, laut Endpunkt<
+>Parameters<==>Parameter<
+>Knowledge prompt<==>Wissens-Prompt<
+>Schema, validator and rules<==>Schema, Validator und Regeln<
+>Test set and evaluation<==>Testset und Bewertung<
+>Checked at<==>Geprüft am<
+>A passed check means: every reference page was read, no deviation was found within the stated scope, and every statement the validator accepted was rated as expected, allowed or forbidden. With statements not rated, the check is no plain pass. It is no guarantee for other pages and no acceptance for log-report, chat or any other usage. There is no overall score.<==>Eine bestandene Prüfung bedeutet: Jede Referenzseite wurde gelesen, im angegebenen Umfang wurde keine Abweichung gefunden, und jede vom Validator angenommene Aussage wurde als erwartet, zulässig oder verboten bewertet. Mit nicht bewerteten Aussagen ist die Prüfung kein uneingeschränktes Bestehen. Sie ist keine Garantie für andere Seiten und keine Abnahme für log-report, chat oder eine andere Nutzung. Es gibt keine Gesamtpunktzahl.<
+>Use for the knowledge graph &hellip;<==>Für den Wissensgraphen verwenden &hellip;<
+>not checked<==>ungeprüft<
+>Test passed within its scope<==>Test im geprüften Umfang bestanden<
+>Deviations found<==>Abweichungen<
+>Technically failed<==>Technisch fehlgeschlagen<
+>Stale since the check: %1 changed. The result is kept; nothing is run again on its own.<==>Veraltet seit der Prüfung: %1 hat sich geändert. Das Ergebnis bleibt erhalten; nichts wird von selbst erneut ausgeführt.<
+>active for the knowledge graph<==>aktiv für den Wissensgraphen<
+>missing<==>fehlend<
+>wrong statement<==>falsche Aussage<
+>wrong type<==>falscher Typ<
+>wrong relation<==>falsche Relation<
+>unfitting evidence<==>unpassender Beleg<
+>stated by the model, dropped by the validator<==>vom Modell genannt, vom Validator verworfen<
+>accepted, dropped when the publication was prepared<==>angenommen, bei der Vorbereitung der Veröffentlichung verworfen<
+>the whole answer was refused<==>die ganze Antwort wurde abgelehnt<
+>not stated by the model<==>vom Modell nicht genannt<
+>Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5<==>Prüfe Referenzseite %1 von %2: %3 von höchstens %4 Aufrufen, geschätzte Kosten %5<
+>Cancelling: no further request is sent; the request in flight is answered or times out.<==>Wird abgebrochen: Es wird keine weitere Anfrage gesendet; die laufende Anfrage wird beantwortet oder läuft ab.<
+>The check was cancelled.<==>Die Prüfung wurde abgebrochen.<
+>The check stopped early: %1<==>Die Prüfung wurde vorzeitig beendet: %1<
+>the cap of calls was reached<==>die Obergrenze der Aufrufe wurde erreicht<
+>the cap of tokens was reached<==>die Obergrenze der Tokens wurde erreicht<
+>the cost limit was reached (estimated cost)<==>die Kostengrenze wurde erreicht (geschätzte Kosten)<
+>an internal error of the check<==>ein interner Fehler der Prüfung<
+>the knowledge graph would not ask about this page<==>der Wissensgraph würde zu dieser Seite nicht fragen<
+>the request does not fit the context window<==>die Anfrage passt nicht in das Kontextfenster<
+>unknown, no price given<==>unbekannt, kein Preis angegeben<
+>price from the provider's model list<==>Preis aus der Modellliste des Anbieters<
+>price entered by hand<==>Preis von Hand eingegeben<
+>No price known: enter one, or start without a price.<==>Kein Preis bekannt: Geben Sie einen ein oder starten Sie ohne Preis.<
+>%1 of %2 reference pages read (test set %3, version %4): %5 statements expected of the model, %6 given by the rules, %7 forbidden statements checked. Valid for the knowledge usage only.<==>%1 von %2 Referenzseiten gelesen (Testset %3, Version %4): %5 vom Modell erwartete Aussagen, %6 bereits durch die Regeln gegeben, %7 verbotene Aussagen geprüft. Gilt nur für die Nutzung knowledge.<
+>Use %1 for the knowledge graph instead of %2? Quality check of %1: %3. If you cancel, the current model stays active.<==>%1 statt %2 für den Wissensgraphen verwenden? Qualitätsprüfung von %1: %3. Wenn Sie abbrechen, bleibt das aktuelle Modell aktiv.<
+>Stop using %1 for the knowledge graph? The graph then reads without a language model until another one is chosen.<==>%1 nicht mehr für den Wissensgraphen verwenden? Der Graph liest dann ohne Sprachmodell, bis ein anderes gewählt wird.<
+>no model<==>kein Modell<
+>The knowledge graph does not run: no check can start.<==>Der Wissensgraph läuft nicht: Es kann keine Prüfung starten.<
+>Deploy a model in the matrix above first; deploying it activates nothing.<==>Stellen Sie zuerst ein Modell in der Matrix oben bereit; das Bereitstellen aktiviert nichts.<
+>own job advertisement<==>eigene Stellenanzeige<
+>recruitment agency<==>Personalvermittler<
+>job portal<==>Stellenportal<
+>team name or offered service<==>Teamname oder angebotene Leistung<
+>page tool or offered product<==>Seitenwerkzeug oder angebotenes Produkt<
+>navigation next to the content<==>Navigation neben dem Inhalt<
+>price with service, unit and condition<==>Preis mit Leistung, Einheit und Bedingung<
+>software competence or internal use<==>Softwarekompetenz oder interne Nutzung<
+>contradictory statements<==>widersprüchliche Angaben<
+>missing data stays unknown<==>fehlende Angaben bleiben unbekannt<
+>Every cost shown here is an estimate, no guaranteed maximum: prompts at 2 characters per token, answers at the row's max_tokens, times the price per million tokens as given. The provider counts and bills by its own tokenizer and prices, cached or reasoning tokens included, so its bill can differ. The cost limit is checked against this estimate.<==>Jede hier gezeigte Kostenangabe ist eine Schätzung, keine garantierte Obergrenze: Prompts mit 2 Zeichen pro Token, Antworten mit max_tokens der Zeile, mal dem angegebenen Preis pro Million Tokens. Der Anbieter zählt und berechnet nach seinem eigenen Tokenizer und seinen Preisen, einschließlich zwischengespeicherter oder Reasoning-Tokens; seine Rechnung kann daher abweichen. Die Kostengrenze wird gegen diese Schätzung geprüft.<
+>Allowed, stated by the page as well<==>Zulässig, steht ebenfalls auf der Seite<
+>Accepted, but not rated<==>Angenommen, aber nicht bewertet<
+>Accepted statements not rated<==>Angenommene, nicht bewertete Aussagen<
+>The validator accepted these statements and the publication would take them, but the test set neither expects, allows nor forbids them. The check says nothing about them: read them before you switch.<==>Der Validator hat diese Aussagen angenommen und die Veröffentlichung würde sie übernehmen, aber das Testset erwartet, erlaubt oder verbietet sie nicht. Die Prüfung sagt über sie nichts aus: Lesen Sie sie, bevor Sie wechseln.<
+>Statement of the model<==>Aussage des Modells<
+>Evidence<==>Beleg<
+>No deviation, but accepted statements not rated: read them before switching<==>Keine Abweichung, aber angenommene Aussagen nicht bewertet: vor dem Wechsel lesen<
+>%1 more not listed<==>%1 weitere nicht aufgeführt<
+<label>input <input==<label>Eingabe <input
+<label>output <input==<label>Ausgabe <input
+Start without a price: only the caps of calls and tokens apply, the cost stays unknown==Ohne Preis starten: Es gelten nur die Obergrenzen für Aufrufe und Tokens, die Kosten bleiben unbekannt
+<label>at most calls, retries included <input==<label>höchstens Aufrufe, Wiederholungen eingeschlossen <input
+<label>cost limit, against the estimate <input==<label>Kostengrenze, gegen die Schätzung <input
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier, nachdem der Scheduler den ersten vollständigen Stundenbericht erzeugt hat.
@@ -6046,6 +6158,9 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Entity: quote missing<==>Entität: Zitat fehlt<
 >Entity: quote malformed<==>Entität: Zitat fehlerhaft<
 >Entity: quote too long<==>Entität: Zitat zu lang<
+>Entity: a team, department or staff, no service<==>Entität: Team, Abteilung oder Personal, keine Leistung<
+>Entity: service without an offer in its context<==>Entität: Leistung ohne Angebot im Kontext<
+>Entity: job without an advertisement in its context<==>Entität: Stelle ohne Ausschreibung im Kontext<
 >Statement: not a JSON object<==>Aussage: kein JSON-Objekt<
 >Statement: unexpected field<==>Aussage: unerwartetes Feld<
 >Statement: subject missing<==>Aussage: Subjekt fehlt<

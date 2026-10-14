@@ -1311,7 +1311,8 @@
               updateUndeployButtonState(row);
             }
           });
-        } else {
+        } else if (!PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS.has(columnIndex)) {
+          // an opt-in usage (knowledge) switched off is off: it is never handed to another row
           ensureFeatureAssignedToAnotherModel(columnIndex, currentRow);
         }
 
@@ -2321,6 +2322,159 @@
         </table>
         </div>
     </fieldset>
+
+    <fieldset id="qualityCheckContainer"><a name="qualityCheck"></a><legend>Quality check for the knowledge graph</legend>
+        <p class="scoutro-quality-intro">Choosing a candidate here activates nothing. A quality check reads the reference pages of the test set with the candidate exactly as the knowledge graph reads a page and compares the result with expectations set by hand. Nothing is published, no setting changes, and the active model stays active until you switch deliberately. The result applies to the knowledge usage only, not to log-report or chat.</p>
+        <dl class="scoutro-quality-form">
+            <dt class="TableCellDark">candidate</dt>
+            <dd><select id="qualityCandidate" class="form-control"></select>
+                <span id="qualityCandidateStatus" role="status"></span></dd>
+            <dt class="TableCellDark">price per million tokens</dt>
+            <dd><label>input <input type="number" id="qualityPriceIn" min="0" step="any" class="form-control" /></label>
+                <label>output <input type="number" id="qualityPriceOut" min="0" step="any" class="form-control" /></label>
+                <select id="qualityCurrency" class="form-control"><option value="USD">USD</option><option value="EUR">EUR</option></select>
+                <span id="qualityPriceSource"></span>
+                <br/><label><input type="checkbox" id="qualityAcceptUnknown" /> Start without a price: only the caps of calls and tokens apply, the cost stays unknown</label></dd>
+            <dt class="TableCellDark">caps</dt>
+            <dd><label>at most calls, retries included <input type="number" id="qualityMaxCalls" min="1" max="100" class="form-control" /></label>
+                <label>cost limit, against the estimate <input type="number" id="qualityMaxCost" min="0" step="any" class="form-control" /></label></dd>
+            <dt>&nbsp;</dt>
+            <dd><button type="button" id="qualityPlanButton" class="btn btn-default">Show scope and estimated cost</button>
+                <button type="button" id="qualityStartButton" class="btn btn-primary" disabled="disabled">Check quality</button>
+                <button type="button" id="qualityCancelButton" class="btn btn-warning" style="display:none">Cancel the check</button></dd>
+        </dl>
+        <p id="qualityMessage" class="alert alert-info" role="status" aria-live="polite" style="display:none"></p>
+        <div id="qualityPlan" style="display:none">
+            <table class="table table-striped scoutro-quality-kv" id="qualityPlanTable">
+                <thead class="thead-dark"><tr><td>Scope and limits</td><td>Value</td></tr></thead>
+                <tbody>
+                    <tr><td>Reference pages</td><td data-q-plan="pages"></td></tr>
+                    <tr><td>Planned requests</td><td data-q-plan="requests"></td></tr>
+                    <tr><td>Calls at most, retries included</td><td data-q-plan="calls"></td></tr>
+                    <tr><td>Tokens, estimated worst case</td><td data-q-plan="tokens"></td></tr>
+                    <tr><td>Cost, estimated worst case</td><td data-q-plan="cost"></td></tr>
+                    <tr><td>Context window</td><td data-q-plan="window"></td></tr>
+                </tbody>
+            </table>
+            <p class="scoutro-quality-estimate">Every cost shown here is an estimate, no guaranteed maximum: prompts at 2 characters per token, answers at the row's max_tokens, times the price per million tokens as given. The provider counts and bills by its own tokenizer and prices, cached or reasoning tokens included, so its bill can differ. The cost limit is checked against this estimate.</p>
+        </div>
+        <p id="qualityRun" class="alert alert-info" role="status" aria-live="polite" style="display:none"></p>
+        <div id="qualityResult" style="display:none">
+            <h4 id="qualityResultStatus"></h4>
+            <p id="qualityResultScope"></p>
+            <p id="qualityResultStale" class="alert alert-warning" style="display:none"></p>
+            <table class="table table-striped scoutro-quality-kv" id="qualityFunctionalTable">
+                <thead class="thead-dark"><tr><td>Content of the reading</td><td>Count</td></tr></thead>
+                <tbody>
+                    <tr><td>Correct</td><td data-q-fn="correct"></td></tr>
+                    <tr><td>Missing</td><td data-q-fn="missing"></td></tr>
+                    <tr><td>Wrong (a forbidden statement)</td><td data-q-fn="forbidden"></td></tr>
+                    <tr><td>Wrong type</td><td data-q-fn="wrongType"></td></tr>
+                    <tr><td>Wrong relation</td><td data-q-fn="wrongRelation"></td></tr>
+                    <tr><td>Unfitting evidence</td><td data-q-fn="evidence"></td></tr>
+                    <tr><td>Given by the rules, not rated</td><td data-q-fn="givenByRules"></td></tr>
+                    <tr><td>Allowed, stated by the page as well</td><td data-q-fn="allowed"></td></tr>
+                    <tr><td>Accepted, but not rated</td><td data-q-fn="notRated"></td></tr>
+                </tbody>
+            </table>
+            <table class="table table-striped scoutro-quality-kv" id="qualityTechnicalTable">
+                <thead class="thead-dark"><tr><td>Technical result</td><td>Value</td></tr></thead>
+                <tbody>
+                    <tr><td>API errors</td><td data-q-tech="apiErrors"></td></tr>
+                    <tr><td>Answers refused by the schema check</td><td data-q-tech="refusedAnswers"></td></tr>
+                    <tr><td>Statements dropped by the validator</td><td data-q-tech="validatorDrops"></td></tr>
+                    <tr><td>Answers cut at the output limit</td><td data-q-tech="truncated"></td></tr>
+                    <tr><td>Calls, of them retries</td><td data-q-tech="calls"></td></tr>
+                    <tr><td>Duration</td><td data-q-tech="duration"></td></tr>
+                    <tr><td>Tokens: prompt, answer, estimated</td><td data-q-tech="tokens"></td></tr>
+                    <tr><td>Cost, estimated</td><td data-q-tech="cost"></td></tr>
+                </tbody>
+            </table>
+            <h5>Deviations</h5>
+            <p id="qualityNoDeviations" style="display:none">No deviation within the scope of the test set.</p>
+            <div class="scoutro-scroll">
+            <table class="table table-striped scoutro-cards" id="qualityDeviationsTable">
+                <thead class="thead-dark"><tr><td>Reference page</td><td>Deviation</td><td>Expected or forbidden</td><td>Actual statement</td><td>Passage of the page</td></tr></thead>
+                <tbody></tbody>
+            </table>
+            </div>
+            <div id="qualityUnrated" style="display:none">
+            <h5>Accepted statements not rated</h5>
+            <p>The validator accepted these statements and the publication would take them, but the test set neither expects, allows nor forbids them. The check says nothing about them: read them before you switch.</p>
+            <div class="scoutro-scroll">
+            <table class="table table-striped scoutro-cards" id="qualityUnratedTable">
+                <thead class="thead-dark"><tr><td>Reference page</td><td>Statement of the model</td><td>Evidence</td></tr></thead>
+                <tbody></tbody>
+            </table>
+            </div>
+            </div>
+            <h5>Provenance</h5>
+            <table class="table table-striped scoutro-quality-kv" id="qualityProvenanceTable">
+                <thead class="thead-dark"><tr><td>Provenance of the result</td><td>Value</td></tr></thead>
+                <tbody>
+                    <tr><td>Model and endpoint</td><td data-q-prov="model"></td></tr>
+                    <tr><td>Served by, as the endpoint reports</td><td data-q-prov="served"></td></tr>
+                    <tr><td>Parameters</td><td data-q-prov="parameters"></td></tr>
+                    <tr><td>Knowledge prompt</td><td data-q-prov="prompt"></td></tr>
+                    <tr><td>Schema, validator and rules</td><td data-q-prov="versions"></td></tr>
+                    <tr><td>Test set and evaluation</td><td data-q-prov="testset"></td></tr>
+                    <tr><td>Checked at</td><td data-q-prov="checked"></td></tr>
+                </tbody>
+            </table>
+            <p class="scoutro-quality-limits">A passed check means: every reference page was read, no deviation was found within the stated scope, and every statement the validator accepted was rated as expected, allowed or forbidden. With statements not rated, the check is no plain pass. It is no guarantee for other pages and no acceptance for log-report, chat or any other usage. There is no overall score.</p>
+        </div>
+        <p><button type="button" id="qualityActivateButton" class="btn btn-default" disabled="disabled">Use for the knowledge graph &hellip;</button></p>
+        <div id="qualityLabels" hidden="hidden">
+            <span data-q="unchecked">not checked</span>
+            <span data-q="passed">Test passed within its scope</span>
+            <span data-q="passed_with_unrated">No deviation, but accepted statements not rated: read them before switching</span>
+            <span data-q="deviations">Deviations found</span>
+            <span data-q="technical_failure">Technically failed</span>
+            <span data-q="stale">Stale since the check: %1 changed. The result is kept; nothing is run again on its own.</span>
+            <span data-q="active">active for the knowledge graph</span>
+            <span data-q="missing">missing</span>
+            <span data-q="forbidden">wrong statement</span>
+            <span data-q="wrong_type">wrong type</span>
+            <span data-q="wrong_relation">wrong relation</span>
+            <span data-q="evidence">unfitting evidence</span>
+            <span data-q="dropped_by_validator">stated by the model, dropped by the validator</span>
+            <span data-q="dropped_by_preparation">accepted, dropped when the publication was prepared</span>
+            <span data-q="answer_refused">the whole answer was refused</span>
+            <span data-q="not_stated">not stated by the model</span>
+            <span data-q="running">Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5</span>
+            <span data-q="cancelling">Cancelling: no further request is sent; the request in flight is answered or times out.</span>
+            <span data-q="cancelled">The check was cancelled.</span>
+            <span data-q="stopped">The check stopped early: %1</span>
+            <span data-q="call_cap">the cap of calls was reached</span>
+            <span data-q="token_cap">the cap of tokens was reached</span>
+            <span data-q="cost_cap">the cost limit was reached (estimated cost)</span>
+            <span data-q="internal_error">an internal error of the check</span>
+            <span data-q="not_candidate">the knowledge graph would not ask about this page</span>
+            <span data-q="context_budget">the request does not fit the context window</span>
+            <span data-q="cost_unknown_value">unknown, no price given</span>
+            <span data-q="price_provider_list">price from the provider's model list</span>
+            <span data-q="price_entered">price entered by hand</span>
+            <span data-q="price_none">No price known: enter one, or start without a price.</span>
+            <span data-q="scope">%1 of %2 reference pages read (test set %3, version %4): %5 statements expected of the model, %6 given by the rules, %7 forbidden statements checked. Valid for the knowledge usage only.</span>
+            <span data-q="confirmSwitch">Use %1 for the knowledge graph instead of %2? Quality check of %1: %3. If you cancel, the current model stays active.</span>
+            <span data-q="confirmOff">Stop using %1 for the knowledge graph? The graph then reads without a language model until another one is chosen.</span>
+            <span data-q="none">no model</span>
+            <span data-q="more_unrated">%1 more not listed</span>
+            <span data-q="kg_not_running">The knowledge graph does not run: no check can start.</span>
+            <span data-q="no_candidates">Deploy a model in the matrix above first; deploying it activates nothing.</span>
+            <span data-q="case_own_job_ad">own job advertisement</span>
+            <span data-q="case_intermediary">recruitment agency</span>
+            <span data-q="case_job_portal">job portal</span>
+            <span data-q="case_team_vs_service">team name or offered service</span>
+            <span data-q="case_page_tool_vs_product">page tool or offered product</span>
+            <span data-q="case_navigation_next_to_content">navigation next to the content</span>
+            <span data-q="case_price_with_service">price with service, unit and condition</span>
+            <span data-q="case_software_competence_vs_internal_use">software competence or internal use</span>
+            <span data-q="case_contradictory_sources">contradictory statements</span>
+            <span data-q="case_missing_stays_unknown">missing data stays unknown</span>
+        </div>
+    </fieldset>
+    <script src="env/scoutro/llm-quality.js"></script>
 
     #%env/templates/footer.template%#
   </body>

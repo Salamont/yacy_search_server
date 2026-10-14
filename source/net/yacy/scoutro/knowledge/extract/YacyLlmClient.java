@@ -29,6 +29,7 @@ import org.json.JSONObject;
 
 import net.yacy.ai.LLM;
 import net.yacy.scoutro.knowledge.KgJson;
+import net.yacy.scoutro.knowledge.resolve.Normalizers;
 
 /**
  * The LLM tier's model from Scoutro's LLM selection: the production model row
@@ -70,6 +71,8 @@ public final class YacyLlmClient implements LlmClient {
             JSON_MODE = "json_mode", VALIDATOR_ONLY = "validator_only", FALLBACK = "fallback_after_rejection";
 
     private final Supplier<LLM.LLMModel> selection;
+    /** Receives what each answer reports ({@link #record}); null for none. */
+    private final java.util.function.Consumer<JSONObject> listener;
     /** Endpoint and model ({@code hoststub|service/model}) that rejected a response_format with HTTP 400. */
     private final Set<String> withoutSchema = ConcurrentHashMap.newKeySet();
     private final AtomicLong requestsJsonSchema = new AtomicLong();
@@ -120,7 +123,16 @@ public final class YacyLlmClient implements LlmClient {
     }
 
     public YacyLlmClient(final Supplier<LLM.LLMModel> selection) {
+        this(selection, null);
+    }
+
+    /**
+     * A client of the given model that also hands what each answer reports (tokens, finish reason, the model served) to
+     * {@code listener}: the model quality check counts the tokens of its own calls with it (docs/SCOUTRO_LLM_QUALITY_CHECK.md).
+     */
+    public YacyLlmClient(final Supplier<LLM.LLMModel> selection, final java.util.function.Consumer<JSONObject> listener) {
         this.selection = selection;
+        this.listener = listener;
     }
 
     @Override
@@ -206,8 +218,31 @@ public final class YacyLlmClient implements LlmClient {
         return next;
     }
 
+    /** Answers per model (and provider) the endpoint said it served, at most {@link #SERVED_MAX} names (0.10.7). */
+    private final java.util.Map<String, java.util.concurrent.atomic.AtomicLong> served = new java.util.concurrent.ConcurrentHashMap<>();
+    private final AtomicLong servedOther = new AtomicLong();
+    private final AtomicLong servedDiffering = new AtomicLong();
+    private final AtomicLong servedUnreported = new AtomicLong();
+    static final int SERVED_MAX = 10;
+
     private void record(final JSONObject u) {
         this.usageReports.incrementAndGet();
+        final String servedModel = u.optString("servedModel", "");
+        if (servedModel.isEmpty()) {
+            this.servedUnreported.incrementAndGet();
+        } else {
+            final String provider = u.optString("servedProvider", "");
+            final String key = Normalizers.clip(servedModel + (provider.isEmpty() ? "" : " @ " + provider), 200);
+            if (this.served.containsKey(key) || this.served.size() < SERVED_MAX) {
+                this.served.computeIfAbsent(key, k -> new AtomicLong()).incrementAndGet();
+            } else {
+                this.servedOther.incrementAndGet();
+            }
+            // a router may serve another model than the one asked for (a fallback); the evidence still names the one asked for
+            if (!servedModel.equalsIgnoreCase(u.optString("requestedModel", servedModel))) {
+                this.servedDiffering.incrementAndGet();
+            }
+        }
         if (u.has("promptTokens")) {
             final long p = u.optLong("promptTokens");
             this.promptTokens.addAndGet(p);
@@ -221,6 +256,10 @@ public final class YacyLlmClient implements LlmClient {
         if ("length".equals(u.optString("stop"))) {
             this.answersCutAtLimit.incrementAndGet();
         }
+        final java.util.function.Consumer<JSONObject> l = this.listener;
+        if (l != null) {
+            l.accept(u);
+        }
     }
 
     /**
@@ -231,9 +270,19 @@ public final class YacyLlmClient implements LlmClient {
     @Override
     public JSONObject usage() {
         final long n = this.usageReports.get();
+        final JSONObject served = new JSONObject();
+        for (final java.util.Map.Entry<String, AtomicLong> e : new java.util.TreeMap<>(this.served).entrySet()) {
+            try {
+                served.put(e.getKey(), e.getValue().get());
+            } catch (final org.json.JSONException ignored) {
+                // a name the JSON cannot hold is not shown
+            }
+        }
         return KgJson.obj("answers", n, "promptTokensMax", this.promptTokensMax.get(), "promptTokensAverage",
                 n == 0 ? null : this.promptTokens.get() / n, "answerTokensMax", this.answerTokensMax.get(), "answerTokensAverage",
-                n == 0 ? null : this.answerTokens.get() / n, "answersCutAtLimit", this.answersCutAtLimit.get());
+                n == 0 ? null : this.answerTokens.get() / n, "answersCutAtLimit", this.answersCutAtLimit.get(),
+                "servedModels", served, "servedOther", this.servedOther.get(), "servedDiffering", this.servedDiffering.get(),
+                "servedUnreported", this.servedUnreported.get());
     }
 
     @Override
@@ -244,7 +293,7 @@ public final class YacyLlmClient implements LlmClient {
 
     @Override
     public String complete(final String system, final String user, final JSONObject schema, final long timeoutMillis,
-            final String structuredOutput,final RequestGate gate) throws IOException {
+            final String structuredOutput,final RequestGate admission) throws IOException {
         final LLM.LLMModel m = this.selection.get();
         final String name = name(m);
         if (name == null) {
@@ -254,6 +303,16 @@ public final class YacyLlmClient implements LlmClient {
         final String key = m.llm.hoststub + "|" + name;
         final Plan plan = plan(structuredOutput, m.formatCapability, this.withoutSchema.contains(key), schema != null);
         final JSONObject format = responseFormat(plan.request, schema);
+        // the model asked is the selection at the admission of each request (0.10.7): a switch between reading the selection
+        // and the admission defers the request, so its answer is never published under the other model's name
+        final RequestGate gate = () -> {
+            final RequestPermit permit = admission.start();
+            if (!name.equals(model())) {
+                permit.close();
+                throw new LlmClient.Deferred("model_changed");
+            }
+            return permit;
+        };
         try {
             return call(m, system, user, format, timeout,gate);
         } catch (final IOException e) {

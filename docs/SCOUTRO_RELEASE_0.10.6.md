@@ -236,7 +236,7 @@ The private rollout of 0.10.6 (operator's acceptance, 2026-10-13) found:
 - **C32, measured (2026-10-14).** The phrases stand inside the
   advertisement. The rules of 0.10.6 read the page's title line before a long
   navigation as the advertisement, so its window held none of them. Fixed by
-  the relation rules 5 with a targeted check of the job pages, not released
-  yet:
+  the relation rules 5 with a targeted check of the job pages, released in
+  [0.10.7](SCOUTRO_RELEASE_0.10.7.md):
   [SCOUTRO_KNOWLEDGE_GRAPH.md, 32](SCOUTRO_KNOWLEDGE_GRAPH.md#32-the-advertisement-of-a-positions-page-relation-rules-5).
 

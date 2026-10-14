@@ -68,11 +68,14 @@ public class YacyLlmClientTest {
                 case "huge":
                     content = "x".repeat(YacyLlmClient.MAX_RESPONSE_CHARS + 10);
                     break;
+                case "served":
+                    break;
                 default:
                     break;
             }
+            final String served = "served".equals(this.mode.get()) ? "\"model\":\"other/model\",\"provider\":\"Example Provider\"," : "";
             final byte[] out = status != 200 ? new byte[0]
-                    : ("{\"choices\":[{\"message\":{\"content\":" + JSONObject.quote(content) + "},\"finish_reason\":\"stop\"}]}")
+                    : ("{" + served + "\"choices\":[{\"message\":{\"content\":" + JSONObject.quote(content) + "},\"finish_reason\":\"stop\"}]}")
                             .getBytes(StandardCharsets.UTF_8);
             try {
                 exchange.sendResponseHeaders(status, out.length == 0 ? -1 : out.length);
@@ -112,6 +115,39 @@ public class YacyLlmClientTest {
         assertTrue(req.getJSONObject("response_format").getJSONObject("json_schema").getBoolean("strict"));
         assertFalse("no tools are offered", req.has("tools"));
         assertEquals("system", req.getJSONArray("messages").getJSONObject(0).getString("role"));
+    }
+
+    /**
+     * The model the endpoint says it served, and behind a router its provider, are counted (0.10.7): a router that served
+     * another model than the one asked for is visible; the evidence keeps naming the model asked for.
+     */
+    @Test
+    public void theServedModelIsCountedAndAnotherOneIsVisible() throws Exception {
+        final YacyLlmClient c = new YacyLlmClient(() -> model(stub()));
+        c.complete("sys", "user", LlmExtractor.SCHEMA, 5000L);
+        JSONObject u = c.usage();
+        assertEquals("an endpoint that names no model", 1, u.getLong("servedUnreported"));
+        this.mode.set("served");
+        c.complete("sys", "user", LlmExtractor.SCHEMA, 5000L);
+        u = c.usage();
+        assertEquals(1, u.getJSONObject("servedModels").getLong("other/model @ Example Provider"));
+        assertEquals(1, u.getLong("servedDiffering"));
+        assertEquals("OPENAI/fixture", c.model());
+    }
+
+    /** A switch of the model between reading the selection and the admission of the request defers it: nothing is sent. */
+    @Test
+    public void aModelSwitchedBeforeTheAdmissionDefersTheRequest() throws Exception {
+        final java.util.concurrent.atomic.AtomicInteger reads = new java.util.concurrent.atomic.AtomicInteger();
+        final YacyLlmClient c = new YacyLlmClient(() -> reads.getAndIncrement() == 0 ? model(stub())
+                : new LLM.LLMModel(new LLM(stub(), "", 512, LLM.LLMType.OPENAI), "other", false, false));
+        try {
+            c.complete("sys", "user", LlmExtractor.SCHEMA, 5000L, YacyLlmClient.AUTO, LlmClient.UNLIMITED);
+            fail("not deferred");
+        } catch (final LlmClient.Deferred e) {
+            assertEquals("model_changed", e.reason);
+        }
+        assertEquals("no request reached the endpoint", 0, this.requests.size());
     }
 
     @Test
