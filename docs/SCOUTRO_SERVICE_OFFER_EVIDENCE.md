@@ -164,7 +164,7 @@ Validation on the final working tree:
 | Check | Result |
 | --- | --- |
 | `ant clean all dist`, followed by `ant all dist scoutro-kg-offer-evidence-test` after the final code refinement | BUILD SUCCESSFUL; 60 Jetty tests and 90 focused tests |
-| All `net.yacy.scoutro` JUnit classes | Final run recorded in the PR |
+| All `net.yacy.scoutro` JUnit classes | 1215 passed |
 | `net.yacy.ai` JUnit | 73 passed |
 | Translation JUnit including `net.yacy.data.TranslatorTest` | 45 passed |
 | `knowledge-llm-reasons-ui-test.mjs` | 141 checks, EN/DE desktop/mobile and new reason |
