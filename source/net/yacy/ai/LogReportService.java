@@ -109,7 +109,7 @@ public class LogReportService {
         final List<String> examples = new ArrayList<>(NOISE_EXAMPLE_LIMIT);
     }
 
-    private static class NoiseSummary {
+    static class NoiseSummary {
         final int totalLines;
         final Map<String, NoiseBucket> buckets = new LinkedHashMap<>();
 
@@ -349,13 +349,14 @@ public class LogReportService {
                 log.info("runId=" + runId + " event=hourly-report phase=skip bucket=" + bucket.getKey() + " reason=report-exists file=" + reportFile.getAbsolutePath());
                 continue;
             }
+            // output cap follows the model's configured max_tokens (Production Models Matrix)
+            final int maxTokens = Math.max(1, model.llm.max_tokens);
+            String prompt = null;
             try {
                 final NoiseSummary noiseSummary = classifyNoise(bucket.getValue());
-                // output cap follows the model's configured max_tokens (Production Models Matrix)
-                final int maxTokens = Math.max(1, model.llm.max_tokens);
-                final String prompt = hourlyPrompt(bucket.getKey(), bucket.getValue(), noiseSummary, promptPayloadCharBudget(model, maxTokens));
+                prompt = hourlyPrompt(bucket.getKey(), bucket.getValue(), noiseSummary, promptPayloadCharBudget(model, maxTokens));
                 log.info("runId=" + runId + " event=hourly-report phase=classify-noise bucket=" + bucket.getKey() + " inputLines=" + bucket.getValue().size() + " noiseLines=" + noiseSummary.classifiedLines() + " noiseCategories=" + noiseSummary.buckets.size());
-                log.info("runId=" + runId + " event=hourly-report phase=model-call bucket=" + bucket.getKey() + " model=" + LogRedaction.redact(model.model) + " backend=" + LogRedaction.redact(model.llm.hoststub) + " inputLines=" + bucket.getValue().size() + " promptChars=" + prompt.length() + " maxTokens=" + maxTokens);
+                log.info("runId=" + runId + " event=hourly-report phase=model-call bucket=" + bucket.getKey() + " model=" + LogRedaction.redact(model.model) + " backend=" + LogRedaction.redact(model.llm.hoststub) + " inputLines=" + bucket.getValue().size() + " promptChars=" + prompt.length() + " maxTokens=" + maxTokens + callFields(model, prompt, maxTokens));
                 final long modelStart = System.currentTimeMillis();
                 final String report = model.llm.chatStream(model.model, SYSTEM_PROMPT, prompt, maxTokens, null);
                 final long modelDuration = elapsed(modelStart);
@@ -368,7 +369,7 @@ public class LogReportService {
                 log.info("runId=" + runId + " event=hourly-report phase=write result=success bucket=" + bucket.getKey() + " inputLines=" + bucket.getValue().size() + " outputChars=" + report.length() + " file=" + reportFile.getAbsolutePath());
             } catch (final IOException e) {
                 failedReports++;
-                log.warn("runId=" + runId + " event=hourly-report phase=write result=failure bucket=" + bucket.getKey() + " file=" + LogRedaction.redact(reportFile.getAbsolutePath()) + " errorClass=" + e.getClass().getName() + " reason=" + LogRedaction.redactMessage(e));
+                log.warn("runId=" + runId + " event=hourly-report phase=write result=failure bucket=" + bucket.getKey() + " file=" + LogRedaction.redact(reportFile.getAbsolutePath()) + " errorClass=" + e.getClass().getName() + failureFields(e, model, prompt, maxTokens) + " reason=" + LogRedaction.redactMessage(e));
             }
         }
         log.info("runId=" + runId + " event=hourly-reports phase=end result=success buckets=" + buckets.size() + " written=" + writtenReports.size() + " skippedExisting=" + skippedExisting + " failed=" + failedReports + " durationMs=" + elapsed(start));
@@ -415,9 +416,15 @@ public class LogReportService {
         final int maxTokens = Math.max(1, model.llm.max_tokens);
         final String prompt = hourlyPrompt(currentHour, bucketLines, noiseSummary, promptPayloadCharBudget(model, maxTokens));
         log.info("runId=" + runId + " event=current-hour-report phase=classify-noise bucket=" + currentHour + " inputLines=" + bucketLines.size() + " noiseLines=" + noiseSummary.classifiedLines() + " noiseCategories=" + noiseSummary.buckets.size());
-        log.info("runId=" + runId + " event=current-hour-report phase=model-call bucket=" + currentHour + " model=" + LogRedaction.redact(model.model) + " backend=" + LogRedaction.redact(model.llm.hoststub) + " inputLines=" + bucketLines.size() + " promptChars=" + prompt.length() + " maxTokens=" + maxTokens);
+        log.info("runId=" + runId + " event=current-hour-report phase=model-call bucket=" + currentHour + " model=" + LogRedaction.redact(model.model) + " backend=" + LogRedaction.redact(model.llm.hoststub) + " inputLines=" + bucketLines.size() + " promptChars=" + prompt.length() + " maxTokens=" + maxTokens + callFields(model, prompt, maxTokens));
         final long modelStart = System.currentTimeMillis();
-        final String report = model.llm.chatStream(model.model, SYSTEM_PROMPT, prompt, maxTokens, onDelta);
+        final String report;
+        try {
+            report = model.llm.chatStream(model.model, SYSTEM_PROMPT, prompt, maxTokens, onDelta);
+        } catch (final IOException e) {
+            log.warn("runId=" + runId + " event=current-hour-report phase=model-call result=failure bucket=" + currentHour + " errorClass=" + e.getClass().getName() + failureFields(e, model, prompt, maxTokens) + " reason=" + LogRedaction.redactMessage(e));
+            throw e;
+        }
         log.info("runId=" + runId + " event=current-hour-report phase=model-return bucket=" + currentHour + " durationMs=" + elapsed(modelStart) + " outputChars=" + (report == null ? 0 : report.length()));
         if (report == null || report.trim().isEmpty()) {
             log.warn("runId=" + runId + " event=current-hour-report phase=model-return result=failure bucket=" + currentHour + " reason=empty-report");
@@ -474,11 +481,12 @@ public class LogReportService {
                 log.info("runId=" + runId + " event=daily-report phase=skip day=" + day.getKey() + " reason=report-exists deletedLeftoverHourly=" + day.getValue().size() + " file=" + dailyReportFile.getAbsolutePath());
                 continue;
             }
+            // output cap follows the model's configured max_tokens (Production Models Matrix)
+            final int maxTokens = Math.max(1, model.llm.max_tokens);
+            String prompt = null;
             try {
-                // output cap follows the model's configured max_tokens (Production Models Matrix)
-                final int maxTokens = Math.max(1, model.llm.max_tokens);
-                final String prompt = dailyPrompt(day.getKey(), day.getValue(), promptPayloadCharBudget(model, maxTokens));
-                log.info("runId=" + runId + " event=daily-report phase=model-call day=" + day.getKey() + " model=" + LogRedaction.redact(model.model) + " backend=" + LogRedaction.redact(model.llm.hoststub) + " sourceReports=" + day.getValue().size() + " promptChars=" + prompt.length() + " maxTokens=" + maxTokens);
+                prompt = dailyPrompt(day.getKey(), day.getValue(), promptPayloadCharBudget(model, maxTokens));
+                log.info("runId=" + runId + " event=daily-report phase=model-call day=" + day.getKey() + " model=" + LogRedaction.redact(model.model) + " backend=" + LogRedaction.redact(model.llm.hoststub) + " sourceReports=" + day.getValue().size() + " promptChars=" + prompt.length() + " maxTokens=" + maxTokens + callFields(model, prompt, maxTokens));
                 final long modelStart = System.currentTimeMillis();
                 final String report = model.llm.chatStream(model.model, SYSTEM_PROMPT, prompt, maxTokens, null);
                 log.info("runId=" + runId + " event=daily-report phase=model-return day=" + day.getKey() + " durationMs=" + elapsed(modelStart) + " outputChars=" + (report == null ? 0 : report.length()));
@@ -493,7 +501,7 @@ public class LogReportService {
                 log.info("runId=" + runId + " event=daily-report phase=delete-hourly day=" + day.getKey() + " sourceReports=" + day.getValue().size());
             } catch (final IOException e) {
                 failedReports++;
-                log.warn("runId=" + runId + " event=daily-report phase=write result=failure day=" + day.getKey() + " file=" + LogRedaction.redact(dailyReportFile.getAbsolutePath()) + " errorClass=" + e.getClass().getName() + " reason=" + LogRedaction.redactMessage(e));
+                log.warn("runId=" + runId + " event=daily-report phase=write result=failure day=" + day.getKey() + " file=" + LogRedaction.redact(dailyReportFile.getAbsolutePath()) + " errorClass=" + e.getClass().getName() + failureFields(e, model, prompt, maxTokens) + " reason=" + LogRedaction.redactMessage(e));
             }
         }
         log.info("runId=" + runId + " event=daily-reports phase=end result=success pastDays=" + pastDays.size() + " written=" + writtenReports.size() + " skippedExisting=" + skippedExisting + " failed=" + failedReports + " durationMs=" + elapsed(start));
@@ -584,7 +592,7 @@ public class LogReportService {
         return System.currentTimeMillis() - start;
     }
 
-    private static String hourlyPrompt(final LocalDateTime bucket, final List<String> lines, final NoiseSummary noiseSummary, final int maxPayloadChars) {
+    static String hourlyPrompt(final LocalDateTime bucket, final List<String> lines, final NoiseSummary noiseSummary, final int maxPayloadChars) {
         final StringBuilder prompt = new StringBuilder(1024 + lines.size() * 120);
         prompt.append("Create a YaCy self-enhancement log report for hour ")
                 .append(bucket)
@@ -623,6 +631,42 @@ public class LogReportService {
         return prompt.toString();
     }
 
+    /**
+     * Characters per token of the estimate the diagnostics log (0.10.7): log lines and reports tokenize worse than prose, so
+     * the estimate counts three characters per token, not the four of {@link #CHARS_PER_TOKEN}. Only logged, never used to
+     * size or refuse a request.
+     */
+    static final int ESTIMATE_CHARS_PER_TOKEN = 3;
+
+    /** The estimated prompt tokens of a call: system and user prompt at {@link #ESTIMATE_CHARS_PER_TOKEN}. */
+    static int estimatedPromptTokens(final String prompt) {
+        final int chars = SYSTEM_PROMPT.length() + (prompt == null ? 0 : prompt.length());
+        return (chars + ESTIMATE_CHARS_PER_TOKEN - 1) / ESTIMATE_CHARS_PER_TOKEN;
+    }
+
+    /**
+     * The fields of a model call for its log line (0.10.7): the service type, the estimated prompt tokens, the context
+     * window Scoutro assumes for the service and whether it was configured, and whether prompt and output cap exceed it.
+     * A strict OpenAI-compatible provider refuses such a request with HTTP 400; Ollama truncates it. Nothing of the prompt.
+     */
+    static String callFields(final LLMModel model, final String prompt, final int maxTokens) {
+        final int estimate = estimatedPromptTokens(prompt);
+        return " function=" + LLMUsage.logreport.name() + " service=" + model.llm.type + " estPromptTokens=" + estimate
+                + " numCtx=" + model.llm.num_ctx + " numCtxConfigured=" + model.llm.num_ctx_configured
+                + " windowExceeded=" + ((long) estimate + maxTokens > model.llm.num_ctx);
+    }
+
+    /**
+     * The fields of a failed call for its log line (0.10.7): the call's fields ({@link #callFields}) and, for an HTTP
+     * error, the status and what the provider said about it ({@link LlmHttpError#fields()}: its code, the rejected
+     * parameter, the upstream provider, a bounded and cleaned message). Never the prompt, the request or a key.
+     */
+    static String failureFields(final IOException e, final LLMModel model, final String prompt, final int maxTokens) {
+        return " model=" + LogRedaction.redact(model.model) + " promptChars=" + (prompt == null ? 0 : prompt.length()) + " maxTokens="
+                + maxTokens + callFields(model, prompt, maxTokens) + " "
+                + (e instanceof LlmHttpError ? ((LlmHttpError) e).fields() : "httpStatus=-");
+    }
+
     /** rough characters-per-token ratio used to budget the prompt against the model's token window */
     private static final int CHARS_PER_TOKEN = 4;
     /** never shrink the prompt payload below this many tokens, even for tiny model windows */
@@ -645,7 +689,7 @@ public class LogReportService {
      * num_ctx (on /LLMSelection_p.html, matching the backend's OLLAMA_CONTEXT_LENGTH) to give
      * the prompt more room.
      */
-    private static int promptPayloadCharBudget(final LLMModel model, final int maxTokens) {
+    static int promptPayloadCharBudget(final LLMModel model, final int maxTokens) {
         final int contextTokens = Math.max(1, model.llm.num_ctx);
         final int promptTokens = Math.max(
                 Math.max(MIN_PROMPT_PAYLOAD_TOKENS, contextTokens / 4),
@@ -670,7 +714,7 @@ public class LogReportService {
                 .append(payload, cut, payload.length());
     }
 
-    private static NoiseSummary classifyNoise(final List<String> lines) {
+    static NoiseSummary classifyNoise(final List<String> lines) {
         final NoiseSummary summary = new NoiseSummary(lines == null ? 0 : lines.size());
         if (lines == null || lines.isEmpty()) return summary;
         for (final String line : lines) {

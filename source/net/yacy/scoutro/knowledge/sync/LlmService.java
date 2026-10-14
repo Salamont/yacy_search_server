@@ -1635,14 +1635,16 @@ public final class LlmService {
      */
     private void transportFailure(final LlmQueue.Item item, final DocRow row, final ReadProgress read, final IOException e)
             throws KgException {
-        final String why =
-                e instanceof SocketTimeoutException ? "timeout" : e.getClass().getSimpleName();
+        // an HTTP status names itself and the provider's error code (0.10.7: the error body is read, bounded and cleaned)
+        final String why = e instanceof SocketTimeoutException ? "timeout"
+                : e instanceof net.yacy.ai.LlmHttpError ? "http_" + ((net.yacy.ai.LlmHttpError) e).status : e.getClass().getSimpleName();
         this.counters.callFailures.incrementAndGet();
         if (e instanceof SocketTimeoutException) {
             this.counters.timeouts.incrementAndGet();
         }
         this.breaker.failure(why);
-        this.lastError = "llm: " + why;
+        final String code = e instanceof net.yacy.ai.LlmHttpError ? ((net.yacy.ai.LlmHttpError) e).code : null;
+        this.lastError = "llm: " + why + (code == null ? "" : " " + code);
         if (item.attempts + 1 < this.cfg.llmMaxAttempts) {
             release(item, this.clock.getAsLong() + (FIRST_RETRY_MILLIS << Math.min(6, item.attempts)), true);
         } else if (read == null) {

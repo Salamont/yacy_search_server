@@ -6046,6 +6046,9 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Entity: quote missing<==>Entität: Zitat fehlt<
 >Entity: quote malformed<==>Entität: Zitat fehlerhaft<
 >Entity: quote too long<==>Entität: Zitat zu lang<
+>Entity: a team, department or staff, no service<==>Entität: Team, Abteilung oder Personal, keine Leistung<
+>Entity: service without an offer in its context<==>Entität: Leistung ohne Angebot im Kontext<
+>Entity: job without an advertisement in its context<==>Entität: Stelle ohne Ausschreibung im Kontext<
 >Statement: not a JSON object<==>Aussage: kein JSON-Objekt<
 >Statement: unexpected field<==>Aussage: unerwartetes Feld<
 >Statement: subject missing<==>Aussage: Subjekt fehlt<

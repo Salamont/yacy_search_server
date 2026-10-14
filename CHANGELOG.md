@@ -2,6 +2,37 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased — fix: the type of an LLM entity, the log report's HTTP 400, the provenance of LLM evidence
+
+- **A service needs an offer, a job an advertisement.** The LLM tier accepted every entity whose quote held its name. So:
+  - a page's sidebar tools ("Rechtschreibprüfung", an image list) became services;
+  - a team in a contact text ("Our service team …") became the service "Service team";
+  - a team member's role became a job.
+
+  The validator now refuses three kinds of entity, each counted under its own reason:
+  - a service named as a team, a department or staff;
+  - a service without an offer in its quote, its heading, an offer statement or a price;
+  - a job without an advertisement.
+
+  Kept: services listed under their heading in a navigation, an offered spell check, a job advertisement and a software
+  product sold.
+
+  The default prompt says so too. A new prompt reads no document again. Evidence accepted before stays; a reviewable cleanup
+  plan is documented. Details:
+  [docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 33.1](docs/SCOUTRO_KNOWLEDGE_GRAPH.md).
+- **HTTP errors of a model endpoint name their reason.** The error body is read, at most 16 KiB. The message adds the
+  provider's code, the rejected parameter, a router's upstream provider and up to 300 characters of the provider's message. It
+  never includes the prompt, the request, a router's raw answer or a key.
+  - The log report's lines name the function, service, model, prompt size, estimated tokens, output cap, the window Scoutro
+    assumes and whether they exceed it.
+  - The knowledge graph's `lastError` names the status and the provider code.
+  - No parameter was removed and no fallback was added.
+  - The cause of the six production failures stays open until such a line is read (33.2).
+- **Provenance.** The time axes of evidence and observations are documented: which time says what, and that no time names a
+  model (33.3).
+  - A model switch between reading the selection and admitting a request now defers it.
+  - The model and provider an endpoint says it served are counted in `llm.context.measured`.
+
 ## 0.10.6 / 1.942-scoutro.30 — patch: the employer an advertisement declares, the employment type it states, one job per position page
 
 Patch of the installed 0.10.5. See the

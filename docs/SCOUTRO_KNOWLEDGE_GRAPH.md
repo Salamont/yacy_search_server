@@ -2905,3 +2905,220 @@ Expected changes on a re-checked page:
   across a restart until its next publication ends it in that process; a refused write of the last page leaves the page and
   the check open, the next admitted write publishes it and ends the check; a page that is deleted leaves the check and ends it;
   the resumed run after a crash ends the check itself).
+
+## 33. The type of an LLM entity, the log report's HTTP 400 and the provenance of LLM evidence (0.10.7)
+
+Section number 33: section 32 is taken by the change of the relation rules 5 (C32), which is reviewed separately.
+
+### 33.1 The type of an entity needs its context
+
+**Finding.** OpenCode compared these cases with their sources on 2026-10-14:
+
+- **The tools of a page's sidebar became services.** The tools ("Werkzeuge") of a wiki-like page — "Bilder aus /…/" and
+  "Rechtschreibprüfung" — became `service` entities.
+- **A team became a service.** A contact text ("Our service team is looking forward to providing any support …") became the
+  service "Service team".
+
+**Cause (reproduced with a modelled answer through the real parser, validator and publication; `LlmEntityContextTest`, red
+before this change):**
+
+- The validator accepted an entity when two conditions held: its type was one of the five types, and its quote stood verbatim
+  in the text and contained its name. A quote that contains the name proves the name; it says nothing about the type.
+- Every accepted entity gets a `name` claim (`LlmExtractor.apply`). So such an entity became a node of the graph even without
+  an `offers` relation.
+- No context reaches the model or the validator. Nothing marks a chunk as a sidebar, a menu or a contact text. The navigation is
+  moved behind the content only on long pages with recurring blocks (27).
+- The prompt defined a service as "a service or product offered", without excluding the page's tools or a team.
+- The same gap let the role of a team member ("Pflegedienstleitung" in a team list) become a job, and a product used internally
+  become a service.
+
+**What the validator checks now** (`LlmExtractor.validate`, after grounding; a known entity of tiers 1 and 2 keeps its type):
+
+- **A service named as a team, a department or staff is none.** Examples: "Service team", "Vertriebsteam",
+  "IT-Abteilung"; reason `entity_service_team_or_role`.
+- **Any other service needs an offer** (reason `entity_service_not_offered`). The offer can stand in one of four places:
+  - in its quote ("wir bieten", "Leistungen", "kaufen", "services", "offer", "provide", …);
+  - in the heading its quote stands under: reading back from the quote over the short segments right before it (labels of at
+    most three words, such as the entries of a navigation) to a heading such as "Leistungen" or "Unsere Produkte";
+  - in an `offers` statement of the answer about it, whose quote holds its name and an offer;
+  - in a price of it, whose quote holds an amount.
+- **A job needs an advertisement** (reason `entity_job_not_advertised`). It can be:
+  - a vacancy wording ("wir suchen", "Stellenangebot", "hiring", …) or a gender marker ("(m/w/d)") in its name, its quote or
+    its heading;
+  - a hiring statement of the answer that advertises it.
+- **What happens to a refused entity:** it is dropped with its claims (`claim_entity_dropped`), counted per reason, and kept as
+  a redacted sample in the refusal diagnostics.
+
+**The prompt.** The compiled-in default defines a service as offered ("in its list of services, an offer or a price; not a
+tool of the web page such as print or spell check, not a team or a role"). It defines a job as advertised ("not the role of a
+team member").
+
+- A new prompt is a new prompt hash and extractor identity. It reads no document again (6.3, `llm_prompt_changed`); new and
+  changed pages are asked with it.
+- An activated custom prompt stays as it is. The validator applies to every prompt.
+- The default now has 3,499 characters (3,283 before). A custom prompt is stored in `kg_meta`, whose values hold at most
+  4,096 characters, although the editor allows 8,000. This limit was there before; a custom prompt longer than about 3,900
+  characters cannot be activated.
+
+**Counter-checks (unchanged results):**
+
+- services listed under "Leistungen" in a navigation (also an entry quoted alone);
+- a spell check a company offers (by its offer or by its price);
+- a job advertisement with its title;
+- a software product sold ("als Jahreslizenz kaufen").
+
+Not changed:
+
+- No domain or company is named in the rules.
+- Navigation as a whole is not dropped, and roles are not dropped as such: a role in an advertisement stays a job.
+- A product used internally is no service. Its use remains a `system_signal` of the signal rules (10).
+
+**The existing graph: no automatic deletion.** Evidence the earlier validator accepted stays until a page is read again; the
+next content change of a page replaces its tier-3 evidence. A targeted, reviewable cleanup plan:
+
+1. **List the candidates.** Read-only, on a consistent copy: entities of type `service` or `job` whose name is stated only by
+   tier 3, with the page, the excerpt of the name evidence and the excerpts of `offers` or `hiring_organization` statements about
+   them.
+
+   ```sql
+   SELECT t.name AS type, n.obj_val AS name, d.url, substr(e.excerpt, 1, 160) AS excerpt, x.model,
+          (SELECT group_concat(substr(oe.excerpt, 1, 120), ' | ') FROM kg_statement o JOIN kg_vocab ov ON ov.term_id = o.pred
+             JOIN kg_evidence oe ON oe.stmt_rowid = o.stmt_rowid AND oe.tier = 3
+           WHERE (o.obj_ent = n.subj AND ov.name = 'offers') OR (o.subj = n.subj AND ov.name = 'hiring_organization')) AS context
+   FROM kg_statement n JOIN kg_vocab v ON v.term_id = n.pred AND v.name = 'name'
+     JOIN kg_entity en ON en.ent_rowid = n.subj JOIN kg_vocab t ON t.term_id = en.type AND t.name IN ('service', 'job')
+     JOIN kg_evidence e ON e.stmt_rowid = n.stmt_rowid AND e.tier = 3 JOIN kg_doc d ON d.doc_rowid = e.doc_rowid
+     JOIN kg_extractor x ON x.ext_id = e.ext_id
+   WHERE NOT EXISTS (SELECT 1 FROM kg_evidence o WHERE o.stmt_rowid = n.stmt_rowid AND o.tier IN (1, 2))
+   ORDER BY d.url LIMIT 500;
+   ```
+
+2. **Review.** Apply the rules above to each row, by hand or by a reviewed script that runs `LlmExtractor`'s patterns on the
+   excerpts. Keep every row that states an offer or an advertisement.
+3. **Remove only the reviewed rows.** Remove the tier-3 evidence of the reviewed entities on their pages: their name and the
+   statements about them. Do not remove other evidence of the same pages or any evidence of tiers 1 and 2. Removing is a
+   separate, reviewed admin action that recomputes the statements' quality and keeps the observation history; it is not part of
+   this change. Editing the store by hand bypasses the aggregates and is not recommended.
+
+No global re-extraction and no LLM request is needed for it.
+
+### 33.2 The log report's HTTP 400
+
+**Finding.** On 2026-10-14 at 08:24Z production logged six `LOGREPORT phase=write result=failure` lines, each with
+`java.io.IOException: Request failed with response code 400` and without the provider's reason.
+
+**The paths compared:**
+
+| | log report (`LogReportService`) | knowledge graph (`YacyLlmClient`) |
+| --- | --- | --- |
+| selection | `llmFromUsage(logreport, runId, caller)`: the first row of `ai.production_models` with the usage flag | `llmFromUsageQuiet(knowledge)` |
+| endpoint | `LLM.chatStream`: always `POST <hoststub>/v1/chat/completions`, `stream: true`, `Accept: text/event-stream` | Ollama: `/api/chat`; others: `/v1/chat/completions` with `stream: false` |
+| parameters | `model`, `temperature` 0.1, `max_tokens` = the row's, `num_ctx`, 8 `stop` tokens, `reasoning_effort: none`, `enable_thinking: false` | the same on `/v1/chat/completions`, plus `response_format` (`json_schema` or `json_object`) |
+| prompt size | payload = max(512, num_ctx/4, num_ctx − max_tokens) tokens at **4** characters per token; header and noise summary not counted | `RequestBudget`: prompt + answer reserve ≤ window, else split or refused |
+| timeouts | none (connect and read unbounded) | connect 10 s, read `llm.timeout` |
+| retries | none (a failed hour is tried at the next run while its lines are in memory) | one retry without the format after an HTTP 400 with a format; queue backoff |
+| error body | not read | not read |
+
+**What changed:**
+
+- **The provider's reason is kept.** `LLM` reads at most 16 KiB of an error body (`LlmHttpError`) in every path. The message
+  keeps its form, "Request failed with response code N", and adds in parentheses:
+  - the provider's error code or type;
+  - the rejected parameter;
+  - the upstream provider a router names;
+  - at most 300 characters of its message.
+
+  Never part of it: the request, the prompt, the whole body, a router's raw upstream answer, an API key or a bearer token
+  (masked wherever the provider repeats it). The fallback of the structured output still recognises "response code 400".
+- **The log report's lines name the call.** The model-call line and the failure line carry: `function=logreport`, the service
+  type, the model, `promptChars`, `estPromptTokens` (three characters per token, an estimate), `maxTokens`, `numCtx` with
+  `numCtxConfigured`, and `windowExceeded`. A failure also carries `httpStatus`, `providerCode`, `providerParam`, `provider`,
+  `providerMessage` and `errorBodyBytes`. The `runId` of every line is the correlation id.
+- **The knowledge graph's status names the error.** `lastError` names the HTTP status and the provider code
+  (`llm: http_400 context_length_exceeded`).
+
+No parameter was removed and no fallback was added; the behaviour of every call is unchanged.
+
+**Cause: open.** Without the provider's message the 400 cannot be attributed. Reproduced with a mocked strict endpoint
+(`LlmHttpErrorTest`): an exceeded window, a rejected parameter, a router error and a wrong key all looked the same before
+("Request failed with response code 400"). Now they are told apart.
+
+One candidate follows from the code. With a configured window the report's budget can exceed it:
+
+- With `num_ctx` 131,072 and `max_tokens` 65,536, the log lines get 65,536 tokens at four characters each.
+- At three characters per token, the prompt and the cap exceed the window (`LogReportDiagnosticsTest`).
+- A strict provider refuses such a request with HTTP 400; Ollama truncates it.
+
+With the assumed window (4,096, not configured) the log lines get 1,024 tokens and the prompt stays small. Whether the
+production row has a configured window is not known.
+
+**Read-only check for OpenCode:**
+
+- In the log of 2026-10-14 08:2x Z, take the `runId` of the six failures and read its `event=model-routing` line: `service`,
+  `model`, `maxTokens`, `numCtx`.
+- Read its `phase=model-call` lines: `promptChars`, `maxTokens`.
+- Read the same fields for the knowledge row (status `llm.model`, the row in `LLMSelection_p`) and whether `logreport` and
+  `knowledge` use the same row.
+- After this version runs, the next failure line names the provider's reason.
+
+### 33.3 Provenance and the time axes of LLM evidence
+
+| field | where | what it says | what it does not say |
+| --- | --- | --- | --- |
+| `kg_evidence.observed_at` | evidence | when Scoutro published the evidence: processing time; reset when the tier is published again or a newer load of identical content confirms it | when the page said it, which model ran |
+| `kg_evidence.source_observed_at` | evidence | when YaCy loaded the page (`load_date_dt`) | when the model was asked |
+| `kg_evidence.ext_id` → `kg_extractor.model`, `prompt_hash` | evidence | the model selected for the request (`service/model`) and the prompt that produced it | the model a router actually served |
+| `kg_observation.observed_at` | observation | the page's load time of the evidence | — |
+| `kg_observation.recorded_at` and the event `recorded` | observation history | when the observation was recorded (the evidence's processing time) | **which model**: `extractor` is `name/version` (`llm/4`) |
+| `kg_extraction` (cache) | cache | the model and prompt of the cached answer (`ext_id`) | when the model was asked (`last_used` is the last reuse) |
+
+Kept as they are: `observed_at`, the observation's times and its deduplication (unique key without model).
+
+**What these times allow:**
+
+- The model of a tier-3 evidence row is read from its `ext_id`, not from a time.
+- An evidence row published after a switch of the model can come from:
+  - a continuation of a page read before (`applyLlmMore` keeps the rows it does not replace, with their `ext_id`);
+  - a cache hit (the cache key includes the model, so only the same model's answer).
+- Its `observed_at` therefore says nothing about Nemo or any other model. **Old evidence is not attributed to the new model.**
+  The rows published before the switch keep the `ext_id` of the model that produced them.
+
+**A switch while calls run:**
+
+- The tier takes one model per document; each request is admitted only while the selection equals it (`model_changed` defers
+  it).
+- A request already sent finishes with its model and is published under that model's name.
+- Since 0.10.7 the client also checks, at the admission of each request, that the selection it read is still the selection.
+  A switch between the two defers the request, and nothing is sent.
+
+**What the endpoint served (new, diagnostics only):** `llm.context.measured` counts the answers per model, and per provider
+behind a router, that the endpoint names in its answer (`servedModels`). It also counts the answers whose served model differs
+from the one asked for (`servedDiffering`) and those that name none (`servedUnreported`).
+
+**Proposal, not part of this change:** a nullable `kg_observation.extractor_model`. It would be filled at capture from
+`kg_extractor.model` and stay outside the unique key, so the deduplication is unchanged. It would keep the model when the
+evidence is gone. This needs a schema version and a migration; until then the model of an observation is read through its
+statement's current evidence.
+
+### 33.4 Tests
+
+- `LlmEntityContextTest` (new, 8, the real sync, LLM tier, validator and publisher with a modelled answer):
+  - the sidebar's tools are no services;
+  - a team of a contact text is no service;
+  - counter-checks: services under their heading in a navigation, a spell check offered or priced, a job advertisement, a
+    software product sold;
+  - a team list without a vacancy has no job and no service;
+  - a product used internally is no service.
+
+  - the cleanup plan's read-only query (33.1) lists what only the LLM tier states, with its excerpt and model.
+
+  Red before this change: 4 of the first 7 (the four confirmed kinds of mistake). The counter-checks pass before and after.
+- `LlmExtractorInvalidReasonTest`: one case per new reason code.
+- `LlmHttpErrorTest` (new, 5, a mocked strict endpoint through `LLM.chatStream`): an exceeded window, a rejected parameter, a
+  router's error with its provider but without its raw answer, a masked key, and a bounded huge body. Red before this change:
+  5 of 5 (no reason).
+- `LogReportDiagnosticsTest` (new, 4): the report's own prompt and budget exceed a configured window; an assumed window is
+  marked; the failure fields carry the reason and never the prompt or the key.
+- `YacyLlmClientTest` (+2): the served model and provider are counted; a model switched before the admission defers the
+  request.
+- `LlmFullReadingTest`: its fixture names a customer project an organisation; as a service no offer states it is refused.
