@@ -155,9 +155,14 @@ synthetic reference pages only (the knowledge graph never stores an answer):
 Where a missing statement went is said per item, never guessed:
 
 - *dropped by the validator* names the reason of the sample that is exactly
-  this item (same kind, predicate and quote). If no sample is (samples cut,
-  or an item without one), the reason is *not attributable*; the answer's
-  reasons are listed apart, never as this item's.
+  this item: the validator carries each item's position in its list of the
+  answer (`index`) into its sample, and the item found in the answer has the
+  same position. Kind, predicate and quote are no identity (two items can
+  share them, and a sample keeps only the first 160 characters of a quote).
+  Exactly one sample at that position attributes its reason; none (samples
+  cut) or more than one leaves the reason *not attributable*
+  (`reasonAttributed` false), and the answer's reasons are listed apart,
+  never as this item's.
 - Each item found is checked on its own: the **statement** (predicate; for a
   value, the expected passage in its quote), the **quote verbatim on the
   page**, the **names the validator requires in the quote**, the **types** and
@@ -172,8 +177,14 @@ Where a missing statement went is said per item, never guessed:
 Bounds: 8,000 characters of an answer and of its accepted part, four requests
 per page, 40 published statements per page and 320,000 characters per run;
 whatever is cut or left out is listed under `incomplete`, and the page shows
-an incomplete diagnosis. No key: the candidate's key, bearer tokens and
-key-like strings are replaced before anything is kept.
+an incomplete diagnosis. No key: every string of the result, field names
+included (the answer, the quotes of dropped items, the stated item, the
+published statements, the evaluation), is scrubbed before the result is
+stored: the candidate's key, bearer tokens, `sk-`/`pk-`/`rk-` keys and
+`api_key`/`authorization`/`token`/`password` values become `[key]`. The API
+scrubs a stored result and the list of earlier ones again with the current
+row's key when it shows them; the files themselves, the archived ones
+included, are only read.
 
 Results of evaluation 2 are kept as they were. Their *not stated* did not
 check every answer (an answer in a code fence or cut at the output cap was

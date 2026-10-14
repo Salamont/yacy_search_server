@@ -974,7 +974,8 @@ public final class ModelQualityCheck {
             }
         }
         final KnowledgePrompt prompt = p.inputs.prompt;
-        return KgJson.obj("status", status, "startedAt", r.startedAt, "finishedAt", r.finishedAt, "stopReason", r.stopReason,
+        // every field scrubbed before it is stored or shown: the answers, quotes and names of the diagnosis and the evaluation
+        return QualityDiagnosis.scrubbed(KgJson.obj("status", status, "startedAt", r.startedAt, "finishedAt", r.finishedAt, "stopReason", r.stopReason,
                 "scope", KgJson.obj("testset", QualityCases.ID, "version", QualityCases.VERSION, "cases", QualityCases.CASES.size(),
                         "casesEvaluated", r.functional.size(), "expectedOfModel", expected, "givenByRules", byRules,
                         "forbiddenChecked", forbidden, "usage", "knowledge"),
@@ -1003,7 +1004,7 @@ public final class ModelQualityCheck {
                         "schema", SCHEMA_HASH, "validator", VALIDATOR, "rules", RULES,
                         "testset", QualityCases.ID + "/" + QualityCases.VERSION, "evaluator", QualityEvaluator.VERSION,
                         "diagnosis", QualityDiagnosis.VERSION),
-                "fingerprint", r.fingerprint);
+                "fingerprint", r.fingerprint), p.candidate.secret());
     }
 
     // ------------------------------------------------------------ status and results
@@ -1075,8 +1076,9 @@ public final class ModelQualityCheck {
                 found = c;
             }
         }
-        final JSONObject stored = this.results.load(key.trim());
-        final JSONArray earlier = this.results.earlier(key.trim());
+        // what is shown is scrubbed again with the current row's key; the stored and archived files are only read
+        final JSONObject stored = QualityDiagnosis.scrubbed(this.results.load(key.trim()), found == null ? null : found.secret());
+        final JSONArray earlier = (JSONArray) QualityDiagnosis.scrubAll(this.results.earlier(key.trim()), found == null ? null : found.secret());
         if (stored == null) {
             return KgJson.obj("status", UNCHECKED, "candidate", found == null ? null : found.json(), "earlier", earlier);
         }

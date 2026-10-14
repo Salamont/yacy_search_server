@@ -313,12 +313,15 @@ public final class LlmExtractor {
 
         /** Dropped items kept as samples: {@link #SAMPLES}, or more for the quality check's diagnostics. */
         int sampleLimit = SAMPLES;
+        /** The position of the item being checked in its list of the answer (entities, claims or values); -1 outside. */
+        int index = -1;
 
         void sample(final String reason, final String item, final String predicate, final String subjectType, final String subjectRef,
                 final String objectType, final String objectRef, final String quote) {
             if (this.samples.size() < this.sampleLimit) {
-                this.samples.add(item("reason", reason, "item", item, "predicate", predicate, "subjectType", subjectType,
-                        "subject", subjectRef, "objectType", objectType, "object", objectRef, "excerpt", redact(quote)));
+                this.samples.add(item("reason", reason, "item", item, "index", this.index < 0 ? null : this.index, "predicate", predicate,
+                        "subjectType", subjectType, "subject", subjectRef, "objectType", objectType, "object", objectRef,
+                        "excerpt", redact(quote)));
             }
         }
     }
@@ -620,6 +623,7 @@ public final class LlmExtractor {
         // the quotes of the answer's own offers, prices and hiring statements about its entities: context of their type
         final Map<String, List<String>> context = context(claims, values);
         for (int i = 0; i < entities.length(); i++) {
+            r.index = i;
             final JSONObject e = entities.optJSONObject(i);
             if (e == null || !onlyKeys(e, ENTITY_KEYS)) {
                 r.invalid(e == null ? "entity_not_object" : "entity_extra_field");
@@ -671,6 +675,7 @@ public final class LlmExtractor {
             r.entities++;
         }
         for (int i = 0; i < claims.length(); i++) {
+            r.index = i;
             final JSONObject c = claims.optJSONObject(i);
             if (c == null || !onlyKeys(c, CLAIM_KEYS)) {
                 r.invalid(c == null ? "claim_not_object" : "claim_extra_field");
@@ -727,6 +732,7 @@ public final class LlmExtractor {
         }
         final JSONArray okValues = new JSONArray();
         for (int i = 0; i < values.length(); i++) {
+            r.index = i;
             final JSONObject v = values.optJSONObject(i);
             if (v == null || !onlyKeys(v, VALUE_KEYS)) {
                 r.invalid(v == null ? "value_not_object" : "value_extra_field");

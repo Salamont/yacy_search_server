@@ -324,6 +324,84 @@ public class QualityDiagnosisTest {
         assertTrue(w.optJSONObject("checks").optBoolean("evidencePassage"));
     }
 
+    // ------------------------------------------------------------ the reason of exactly this item
+
+    private static final String SERVICES = "Unsere Leistungen: Heizungswartung und Badsanierung";
+
+    /** Two offers with the same quote: the first of an unknown subject, the second the expected one (its quote lacks the company). */
+    private static String twoOffers(final String first, final String second) {
+        return QualityFixture.answer(List.of(
+                QualityFixture.entity("e1", "organization", "Muster Haustechnik GmbH", "Kontakt zur Muster Haustechnik GmbH"),
+                QualityFixture.entity("e2", "service", "Heizungswartung", SERVICES),
+                QualityFixture.entity("e3", "service", "Badsanierung", SERVICES)),
+                List.of(QualityFixture.claim("e9", "offers", "e2", first), QualityFixture.claim("e1", "offers", "e2", second)), List.of());
+    }
+
+    /**
+     * Two claims of the same predicate with the identical quote and different reasons: the missing offer gets the reason of
+     * its own item (its index in the answer), not the other one's.
+     */
+    @Test
+    public void itemsWithTheSameQuoteKeepTheirOwnReasons() throws Exception {
+        answering("team_vs_service", a -> twoOffers(SERVICES, SERVICES));
+        final JSONObject c = caseResult(run(), "team_vs_service");
+        final JSONObject w = deviation(c, QualityEvaluator.MISSING, Vocabulary.OFFERS).optJSONObject("where");
+        assertEquals(w.toString(2), QualityEvaluator.DROPPED_BY_VALIDATOR, w.optString("why"));
+        assertEquals(w.toString(2), 1, w.optJSONArray("reasons").length());
+        assertEquals("ungrounded", w.optJSONArray("reasons").optString(0));
+        assertTrue(w.optBoolean("reasonAttributed"));
+        assertEquals(1, w.optJSONObject("drop").optInt("index"));
+        assertEquals(1, w.optJSONObject("stated").optInt("index"));
+        // the other item's reason is the answer's, listed apart
+        assertTrue(w.optJSONArray("answerReasons").toString().contains("claim_unresolved_subject"));
+    }
+
+    /** The same, with two quotes that differ only after the length the samples keep: their excerpts are equal. */
+    @Test
+    public void itemsWithTheSameShortenedQuoteKeepTheirOwnReasons() throws Exception {
+        final StringBuilder p = new StringBuilder(SERVICES);
+        while (p.length() <= net.yacy.scoutro.knowledge.extract.LlmExtractor.SAMPLE_CHARS) {
+            p.append(" und Wartung");
+        }
+        answering("team_vs_service", a -> twoOffers(p + " erstens", p + " zweitens"));
+        final JSONObject c = caseResult(run(), "team_vs_service");
+        final JSONObject w = deviation(c, QualityEvaluator.MISSING, Vocabulary.OFFERS).optJSONObject("where");
+        final JSONArray drops = c.optJSONObject("diagnosis").optJSONArray("answers").optJSONObject(0).optJSONObject("validator").optJSONArray("drops");
+        String first = null, second = null;
+        for (int i = 0; i < drops.length(); i++) {
+            if ("claim".equals(drops.optJSONObject(i).optString("item"))) {
+                if (first == null) {
+                    first = drops.optJSONObject(i).optString("excerpt");
+                } else {
+                    second = drops.optJSONObject(i).optString("excerpt");
+                }
+            }
+        }
+        assertEquals("precondition: the shortened quotes are equal", first, second);
+        assertEquals(w.toString(2), 1, w.optJSONArray("reasons").length());
+        assertEquals("ungrounded", w.optJSONArray("reasons").optString(0));
+        assertTrue(w.optBoolean("reasonAttributed"));
+    }
+
+    /** Without a sample of the item (none kept), the reason is not attributed: nothing is guessed from the answer's reasons. */
+    @Test
+    public void withoutASampleOfTheItemTheReasonIsNotAttributed() throws Exception {
+        final QualityCases.Case c = QualityCases.get("team_vs_service");
+        final String answer = twoOffers(SERVICES, SERVICES);
+        final net.yacy.scoutro.knowledge.extract.LlmExtractor.Result r = net.yacy.scoutro.knowledge.extract.LlmExtractor.validate(answer,
+                new net.yacy.scoutro.knowledge.extract.LlmExtractor.Chunk(c.text, 0), List.of(), java.util.Set.of(), 0);
+        QualityCases.Statement offer = null;
+        for (final QualityCases.Statement s : c.expected) {
+            offer = Vocabulary.OFFERS.equals(s.predicate) ? s : offer;
+        }
+        final JSONObject w = QualityEvaluator.whereMissing(offer, c.text, List.of(new QualityEvaluator.Answer(answer, r, List.of())), null);
+        assertEquals(w.toString(2), QualityEvaluator.DROPPED_BY_VALIDATOR, w.optString("why"));
+        assertFalse(w.optBoolean("reasonAttributed"));
+        assertEquals(0, w.optJSONArray("reasons").length());
+        assertFalse(w.optBoolean("samplesComplete"));
+        assertTrue(w.optJSONArray("answerReasons").length() > 0);
+    }
+
     // ------------------------------------------------------------ bounds, keys and earlier results
 
     /** A key in an answer is never stored, an answer is cut at its bound, and the cut is marked. */
@@ -350,15 +428,61 @@ public class QualityDiagnosisTest {
         assertEquals(QualityEvaluator.ANSWER_REFUSED, w.optString("why"));
     }
 
+    /** Synthetic keys only: never real ones. */
+    private static final String KEY_SK = "sk-synthetic-ABCDEFGH12345678", KEY_BEARER = "tok3nSYNTHETIC0123", KEY_PARAM = "SYNTHKEY0123456789",
+            KEY_ROW = "sk-fixture-secret-0123456789";
+
+    private static void noKey(final String where, final String text) {
+        for (final String k : List.of(KEY_SK, KEY_BEARER, KEY_PARAM, KEY_ROW)) {
+            assertFalse(where + " holds a key: " + k, text.contains(k));
+        }
+    }
+
+    /**
+     * Keys in a parsable answer, in items the validator drops: an entity, a relation and a value, and the expected
+     * statement itself. None reaches the result, the API, the stored file or the status; where they stood, the
+     * diagnosis says [key].
+     */
+    @Test
+    public void keysInDroppedEntitiesRelationsAndValuesAreNeverKept() throws Exception {
+        answering("team_vs_service", a -> QualityFixture.answer(List.of(
+                QualityFixture.entity("e1", "organization", "Muster Haustechnik GmbH", "Kontakt zur Muster Haustechnik GmbH"),
+                QualityFixture.entity("e2", "service", "Heizungswartung", "Heizungswartung " + KEY_SK),
+                QualityFixture.entity("e3", "service", "Badsanierung", SERVICES),
+                QualityFixture.entity("e4", "service", "Bearer " + KEY_BEARER, "Bearer " + KEY_BEARER)),
+                List.of(QualityFixture.claim("e1", "offers", "e3", "Kontakt zur Muster Haustechnik GmbH api_key=" + KEY_PARAM)),
+                List.of(QualityFixture.value("e3", "price", "Badsanierung kostet " + KEY_ROW))));
+        final JSONObject r = run();
+        noKey("result", r.toString());
+        noKey("status", this.q.status().toString());
+        final File stored = new File(this.f.dir, ModelQualityCheck.sha(this.f.key()) + ".json");
+        noKey("stored file", new String(Files.readAllBytes(stored.toPath()), StandardCharsets.UTF_8));
+        final JSONObject c = caseResult(r, "team_vs_service");
+        // the answer was parsable and its items were dropped: the keys stood in the diagnosis, the drops and the stated item
+        final JSONObject a = c.optJSONObject("diagnosis").optJSONArray("answers").optJSONObject(0);
+        assertTrue(a.optBoolean("readable"));
+        assertTrue(a.optString("text").contains("[key]"));
+        final JSONArray drops = a.optJSONObject("validator").optJSONArray("drops");
+        int scrubbed = 0;
+        for (int i = 0; i < drops.length(); i++) {
+            scrubbed += drops.optJSONObject(i).optString("excerpt").contains("[key]") ? 1 : 0;
+        }
+        assertTrue(drops.toString(), scrubbed >= 3);
+        final JSONObject w = deviation(c, QualityEvaluator.MISSING, "service “Heizungswartung”").optJSONObject("where");
+        assertTrue(w.toString(2), w.optJSONObject("stated").optString("quote").contains("[key]"));
+        // the API shows it scrubbed as well
+        noKey("API result", this.q.result(this.f.key()).toString());
+    }
+
     /**
      * An earlier result (evaluated with evaluator 2) is kept as it was when the candidate is checked again: listed with its
      * version and counts, its file unchanged; the new result is evaluated with the current version.
      */
     @Test
     public void anEarlierResultIsKeptAsItWas() throws Exception {
-        final JSONObject old = KgJson.obj("status", ModelQualityCheck.DEVIATIONS, "finishedAt", 1L,
+        final JSONObject old = KgJson.obj("status", ModelQualityCheck.DEVIATIONS, "finishedAt", 1L, "note", "Bearer " + KEY_BEARER,
                 "functional", KgJson.obj("correct", 3, "missing", 14),
-                "provenance", KgJson.obj("evaluator", "2", "testset", "kg-reference/2"));
+                "provenance", KgJson.obj("evaluator", "2", "testset", "kg-reference/2 " + KEY_SK));
         new QualityResults(this.f.dir).save(this.f.key(), old);
         final File stored = new File(this.f.dir, ModelQualityCheck.sha(this.f.key()) + ".json");
         final byte[] before = Files.readAllBytes(stored.toPath());
@@ -371,6 +495,8 @@ public class QualityDiagnosisTest {
         final File archived = new File(this.f.dir, earlier.optJSONObject(0).optString("file"));
         assertTrue(archived.isFile());
         assertEquals(new String(before, StandardCharsets.UTF_8), new String(Files.readAllBytes(archived.toPath()), StandardCharsets.UTF_8));
+        assertTrue("the archive keeps what it held", new String(Files.readAllBytes(archived.toPath()), StandardCharsets.UTF_8).contains(KEY_BEARER));
+        noKey("earlier results shown", r.optJSONArray("earlier").toString());
         assertEquals(1, this.q.status().optJSONArray("candidates").optJSONObject(0).optInt("earlierResults"));
         assertNull(this.q.status().optJSONArray("candidates").optJSONObject(0).opt("earlier"));
     }

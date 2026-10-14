@@ -62,6 +62,36 @@ final class QualityDiagnosis {
                 .replaceAll("(?i)(\"?(?:api[_-]?key|authorization|token|password)\"?\\s*[:=]\\s*\"?)[^\"\\s,}]+", "$1[key]");
     }
 
+    /**
+     * A copy of a result with every string scrubbed ({@link #scrub}), field names included: what the check stores and what
+     * the API shows of it, whatever field a key could reach (an answer, a quote of a dropped item, a stated item, a
+     * published statement, a name used as a field name). The original is not changed.
+     */
+    static Object scrubAll(final Object o, final String secret) {
+        if (o instanceof JSONObject) {
+            final JSONObject in = (JSONObject) o;
+            final JSONObject out = new JSONObject();
+            for (final String k : in.keySet()) {
+                KgJson.put(out, scrub(k, secret), scrubAll(in.opt(k), secret));
+            }
+            return out;
+        }
+        if (o instanceof JSONArray) {
+            final JSONArray in = (JSONArray) o;
+            final JSONArray out = new JSONArray();
+            for (int i = 0; i < in.length(); i++) {
+                out.put(scrubAll(in.opt(i), secret));
+            }
+            return out;
+        }
+        return o instanceof String ? scrub((String) o, secret) : o;
+    }
+
+    /** {@link #scrubAll} of a result object; null stays null. */
+    static JSONObject scrubbed(final JSONObject o, final String secret) {
+        return o == null ? null : (JSONObject) scrubAll(o, secret);
+    }
+
     /** At most {@code max} characters of the text, within what is left of the run's budget. */
     private static String bounded(final String text, final int max, final int[] budget, final JSONArray incomplete, final String what) {
         final int room = Math.max(0, Math.min(max, budget[0]));

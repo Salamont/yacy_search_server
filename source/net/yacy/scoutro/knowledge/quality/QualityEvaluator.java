@@ -19,10 +19,8 @@ package net.yacy.scoutro.knowledge.quality;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -335,7 +333,7 @@ public final class QualityEvaluator {
                 // the validator kept it: the extraction did not take it (e.g. a job of a menu entry, jobs off)
                 return KgJson.obj("why", DROPPED_BY_PREPARATION, "answer", i + 1, "stated", stated, "checks", checks);
             }
-            final JSONObject drop = drop(s, stated, a.result);
+            final JSONObject drop = drop(stated, a.result);
             return KgJson.obj("why", DROPPED_BY_VALIDATOR, "answer", i + 1, "stated", stated, "checks", checks,
                     "reasons", drop.optJSONArray("reasons"), "reasonAttributed", drop.optBoolean("attributed"),
                     "drop", drop.optJSONObject("sample"), "answerReasons", drop.optJSONArray("answerReasons"),
@@ -355,28 +353,29 @@ public final class QualityEvaluator {
     }
 
     /**
-     * The validator's reason for exactly this item: the sample of the same kind, predicate and evidence. If no sample is
-     * that item (samples are bounded, or a reason has none), the reasons are not attributed; the answer's reasons are then
-     * listed apart, never as this item's.
+     * The validator's reason for exactly this item: the sample of the same kind at the same position of its list in the
+     * answer (the validator carries the position into each sample). Kind, predicate and quote are no identity: two items
+     * may share them, and a sample keeps only the start of a quote. Exactly one sample at that position attributes its
+     * reason; none (samples are bounded) or more than one leaves the reason not attributed, and the answer's reasons are
+     * then listed apart, never as this item's.
      */
-    private static JSONObject drop(final Statement s, final JSONObject stated, final LlmExtractor.Result r) {
+    private static JSONObject drop(final JSONObject stated, final LlmExtractor.Result r) {
         final JSONArray reasons = new JSONArray();
         final JSONArray answerReasons = new JSONArray();
         JSONObject sample = null;
         boolean complete = false;
         if (r != null) {
-            final String item = Statement.ENTITY.equals(s.kind) ? "entity" : Statement.RELATION.equals(s.kind) ? "claim" : "value";
-            final String excerpt = LlmExtractor.redact(stated.optString("quote", null));
-            final Set<String> found = new LinkedHashSet<>();
+            final String item = stated.optString("item");
+            final int index = stated.optInt("index", -1);
+            final List<JSONObject> same = new ArrayList<>();
             for (final JSONObject x : r.samples) {
-                if (item.equals(x.optString("item")) && (Statement.ENTITY.equals(s.kind) || s.predicate.equals(x.optString("predicate", null)))
-                        && excerpt != null && excerpt.equals(x.optString("excerpt", null))) {
-                    found.add(x.optString("reason"));
-                    sample = sample == null ? x : sample;
+                if (index >= 0 && item.equals(x.optString("item")) && x.has("index") && x.optInt("index", -2) == index) {
+                    same.add(x);
                 }
             }
-            for (final String f : found) {
-                reasons.put(f);
+            if (same.size() == 1) {
+                sample = same.get(0);
+                reasons.put(sample.optString("reason"));
             }
             for (final String k : r.droppedInvalidByReason.keySet()) {
                 answerReasons.put(k);
@@ -455,7 +454,8 @@ public final class QualityEvaluator {
                 final boolean named = sameName(s.subject, e.optString("name"));
                 final boolean partly = !named && s.evidence != null && contains(e.optString("quote", null), s.evidence);
                 if (otherwise ? partly : named) {
-                    return KgJson.obj("item", "entity", "type", e.optString("type"), "name", e.optString("name"), "quote", e.optString("quote", null));
+                    return KgJson.obj("item", "entity", "index", i, "type", e.optString("type"), "name", e.optString("name"),
+                            "quote", e.optString("quote", null));
                 }
             }
             return null;
@@ -475,7 +475,7 @@ public final class QualityEvaluator {
                 final boolean partly = !match && (subjectNamed || objectNamed
                         || s.evidence != null && contains(c.optString("quote", null), s.evidence));
                 if (otherwise ? partly : match) {
-                    return KgJson.obj("item", "claim", "subject", subject == null ? c.optString("subject") : subject[1],
+                    return KgJson.obj("item", "claim", "index", i, "subject", subject == null ? c.optString("subject") : subject[1],
                             "subjectType", subject == null ? null : subject[0], "predicate", s.predicate,
                             "object", object == null ? c.optString("object") : object[1], "objectType", object == null ? null : object[0],
                             "quote", c.optString("quote", null));
@@ -484,7 +484,7 @@ public final class QualityEvaluator {
             }
             final boolean partly = !subjectNamed && s.evidence != null && contains(c.optString("quote", null), s.evidence);
             if (otherwise ? partly : subjectNamed) {
-                return KgJson.obj("item", "value", "subject", subject == null ? c.optString("subject") : subject[1],
+                return KgJson.obj("item", "value", "index", i, "subject", subject == null ? c.optString("subject") : subject[1],
                         "subjectType", subject == null ? null : subject[0], "predicate", s.predicate, "quote", c.optString("quote", null));
             }
         }

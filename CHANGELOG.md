@@ -19,6 +19,11 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   *not stated* only when every answer was read and none was cut off, otherwise *cause not traceable*.
 - **Earlier results** are kept unchanged in `archive/` and listed; a result of evaluation 2 shows its *not stated*
   as *cause not traceable*.
+- **The reason of exactly this item.** The validator carries each item's position in the answer into its sample; a
+  drop is attributed only by that position, never by kind, predicate and quote (two items can share them, and a
+  sample keeps only the start of a quote). Unclear: `reasonAttributed` false.
+- **No key in any field.** Every string of a result, field names included, is scrubbed before it is stored, and
+  again when the API shows a stored or an earlier result; archived files are only read.
 - **Counter-checks** of the stored runs' deviations with mock answers (`QualityDiagnosisTest`): the job portal's
   employer, the agency's position, software used internally as a facility, offers and prices. No validator or model
   rule changed.
