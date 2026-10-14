@@ -4358,7 +4358,7 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >stated by the model, dropped by the validator<==>vom Modell genannt, vom Validator verworfen<
 >accepted, dropped when the publication was prepared<==>angenommen, bei der Vorbereitung der Veröffentlichung verworfen<
 >the whole answer was refused<==>die ganze Antwort wurde abgelehnt<
->not stated by the model<==>vom Modell nicht genannt<
+>not stated by the model (every answer checked)<==>vom Modell nicht genannt (jede Antwort geprüft)<
 >Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5<==>Prüfe Referenzseite %1 von %2: %3 von höchstens %4 Aufrufen, geschätzte Kosten %5<
 >Cancelling: no further request is sent; the request in flight is answered or times out.<==>Wird abgebrochen: Es wird keine weitere Anfrage gesendet; die laufende Anfrage wird beantwortet oder läuft ab.<
 >The check was cancelled.<==>Die Prüfung wurde abgebrochen.<
@@ -4398,6 +4398,18 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >Evidence<==>Beleg<
 >No deviation, but accepted statements not rated: read them before switching<==>Keine Abweichung, aber angenommene Aussagen nicht bewertet: vor dem Wechsel lesen<
 >%1 more not listed<==>%1 weitere nicht aufgeführt<
+>Repeated from the rules, not rated<==>Aus den Regeln wiederholt, nicht bewertet<
+>stated otherwise (another name, type, assignment or evidence)<==>anders angegeben (anderer Name, Typ, andere Zuordnung oder anderer Beleg)<
+>cause not traceable<==>Ursache nicht nachvollziehbar<
+>reason not attributable to this statement; reasons of the answer: %1<==>Grund nicht dieser Aussage zuzuordnen; Gründe der Antwort: %1<
+>checked: statement %1, quote on the page %2, names in the quote %3, type %4, assignment %5<==>geprüft: Aussage %1, Zitat auf der Seite %2, Namen im Zitat %3, Typ %4, Zuordnung %5<
+>yes<==>ja<
+>no<==>nein<
+>missing: %1<==>fehlt: %1<
+>The diagnosis is incomplete for %1 reference pages (%2): what was cut or left out is marked in the stored result.<==>Die Diagnose ist für %1 Referenzseiten unvollständig (%2): Gekürztes oder Ausgelassenes ist im gespeicherten Ergebnis markiert.<
+>Evaluated with evaluation %1 (now %2): kept as it was. Where it says a statement was not stated, the answers were not checked completely; it is shown as: cause not traceable.<==>Mit Bewertung %1 bewertet (jetzt %2) und unverändert erhalten. Wo sie eine Aussage als nicht genannt einstuft, wurden die Antworten nicht vollständig geprüft; angezeigt wird: Ursache nicht nachvollziehbar.<
+>Earlier results of this model, kept as they were: %1<==>Frühere Ergebnisse dieses Modells, unverändert erhalten: %1<
+>%1 – %2, evaluation %3<==>%1 – %2, Bewertung %3<
 <label>input <input==<label>Eingabe <input
 <label>output <input==<label>Ausgabe <input
 Start without a price: only the caps of calls and tokens apply, the cost stays unknown==Ohne Preis starten: Es gelten nur die Obergrenzen für Aufrufe und Tokens, die Kosten bleiben unbekannt

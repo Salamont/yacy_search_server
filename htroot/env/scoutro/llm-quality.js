@@ -270,6 +270,33 @@
     return text;
   }
 
+  function yesNo(v) {
+    return v === true ? label("yes") : v === false ? label("no") : label("unchecked_part");
+  }
+
+  /** The kind of a deviation, where a missing statement went, the reason of exactly that item and the separate checks. */
+  function deviationKind(d, evaluator) {
+    var text = label(d.kind);
+    var w = d.where;
+    if (!w || !w.why) return text;
+    var why = w.why === "not_stated" && evaluator && evaluator < 3 ? "cause_unknown" : w.why;
+    text += " – " + label(why);
+    if (w.reasons && w.reasons.length) {
+      text += " (" + w.reasons.join(", ") + ")";
+    } else if (w.why === "dropped_by_validator" && w.reasonAttributed === false) {
+      text += " – " + fill(label("reason_not_attributed"), [(w.answerReasons || []).join(", ")]);
+    }
+    if (w.checks) {
+      var k = w.checks;
+      var missingNames = Object.keys(k.namesInQuote || {}).filter(function (n) { return k.namesInQuote[n] === false; });
+      var names = Object.keys(k.namesInQuote || {}).length ? (missingNames.length ? fill(label("names_missing"), [missingNames.join(", ")]) : label("yes"))
+        : label("unchecked_part");
+      text += " – " + fill(label("checks"), [yesNo(k.statement), yesNo(k.quoteOnPage), names, yesNo(k.type), yesNo(k.assignment)]);
+    }
+    if (w.incomplete && w.incomplete.length) text += " [" + w.incomplete.join(", ") + "]";
+    return text;
+  }
+
   function renderResult(r) {
     if (!r || r.status === "unchecked") {
       show("qualityResult", false);
@@ -284,7 +311,27 @@
     stale.textContent = r.stale ? fill(label("stale"), [(r.staleReasons || []).join(", ")]) : "";
     stale.style.display = r.stale ? "" : "none";
     var fn = r.functional || {};
-    ["correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence", "allowed", "notRated"].forEach(function (k) {
+    // an earlier evaluation is kept as it was; its "not stated" did not check every answer
+    var evaluator = Number(((r.provenance || {}).evaluator) || 0);
+    var current = Number(((state && state.testset) || {}).evaluator || 0);
+    var old = el("qualityOldEvaluation");
+    var older = evaluator > 0 && evaluator < 3;
+    old.textContent = older ? fill(label("old_evaluation"), [evaluator, current || "?"]) : "";
+    old.style.display = older ? "" : "none";
+    var incomplete = [];
+    (fn.cases || []).forEach(function (c) {
+      if (c.diagnosis && c.diagnosis.complete === false) incomplete.push(label("case_" + c["case"]));
+    });
+    var note = el("qualityDiagnosisNote");
+    note.textContent = incomplete.length ? fill(label("diagnosis_incomplete"), [incomplete.length, incomplete.join(", ")]) : "";
+    note.style.display = incomplete.length ? "" : "none";
+    var earlier = (r.earlier || []).map(function (e) {
+      return fill(label("earlier_item"), [e.finishedAt ? new Date(e.finishedAt).toLocaleString() : (e.file || ""), label(e.status || "unchecked"),
+        e.evaluator || "?"]);
+    });
+    cell("#qualityEarlier", earlier.length ? fill(label("earlier"), [earlier.join("; ")]) : "");
+    show("qualityEarlier", earlier.length > 0);
+    ["correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence", "allowed", "notRated", "repeatsRules"].forEach(function (k) {
       cell('[data-q-fn="' + k + '"]', String(fn[k] || 0));
     });
     cell('[data-q-fn="givenByRules"]', String(s.givenByRules || 0));
@@ -307,9 +354,7 @@
       (c.deviations || []).forEach(function (d) {
         var row = document.createElement("tr");
         row.appendChild(td(label("case_" + c["case"])));
-        var kind = label(d.kind);
-        if (d.where && d.where.why) kind += " – " + label(d.where.why) + (d.where.reasons && d.where.reasons.length ? " (" + d.where.reasons.join(", ") + ")" : "");
-        row.appendChild(td(kind));
+        row.appendChild(td(deviationKind(d, evaluator)));
         row.appendChild(td(statement(d.expected || d.forbidden)));
         row.appendChild(td(statement(d.actual)));
         row.appendChild(td(d.source || ""));

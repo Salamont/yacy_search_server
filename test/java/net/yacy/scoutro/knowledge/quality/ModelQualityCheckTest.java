@@ -307,7 +307,18 @@ public class ModelQualityCheckTest {
         final JSONObject first = run(PRICE, false, null, null);
         this.f.answer = a -> QualityFixture.ideal(a).replace("\"e1\"", "\"x9\"").replace("\"e2\"", "\"y7\"").replace("\"e3\"", "\"z5\"");
         final JSONObject second = run(PRICE, false, null, null);
-        assertEquals(first.optJSONObject("functional").toString(), second.optJSONObject("functional").toString());
+        // the evaluation is the same; the diagnosis keeps each answer as it was, ids included
+        assertEquals(withoutDiagnosis(first).toString(), withoutDiagnosis(second).toString());
+    }
+
+    private static JSONObject withoutDiagnosis(final JSONObject result) throws org.json.JSONException {
+        final JSONObject f = new JSONObject(result.optJSONObject("functional").toString());
+        final JSONArray cases = f.optJSONArray("cases");
+        for (int i = 0; i < cases.length(); i++) {
+            assertNotNull(cases.optJSONObject(i).optJSONObject("diagnosis"));
+            cases.optJSONObject(i).remove("diagnosis");
+        }
+        return f;
     }
 
     // ------------------------------------------------------------ limits

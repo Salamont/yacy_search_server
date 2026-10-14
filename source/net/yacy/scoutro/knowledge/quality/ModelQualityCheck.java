@@ -730,7 +730,8 @@ public final class ModelQualityCheck {
      * Replaces the reservation of the request's transports by what they cost: the tokens the endpoint reported, else the
      * prompt's worst case and, for an answer, the output cap (counted as estimated).
      */
-    private void settle(final Run r, final List<Transport> sent, final boolean answered, final JSONObject tech) {
+    /** Books what the transports of one request cost; returns true if its answer stopped at the output cap. */
+    private boolean settle(final Run r, final List<Transport> sent, final boolean answered, final JSONObject tech) {
         long prompt = 0, answer = 0, estimated = 0;
         int truncated = 0;
         for (int i = 0; i < sent.size(); i++) {
@@ -775,6 +776,8 @@ public final class ModelQualityCheck {
         KgJson.put(tokens, "answer", tokens.optLong("answer") + answer);
         KgJson.put(tokens, "estimated", tokens.optLong("estimated") + estimated);
         KgJson.put(tech, "truncated", tech.optInt("truncated") + truncated);
+        final Transport lastSent = sent.isEmpty() ? null : sent.get(sent.size() - 1);
+        return answered && lastSent != null && lastSent.usage != null && "length".equals(lastSent.usage.optString("stop"));
     }
 
     private static void count(final Map<String, Integer> m, final String key) {
@@ -798,6 +801,7 @@ public final class ModelQualityCheck {
         final Plan p = r.plan;
         final KnowledgePrompt prompt = p.inputs.prompt;
         String stop = null;
+        final int[] diagnosisBudget = {QualityDiagnosis.RUN_BUDGET};
         try {
             for (int i = 0; i < QualityCases.CASES.size(); i++) {
                 final Case c = QualityCases.CASES.get(i);
@@ -836,7 +840,7 @@ public final class ModelQualityCheck {
                         error = e;
                     }
                     final List<Transport> all = transports(r);
-                    settle(r, new ArrayList<>(all.subList(before, all.size())), answer != null, tech);
+                    final boolean cut = settle(r, new ArrayList<>(all.subList(before, all.size())), answer != null, tech);
                     r.current = null;
                     if (error instanceof LlmClient.Deferred) {
                         stop = ((LlmClient.Deferred) error).reason;
@@ -849,8 +853,8 @@ public final class ModelQualityCheck {
                         failed = true;
                         break;
                     }
-                    final LlmExtractor.Result res = page.reading.check(answer, q.part);
-                    answers.add(new QualityEvaluator.Answer(answer, res, q.part.known));
+                    final LlmExtractor.Result res = page.reading.check(answer, q.part, QualityDiagnosis.SAMPLES);
+                    answers.add(new QualityEvaluator.Answer(answer, res, q.part.known, cut));
                     if (res.refused != null) {
                         refused.put(res.refused);
                         continue;
@@ -873,7 +877,10 @@ public final class ModelQualityCheck {
                     continue;
                 }
                 final Extraction ex = page.extraction(p.cfg, accepted, acceptedKnown);
-                r.functional.add(QualityEvaluator.evaluate(c, page.base, ex, answers));
+                final JSONObject evaluation = QualityEvaluator.evaluate(c, page.base, ex, answers);
+                // what the model answered, what the validator kept and dropped, what the publication would take: this page only
+                KgJson.put(evaluation, "diagnosis", QualityDiagnosis.of(answers, ex, p.candidate.secret(), diagnosisBudget));
+                r.functional.add(evaluation);
             }
         } catch (final RuntimeException e) {
             // a fault of the check itself: logged by its class and place only (no page, answer or key)
@@ -933,7 +940,7 @@ public final class ModelQualityCheck {
         final Plan p = r.plan;
         final String status = status(r.technical, r.functional, r.stopReason);
         int expected = 0, byRules = 0, forbidden = 0, correct = 0, missing = 0, wrong = 0, wrongType = 0, wrongRelation = 0, evidence = 0,
-                allowed = 0, notRated = 0;
+                allowed = 0, notRated = 0, repeats = 0;
         for (final JSONObject f : r.functional) {
             final JSONObject n = f.optJSONObject("counts");
             expected += n.optInt("expected");
@@ -946,6 +953,7 @@ public final class ModelQualityCheck {
             evidence += n.optInt("evidence");
             allowed += n.optInt("allowed");
             notRated += n.optInt("notRated");
+            repeats += n.optInt("repeatsRules");
         }
         for (final Case c : QualityCases.CASES) {
             forbidden += c.forbidden.size();
@@ -973,7 +981,7 @@ public final class ModelQualityCheck {
                 "limits", limits(),
                 "functional", KgJson.obj("correct", correct, "missing", missing, "forbidden", wrong, "wrongType", wrongType,
                         "wrongRelation", wrongRelation, "evidence", evidence, "allowed", allowed, "notRated", notRated,
-                        "cases", new JSONArray(r.functional)),
+                        "repeatsRules", repeats, "cases", new JSONArray(r.functional)),
                 "technical", KgJson.obj("apiErrors", apiErrors, "refusedAnswers", refusedAnswers, "validatorDrops", drops,
                         "truncated", truncated, "calls", r.calls, "retries", retries, "callCap", r.callCap,
                         "durationMillis", r.finishedAt - r.startedAt,
@@ -993,7 +1001,8 @@ public final class ModelQualityCheck {
                                 "answerReserveTokens", p.cfg.llmAnswerReserveTokens, "maxInputChars", p.cfg.extractMaxInputChars),
                         "prompt", KgJson.obj("hash", prompt.hash, "source", prompt.source, "revision", prompt.revision),
                         "schema", SCHEMA_HASH, "validator", VALIDATOR, "rules", RULES,
-                        "testset", QualityCases.ID + "/" + QualityCases.VERSION, "evaluator", QualityEvaluator.VERSION),
+                        "testset", QualityCases.ID + "/" + QualityCases.VERSION, "evaluator", QualityEvaluator.VERSION,
+                        "diagnosis", QualityDiagnosis.VERSION),
                 "fingerprint", r.fingerprint);
     }
 
@@ -1031,7 +1040,10 @@ public final class ModelQualityCheck {
                 KgJson.put(o, "staleReasons", stored.opt("staleReasons"));
                 KgJson.put(o, "scope", stored.opt("scope"));
                 KgJson.put(o, "functional", summary(stored.optJSONObject("functional")));
+                KgJson.put(o, "evaluator", stored.optJSONObject("provenance") == null ? null
+                        : stored.optJSONObject("provenance").optString("evaluator", null));
             }
+            KgJson.put(o, "earlierResults", this.results.earlierCount(c.key()));
             candidates.put(o);
         }
         final Run r = this.run;
@@ -1045,7 +1057,8 @@ public final class ModelQualityCheck {
             return null;
         }
         final JSONObject o = new JSONObject(true);
-        for (final String k : List.of("correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence", "allowed", "notRated")) {
+        for (final String k : List.of("correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence", "allowed", "notRated",
+                "repeatsRules")) {
             KgJson.put(o, k, functional.optInt(k));
         }
         return o;
@@ -1063,9 +1076,12 @@ public final class ModelQualityCheck {
             }
         }
         final JSONObject stored = this.results.load(key.trim());
+        final JSONArray earlier = this.results.earlier(key.trim());
         if (stored == null) {
-            return KgJson.obj("status", UNCHECKED, "candidate", found == null ? null : found.json());
+            return KgJson.obj("status", UNCHECKED, "candidate", found == null ? null : found.json(), "earlier", earlier);
         }
+        // the results of earlier checks of this candidate, kept as they were (an earlier evaluation is never redone)
+        KgJson.put(stored, "earlier", earlier);
         if (found == null) {
             KgJson.put(stored, "stale", true);
             KgJson.put(stored, "staleReasons", new JSONArray().put("candidate_removed"));

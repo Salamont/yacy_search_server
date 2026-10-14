@@ -26,10 +26,11 @@ const browser = await chromium.launch({
 });
 withDigestSignIn(browser);
 
-async function open(language, width) {
+async function open(language, width, init) {
   const context = await browser.newContext({
     locale: language, viewport: { width, height: 900 }, httpCredentials: { username: 'admin', password: 'yacy' },
   });
+  if (init) await context.addInitScript(init);
   const page = await context.newPage();
   const errors = [];
   const saves = [];
@@ -83,6 +84,12 @@ try {
     check(rows >= 10, `deviations listed: ${rows}`);
     const first = page.locator('#qualityDeviationsTable tbody tr').first();
     check((await first.locator('td').nth(1).textContent()).includes('missing'), 'deviation kind');
+    // every answer of the empty reading was read and none was cut: "not stated" is said, as checked
+    check((await page.locator('#qualityDeviationsTable').textContent()).includes('not stated by the model (every answer checked)'),
+      'not stated, every answer checked');
+    check((await page.locator('[data-q-fn="repeatsRules"]').textContent()) === '0', 'repetitions of the rules counted');
+    check(!(await page.locator('#qualityOldEvaluation').isVisible()), 'no earlier evaluation note on a current result');
+    check(!(await page.locator('#qualityDiagnosisNote').isVisible()), 'the diagnosis of every page is complete');
     check((await first.locator('td').nth(2).textContent()).length > 5, 'expectation shown');
     check((await first.locator('td').nth(4).textContent()).length > 5, 'passage of the page shown');
     check((await page.locator('[data-q-prov="served"]').textContent()).includes('FixtureProvider'), 'provenance: served provider');
@@ -128,6 +135,40 @@ try {
     check(!(await candidateBox.isChecked()) && !(await activeBox.isChecked()), 'knowledge handed to another row on switch-off');
     const off = saves.filter(save => Array.isArray(save.production_models)).pop().production_models;
     check(savedRows() === before + 1 && off.every(r => r.knowledge === false), `switched off: ${JSON.stringify(off.map(r => r.knowledge))}`);
+    check(errors.length === 0, `JavaScript errors: ${errors.join(', ')}`);
+    await context.close();
+  }
+
+  // ------------------------------------------------------------ a result of the earlier evaluation, as stored
+  {
+    // the stored result as an earlier evaluation left it: evaluator 2, its "not stated" unchecked, an incomplete diagnosis
+    // (the page's own signed-in request; only its answer is rewritten in the page)
+    const { context, page, errors } = await open('en', 1280, () => {
+      const real = window.fetch;
+      window.fetch = async (...args) => {
+        const response = await real(...args);
+        if (!String(args[0]).includes('/llm-quality/result')) return response;
+        const r = await response.clone().json();
+        if (!r.provenance) return response;
+        r.provenance.evaluator = '2';
+        r.functional.repeatsRules = 0;
+        r.earlier = [{ file: 'archive/x.json', finishedAt: 1760000000000, status: 'deviations', evaluator: '2', readable: true }];
+        const c0 = r.functional.cases[0];
+        c0.diagnosis = Object.assign({}, c0.diagnosis, { complete: false, incomplete: ['answer_1_cut'] });
+        const d = r.functional.cases.flatMap(c => c.deviations || []).find(x => x.where && x.where.why === 'not_stated');
+        if (d) d.where.checks = { statement: true, quoteOnPage: false, namesInQuote: { 'Muster': false }, type: true, assignment: true };
+        return new Response(JSON.stringify(r), { status: response.status, headers: { 'Content-Type': 'application/json' } });
+      };
+    });
+    await page.selectOption('#qualityCandidate', key);
+    await page.locator('#qualityResult').waitFor({ state: 'visible' });
+    await page.locator('#qualityOldEvaluation').waitFor({ state: 'visible' });
+    check((await page.locator('#qualityOldEvaluation').textContent()).includes('evaluation 2'), 'earlier evaluation named');
+    const table = await page.locator('#qualityDeviationsTable').textContent();
+    check(table.includes('cause not traceable') && !table.includes('every answer checked'), 'an earlier "not stated" is a cause not traceable');
+    check(table.includes('quote on the page no') && table.includes('missing: Muster'), 'the checks of a statement, each on its own');
+    check((await page.locator('#qualityDiagnosisNote').textContent()).includes('incomplete for 1 reference pages'), 'incomplete diagnosis shown');
+    check((await page.locator('#qualityEarlier').textContent()).includes('evaluation 2'), 'earlier results listed');
     check(errors.length === 0, `JavaScript errors: ${errors.join(', ')}`);
     await context.close();
   }

@@ -190,6 +190,14 @@ def main():
                     check(result["functional"]["notRated"] == 1, "not rated: %s" % result["functional"]["notRated"])
                     check(result["technical"]["cost"]["estimate"], "result cost not an estimate: %s" % result["technical"]["cost"])
                     check(not result["stale"], "stale right after the check")
+                    # evaluation 3 with the diagnosis of every page: the answer, the validator and what the publication would take
+                    check(result["provenance"]["evaluator"] == "3" and result["provenance"]["diagnosis"] == "1", "versions: %s" % result["provenance"])
+                    for case in result["functional"]["cases"]:
+                        diagnosis = case.get("diagnosis") or {}
+                        check(diagnosis.get("complete") is True and len(diagnosis.get("answers", [])) == 1
+                              and diagnosis["answers"][0]["readable"] and "validator" in diagnosis["answers"][0], "diagnosis of %s: %s"
+                              % (case["case"], str(diagnosis)[:300]))
+                    check(result["earlier"] == [], "earlier results after the first check: %s" % result["earlier"])
                     stored = list((root / "DATA/SCOUTRO/llm-quality").glob("*.json"))
                     check(len(stored) == 1, "result files: %s" % stored)
                     text = stored[0].read_text()

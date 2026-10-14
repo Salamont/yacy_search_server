@@ -69,6 +69,8 @@ final class QualityFixture implements AutoCloseable {
     final List<JSONObject> requests = new CopyOnWriteArrayList<>();
     /** The answer's content per request; null answers HTTP 500. */
     volatile Function<Ask, String> answer = QualityFixture::ideal;
+    /** The finish reason per request ({@code length}: the answer stopped at the output cap). */
+    volatile Function<Ask, String> finish = a -> "stop";
     /** Rejects a request with a response_format (HTTP 400), as an endpoint without structured output does. */
     volatile boolean rejectSchema;
     /** Reports no token usage. */
@@ -108,14 +110,16 @@ final class QualityFixture implements AutoCloseable {
                 status = 400;
                 out = "{\"error\":{\"message\":\"response_format is not supported\",\"code\":\"unsupported\"}}".getBytes(StandardCharsets.UTF_8);
             } else {
-                final String content = this.answer.apply(new Ask(body));
+                final Ask ask = new Ask(body);
+                final String content = this.answer.apply(ask);
                 if (content == null) {
                     status = 500;
                     out = new byte[0];
                 } else {
                     final String usage = this.noUsage ? "" : ",\"usage\":{\"prompt_tokens\":1000,\"completion_tokens\":200}";
                     out = ("{\"model\":\"fixture/served-model\",\"provider\":\"FixtureProvider\",\"choices\":[{\"message\":{\"content\":"
-                            + JSONObject.quote(content) + "},\"finish_reason\":\"stop\"}]" + usage + "}").getBytes(StandardCharsets.UTF_8);
+                            + JSONObject.quote(content) + "},\"finish_reason\":" + JSONObject.quote(this.finish.apply(ask)) + "}]" + usage + "}")
+                            .getBytes(StandardCharsets.UTF_8);
                 }
             }
             try {

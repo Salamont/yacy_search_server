@@ -208,9 +208,20 @@ is clicked, publishes nothing and changes no setting.
    the test set neither expects, allows nor forbids (they are not rated, so the
    result is no plain pass: read them before switching), and the provenance
    (model, served model and provider, parameters, prompt, schema, validator,
-   rules, test set). There is no overall score. A changed row, prompt,
-   schema, validator, rule version or test set marks the result **stale**;
-   nothing runs again on its own.
+   rules, test set). There is no overall score. What the rules state already
+   is fixed before the answer is read and is never expected of the model; a
+   model that states it again repeats the rules (counted, not rated). For a
+   missing statement the result says where it went: dropped by the validator
+   (with the reason of that item), dropped when the publication was prepared,
+   the whole answer refused, stated otherwise, *not stated* (only when every
+   answer was read and none was cut off) or *cause not traceable*; each item
+   found is checked on its own (statement, quote on the page, names in the
+   quote, type, assignment). The result keeps a bounded diagnosis of each
+   reference page: the model's answer, what the validator kept and dropped,
+   and what the publication would take; an incomplete one is marked. A changed
+   row, prompt, schema, validator, rule version, test set or evaluation marks
+   the result **stale**; nothing runs again on its own. A new check keeps the
+   result before it unchanged and lists it (*Earlier results*).
 6. **Use for the knowledge graph …** switches the knowledge usage only after a
    confirmation that names the new and the current model and the check status.
    The matrix's **knowledge** checkbox and the undeploy of the knowledge row ask
@@ -218,8 +229,9 @@ is clicked, publishes nothing and changes no setting.
    usage is off (it is opt-in and never handed to another row).
 
 A check applies to the knowledge usage only, not to log-report, chat or another
-usage. It writes only its own result (`DATA/SCOUTRO/llm-quality/`, no key, no
-prompt text); the row's `api_key` stays on the server.
+usage. It writes only its own result (`DATA/SCOUTRO/llm-quality/`, earlier ones
+in `archive/`; no key, no prompt text, the answers to the reference pages
+bounded); the row's `api_key` stays on the server.
 
 ### API (administrator only)
 

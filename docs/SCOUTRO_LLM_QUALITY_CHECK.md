@@ -99,6 +99,17 @@ statement is expected or forbidden as well.
   publication would take). An expected statement that tiers 1 and 2 make
   already is listed as *given by the rules* and not rated; a forbidden one they
   make is not the model's.
+- **A fixed baseline (evaluation 3).** Which expected statements the rules give
+  is decided from tiers 1 and 2 alone, before the answer is looked at, so the
+  statements expected of the model are the same for every model and every
+  answer. A model that states an expected statement the rules give already
+  *repeats the rules*: counted on its own (`repeatsRules`), listed, not rated,
+  and never a hit of the model. The same holds for any other statement the
+  rules make as well. Evaluation 2 counted such a statement as the model's
+  whenever the model repeated it: in two stored runs the own job
+  advertisement's `employment_type full_time`, which the rules read from
+  "in Vollzeit", was one model expected 1 and given by the rules 2, the other
+  2 and 1 (`QualityBaselineTest`).
 - **Normalised comparison:** names by `Normalizers.key` (case, punctuation,
   spacing) against the names a page allows; types and predicates exactly;
   prices by amount, currency, unit and VAT condition. The ids of an answer
@@ -106,9 +117,10 @@ statement is expected or forbidden as well.
 - **An empty reading is no pass** where statements are expected: each one is
   *missing*.
 - **A correct statement the validator drops is missing**, and the deviation
-  says so: *stated by the model, dropped by the validator* with the reasons
-  (or *dropped when the publication was prepared*, or *the whole answer was
-  refused*, or *not stated*).
+  says where it went (4.3): *stated by the model, dropped by the validator*
+  with the reason of exactly that item, *dropped when the publication was
+  prepared*, *the whole answer was refused*, *stated otherwise*, *not stated*
+  (every answer checked) or *cause not traceable*.
 - **Deviation kinds:** missing, wrong (a forbidden statement), wrong type (the
   expected name under another type), wrong relation (the expected entities
   under another or a reversed relation), unfitting evidence (the expected
@@ -127,12 +139,75 @@ statement is expected or forbidden as well.
   cancel, window). Deviations and technical failures go first: a result with a
   deviation is `deviations` whatever else it has.
 
+### 4.3 Diagnosis (version 1)
+
+For each reference page the result keeps what happened step by step, for the
+synthetic reference pages only (the knowledge graph never stores an answer):
+
+- **the model's answer** as it was, with its length, whether it was readable
+  as one JSON object and whether the model stopped at its output cap;
+- **the validator:** what it accepted (entities, claims, values), every item
+  it dropped with its reason, the kind of item, the predicate, the states of
+  its references (e.g. `dropped_entity:entity_service_not_offered`) and an
+  excerpt of its quote, and the accepted part;
+- **the preparation of the publication:** the statements it would take.
+
+Where a missing statement went is said per item, never guessed:
+
+- *dropped by the validator* names the reason of the sample that is exactly
+  this item (same kind, predicate and quote). If no sample is (samples cut,
+  or an item without one), the reason is *not attributable*; the answer's
+  reasons are listed apart, never as this item's.
+- Each item found is checked on its own: the **statement** (predicate; for a
+  value, the expected passage in its quote), the **quote verbatim on the
+  page**, the **names the validator requires in the quote**, the **types** and
+  the **assignment** to the expected entities.
+- *stated otherwise:* an item makes the statement in part (the expected
+  passage in its quote, or the predicate with one of the two entities): a
+  price on the other service, an employer under another name.
+- *not stated* only where every answer of the page was read as JSON and none
+  was cut at the output cap; otherwise *cause not traceable*, with what is
+  missing (`answer_1_unreadable`, `answer_1_truncated`, `no_answer`).
+
+Bounds: 8,000 characters of an answer and of its accepted part, four requests
+per page, 40 published statements per page and 320,000 characters per run;
+whatever is cut or left out is listed under `incomplete`, and the page shows
+an incomplete diagnosis. No key: the candidate's key, bearer tokens and
+key-like strings are replaced before anything is kept.
+
+Results of evaluation 2 are kept as they were. Their *not stated* did not
+check every answer (an answer in a code fence or cut at the output cap was
+not read), so the page shows it as *cause not traceable* and names the
+earlier evaluation.
+
+Counter-checks with mock answers (`QualityDiagnosisTest`), for the deviations
+of the stored runs whose answers were not kept:
+
+- the job portal's employer: kept for a correct reading; dropped as
+  `ungrounded` when its quote lacks the position's full name (quote on the
+  page, employer named, position not); dropped with its entity when the
+  employer is typed as a service;
+- the agency's position: kept for a correct reading; `ungrounded` for a
+  paraphrased quote (not on the page) and for a verbatim quote without the
+  full name;
+- software used internally ("Muster Office") as a facility: kept by the
+  validator and taken by the publication; rated as the forbidden statement;
+- offers and prices: offers left out are *not stated*; cut off, *cause not
+  traceable*; an offer whose quote names only the service is `ungrounded`; a
+  price without its amount is dropped (`value_unresolved_subject`) together
+  with its service (`entity_service_not_offered`: its only offer context was
+  that price); a price on the other service is the forbidden price and the
+  expected one *stated otherwise*.
+
+None of these changes the validator or a model's handling.
+
 ## 5. Result view
 
 Technical and functional results are separate tables:
 
 - **functional:** correct, missing, wrong, wrong type, wrong relation,
-  unfitting evidence, given by the rules, allowed, accepted but not rated;
+  unfitting evidence, given by the rules, repeated from the rules, allowed,
+  accepted but not rated;
 - **technical:** API errors (with the provider's reason, bounded, without
   keys), answers refused by the schema check, statements dropped by the
   validator, answers cut at the output limit, calls and retries, duration,
@@ -140,7 +215,8 @@ Technical and functional results are separate tables:
 
 Every deviation shows the reference page, its kind, the expected or forbidden
 statement with its reason, the actual statement with its quote, and the
-passage of the page. The accepted statements not rated have their own table
+passage of the page; a missing one also where it went, the reason of the item
+and its separate checks. The accepted statements not rated have their own table
 (reference page, statement, evidence), shown only when there are any. The
 scope ("10 of 10 reference pages, test set version 2, 17 statements expected of
 the model, 4 given by the rules, 21 forbidden checked"), the rules and the
@@ -200,8 +276,11 @@ lists) is a later task of its own.
 ## 8. Writes
 
 The check writes only its own result: one JSON file per candidate in
-`DATA/SCOUTRO/llm-quality/` (replaced atomically by the next check; no key, no
-prompt text). No graph table, no extraction cache, no index, no setting
+`DATA/SCOUTRO/llm-quality/` (no key, no prompt text; the model's answers to
+the reference pages, bounded, 4.3). The next check of the candidate replaces
+it atomically and keeps the one before unchanged in `archive/`; the result
+lists the earlier ones (`earlier`: when, status, test set, evaluation,
+counts) and is never evaluated again. Nothing there is deleted by the check. No graph table, no extraction cache, no index, no setting
 (`ai.production_models` changes only by the confirmed switch of the page).
 `QualityCheckIsolationTest` runs a check beside a running graph and compares
 every graph table and `kg_meta` before and after.
@@ -239,6 +318,12 @@ Administrator only, under `/scoutro/api/v1/kg/llm-quality` (see
   counts at its worst case; cancel; one run at a time; API errors without the
   key; staleness after a change of the row, the prompt or the settings, with
   no re-run; only the result file is written.
+- `QualityBaselineTest`: two readings that differ only by the repetition of
+  a statement the rules make have the same statements expected of the model
+  and the same given by the rules; an empty and a correct reading have the
+  same baseline on every page.
+- `QualityDiagnosisTest`: the counter-checks of 4.3, a key never kept, the
+  bounds marked, an earlier result kept as it was.
 - `QualityCasesTest`: categories, one request per page, expectations of the
   model, names and passages on the page (allowed statements too), no allowed
   statement expected or forbidden, invented domains, version, the normalised
@@ -265,3 +350,8 @@ Administrator only, under `/scoutro/api/v1/kg/llm-quality` (see
   timeout.
 - The served model and provider are what the endpoint reports.
 - The reasons of the expectations and the statements are shown in English.
+- The stored runs of evaluation 2 kept no answers: their drops cannot be
+  traced to an item after the fact. A new check keeps them (4.3).
+- A repetition of a rule statement is recognised by the same type, name,
+  predicate and value; a price the model states in another form than the rules
+  is not a repetition and stays not rated.

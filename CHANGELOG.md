@@ -2,6 +2,27 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased
+
+### fix: a fixed baseline of the quality check, and a diagnosis of each reference page (evaluation 3)
+
+- **Baseline.** Which expected statements the rules give is decided from tiers 1 and 2 alone, before the answer is
+  read. Evaluation 2 looked at the rules only when the model had no hit, so a model that repeated a rule statement
+  had it counted as its own (stored runs: the own job advertisement's `employment_type full_time`, expected 1 / given
+  2 in one run, 2 / 1 in the other). A repetition is now counted on its own (`repeatsRules`), not rated.
+  `QualityBaselineTest` was red before (expected 2, given 1 with the repetition).
+- **Diagnosis (version 1).** Each reference page keeps, bounded and without keys, the model's answer, what the
+  validator accepted and every item it dropped with its reason, and what the publication would take; cut or
+  omitted parts are marked. Only the check's own result holds it; the knowledge graph stores no answer.
+- **Where a missing statement went.** The reason of exactly that item (never the answer's other reasons); the
+  statement, the verbatim quote, the names in it, the types and the assignment checked apart; *stated otherwise*;
+  *not stated* only when every answer was read and none was cut off, otherwise *cause not traceable*.
+- **Earlier results** are kept unchanged in `archive/` and listed; a result of evaluation 2 shows its *not stated*
+  as *cause not traceable*.
+- **Counter-checks** of the stored runs' deviations with mock answers (`QualityDiagnosisTest`): the job portal's
+  employer, the agency's position, software used internally as a facility, offers and prices. No validator or model
+  rule changed.
+
 ## 0.10.7 / 1.942-scoutro.31 — patch: the end of the re-check, the advertisement of a position's page, LLM entity types, the log report's window, a quality check of models
 
 Patch of the installed 0.10.6. See the
