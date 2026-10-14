@@ -26,8 +26,9 @@ public class RelationRecheckEndTest extends LlmFixture {
     static final String TEAM_PAGE = "TEAMSEpfle01";
     static final String TEAM_TEXT = "Unser Team im Haus Lindenhof wächst. Zur Verstärkung im Wohnbereich kommt bald eine Pflegefachkraft"
             + " für die Tagespflege dazu. Die Muster Pflege gGmbH freut sich auf Sie.";
+    /** The position as the LLM tier states it: its quote holds the advertisement ("Zur Verstärkung"), as the validator wants it. */
     static final String LLM_JOB = "{\"entities\":[{\"id\":\"e1\",\"type\":\"job\",\"name\":\"Pflegefachkraft\","
-            + "\"quote\":\"kommt bald eine Pflegefachkraft für die Tagespflege dazu\"}],\"claims\":[],\"values\":[]}";
+            + "\"quote\":\"Zur Verstärkung im Wohnbereich kommt bald eine Pflegefachkraft für die Tagespflege dazu\"}],\"claims\":[],\"values\":[]}";
     static final String NOTHING = "{\"entities\":[],\"claims\":[],\"values\":[]}";
 
     private static final String JOBS_OF = "SELECT count(*) FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid"

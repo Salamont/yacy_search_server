@@ -17713,6 +17713,15 @@
     <trans-unit id="b20ccd95" xml:space="preserve" approved="no" translate="yes">
        <source>Entity: quote too long</source>
     </trans-unit>
+    <trans-unit id="3936a002" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: a team, department or staff, no service</source>
+    </trans-unit>
+    <trans-unit id="4ac64c7" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: service without an offer in its context</source>
+    </trans-unit>
+    <trans-unit id="b5e58f86" xml:space="preserve" approved="no" translate="yes">
+       <source>Entity: job without an advertisement in its context</source>
+    </trans-unit>
     <trans-unit id="bc90d96" xml:space="preserve" approved="no" translate="yes">
        <source>Statement: not a JSON object</source>
     </trans-unit>

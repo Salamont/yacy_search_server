@@ -51,13 +51,16 @@ public class LlmFullReadingTest extends LlmFixture {
                 + id + "'");
     }
 
-    /** One project entity per request: the first project the chunk names, quoted verbatim. */
+    /**
+     * One project entity per request: the first project the chunk names, quoted verbatim. An organisation, which the validator
+     * does not judge by its context: a customer project no offer states is no service of the page (0.10.7).
+     */
     private static String projectAnswer(final String user) {
         final Matcher m = Pattern.compile("Projekt (\\d+): Einführung einer Finanzplattform").matcher(user);
         if (!m.find()) {
             return "{\"entities\":[],\"claims\":[]}";
         }
-        return "{\"entities\":[{\"id\":\"e1\",\"type\":\"service\",\"name\":\"Projekt " + m.group(1) + "\",\"quote\":\"" + m.group()
+        return "{\"entities\":[{\"id\":\"e1\",\"type\":\"organization\",\"name\":\"Projekt " + m.group(1) + "\",\"quote\":\"" + m.group()
                 + "\"}],\"claims\":[]}";
     }
 

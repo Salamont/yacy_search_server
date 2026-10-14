@@ -433,7 +433,8 @@ public class LLM {
                 return response.toString();
             }
         } else {
-            throw new IOException("Request failed with response code " + responseCode);
+            // the provider's reason, bounded and without keys (0.10.7): a rejected parameter, an exceeded window, a missing model
+            throw LlmHttpError.read(responseCode, conn, apiKey);
         }
     }
 
@@ -453,7 +454,7 @@ public class LLM {
                 return response.toString();
             }
         } else {
-            throw new IOException("Request failed with response code " + responseCode);
+            throw LlmHttpError.read(responseCode, conn, null);
         }
     }
     
@@ -471,8 +472,9 @@ public class LLM {
         if (this.api_key != null && !this.api_key.isEmpty()) {
             conn.setRequestProperty("Authorization", "Bearer " + this.api_key);
         }
-        if (conn.getResponseCode() != HttpURLConnection.HTTP_OK) {
-            throw new IOException("Request failed with response code " + conn.getResponseCode());
+        final int responseCode = conn.getResponseCode();
+        if (responseCode != HttpURLConnection.HTTP_OK) {
+            throw LlmHttpError.read(responseCode, conn, this.api_key);
         }
         try (BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream(), "utf-8"))) {
             final StringBuilder response = new StringBuilder();
@@ -722,6 +724,10 @@ public class LLM {
                 if (u != null && u.has("prompt_tokens")) out.put("promptTokens", u.optLong("prompt_tokens"));
                 if (u != null && u.has("completion_tokens")) out.put("answerTokens", u.optLong("completion_tokens"));
                 out.put("stop", finishReason);
+                // the model and, behind a router, the provider the endpoint says it served (0.10.7): diagnostics of provenance
+                out.put("requestedModel", model);
+                if (responseObject.has("model")) out.put("servedModel", responseObject.optString("model", ""));
+                if (responseObject.has("provider")) out.put("servedProvider", responseObject.optString("provider", ""));
                 usage.accept(out);
             }
             return stripThinkBlocks(content);
@@ -791,6 +797,8 @@ public class LLM {
                 if (responseObject.has("prompt_eval_count")) out.put("promptTokens", responseObject.optLong("prompt_eval_count"));
                 if (responseObject.has("eval_count")) out.put("answerTokens", responseObject.optLong("eval_count"));
                 out.put("stop", responseObject.optString("done_reason", ""));
+                out.put("requestedModel", model);
+                if (responseObject.has("model")) out.put("servedModel", responseObject.optString("model", ""));
                 usage.accept(out);
             }
             return stripThinkBlocks(content);
@@ -863,7 +871,8 @@ public class LLM {
 
             final int responseCode = conn.getResponseCode();
             if (responseCode != HttpURLConnection.HTTP_OK) {
-                throw new IOException("Request failed with response code " + responseCode);
+                // the provider's reason, bounded and without keys (0.10.7); the log report used to see the status only
+                throw LlmHttpError.read(responseCode, conn, this.api_key);
             }
             final StringBuilder full = new StringBuilder();
             String finishReason = "";
