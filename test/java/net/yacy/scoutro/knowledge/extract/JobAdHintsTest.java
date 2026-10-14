@@ -265,7 +265,8 @@ public class JobAdHintsTest {
                 jobNames(rules(text, "https://www.beispiel-pflege.example/karriere", List.of("Karriere | Beispiel Pflege"), ctx(true, true))));
     }
 
-    // ---- a consultancy's careers section, reconstructed (neutral) from the excerpts of the production measurement of 0.10.4
+    // ---- a consultancy's careers section, reconstructed (neutral) from the excerpts of the production measurement of 0.10.4; the
+    // ---- sentences of its advertisements are the tests' own, not the wording of those pages
 
     private static final String CONSULTING = "https://www.muster-consulting.example";
     /** The menu of every page: the open positions, which differ only by their specialisation after the marker. */

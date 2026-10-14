@@ -37,7 +37,9 @@ import net.yacy.scoutro.knowledge.vocab.KgVocabularies;
  * intermediary recruits for its client; a type is read from the advertisement's own statements, never from its requirements,
  * a neighbouring position or a default; the JSON-LD of a page keeps the kinds of its nodes, a title that names the
  * organisation is no position title, and the structured posting of the page's advertisement is that advertisement. Neutral
- * examples, reconstructed from the reported pages of a consultancy.
+ * examples after the structure of the reported pages of a consultancy (menu, advertisement, application, imprint); their
+ * sentences are the tests' own ("Zur Verstärkung unseres Teams suchen wir Dich" is no wording of those pages), except where a
+ * test says it uses the wording the rollout reported.
  */
 public class JobEvidenceTest {
 
@@ -145,8 +147,9 @@ public class JobEvidenceTest {
     // ------------------------------------------------------------ the employer
 
     /**
-     * Rollout 0.10.5: five indexed advertisements of a consultancy had their title and their requirements, but no employer,
-     * although each declares it ("Zur Verstärkung unseres Teams suchen wir Dich") and the page's imprint names the operator.
+     * Rollout 0.10.5: five indexed advertisements of a consultancy had their title and their requirements, but no employer. The
+     * declarations here are neutral phrases of these tests, not the wording of those pages: the rollout of 0.10.6 reported "Bei
+     * uns wirst Du." and "Bei uns gestaltest Du …" ({@link #theReportedWordingDeclaresTheOperatorInTheAdvertisementsOwnText}).
      */
     @Test
     public void theAdvertisementThatDeclaresItsEmployerHasTheOperatorAsIt() {
@@ -574,5 +577,63 @@ public class JobEvidenceTest {
                 assertFalse(m.toString(), "MUSTER".equals(m.name) && (m.siteOperator || m.domainOperator));
             }
         }
+    }
+
+    // ------------------------------------------------------------ the wording the 0.10.6 rollout reported (C32)
+
+    /** The advertisement of the reported pages, in their wording as reported: a heading "Bei uns wirst Du." and "Bei uns gestaltest Du …". */
+    private static final String REPORTED = "Bei uns gestaltest Du die SAP-Finanzwelt unserer Kunden mit. Bei uns wirst Du. - Projekte im SAP FI"
+            + " verantworten. - Kunden im Rechnungswesen beraten. Das bringst Du mit. - Mehrjährige Erfahrung mit SAP FI.";
+
+    /**
+     * C32 of the 0.10.6 rollout: the five indexed advertisements say "Bei uns wirst Du." (a heading) and "Bei uns gestaltest Du …",
+     * and their jobs kept no employer. Both are declarations the rules have read since 0.10.5 ("bei uns"): in the advertisement's
+     * own text, with the operator's identity (here its imprint), the operator is the employer with the phrase as its evidence.
+     * Where the phrases stand on the real pages was not reported; a phrase before the sentence of the title or after the
+     * application call is outside the advertisement's own text (docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 31.6).
+     */
+    @Test
+    public void theReportedWordingDeclaresTheOperatorInTheAdvertisementsOwnText() {
+        for (final String body : List.of(REPORTED, "Bei uns wirst Du. - Projekte im SAP FI verantworten. Das bringst Du mit. - Erfahrung"
+                + " mit SAP FI.", "Bei uns gestaltest Du die SAP-Finanzwelt unserer Kunden mit. Deine Aufgaben:. - Beratung zu SAP FI.")) {
+            final String text = page(FI, body);
+            final Extraction ex = rules(text, FI_URL, "Stellenangebote — " + FI);
+            final Mention job = job(ex);
+            assertEquals(body, List.of("Muster Consulting AG"), values(ex, job, Vocabulary.HIRING_ORGANIZATION));
+            final Claim c = claims(ex, job, Vocabulary.HIRING_ORGANIZATION).get(0);
+            assertEquals(body, text.indexOf("Bei uns"), at(c));
+            assertTrue(ex.mention(c.object).siteOperator);
+            assertTrue(job.jobKey, job.jobKey.startsWith("muster consulting ag|"));
+        }
+    }
+
+    /**
+     * C32: without the operator's identity the same wording declares no employer. The page names no operator (no imprint) and
+     * its one organisation is another one's: who "uns" is stays unknown; nothing is guessed, the job stays unresolved.
+     */
+    @Test
+    public void theReportedWordingDeclaresNothingWithoutTheOperatorsIdentity() {
+        final String text = "Stellenangebote — " + FI + ". Skip to content - * " + MENU + FI + ". " + REPORTED + APPLY + " Kontakt. Datenschutz.";
+        final String portal = "{\"@type\":\"Organization\",\"name\":\"Beispiel Portal GmbH\",\"url\":\"https://www.beispiel-portal.example/\"}";
+        final Extraction ex = extract(portal, text, FI_URL, "Stellenangebote — " + FI, ctx(true, true));
+        final Mention job = job(ex);
+        assertEquals(List.of(), values(ex, job, Vocabulary.HIRING_ORGANIZATION));
+        assertEquals(List.of(), values(ex, job, Vocabulary.RECRUITING_ORGANIZATION));
+        assertTrue(job.jobKey, job.jobKey.startsWith("unresolved:"));
+    }
+
+    /**
+     * C32: the reported advertisements state no employment type, and none is correct. "Freiberuflich" stands only in their menu
+     * (a category, and the title of another position): no type of this position, no default.
+     */
+    @Test
+    public void theReportedAdvertisementsStateNoEmploymentTypeAndTheirMenuGivesNone() {
+        final String menu = "Startseite. - Leistungen. - Jobs. - Festanstellung. - Freiberuflich. - " + FI + ". - SAP Senior Berater (m/w/d) CO."
+                + " - " + FINANCE + ". Suche nach:. ** ";
+        final String text = "Stellenangebote — " + FI + ". Skip to content - * " + menu + FI + ". " + REPORTED + APPLY + FOOTER;
+        final Extraction ex = rules(text, FI_URL, "Stellenangebote — " + FI);
+        final Mention job = job(ex);
+        assertEquals(List.of(), values(ex, job, Vocabulary.EMPLOYMENT_TYPE));
+        assertEquals(List.of("Muster Consulting AG"), values(ex, job, Vocabulary.HIRING_ORGANIZATION));
     }
 }
