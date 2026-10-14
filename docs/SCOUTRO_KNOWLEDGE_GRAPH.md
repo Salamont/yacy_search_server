@@ -2723,7 +2723,9 @@ read later, has no `@id` at all — 31.3.)
 
 - **The employer declaration was too narrow and read the navigation.** A rule job gets the page's operator as its employer
   only where the advertisement declares it. The list of declarations was "wir suchen", "bei uns", "unser Team", "we are
-  hiring", "join our team": "Zur Verstärkung unseres Teams suchen wir Dich" matched none of them. Where one matched, the text
+  hiring", "join our team": the test phrase "Zur Verstärkung unseres Teams suchen wir Dich" matched none of them (a neutral
+  phrase of the tests, **not** the wording of the reported pages, which say "Bei uns wirst Du." and "Bei uns gestaltest Du …"
+  and are covered by "bei uns": correction in 31.6). Where one matched, the text
   read ran from the title to the next title or 6,000 characters, so into the footer ("Jobs bei uns"), and the text before the
   first title of a page (on a detail page: the navigation with "Unser Team", "Karriere bei uns") counted as well. "Wir" was
   given to the page's subject even when that was another organisation of its structured data (a client, a portal).
@@ -2750,7 +2752,7 @@ read later, has no `@id` at all — 31.3.)
   before. An application button above the tasks ends nothing; the sentence of the application call still belongs to the
   advertisement for its employer ("Bewirb Dich jetzt bei uns!"), the footer after it does not.
 - **The employer** (`BusinessRules.employer`): the page's operator where the advertisement's own text declares it ("wir
-  suchen", "suchen wir", "wir stellen ein", "bei uns", the team in any form: "Zur Verstärkung unseres Teams", "Verstärke unser
+  suchen", "suchen wir", "wir stellen ein", "bei uns", the team in any form (examples of the tests): "Zur Verstärkung unseres Teams", "Verstärke unser
   Team", "Werde Teil unseres Teams", "Komm in unser Team", "we are hiring", "we are looking for", "join our team"), or where the
   lead of a list announces its positions with a sentence ("Wir suchen ab sofort: …"); a navigation label in the lead
   ("Unser Team", "Karriere bei uns") declares nothing, and the lead of a detail page is its menu. The operator is the operator
@@ -2849,7 +2851,9 @@ is needed, a later start finds the end and names nothing again. A refused write 
 nothing and ends nothing: the page and the check stay open and the next admitted write completes both. A page whose extraction
 fails for good (`doc_failed`) stays in the check and in its list of failed pages: the check stays open (`done` null) until the
 page is published with its next change or at the next start, which names it again; then it leaves the list and the check can
-end. Pages of the selection beyond the queue limit of a run end it only at a later start. The event `relation_rules_recheck` is
+end. (Production showed that the selection could grow while the check ran, so the last page did not end it; since the fix of
+31.6 the selection is fixed at the start, and the running process also ends a check whose selection empties without a page of
+it.) The event `relation_rules_recheck` is
 written once as before, but the bounded event log can lose it: a job whose key changes (an employer found or no longer found,
 a posting joined to its advertisement) is resolved to a new node, and the old node keeps the page-local key of the mention, so
 the resolver can report `identity_conflict` (`mention contradicts entity`) when the page is extracted again.
@@ -2905,6 +2909,332 @@ Expected changes on a re-checked page:
   across a restart until its next publication ends it in that process; a refused write of the last page leaves the page and
   the check open, the next admitted write publishes it and ends the check; a page that is deleted leaves the check and ends it;
   the resumed run after a crash ends the check itself).
+
+### 31.6 The 0.10.6 rollout: the end of the check (C29) and the employers of the five advertisements (C32)
+
+**C29 — the end of the check was never written.** Production (operator's acceptance, 2026-10-13): 0.10.6 healthy without a
+restart; the full check (scope `all`: the check of the rules 3 was not recorded as complete) published all its pages
+(`published` 10,348 in the process, `failedDocs` 0, queue 0), and for hours `sync.relationRecheckInfo` showed `open` 0, `failed`
+0 and `done` null.
+
+*Cause (reproduced, `RelationRecheckEndTest`).* The check is the selection of 30.3 (active pages processed before `since` with a
+relation of the rule tier, a job of any tier or an advertisement hint), run again inside the write of its last page (31.4). The
+LLM tier publishes on pages without processing them: `Publisher.applyLlm` writes tier-3 evidence and leaves `processed_at`. A
+job it reads on an old page while the check runs puts that page into the selection, although the check never named it. When
+the last page of the check was published the selection still named that page, so the end was not written; that page is no page
+of the check, so its own later extraction called no end either, and a selection emptied that way went unnoticed until a restart
+(the replica: `done` null after the check, still null once the extra page is extracted and an hour later; set by a restart).
+The production run had the LLM tier beside it (C18). Which pages joined there is not known: the read-only query below names
+them on a consistent copy.
+
+*Fix (no rules version change, no new check).*
+
+- The selection counts only evidence published before the check started (`kg_evidence.observed_at` < `since`; `observed_at` is
+  the time of the evidence's publication). It is fixed at the start and only shrinks: a page leaves it when it is processed or
+  no longer active, none joins. The same selection decides at the start, at the last page and after a restart.
+- The running process ends a check whose pages are all gone and none failed once its selection is empty, also without a
+  publication of a page of the check (`SyncService.recheckEnd`, looked at every 5 minutes while that is so): one write with the
+  end and its event, once; a refused write leaves the check open for the next look; nothing is extracted for it.
+- A check whose pages were all published while its end is missing (the graph 0.10.6 leaves) ends at the first start of the
+  fixed version without extracting any page again; `since`, `scope` and `pages` stay, the end and its event are written once.
+- Unchanged: a refused write publishes and ends nothing; a page that fails for good keeps the check open across restarts; an
+  interrupted check resumes with its remaining pages.
+
+*Read-only query* (consistent copy; `:since` = `kg_meta.relation_recheck_since`, `:scope` = `all` or `jobs`): the pages the
+selection of 0.10.6 names and the fixed selection does not — the pages that held the end open.
+
+```sql
+WITH sel(doc_rowid, observed_at) AS (
+  SELECT e.doc_rowid, e.observed_at FROM kg_evidence e JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid
+    JOIN kg_vocab v ON v.term_id = s.pred JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type
+  WHERE (e.tier = 2 AND :scope = 'all' AND v.name IN ('carrier_of', 'subsidiary_of', 'parent_of', 'brand_of',
+         'cooperation_with', 'partner_of', 'customer_of', 'reference_for', 'member_of', 'association_member', 'certified_by',
+         'funded_by', 'sponsored_by', 'supplier_of', 'service_provider_for'))
+     OR t.name = 'job'
+     OR (e.tier IN (1, 2) AND v.name = 'system_signal' AND s.obj_val LIKE '%"section":"job\_ad\_%' ESCAPE '\'))
+SELECT d.doc_id, d.url FROM kg_doc d WHERE d.state = 1 AND d.processed_at < :since
+  AND EXISTS (SELECT 1 FROM sel WHERE sel.doc_rowid = d.doc_rowid)
+  AND NOT EXISTS (SELECT 1 FROM sel WHERE sel.doc_rowid = d.doc_rowid AND sel.observed_at < :since)
+LIMIT 50;
+```
+
+**C32 — the employers of the five advertisements.** The rollout reported their wording: "Bei uns wirst Du." (a heading) and
+"Bei uns gestaltest Du …". The sentence "Zur Verstärkung unseres Teams suchen wir Dich" of 31.1, 31.5 and the 0.10.6 release
+notes is a neutral phrase of the tests and was never the wording of these pages (corrected there). The five pages state no
+employment type ("Freiberuflich" stands only in the menu), which is correct, and their jobs have no employer
+(`employer_assignment` `unresolved`).
+
+*Diagnosis with neutral replicas* (`JobEvidenceTest`, the tests of the reported wording):
+
+- **Language pattern: not the cause.** "bei uns" has been a declaration of the rules since 0.10.5. Both reported phrases make
+  the operator the employer, with the phrase as evidence, where they stand in the advertisement's own text and the operator's
+  identity is known.
+- **Section boundary: possible.** The employer is read from the sentence of the title to the end of the advertisement (31.2).
+  A phrase before that sentence (a heading "Bei uns wirst Du." right above the title) or after the application call is not
+  read. 0.10.5 read from the title to the next title or 6,000 characters, without an operator test, and found no employer
+  either: both phrases lie outside the window of the title occurrence the rules chose.
+- **Operator identity: possible.** Where the page names no operator (no imprint, no organisation of its structured data on the
+  own domain) and its one organisation is another one's, no employer is set and nothing is guessed.
+
+Which of the two applies is open. Missing detail data (operator report not available here): the positions in the stored text
+(`text_t`) of the title occurrences with their gender marker, of the two phrases, of the first section heading and of the first
+application call or footer word after the title; the locator of the job's `name` evidence (which title occurrence the rules
+chose); and the page's operator evidence (an organisation with `site_operator` or `domain_operator`, its imprint, its JSON-LD
+blocks). Reading a heading above the title as part of the advertisement would be a change of the rules with a new version and
+its own check; none is made here.
+
+*Update (2026-10-14, measured by OpenCode in the indexed text of one of the five pages; section 32).* Neither assumption above
+holds. The phrases stand inside the advertisement: its heading at 6,426, "Bei uns wirst Du." at 7,075, "Bei uns gestaltest
+Du …" at 7,141, a further mention of the company at 9,338, the application call at 11,328. The company is also named inside the
+advertisement, not only outside it. The rules chose the title line at 18 (`text:18+29`) as the advertisement. Its window ends
+at the menu that follows, so it held none of these phrases. The cause is the choice of the title occurrence, fixed by the
+rules 5 (32). Whether the extraction has a secured operator identity for these pages is a separate question (32.3).
+
+*Two more findings of the replicas, not seen on the reported pages* (fixed by the rules 5, section 32): where no title occurrence has its own text (no known section heading after it), the rules can choose an occurrence
+whose window holds the navigation, whose "Unser Team" then declares the employer; and a category navigation ("Festanstellung",
+"Freiberuflich") right after an advertisement without an application call or requirements becomes its employment type. Both
+read navigation, which 31.2 excludes.
+
+*Tests.* `RelationRecheckEndTest` (new, 3, with the real LLM tier and the fake model of `LlmServiceTest`): a job the LLM tier
+reads on an old page during the full check does not hold its end open — the check ends with its last page in the running
+process, a later extraction of that page and a restart change nothing; a graph whose check published all its pages without
+an end (the graph 0.10.6 leaves) ends at the next start without extracting any page, with its start, scope, page count, the
+count of the LLM tier and its evidence kept, the end and its event once; a check whose selection empties without a page of it
+ends in the running process, once, without a restart. Red on 0.10.6 (`3c28870`): `done` null with `open` 0, `failed` 0 (as in
+production); one page extracted again at the next start; `done` null without the end of 31.6 in the running process.
+`JobEvidenceTest` (+3): the reported wording declares the operator in the advertisement's own text (three forms, the evidence
+at the phrase, the imprint's operator); without the operator's identity it declares nothing (`unresolved`); the reported
+advertisements state no employment type and their menu ("Festanstellung", "Freiberuflich", another position's title) gives
+none.
+
+## 32. The advertisement of a position's page (relation rules 5)
+
+### 32.1 Finding and cause
+
+**Finding** (C32 of the 0.10.6 rollout). OpenCode measured the indexed text (`text_t`) of one of the five pages on 2026-10-14:
+
+| offset | content |
+| --- | --- |
+| 18 | the position in the page's title line ("Stellenangebote — …"); the job's `name` evidence is `text:18+29` |
+| ~49 | the site's navigation |
+| 1,798 | the menu of the positions |
+| 6,308 | the advertisement's heading (H2) |
+| 6,356 | the breadcrumb |
+| 6,426 | the advertisement's heading (H1) |
+| 7,027 | a sentence naming the company by its short name |
+| 7,075 | "Bei uns wirst Du." |
+| 7,141 | "Bei uns gestaltest Du …" |
+| 9,338 | a further mention of the company in the advertisement's body |
+| 11,328 | the application call |
+| 11,390 | the footer |
+
+The five jobs (four positions with a specialisation, the freelance one, and one more) had no employer.
+
+**Cause** (reproduced with a neutral replica of this layout, `AdvertisementWindowTest`; red on `03b1a78`).
+
+The rules read the title line at 18 as the advertisement. That occurrence's window runs from 47 to the next title, the first
+entry of the menu (1,868 in the replica). Its text ends at 1,817, so it holds none of the phrases from 7,000 on. The bound of
+6,000 characters after the title (at most 6,047 here) was not reached. Enlarging it would have changed nothing, because the window
+belonged to the wrong occurrence. Two independent reasons led to that choice:
+
+1. **Only 30 title occurrences were read.** `jobTitles` stopped after the 30th occurrence of a gender marker. Five or more
+   rounds of a menu of six positions put more than 30 occurrences before the advertisement. Its headings were never read, and
+   the title line was the page's only occurrence of the position.
+2. **The heading counted as an entry of a list.** With all occurrences read, the breadcrumb right before the H1 (less than 60
+   characters away) makes the H1 an entry of a list. Without a known section heading ("Das erwartet Dich" is not one), 0.10.6
+   then preferred the occurrence outside a list, which is the title line. The H2, followed by " ** ", lost its specialisation
+   and became a second job named by the bare title.
+
+Which of the two applied on the production page depends on the number of gender markers before 6,308, which was not measured.
+Both reproduce `text:18+29` without an employer. The replicas also show the two findings of 31.6:
+
+- a menu with "Unser Team" in the title line's window declares the operator the employer (not on the measured page: no
+  employer there);
+- a category navigation ("Freiberuflich") after an advertisement becomes its employment type.
+
+Before and after, replica of the measured page (with the imprint's operator unless stated):
+
+| case | 0.10.6 (`03b1a78`) | rules 5 |
+| --- | --- | --- |
+| six menu rounds (43 markers) | 30 read; title 18+29; window 47–1,868; text to 1,817; no employer | 43 read; title 6,426+29; window 6,455–11,415; text to 11,329; employer at 7,075 ("Bei uns") |
+| one menu round (13 markers) | title 18+29 and a second job at 6,308+26; no employer | as above |
+| no imprint, no JSON-LD | title 18+29; no employer | title 6,426; employer: the domain's unnamed operator, at 7,075 |
+| nothing declared | title 18+29; no employer | title 6,426; no employer |
+| nothing declared, "Unser Team" in the menu | employer from "Unser Team" at 193 | no employer |
+
+### 32.2 What the rules 5 read
+
+On the page of a position (its page title or path names it):
+
+- **Every occurrence of a title is read.** The bound is 400 occurrences, against pathological pages; a page still has at most 30
+  jobs.
+- **The advertisement is the occurrence followed by its own text.** Ranking, in order:
+  1. sentences of five words or more;
+  2. then a known section heading;
+  3. then outside a list;
+  4. then the longer text.
+
+  A title line, a menu entry, an H2 or a breadcrumb followed only by labels gives way to the next occurrence of the same
+  position. The job's evidence starts at the advertisement's heading.
+- **A repetition of the title without the specialisation the page names is that position.** Examples: the H2 followed by
+  " ** ", or "Bewirb Dich als … (m/w/d) jetzt". It is no second job and does not end the advertisement. Where two
+  specialisations share the bare title, nothing is mapped.
+- **The advertisement ends at the next title of another position or of a list** (a menu, the neighbouring positions):
+  - at most 6,000 characters after its title, as before;
+  - before the sentence that announces that title;
+  - without the run of navigation labels right before it.
+
+  Employer, intermediary and hints are read up to the application call or the footer, as in 31.2.
+- **A label declares nothing.** "Unser Team", "Karriere bei uns" and "Jobs bei uns" in a segment of fewer than four words are
+  the labels of a menu or footer. In a sentence ("Bei uns wirst Du.", "Komm in unser Team!") they declare the operator the
+  employer, as in 31.2.
+- **A company named as the hirer** ("Die Muster Consulting AG sucht …", "Arbeitgeber: Muster Consulting AG"):
+  - if its legal name is the operator's, the operator is the employer, with that sentence as evidence;
+  - otherwise (a job portal publishes another company's advertisement) the operator is neither employer nor recruiter, even
+    where its text says "bei uns". The company named is not created from free text.
+
+On a list of positions (a careers page):
+
+- the lead that announces the positions ("Wir suchen ab sofort:") is read between the last title before the first position
+  and that position, which is after the menu (0.10.6 read from the start of the page);
+- the text of a position ends before the sentence that announces the next one ("Für unseren Kunden suchen wir: …" belongs to
+  the next position).
+
+Unchanged:
+
+- An intermediary's position ("Für unseren Kunden …") gets the operator as `recruiting_organization`, and its employer stays
+  unknown.
+- The domain, the navigation and the footer give no employer and no employment type.
+- A type the advertisement does not state stays unknown.
+- The freelance position stays one job with `freelance` (rule, its heading) and `full_time` (JSON-LD), each with its own
+  evidence.
+
+### 32.3 The operator's identity: a separate question
+
+The employer an advertisement declares is the page's operator, which comes from one of these sources:
+
+1. the imprint's legal name (`site_operator`);
+2. the declared operator of the structured data, or an organisation of it on the page's own domain (the short name with
+   `sameAs` of the own domain, 31.3);
+3. otherwise the domain's unnamed operator (`domain_operator`), which the graph joins only to the domain's one declared operator.
+
+A foreign organisation as the page's only one gives no operator and no employer. The company's mentions in the advertisement's
+text (the short name at 7,027, the name at 9,338) are not one of these sources. Even with its legal form, a name in the body
+neither makes the operator nor names it. This is tested in `AdvertisementWindowTest`: with an imprint, with JSON-LD on the own
+domain, with no named operator, with a foreign organisation, and with the legal name in the body only.
+
+Which of these the five production pages have was not measured. The read-only query is in 32.5, step 1.
+
+### 32.4 The existing graph: a targeted re-check of the job pages (rules 5)
+
+The rules version becomes **5**. The rules 4 and 5 changed only how jobs are read, so a complete check of the rules 3 or 4 is
+followed by a check of the job pages only (scope `jobs`, as in 31.4):
+
+- the pages with a job of any tier or a hint read from an advertisement;
+- tiers 1 and 2, at low priority, restart-safe;
+- no crawl, no LLM request, no global re-extraction (the extractor identity stays).
+
+**The graph 0.10.6 leaves** (rules 4, scope `all`, all pages published, end missing: C29) starts with the rules 5 in three steps:
+
+1. The check of the rules 4 counts as complete because its selection, fixed by the C29 fix (31.6), is empty. None of its pages
+   is extracted again for it.
+2. Its record stays readable as `sync.relationRecheckInfoBefore` (`kg_meta.relation_recheck_before`): `rules` 4, `scope`,
+   `pages`, `since`, and `done` with `doneAtStart` true. That `done` is the time of the start that recorded it. Its event
+   `relation_rules_recheck_done` ("rules 4: … its end written when the rules 5 started") is written once.
+3. The check of the rules 5 then selects the job pages (`sync.relationRecheckInfo`: `rules` 5, `scope` `jobs`, `pages`), and its
+   end is written in the running process (31.6).
+
+Two separate parts, two commits:
+
+- **The C29 fix** (`03b1a78`, rules 4) ends the check without any extraction and without a new check, both in the running
+  process and at the first start.
+- **The rules 5** (this change) add the targeted check of the job pages.
+
+The missing end of the rules 4 is neither set by hand nor hidden by a restart. It is recorded as what it was: all pages
+extracted, end written at the start of the next rules.
+
+A check of the rules 4 that is *not* complete (pages open or failed) is followed by the full check once (scope `all`), as in 31.4.
+
+Expected changes on a re-checked page:
+
+- **The page of a position read from its title line or its menu:** one job named at the advertisement's heading. It gets the
+  employer the advertisement declares (the operator of 32.3, evidence in the advertisement) and the employment type only where
+  the advertisement states it.
+- **Lost assignments:**
+  - an employer that came from a menu label goes;
+  - so does the operator as employer of a portal's advertisement that names another company;
+  - so does a second job named by the bare title.
+- **Other effects:** jobs whose key changes resolve to new nodes, and `identity_conflict` events are expected (31.4). Relations
+  and every other statement stay, and the evidence of the LLM tier stays.
+
+### 32.5 Verification plan (read-only, production)
+
+1. **Before the upgrade:**
+   - record the number of pages with a job of any tier or a hint (the selection of 31.4 with `:scope` = `jobs`);
+   - record, for the five pages, the job's `name` locator, its `hiring_organization` and `employment_type`, and the page's
+     operator evidence (an organisation with `site_operator` or `domain_operator`, its imprint, its JSON-LD);
+   - optionally, count the gender markers before 6,308 on the measured page.
+2. **After the upgrade:**
+   - `sync.relationRecheckInfoBefore`: `rules` 4, `scope` `all`, `pages`, `done` set, `doneAtStart` true, and its event once;
+   - `sync.relationRecheckInfo`: `rules` 5, `scope` `jobs`, `pages` about the count of step 1;
+   - `open` down to 0, then `done` set without a restart, `failed` 0;
+   - no LLM request, no crawl.
+3. **For each of the five pages:**
+   - one job, its `name` evidence at the advertisement's heading (6,426 on the measured page), none from 0 to 6,300;
+   - `hiring_organization` → the operator with "Bei uns wirst Du." as evidence, if step 1 found an operator (imprint, own-domain
+     JSON-LD, or the domain's unnamed operator joined to its one declared operator); otherwise `unresolved`, which is correct;
+   - no `employment_type` except the freelance position's `freelance` (rule) and `full_time` (JSON-LD).
+4. **Counter-checks on other hosts of the selection:**
+   - intermediaries keep `recruiting_organization` and no employer;
+   - portals keep neither;
+   - lists keep each position's own type.
+
+### 32.6 Limits
+
+- The bound of 6,000 characters after the heading stays. An advertisement whose text runs longer than that before its
+  application call is cut there.
+- An advertisement written only in short items, without a sentence of five words, is chosen by its section headings, then by
+  its place outside a list, then by its length (as before).
+- A run of labels right before the next title is kept where it reaches back to a section heading or to the title. An offer of
+  short items ("Wir bieten:. - Vollzeit.") is the advertisement's, so a category navigation right after such an offer can still
+  give a type.
+- A company named as the hirer is compared by its legal name. On a page whose operator has no legal name (the domain's unnamed
+  operator), it is not secured as the operator, and no employer is set.
+- At most 400 title occurrences are read per page.
+
+### 32.7 Tests
+
+`AdvertisementWindowTest` (new, 10), all with the measured layout and neutral texts. Red on `03b1a78`: 10/10.
+
+- **Measured page:** one job named at 6,426; employer at 7,075; no type; none of its evidence from the navigation (before
+  6,426) or the footer (from 11,390). Run with six menu rounds (more than 30 markers) and with one.
+- **Title line:** the title line before a long navigation is not the advertisement.
+- **Repetition:** a repetition of the title inside the advertisement is the same position and ends nothing.
+- **Menu and footer:** their self-references ("Unser Team", "Karriere bei uns", "Jobs bei uns") declare no employer, on a short
+  page and on the measured page.
+- **Navigation labels:** labels after the advertisement ("Festanstellung", "Freiberuflich") give no type and no employer; a type
+  the offer states is kept.
+- **Intermediary:** an intermediary behind the long navigation recruits; no employer.
+- **Job portal:** a portal that names another company as the hirer is neither employer nor recruiter, also with "bei uns". The
+  operator named as the hirer is the employer.
+- **Several positions:** several positions behind the repeated menus keep their own advertisement, type, employer and recruiter.
+- **Operator's identity:** cases with an imprint, JSON-LD on the own domain, the unnamed domain operator, a foreign organisation,
+  no declaration, the company's legal name in the body only, and the legal name as the hirer with and without the operator's
+  identity.
+- **Freelance position:** behind the long navigation it is one job with `freelance` (rule, at its heading) and `full_time`
+  (JSON-LD), and the employer with the short name (JSON-LD) and the full name (imprint).
+
+`RelationRecheckEndTest`:
+
+- **The C29 tests (3)** stay green.
+- **New: the graph 0.10.6 leaves.** It starts with the rules 5 as follows:
+  - the check of the rules 4 is closed with `doneAtStart` and its event once;
+  - the job pages are checked (scope `jobs`) and the page with relations only is not extracted;
+  - the evidence of the LLM tier stays, and a restart extracts nothing.
+
+  Red on `03b1a78`.
+
+`SyncServiceTest` asserts the current rules version instead of a fixed "4".
 
 ## 33. The type of an LLM entity, the log report's HTTP 400 and the provenance of LLM evidence (0.10.7)
 

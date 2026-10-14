@@ -208,16 +208,27 @@ public final class SyncService {
      * Einkaufs"), and a careers page has the positions it advertises as jobs, not the entries of its menu; 4 (0.10.6): the
      * operator is a job's employer where the advertisement declares it, never by its domain or navigation, an intermediary
      * recruits, an employment type is one the advertisement states, and the JSON-LD posting of a position's page is that
-     * position (its nodes keep their kinds, a title that names the organisation is none). A graph checked with older rules is
-     * checked once more; after a complete check of the rules 3 only its job pages ({@link #META_RELATION_RECHECK_SCOPE}).
+     * position (its nodes keep their kinds, a title that names the organisation is none); 5 (0.10.7): the advertisement of a
+     * position's page is read from its heading, not from the title line or the menu before it (all occurrences of a title are read,
+     * a repetition of its own title does not end it, a menu label declares no employer, a company named as the hirer is not the
+     * operator). A graph checked with older rules is checked once more; after a complete check of the rules 3 or 4 only its job
+     * pages ({@link #META_RELATION_RECHECK_SCOPE}): the rules 4 and 5 changed only the reading of jobs.
      */
     static final String META_RELATION_RULES = "relation_recheck_rules";
-    static final String RELATION_RULES = "4";
+    static final String RELATION_RULES = "5";
+    /** The versions of the rules after which only the reading of jobs changed: a complete check of them is followed by the job pages only. */
+    static final java.util.Set<String> JOB_RULES_SINCE = java.util.Set.of("3", "4");
     /**
      * kg_meta (0.10.6): {@code jobs} while the check covers only the pages with a job of any tier or a hint of an advertisement:
      * the rules 4 changed nothing else, and the graph was completely checked with the rules 3. No row: every page of the check.
      */
     static final String META_RELATION_RECHECK_SCOPE = "relation_recheck_scope";
+    /**
+     * kg_meta (0.10.7): the check of the rules before the current ones, as JSON: {@code rules}, {@code scope}, {@code pages},
+     * {@code since}, {@code done}, and {@code doneAtStart} where its end was written when the next rules started (all its pages were
+     * extracted while 0.10.6 did not write the end, production finding C29). Status {@code relationRecheckInfoBefore}.
+     */
+    static final String META_RELATION_RECHECK_BEFORE = "relation_recheck_before";
     /**
      * kg_meta (0.10.6): the number of pages the check of the current rules selected when it started. With the scope, the start
      * and the end of the check it is in the status ({@code relationRecheckInfo}), since the event {@code relation_rules_recheck}
@@ -256,6 +267,8 @@ public final class SyncService {
     private volatile JSONObject llmJobs = new JSONObject();
     /** {@link #META_RECHECK_LLM_JOBS_BEFORE} (status). */
     private volatile JSONObject llmJobsBefore = new JSONObject();
+    /** {@link #META_RELATION_RECHECK_BEFORE} (status). */
+    private volatile JSONObject recheckBefore = new JSONObject();
     /** The check of the current rules as kg_meta has it: rules, scope, pages, since, done; written at the start and at its end. */
     private volatile JSONObject recheckInfo = new JSONObject();
     /** {@link #META_RELATION_RECHECK_FAILED} as last written (status). */
@@ -275,8 +288,26 @@ public final class SyncService {
     private List<String> relationRecheck(final java.sql.Connection tx, final long now) throws java.sql.SQLException {
         final String rules = KgStore.getMeta(tx, META_RELATION_RULES);
         if (!RELATION_RULES.equals(rules)) {
-            // checked completely with the rules 3: the rules 4 changed only the reading of jobs, so only the job pages (0.10.6)
-            if ("3".equals(rules) && KgStore.getMeta(tx, META_RELATION_RECHECK_DONE) != null) {
+            // the check of the rules before: complete where its end is written, or where its selection is empty (0.10.6 did not
+            // write the end, production finding C29: its pages are not extracted again for it)
+            final String sinceBefore = KgStore.getMeta(tx, META_RELATION_RECHECK);
+            final String ended = KgStore.getMeta(tx, META_RELATION_RECHECK_DONE);
+            final boolean jobsBefore = "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE));
+            final boolean complete = ended != null || sinceBefore != null && recheckPages(tx, Long.parseLong(sinceBefore), jobsBefore, 1).isEmpty();
+            if (rules != null && sinceBefore != null) {
+                final String pages = KgStore.getMeta(tx, META_RELATION_RECHECK_PAGES);
+                KgStore.putMeta(tx, META_RELATION_RECHECK_BEFORE, KgJson.obj("rules", rules, "scope", jobsBefore ? "jobs" : "all", "pages",
+                        pages == null ? null : Long.valueOf(pages), "since", Long.valueOf(sinceBefore), "done", ended != null ? Long.valueOf(ended)
+                        : complete ? Long.valueOf(now) : null, "doneAtStart", ended == null && complete).toString());
+                if (ended == null && complete) {
+                    KgStore.event(tx, 1, "relation_rules_recheck_done", "rules " + rules + ": " + (pages == null ? "the" : pages) + " pages of"
+                            + " the check extracted before; its end written when the rules " + RELATION_RULES + " started", now);
+                }
+            } else {
+                KgStore.deleteMeta(tx, META_RELATION_RECHECK_BEFORE);
+            }
+            // checked completely with the rules 3 or 4: the rules 4 and 5 changed only the reading of jobs, so only the job pages
+            if (rules != null && JOB_RULES_SINCE.contains(rules) && complete) {
                 KgStore.putMeta(tx, META_RELATION_RECHECK_SCOPE, "jobs");
             } else {
                 KgStore.deleteMeta(tx, META_RELATION_RECHECK_SCOPE);
@@ -317,8 +348,9 @@ public final class SyncService {
         }
         if (stored == null) {
             KgStore.event(tx, 1, "relation_rules_recheck", ids.size() + (jobsOnly ? " pages with jobs or advertisement hints extracted again"
-                    + " (rules " + RELATION_RULES + ": the employer an advertisement declares, an intermediary recruits, the employment type"
-                    + " it states, the JSON-LD posting of a position's page); no other page"
+                    + " (rules " + RELATION_RULES + ": the advertisement of a position's page from its heading, not from the title line or the"
+                    + " menu before it; the employer it declares, an intermediary recruits, the employment type it states, its JSON-LD"
+                    + " posting); no other page"
                     : " pages with relations or jobs extracted again (rules " + RELATION_RULES + ": consent banners are no partners, a list"
                     + " ends with its sentence, a department is no membership, a menu entry is no job, the employer and employment type an"
                     + " advertisement states); no other page"), now);
@@ -331,7 +363,11 @@ public final class SyncService {
      * The active pages of the check not processed since it started ({@code since}), at most {@code limit} (-1: all): with a
      * relation of the rule tier (not with the scope jobs), a job of any tier (the JSON-LD posting of 0.10.6 too), or a hint read
      * from an advertisement (BusinessSignals.JOB_AD) of tiers 1 and 2; a job of the LLM tier: its page is extracted again (tiers 1
-     * and 2) and its evidence counted (llmJobAudit). The same selection decides at the start and at the end of the check.
+     * and 2) and its evidence counted (llmJobAudit). The same selection decides at the start and at the end of the check, and after
+     * a restart. Only evidence published before the check started counts ({@code observed_at}, the time of its publication): the
+     * LLM tier publishes on pages without processing them ({@code processed_at} stays), so a job it read on an old page during the
+     * check made that page look like a page of the check never extracted again, and the check never ended (0.10.6 production
+     * finding C29). With it the selection only shrinks: a page leaves it when it is processed or no longer active, none joins.
      */
     private static List<String> recheckPages(final java.sql.Connection tx, final long since, final boolean jobsOnly, final int limit)
             throws java.sql.SQLException {
@@ -344,17 +380,18 @@ public final class SyncService {
                 + " AND (d.processed_at IS NULL OR d.processed_at < ?) AND EXISTS (SELECT 1 FROM kg_evidence e"
                 + " JOIN kg_statement s ON s.stmt_rowid = e.stmt_rowid JOIN kg_vocab v ON v.term_id = s.pred"
                 + " JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
-                + " WHERE e.doc_rowid = d.doc_rowid AND (e.tier = 2 AND v.name IN (" + in + ") AND ? = 0 OR t.name = ?"
+                + " WHERE e.doc_rowid = d.doc_rowid AND e.observed_at < ? AND (e.tier = 2 AND v.name IN (" + in + ") AND ? = 0 OR t.name = ?"
                 + " OR e.tier IN (1, 2) AND v.name = ? AND s.obj_val LIKE ? ESCAPE '\\')) ORDER BY d.doc_id"
                 + (limit >= 0 ? " LIMIT " + limit : ""))) {
             ps.setLong(1, since);
+            ps.setLong(2, since);
             for (int i = 0; i < RECHECK_RELATIONS.size(); i++) {
-                ps.setString(i + 2, RECHECK_RELATIONS.get(i));
+                ps.setString(i + 3, RECHECK_RELATIONS.get(i));
             }
-            ps.setInt(RECHECK_RELATIONS.size() + 2, jobsOnly ? 1 : 0);
-            ps.setString(RECHECK_RELATIONS.size() + 3, Vocabulary.JOB);
-            ps.setString(RECHECK_RELATIONS.size() + 4, Vocabulary.SYSTEM_SIGNAL);
-            ps.setString(RECHECK_RELATIONS.size() + 5, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
+            ps.setInt(RECHECK_RELATIONS.size() + 3, jobsOnly ? 1 : 0);
+            ps.setString(RECHECK_RELATIONS.size() + 4, Vocabulary.JOB);
+            ps.setString(RECHECK_RELATIONS.size() + 5, Vocabulary.SYSTEM_SIGNAL);
+            ps.setString(RECHECK_RELATIONS.size() + 6, "%\"section\":\"" + BusinessSignals.JOB_AD.replace("_", "\\_") + "%");
             try (java.sql.ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     ids.add(rs.getString(1));
@@ -394,7 +431,7 @@ public final class SyncService {
         final String stored = KgStore.getMeta(tx, META_RELATION_RECHECK);
         if (stored == null || !recheckPages(tx, Long.parseLong(stored), "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE)), 2)
                 .stream().allMatch(docId::equals)) {
-            return null; // pages of the selection outside this process's list (e.g. beyond the queue limit): the next start names them
+            return null; // pages of the selection outside this process's list: it ends once they are processed (recheckEnd)
         }
         finishRecheck(tx, now, true);
         return now;
@@ -433,6 +470,51 @@ public final class SyncService {
         }
         KgJson.put(info, "failedPages", ids);
         return info;
+    }
+
+    /** How often the end of a check without a page left in this process is looked at ({@link #recheckEnd}). */
+    static final long RECHECK_END_EVERY_MILLIS = 5L * 60_000L;
+    /** When {@link #recheckEnd} looks next. */
+    private long recheckEndAt;
+
+    /**
+     * The end of the check without a publication (0.10.6 production finding C29): no page of the check is left in this process,
+     * none failed, and the check has no end, because its last page left while the selection still named a page outside this
+     * process's list. Once the selection is empty, the check ends as with its last page: in one write, with its event, once.
+     * Nothing is extracted for it; the selection is read at most every {@link #RECHECK_END_EVERY_MILLIS}, and a refused write
+     * leaves the check open for the next look.
+     */
+    private void recheckEnd(final long now) {
+        if (!this.recheckRelations.isEmpty() || !this.recheckFailed.isEmpty() || now < this.recheckEndAt) {
+            return;
+        }
+        final JSONObject info = this.recheckInfo;
+        if (info.isNull("since") || !info.isNull("done")) {
+            return;
+        }
+        this.recheckEndAt = now + RECHECK_END_EVERY_MILLIS;
+        final Long done;
+        try {
+            done = this.store.write(WriteClass.MAINTENANCE, SMALL, tx -> {
+                final String ended = KgStore.getMeta(tx, META_RELATION_RECHECK_DONE);
+                if (ended != null) {
+                    return Long.valueOf(ended);
+                }
+                final String stored = KgStore.getMeta(tx, META_RELATION_RECHECK);
+                if (stored == null || !RELATION_RULES.equals(KgStore.getMeta(tx, META_RELATION_RULES))
+                        || KgStore.getMeta(tx, META_RELATION_RECHECK_FAILED) != null || !recheckPages(tx, Long.parseLong(stored),
+                                "jobs".equals(KgStore.getMeta(tx, META_RELATION_RECHECK_SCOPE)), 1).isEmpty()) {
+                    return null;
+                }
+                finishRecheck(tx, now, true);
+                return now;
+            });
+        } catch (final KgException e) {
+            return; // refused or failed: looked at again later
+        }
+        if (done != null) {
+            recheckDone(done);
+        }
     }
 
     /** The cached {@link #recheckInfo} with the end of the check. */
@@ -543,6 +625,7 @@ public final class SyncService {
             this.recheckRelations.addAll(relationRecheck(tx, now));
             this.llmJobs = llmJobAudit(tx);
             this.llmJobsBefore = json(KgStore.getMeta(tx, META_RECHECK_LLM_JOBS_BEFORE));
+            this.recheckBefore = json(KgStore.getMeta(tx, META_RELATION_RECHECK_BEFORE));
             final String pages = KgStore.getMeta(tx, META_RELATION_RECHECK_PAGES);
             final String since = KgStore.getMeta(tx, META_RELATION_RECHECK);
             final String done = KgStore.getMeta(tx, META_RELATION_RECHECK_DONE);
@@ -643,6 +726,7 @@ public final class SyncService {
             }
             boolean more = this.reconciler.step();
             more |= processBatch();
+            recheckEnd(this.clock.getAsLong());
             more |= this.retention.step();
             if (!more && this.reconciler.waitsForQueueRoom()
                     && this.store.read(WorkQueue::size) < Math.max(1L, this.queueMax / 2L)) {
@@ -1321,7 +1405,7 @@ public final class SyncService {
                         "oldestAgeSeconds", oldest),
                 "processed", this.counters.json(), "versionCheckpoint", this.versionCheckpoint > 0L ? this.versionCheckpoint : null,
                 "reconcile", this.reconciler.status(), "relationRecheck", this.recheckRelations.size(),
-                "relationRecheckInfo", recheckStatus(), "relationRecheckLlmJobs", this.llmJobs,
+                "relationRecheckInfo", recheckStatus(), "relationRecheckInfoBefore", this.recheckBefore, "relationRecheckLlmJobs", this.llmJobs,
                 "relationRecheckLlmJobsBefore", this.llmJobsBefore,
                 "retention", this.retention.status(),
                 "lag", KgJson.obj("pending", pending, "oldest_pending_age_s", oldest, "reconcile_pending", this.reconciler.pending(),
