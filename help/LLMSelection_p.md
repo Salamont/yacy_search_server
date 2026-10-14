@@ -207,7 +207,8 @@ is clicked, publishes nothing and changes no setting.
 6. **Use for the knowledge graph …** switches the knowledge usage only after a
    confirmation that names the new and the current model and the check status.
    The matrix's **knowledge** checkbox and the undeploy of the knowledge row ask
-   the same; cancelled, the active model stays active.
+   the same; cancelled, the active model stays active. Switched off, the knowledge
+   usage is off (it is opt-in and never handed to another row).
 
 A check applies to the knowledge usage only, not to log-report, chat or another
 usage. It writes only its own result (`DATA/SCOUTRO/llm-quality/`, no key, no

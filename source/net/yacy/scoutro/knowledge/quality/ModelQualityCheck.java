@@ -728,11 +728,14 @@ public final class ModelQualityCheck {
                 prompt += p;
                 answer += a;
             } else {
-                // not reported: the worst case of the prompt and, for the answer, the output cap
+                // not reported: the worst case of the prompt and, for an answer, the output cap (a refused transport, e.g. the
+                // HTTP 400 before the retry without the schema, counts its prompt only and is no unreported answer)
                 p = t.worstPrompt;
                 a = last && answered ? r.plan.candidate.maxTokens : 0;
                 estimated += p + a;
-                r.unreported++;
+                if (last && answered) {
+                    r.unreported++;
+                }
             }
             if (t.usage != null && "length".equals(t.usage.optString("stop"))) {
                 truncated++;
@@ -867,10 +870,12 @@ public final class ModelQualityCheck {
             }
             try {
                 this.results.save(r.plan.candidate.key(), result(r));
-            } catch (final IOException e) {
+            } catch (final IOException | RuntimeException e) {
+                // the run ends in any case: a result that cannot be stored never blocks the next check
+                LOG.warn("quality check result not stored: " + e.getClass().getName());
                 r.stopReason = r.stopReason == null ? "result_not_stored" : r.stopReason;
             }
-            r.state = CANCEL.equals(stop) ? CANCELLED : stop != null ? STOPPED : FINISHED;
+            r.state = CANCEL.equals(r.stopReason) ? CANCELLED : r.stopReason != null ? STOPPED : FINISHED;
         }
     }
 

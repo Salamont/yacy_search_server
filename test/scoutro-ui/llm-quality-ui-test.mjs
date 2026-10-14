@@ -113,6 +113,13 @@ try {
     check(rowsSaved.find(r => r.model === 'quality-fixture').knowledge === true
       && rowsSaved.find(r => r.model === 'active-fixture').knowledge === false, 'the confirmed switch moves the knowledge usage');
     check(rowsSaved.every(r => !r.api_key), 'a key in the save');
+    // switched off, the opt-in knowledge usage is off: never handed to another row
+    const before = savedRows();
+    page.once('dialog', dialog => dialog.accept());
+    await candidateBox.click();
+    check(!(await candidateBox.isChecked()) && !(await activeBox.isChecked()), 'knowledge handed to another row on switch-off');
+    const off = saves.filter(save => Array.isArray(save.production_models)).pop().production_models;
+    check(savedRows() === before + 1 && off.every(r => r.knowledge === false), `switched off: ${JSON.stringify(off.map(r => r.knowledge))}`);
     check(errors.length === 0, `JavaScript errors: ${errors.join(', ')}`);
     await context.close();
   }

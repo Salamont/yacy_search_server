@@ -1311,7 +1311,8 @@
               updateUndeployButtonState(row);
             }
           });
-        } else {
+        } else if (!PRODUCTION_MODEL_OPT_IN_USAGE_COLUMNS.has(columnIndex)) {
+          // an opt-in usage (knowledge) switched off is off: it is never handed to another row
           ensureFeatureAssignedToAnotherModel(columnIndex, currentRow);
         }
 

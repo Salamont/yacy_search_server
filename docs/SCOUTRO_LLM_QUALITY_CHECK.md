@@ -32,7 +32,9 @@ Code: `net.yacy.scoutro.knowledge.quality` (`QualityCases`,
 
 The matrix's **knowledge** checkbox asks the same confirmation; switching it
 off, or undeploying the row that holds it, asks whether the graph shall read
-without a language model. A check never deselects the active model, and
+without a language model; switched off, the usage is off: like the undeploy,
+the checkbox no longer hands the opt-in knowledge usage to another row (it did
+before for every usage). A check never deselects the active model, and
 deploying or checking another model never touches it.
 
 ## 2. Test path: the graph's own steps

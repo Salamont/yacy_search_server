@@ -291,6 +291,9 @@ public class ModelQualityCheckTest {
         assertEquals(n, tech.optInt("calls"));
         assertEquals(n, this.f.requests.size()); // never more requests than the cap
         assertTrue(tech.optInt("retries") >= 1);
+        // the refused transport is no unreported answer; its prompt counts at its worst case (estimated)
+        assertEquals(0, tech.optJSONObject("tokens").optInt("unreportedCalls"));
+        assertTrue(tech.optJSONObject("tokens").optLong("estimated") > 0);
         try {
             this.q.start(this.f.key(), PRICE, false, n - 1, null);
             fail("a cap below the planned requests");
@@ -382,6 +385,21 @@ public class ModelQualityCheckTest {
         assertEquals(QualityCases.CASES.size(), r.optJSONObject("technical").optInt("apiErrors"));
         assertTrue(r.optJSONObject("technical").optJSONArray("cases").optJSONObject(0).optJSONObject("error").optString("message").contains("500"));
         assertFalse(r.toString().contains("sk-fixture-secret"));
+    }
+
+    /** A result that cannot be stored ends the run all the same: the next check can start. */
+    @Test
+    public void aResultThatCannotBeStoredEndsTheRun() throws Exception {
+        Files.delete(this.f.dir.toPath());
+        Files.write(this.f.dir.toPath(), new byte[0]); // a file where the results' directory belongs
+        this.q.start(this.f.key(), PRICE, false, null, null);
+        this.q.await(60_000L);
+        final JSONObject run = this.q.status().optJSONObject("run");
+        assertEquals(ModelQualityCheck.STOPPED, run.optString("state"));
+        assertEquals("result_not_stored", run.optString("stopReason"));
+        this.q.start(this.f.key(), PRICE, false, null, null);
+        this.q.await(60_000L);
+        assertEquals(2 * QualityCases.CASES.size(), this.f.requests.size());
     }
 
     // ------------------------------------------------------------ provenance and staleness
