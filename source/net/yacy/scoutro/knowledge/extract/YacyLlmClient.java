@@ -70,6 +70,8 @@ public final class YacyLlmClient implements LlmClient {
             JSON_MODE = "json_mode", VALIDATOR_ONLY = "validator_only", FALLBACK = "fallback_after_rejection";
 
     private final Supplier<LLM.LLMModel> selection;
+    /** Receives what each answer reports ({@link #record}); null for none. */
+    private final java.util.function.Consumer<JSONObject> listener;
     /** Endpoint and model ({@code hoststub|service/model}) that rejected a response_format with HTTP 400. */
     private final Set<String> withoutSchema = ConcurrentHashMap.newKeySet();
     private final AtomicLong requestsJsonSchema = new AtomicLong();
@@ -120,7 +122,16 @@ public final class YacyLlmClient implements LlmClient {
     }
 
     public YacyLlmClient(final Supplier<LLM.LLMModel> selection) {
+        this(selection, null);
+    }
+
+    /**
+     * A client of the given model that also hands what each answer reports (tokens, finish reason, the model served) to
+     * {@code listener}: the model quality check counts the tokens of its own calls with it (docs/SCOUTRO_LLM_QUALITY_CHECK.md).
+     */
+    public YacyLlmClient(final Supplier<LLM.LLMModel> selection, final java.util.function.Consumer<JSONObject> listener) {
         this.selection = selection;
+        this.listener = listener;
     }
 
     @Override
@@ -220,6 +231,10 @@ public final class YacyLlmClient implements LlmClient {
         }
         if ("length".equals(u.optString("stop"))) {
             this.answersCutAtLimit.incrementAndGet();
+        }
+        final java.util.function.Consumer<JSONObject> l = this.listener;
+        if (l != null) {
+            l.accept(u);
         }
     }
 

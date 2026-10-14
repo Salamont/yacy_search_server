@@ -2,6 +2,20 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased
+
+- **Quality check of a model for the knowledge graph** (LLM selection, docs/SCOUTRO_LLM_QUALITY_CHECK.md).
+  A candidate is checked explicitly against ten versioned, invented reference pages, read exactly as the
+  LLM tier reads a page (its client, active prompt, chunks, budget, validator and publication preparation)
+  but without publishing: correct, missing and wrong statements, wrong types and relations, unfitting
+  evidence, API, schema and validator errors, cut answers, calls with retries, duration, tokens and cost,
+  each deviation with its passage, expectation and actual statement; no overall score. Scope and maximum
+  cost are shown before the start; calls (retries included), tokens and cost are capped; an unknown cost
+  must be accepted explicitly; a run can be cancelled. Results keep their provenance (model, served
+  model and provider, parameters, prompt, schema, validator, rules, test set) and become stale on a change,
+  without a new run. Choosing or checking a model activates nothing: the knowledge model changes only after
+  a confirmation. The check writes only its own result (`DATA/SCOUTRO/llm-quality/`).
+
 ## 0.10.6 / 1.942-scoutro.30 — patch: the employer an advertisement declares, the employment type it states, one job per position page
 
 Patch of the installed 0.10.5. See the

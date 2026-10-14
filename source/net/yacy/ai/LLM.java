@@ -722,6 +722,10 @@ public class LLM {
                 if (u != null && u.has("prompt_tokens")) out.put("promptTokens", u.optLong("prompt_tokens"));
                 if (u != null && u.has("completion_tokens")) out.put("answerTokens", u.optLong("completion_tokens"));
                 out.put("stop", finishReason);
+                // the model and, behind a router, the provider the endpoint says it served (0.10.7): diagnostics of provenance
+                out.put("requestedModel", model);
+                if (responseObject.has("model")) out.put("servedModel", responseObject.optString("model", ""));
+                if (responseObject.has("provider")) out.put("servedProvider", responseObject.optString("provider", ""));
                 usage.accept(out);
             }
             return stripThinkBlocks(content);
@@ -791,6 +795,8 @@ public class LLM {
                 if (responseObject.has("prompt_eval_count")) out.put("promptTokens", responseObject.optLong("prompt_eval_count"));
                 if (responseObject.has("eval_count")) out.put("answerTokens", responseObject.optLong("eval_count"));
                 out.put("stop", responseObject.optString("done_reason", ""));
+                out.put("requestedModel", model);
+                if (responseObject.has("model")) out.put("servedModel", responseObject.optString("model", ""));
                 usage.accept(out);
             }
             return stripThinkBlocks(content);

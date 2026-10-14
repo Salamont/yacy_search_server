@@ -177,6 +177,66 @@ text states verbatim (see `GET /scoutro/api/v1/kg/status`, field `llm`). The
 knowledge model is never offered as a chat model: the RAG proxy and the model
 lists (`/api/tags` without hoststub, `/v1/models`) leave it out.
 
+## Scoutro: quality check for the knowledge graph
+
+The section **Quality check for the knowledge graph** checks a candidate model
+before it reads pages for the knowledge graph (docs/SCOUTRO_LLM_QUALITY_CHECK.md).
+Choosing a candidate activates nothing; the check runs only when **Check quality**
+is clicked, publishes nothing and changes no setting.
+
+1. Deploy the model in the matrix (deploying assigns no knowledge usage).
+2. Choose it as candidate. For an OpenRouter-like endpoint the price per million
+   tokens is taken from the provider's model list (`GET /v1/models?hoststub=…`
+   through the administrator passthrough); otherwise enter it, or tick
+   *Start without a price* (then only the caps of calls and tokens apply and the
+   cost stays unknown).
+3. **Show scope and maximum cost**: reference pages, planned requests, the worst
+   case of calls (each request once more after a format rejection), tokens and
+   cost. Nothing is sent. The caps of calls (at most 100, retries included) and
+   cost can be lowered; a run stops before a request that could exceed them.
+4. **Check quality**; **Cancel the check** sends no further request (the request
+   in flight is answered or times out).
+5. The result shows the status (*not checked*, *Test passed within its scope*,
+   *Deviations found*, *Technically failed*), the scope, the functional and the
+   technical result in separate tables, every deviation with the reference page,
+   the expectation, the actual statement and the passage of the page, and the
+   provenance (model, served model and provider, parameters, prompt, schema,
+   validator, rules, test set). There is no overall score. A changed row, prompt,
+   schema, validator, rule version or test set marks the result **stale**;
+   nothing runs again on its own.
+6. **Use for the knowledge graph …** switches the knowledge usage only after a
+   confirmation that names the new and the current model and the check status.
+   The matrix's **knowledge** checkbox and the undeploy of the knowledge row ask
+   the same; cancelled, the active model stays active.
+
+A check applies to the knowledge usage only, not to log-report, chat or another
+usage. It writes only its own result (`DATA/SCOUTRO/llm-quality/`, no key, no
+prompt text); the row's `api_key` stays on the server.
+
+### API (administrator only)
+
+| Endpoint | Method | Side effects |
+| --- | --- | --- |
+| `/scoutro/api/v1/kg/llm-quality` | `GET` | none: test set, candidates with status and staleness, the run |
+| `/scoutro/api/v1/kg/llm-quality/plan` | `GET` | none, no model call |
+| `/scoutro/api/v1/kg/llm-quality/result` | `GET` | none |
+| `/scoutro/api/v1/kg/llm-quality/testset` | `GET` | none |
+| `/scoutro/api/v1/kg/llm-quality` | `POST` | `start`: requests to the candidate's endpoint (paid where the provider bills), its result file; `cancel` |
+
+| Parameter | Meaning and valid values | Care |
+| --- | --- | --- |
+| `candidate` | `service\|hoststub\|model` of a production row | Must exist; 404 `candidate_unknown` otherwise. |
+| `inputPrice`, `outputPrice` / `price.inputPerMillion`, `price.outputPerMillion` | price per million tokens, 0 to 1000000 | Both or none. |
+| `currency` / `price.currency` | three letters, default `USD` | |
+| `priceSource` / `price.source` | `provider_list` or `entered` | Shown in the result. |
+| `acceptUnknownCost` | `true` to start without a price | Without it a start without price is refused (400 `cost_unknown`). |
+| `maxCalls` | cap of calls, retries included, from the planned requests up to 100 | Default: the worst case. |
+| `maxCost` | cap of cost in the price's currency | Default: the worst case. |
+
+Automation: read the plan first, start with explicit caps, poll the status
+until the run is `finished`, `cancelled` or `stopped`, then read the result.
+Never switch the knowledge usage automatically from a result.
+
 ## Related Pages
 
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.

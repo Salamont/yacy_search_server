@@ -107,6 +107,10 @@ final class KnowledgeApi {
         if ((parts.length == 4 || parts.length == 5) && "collections".equals(parts[3])) {
             return collections(method, parts, query, body);
         }
+        if ((parts.length == 4 || parts.length == 5) && "llm-quality".equals(parts[3])) {
+            // the quality check of a candidate model (docs/SCOUTRO_LLM_QUALITY_CHECK.md): writes no graph and no setting
+            return LlmQualityApi.route(LlmQualityApi.check(), method, parts, query, body);
+        }
         if (parts.length != 4) {
             throw new ApiException(404, "not_found", "Unknown API path. See /scoutro/api/openapi.json.");
         }
