@@ -75,6 +75,20 @@ public class ServiceOfferPublicationTest extends LlmFixture {
     public void anOlderCachedSubsetPassesPreparationWithoutCallingTheModel() throws Exception {
         final String id = "AAAAAAoff003";
         final String text = "Muster Pflege gGmbH\nNavigation\nJobangebote\nKontakt";
+        final JSONObject old = ServiceOfferEvidenceTest.answer(
+                new JSONArray().put(ServiceOfferEvidenceTest.entity("e1", "Jobangebote", "Jobangebote").put("at", text.indexOf("Jobangebote"))),
+                new JSONArray().put(ServiceOfferEvidenceTest.claim("k1", "e1", text).put("at", 0)), new JSONArray());
+        readCache(id, text, old);
+        assertEquals(List.of(), statements(id));
+    }
+
+    private void readCache(final String id, final String text, final JSONObject old) throws Exception {
+        for (final String kind : List.of("entities", "claims", "values")) {
+            final JSONArray items = old.getJSONArray(kind);
+            for (int i = 0; i < items.length(); i++) {
+                items.getJSONObject(i).put("at", 0);
+            }
+        }
         add(id, "https://www.beispiel-dienste.example/", "c1", LD, text, "Leistungen");
         settleSync();
         final SolrDoc d = this.source.get(List.of(id), SolrDoc.PROCESS_FIELDS).get(id);
@@ -83,9 +97,6 @@ public class ServiceOfferPublicationTest extends LlmFixture {
         final RequestBudget.Part part = page.reading.plan(LlmReading.budget(this.cfg, prompt, this.model.window()), page.chunks).parts.get(0);
         final byte[] key = LlmExtractor.cacheKey(prompt.hash, this.model.model(), part.chunk, page.reading.title,
                 page.reading.domain, page.reading.language, part.known, page.reading.kinds);
-        final JSONObject old = ServiceOfferEvidenceTest.answer(
-                new JSONArray().put(ServiceOfferEvidenceTest.entity("e1", "Jobangebote", "Jobangebote").put("at", text.indexOf("Jobangebote"))),
-                new JSONArray().put(ServiceOfferEvidenceTest.claim("k1", "e1", text).put("at", 0)), new JSONArray());
         this.store.write(StorageGuard.WriteClass.SYSTEM, 8192L, tx -> {
             final int extId = new Terms().llmExtractor(tx, this.model.model(), prompt.hash);
             assertTrue(ExtractionCache.put(tx, key, extId, ExtractionCache.STATUS_OK, old, this.clock.get()));
@@ -96,7 +107,61 @@ public class ServiceOfferPublicationTest extends LlmFixture {
         assertEquals("1:", llmStatus(id));
         assertEquals(0, this.model.calls.get());
         assertEquals(1L, this.llm.status().getJSONObject("processed").getLong("cacheHits"));
-        assertEquals(List.of(), statements(id));
         assertEquals("the old cache is guarded, not deleted", 1L, count("SELECT count(*) FROM kg_extraction"));
+    }
+
+    private static JSONObject listAnswer(final String text) throws Exception {
+        return ServiceOfferEvidenceTest.answer(
+                new JSONArray().put(ServiceOfferEvidenceTest.entity("e1", "Tagespflege", text)),
+                new JSONArray().put(ServiceOfferEvidenceTest.claim("k1", "e1", text)),
+                new JSONArray().put(new JSONObject().put("subject", "e1").put("predicate", "price").put("quote", text)));
+    }
+
+    private void assertOtherProvider(final String id) {
+        final List<String> got = statements(id);
+        assertTrue("the other provider's genuine service stays: " + got, got.contains("name:Tagespflege"));
+        assertTrue("its price stays: " + got, got.stream().anyMatch(s -> s.startsWith("price:") && s.contains("12")));
+        assertTrue("no false offer by the page operator: " + got, got.stream().noneMatch(s -> s.startsWith("offers:")));
+    }
+
+    @Test
+    public void aThirdPartyListPublishesTheServiceAndPriceWithoutTheOperatorsOffer() throws Exception {
+        final String text = "Muster Pflege gGmbH verweist auf Andere Pflege GmbH, deren Leistungen: Tagespflege, 12 EUR pro Tag";
+        read("AAAAAAoff004", text, listAnswer(text));
+        assertOtherProvider("AAAAAAoff004");
+        assertTrue(this.llm.refusals("claim_offer_not_stated", 100).getJSONArray("samples").length() > 0);
+    }
+
+    @Test
+    public void aNegatedHeadingPublishesNoNameRelationOrPrice() throws Exception {
+        final String text = "Muster Pflege gGmbH – Nicht angebotene Leistungen: Tagespflege, 12 EUR pro Tag";
+        read("AAAAAAoff005", text, listAnswer(text));
+        assertEquals(List.of(), statements("AAAAAAoff005"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id=e.type WHERE v.name='service'"));
+    }
+
+    @Test
+    public void anOldCachedThirdPartyListCannotPublishTheOperatorsOffer() throws Exception {
+        final String text = "Muster Pflege gGmbH verweist auf Andere Pflege GmbH, deren Leistungen:\n- Tagespflege, 12 EUR pro Tag";
+        readCache("AAAAAAoff006", text, listAnswer(text));
+        assertOtherProvider("AAAAAAoff006");
+    }
+
+    @Test
+    public void anOldCachedNegatedListPublishesNoNameRelationOrPrice() throws Exception {
+        final String text = "Muster Pflege gGmbH – Nicht angebotene Leistungen:\n- Tagespflege, 12 EUR pro Tag";
+        readCache("AAAAAAoff007", text, listAnswer(text));
+        assertEquals(List.of(), statements("AAAAAAoff007"));
+        assertEquals(0L, count("SELECT count(*) FROM kg_entity e JOIN kg_vocab v ON v.term_id=e.type WHERE v.name='service'"));
+    }
+
+    @Test
+    public void aPositiveOwnedListStillPublishesItsOfferAndPrice() throws Exception {
+        final String text = "Muster Pflege gGmbH – Unsere Leistungen:\n- Tagespflege, 12 EUR pro Tag";
+        read("AAAAAAoff008", text, listAnswer(text));
+        final List<String> got = statements("AAAAAAoff008");
+        assertTrue(got.toString(), got.contains("name:Tagespflege"));
+        assertTrue(got.toString(), got.contains("offers:Tagespflege"));
+        assertTrue(got.toString(), got.stream().anyMatch(s -> s.startsWith("price:") && s.contains("12")));
     }
 }
