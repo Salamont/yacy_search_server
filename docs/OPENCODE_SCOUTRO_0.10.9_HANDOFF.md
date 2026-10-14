@@ -16,11 +16,12 @@ files are the full instructions; no attachment or prior chat is needed.
 | Application | `Salamont/yacy_search_server` |
 | Main | `da72b55867f9f11f663cad8aa41b1097596405a3`; #71 and release #72 merged |
 | Service fix #73 | `fix/kg-offer-evidence`, documentation-only head `432a2ad026304a4bc7aa55c26c00eeb02d115c2b`; original validated code `7ba5fcb6c4faa77007861feb5b4a64a3ce713b82` |
-| New application release | `release/scoutro-0.10.9`, PR base `fix/kg-offer-evidence`; depends on #73 review/merge; 0.10.9 / 1.942-scoutro.33 |
+| New application release #74 | https://github.com/Salamont/yacy_search_server/pull/74; `release/scoutro-0.10.9`, PR base `fix/kg-offer-evidence`; depends on #73 review/merge; initial tested candidate `bb57c86a403a796dc334e00671c1ab3c6435acb0`; 0.10.9 / 1.942-scoutro.33 |
 | Package repository | `Salamont/YaCy-Search-Community` |
 | Package #9, 0.10.7 | Head `55f01e296c431b91919e61fd1eb2595b2ac95c43` |
 | Package #10, 0.10.8 | Head `f165c538fd08f1df5851998be77f1f0402608c72`, stacked on #9 |
 | Existing 0.10.8 assignment | Package file `docs/OPENCODE-OLARES.md` at exactly `f165c538fd08f1df5851998be77f1f0402608c72`; only 0.10.7 → 0.10.8 |
+| Package preparation #11 | https://github.com/Salamont/YaCy-Search-Community/pull/11; draft `prepare/scoutro-0.10.9-handoff`, initial head `c7238c6bae4b3c43ba310498f40ec8436f05162a`, base #10; `docs/PREPARE-0.10.9.md` is the full next-package assignment; chart/pin/runbook unchanged |
 | New published image / merge revision | **Pending**; none invented |
 | New pinned package head / fingerprint / rollout approval | **Pending** |
 
@@ -111,7 +112,48 @@ compileTest: **15 existing errors**, one CrawlProfile constructor in
 HostBalancerTest and fourteen removed NetworkGraph cache references in
 NetworkGraphTest. This is not a fully green repository-wide test run.
 
-New release checks will be recorded here after execution, with their exact
-candidate and distinction from the historical runs. Publication, actual OCI
-labels/digest, final package/fingerprint, published-image runtime/upgrade,
-production backup/restore and owner rollout decision remain pending.
+New checks executed on candidate `bb57c86a403a796dc334e00671c1ab3c6435acb0`:
+
+| Local check | Result |
+| --- | --- |
+| `ant clean all dist scoutro-kg-offer-evidence-test` | BUILD SUCCESSFUL; 60 Jetty and 108 focused tests, including 38/38 offer regressions |
+| `ant compileTest` | FAILED with the same 15 existing errors, only the two files named above |
+| `test/solr9-jetty-bridge-spike.sh`, including dependency guard | Passed; 4 bridge tests |
+| `test/scoutro-ui/llm-quality-live-smoke.py` | 198 UI / 65 live checks, local peer and fake model only |
+| `test/scoutro-release/check-attribution.py` | 58 original files unchanged in both actual distribution and exported local image; version/release docs/help/tools/licences present; build-only Git/session CA absent |
+| `test/scoutro-release/run-isolated-image-smoke.py scoutro:0.10.9-rc-bb57c86a4-readable` | 21 existing image assertions passed, network=none, UID/GID 1000, fresh synthetic DATA: capture, clean/unclean restart, integrity, KG backup/restore and rebuild |
+| Package `scripts/validate.sh` on doc-only #11 | 39 static checks of unchanged 0.10.8 passed; script then stops at missing `olares-cli`. Olares lint NOT passed |
+| Source/Java-test freeze, local documentation links, `git diff --check` | Passed |
+
+Exact local image configuration ID (NOT a registry manifest digest):
+`sha256:91a8330d09670df79e098a25c440b96394ce8ddac388556a554f20126c7eef8a`.
+Inspected labels: version `1.942-scoutro.33`, revision
+`bb57c86a403a796dc334e00671c1ab3c6435acb0`, source
+`https://github.com/Salamont/yacy_search_server`, licences GPL-2.0-or-later;
+platform linux/amd64, configured user `yacy`. Runtime smoke uses the package's
+UID/GID 1000. The complete general test suite is not green; the 1233-test
+Scoutro run remains historical and was not repeated here.
+
+Initial tested distribution:
+`RELEASE/yacy_v1.942_202610141910_bb57c86a4.tar.gz`, SHA-256
+`627e56353c969fd403d18f9fbe9887dfd09a0b582f7716b6b88303ba6c7cf0cf`.
+Later commits only add release transport/evidence/handoff material; application
+source, Java tests, version properties and publication/Docker settings remain
+identical to that candidate. Check the final PR diff before future use and
+record any newly built distribution separately.
+
+Local harness issues were resolved without an application fix: use the actual
+session CA, public checkout modes (umask 022; private checkout modes prevented
+package UID 1000 from reading the image), and container loopback instead of a
+host port when networking is disabled. The release adapter retains the
+original `kg-image-smoke.py` assertions, refuses a preexisting fixture container
+and uses only the original synthetic credentials/fresh DATA. No productive
+credential is read or printed. No original assertion was weakened.
+
+Both registry aliases again answered 404 / MANIFEST_UNKNOWN at
+**2026-10-14 22:05:12 UTC**. This is still not a reservation.
+Machine-readable evidence: `docs/validation-0.10.9.json`.
+
+Publication, actual published OCI labels/digest, final package/fingerprint,
+published-image runtime/upgrade, production full backup/restore and owner
+rollout decision remain pending. No local test satisfies these later gates.

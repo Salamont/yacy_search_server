@@ -136,8 +136,18 @@ method references in `NetworkGraphTest`. This is not a fully green general
 repository test run. Details and earlier checks:
 [service evidence validation](SCOUTRO_SERVICE_OFFER_EVIDENCE.md).
 
-New release-candidate checks are recorded separately in the handoff and PR;
-historical checks are not relabelled as rerun. A local container configuration
+New release-candidate checks on `bb57c86a4` passed: clean Ant build, 60 Jetty
+and 108 focused tests, 198 UI/65 live quality checks with a fake model, 4 Solr
+bridge tests and dependency guard, 58 original attribution files verified in
+distribution and actual exported local image, and 21 image assertions with
+network=none and package UID/GID 1000 on fresh synthetic DATA. General
+compileTest again failed with the same 15 existing errors. The full 1233-test
+Scoutro run remains historical, not newly run for this release. Details,
+commands and identifiers are in the
+[handoff](OPENCODE_SCOUTRO_0.10.9_HANDOFF.md) and
+[`validation-0.10.9.json`](validation-0.10.9.json).
+
+Historical checks are not relabelled as rerun. A local container configuration
 ID is not a published digest, and a source/JUnit check is not packaged-image
 acceptance. No registry image, package fingerprint or production acceptance
 for 0.10.9 exists at this preparation stage.
