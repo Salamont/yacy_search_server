@@ -102,12 +102,14 @@ public class ServiceOfferPublicationTest extends LlmFixture {
             assertTrue(ExtractionCache.put(tx, key, extId, ExtractionCache.STATUS_OK, old, this.clock.get()));
             return null;
         });
+        final List<String> cachedBytes = strings("SELECT hex(result) FROM kg_extraction");
         this.model.answer = u -> { throw new AssertionError("a cached reading must not call the model"); };
         settleLlm();
         assertEquals("1:", llmStatus(id));
         assertEquals(0, this.model.calls.get());
         assertEquals(1L, this.llm.status().getJSONObject("processed").getLong("cacheHits"));
         assertEquals("the old cache is guarded, not deleted", 1L, count("SELECT count(*) FROM kg_extraction"));
+        assertEquals("the accepted subset bytes stay unchanged", cachedBytes, strings("SELECT hex(result) FROM kg_extraction"));
     }
 
     private static JSONObject listAnswer(final String text) throws Exception {

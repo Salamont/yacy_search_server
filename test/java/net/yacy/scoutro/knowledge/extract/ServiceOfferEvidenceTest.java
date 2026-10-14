@@ -397,4 +397,17 @@ public class ServiceOfferEvidenceTest {
         assertEquals("the trusted service itself is not removed", 1L,
                 ex.mentions().stream().filter(x -> Vocabulary.SERVICE.equals(x.type)).count());
     }
+
+    @Test
+    public void navigationBeforeAnOwnedHeadingDoesNotBreakTheDirectProviderBinding() throws Exception {
+        final String quote = ORG + " – Unsere Leistungen: Tagespflege, 12 EUR pro Tag";
+        final String text = "Navigation Tagespflege News Kontakt " + quote;
+        final LlmExtractor.Result r = check(text, listAnswer(quote));
+        assertEquals(1, r.entities);
+        assertEquals(1, r.claims);
+        assertEquals(1, r.values);
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(r.accepted, known(), ex, ExtractContext.none().withServiceText(text));
+        assertEquals(1L, ex.claims().stream().filter(c -> Vocabulary.OFFERS.equals(c.predicate)).count());
+    }
 }
