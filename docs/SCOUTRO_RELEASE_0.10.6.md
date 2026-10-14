@@ -25,10 +25,13 @@ sign-in limit contract of 0.10.0 is unchanged:
 The rollout of 0.10.5 and a targeted crawl of the advertisements of one
 consultancy (operator's report §§9–12, 2026-10-13) found:
 
-- **No employer and no employment type** on five indexed advertisements
-  although each declares its employer ("Zur Verstärkung unseres Teams suchen
-  wir Dich"); where an employer was found, it could come from the footer
-  ("Jobs bei uns") or the menu ("Unser Team").
+- **No employer and no employment type** on five indexed advertisements whose
+  imprint names the operator; where an employer was found, it could come from
+  the footer ("Jobs bei uns") or the menu ("Unser Team"). (Correction,
+  2026-10-14: the sentence "Zur Verstärkung unseres Teams suchen wir Dich"
+  first named here is a neutral phrase of the tests, not the wording of these
+  pages; the rollout of 0.10.6 reported "Bei uns wirst Du." and "Bei uns
+  gestaltest Du …" — see [the correction below](#correction-2026-10-14-the-end-of-the-check-c29-and-the-wording-of-the-advertisements-c32).)
 - **Employment types from the wrong places:** from requirements ("Erfahrung
   als Freelancer", "abgeschlossene Ausbildung"), compounds and neighbouring
   positions; a type stated in the offer further down was missed.
@@ -208,3 +211,32 @@ workflow once: it refuses existing tags, then builds and pushes
 `1.942-scoutro.30` and `0.10.6` with the actual merge revision. Do not dispatch
 it in addition. After publishing, verify one immutable digest for both tags,
 linux/amd64 and the merge revision label; the Olares package pins that digest.
+
+## Correction (2026-10-14): the end of the check (C29) and the wording of the advertisements (C32)
+
+The private rollout of 0.10.6 (operator's acceptance, 2026-10-13) found:
+
+- **C29 failed.** Production ran 0.10.6 healthy and without a restart; the
+  full check (scope `all`) published all its pages, nothing open or failed,
+  and `sync.relationRecheckInfo.done` stayed null for hours. Cause and fix:
+  [SCOUTRO_KNOWLEDGE_GRAPH.md, 31.6](SCOUTRO_KNOWLEDGE_GRAPH.md#316-the-0106-rollout-the-end-of-the-check-c29-and-the-employers-of-the-five-advertisements-c32):
+  a job the LLM tier read on an old page during the check put that page into
+  the selection, so the last page of the check did not end it. The statements
+  above that `done` is set in the running process hold from the version with
+  that fix on; a graph left by 0.10.6 ends its check at the first start of
+  that version without extracting a page again.
+- **C32: the wording of the five advertisements.** They say "Bei uns wirst
+  Du." (a heading) and "Bei uns gestaltest Du …", not "Zur Verstärkung
+  unseres Teams suchen wir Dich" (a phrase of the tests); they state no
+  employment type ("Freiberuflich" only in the menu: correctly none), and
+  their jobs have no employer. "bei uns" has been a declaration of the rules
+  since 0.10.5: the cause lies in where the phrases stand (outside the
+  advertisement's own text) or in the operator's identity, not in the
+  wording; which of them is open (31.6).
+- **C32, measured (2026-10-14).** The phrases stand inside the
+  advertisement. The rules of 0.10.6 read the page's title line before a long
+  navigation as the advertisement, so its window held none of them. Fixed by
+  the relation rules 5 with a targeted check of the job pages, not released
+  yet:
+  [SCOUTRO_KNOWLEDGE_GRAPH.md, 32](SCOUTRO_KNOWLEDGE_GRAPH.md#32-the-advertisement-of-a-positions-page-relation-rules-5).
+
