@@ -109,6 +109,17 @@ public class ModelQualityCheckTest {
         assertEquals(ModelQualityCheck.VALIDATOR, prov.optString("validator"));
         assertEquals(QualityCases.ID + "/" + QualityCases.VERSION, prov.optString("testset"));
         assertFalse(r.optBoolean("stale"));
+        // every statement the model made is rated: expected, allowed or forbidden; none is left unrated
+        final JSONObject fn = r.optJSONObject("functional");
+        assertEquals(r.toString(2), 0, fn.optInt("notRated"));
+        assertTrue("the organisations naming themselves, a second offer, the second price", fn.optInt("allowed") > 0);
+        final JSONArray cases = fn.optJSONArray("cases");
+        for (int i = 0; i < cases.length(); i++) {
+            assertEquals(cases.optJSONObject(i).toString(), 0, cases.optJSONObject(i).optJSONArray("notRated").length());
+        }
+        // the cost is an estimate, not a bill and no guaranteed maximum
+        assertTrue(tech.optJSONObject("cost").optBoolean("estimate"));
+        assertTrue(tech.optJSONObject("cost").optString("note").contains("no guaranteed maximum"));
         // no key anywhere in the result or the status
         assertFalse(r.toString().contains("sk-fixture-secret"));
         assertFalse(this.q.status().toString().contains("sk-fixture-secret"));
@@ -117,6 +128,50 @@ public class ModelQualityCheckTest {
         assertEquals(KnowledgePrompt.defaults().text, req.optJSONArray("messages").optJSONObject(0).optString("content"));
         assertEquals("json_schema", req.optJSONObject("response_format").optString("type"));
         assertEquals(2048, req.optInt("max_tokens"));
+    }
+
+    /**
+     * The counter-check of a pass: a model that reads every page correctly and states one more thing the test set neither
+     * expects, allows nor forbids (a site the page names) is no plain pass. The validator accepts the statement and the
+     * publication would take it, so the result says so and lists it; without it the same model passes.
+     */
+    @Test
+    public void anAcceptedStatementNobodyRatedIsNoPlainPass() throws Exception {
+        this.f.answer = a -> {
+            final String ideal = QualityFixture.ideal(a);
+            if (!"missing_stays_unknown".equals(a.caseId)) {
+                return ideal;
+            }
+            final String site = QualityFixture.entity("e9", "site", "Musterstadt", "für den Standort Musterstadt").toString();
+            return ideal.replaceFirst("\\{\"entities\":\\[", "{\"entities\":[" + java.util.regex.Matcher.quoteReplacement(site) + ",");
+        };
+        final JSONObject r = run(PRICE, false, null, null);
+        assertEquals(r.toString(2), ModelQualityCheck.PASSED_UNRATED, r.optString("status"));
+        final JSONObject fn = r.optJSONObject("functional");
+        assertEquals(0, fn.optInt("missing") + fn.optInt("forbidden") + fn.optInt("wrongType") + fn.optInt("wrongRelation")
+                + fn.optInt("evidence"));
+        assertEquals(r.toString(2), 1, fn.optInt("notRated"));
+        JSONObject unrated = null;
+        for (int i = 0; i < fn.optJSONArray("cases").length(); i++) {
+            final JSONObject c = fn.optJSONArray("cases").optJSONObject(i);
+            if ("missing_stays_unknown".equals(c.optString("case"))) {
+                unrated = c.optJSONArray("notRated").optJSONObject(0);
+            }
+        }
+        assertNotNull(r.toString(2), unrated);
+        assertEquals("site \u201cMusterstadt\u201d", unrated.optString("statement"));
+        assertEquals("für den Standort Musterstadt", unrated.optString("evidence"));
+        // the candidate's status says the same, and what a pass means says why
+        final JSONObject row = this.q.status().optJSONArray("candidates").optJSONObject(0);
+        assertEquals(ModelQualityCheck.PASSED_UNRATED, row.optString("status"));
+        assertEquals(1, row.optJSONObject("functional").optInt("notRated"));
+        assertTrue(r.optJSONObject("limits").optString("passMeans").contains("every accepted statement was rated"));
+
+        // the same model without the extra statement passes
+        this.f.answer = QualityFixture::ideal;
+        final JSONObject again = run(PRICE, false, null, null);
+        assertEquals(again.toString(2), ModelQualityCheck.PASSED, again.optString("status"));
+        assertEquals(0, again.optJSONObject("functional").optInt("notRated"));
     }
 
     /** The confirmed mistakes: each deviation names its kind, the page's passage, the expectation and the actual statement. */
@@ -260,9 +315,9 @@ public class ModelQualityCheckTest {
         assertFalse(r.optJSONObject("technical").optJSONObject("cost").optBoolean("known"));
     }
 
-    /** The plan shows scope and worst-case cost before anything is sent. */
+    /** The plan shows scope and an estimate of the worst-case cost before anything is sent; the estimate says what it is. */
     @Test
-    public void thePlanShowsScopeAndMaximumCostWithoutACall() throws Exception {
+    public void thePlanShowsScopeAndEstimatedCostWithoutACall() throws Exception {
         final JSONObject p = this.q.plan(this.f.key(), PRICE, null, null);
         assertTrue(this.f.requests.isEmpty());
         final int n = QualityCases.CASES.size();
@@ -273,6 +328,9 @@ public class ModelQualityCheckTest {
         final long worstTokens = p.optJSONObject("tokens").optLong("worstCase");
         assertTrue(worstTokens >= 2L * n * 2048);
         assertTrue(new BigDecimal(cost.optString("worstCase")).signum() > 0);
+        assertTrue(cost.optBoolean("estimate"));
+        assertTrue(cost.optString("note").startsWith("an estimate"));
+        assertTrue(cost.optString("note").contains("no guaranteed maximum"));
         assertEquals(n, p.optJSONObject("scope").optInt("cases"));
         assertFalse(p.optJSONObject("cost").has("price") && p.toString().contains("sk-fixture"));
         final JSONObject unknown = this.q.plan(this.f.key(), null, null, null);

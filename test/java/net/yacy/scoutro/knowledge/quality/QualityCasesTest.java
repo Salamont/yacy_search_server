@@ -88,8 +88,34 @@ public class QualityCasesTest {
                 }
                 assertTrue(c.id + ": every expectation says why", s.reason != null && !s.reason.isEmpty());
             }
+            for (final Statement s : c.allowed) {
+                assertTrue(c.id + ": " + s.label(), s.subject.names.stream().anyMatch(n -> page.contains(Normalizers.key(n))));
+                if (s.object != null && !s.object.names.isEmpty()) {
+                    assertTrue(c.id + ": " + s.label(), s.object.names.stream().anyMatch(n -> page.contains(Normalizers.key(n))));
+                }
+                assertTrue(c.id + ": every allowed statement says why", s.reason != null && !s.reason.isEmpty());
+            }
             for (final Statement s : c.forbidden) {
                 assertTrue(c.id + ": every forbidden statement says why", s.reason != null && !s.reason.isEmpty());
+            }
+        }
+    }
+
+    /** An allowed statement never contradicts the page's expectations: no forbidden statement matches what it allows. */
+    @Test
+    public void allowedStatementsAreNeitherExpectedNorForbidden() {
+        for (final Case c : QualityCases.CASES) {
+            for (final Statement a : c.allowed) {
+                for (final Statement s : c.forbidden) {
+                    if (s.kind.equals(a.kind) && s.predicate.equals(a.predicate) && s.subject.names.equals(a.subject.names)
+                            && (s.object == null || a.object == null || s.object.names.equals(a.object.names))) {
+                        assertTrue(c.id + ": " + a.label() + " is forbidden as " + s.label(),
+                                Statement.VALUE.equals(a.kind) && s.value.except != null && s.value.except.contains(a.value.amount));
+                    }
+                }
+                for (final Statement e : c.expected) {
+                    assertFalse(c.id + ": " + a.label() + " is expected already", e.label().equals(a.label()));
+                }
             }
         }
     }
@@ -117,6 +143,7 @@ public class QualityCasesTest {
         assertEquals(QualityCases.CASES.size(), j.optJSONArray("cases").length());
         final JSONObject first = j.optJSONArray("cases").optJSONObject(0);
         assertTrue(first.optJSONArray("expected").length() > 0);
+        assertTrue(first.optJSONArray("allowed").length() > 0);
         assertTrue(first.optJSONArray("forbidden").length() > 0);
     }
 

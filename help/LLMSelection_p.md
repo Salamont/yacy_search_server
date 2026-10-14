@@ -190,18 +190,25 @@ is clicked, publishes nothing and changes no setting.
    through the administrator passthrough); otherwise enter it, or tick
    *Start without a price* (then only the caps of calls and tokens apply and the
    cost stays unknown).
-3. **Show scope and maximum cost**: reference pages, planned requests, the worst
-   case of calls (each request once more after a format rejection), tokens and
-   cost. Nothing is sent. The caps of calls (at most 100, retries included) and
-   cost can be lowered; a run stops before a request that could exceed them.
+3. **Show scope and estimated cost**: reference pages, planned requests, the
+   worst case of calls (each request once more after a format rejection) and
+   the estimated worst case of tokens and cost. Nothing is sent. Every cost is
+   an **estimate, no guaranteed maximum**: prompts at 2 characters per token,
+   answers at `max_tokens`, times the price as given; the provider's bill can
+   differ. The caps of calls (at most 100, retries included) and the cost limit
+   (checked against the estimate) can be lowered; a run stops before a request
+   that could exceed them.
 4. **Check quality**; **Cancel the check** sends no further request (the request
    in flight is answered or times out).
 5. The result shows the status (*not checked*, *Test passed within its scope*,
-   *Deviations found*, *Technically failed*), the scope, the functional and the
-   technical result in separate tables, every deviation with the reference page,
-   the expectation, the actual statement and the passage of the page, and the
-   provenance (model, served model and provider, parameters, prompt, schema,
-   validator, rules, test set). There is no overall score. A changed row, prompt,
+   *No deviation, but accepted statements not rated*, *Deviations found*,
+   *Technically failed*), the scope, the functional and the technical result in
+   separate tables, every deviation with the reference page, the expectation,
+   the actual statement and the passage of the page, the accepted statements
+   the test set neither expects, allows nor forbids (they are not rated, so the
+   result is no plain pass: read them before switching), and the provenance
+   (model, served model and provider, parameters, prompt, schema, validator,
+   rules, test set). There is no overall score. A changed row, prompt,
    schema, validator, rule version or test set marks the result **stale**;
    nothing runs again on its own.
 6. **Use for the knowledge graph …** switches the knowledge usage only after a
@@ -232,7 +239,7 @@ prompt text); the row's `api_key` stays on the server.
 | `priceSource` / `price.source` | `provider_list` or `entered` | Shown in the result. |
 | `acceptUnknownCost` | `true` to start without a price | Without it a start without price is refused (400 `cost_unknown`). |
 | `maxCalls` | cap of calls, retries included, from the planned requests up to 100 | Default: the worst case. |
-| `maxCost` | cap of cost in the price's currency | Default: the worst case. |
+| `maxCost` | cost limit in the price's currency, checked against the estimate | Default: the estimated worst case. No guaranteed maximum: the provider's bill can differ. |
 
 Automation: read the plan first, start with explicit caps, poll the status
 until the run is `finished`, `cancelled` or `stopped`, then read the result.

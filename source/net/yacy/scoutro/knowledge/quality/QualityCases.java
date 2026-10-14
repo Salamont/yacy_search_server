@@ -29,14 +29,14 @@ import net.yacy.scoutro.knowledge.extract.Vocabulary;
 
 /**
  * The reference pages of the model quality check (docs/SCOUTRO_LLM_QUALITY_CHECK.md, 3): example pages of invented
- * organisations, each with the statements a correct reading must make and those it must not make. The expectations are
- * set by hand from the page text, never from the answer of a model. A change of a page, an expectation or the rules of
- * {@link QualityEvaluator} is a new {@link #VERSION}: earlier results are then stale.
+ * organisations, each with the statements a correct reading must make, those it may make besides them and those it must
+ * not make. The expectations are set by hand from the page text, never from the answer of a model. A change of a page, an
+ * expectation or the rules of {@link QualityEvaluator} is a new {@link #VERSION}: earlier results are then stale.
  */
 public final class QualityCases {
 
     public static final String ID = "kg-reference";
-    public static final String VERSION = "1";
+    public static final String VERSION = "2";
     /**
      * The collection the example pages belong to. It is only a name for the reading (the LLM tier follows it and reads job
      * postings in it); the graph's own collections and their settings are not used.
@@ -191,11 +191,17 @@ public final class QualityCases {
         public final String text;
         /** Statements a correct reading makes (missing ones are deviations). */
         public final List<Statement> expected;
+        /**
+         * Statements a correct reading may make besides the expected ones: what the page states as well (the organisation that
+         * names itself, a second service it lists, the second of two prices). They are rated as allowed, never required; a
+         * statement neither expected, allowed nor forbidden is not rated, and a result with one is no plain pass.
+         */
+        public final List<Statement> allowed;
         /** Statements a correct reading never makes. */
         public final List<Statement> forbidden;
 
         Case(final String id, final String checks, final String url, final String title, final String language, final String text,
-                final List<Statement> expected, final List<Statement> forbidden) {
+                final List<Statement> expected, final List<Statement> allowed, final List<Statement> forbidden) {
             this.id = id;
             this.checks = checks;
             this.url = url;
@@ -203,6 +209,7 @@ public final class QualityCases {
             this.language = language;
             this.text = text;
             this.expected = Collections.unmodifiableList(expected);
+            this.allowed = Collections.unmodifiableList(allowed);
             this.forbidden = Collections.unmodifiableList(forbidden);
         }
 
@@ -211,12 +218,16 @@ public final class QualityCases {
             for (final Statement s : this.expected) {
                 e.put(s.json());
             }
+            final JSONArray a = new JSONArray();
+            for (final Statement s : this.allowed) {
+                a.put(s.json());
+            }
             final JSONArray f = new JSONArray();
             for (final Statement s : this.forbidden) {
                 f.put(s.json());
             }
             return KgJson.obj("id", this.id, "checks", this.checks, "url", this.url, "title", this.title, "language", this.language,
-                    "chars", this.text.length(), "expected", e, "forbidden", f);
+                    "chars", this.text.length(), "expected", e, "allowed", a, "forbidden", f);
         }
     }
 
@@ -230,6 +241,10 @@ public final class QualityCases {
 
     private static Ref job(final String... names) {
         return new Ref(Vocabulary.JOB, names);
+    }
+
+    private static Ref facility(final String... names) {
+        return new Ref(Vocabulary.FACILITY, names);
     }
 
     private static Ref any(final String... names) {
@@ -247,6 +262,7 @@ public final class QualityCases {
         // 1. the operator's own job advertisement: the job, its employer and the employment type the page states
         final Ref nurse = job("Pflegefachkraft (m/w/d)", "Pflegefachkraft");
         final Ref care = org("Muster Pflege gGmbH", "Muster Pflege");
+        final Ref lindenhof = facility("Haus Lindenhof", "Lindenhof");
         c.add(new Case("own_job_ad", "own job advertisement", "https://www.muster-pflege.example/karriere/pflegefachkraft",
                 "Pflegefachkraft (m/w/d) – Muster Pflege gGmbH", "de",
                 "Karriere bei der Muster Pflege gGmbH. Die Muster Pflege gGmbH sucht ab sofort eine Pflegefachkraft (m/w/d) in Vollzeit"
@@ -256,6 +272,9 @@ public final class QualityCases {
                         relation(nurse, Vocabulary.HIRING_ORGANIZATION, care, "Muster Pflege gGmbH sucht",
                                 "the operator itself is looking for the employee"),
                         value(nurse, Vocabulary.EMPLOYMENT_TYPE, Value.code("full_time"), "Vollzeit", "the page states full time")),
+                List.of(entity(care, null, "the employer names itself"),
+                        entity(lindenhof, null, "the care home the position is for"),
+                        relation(care, Vocabulary.OPERATES, lindenhof, null, "the operator's own house")),
                 List.of(entity(service("Bewerbungsformular"), null, "an application form of the page is no service"),
                         entity(job("Grundpflege", "Behandlungspflege"), null, "a task of the position is no job of its own"))));
 
@@ -268,6 +287,9 @@ public final class QualityCases {
                         + " Musterstadt, suchen wir einen Industriemechaniker (m/w/d) in Vollzeit. Ihr Ansprechpartner bei der Beispiel"
                         + " Personal GmbH freut sich auf Ihre Bewerbung.",
                 List.of(entity(mechanic, "Industriemechaniker (m/w/d)", "the page advertises the position with its title")),
+                List.of(entity(agency, null, "the agency names itself; it is not the employer"),
+                        relation(mechanic, Vocabulary.RECRUITING_ORGANIZATION, agency, null, "the agency recruits for its client"),
+                        relation(mechanic, Vocabulary.ADVERTISED_BY, agency, null, "the agency publishes the advertisement")),
                 List.of(relation(mechanic, Vocabulary.HIRING_ORGANIZATION, agency, null,
                                 "the agency recruits; it is not the employer"),
                         relation(mechanic, Vocabulary.HIRING_ORGANIZATION, ANYONE, null,
@@ -285,6 +307,9 @@ public final class QualityCases {
                 List.of(entity(site, "Bauleiter (m/w/d)", "the page lists the position with its title"),
                         relation(site, Vocabulary.HIRING_ORGANIZATION, builder, "Beispiel Bau GmbH sucht",
                                 "the named company is looking for the employee")),
+                List.of(entity(builder, null, "the employer the listing names"),
+                        entity(org("Musterjobs"), null, "the portal names itself"),
+                        relation(site, Vocabulary.ADVERTISED_BY, portal, null, "the portal publishes the advertisement")),
                 List.of(relation(site, Vocabulary.HIRING_ORGANIZATION, portal, null, "the portal only lists the advertisement"),
                         entity(service("Jobsuche"), null, "a search function of the portal is no service of an organisation"))));
 
@@ -299,6 +324,8 @@ public final class QualityCases {
                 List.of(entity(heating, "Heizungswartung", "listed under the services"),
                         entity(bath, "Badsanierung", "listed under the services"),
                         relation(plumber, Vocabulary.OFFERS, heating, "Leistungen", "the company offers it")),
+                List.of(entity(plumber, null, "the company names itself"),
+                        relation(plumber, Vocabulary.OFFERS, bath, null, "the company offers it as well")),
                 List.of(entity(any("Serviceteam", "Service team"), null, "a team is no service and no organisation of its own"),
                         entity(any("Kundendienst-Team", "Kundendienst Team", "Kundendienst"), null, "a team is no service"))));
 
@@ -312,6 +339,7 @@ public final class QualityCases {
                         + " Seite\nRechtschreibprüfung\nSeiteninformationen",
                 List.of(entity(product, "MusterText Pro", "the company sells it"),
                         relation(vendor, Vocabulary.OFFERS, product, "verkauft MusterText Pro", "the company sells it")),
+                List.of(entity(vendor, null, "the company names itself")),
                 List.of(entity(service("Seite drucken"), null, "a tool of the page is no service"),
                         entity(service("Links auf diese Seite"), null, "a tool of the page is no service"),
                         entity(service("Rechtschreibprüfung"), null, "here a tool of the page, not offered"),
@@ -327,6 +355,9 @@ public final class QualityCases {
                         + " montags bis freitags von 8 bis 16 Uhr.\n" + menu,
                 List.of(entity(dayCare, "Tagespflege", "the page's content offers it"),
                         relation(carer, Vocabulary.OFFERS, dayCare, "bietet in Musterstadt Tagespflege", "the operator offers it")),
+                List.of(entity(carer, null, "the operator names itself"),
+                        entity(facility("Haus Lindenhof", "Lindenhof"), null, "the house the day care is in"),
+                        relation(dayCare, Vocabulary.LOCATED_AT, facility("Haus Lindenhof", "Lindenhof"), null, "day care in this house")),
                 List.of(entity(job("Karriere"), null, "a menu entry is no job posting"),
                         entity(service("Kontakt", "Impressum", "Über uns", "Startseite", "Leistungen"), null,
                                 "a menu entry is no service"))));
@@ -334,6 +365,7 @@ public final class QualityCases {
         // 7. prices with their service, unit and conditions; no price on the wrong service
         final Ref cleaning = service("Unterhaltsreinigung");
         final Ref windows = service("Glasreinigung");
+        final Ref cleaner = org("Muster Gebäudereinigung GmbH", "Muster Gebäudereinigung");
         c.add(new Case("price_with_service", "prices with their service, unit and conditions", "https://www.muster-reinigung.example/preise",
                 "Preise – Muster Gebäudereinigung GmbH", "de",
                 "Preise der Muster Gebäudereinigung GmbH. Für die Unterhaltsreinigung berechnen wir 28,50 € pro Stunde zzgl. MwSt., die"
@@ -344,26 +376,37 @@ public final class QualityCases {
                                 "28.50 EUR per hour plus VAT, the price of this service"),
                         value(windows, Vocabulary.PRICE, Value.price("4.20", "EUR", Values.UNIT_HOUR, "excl"), "4,20 €",
                                 "4.20 EUR per hour plus VAT, the price of this service")),
+                List.of(entity(cleaner, null, "the company names itself"),
+                        relation(cleaner, Vocabulary.OFFERS, cleaning, null, "the company prices it"),
+                        relation(cleaner, Vocabulary.OFFERS, windows, null, "the company prices it")),
                 List.of(value(cleaning, Vocabulary.PRICE, Value.amountOtherThan("28.50"), null, "the other service's price"),
                         value(windows, Vocabulary.PRICE, Value.amountOtherThan("4.20"), null, "the other service's price"))));
 
         // 8. software the company offers competence in, next to software it only uses internally
         final Ref erp = service("Beispiel-ERP-Beratung", "Beispiel ERP Beratung", "Beratung zu Beispiel ERP");
         final Ref office = any("Muster Office");
+        final Ref consultancy = org("Muster IT-Beratung GmbH", "Muster IT-Beratung");
         c.add(new Case("software_competence_vs_internal_use", "software offered as competence next to software used internally",
                 "https://www.muster-it.example/leistungen", "Leistungen – Muster IT-Beratung GmbH", "de",
                 "Leistungen der Muster IT-Beratung GmbH. Wir bieten Beispiel-ERP-Beratung für mittelständische Unternehmen an. Für"
                         + " unsere eigene Büroorganisation nutzen wir intern Muster Office.",
                 List.of(entity(erp, "Beispiel-ERP-Beratung", "the company offers it")),
+                List.of(entity(consultancy, null, "the company names itself"),
+                        relation(consultancy, Vocabulary.OFFERS, erp, null, "the company offers it")),
                 List.of(entity(office, null, "software used internally is no service of the company"))));
 
         // 9. two prices of the same service: only stated amounts, no computed or merged one
         final Ref fee = service("Tagespflege");
+        final Ref dayCareOperator = org("Muster Tagespflege gGmbH", "Muster Tagespflege");
         c.add(new Case("contradictory_sources", "two different prices of one service on the page", "https://www.muster-tagespflege.example/kosten",
                 "Kosten – Muster Tagespflege gGmbH", "de",
                 "Kosten der Tagespflege. Bei der Muster Tagespflege gGmbH kostet die Tagespflege 89 € pro Tag. Preisliste 2025:"
                         + " Tagespflege 95 € pro Tag.",
                 List.of(entity(fee, "Tagespflege", "the service the prices belong to")),
+                List.of(entity(dayCareOperator, null, "the operator names itself"),
+                        relation(dayCareOperator, Vocabulary.OFFERS, fee, null, "the operator offers it"),
+                        value(fee, Vocabulary.PRICE, Value.price("89", "EUR", Values.UNIT_DAY, null), null, "one of the two amounts the page states"),
+                        value(fee, Vocabulary.PRICE, Value.price("95", "EUR", Values.UNIT_DAY, null), null, "the other amount the page states")),
                 List.of(value(fee, Vocabulary.PRICE, Value.amountOtherThan("89", "95"), null,
                         "only the amounts the page states; never an average or another value"))));
 
@@ -377,6 +420,7 @@ public final class QualityCases {
                 List.of(entity(helper, "Lagerhelfer (m/w/d)", "the page advertises the position with its title"),
                         relation(helper, Vocabulary.HIRING_ORGANIZATION, logistics, "Muster Logistik GmbH sucht",
                                 "the operator itself is looking for the employee")),
+                List.of(entity(logistics, null, "the employer names itself")),
                 List.of(value(helper, Vocabulary.EMPLOYMENT_TYPE, Value.anyValue(), null, "the page states no employment type"),
                         value(helper, Vocabulary.SALARY, Value.anyValue(), null, "the page states no salary"),
                         entity(service("Kommissionierung", "Kommissionierung und Verpackung von Waren"), null,

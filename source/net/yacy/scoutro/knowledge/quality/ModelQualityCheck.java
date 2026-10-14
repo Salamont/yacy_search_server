@@ -53,6 +53,7 @@ import net.yacy.scoutro.knowledge.extract.YacyLlmClient;
 import net.yacy.scoutro.knowledge.quality.QualityCases.Case;
 import net.yacy.scoutro.knowledge.sync.LlmReading;
 import net.yacy.scoutro.knowledge.sync.SolrDoc;
+import net.yacy.scoutro.knowledge.sync.SyncService;
 
 /**
  * The quality check of a candidate model for the knowledge usage (docs/SCOUTRO_LLM_QUALITY_CHECK.md): it reads the
@@ -61,10 +62,11 @@ import net.yacy.scoutro.knowledge.sync.SolrDoc;
  * takes) and compares the result with the expectations ({@link QualityEvaluator}).
  * <p>
  * It writes nothing but its own result: no graph, no extraction cache, no index, no setting; a check never selects or
- * deselects a model. The administrator starts it explicitly, sees its scope and its maximum cost first, and every
- * request (retries included) is admitted against a cap of calls, tokens and, where a price is given, cost; a run can be
- * cancelled. The result keeps its provenance; a change of the model's row, the prompt, the schema, the validator, the
- * rules or the test set makes it stale, and nothing is run again on its own.
+ * deselects a model. The administrator starts it explicitly, sees its scope and an estimate of its cost first, and every
+ * request (retries included) is admitted against a cap of calls, tokens and, where a price is given, estimated cost; a run
+ * can be cancelled. The cost is an estimate (2 characters per token, the price as given), never a guaranteed maximum.
+ * The result keeps its provenance; a change of the model's row, the prompt, the schema, the validator, the rules or the
+ * test set makes it stale, and nothing is run again on its own.
  */
 public final class ModelQualityCheck {
 
@@ -72,16 +74,28 @@ public final class ModelQualityCheck {
     private static final net.yacy.cora.util.ConcurrentLog LOG = new net.yacy.cora.util.ConcurrentLog("SCOUTRO-QUALITY");
     /** The most requests one run may make, retries included, whatever the administrator sets. */
     public static final int MAX_CALLS = 100;
-    /** The worst case of a prompt: at least this many characters per token (every tokenizer in use stays above). */
+    /**
+     * The characters per token the worst case of a prompt assumes. An assumption, not a bound: common tokenizers average more
+     * characters per token on these pages, but the provider's own count decides what it bills.
+     */
     static final double WORST_CHARS_PER_TOKEN = 2.0;
     /** Tokens of the chat template around the messages, counted in the worst case. */
     static final int FRAME_TOKENS = 64;
     /** Characters of a provider's error message kept. */
     static final int MAX_ERROR_CHARS = 300;
     private static final BigDecimal MILLION = BigDecimal.valueOf(1_000_000L);
+    /** What every cost of the plan and the result is: an estimate, not what the provider bills. */
+    static final String ESTIMATE_NOTE = "an estimate: tokens as the endpoint reports them or, where it reports none, prompts at 2"
+            + " characters per token and answers at max_tokens, times the price as given; the provider's bill can differ (its"
+            + " tokenizer, its prices, cached or reasoning tokens); no guaranteed maximum";
 
     /** The state of a model's result. */
     public static final String UNCHECKED = "unchecked", PASSED = "passed", DEVIATIONS = "deviations", FAILED = "technical_failure";
+    /**
+     * No deviation, but the reading made statements the test set neither expects, allows nor forbids. The validator accepted
+     * them and the publication would take them; nobody rated them. No plain pass: they are listed for reading.
+     */
+    public static final String PASSED_UNRATED = "passed_with_unrated";
     /** The state of the run. */
     public static final String IDLE = "idle", RUNNING = "running", CANCELLING = "cancelling", FINISHED = "finished",
             CANCELLED = "cancelled", STOPPED = "stopped";
@@ -329,7 +343,7 @@ public final class ModelQualityCheck {
     static final String SCHEMA_HASH = sha(LlmExtractor.SCHEMA.toString());
     static final String VALIDATOR = LlmExtractor.NAME + "/" + LlmExtractor.VERSION + "/" + sha(String.join(",", LlmExtractor.INVALID_REASONS));
     static final String RULES = "jsonld/" + JsonLdExtractor.VERSION + " metadata/" + MetadataExtractor.VERSION + " rules/" + RuleExtractor.VERSION
-            + " vocabulary/" + Vocabulary.VERSION;
+            + " relations/" + SyncService.RELATION_RULES + " vocabulary/" + Vocabulary.VERSION;
 
     /**
      * What a result depends on: the candidate's row, the prompt, the schema, the validator, the rules and the settings of
@@ -440,9 +454,9 @@ public final class ModelQualityCheck {
                     "cost", price == null
                             ? KgJson.obj("known", false, "worstCase", null, "cap", null,
                                     "note", "no price: only the caps of calls and tokens apply; the cost is unknown")
-                            : KgJson.obj("known", true, "price", price.json(), "currency", price.currency,
+                            : KgJson.obj("known", true, "estimate", true, "price", price.json(), "currency", price.currency,
                                     "worstCase", worst.setScale(4, RoundingMode.UP).toPlainString(),
-                                    "cap", costCap == null ? null : costCap.toPlainString()));
+                                    "cap", costCap == null ? null : costCap.toPlainString(), "note", ESTIMATE_NOTE));
         }
     }
 
@@ -587,7 +601,7 @@ public final class ModelQualityCheck {
         return in;
     }
 
-    /** Scope and maximum cost of a check of this candidate, before anything is sent (no model call). */
+    /** Scope and estimated cost of a check of this candidate, before anything is sent (no model call). */
     public JSONObject plan(final String key, final Price price, final Integer maxCalls, final BigDecimal maxCost) throws Refused {
         final Candidate c = candidate(key);
         final Inputs in = inputs();
@@ -605,8 +619,12 @@ public final class ModelQualityCheck {
         return KgJson.obj("usage", "knowledge",
                 "validFor", "the knowledge graph's extraction (usage knowledge) with this row, prompt, schema, validator and test set",
                 "notValidFor", "log-report, chat and every other usage; other pages than the reference pages",
-                "passMeans", "every reference page was read and no deviation was found within the stated scope; it is no guarantee for other pages",
+                "passMeans", "every reference page was read, no deviation was found within the stated scope and every accepted statement"
+                        + " was rated (expected, allowed or forbidden); it is no guarantee for other pages",
+                "passedWithUnratedMeans", "no deviation, but statements the test set neither expects, allows nor forbids; the"
+                        + " validator accepted them and the publication would take them; read them before switching",
                 "rated", "only what the LLM tier adds; statements of tiers 1 and 2 are listed as given by the rules",
+                "cost", ESTIMATE_NOTE,
                 "noScore", true);
     }
 
@@ -879,7 +897,10 @@ public final class ModelQualityCheck {
         }
     }
 
-    /** The status of a finished run's result: technically failed, with deviations, or passed within its scope. */
+    /**
+     * The status of a finished run's result: technically failed, with deviations, without deviation but with statements not
+     * rated, or passed within its scope.
+     */
     static String status(final List<JSONObject> technical, final List<JSONObject> functional, final String stop) {
         if (stop != null || functional.size() < QualityCases.CASES.size()) {
             return FAILED;
@@ -900,13 +921,19 @@ public final class ModelQualityCheck {
                 return DEVIATIONS;
             }
         }
+        for (final JSONObject f : functional) {
+            if (QualityEvaluator.unrated(f) > 0) {
+                return PASSED_UNRATED;
+            }
+        }
         return PASSED;
     }
 
     private JSONObject result(final Run r) {
         final Plan p = r.plan;
         final String status = status(r.technical, r.functional, r.stopReason);
-        int expected = 0, byRules = 0, forbidden = 0, correct = 0, missing = 0, wrong = 0, wrongType = 0, wrongRelation = 0, evidence = 0;
+        int expected = 0, byRules = 0, forbidden = 0, correct = 0, missing = 0, wrong = 0, wrongType = 0, wrongRelation = 0, evidence = 0,
+                allowed = 0, notRated = 0;
         for (final JSONObject f : r.functional) {
             final JSONObject n = f.optJSONObject("counts");
             expected += n.optInt("expected");
@@ -917,6 +944,8 @@ public final class ModelQualityCheck {
             wrongType += n.optInt("wrongType");
             wrongRelation += n.optInt("wrongRelation");
             evidence += n.optInt("evidence");
+            allowed += n.optInt("allowed");
+            notRated += n.optInt("notRated");
         }
         for (final Case c : QualityCases.CASES) {
             forbidden += c.forbidden.size();
@@ -943,16 +972,17 @@ public final class ModelQualityCheck {
                         "forbiddenChecked", forbidden, "usage", "knowledge"),
                 "limits", limits(),
                 "functional", KgJson.obj("correct", correct, "missing", missing, "forbidden", wrong, "wrongType", wrongType,
-                        "wrongRelation", wrongRelation, "evidence", evidence, "cases", new JSONArray(r.functional)),
+                        "wrongRelation", wrongRelation, "evidence", evidence, "allowed", allowed, "notRated", notRated,
+                        "cases", new JSONArray(r.functional)),
                 "technical", KgJson.obj("apiErrors", apiErrors, "refusedAnswers", refusedAnswers, "validatorDrops", drops,
                         "truncated", truncated, "calls", r.calls, "retries", retries, "callCap", r.callCap,
                         "durationMillis", r.finishedAt - r.startedAt,
                         "tokens", KgJson.obj("prompt", r.promptTokens, "answer", r.answerTokens, "estimated", r.estimatedTokens,
                                 "unreportedCalls", r.unreported, "cap", r.tokenCap),
                         "cost", r.price == null ? KgJson.obj("known", false, "note", "no price was given; the cost is unknown")
-                                : KgJson.obj("known", true, "currency", r.price.currency, "price", r.price.json(),
+                                : KgJson.obj("known", true, "estimate", true, "currency", r.price.currency, "price", r.price.json(),
                                         "amount", r.committedCost.setScale(4, RoundingMode.UP).toPlainString(),
-                                        "estimated", r.estimatedTokens > 0, "cap", r.costCap.toPlainString()),
+                                        "estimated", r.estimatedTokens > 0, "cap", r.costCap.toPlainString(), "note", ESTIMATE_NOTE),
                         "cases", technical),
                 "provenance", KgJson.obj("candidate", p.candidate.json(),
                         "served", KgJson.obj("models", new JSONObject(r.servedModels), "providers", new JSONObject(r.servedProviders),
@@ -1015,7 +1045,7 @@ public final class ModelQualityCheck {
             return null;
         }
         final JSONObject o = new JSONObject(true);
-        for (final String k : List.of("correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence")) {
+        for (final String k : List.of("correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence", "allowed", "notRated")) {
             KgJson.put(o, k, functional.optInt(k));
         }
         return o;

@@ -18312,7 +18312,7 @@
       "get": {
         "operationId": "kg.llm.quality",
         "summary": "Read the quality check: test set, candidates and run",
-        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. The test set version, every production row with the state of its last result (unchecked, passed, deviations, technical_failure) and whether it is stale, and the running check (calls, tokens and cost against their caps).",
+        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. The test set version, every production row with the state of its last result (unchecked, passed, passed_with_unrated, deviations, technical_failure) and whether it is stale, and the running check (calls, tokens and estimated cost against their caps).",
         "tags": [
           "knowledge"
         ],
@@ -18392,7 +18392,7 @@
       "post": {
         "operationId": "kg.llm.quality.change",
         "summary": "Start or cancel a quality check",
-        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. {\"action\":\"start\",\"candidate\":…,\"price\":{\"inputPerMillion\",\"outputPerMillion\",\"currency\",\"source\"}|null,\"acceptUnknownCost\":false,\"maxCalls\":…,\"maxCost\":…}: one check at a time; every request, the retry without the schema after an HTTP 400 included, is admitted against the caps of calls (at most 100), tokens and cost; without a price only with acceptUnknownCost=true (400 cost_unknown). {\"action\":\"cancel\"}: no further request is sent. Writes only the check's own result (DATA/SCOUTRO/llm-quality).",
+        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. {\"action\":\"start\",\"candidate\":…,\"price\":{\"inputPerMillion\",\"outputPerMillion\",\"currency\",\"source\"}|null,\"acceptUnknownCost\":false,\"maxCalls\":…,\"maxCost\":…}: one check at a time; every request, the retry without the schema after an HTTP 400 included, is admitted against the caps of calls (at most 100), tokens and estimated cost (an estimate, no guaranteed maximum); without a price only with acceptUnknownCost=true (400 cost_unknown). {\"action\":\"cancel\"}: no further request is sent. Writes only the check's own result (DATA/SCOUTRO/llm-quality).",
         "tags": [
           "knowledge"
         ],
@@ -18483,8 +18483,8 @@
     "/v1/kg/llm-quality/plan": {
       "get": {
         "operationId": "kg.llm.quality.plan",
-        "summary": "Scope and maximum cost of a quality check",
-        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. Before anything is sent and without a model call: the reference pages and requests, the context window, the worst case of calls (each request once more after a format rejection), tokens (prompt at 2 characters per token, answers at the row's max_tokens) and, with a price, cost.",
+        "summary": "Scope and estimated cost of a quality check",
+        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. Before anything is sent and without a model call: the reference pages and requests, the context window, the worst case of calls (each request once more after a format rejection), tokens (prompt at 2 characters per token, answers at the row's max_tokens) and, with a price, cost. Every cost is an estimate (cost.estimate, cost.note), no guaranteed maximum: the provider bills by its own tokenizer and prices.",
         "tags": [
           "knowledge"
         ],
@@ -18626,7 +18626,7 @@
       "get": {
         "operationId": "kg.llm.quality.result",
         "summary": "The stored result of a candidate",
-        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. Status, scope and limits, the functional result (correct, missing, wrong, wrong type, wrong relation, unfitting evidence; each deviation with the page's passage, the expectation and the actual statement), the technical result (API errors, refused answers, validator drops, cut answers, calls and retries, duration, tokens, cost), the provenance and whether a change of the row, prompt, schema, validator, rules or test set made it stale. There is no overall score.",
+        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. Status (passed only if every accepted statement was rated; passed_with_unrated if the reading has accepted statements the test set neither expects, allows nor forbids), scope and limits, the functional result (correct, missing, wrong, wrong type, wrong relation, unfitting evidence, allowed, not rated; each deviation with the page's passage, the expectation and the actual statement; the statements not rated with their evidence), the technical result (API errors, refused answers, validator drops, cut answers, calls and retries, duration, tokens, estimated cost), the provenance and whether a change of the row, prompt, schema, validator, rules or test set made it stale. There is no overall score.",
         "tags": [
           "knowledge"
         ],
@@ -18719,7 +18719,7 @@
       "get": {
         "operationId": "kg.llm.quality.testset",
         "summary": "The reference pages and their expectations",
-        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. The versioned test set: each page with its URL, title, the statements expected and those forbidden, and why.",
+        "description": "The model quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md). Administrator only. A check reads the versioned reference pages with a candidate (a production model row) exactly as the knowledge graph's LLM tier reads a page and compares the result with expectations set by hand; it publishes nothing and changes no setting, and no row's api_key is ever returned. The versioned test set: each page with its URL, title, the statements expected, those allowed besides them and those forbidden, and why.",
         "tags": [
           "knowledge"
         ],

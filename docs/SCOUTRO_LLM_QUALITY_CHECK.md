@@ -5,8 +5,9 @@ reads pages for the knowledge graph (usage `knowledge`, see
 [SCOUTRO_KNOWLEDGE_GRAPH.md](SCOUTRO_KNOWLEDGE_GRAPH.md), 6.3). The check reads
 versioned reference pages with the candidate exactly as the graph's LLM tier
 reads a page and compares the result with expectations set by hand. It is a
-deliberate, bounded, cancellable run: it shows its scope and its maximum cost
-first, publishes nothing, changes no setting and activates nothing.
+deliberate, bounded, cancellable run: it shows its scope and an estimate of its
+cost first, publishes nothing, changes no setting and activates nothing. Every
+cost it shows is an estimate, never a guaranteed maximum (7).
 
 Code: `net.yacy.scoutro.knowledge.quality` (`QualityCases`,
 `QualityEvaluator`, `ModelQualityCheck`, `QualityResults`),
@@ -19,8 +20,9 @@ Code: `net.yacy.scoutro.knowledge.quality` (`QualityCases`,
    assigns no knowledge usage (it is opt-in).
 2. **Choose the candidate** in *Quality check for the knowledge graph*. The
    choice changes nothing.
-3. **Show scope and maximum cost**: the reference pages, the planned requests,
-   the caps and the worst case of tokens and cost. No model is called.
+3. **Show scope and estimated cost**: the reference pages, the planned
+   requests, the caps and the estimated worst case of tokens and cost. No model
+   is called.
 4. **Check quality**: the run starts only on this explicit action; it can be
    cancelled.
 5. **Read the result**: status, scope, the functional and the technical
@@ -61,12 +63,15 @@ whose job postings it reads. The graph's other settings for the LLM tier
 (input size, statement limit, timeout, structured output, answer reserve) are
 the graph's.
 
-## 3. Reference pages (test set `kg-reference`, version 1)
+## 3. Reference pages (test set `kg-reference`, version 2)
 
 Invented organisations, `.example` domains, no persons or contact data. Each
-page has the statements a correct reading makes (**expected**) and those it
-must never make (**forbidden**), each with its reason; set by hand from the
-page text, never from a model's answer.
+page has the statements a correct reading makes (**expected**), those it may
+make besides them because the page states them as well (**allowed**: the
+organisation that names itself, a second service it lists, the second of two
+prices, the house a position is for), and those it must never make
+(**forbidden**), each with its reason; set by hand from the page text, never
+from a model's answer. Version 2 added the allowed statements (0.10.7).
 
 | Page | Checks | Expected of the model (examples) | Forbidden (examples) |
 | --- | --- | --- | --- |
@@ -85,7 +90,8 @@ A change of a page, an expectation or the evaluation rules is a new version
 (`QualityCases.VERSION`, `QualityEvaluator.VERSION`); earlier results become
 stale. Tests make sure every page is a page the queue would ask about (one
 request), every page expects something of the model that the rules do not
-state already, and every name and passage occurs on the page.
+state already, every name and passage occurs on the page, and no allowed
+statement is expected or forbidden as well.
 
 ## 4. Evaluation rules
 
@@ -107,29 +113,39 @@ state already, and every name and passage occurs on the page.
   expected name under another type), wrong relation (the expected entities
   under another or a reversed relation), unfitting evidence (the expected
   statement with a quote that lacks the expected passage).
-- Statements neither expected nor forbidden are listed as *not rated*.
+- **Allowed statements** are rated as allowed: counted and listed, never
+  required.
+- **Statements neither expected, allowed nor forbidden are not rated.** The
+  validator accepted them and the publication would take them, so they are
+  listed with their evidence (up to 20 per page, with the count of the rest),
+  and a result with one is no plain pass.
 - **No overall score.** Status per candidate: `unchecked` (*not checked*),
-  `passed` (*Test passed within its scope*: every page read, no deviation),
-  `deviations`, `technical_failure` (a page not asked or not answered: API
-  error, cap, cancel, window).
+  `passed` (*Test passed within its scope*: every page read, no deviation,
+  every accepted statement rated), `passed_with_unrated` (*No deviation, but
+  accepted statements not rated: read them before switching*), `deviations`,
+  `technical_failure` (a page not asked or not answered: API error, cap,
+  cancel, window). Deviations and technical failures go first: a result with a
+  deviation is `deviations` whatever else it has.
 
 ## 5. Result view
 
 Technical and functional results are separate tables:
 
 - **functional:** correct, missing, wrong, wrong type, wrong relation,
-  unfitting evidence, given by the rules;
+  unfitting evidence, given by the rules, allowed, accepted but not rated;
 - **technical:** API errors (with the provider's reason, bounded, without
   keys), answers refused by the schema check, statements dropped by the
   validator, answers cut at the output limit, calls and retries, duration,
-  tokens (prompt, answer, estimated), cost.
+  tokens (prompt, answer, estimated), cost (an estimate).
 
 Every deviation shows the reference page, its kind, the expected or forbidden
 statement with its reason, the actual statement with its quote, and the
-passage of the page. The scope ("10 of 10 reference pages, test set version 1,
-17 statements expected of the model, 4 given by the rules, 21 forbidden
-checked"), the rules and the limits are shown with every result. On narrow
-screens the deviations are labelled cards; the key and value tables stay two
+passage of the page. The accepted statements not rated have their own table
+(reference page, statement, evidence), shown only when there are any. The
+scope ("10 of 10 reference pages, test set version 2, 17 statements expected of
+the model, 4 given by the rules, 21 forbidden checked"), the rules and the
+limits are shown with every result. On narrow screens the deviations and the
+statements not rated are labelled cards; the key and value tables stay two
 columns.
 
 ## 6. Provenance and staleness
@@ -139,7 +155,8 @@ A result keeps: the row (service, endpoint without user information, model,
 model and provider the endpoint says it served, the parameters (temperature,
 structured output, timeout, answer reserve, input size), the prompt (hash,
 source, revision), the schema hash, the validator (`llm/4` and its reasons),
-the rules' versions, the test set and the evaluation version.
+the rules' versions (JSON-LD, metadata, rules, relation rules, vocabulary), the
+test set and the evaluation version.
 
 A change of any of these (a fingerprint of them, compared when the status is
 read) marks the result **stale** with the changed fields; it is kept, and
@@ -149,16 +166,26 @@ nothing is run again on its own. A row that is gone makes its result stale
 
 ## 7. Limits and cost
 
-- **Before the start:** scope, planned requests and the worst case. Every
+Every cost the check shows (plan, run, result) is an **estimate, no guaranteed
+maximum**. It is the tokens the endpoint reports, or where it reports none the
+estimated worst case, times the price per million tokens as given. The provider
+counts and bills by its own tokenizer and prices (cached or reasoning tokens
+included), so its bill can differ. The plan and the result say so (`cost.estimate`,
+`cost.note`). A complete price and cost logic (provider bills, other price
+lists) is a later task of its own.
+
+- **Before the start:** scope, planned requests and the estimated worst case. Every
   request may be sent twice (once more without the schema after an endpoint
   rejected it with HTTP 400), so the worst case is 2 × requests calls; a
   prompt counts at 2 characters per token (system prompt, user message and
-  schema, plus 64 tokens of template), an answer at the row's `max_tokens`.
+  schema, plus 64 tokens of template; an assumption, not a bound), an answer
+  at the row's `max_tokens`.
 - **Caps, retries included:** calls (default the worst case, at least the
-  planned requests, at most 100), tokens (the worst case) and, with a price,
-  cost (default the worst case). Each transport is admitted only if its own
+  planned requests, at most 100), tokens (the estimated worst case) and, with a
+  price, a cost limit (default the estimated worst case) that is checked
+  against the estimate. Each transport is admitted only if its own estimated
   worst case still fits; it is reserved at that and settled at what the
-  endpoint reports (the worst case where it reports nothing, marked as
+  endpoint reports (the estimate where it reports nothing, marked as
   estimated). A cap stops the run before a request, never after.
 - **Price:** per million tokens, input and output, with its currency and
   source: the provider's model list (OpenRouter-like `pricing`, read through
@@ -187,7 +214,7 @@ Administrator only, under `/scoutro/api/v1/kg/llm-quality` (see
 | Route | Purpose |
 | --- | --- |
 | `GET /v1/kg/llm-quality` | test set, candidates with status and staleness, the run |
-| `GET /v1/kg/llm-quality/plan?candidate=…&inputPrice=…&outputPrice=…&currency=…&priceSource=…&maxCalls=…&maxCost=…` | scope and maximum cost; no model call |
+| `GET /v1/kg/llm-quality/plan?candidate=…&inputPrice=…&outputPrice=…&currency=…&priceSource=…&maxCalls=…&maxCost=…` | scope and estimated cost; no model call |
 | `GET /v1/kg/llm-quality/result?candidate=…` | the stored result |
 | `GET /v1/kg/llm-quality/testset` | the reference pages and expectations |
 | `POST /v1/kg/llm-quality {"action":"start", …}` / `{"action":"cancel"}` | start or cancel |
@@ -200,18 +227,22 @@ Administrator only, under `/scoutro/api/v1/kg/llm-quality` (see
 ## 10. Tests
 
 - `ModelQualityCheckTest` (real client against a local fake endpoint): a
-  correct model passes with scope and provenance; the confirmed mistakes
+  correct model passes with scope and provenance, every statement rated; the
+  counter-check: the same model with one more accepted statement the test set
+  does not rate is `passed_with_unrated` and lists it; the confirmed mistakes
   (team as service, agency as employer, price on the wrong service) are
   deviations with passage, expectation and actual statement; an empty answer
   fails; a statement the validator drops is missing with its reason; ids do
-  not matter; unknown cost needs acceptance; the plan sends nothing; the call
+  not matter; unknown cost needs acceptance; the plan sends nothing and says
+  its cost is an estimate; the call
   cap counts retries; the cost cap stops before a request; unreported usage
   counts at its worst case; cancel; one run at a time; API errors without the
   key; staleness after a change of the row, the prompt or the settings, with
   no re-run; only the result file is written.
 - `QualityCasesTest`: categories, one request per page, expectations of the
-  model, names and passages on the page, invented domains, version, the
-  normalised comparison of names and prices.
+  model, names and passages on the page (allowed statements too), no allowed
+  statement expected or forbidden, invented domains, version, the normalised
+  comparison of names and prices.
 - `QualityCheckIsolationTest`: no graph write beside a running graph.
 - `LlmQualityApiTest`: candidates without keys, refusals and their statuses.
 - `test/scoutro-ui/llm-quality-live-smoke.py` with
@@ -226,7 +257,10 @@ Administrator only, under `/scoutro/api/v1/kg/llm-quality` (see
   model's general quality; a pass says nothing about other pages.
 - Prices come from an OpenRouter-like model list only; other providers need a
   price entered. The worst case uses 2 characters per token, not the
-  provider's tokenizer.
+  provider's tokenizer; every cost is an estimate, not the provider's bill.
+- The allowed statements cover what each page plainly states; a correct model
+  may still state something else the page says. It is then listed as not
+  rated, and the result is `passed_with_unrated`, not `passed`.
 - A request in flight cannot be interrupted; cancel waits for its answer or
   timeout.
 - The served model and provider are what the endpoint reports.

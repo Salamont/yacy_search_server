@@ -6214,8 +6214,8 @@
     <trans-unit id="2e7ae1" xml:space="preserve" approved="no" translate="yes">
        <source>caps</source>
     </trans-unit>
-    <trans-unit id="b28fa625" xml:space="preserve" approved="no" translate="yes">
-       <source>Show scope and maximum cost</source>
+    <trans-unit id="65f21789" xml:space="preserve" approved="no" translate="yes">
+       <source>Show scope and estimated cost</source>
     </trans-unit>
     <trans-unit id="dea7e9c7" xml:space="preserve" approved="no" translate="yes">
        <source>Check quality</source>
@@ -6238,11 +6238,11 @@
     <trans-unit id="c8e2546f" xml:space="preserve" approved="no" translate="yes">
        <source>Calls at most, retries included</source>
     </trans-unit>
-    <trans-unit id="dea77aea" xml:space="preserve" approved="no" translate="yes">
-       <source>Tokens at most</source>
+    <trans-unit id="d5a94bc7" xml:space="preserve" approved="no" translate="yes">
+       <source>Tokens, estimated worst case</source>
     </trans-unit>
-    <trans-unit id="4df24a1d" xml:space="preserve" approved="no" translate="yes">
-       <source>Cost at most</source>
+    <trans-unit id="d1405ba" xml:space="preserve" approved="no" translate="yes">
+       <source>Cost, estimated worst case</source>
     </trans-unit>
     <trans-unit id="aebae7a1" xml:space="preserve" approved="no" translate="yes">
        <source>Context window</source>
@@ -6298,8 +6298,8 @@
     <trans-unit id="bdc0c992" xml:space="preserve" approved="no" translate="yes">
        <source>Tokens: prompt, answer, estimated</source>
     </trans-unit>
-    <trans-unit id="2023ed" xml:space="preserve" approved="no" translate="yes">
-       <source>Cost</source>
+    <trans-unit id="1043733b" xml:space="preserve" approved="no" translate="yes">
+       <source>Cost, estimated</source>
     </trans-unit>
     <trans-unit id="a2d4f832" xml:space="preserve" approved="no" translate="yes">
        <source>Deviations</source>
@@ -6349,8 +6349,8 @@
     <trans-unit id="58391b6c" xml:space="preserve" approved="no" translate="yes">
        <source>Checked at</source>
     </trans-unit>
-    <trans-unit id="9fcfa474" xml:space="preserve" approved="no" translate="yes">
-       <source>A passed check means: every reference page was read and no deviation was found within the stated scope. It is no guarantee for other pages and no acceptance for log-report, chat or any other usage. There is no overall score.</source>
+    <trans-unit id="b7d6caa3" xml:space="preserve" approved="no" translate="yes">
+       <source>A passed check means: every reference page was read, no deviation was found within the stated scope, and every statement the validator accepted was rated as expected, allowed or forbidden. With statements not rated, the check is no plain pass. It is no guarantee for other pages and no acceptance for log-report, chat or any other usage. There is no overall score.</source>
     </trans-unit>
     <trans-unit id="57f62784" xml:space="preserve" approved="no" translate="yes">
        <source>Use for the knowledge graph &amp;hellip;</source>
@@ -6400,8 +6400,8 @@
     <trans-unit id="f2ed3a71" xml:space="preserve" approved="no" translate="yes">
        <source>not stated by the model</source>
     </trans-unit>
-    <trans-unit id="a72bb966" xml:space="preserve" approved="no" translate="yes">
-       <source>Checking reference page %1 of %2: %3 of at most %4 calls, cost %5</source>
+    <trans-unit id="2d191c2" xml:space="preserve" approved="no" translate="yes">
+       <source>Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5</source>
     </trans-unit>
     <trans-unit id="532ce7f8" xml:space="preserve" approved="no" translate="yes">
        <source>Cancelling: no further request is sent; the request in flight is answered or times out.</source>
@@ -6418,8 +6418,8 @@
     <trans-unit id="4a2145c1" xml:space="preserve" approved="no" translate="yes">
        <source>the cap of tokens was reached</source>
     </trans-unit>
-    <trans-unit id="64aed674" xml:space="preserve" approved="no" translate="yes">
-       <source>the cap of cost was reached</source>
+    <trans-unit id="db71091e" xml:space="preserve" approved="no" translate="yes">
+       <source>the cost limit was reached (estimated cost)</source>
     </trans-unit>
     <trans-unit id="be6c9578" xml:space="preserve" approved="no" translate="yes">
        <source>an internal error of the check</source>
@@ -6490,6 +6490,33 @@
     <trans-unit id="e8402668" xml:space="preserve" approved="no" translate="yes">
        <source>missing data stays unknown</source>
     </trans-unit>
+    <trans-unit id="588deb42" xml:space="preserve" approved="no" translate="yes">
+       <source>Every cost shown here is an estimate, no guaranteed maximum: prompts at 2 characters per token, answers at the row's max_tokens, times the price per million tokens as given. The provider counts and bills by its own tokenizer and prices, cached or reasoning tokens included, so its bill can differ. The cost limit is checked against this estimate.</source>
+    </trans-unit>
+    <trans-unit id="3c556bb2" xml:space="preserve" approved="no" translate="yes">
+       <source>Allowed, stated by the page as well</source>
+    </trans-unit>
+    <trans-unit id="90f8257d" xml:space="preserve" approved="no" translate="yes">
+       <source>Accepted, but not rated</source>
+    </trans-unit>
+    <trans-unit id="ecbc5e74" xml:space="preserve" approved="no" translate="yes">
+       <source>Accepted statements not rated</source>
+    </trans-unit>
+    <trans-unit id="499a3fe9" xml:space="preserve" approved="no" translate="yes">
+       <source>The validator accepted these statements and the publication would take them, but the test set neither expects, allows nor forbids them. The check says nothing about them: read them before you switch.</source>
+    </trans-unit>
+    <trans-unit id="a23c66e2" xml:space="preserve" approved="no" translate="yes">
+       <source>Statement of the model</source>
+    </trans-unit>
+    <trans-unit id="1aae0277" xml:space="preserve" approved="no" translate="yes">
+       <source>Evidence</source>
+    </trans-unit>
+    <trans-unit id="6e24906c" xml:space="preserve" approved="no" translate="yes">
+       <source>No deviation, but accepted statements not rated: read them before switching</source>
+    </trans-unit>
+    <trans-unit id="c7c495e1" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 more not listed</source>
+    </trans-unit>
     <trans-unit id="6d43a02a" xml:space="preserve" approved="no" translate="yes">
        <source>&lt;label&gt;input &lt;input</source>
     </trans-unit>
@@ -6502,8 +6529,8 @@
     <trans-unit id="922c4745" xml:space="preserve" approved="no" translate="yes">
        <source>&lt;label&gt;at most calls, retries included &lt;input</source>
     </trans-unit>
-    <trans-unit id="5fedc32b" xml:space="preserve" approved="no" translate="yes">
-       <source>&lt;label&gt;at most cost &lt;input</source>
+    <trans-unit id="afebbc16" xml:space="preserve" approved="no" translate="yes">
+       <source>&lt;label&gt;cost limit, against the estimate &lt;input</source>
     </trans-unit>
   </body>
 </file>

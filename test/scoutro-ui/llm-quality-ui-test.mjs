@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /* Copyright 2026 Scoutro contributors. GPL-2.0-or-later.
  * Only run through llm-quality-live-smoke.py: disposable peer + fake model endpoint.
- * The quality check of the LLM selection: candidate, price from the provider list, scope and maximum cost, one check,
- * result with deviations, and a switch of the knowledge model only after a confirmation (saves are intercepted).
+ * The quality check of the LLM selection: candidate, price from the provider list, scope and estimated cost, one check,
+ * result with deviations and a statement not rated, and a switch of the knowledge model only after a confirmation (saves
+ * are intercepted).
  */
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
@@ -68,7 +69,8 @@ try {
     await page.locator('#qualityPlan').waitFor({ state: 'visible' });
     check((await page.locator('[data-q-plan="pages"]').textContent()).startsWith('10'), 'scope: ten pages');
     check((await page.locator('[data-q-plan="calls"]').textContent()).includes('20'), 'calls at most');
-    check((await page.locator('[data-q-plan="cost"]').textContent()).includes('USD'), 'maximum cost');
+    check((await page.locator('[data-q-plan="cost"]').textContent()).includes('USD'), 'estimated cost');
+    check((await page.locator('#qualityPlan .scoutro-quality-estimate').textContent()).includes('no guaranteed maximum'), 'cost shown as an estimate');
     check(await page.inputValue('#qualityMaxCalls') === '20', 'call cap prefilled');
     check(await page.locator('#qualityStartButton').isEnabled(), 'start after the plan');
     await page.click('#qualityStartButton');
@@ -84,7 +86,13 @@ try {
     check((await first.locator('td').nth(2).textContent()).length > 5, 'expectation shown');
     check((await first.locator('td').nth(4).textContent()).length > 5, 'passage of the page shown');
     check((await page.locator('[data-q-prov="served"]').textContent()).includes('FixtureProvider'), 'provenance: served provider');
-    check((await page.locator('[data-q-prov="testset"]').textContent()).includes('kg-reference/1'), 'provenance: test set');
+    check((await page.locator('[data-q-prov="testset"]').textContent()).includes('kg-reference/2'), 'provenance: test set');
+    // an accepted statement the test set does not rate is listed with its evidence
+    check((await page.locator('[data-q-fn="notRated"]').textContent()) === '1', 'not rated counted');
+    check(await page.locator('#qualityUnrated').isVisible(), 'statements not rated shown');
+    const unrated = page.locator('#qualityUnratedTable tbody tr').first();
+    check((await unrated.locator('td').nth(1).textContent()).includes('Musterstadt'), 'statement not rated');
+    check((await unrated.locator('td').nth(2).textContent()).includes('für den Standort Musterstadt'), 'evidence of the statement not rated');
     check(!(await page.content()).includes('sk-quality-sentinel'), 'a key in the page');
     if (shots) await page.screenshot({ path: `${shots}/llm-quality-1280-en.png`, fullPage: true });
     // the matrix's knowledge checkbox: dismissed, nothing changes and nothing is saved
@@ -132,7 +140,10 @@ try {
       await page.locator('#qualityResult').waitFor({ state: 'visible' });
       const status = (await page.locator('#qualityResultStatus').textContent()).trim();
       check(status === (language === 'de' ? 'Abweichungen' : 'Deviations found'), `${language}/${width}: status ${status}`);
+      check(await page.locator('#qualityUnrated').isVisible(), `${language}/${width}: statements not rated shown`);
       if (language === 'de') {
+        check((await page.locator('#qualityUnrated h5').textContent()).includes('Angenommene, nicht bewertete Aussagen'), 'de: not rated heading');
+        check((await page.locator('#qualityPlanButton').textContent()).includes('geschätzte Kosten'), 'de: plan button');
         check((await page.locator('#qualityCheckContainer legend').textContent()).includes('Qualitätsprüfung für den Wissensgraphen'), 'de: legend');
         check((await page.locator('#qualityStartButton').textContent()).includes('Qualität prüfen'), 'de: start button');
       }
@@ -148,6 +159,8 @@ try {
           `${language}/${width}: key and value rows are no cards`);
         const display = await page.locator('#qualityDeviationsTable tbody tr').first().evaluate(row => getComputedStyle(row).display);
         check(display === 'grid', `${language}/${width}: deviation as a card (${display})`);
+        const card = await page.locator('#qualityUnratedTable tbody tr').first().evaluate(row => getComputedStyle(row).display);
+        check(card === 'grid', `${language}/${width}: statement not rated as a card (${card})`);
       }
       for (const id of ['qualityPlanButton', 'qualityStartButton', 'qualityActivateButton', 'qualityCandidate']) {
         const box = await page.locator('#' + id).boundingBox();

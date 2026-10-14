@@ -4297,7 +4297,7 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >candidate<==>Kandidat<
 >price per million tokens<==>Preis pro Million Tokens<
 >caps<==>Obergrenzen<
->Show scope and maximum cost<==>Umfang und Höchstkosten anzeigen<
+>Show scope and estimated cost<==>Umfang und geschätzte Kosten anzeigen<
 >Check quality<==>Qualität prüfen<
 >Cancel the check<==>Prüfung abbrechen<
 >Scope and limits<==>Umfang und Grenzen<
@@ -4305,8 +4305,8 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >Reference pages<==>Referenzseiten<
 >Planned requests<==>Geplante Anfragen<
 >Calls at most, retries included<==>Aufrufe höchstens, Wiederholungen eingeschlossen<
->Tokens at most<==>Tokens höchstens<
->Cost at most<==>Kosten höchstens<
+>Tokens, estimated worst case<==>Tokens, geschätzter ungünstigster Fall<
+>Cost, estimated worst case<==>Kosten, geschätzter ungünstigster Fall<
 >Context window<==>Kontextfenster<
 >Content of the reading<==>Inhalt der Auswertung<
 >Count<==>Anzahl<
@@ -4325,7 +4325,7 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >Calls, of them retries<==>Aufrufe, davon Wiederholungen<
 >Duration<==>Dauer<
 >Tokens: prompt, answer, estimated<==>Tokens: Prompt, Antwort, geschätzt<
->Cost<==>Kosten<
+>Cost, estimated<==>Kosten, geschätzt<
 >Deviations<==>Abweichungen<
 >No deviation within the scope of the test set.<==>Keine Abweichung im Umfang des Testsets.<
 >Reference page<==>Referenzseite<
@@ -4342,10 +4342,10 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >Schema, validator and rules<==>Schema, Validator und Regeln<
 >Test set and evaluation<==>Testset und Bewertung<
 >Checked at<==>Geprüft am<
->A passed check means: every reference page was read and no deviation was found within the stated scope. It is no guarantee for other pages and no acceptance for log-report, chat or any other usage. There is no overall score.<==>Eine bestandene Prüfung bedeutet: Jede Referenzseite wurde gelesen und im angegebenen Umfang wurde keine Abweichung gefunden. Sie ist keine Garantie für andere Seiten und keine Abnahme für log-report, chat oder eine andere Nutzung. Es gibt keine Gesamtpunktzahl.<
+>A passed check means: every reference page was read, no deviation was found within the stated scope, and every statement the validator accepted was rated as expected, allowed or forbidden. With statements not rated, the check is no plain pass. It is no guarantee for other pages and no acceptance for log-report, chat or any other usage. There is no overall score.<==>Eine bestandene Prüfung bedeutet: Jede Referenzseite wurde gelesen, im angegebenen Umfang wurde keine Abweichung gefunden, und jede vom Validator angenommene Aussage wurde als erwartet, zulässig oder verboten bewertet. Mit nicht bewerteten Aussagen ist die Prüfung kein uneingeschränktes Bestehen. Sie ist keine Garantie für andere Seiten und keine Abnahme für log-report, chat oder eine andere Nutzung. Es gibt keine Gesamtpunktzahl.<
 >Use for the knowledge graph &hellip;<==>Für den Wissensgraphen verwenden &hellip;<
 >not checked<==>ungeprüft<
->Test passed within its scope<==>Test bestanden mit Umfang<
+>Test passed within its scope<==>Test im geprüften Umfang bestanden<
 >Deviations found<==>Abweichungen<
 >Technically failed<==>Technisch fehlgeschlagen<
 >Stale since the check: %1 changed. The result is kept; nothing is run again on its own.<==>Veraltet seit der Prüfung: %1 hat sich geändert. Das Ergebnis bleibt erhalten; nichts wird von selbst erneut ausgeführt.<
@@ -4359,13 +4359,13 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >accepted, dropped when the publication was prepared<==>angenommen, bei der Vorbereitung der Veröffentlichung verworfen<
 >the whole answer was refused<==>die ganze Antwort wurde abgelehnt<
 >not stated by the model<==>vom Modell nicht genannt<
->Checking reference page %1 of %2: %3 of at most %4 calls, cost %5<==>Prüfe Referenzseite %1 von %2: %3 von höchstens %4 Aufrufen, Kosten %5<
+>Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5<==>Prüfe Referenzseite %1 von %2: %3 von höchstens %4 Aufrufen, geschätzte Kosten %5<
 >Cancelling: no further request is sent; the request in flight is answered or times out.<==>Wird abgebrochen: Es wird keine weitere Anfrage gesendet; die laufende Anfrage wird beantwortet oder läuft ab.<
 >The check was cancelled.<==>Die Prüfung wurde abgebrochen.<
 >The check stopped early: %1<==>Die Prüfung wurde vorzeitig beendet: %1<
 >the cap of calls was reached<==>die Obergrenze der Aufrufe wurde erreicht<
 >the cap of tokens was reached<==>die Obergrenze der Tokens wurde erreicht<
->the cap of cost was reached<==>die Kostenobergrenze wurde erreicht<
+>the cost limit was reached (estimated cost)<==>die Kostengrenze wurde erreicht (geschätzte Kosten)<
 >an internal error of the check<==>ein interner Fehler der Prüfung<
 >the knowledge graph would not ask about this page<==>der Wissensgraph würde zu dieser Seite nicht fragen<
 >the request does not fit the context window<==>die Anfrage passt nicht in das Kontextfenster<
@@ -4389,11 +4389,20 @@ No models found on this endpoint. Load a model in the service, then retry.==An d
 >software competence or internal use<==>Softwarekompetenz oder interne Nutzung<
 >contradictory statements<==>widersprüchliche Angaben<
 >missing data stays unknown<==>fehlende Angaben bleiben unbekannt<
+>Every cost shown here is an estimate, no guaranteed maximum: prompts at 2 characters per token, answers at the row's max_tokens, times the price per million tokens as given. The provider counts and bills by its own tokenizer and prices, cached or reasoning tokens included, so its bill can differ. The cost limit is checked against this estimate.<==>Jede hier gezeigte Kostenangabe ist eine Schätzung, keine garantierte Obergrenze: Prompts mit 2 Zeichen pro Token, Antworten mit max_tokens der Zeile, mal dem angegebenen Preis pro Million Tokens. Der Anbieter zählt und berechnet nach seinem eigenen Tokenizer und seinen Preisen, einschließlich zwischengespeicherter oder Reasoning-Tokens; seine Rechnung kann daher abweichen. Die Kostengrenze wird gegen diese Schätzung geprüft.<
+>Allowed, stated by the page as well<==>Zulässig, steht ebenfalls auf der Seite<
+>Accepted, but not rated<==>Angenommen, aber nicht bewertet<
+>Accepted statements not rated<==>Angenommene, nicht bewertete Aussagen<
+>The validator accepted these statements and the publication would take them, but the test set neither expects, allows nor forbids them. The check says nothing about them: read them before you switch.<==>Der Validator hat diese Aussagen angenommen und die Veröffentlichung würde sie übernehmen, aber das Testset erwartet, erlaubt oder verbietet sie nicht. Die Prüfung sagt über sie nichts aus: Lesen Sie sie, bevor Sie wechseln.<
+>Statement of the model<==>Aussage des Modells<
+>Evidence<==>Beleg<
+>No deviation, but accepted statements not rated: read them before switching<==>Keine Abweichung, aber angenommene Aussagen nicht bewertet: vor dem Wechsel lesen<
+>%1 more not listed<==>%1 weitere nicht aufgeführt<
 <label>input <input==<label>Eingabe <input
 <label>output <input==<label>Ausgabe <input
 Start without a price: only the caps of calls and tokens apply, the cost stays unknown==Ohne Preis starten: Es gelten nur die Obergrenzen für Aufrufe und Tokens, die Kosten bleiben unbekannt
 <label>at most calls, retries included <input==<label>höchstens Aufrufe, Wiederholungen eingeschlossen <input
-<label>at most cost <input==<label>höchstens Kosten <input
+<label>cost limit, against the estimate <input==<label>Kostengrenze, gegen die Schätzung <input
 #File: LogReports_p.html
 #---------------------------
 The report directory does not exist yet. Reports will appear here after the scheduler has generated the first completed hourly report.==Das Berichtsverzeichnis existiert noch nicht. Berichte erscheinen hier, nachdem der Scheduler den ersten vollständigen Stundenbericht erzeugt hat.

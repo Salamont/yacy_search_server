@@ -24,7 +24,7 @@ import net.yacy.search.Switchboard;
  * {@code /scoutro/api/v1/kg/llm-quality}:
  * <ul>
  * <li>{@code GET} the test set, every production model row with the state of its result, and the run;</li>
- * <li>{@code GET .../plan?candidate=…} scope and maximum cost of a check, before anything is sent;</li>
+ * <li>{@code GET .../plan?candidate=…} scope and estimated cost of a check, before anything is sent;</li>
  * <li>{@code GET .../result?candidate=…} the stored result with its deviations and whether it is stale;</li>
  * <li>{@code GET .../testset} the reference pages and their expectations;</li>
  * <li>{@code POST {"action":"start", …}} starts a check, {@code POST {"action":"cancel"}} cancels it.</li>

@@ -1,7 +1,7 @@
 /* Copyright 2026 Scoutro contributors. GPL-2.0-or-later.
  *
  * The quality check of the LLM selection (docs/SCOUTRO_LLM_QUALITY_CHECK.md, help/LLMSelection_p.md): choose a candidate,
- * see scope and maximum cost, start the check explicitly, read results and deviations, and switch the knowledge model
+ * see scope and estimated cost, start the check explicitly, read results and deviations, and switch the knowledge model
  * only after a confirmation. Choosing a candidate or running a check changes no setting; the switch is the matrix's own
  * knowledge checkbox and save. Visible texts come from #qualityLabels and the static page (translated with the page).
  */
@@ -284,7 +284,7 @@
     stale.textContent = r.stale ? fill(label("stale"), [(r.staleReasons || []).join(", ")]) : "";
     stale.style.display = r.stale ? "" : "none";
     var fn = r.functional || {};
-    ["correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence"].forEach(function (k) {
+    ["correct", "missing", "forbidden", "wrongType", "wrongRelation", "evidence", "allowed", "notRated"].forEach(function (k) {
       cell('[data-q-fn="' + k + '"]', String(fn[k] || 0));
     });
     cell('[data-q-fn="givenByRules"]', String(s.givenByRules || 0));
@@ -329,6 +329,31 @@
       count++;
     });
     show("qualityNoDeviations", count === 0);
+    // accepted statements the test set does not rate: listed, so that no one reads the result as a plain pass
+    var unrated = el("qualityUnratedTable").tBodies[0];
+    unrated.textContent = "";
+    var listed = 0;
+    (fn.cases || []).forEach(function (c) {
+      var items = c.notRated || [];
+      items.forEach(function (item) {
+        var row = document.createElement("tr");
+        row.appendChild(td(label("case_" + c["case"])));
+        row.appendChild(td(item.statement));
+        row.appendChild(td(item.evidence ? "“" + item.evidence + "”" : ""));
+        unrated.appendChild(row);
+        listed++;
+      });
+      var more = ((c.counts || {}).notRated || 0) - items.length;
+      if (more > 0) {
+        var row = document.createElement("tr");
+        row.appendChild(td(label("case_" + c["case"])));
+        row.appendChild(td(fill(label("more_unrated"), [more])));
+        row.appendChild(td(""));
+        unrated.appendChild(row);
+        listed++;
+      }
+    });
+    show("qualityUnrated", listed > 0);
     var p = r.provenance || {};
     var cand = p.candidate || {};
     cell('[data-q-prov="model"]', cand.service + " / " + cand.model + " – " + cand.endpoint);

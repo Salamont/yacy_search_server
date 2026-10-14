@@ -2,8 +2,9 @@
 """Quality check of the LLM selection on NEW disposable DATA and a fake model endpoint only.
 
 Requires ant compile, JDK 17+, Playwright and Chromium. No production URL or DATA parameter is accepted; nothing is
-crawled. The fake endpoint answers every reference page with an empty reading (deviations) and lists a price; the
-browser test runs one check, cancels the switch of the knowledge model and confirms it only into an intercepted save.
+crawled. The fake endpoint answers every reference page with an empty reading (deviations), but the page of a job
+advertisement without employment type with one site the test set does not rate, and lists a price; the browser test runs
+one check, cancels the switch of the knowledge model and confirms it only into an intercepted save.
 Copyright 2026 Scoutro contributors. GPL-2.0-or-later.
 """
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -25,6 +26,8 @@ CLASSPATH = f"{REPO}/build/classes/java/main:{REPO}/lib/*"
 ACTIVE_SECRET = "sk-active-sentinel-0123456789"
 CANDIDATE_SECRET = "sk-quality-sentinel-0123456789"
 EMPTY = '{"entities":[],"claims":[],"values":[]}'
+# accepted by the validator, neither expected, allowed nor forbidden by the test set: listed as not rated
+UNRATED = '{"entities":[{"id":"e1","type":"site","name":"Musterstadt","quote":"für den Standort Musterstadt"}],"claims":[],"values":[]}'
 checks = 0
 chat = []
 lists = []
@@ -63,8 +66,9 @@ class ModelFixture(BaseHTTPRequestHandler):
         if not self.path.endswith("/v1/chat/completions"):
             self.send_error(404)
             return
+        unrated = any("Lagerhelfer" in str(m.get("content", "")) for m in body.get("messages", [])[1:])
         return self.answer(200, {"model": "fixture/served", "provider": "FixtureProvider",
-                                 "choices": [{"message": {"content": EMPTY}, "finish_reason": "stop"}],
+                                 "choices": [{"message": {"content": UNRATED if unrated else EMPTY}, "finish_reason": "stop"}],
                                  "usage": {"prompt_tokens": 900, "completion_tokens": 20}})
 
 
@@ -163,6 +167,7 @@ def main():
                     check(status == 200 and plan["calls"]["planned"] == 10 and plan["calls"]["worstCase"] == 20, "plan: %s" % body[:300])
                     check(plan["window"] == {"tokens": 8192, "source": "configured"}, "window: %s" % plan["window"])
                     check(plan["cost"]["known"] and float(plan["cost"]["worstCase"]) > 0, "worst-case cost: %s" % plan["cost"])
+                    check(plan["cost"]["estimate"] and "no guaranteed maximum" in plan["cost"]["note"], "cost not an estimate: %s" % plan["cost"])
                     check(chat == [], "the plan sent a request: %s" % chat[:1])
                     env = dict(os.environ, SCOUTRO_URL=base, SCOUTRO_QUALITY_STUB=stub, SCOUTRO_QUALITY_KEY=key)
                     subprocess.run(["node", str(REPO / "test/scoutro-ui/llm-quality-ui-test.mjs")], cwd=REPO, env=env, check=True, timeout=420)
@@ -182,6 +187,8 @@ def main():
                     result = json.loads(body)
                     check(result["technical"]["calls"] == 10 and result["technical"]["tokens"]["prompt"] == 9000, "technical: %s" % result["technical"])
                     check(result["provenance"]["served"]["providers"] == {"FixtureProvider": 10}, "served: %s" % result["provenance"]["served"])
+                    check(result["functional"]["notRated"] == 1, "not rated: %s" % result["functional"]["notRated"])
+                    check(result["technical"]["cost"]["estimate"], "result cost not an estimate: %s" % result["technical"]["cost"])
                     check(not result["stale"], "stale right after the check")
                     stored = list((root / "DATA/SCOUTRO/llm-quality").glob("*.json"))
                     check(len(stored) == 1, "result files: %s" % stored)
