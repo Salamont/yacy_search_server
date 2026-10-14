@@ -92,6 +92,15 @@ following own offer (`Kontakt zur X. Unsere Leistungen: ...`,
 prevents this implicit assignment. Schema relation types and both-name grounding stay
 mandatory. Neither a price nor an entity creates an inferred `offers` claim.
 
+For an inline or marked offer list, a direct provider label must own the
+heading. Like the verb binding, this checks the gap after the named provider,
+so leading navigation does not invalidate an explicit own heading.
+`X – Unsere Leistungen: ...` binds X; `X verweist auf Y, deren
+Leistungen: ...` does not. A marked list inherits that binding and the
+heading's negation until its boundary. Negation in the heading or item
+prevents positive evidence from that passage, including its own price. A
+later independent positive passage can still establish the same service.
+
 Known entities retain the types supplied by lower tiers. An `offers` claim
 about a known service still passes the same relation check.
 
@@ -167,7 +176,7 @@ its price stays even if a separate price value lacks its amount. The value
 still gets exactly `no_amount` at its own index. Fixed baseline, collision,
 missing-sample and key-scrubbing tests remain in the focused check.
 
-Validation on the final working tree:
+Validation at the initial reviewed PR head `7ef1aa4` (before the list review correction below):
 
 | Check | Result |
 | --- | --- |
@@ -191,6 +200,102 @@ translation sources compile and run separately; no unrelated test rewrite is
 included. Local Ant/JDK installations, Ivy cache and logs live outside tracked
 source. Java uses the environment's existing CA trust; TLS verification stays
 enabled.
+
+## PR #73 review correction: list ownership and negation
+
+Review baseline: `7ef1aa4e116d309cd1a24e19682d017c63ad856a`; remote PR #73
+and main (`da72b5586`) were checked before changing this branch. PRs #71 and
+#72 are merged. The two new review examples are synthetic, not production
+raw responses:
+
+| Source passage / mock assertion | Reviewed head | Corrected behaviour |
+| --- | --- | --- |
+| `Beispiel Dienste GmbH verweist auf Andere Pflege GmbH, deren Leistungen: Tagespflege` → offers by Beispiel | Relation accepted | Service may remain, but `claim_offer_not_stated` rejects this provider's relation |
+| `Beispiel Dienste GmbH – Nicht angebotene Leistungen: Tagespflege` → service and offers | Both accepted | `entity_service_not_offered`; dependent relation/value dropped |
+| The same headings followed by marked items, including an amount | False offers, or a denied service with name/offer/price | Header ownership and negation apply to items; no price bypass |
+| `Beispiel Dienste GmbH – Unsere Leistungen:` followed by a marked, priced item | Name, offer and price | All retained |
+
+The verb path already used `actorOf`. The inline heading path only required
+provider co-occurrence through `fits`; the marked list path used `fits` alone.
+Neither path consistently tested negation. These are shared validator and
+preparation gaps, independent of the model that proposed the claims.
+
+Test-only commit `9dc56627c` adds neutral mock regressions first. With unchanged
+production code from `7ef1aa4`, the two test classes run **32 tests, 10 fail**;
+the original 20 tests and both new positive controls pass. Failures include
+both exact examples, marked lists, a known service, legacy preparation without
+page context, fresh real publication and actual old accepted cache hits.
+The latter visibly published a denied service's name, `offers` and price.
+After the correction the identical tests pass **32/32**.
+
+The shared change adds direct provider-label ownership for headings; ownership
+and negation inherited by marked entries; negation checked before any cue;
+and no price fallback that bypasses a list's binding. Existing diagnostic
+reasons and item indices are reused. Cache hits
+still cause no model call, leave the old cache row in place and are guarded
+before publication. Tests compare the compressed accepted-result bytes before
+and after the hit; normal LRU bookkeeping is unaffected. No new production
+raw-answer storage is introduced.
+
+An additional positive boundary test uses a denied list followed by a real
+offer of the same service after a blank line. It verifies the accepted source
+passage, rejection index and the exact service reference for the remaining
+relation and price, both with validation and direct preparation of an old
+subset with stored page context.
+
+Short quotes need source context as well: a model can quote only
+`Tagespflege, 12 EUR pro Tag`, omitting the denied heading. Three further
+regressions failed on the first correction (36 tests, 3 failures); they
+published the service's name and price. A known-service relation quoting an
+apparently positive bullet under a denied heading is also rejected. These
+tests are in the second test-only commit `7e13475ec`, before the correction
+was committed.
+
+`LlmExtractor` now passes the raw source and quote together for quoted
+service/price and relation evidence, in validation and preparation. The shared
+helper requires the quote's own proof and reads its original list context,
+restricting candidate occurrences to that literal quote's source range. It
+cannot borrow another occurrence's offer elsewhere. Page-level service type
+evidence can still come from an independent positive passage. Price parsing
+and value formats are unchanged. Legacy calls without page context can check
+only the stored passages; the actual publication/cache path supplies the
+stored page text.
+
+Final supplemental reproduction: compile `ServiceEvidence` and `LlmExtractor`
+from the exact reviewed head `7ef1aa4` into a separate class directory and run
+both final test classes with those classes first; all unchanged surrounding
+production classes are shared. The final run gives **38 tests, 15 failures**,
+and the corrected classes pass **38/38**. The test classes cover full and shortened quotes,
+known service targets, raw-context and legacy preparation, real publication,
+actual old cache hits and positive list boundaries.
+
+Test-only commit `7d3fe2c9e` also checks unchanged cache result bytes and an
+owned inline list preceded by flattened navigation. An initially overstrict
+heading binding rejected the latter (1 failure in 28 unit tests); checking the
+gap between the named provider and heading, consistently with the verb path,
+preserves it without admitting the third-party example. Those unit tests then
+pass 28/28. The two final regression classes contain **38 tests**.
+
+Final validation after production commit `14d1901fc`:
+
+| Check | Result |
+| --- | --- |
+| `ant all dist scoutro-kg-offer-evidence-test` | BUILD SUCCESSFUL; 60 Jetty tests and 108 focused tests, including all 38 offer regressions |
+| All 130 `net.yacy.scoutro` JUnit classes, compiled separately | 1233 passed |
+| Both offer regression classes with the two original classes from `7ef1aa4` first on the classpath | 38 tests, 15 failures |
+| `ant compileTest` | The same 15 existing compilation errors in `HostBalancerTest` and `NetworkGraphTest` |
+| Local documentation links / `git diff --check` | Passed |
+
+The general Ant test compilation rebuilds the Solr bridge jars; it must run
+separately from external javac/JUnit invocations using `lib/*`. An initial
+overlapping invocation failed before the Scoutro tests could start because a
+jar was being replaced. Sequential rebuilding and the final full run above
+resolved this local harness issue. No unrelated test or dependency change is
+included. The original UI/locale/AI checks listed earlier were not rerun for
+this internal correction; their sources and labels are unchanged.
+
+For the next release/package work, see
+[the release handoff](SCOUTRO_SERVICE_OFFER_RELEASE_HANDOFF.md).
 
 ## Limits
 

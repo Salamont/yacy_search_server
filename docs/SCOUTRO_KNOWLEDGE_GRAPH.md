@@ -3510,6 +3510,13 @@ shared validator/publication fix and its limits. This supersedes section 33's
 service-heading scan over unmarked navigation labels. Explicit offer lists in
 navigation and services supported by content remain valid.
 
+Inline and marked lists bind `offers` to the heading's direct provider label;
+a referring organisation does not inherit a third party's offers. Heading
+and item negation prevent positive evidence, including prices in that scope.
+Shortened quotes retain the original source/list context. The next
+[release/package handoff](SCOUTRO_SERVICE_OFFER_RELEASE_HANDOFF.md) is required:
+published 0.10.8 and its existing package PR #10 do not contain #73.
+
 `entity_service_not_offered` also covers a name whose own words were its only
 offer cue. `claim_offer_not_stated` covers a grounded, correctly typed `offers`
 claim without an offer of that service by that provider. Both use the existing
