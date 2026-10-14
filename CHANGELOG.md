@@ -2,7 +2,16 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased
+## 0.10.8 / 1.942-scoutro.32 — patch: the quality check with a fixed baseline and a diagnosis of each reference page
+
+Patch of the installed 0.10.7. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.8.md).
+Only the quality check of the LLM selection changes (evaluation 3, diagnosis
+1). Knowledge graph schema stays **6**, the extractor identity of tiers 1 and 2
+(JSON-LD 5, rules 6), the relation rules 5, the LLM extractor version
+(`llm/4`), the default prompt and every setting stay: no re-check, no
+re-extraction, no LLM request by the upgrade. Results of evaluation 2 are kept
+unchanged and shown as stale. Integrates #71.
 
 ### fix: a fixed baseline of the quality check, and a diagnosis of each reference page (evaluation 3)
 
