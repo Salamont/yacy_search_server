@@ -103,6 +103,11 @@ public final class LlmReading {
         return LlmExtractor.validate(answer, part.chunk, part.known, this.kinds);
     }
 
+    /** As {@link #check(String, RequestBudget.Part)}, keeping up to {@code samples} dropped items (the quality check's diagnostics). */
+    public LlmExtractor.Result check(final String answer, final RequestBudget.Part part, final int samples) {
+        return LlmExtractor.validate(answer, part.chunk, part.known, this.kinds, samples);
+    }
+
     /**
      * What the accepted answers are read with into the extraction: the vocabularies and job policy of the page's collections,
      * and the job titles the rules see as positions of the page (a job they see as a menu entry is none of the model's either).

@@ -2363,6 +2363,8 @@
             <h4 id="qualityResultStatus"></h4>
             <p id="qualityResultScope"></p>
             <p id="qualityResultStale" class="alert alert-warning" style="display:none"></p>
+            <p id="qualityOldEvaluation" class="alert alert-warning" style="display:none"></p>
+            <p id="qualityDiagnosisNote" class="alert alert-warning" style="display:none"></p>
             <table class="table table-striped scoutro-quality-kv" id="qualityFunctionalTable">
                 <thead class="thead-dark"><tr><td>Content of the reading</td><td>Count</td></tr></thead>
                 <tbody>
@@ -2373,6 +2375,7 @@
                     <tr><td>Wrong relation</td><td data-q-fn="wrongRelation"></td></tr>
                     <tr><td>Unfitting evidence</td><td data-q-fn="evidence"></td></tr>
                     <tr><td>Given by the rules, not rated</td><td data-q-fn="givenByRules"></td></tr>
+                    <tr><td>Repeated from the rules, not rated</td><td data-q-fn="repeatsRules"></td></tr>
                     <tr><td>Allowed, stated by the page as well</td><td data-q-fn="allowed"></td></tr>
                     <tr><td>Accepted, but not rated</td><td data-q-fn="notRated"></td></tr>
                 </tbody>
@@ -2408,6 +2411,7 @@
             </table>
             </div>
             </div>
+            <p id="qualityEarlier" style="display:none"></p>
             <h5>Provenance</h5>
             <table class="table table-striped scoutro-quality-kv" id="qualityProvenanceTable">
                 <thead class="thead-dark"><tr><td>Provenance of the result</td><td>Value</td></tr></thead>
@@ -2440,7 +2444,19 @@
             <span data-q="dropped_by_validator">stated by the model, dropped by the validator</span>
             <span data-q="dropped_by_preparation">accepted, dropped when the publication was prepared</span>
             <span data-q="answer_refused">the whole answer was refused</span>
-            <span data-q="not_stated">not stated by the model</span>
+            <span data-q="not_stated">not stated by the model (every answer checked)</span>
+            <span data-q="stated_otherwise">stated otherwise (another name, type, assignment or evidence)</span>
+            <span data-q="cause_unknown">cause not traceable</span>
+            <span data-q="reason_not_attributed">reason not attributable to this statement; reasons of the answer: %1</span>
+            <span data-q="checks">checked: statement %1, quote on the page %2, names in the quote %3, type %4, assignment %5</span>
+            <span data-q="yes">yes</span>
+            <span data-q="no">no</span>
+            <span data-q="unchecked_part">not checked</span>
+            <span data-q="names_missing">missing: %1</span>
+            <span data-q="diagnosis_incomplete">The diagnosis is incomplete for %1 reference pages (%2): what was cut or left out is marked in the stored result.</span>
+            <span data-q="old_evaluation">Evaluated with evaluation %1 (now %2): kept as it was. Where it says a statement was not stated, the answers were not checked completely; it is shown as: cause not traceable.</span>
+            <span data-q="earlier">Earlier results of this model, kept as they were: %1</span>
+            <span data-q="earlier_item">%1 – %2, evaluation %3</span>
             <span data-q="running">Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5</span>
             <span data-q="cancelling">Cancelling: no further request is sent; the request in flight is answered or times out.</span>
             <span data-q="cancelled">The check was cancelled.</span>

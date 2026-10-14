@@ -19,10 +19,8 @@ package net.yacy.scoutro.knowledge.quality;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -42,8 +40,9 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
 /**
  * Compares what a reading of a reference page states with the page's expectations (docs/SCOUTRO_LLM_QUALITY_CHECK.md, 4).
  * Only what the LLM tier adds is rated (tier 3, as the publication would take it). Tiers 1 and 2 are the same for every
- * model: an expected statement they make already is listed as given by the rules, not rated, and a forbidden one they
- * make is not the model's. Names are compared normalised ({@link Normalizers#key}): an id the model gives is never
+ * model, and so is the baseline they set, fixed before any answer is looked at: an expected statement they make already
+ * is listed as given by the rules and never expected of the model, and a model that states it again repeats it (counted
+ * on its own, not rated). A forbidden one they make is not the model's. Names are compared normalised ({@link Normalizers#key}): an id the model gives is never
  * compared. There is no score: the result lists what is correct, what is allowed, each deviation with the page's passage,
  * the expectation and the actual statement, and the statements neither expected, allowed nor forbidden. Those are not rated:
  * the validator accepted them and the publication would take them, so a result with one is never a plain pass
@@ -51,15 +50,20 @@ import net.yacy.scoutro.knowledge.resolve.Normalizers;
  */
 public final class QualityEvaluator {
 
-    /** The rules of this class; a change makes earlier results stale. */
-    public static final String VERSION = "2";
+    /**
+     * The rules of this class; a change makes earlier results stale. 3: the baseline of tiers 1 and 2 is fixed before the
+     * answer is looked at (2 counted an expected statement the rules make as the model's whenever the model repeated it),
+     * repetitions are counted on their own, and a missing statement is "not stated" only where every answer was checked.
+     */
+    public static final String VERSION = "3";
 
     /** Kinds of deviation. */
     public static final String MISSING = "missing", FORBIDDEN = "forbidden", WRONG_TYPE = "wrong_type",
             WRONG_RELATION = "wrong_relation", EVIDENCE = "evidence";
     /** Why a missing statement is missing, where the answers show it. */
     public static final String NOT_STATED = "not_stated", DROPPED_BY_VALIDATOR = "dropped_by_validator",
-            DROPPED_BY_PREPARATION = "dropped_by_preparation", ANSWER_REFUSED = "answer_refused";
+            DROPPED_BY_PREPARATION = "dropped_by_preparation", ANSWER_REFUSED = "answer_refused",
+            STATED_OTHERWISE = "stated_otherwise", CAUSE_UNKNOWN = "cause_unknown";
     /** Characters of the page around a passage shown with a deviation. */
     static final int CONTEXT_CHARS = 90;
     /** Statements neither expected, allowed nor forbidden listed per case (they are not rated). */
@@ -107,11 +111,18 @@ public final class QualityEvaluator {
         final String raw;
         final LlmExtractor.Result result;
         final List<LlmExtractor.Known> known;
+        /** The model stopped at its output cap: the answer may lack what it would have stated. */
+        final boolean truncated;
 
         public Answer(final String raw, final LlmExtractor.Result result, final List<LlmExtractor.Known> known) {
+            this(raw, result, known, false);
+        }
+
+        public Answer(final String raw, final LlmExtractor.Result result, final List<LlmExtractor.Known> known, final boolean truncated) {
             this.raw = raw;
             this.result = result;
             this.known = known;
+            this.truncated = truncated;
         }
     }
 
@@ -272,49 +283,141 @@ public final class QualityEvaluator {
     }
 
     /**
-     * Where a missing statement went: stated by the model and dropped by the validator (with its reasons), accepted but
-     * dropped while the publication was prepared, a refused answer, or not stated at all.
+     * Where a missing statement went, as far as the answers show it: a refused answer; stated by the model and dropped by
+     * the validator (with the reason of exactly that item, where its sample names it); accepted but not taken while the
+     * publication was prepared; stated otherwise (another name, type, assignment or evidence); or not stated. "Not stated"
+     * is said only where every answer of the page was read and none was cut off at the output cap; otherwise the cause is
+     * unknown, with what is missing. Each item found is checked on its own: the statement, the verbatim evidence on the
+     * page, the names the validator requires in the evidence, the entity types and the assignment.
      */
-    static JSONObject whereMissing(final Statement s, final List<Answer> answers, final Extraction ex) {
+    static JSONObject whereMissing(final Statement s, final String page, final List<Answer> answers, final Extraction ex) {
+        if (answers == null || answers.isEmpty()) {
+            return KgJson.obj("why", CAUSE_UNKNOWN, "incomplete", new JSONArray().put("no_answer"));
+        }
+        final JSONArray refused = new JSONArray();
         for (final Answer a : answers) {
             if (a.result != null && a.result.refused != null) {
-                return KgJson.obj("why", ANSWER_REFUSED, "refused", a.result.refused);
+                refused.put(a.result.refused);
             }
         }
-        for (final Answer a : answers) {
-            final JSONObject raw = json(a.raw == null ? null : a.raw.trim());
+        if (refused.length() > 0) {
+            return KgJson.obj("why", ANSWER_REFUSED, "refused", refused.optString(0), "refusedAnswers", refused);
+        }
+        final JSONArray incomplete = new JSONArray();
+        JSONObject otherwise = null;
+        for (int i = 0; i < answers.size(); i++) {
+            final Answer a = answers.get(i);
+            final JSONObject raw = LlmExtractor.parsed(a.raw);
             if (raw == null) {
+                incomplete.put("answer_" + (i + 1) + "_unreadable");
                 continue;
+            }
+            if (a.truncated) {
+                incomplete.put("answer_" + (i + 1) + "_truncated");
             }
             final Map<String, String[]> ids = ids(raw, a.known);
-            final JSONObject stated = stated(s, raw, ids);
+            final JSONObject stated = stated(s, raw, ids, false);
             if (stated == null) {
+                if (otherwise == null) {
+                    final JSONObject o = stated(s, raw, ids, true);
+                    if (o != null) {
+                        otherwise = KgJson.obj("answer", i + 1, "stated", o, "checks", checks(s, o, page, false));
+                    }
+                }
                 continue;
             }
+            final JSONObject checks = checks(s, stated, page, true);
             final JSONObject accepted = a.result == null ? null : a.result.accepted;
-            final boolean kept = accepted != null && stated(s, accepted, ids(accepted, a.known)) != null;
+            final boolean kept = accepted != null && stated(s, accepted, ids(accepted, a.known), false) != null;
             if (kept) {
                 // the validator kept it: the extraction did not take it (e.g. a job of a menu entry, jobs off)
-                return KgJson.obj("why", DROPPED_BY_PREPARATION, "stated", stated);
+                return KgJson.obj("why", DROPPED_BY_PREPARATION, "answer", i + 1, "stated", stated, "checks", checks);
             }
-            final Set<String> reasons = new LinkedHashSet<>();
-            if (a.result != null) {
-                final String excerpt = LlmExtractor.redact(stated.optString("quote", null));
-                for (final JSONObject sample : a.result.samples) {
-                    if (excerpt != null && excerpt.equals(sample.optString("excerpt", null))) {
-                        reasons.add(sample.optString("reason"));
-                    }
-                }
-                if (reasons.isEmpty()) {
-                    reasons.addAll(a.result.droppedInvalidByReason.keySet());
-                    if (a.result.droppedUngrounded > 0) {
-                        reasons.add("ungrounded");
-                    }
-                }
-            }
-            return KgJson.obj("why", DROPPED_BY_VALIDATOR, "stated", stated, "reasons", new JSONArray(reasons));
+            final JSONObject drop = drop(stated, a.result);
+            return KgJson.obj("why", DROPPED_BY_VALIDATOR, "answer", i + 1, "stated", stated, "checks", checks,
+                    "reasons", drop.optJSONArray("reasons"), "reasonAttributed", drop.optBoolean("attributed"),
+                    "drop", drop.optJSONObject("sample"), "answerReasons", drop.optJSONArray("answerReasons"),
+                    "samplesComplete", drop.optBoolean("samplesComplete"));
         }
-        return KgJson.obj("why", NOT_STATED);
+        if (otherwise != null) {
+            KgJson.put(otherwise, "why", STATED_OTHERWISE);
+            if (incomplete.length() > 0) {
+                KgJson.put(otherwise, "incomplete", incomplete);
+            }
+            return otherwise;
+        }
+        if (incomplete.length() > 0) {
+            return KgJson.obj("why", CAUSE_UNKNOWN, "incomplete", incomplete, "checkedAnswers", answers.size());
+        }
+        return KgJson.obj("why", NOT_STATED, "checkedAnswers", answers.size());
+    }
+
+    /**
+     * The validator's reason for exactly this item: the sample of the same kind at the same position of its list in the
+     * answer (the validator carries the position into each sample). Kind, predicate and quote are no identity: two items
+     * may share them, and a sample keeps only the start of a quote. Exactly one sample at that position attributes its
+     * reason; none (samples are bounded) or more than one leaves the reason not attributed, and the answer's reasons are
+     * then listed apart, never as this item's.
+     */
+    private static JSONObject drop(final JSONObject stated, final LlmExtractor.Result r) {
+        final JSONArray reasons = new JSONArray();
+        final JSONArray answerReasons = new JSONArray();
+        JSONObject sample = null;
+        boolean complete = false;
+        if (r != null) {
+            final String item = stated.optString("item");
+            final int index = stated.optInt("index", -1);
+            final List<JSONObject> same = new ArrayList<>();
+            for (final JSONObject x : r.samples) {
+                if (index >= 0 && item.equals(x.optString("item")) && x.has("index") && x.optInt("index", -2) == index) {
+                    same.add(x);
+                }
+            }
+            if (same.size() == 1) {
+                sample = same.get(0);
+                reasons.put(sample.optString("reason"));
+            }
+            for (final String k : r.droppedInvalidByReason.keySet()) {
+                answerReasons.put(k);
+            }
+            if (r.droppedUngrounded > 0) {
+                answerReasons.put("ungrounded");
+            }
+            complete = r.samples.size() >= r.droppedInvalid + r.droppedUngrounded;
+        }
+        return KgJson.obj("reasons", reasons, "attributed", reasons.length() > 0, "sample", sample,
+                "answerReasons", answerReasons, "samplesComplete", complete);
+    }
+
+    /**
+     * The checks of an item the model stated, each on its own: the statement (predicate and, for a value, the expected
+     * passage in its evidence), the evidence verbatim on the page, the names the validator requires in the evidence, the
+     * types and the assignment to the expected entities.
+     */
+    static JSONObject checks(final Statement s, final JSONObject stated, final String page, final boolean assigned) {
+        final String quote = stated.optString("quote", null);
+        final JSONObject names = new JSONObject();
+        for (final String f : List.of("name", "subject", "object")) {
+            final String n = stated.optString(f, null);
+            if (n != null && !n.isEmpty()) {
+                KgJson.put(names, n, LlmExtractor.nameInQuote(quote, n));
+            }
+        }
+        Boolean type = null;
+        if (Statement.ENTITY.equals(s.kind)) {
+            type = typed(s.subject, stated.optString("type", null));
+        } else {
+            type = typed(s.subject, stated.optString("subjectType", null))
+                    && (s.object == null || typed(s.object, stated.optString("objectType", null)));
+        }
+        Boolean statement = Statement.VALUE.equals(s.kind) ? (s.evidence == null ? null : contains(quote, s.evidence))
+                : Boolean.valueOf(s.predicate.equals(stated.optString("predicate", s.predicate)));
+        return KgJson.obj("statement", statement, "quoteOnPage", LlmExtractor.quoteInText(page, quote), "namesInQuote", names,
+                "type", type, "assignment", assigned, "evidencePassage", s.evidence == null ? null : contains(quote, s.evidence));
+    }
+
+    private static boolean typed(final Ref r, final String type) {
+        return r == null || QualityCases.ANY.equals(r.type) || r.type.equals(type);
     }
 
     /** id -> {type, name} of the entities of an answer and the known entities it was asked with. */
@@ -335,14 +438,24 @@ public final class QualityEvaluator {
         return out;
     }
 
-    /** The item of an answer that makes this statement (types not compared: a wrong type is reported on its own), or null. */
-    private static JSONObject stated(final Statement s, final JSONObject answer, final Map<String, String[]> ids) {
+    /**
+     * The item of an answer that makes this statement (types not compared: a wrong type is reported on its own), or null.
+     * {@code otherwise}: an item that makes it in part instead (the expected passage in its evidence, or the predicate with
+     * one of the two entities): the statement under another name or assignment.
+     */
+    private static JSONObject stated(final Statement s, final JSONObject answer, final Map<String, String[]> ids, final boolean otherwise) {
         if (Statement.ENTITY.equals(s.kind)) {
             final JSONArray entities = answer.optJSONArray("entities");
             for (int i = 0; entities != null && i < entities.length(); i++) {
                 final JSONObject e = entities.optJSONObject(i);
-                if (e != null && sameName(s.subject, e.optString("name"))) {
-                    return KgJson.obj("type", e.optString("type"), "name", e.optString("name"), "quote", e.optString("quote", null));
+                if (e == null) {
+                    continue;
+                }
+                final boolean named = sameName(s.subject, e.optString("name"));
+                final boolean partly = !named && s.evidence != null && contains(e.optString("quote", null), s.evidence);
+                if (otherwise ? partly : named) {
+                    return KgJson.obj("item", "entity", "index", i, "type", e.optString("type"), "name", e.optString("name"),
+                            "quote", e.optString("quote", null));
                 }
             }
             return null;
@@ -354,17 +467,26 @@ public final class QualityEvaluator {
                 continue;
             }
             final String[] subject = ids.get(c.optString("subject"));
-            if (subject == null || !sameName(s.subject, subject[1])) {
-                continue;
-            }
+            final boolean subjectNamed = subject != null && sameName(s.subject, subject[1]);
             if (Statement.RELATION.equals(s.kind)) {
                 final String[] object = ids.get(c.optString("object"));
-                if (object == null || !sameName(s.object, object[1]) && !s.object.names.isEmpty()) {
-                    continue;
+                final boolean objectNamed = object != null && (s.object.names.isEmpty() || sameName(s.object, object[1]));
+                final boolean match = subjectNamed && objectNamed;
+                final boolean partly = !match && (subjectNamed || objectNamed
+                        || s.evidence != null && contains(c.optString("quote", null), s.evidence));
+                if (otherwise ? partly : match) {
+                    return KgJson.obj("item", "claim", "index", i, "subject", subject == null ? c.optString("subject") : subject[1],
+                            "subjectType", subject == null ? null : subject[0], "predicate", s.predicate,
+                            "object", object == null ? c.optString("object") : object[1], "objectType", object == null ? null : object[0],
+                            "quote", c.optString("quote", null));
                 }
-                return KgJson.obj("subject", subject[1], "predicate", s.predicate, "object", object[1], "quote", c.optString("quote", null));
+                continue;
             }
-            return KgJson.obj("subject", subject[1], "predicate", s.predicate, "quote", c.optString("quote", null));
+            final boolean partly = !subjectNamed && s.evidence != null && contains(c.optString("quote", null), s.evidence);
+            if (otherwise ? partly : subjectNamed) {
+                return KgJson.obj("item", "value", "index", i, "subject", subject == null ? c.optString("subject") : subject[1],
+                        "subjectType", subject == null ? null : subject[0], "predicate", s.predicate, "quote", c.optString("quote", null));
+            }
         }
         return null;
     }
@@ -373,6 +495,22 @@ public final class QualityEvaluator {
             final JSONObject where) {
         return KgJson.obj("kind", kind, role, KgJson.obj("statement", s.label(), "reason", s.reason, "evidence", s.evidence),
                 "actual", a == null ? null : a.json(), "source", source, "where", where);
+    }
+
+    /** True if tiers 1 and 2 make this statement as well: the same entity, relation or value under the same types. */
+    static boolean repeatsRule(final Actual a, final List<Actual> rules) {
+        for (final Actual r : rules) {
+            if (r.kind.equals(a.kind) && r.subjectType.equals(a.subjectType) && same(r.subjectName, a.subjectName)
+                    && java.util.Objects.equals(r.predicate, a.predicate) && java.util.Objects.equals(r.objectType, a.objectType)
+                    && same(r.objectName, a.objectName) && java.util.Objects.equals(r.value, a.value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean same(final String x, final String y) {
+        return x == null ? y == null : y != null && java.util.Objects.equals(Normalizers.key(x), Normalizers.key(y));
     }
 
     /**
@@ -388,8 +526,20 @@ public final class QualityEvaluator {
         final List<Actual> rated = new ArrayList<>();
         final JSONArray correct = new JSONArray();
         final JSONArray byRules = new JSONArray();
+        final JSONArray repeats = new JSONArray();
         final JSONArray deviations = new JSONArray();
         int missing = 0, forbidden = 0, wrongType = 0, wrongRelation = 0, evidence = 0, modelExpected = 0;
+        // the baseline: what tiers 1 and 2 state of the expected statements, fixed before the answer is looked at
+        final List<Statement> baseline = new ArrayList<>();
+        for (final Statement s : c.expected) {
+            for (final Actual a : rules) {
+                if (matches(s, a)) {
+                    baseline.add(s);
+                    byRules.put(KgJson.obj("expected", s.label(), "actual", a.json()));
+                    break;
+                }
+            }
+        }
         for (final Statement s : c.expected) {
             final List<Actual> hits = new ArrayList<>();
             for (final Actual a : actual) {
@@ -397,19 +547,13 @@ public final class QualityEvaluator {
                     hits.add(a);
                 }
             }
-            if (hits.isEmpty()) {
-                Actual given = null;
-                for (final Actual a : rules) {
-                    if (matches(s, a)) {
-                        given = a;
-                        break;
-                    }
+            if (baseline.contains(s)) {
+                // the rules state it: the same for every model, not rated; a model that states it again repeats it
+                for (final Actual a : hits) {
+                    rated.add(a);
+                    repeats.put(KgJson.obj("statement", a.label(), "expected", s.label(), "evidence", a.excerpt));
                 }
-                if (given != null) {
-                    // tiers 1 and 2 state it already: the same for every model, not rated
-                    byRules.put(KgJson.obj("expected", s.label(), "actual", given.json()));
-                    continue;
-                }
+                continue;
             }
             modelExpected++;
             if (!hits.isEmpty()) {
@@ -455,7 +599,8 @@ public final class QualityEvaluator {
                 continue;
             }
             missing++;
-            deviations.put(deviation(MISSING, s, "expected", null, source(c.text, s.evidence, s.subject.names), whereMissing(s, answers, ex)));
+            deviations.put(deviation(MISSING, s, "expected", null, source(c.text, s.evidence, s.subject.names),
+                    whereMissing(s, c.text, answers, ex)));
         }
         for (final Statement s : c.forbidden) {
             for (final Actual a : actual) {
@@ -480,6 +625,13 @@ public final class QualityEvaluator {
                 }
             }
         }
+        // a statement the rules make as well (not an expected one): a repetition, not rated either
+        for (final Actual a : actual) {
+            if (!rated.contains(a) && repeatsRule(a, rules)) {
+                rated.add(a);
+                repeats.put(KgJson.obj("statement", a.label(), "evidence", a.excerpt));
+            }
+        }
         final JSONArray extra = new JSONArray();
         int extras = 0;
         for (final Actual a : actual) {
@@ -495,8 +647,9 @@ public final class QualityEvaluator {
                 "emptyReading", actual.isEmpty() && modelExpected > 0,
                 "counts", KgJson.obj("expected", modelExpected, "givenByRules", byRules.length(), "correct", correct.length(),
                         "missing", missing, "forbidden", forbidden, "wrongType", wrongType, "wrongRelation", wrongRelation,
-                        "evidence", evidence, "allowed", allowed.length(), "notRated", extras),
-                "correct", correct, "givenByRules", byRules, "allowed", allowed, "deviations", deviations, "notRated", extra);
+                        "evidence", evidence, "allowed", allowed.length(), "notRated", extras, "repeatsRules", repeats.length()),
+                "correct", correct, "givenByRules", byRules, "repeatsRules", repeats, "allowed", allowed, "deviations", deviations,
+                "notRated", extra);
     }
 
     /**

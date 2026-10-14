@@ -311,11 +311,17 @@ public final class LlmExtractor {
             this.droppedInvalidByReason.merge(reason, 1, Integer::sum);
         }
 
+        /** Dropped items kept as samples: {@link #SAMPLES}, or more for the quality check's diagnostics. */
+        int sampleLimit = SAMPLES;
+        /** The position of the item being checked in its list of the answer (entities, claims or values); -1 outside. */
+        int index = -1;
+
         void sample(final String reason, final String item, final String predicate, final String subjectType, final String subjectRef,
                 final String objectType, final String objectRef, final String quote) {
-            if (this.samples.size() < SAMPLES) {
-                this.samples.add(item("reason", reason, "item", item, "predicate", predicate, "subjectType", subjectType,
-                        "subject", subjectRef, "objectType", objectType, "object", objectRef, "excerpt", redact(quote)));
+            if (this.samples.size() < this.sampleLimit) {
+                this.samples.add(item("reason", reason, "item", item, "index", this.index < 0 ? null : this.index, "predicate", predicate,
+                        "subjectType", subjectType, "subject", subjectRef, "objectType", objectType, "object", objectRef,
+                        "excerpt", redact(quote)));
             }
         }
     }
@@ -550,6 +556,14 @@ public final class LlmExtractor {
      * rule or are not grounded in the text are dropped and counted.
      */
     public static Result validate(final String answer, final Chunk chunk, final List<Known> known, final Set<String> kinds) {
+        return validate(answer, chunk, known, kinds, SAMPLES);
+    }
+
+    /**
+     * As {@link #validate(String, Chunk, List, Set)}, keeping up to {@code samples} dropped items: the quality check keeps
+     * every one of a reference page (its diagnostics), the queue the few of the refusal diagnostics.
+     */
+    public static Result validate(final String answer, final Chunk chunk, final List<Known> known, final Set<String> kinds, final int samples) {
         if (answer == null) {
             return new Result(null, "empty");
         }
@@ -601,6 +615,7 @@ public final class LlmExtractor {
         final JSONArray okEntities = new JSONArray();
         final JSONArray okClaims = new JSONArray();
         final Result r = new Result(new JSONObject(), null);
+        r.sampleLimit = Math.max(0, samples);
         // entities of the answer that were dropped, with the reason: a claim about one is no unresolved reference
         final Map<String, String> dropped = new LinkedHashMap<>();
         // a new entity of the type and name of a known one is that entity (as apply() resolves it)
@@ -608,6 +623,7 @@ public final class LlmExtractor {
         // the quotes of the answer's own offers, prices and hiring statements about its entities: context of their type
         final Map<String, List<String>> context = context(claims, values);
         for (int i = 0; i < entities.length(); i++) {
+            r.index = i;
             final JSONObject e = entities.optJSONObject(i);
             if (e == null || !onlyKeys(e, ENTITY_KEYS)) {
                 r.invalid(e == null ? "entity_not_object" : "entity_extra_field");
@@ -659,9 +675,11 @@ public final class LlmExtractor {
             r.entities++;
         }
         for (int i = 0; i < claims.length(); i++) {
+            r.index = i;
             final JSONObject c = claims.optJSONObject(i);
             if (c == null || !onlyKeys(c, CLAIM_KEYS)) {
                 r.invalid(c == null ? "claim_not_object" : "claim_extra_field");
+                r.sample(c == null ? "claim_not_object" : "claim_extra_field", "claim", null, null, null, null, null, null);
                 continue;
             }
             final String rawSubject = string(c, "subject");
@@ -714,9 +732,11 @@ public final class LlmExtractor {
         }
         final JSONArray okValues = new JSONArray();
         for (int i = 0; i < values.length(); i++) {
+            r.index = i;
             final JSONObject v = values.optJSONObject(i);
             if (v == null || !onlyKeys(v, VALUE_KEYS)) {
                 r.invalid(v == null ? "value_not_object" : "value_extra_field");
+                r.sample(v == null ? "value_not_object" : "value_extra_field", "value", null, null, null, null, null, null);
                 continue;
             }
             final String rawSubject = string(v, "subject");
@@ -1175,6 +1195,35 @@ public final class LlmExtractor {
     // ------------------------------------------------------------ helpers
 
     /** A single fenced block ({@code ```json ... ```}) is unwrapped; nothing else is repaired. */
+    /** The answer as the validator reads it (a fence removed), or null if it is no single JSON object. Diagnostics only. */
+    public static JSONObject parsed(final String answer) {
+        if (answer == null) {
+            return null;
+        }
+        try {
+            final String json = unfence(answer);
+            if (json.isEmpty() || json.charAt(0) != '{') {
+                return null;
+            }
+            final org.json.JSONTokener tok = new org.json.JSONTokener(json);
+            final Object v = tok.nextValue();
+            return v instanceof JSONObject && tok.nextClean() == 0 ? (JSONObject) v : null;
+        } catch (final JSONException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** True if the validator finds the quote verbatim in the text (whitespace and quotation marks normalised). Diagnostics only. */
+    public static boolean quoteInText(final String text, final String quote) {
+        return quote != null && groundedAt(normal(text), quote, List.of()) >= 0;
+    }
+
+    /** True if the name stands in the quote as the validator requires it of an entity or of both ends of a claim. */
+    public static boolean nameInQuote(final String quote, final String name) {
+        final String nk = Normalizers.key(name);
+        return quote != null && nk != null && (" " + nonNull(Normalizers.key(normal(quote))) + " ").contains(" " + nk + " ");
+    }
+
     static String unfence(final String answer) {
         final String a = answer.trim();
         if (a.startsWith("```") && a.endsWith("```") && a.length() > 6) {

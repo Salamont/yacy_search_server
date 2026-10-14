@@ -6397,8 +6397,8 @@
     <trans-unit id="d288550f" xml:space="preserve" approved="no" translate="yes">
        <source>the whole answer was refused</source>
     </trans-unit>
-    <trans-unit id="f2ed3a71" xml:space="preserve" approved="no" translate="yes">
-       <source>not stated by the model</source>
+    <trans-unit id="ee381be6" xml:space="preserve" approved="no" translate="yes">
+       <source>not stated by the model (every answer checked)</source>
     </trans-unit>
     <trans-unit id="2d191c2" xml:space="preserve" approved="no" translate="yes">
        <source>Checking reference page %1 of %2: %3 of at most %4 calls, estimated cost %5</source>
@@ -6516,6 +6516,42 @@
     </trans-unit>
     <trans-unit id="c7c495e1" xml:space="preserve" approved="no" translate="yes">
        <source>%1 more not listed</source>
+    </trans-unit>
+    <trans-unit id="2b37992b" xml:space="preserve" approved="no" translate="yes">
+       <source>Repeated from the rules, not rated</source>
+    </trans-unit>
+    <trans-unit id="c64fb44f" xml:space="preserve" approved="no" translate="yes">
+       <source>stated otherwise (another name, type, assignment or evidence)</source>
+    </trans-unit>
+    <trans-unit id="e3f1bb9b" xml:space="preserve" approved="no" translate="yes">
+       <source>cause not traceable</source>
+    </trans-unit>
+    <trans-unit id="ff7ddc14" xml:space="preserve" approved="no" translate="yes">
+       <source>reason not attributable to this statement; reasons of the answer: %1</source>
+    </trans-unit>
+    <trans-unit id="fcd404e" xml:space="preserve" approved="no" translate="yes">
+       <source>checked: statement %1, quote on the page %2, names in the quote %3, type %4, assignment %5</source>
+    </trans-unit>
+    <trans-unit id="1d2e7" xml:space="preserve" approved="no" translate="yes">
+       <source>yes</source>
+    </trans-unit>
+    <trans-unit id="dc1" xml:space="preserve" approved="no" translate="yes">
+       <source>no</source>
+    </trans-unit>
+    <trans-unit id="504e38b8" xml:space="preserve" approved="no" translate="yes">
+       <source>missing: %1</source>
+    </trans-unit>
+    <trans-unit id="919eb45f" xml:space="preserve" approved="no" translate="yes">
+       <source>The diagnosis is incomplete for %1 reference pages (%2): what was cut or left out is marked in the stored result.</source>
+    </trans-unit>
+    <trans-unit id="1dcc6ca3" xml:space="preserve" approved="no" translate="yes">
+       <source>Evaluated with evaluation %1 (now %2): kept as it was. Where it says a statement was not stated, the answers were not checked completely; it is shown as: cause not traceable.</source>
+    </trans-unit>
+    <trans-unit id="7c53c0c5" xml:space="preserve" approved="no" translate="yes">
+       <source>Earlier results of this model, kept as they were: %1</source>
+    </trans-unit>
+    <trans-unit id="4607a690" xml:space="preserve" approved="no" translate="yes">
+       <source>%1 – %2, evaluation %3</source>
     </trans-unit>
     <trans-unit id="6d43a02a" xml:space="preserve" approved="no" translate="yes">
        <source>&lt;label&gt;input &lt;input</source>
