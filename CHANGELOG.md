@@ -2,7 +2,17 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased
+## 0.10.7 / 1.942-scoutro.31 — patch: the end of the re-check, the advertisement of a position's page, LLM entity types, the log report's window, a quality check of models
+
+Patch of the installed 0.10.6. See the
+[release, upgrade and rollback notes](docs/SCOUTRO_RELEASE_0.10.7.md).
+Knowledge graph schema stays **6**, the extractor identity of tiers 1 and 2
+(JSON-LD 5, rules 6), the LLM extractor version (`llm/4`) and every setting
+stay: no global re-extraction. The upgrade closes the re-check of the rules 4
+that 0.10.6 left without its end, without extracting a page for it, and then
+extracts again, once, only the pages with a job or an advertisement hint
+(relation rules 5, scope `jobs`). The compiled-in default prompt has a new
+hash; done documents are not read again. Integrates #67, #68 and #69.
 
 ### fix: the end of the relation re-check (C29) and the advertisement of a position's page (C32, relation rules 5)
 
