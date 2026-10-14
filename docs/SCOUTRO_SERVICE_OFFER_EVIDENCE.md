@@ -299,6 +299,28 @@ For the next release/package work, see
 
 ## Limits
 
+### Deferred: provider binding in the standalone price branch
+
+This finding is **open, explicitly deferred from this release**. No further
+change to price evidence or its provider check is included. The accepted code
+and regressions at `7ba5fcb6c4faa77007861feb5b4a64a3ce713b82` remain intact.
+
+The standalone `pricesAllowed && !listItem` branch in `ServiceEvidence` can
+use a named service's price as evidence. For an `offers` claim, its bounded
+passage requires both service and provider names but does not bind that
+provider to the price as the verb and offer-heading paths bind their actor.
+A referring organisation and another provider's priced service can therefore
+co-occur in a literal passage without proving an offer by the referring
+organisation. Such a price-based provider assignment is not claimed fixed.
+
+The closed heading/list ownership and negation review cases, including
+shortened quotes and old cache preparation, remain covered by the 38 passing
+regressions. They are not evidence that every price-based provider assignment
+is sound. A separate future review may address the deferred branch; this
+release adds no price rule, parser change or additional price/provider fix.
+
+### Other evidence limits
+
 This is conservative evidence recognition in German/English page text, not a
 complete semantic parser. Flattened HTML can lose list hierarchy; an unmarked
 menu alone is insufficient, while explicit bounded lists and content proofs

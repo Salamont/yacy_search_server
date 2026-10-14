@@ -6,6 +6,13 @@ negation and old accepted cache entries. It is **not in published 0.10.8**.
 This document prepares the next handoff; it does not authorize or perform a
 merge, image publication, package update or rollout.
 
+**Known limitation, expressly deferred:** the standalone price branch can
+accept a price-based `offers` passage with co-occurring provider/service names
+without establishing that provider's ownership of the priced offer. This
+additional price/provider fix is not included or claimed resolved. The
+existing heading/list, negation and cache corrections remain unchanged.
+Details: [deferred price branch](SCOUTRO_SERVICE_OFFER_EVIDENCE.md#deferred-provider-binding-in-the-standalone-price-branch).
+
 ## Verified existing release/package state
 
 Read-only GitHub inspection on 14 October 2026:
