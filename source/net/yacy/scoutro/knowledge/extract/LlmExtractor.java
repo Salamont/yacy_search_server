@@ -715,7 +715,7 @@ public final class LlmExtractor {
                 continue;
             }
             if (Vocabulary.OFFERS.equals(predicate)
-                    && ServiceEvidence.evidence(ServiceEvidence.sourceQuote(chunk.text, quote), ob[1], s[1]) == null) {
+                    && ServiceEvidence.evidence(chunk.text, quote, ob[1], s[1]) == null) {
                 r.invalid("claim_offer_not_stated");
                 r.sample("claim_offer_not_stated", "claim", predicate, s[0], state(rawSubject, names, dropped), ob[0],
                         state(rawObject, names, dropped), quote);
@@ -859,7 +859,7 @@ public final class LlmExtractor {
     private static String serviceProof(final String id, final String name, final String quote, final String text,
             final String raw, final Map<String, List<String>> context) {
         final String original = groundedAt(text, quote, List.of(name)) < 0 ? null
-                : ServiceEvidence.pricedEvidence(ServiceEvidence.sourceQuote(raw, quote), name);
+                : ServiceEvidence.pricedEvidence(raw, quote, name);
         if (original != null) {
             return original;
         }
@@ -869,7 +869,7 @@ public final class LlmExtractor {
         }
         for (final String q : context.getOrDefault("price:" + id, List.of())) {
             if (groundedAt(text, q, List.of(name)) >= 0) {
-                final String priced = ServiceEvidence.pricedEvidence(ServiceEvidence.sourceQuote(raw, q), name);
+                final String priced = ServiceEvidence.pricedEvidence(raw, q, name);
                 if (priced != null) {
                     return priced;
                 }
@@ -1085,7 +1085,7 @@ public final class LlmExtractor {
                     proofSearch:
                     for (final String kind : List.of("offer:", "price:")) {
                         for (final String q : context.getOrDefault(kind + e.optString("id"), List.of())) {
-                            if ((proof = "price:".equals(kind) ? ServiceEvidence.pricedEvidence(q, name) : ServiceEvidence.evidence(q, name)) != null) {
+                            if ((proof = "price:".equals(kind) ? ServiceEvidence.pricedEvidence(raw, q, name) : ServiceEvidence.evidence(q, name)) != null) {
                                 break proofSearch;
                             }
                         }
@@ -1131,7 +1131,7 @@ public final class LlmExtractor {
             if (Vocabulary.OFFERS.equals(c.optString("predicate"))) {
                 final String raw = ctx == null ? null : ctx.serviceText;
                 if (raw != null && !quoteInText(raw, c.optString("quote")) || ServiceEvidence.evidence(
-                        ServiceEvidence.sourceQuote(raw, c.optString("quote")), out.mention(o).name, out.mention(s).name) == null) {
+                        raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null) {
                     continue;
                 }
             }
