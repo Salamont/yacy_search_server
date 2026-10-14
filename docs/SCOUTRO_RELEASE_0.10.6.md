@@ -233,4 +233,10 @@ The private rollout of 0.10.6 (operator's acceptance, 2026-10-13) found:
   since 0.10.5: the cause lies in where the phrases stand (outside the
   advertisement's own text) or in the operator's identity, not in the
   wording; which of them is open (31.6).
+- **C32, measured (2026-10-14).** The phrases stand inside the
+  advertisement. The rules of 0.10.6 read the page's title line before a long
+  navigation as the advertisement, so its window held none of them. Fixed by
+  the relation rules 5 with a targeted check of the job pages, not released
+  yet:
+  [SCOUTRO_KNOWLEDGE_GRAPH.md, 32](SCOUTRO_KNOWLEDGE_GRAPH.md#32-the-advertisement-of-a-positions-page-relation-rules-5).
 

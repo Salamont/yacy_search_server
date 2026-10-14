@@ -145,9 +145,9 @@ public class RelationRecheckEndTest extends LlmFixture {
     }
 
     /**
-     * C29, the graph production has now: every page of the check published, nothing open or failed, the end not written, and the
-     * team page with the job the LLM tier read during the check. The next start ends the check without extracting any page again;
-     * its start, scope and page count stay, and its end is written once.
+     * C29, a check left as 0.10.6 left its check (same rules): every page of the check published, nothing open or failed, the end not
+     * written, and the team page with the job the LLM tier read during the check. The next start ends the check without extracting
+     * any page again; its start, scope and page count stay, and its end is written once.
      */
     @Test
     public void aCheckWhosePagesAreAllPublishedEndsAtTheNextStartWithoutExtractingAgain() throws Exception {
@@ -241,5 +241,59 @@ public class RelationRecheckEndTest extends LlmFixture {
         settleSync();
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(done, recheck().getLong("done"));
+    }
+
+    /**
+     * The graph 0.10.6 leaves (relation rules 4): its full check published every page, its end was never written (C29). With the
+     * rules 5 its end is written once at the start (its pages are not extracted again for it) and kept as the check before
+     * ({@code relationRecheckInfoBefore}); the new check takes only the job pages, since the rules 5 changed only the reading of
+     * jobs: the page of the position and the team page with the job of the LLM tier, not the page with partners. The evidence of
+     * the LLM tier stays.
+     */
+    @Test
+    public void theCheckOfTheRules4WithoutItsEndIsClosedAndOnlyTheJobPagesAreChecked() throws Exception {
+        asProductionLeftIt();
+        this.hooked.afterText = n -> {
+            if (n == 1) {
+                llmReadsTheTeamPage();
+            }
+        };
+        settleSync();
+        this.hooked.afterText = null;
+        // as 0.10.6 left it: the rules 4, every page of its full check published, no end
+        exec("UPDATE kg_meta SET value = '4' WHERE key = 'relation_recheck_rules'");
+        exec("DELETE FROM kg_meta WHERE key = 'relation_recheck_done'");
+        exec("DELETE FROM kg_event WHERE code = 'relation_rules_recheck_done'");
+        final long since4 = since();
+        final long partner = processedAt(PARTNER_PAGE);
+        final long tier3 = count("SELECT count(*) FROM kg_evidence WHERE tier = 3");
+        this.clock.addAndGet(60_000L);
+        restart();
+        settleSync();
+        final JSONObject before = this.sync.status().getJSONObject("relationRecheckInfoBefore");
+        assertEquals(before.toString(), "4", before.getString("rules"));
+        assertEquals(before.toString(), "all", before.getString("scope"));
+        assertEquals(before.toString(), 2L, before.getLong("pages"));
+        assertEquals(before.toString(), since4, before.getLong("since"));
+        assertFalse(before.toString(), before.isNull("done"));
+        assertTrue(before.toString(), before.getBoolean("doneAtStart"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck_done' AND detail LIKE 'rules 4:%'"));
+        final JSONObject info = recheck();
+        assertEquals(info.toString(), SyncService.RELATION_RULES, info.getString("rules"));
+        assertEquals(info.toString(), "jobs", info.getString("scope"));
+        assertEquals("the page of the position and the team page with its job of the LLM tier", 2L, info.getLong("pages"));
+        assertEquals(2L, this.sync.counters.extractions.get());
+        assertEquals("the page with partners is not extracted again", partner, processedAt(PARTNER_PAGE));
+        assertFalse("the new check ends in the running process: " + info, info.isNull("done"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck_done' AND detail LIKE 'rules "
+                + SyncService.RELATION_RULES + ":%'"));
+        assertEquals("the evidence of the LLM tier stays", tier3, count("SELECT count(*) FROM kg_evidence WHERE tier = 3"));
+        // a restart: nothing again, the check before stays as it was
+        final long done = info.getLong("done");
+        restart();
+        settleSync();
+        assertEquals(0L, this.sync.counters.extractions.get());
+        assertEquals(done, recheck().getLong("done"));
+        assertEquals(before.toString(), this.sync.status().getJSONObject("relationRecheckInfoBefore").toString());
     }
 }

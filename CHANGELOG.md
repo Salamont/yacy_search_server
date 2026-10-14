@@ -2,7 +2,7 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
-## Unreleased — fix: the relation re-check ends in the running process (0.10.6 rollout, C29)
+## Unreleased — fix: the end of the relation re-check (C29) and the advertisement of a position's page (C32, relation rules 5)
 
 - **The end of the check (C29).** Production ran 0.10.6 without a restart; the
   full check published all its pages, nothing was open or failed, and its end
@@ -21,10 +21,31 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 - **Correction (C32).** "Zur Verstärkung unseres Teams suchen wir Dich" is a
   neutral phrase of the tests, never the wording of the reported pages; they
   say "Bei uns wirst Du." and "Bei uns gestaltest Du …", which the rules read
-  ("bei uns"). Why their jobs have no employer (where the phrases stand, or
-  the operator's identity) is open; no rule is changed. Their employment type
-  stays unknown, as is correct. Details:
-  [docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 31.6](docs/SCOUTRO_KNOWLEDGE_GRAPH.md).
+  ("bei uns"). Their employment type stays unknown, as is correct.
+- **The advertisement of a position's page (C32, relation rules 5).** The
+  measured page of a position has its title line at 18, a long navigation and
+  the menu of the positions, the advertisement's headings at 6,308 and 6,426,
+  "Bei uns wirst Du." at 7,075 and the application call at 11,328. The rules
+  read the title line as the advertisement: its window ended at the menu, so
+  the job had no employer. Two causes: only the first 30 occurrences of a
+  title were read, and a breadcrumb right before the heading made the heading
+  an entry of a list. Now every occurrence is read (at most 400). The
+  advertisement is the occurrence followed by sentences of its own text, not
+  the longest one, and its evidence starts at its heading. A repetition of
+  the title without its specialisation is the same position. The
+  advertisement ends at the next title of another position or of a list,
+  without the navigation labels before it; the bound of 6,000 characters is
+  unchanged. A menu or footer label ("Unser Team", "Karriere bei uns")
+  declares no employer, and a company named as the hirer that is not the
+  operator (a job portal) makes the operator neither employer nor recruiter.
+  The lead of a list is read after its menu. The operator's identity is
+  unchanged: the company's name inside the advertisement does not make it.
+  The upgrade closes the check of the rules 4 that 0.10.6 left without its
+  end, without extracting its pages again
+  (`sync.relationRecheckInfoBefore`). It then extracts again, once, the pages
+  with a job or an advertisement hint (rules 5, scope `jobs`). No global
+  re-extraction, no LLM request, no crawl. Details:
+  [docs/SCOUTRO_KNOWLEDGE_GRAPH.md, 31.6 and 32](docs/SCOUTRO_KNOWLEDGE_GRAPH.md).
 
 ## 0.10.6 / 1.942-scoutro.30 — patch: the employer an advertisement declares, the employment type it states, one job per position page
 

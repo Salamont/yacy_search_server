@@ -1025,7 +1025,7 @@ public class SyncServiceTest {
         assertEquals(0L, this.sync.counters.extractions.get());
         assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_done'"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck'"));
-        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '" + SyncService.RELATION_RULES + "'"));
         // a graph of 0.10.3: checked with the rules before (no version row); the current rules check the page once more
         this.store.write(WriteClass.MAINTENANCE, 0, tx -> {
             KgStore.deleteMeta(tx, "relation_recheck_rules");
@@ -1107,7 +1107,7 @@ public class SyncServiceTest {
                 + " ON s.stmt_rowid = e.stmt_rowid JOIN kg_entity n ON n.ent_rowid = s.subj JOIN kg_vocab t ON t.term_id = n.type"
                 + " WHERE t.name = 'job'"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck' AND detail LIKE '2 pages %'"));
-        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '" + SyncService.RELATION_RULES + "'"));
         // a restart: nothing again
         stop(true);
         start(1000, false);
@@ -1137,7 +1137,7 @@ public class SyncServiceTest {
         settle();
         assertTrue(count(JOBS_OF + "'JOBDETmswr01'") > 0L);
         assertTrue(count(JOBS_OF + "'JOBLDDmswr01'") > 0L);
-        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '" + SyncService.RELATION_RULES + "'"));
         final String partner = hash("PARTNEhost01");
         // as 0.10.5 left it: the check of the rules 3 complete, with its count of the LLM tier's job evidence
         final String counted = "{\"pages\":151,\"menuJobs\":39,\"menuEvidence\":40,\"positionEvidence\":8,\"otherEvidence\":344}";
@@ -1153,13 +1153,13 @@ public class SyncServiceTest {
         assertEquals("the two job pages, not the page with partners", 2L, this.sync.counters.extractions.get());
         assertEquals(partner, hash("PARTNEhost01"));
         assertEquals(1L, count("SELECT count(*) FROM kg_event WHERE code = 'relation_rules_recheck' AND detail LIKE '2 pages %'"));
-        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '4'"));
+        assertEquals(1L, count("SELECT count(*) FROM kg_meta WHERE key = 'relation_recheck_rules' AND value = '" + SyncService.RELATION_RULES + "'"));
         final JSONObject before = this.sync.status().getJSONObject("relationRecheckLlmJobsBefore");
         assertEquals(before.toString(), "3", before.getString("rules"));
         assertEquals(before.toString(), 40L, before.getLong("menuEvidence"));
         // the check is readable without its event, which identity conflicts may displace from the bounded log
         final JSONObject info = this.sync.status().getJSONObject("relationRecheckInfo");
-        assertEquals(info.toString(), "4", info.getString("rules"));
+        assertEquals(info.toString(), SyncService.RELATION_RULES, info.getString("rules"));
         assertEquals(info.toString(), "jobs", info.getString("scope"));
         assertEquals(info.toString(), 2L, info.getLong("pages"));
         // its end, written and shown in the running process, without a restart
