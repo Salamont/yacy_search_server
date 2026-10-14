@@ -60,6 +60,14 @@ final class BaseTiers {
             this.id = id;
         }
 
+        /** A text given as it is, not read from Solr ({@link LlmReading#page}). */
+        static Text of(final String value) {
+            final Text t = new Text(null, null);
+            t.value = value;
+            t.read = true;
+            return t;
+        }
+
         String get() throws IOException {
             if (!this.read) {
                 this.value = this.solr.text(this.id);

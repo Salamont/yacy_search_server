@@ -215,7 +215,7 @@ public final class SyncService {
      * pages ({@link #META_RELATION_RECHECK_SCOPE}): the rules 4 and 5 changed only the reading of jobs.
      */
     static final String META_RELATION_RULES = "relation_recheck_rules";
-    static final String RELATION_RULES = "5";
+    public static final String RELATION_RULES = "5";
     /** The versions of the rules after which only the reading of jobs changed: a complete check of them is followed by the job pages only. */
     static final java.util.Set<String> JOB_RULES_SINCE = java.util.Set.of("3", "4");
     /**

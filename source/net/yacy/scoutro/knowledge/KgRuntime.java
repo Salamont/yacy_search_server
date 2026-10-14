@@ -1313,6 +1313,24 @@ public final class KgRuntime {
         return o;
     }
 
+    /**
+     * The settings and the prompt the LLM tier reads pages with, for the model quality check (docs/SCOUTRO_LLM_QUALITY_CHECK.md):
+     * the settings lookup and the active prompt; null while the graph does not run. Reads only.
+     */
+    public net.yacy.scoutro.knowledge.quality.ModelQualityCheck.Inputs qualityInputs() {
+        final LlmService l = this.llm;
+        KnowledgePrompt p = l == null ? null : l.prompt();
+        if (p == null) {
+            try {
+                requireRunning();
+                p = this.store.read(c -> KnowledgePrompt.fromMeta(KgStore.getMeta(c, KnowledgePrompt.META_ACTIVE)));
+            } catch (final KgException e) {
+                return null;
+            }
+        }
+        return new net.yacy.scoutro.knowledge.quality.ModelQualityCheck.Inputs(this.env.config, p);
+    }
+
     /** The read projection over the running store (package 3); reads stay available while growth is paused. */
     public KgReader reader() throws KgException {
         requireRunning();

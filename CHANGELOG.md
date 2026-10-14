@@ -89,6 +89,25 @@ Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
   - A model switch between reading the selection and admitting a request now defers it.
   - The model and provider an endpoint says it served are counted in `llm.context.measured`.
 
+### feat: quality check of a candidate model for the knowledge graph
+
+- **Quality check of a model for the knowledge graph** (LLM selection, docs/SCOUTRO_LLM_QUALITY_CHECK.md).
+  A candidate is checked explicitly against ten versioned, invented reference pages, read exactly as the
+  LLM tier reads a page (its client, active prompt, chunks, budget, validator and publication preparation)
+  but without publishing: correct, missing and wrong statements, wrong types and relations, unfitting
+  evidence, API, schema and validator errors, cut answers, calls with retries, duration, tokens and an
+  estimated cost, each deviation with its passage, expectation and actual statement; no overall score.
+  Each page lists what a correct reading must state, may state besides (allowed) and must not state. A
+  statement the validator accepted that the test set neither expects, allows nor forbids is listed as not
+  rated, and the result is then `passed_with_unrated` ("No deviation, but accepted statements not rated"),
+  never a plain pass. Scope and an estimate of the cost are shown before the start; every cost is an
+  estimate (2 characters per token, `max_tokens`, the price as given), no guaranteed maximum. Calls
+  (retries included), tokens and the estimated cost are capped; an unknown cost must be accepted
+  explicitly; a run can be cancelled. Results keep their provenance (model, served
+  model and provider, parameters, prompt, schema, validator, rules, test set) and become stale on a change,
+  without a new run. Choosing or checking a model activates nothing: the knowledge model changes only after
+  a confirmation. The check writes only its own result (`DATA/SCOUTRO/llm-quality/`).
+
 ## 0.10.6 / 1.942-scoutro.30 — patch: the employer an advertisement declares, the employment type it states, one job per position page
 
 Patch of the installed 0.10.5. See the
