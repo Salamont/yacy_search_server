@@ -17,7 +17,8 @@ const codes = [...list.slice(0, list.indexOf(');')).matchAll(/"((?:entity|claim|
 const page0 = fs.readFileSync(path.join(root, 'htroot/ScoutroKnowledge_p.html'), 'utf8');
 const section = fs.readFileSync(path.join(root, 'locales/de.lng'), 'utf8').split('#File: ScoutroKnowledge_p.html\n')[1].split('#File: ')[0];
 const english = code => page0.match(new RegExp(`<span data-skg-label="invalid_${code}">([^<]*)</span>`))?.[1];
-check(codes.length >= 48 && codes.includes('claim_employer_unresolved') && codes.includes('value_signal_context_missing'), 'both codes registered: ' + codes.length);
+check(codes.length >= 48 && codes.includes('claim_employer_unresolved') && codes.includes('value_signal_context_missing')
+  && codes.includes('claim_offer_not_stated'), 'semantic codes registered: ' + codes.length);
 for (const code of codes) {
   check(english(code), 'label for ' + code);
   check(section.includes('\n>' + english(code) + '<=='), 'German label for ' + code);
@@ -25,17 +26,20 @@ for (const code of codes) {
 check(!/%\d/.test(page0.match(/data-skg-label="vocab_sizes">([^<]*)</)?.[1] ?? '%1'), 'the vocabulary row label has no placeholder');
 
 const by = Object.fromEntries(codes.map(c => [c, 0]));
-Object.assign(by, { claim_self_reference: 1315, value_signal_context_missing: 131, claim_employer_unresolved: 4, scoutro_future_code: 2 });
+Object.assign(by, { claim_self_reference: 1315, value_signal_context_missing: 131, claim_employer_unresolved: 4,
+  claim_offer_not_stated: 3, scoutro_future_code: 2 });
 const status = { state: 'running', storage: {}, jsonld: {}, sync: {}, collections: [], events: [], backup: null, rebuild: null, upgrade: null,
   llm: { state: 'running', enabled: true, model: 'OLLAMA/fixture', processed: { calls: 10, entitiesAccepted: 1, claimsAccepted: 1, valuesAccepted: 1,
-    droppedUngrounded: 0, droppedInvalid: 1452, droppedInvalidByReason: by } },
+    droppedUngrounded: 0, droppedInvalid: 1455, droppedInvalidByReason: by } },
   vocabulary: { graphVocabulary: '2', version: 'fixture', categories: 201, naceCodes: 1047, collections: { kga: { vocabulary: 'care' } }, problems: [] },
   derived: { enabled: true, intervalMinutes: 60 } };
 const expected = {
   en: { label: 'Categories and NACE codes', value: '201 categories, 1,047 NACE codes', self: 'Statement: refers to itself (subject is object)',
-    employer: 'Statement: employer unresolved (posting on behalf of a client)', counts: ['1,315', '131', '4', '2'] },
+    employer: 'Statement: employer unresolved (posting on behalf of a client)',
+    offer: 'Statement: no offer by the named provider of this service', counts: ['1,315', '131', '4', '3', '2'] },
   de: { label: 'Kategorien und NACE-Codes', value: '201 Kategorien, 1.047 NACE-Codes', self: 'Aussage: Selbstbezug (Subjekt ist Objekt)',
-    employer: 'Aussage: Arbeitgeber ungeklärt (Ausschreibung im Kundenauftrag)', counts: ['1.315', '131', '4', '2'] } };
+    employer: 'Aussage: Arbeitgeber ungeklärt (Ausschreibung im Kundenauftrag)',
+    offer: 'Aussage: kein Angebot dieses Dienstes durch den genannten Anbieter', counts: ['1.315', '131', '4', '3', '2'] } };
 const browser = await chromium.launch({ executablePath: process.env.SCOUTRO_CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
 try {
   for (const [language, width] of [['en', 1280], ['de', 390], ['de', 360]]) {
@@ -74,13 +78,15 @@ try {
     await page.locator('#skg-diagnosis > summary').click();
     await page.locator('#skg-llm-invalid-details summary').click();
     const reasons = await page.locator('#skg-llm-invalid dt').evaluateAll(n => n.map(d => d.dataset.reason));
-    check(JSON.stringify(reasons) === JSON.stringify(['claim_self_reference', 'value_signal_context_missing', 'claim_employer_unresolved', 'scoutro_future_code']),
+    check(JSON.stringify(reasons) === JSON.stringify(['claim_self_reference', 'value_signal_context_missing', 'claim_employer_unresolved',
+      'claim_offer_not_stated', 'scoutro_future_code']),
       'reasons, most frequent first: ' + JSON.stringify(reasons) + where);
     const shown = await page.locator('#skg-llm-invalid dt').evaluateAll(n => n.map(d => [d.querySelector('.skg-reason-label')?.textContent ?? null, d.querySelector('.skg-reason-code')?.textContent]));
     check(shown[0][0] === want.self && shown[0][1] === 'claim_self_reference', 'known code: label and code ' + JSON.stringify(shown[0]) + where);
     check(shown[1][0] && shown[1][0] !== 'value_signal_context_missing' && shown[1][1] === 'value_signal_context_missing', 'value_signal_context_missing labelled ' + JSON.stringify(shown[1]) + where);
     check(shown[2][0] === want.employer && shown[2][1] === 'claim_employer_unresolved', 'claim_employer_unresolved labelled ' + JSON.stringify(shown[2]) + where);
-    check(shown[3][0] === null && shown[3][1] === 'scoutro_future_code', 'an unknown code stays visible as its code ' + JSON.stringify(shown[3]) + where);
+    check(shown[3][0] === want.offer && shown[3][1] === 'claim_offer_not_stated', 'claim_offer_not_stated labelled ' + JSON.stringify(shown[3]) + where);
+    check(shown[4][0] === null && shown[4][1] === 'scoutro_future_code', 'an unknown code stays visible as its code ' + JSON.stringify(shown[4]) + where);
     check(JSON.stringify(await page.locator('#skg-llm-invalid dd').allTextContents()) === JSON.stringify(want.counts), 'formatted counts' + where);
     check(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'no horizontal overflow' + where);
     check(errors.length === 0, 'no page errors: ' + errors.join(' | ') + where);

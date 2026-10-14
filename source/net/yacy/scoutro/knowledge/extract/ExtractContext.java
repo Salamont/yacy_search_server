@@ -53,6 +53,8 @@ public final class ExtractContext {
      */
     public final Set<String> postingTitles;
     public final Set<String> otherTitles;
+    /** Page text for the service evidence check during publication, including cached answers; never stored here. */
+    public final String serviceText;
 
     /** A context whose job hints follow the job objects (the behaviour before 0.10.2). */
     public ExtractContext(final KgVocabularies.Snapshot vocab, final Collection<String> vocabularyNames, final boolean jobs,
@@ -77,9 +79,10 @@ public final class ExtractContext {
         this.collections = collections == null ? Collections.emptyList() : List.copyOf(collections);
         this.postingTitles = Set.of();
         this.otherTitles = Set.of();
+        this.serviceText = null;
     }
 
-    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles) {
+    private ExtractContext(final ExtractContext c, final Set<String> postingTitles, final Set<String> otherTitles, final String serviceText) {
         this.categories = c.categories;
         this.nace = c.nace;
         this.vocabularies = c.vocabularies;
@@ -88,11 +91,16 @@ public final class ExtractContext {
         this.collections = c.collections;
         this.postingTitles = Set.copyOf(postingTitles);
         this.otherTitles = Set.copyOf(otherTitles);
+        this.serviceText = serviceText;
     }
 
     /** This context with the job titles of the page: {postings, others} of {@link BusinessRules#jobTitleKeys}. */
     public ExtractContext withJobTitles(final List<Set<String>> keys) {
-        return keys == null || keys.size() < 2 ? this : new ExtractContext(this, keys.get(0), keys.get(1));
+        return keys == null || keys.size() < 2 ? this : new ExtractContext(this, keys.get(0), keys.get(1), this.serviceText);
+    }
+
+    public ExtractContext withServiceText(final String text) {
+        return new ExtractContext(this, this.postingTitles, this.otherTitles, text);
     }
 
     /** True if a job of this name is a position the page advertises by the rules (its title, or the end of one). */

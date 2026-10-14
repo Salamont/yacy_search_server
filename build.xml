@@ -533,6 +533,27 @@
     </java>
   </target>
 
+  <target name="scoutro-kg-offer-evidence-test" depends="compile" description="offline service evidence, publication and quality diagnosis regressions">
+    <mkdir dir="build/scoutro-kg-offer-evidence-tests"/>
+    <javac srcdir="${test}" destdir="build/scoutro-kg-offer-evidence-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">
+      <include name="net/yacy/scoutro/knowledge/**/*.java"/>
+      <include name="net/yacy/scoutro/api/**/*.java"/>
+      <classpath><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+    </javac>
+    <java classname="org.junit.runner.JUnitCore" fork="true" failonerror="true" dir="${yacyroot}">
+      <classpath><pathelement location="build/scoutro-kg-offer-evidence-tests"/><pathelement location="${build}"/><fileset dir="${lib}" includes="*.jar"/><fileset dir="${libt}" includes="*.jar"/></classpath>
+      <arg value="net.yacy.scoutro.knowledge.extract.ServiceOfferEvidenceTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.ServiceOfferPublicationTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorTest"/>
+      <arg value="net.yacy.scoutro.knowledge.extract.LlmExtractorInvalidReasonTest"/>
+      <arg value="net.yacy.scoutro.knowledge.sync.LlmEntityContextTest"/>
+      <arg value="net.yacy.scoutro.knowledge.quality.QualityBaselineTest"/>
+      <arg value="net.yacy.scoutro.knowledge.quality.QualityDiagnosisTest"/>
+      <arg value="net.yacy.scoutro.knowledge.quality.ModelQualityCheckTest"/>
+      <arg value="net.yacy.scoutro.knowledge.quality.QualityCheckIsolationTest"/>
+    </java>
+  </target>
+
   <target name="scoutro-kg-matching-test" depends="compile" description="focused service/signal rules, contribution cache and access tests">
     <mkdir dir="build/scoutro-kg-matching-tests"/>
     <javac srcdir="${test}" destdir="build/scoutro-kg-matching-tests" release="${javacRelease}" encoding="UTF-8" includeantruntime="false">

@@ -10,7 +10,12 @@ import org.json.JSONObject;
 import org.junit.Test;
 
 import net.yacy.scoutro.knowledge.KgConfig;
+import net.yacy.scoutro.knowledge.budget.StorageGuard;
+import net.yacy.scoutro.knowledge.extract.KnowledgePrompt;
+import net.yacy.scoutro.knowledge.extract.LlmExtractor;
+import net.yacy.scoutro.knowledge.extract.RequestBudget;
 import net.yacy.scoutro.knowledge.extract.ServiceOfferEvidenceTest;
+import net.yacy.scoutro.knowledge.publish.Terms;
 
 /** Mock model, real shared reading, validator and publication, isolated Solr/SQLite only. */
 public class ServiceOfferPublicationTest extends LlmFixture {
@@ -64,5 +69,34 @@ public class ServiceOfferPublicationTest extends LlmFixture {
         assertTrue(got.toString(), got.contains("name:Web&Mail"));
         assertTrue(got.toString(), got.contains("offers:Web&Mail"));
         assertTrue(got.toString(), got.stream().anyMatch(s -> s.startsWith("price:") && s.contains("12")));
+    }
+
+    @Test
+    public void anOlderCachedSubsetPassesPreparationWithoutCallingTheModel() throws Exception {
+        final String id = "AAAAAAoff003";
+        final String text = "Muster Pflege gGmbH\nNavigation\nJobangebote\nKontakt";
+        add(id, "https://www.beispiel-dienste.example/", "c1", LD, text, "Leistungen");
+        settleSync();
+        final SolrDoc d = this.source.get(List.of(id), SolrDoc.PROCESS_FIELDS).get(id);
+        final LlmReading.Page page = LlmReading.page(this.cfg, d, text);
+        final KnowledgePrompt prompt = KnowledgePrompt.defaults();
+        final RequestBudget.Part part = page.reading.plan(LlmReading.budget(this.cfg, prompt, this.model.window()), page.chunks).parts.get(0);
+        final byte[] key = LlmExtractor.cacheKey(prompt.hash, this.model.model(), part.chunk, page.reading.title,
+                page.reading.domain, page.reading.language, part.known, page.reading.kinds);
+        final JSONObject old = ServiceOfferEvidenceTest.answer(
+                new JSONArray().put(ServiceOfferEvidenceTest.entity("e1", "Jobangebote", "Jobangebote").put("at", text.indexOf("Jobangebote"))),
+                new JSONArray().put(ServiceOfferEvidenceTest.claim("k1", "e1", text).put("at", 0)), new JSONArray());
+        this.store.write(StorageGuard.WriteClass.SYSTEM, 8192L, tx -> {
+            final int extId = new Terms().llmExtractor(tx, this.model.model(), prompt.hash);
+            assertTrue(ExtractionCache.put(tx, key, extId, ExtractionCache.STATUS_OK, old, this.clock.get()));
+            return null;
+        });
+        this.model.answer = u -> { throw new AssertionError("a cached reading must not call the model"); };
+        settleLlm();
+        assertEquals("1:", llmStatus(id));
+        assertEquals(0, this.model.calls.get());
+        assertEquals(1L, this.llm.status().getJSONObject("processed").getLong("cacheHits"));
+        assertEquals(List.of(), statements(id));
+        assertEquals("the old cache is guarded, not deleted", 1L, count("SELECT count(*) FROM kg_extraction"));
     }
 }

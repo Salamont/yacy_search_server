@@ -3500,3 +3500,20 @@ statement's current evidence.
 - `YacyLlmClientTest` (+2): the served model and provider are counted; a model switched before the admission defers the
   request.
 - `LlmFullReadingTest`: its fixture names a customer project an organisation; as a service no offer states it is refused.
+
+
+## 34. Service names need an independent offer, and offers need their provider
+
+[Service offer evidence](SCOUTRO_SERVICE_OFFER_EVIDENCE.md) documents the
+navigation/boilerplate regression, its synthetic red/green reproduction, the
+shared validator/publication fix and its limits. This supersedes section 33's
+service-heading scan over unmarked navigation labels. Explicit offer lists in
+navigation and services supported by content remain valid.
+
+`entity_service_not_offered` also covers a name whose own words were its only
+offer cue. `claim_offer_not_stated` covers a grounded, correctly typed `offers`
+claim without an offer of that service by that provider. Both use the existing
+bounded diagnostics and per-item indices. The same service evidence rule runs
+before publication, including cached results; dependents of rejected entities
+have no reference and are omitted. No automatic re-examination, prompt/model
+switch, existing-data cleanup, merge or rollout is part of this change.

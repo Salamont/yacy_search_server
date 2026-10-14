@@ -113,7 +113,7 @@ public final class LlmReading {
      * and the job titles the rules see as positions of the page (a job they see as a menu entry is none of the model's either).
      */
     public static ExtractContext context(final KgConfig cfg, final SolrDoc d, final String stored) {
-        return BaseTiers.context(cfg, d).withJobTitles(BusinessRules.jobTitleKeys(stored, d.url, d.titles));
+        return BaseTiers.context(cfg, d).withJobTitles(BusinessRules.jobTitleKeys(stored, d.url, d.titles)).withServiceText(stored);
     }
 
     // ------------------------------------------------------------ a page given as text

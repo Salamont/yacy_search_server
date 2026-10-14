@@ -85,13 +85,13 @@ public class LlmEntityContextTest extends LlmFixture {
 
     // ------------------------------------------------------------ counter-checks
 
-    /** Services the navigation lists under its heading "Leistungen" are services, also with a quote of the entry alone. */
+    /** An explicitly scoped offer list in navigation stays, also with a quote of the entry alone. */
     @Test
     public void servicesListedUnderTheirHeadingInANavigationStay() throws Exception {
-        final String text = "Startseite\nLeistungen\nTagespflege\nKurzzeitpflege\nKontakt\nDie Muster Pflege gGmbH betreut Senioren in"
+        final String text = "Startseite\nLeistungen: Tagespflege, Kurzzeitpflege\nKontakt\nDie Muster Pflege gGmbH betreut Senioren in"
                 + " Berlin und Brandenburg.";
         read("AAAAAActx003", "/", text, u -> answer(
-                entity("e1", "service", "Tagespflege", "Leistungen Tagespflege"),
+                entity("e1", "service", "Tagespflege", "Leistungen: Tagespflege"),
                 entity("e2", "service", "Kurzzeitpflege", "Kurzzeitpflege")));
         assertEquals(List.of("service:Kurzzeitpflege", "service:Tagespflege"), entities("AAAAAActx003"));
     }
