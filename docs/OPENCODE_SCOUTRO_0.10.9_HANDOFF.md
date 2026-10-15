@@ -1,7 +1,8 @@
 # OpenCode handoff: Scoutro 0.10.9 preparation
 
-**Preparation and review only. NOT a rollout authorization.** The release is
-stacked on unmerged application #73. No 0.10.9 image digest is available, so
+**Release review only. NOT a publication or rollout authorization.** Application
+#73 was separately authorized and merged; release #74 now targets main.
+No 0.10.9 image digest is available, so
 the next Olares package is not rollout-ready. Do not infer missing identifiers
 or use 0.10.8's digest for the new version.
 
@@ -14,14 +15,14 @@ files are the full instructions; no attachment or prior chat is needed.
 | Repository / item | Identity and dependency |
 | --- | --- |
 | Application | `Salamont/yacy_search_server` |
-| Main | `da72b55867f9f11f663cad8aa41b1097596405a3`; #71 and release #72 merged |
-| Service fix #73 | `fix/kg-offer-evidence`, documentation-only head `432a2ad026304a4bc7aa55c26c00eeb02d115c2b`; original validated code `7ba5fcb6c4faa77007861feb5b4a64a3ce713b82` |
-| New application release #74 | https://github.com/Salamont/yacy_search_server/pull/74; `release/scoutro-0.10.9`, PR base `fix/kg-offer-evidence`; depends on #73 review/merge; initial tested candidate `bb57c86a403a796dc334e00671c1ab3c6435acb0`; 0.10.9 / 1.942-scoutro.33 |
+| Main | `7263ac5ca9154dd9800456644429de508a6fa3dc`; #71/#72/#73 merged; published 0.10.8 remains at `da72b55867f9f11f663cad8aa41b1097596405a3` |
+| Service fix #73 | Merged 15 October 2026 as `7263ac5ca9154dd9800456644429de508a6fa3dc`, parents `da72b5586` and reviewed head `432a2ad026304a4bc7aa55c26c00eeb02d115c2b`; original validated code `7ba5fcb6c4faa77007861feb5b4a64a3ce713b82`; feature branch preserved |
+| New application release #74 | https://github.com/Salamont/yacy_search_server/pull/74; `release/scoutro-0.10.9`, PR base `main`; unmerged, awaiting separate final release decision; post-merge tested candidate `f9e6480963e3546d3b7de40c3a395fb64ea03601`; initial local-image candidate `bb57c86a403a796dc334e00671c1ab3c6435acb0`; 0.10.9 / 1.942-scoutro.33 |
 | Package repository | `Salamont/YaCy-Search-Community` |
 | Package #9, 0.10.7 | Head `55f01e296c431b91919e61fd1eb2595b2ac95c43` |
 | Package #10, 0.10.8 | Head `f165c538fd08f1df5851998be77f1f0402608c72`, stacked on #9 |
 | Existing 0.10.8 assignment | Package file `docs/OPENCODE-OLARES.md` at exactly `f165c538fd08f1df5851998be77f1f0402608c72`; only 0.10.7 → 0.10.8 |
-| Package preparation #11 | https://github.com/Salamont/YaCy-Search-Community/pull/11; draft `prepare/scoutro-0.10.9-handoff`, initial head `c7238c6bae4b3c43ba310498f40ec8436f05162a`, base #10; `docs/PREPARE-0.10.9.md` is the full next-package assignment; chart/pin/runbook unchanged |
+| Package preparation #11 | https://github.com/Salamont/YaCy-Search-Community/pull/11; draft `prepare/scoutro-0.10.9-handoff`, head `fdb46257fd4eacc0935dbaf369f8cc1e95049667`, base #10; `docs/PREPARE-0.10.9.md` is the next-package assignment; unchanged in this step; its earlier #73/#74 identities are superseded by this file |
 | New published image / merge revision | **Pending**; none invented |
 | New pinned package head / fingerprint / rollout approval | **Pending** |
 
@@ -52,12 +53,14 @@ headers. Mock endpoints and fresh disposable test data only.
    release diff contains only version/release documentation/packaging checks,
    no application semantic change. Review the explicitly deferred finding.
 2. Use the new local check evidence recorded below separately from historical
-   #73 validation. Record exact tested commit, commands, distribution hash,
+   #73 validation and 14 October release checks. Record exact tested commit, commands, distribution hash,
    local image configuration ID/labels/platform and limitations. General
    compileTest is not fully green; do not rewrite unrelated tests.
-3. Under a **separate merge decision**, merge #73 first. Retarget/reconcile
-   the release PR to main and rerun checks for any resulting changes. Do not
-   merge the release PR into #73's feature branch.
+3. **Completed under explicit authorization on 15 October:** #73 merged,
+   #74 retargeted to main, main included without a file-tree change, build
+   and focused tests rerun. Verify these identities; do not repeat #73's
+   merge or merge #74 into the preserved feature branch. **#74 remains
+   unmerged and requires a separate final release decision.**
 4. Before a separate release merge/publication decision, repeat both GHCR
    manifest availability checks and Git/release/PR searches for `.33` and
    `0.10.9`. Any occupied version stops this version's publication; never
@@ -112,7 +115,7 @@ compileTest: **15 existing errors**, one CrawlProfile constructor in
 HostBalancerTest and fourteen removed NetworkGraph cache references in
 NetworkGraphTest. This is not a fully green repository-wide test run.
 
-New checks executed on candidate `bb57c86a403a796dc334e00671c1ab3c6435acb0`:
+Earlier checks executed on 14 October, candidate `bb57c86a403a796dc334e00671c1ab3c6435acb0`:
 
 | Local check | Result |
 | --- | --- |
@@ -153,6 +156,49 @@ credential is read or printed. No original assertion was weakened.
 Both registry aliases again answered 404 / MANIFEST_UNKNOWN at
 **2026-10-14 22:05:12 UTC**. This is still not a reservation.
 Machine-readable evidence: `docs/validation-0.10.9.json`.
+
+### New post-merge validation, 15 October 2026
+
+Tested candidate: `f9e6480963e3546d3b7de40c3a395fb64ea03601`. Its first
+parent is the originally expected release head `74870648f523dc833e2ae879156af6abd6981b20`,
+second parent is main/#73 merge `7263ac5ca9154dd9800456644429de508a6fa3dc`.
+The merge changed no files. The source/Java tests equal main and `7ba5fcb6c`;
+only release versions, packaging/test tools and documentation differ from main.
+
+Executed from the application repository, using cached dependencies:
+
+```sh
+JAVA_HOME=/tmp/scoutro-jdk \
+ANT_OPTS='-Dhttps.proxyHost=proxy -Dhttps.proxyPort=8080 -Dhttp.proxyHost=proxy -Dhttp.proxyPort=8080 -Djavax.net.ssl.trustStore=/etc/ssl/certs/java/cacerts' \
+/tmp/apache-ant-1.10.15/bin/ant -Divy.default.ivy.user.dir=/tmp/scoutro-ivy \
+  clean all dist scoutro-kg-offer-evidence-test
+```
+
+Result: **BUILD SUCCESSFUL**, 18 relocation packaging checks, **60 Jetty
+and 108 focused tests, including 38/38 offer regressions**. Mock model and
+fresh isolated Solr/SQLite data only, including both closed review findings,
+positive offer lists, dependent statements and legacy cache publication.
+No real model call or existing graph re-extraction/cleanup.
+
+Tested distribution: `RELEASE/yacy_v1.942_202610150610_f9e648096.tar.gz`,
+SHA-256 `51dac03afefe6b97340a5bba10d3217786d3b88eb7e4e3898fd7915360f41bf4`.
+Later changes only refresh documentation/evidence; the final archive is
+rebuilt and identified separately in #74's description.
+
+Repeated version check **2026-10-15 06:03:13 UTC**: matching remote Git tags
+and GitHub releases absent; both registry manifests 404 / MANIFEST_UNKNOWN.
+Repeat immediately before any later authorized publication. Main's only
+push workflow run was `Build Docker Image`, run 38690043932, **skipped** by
+its upstream-repository guard; no Scoutro publish workflow was triggered.
+PR CI also skips this fork; local checks are the executed validation.
+
+The 15 general compileTest errors are the earlier result and were **not
+rerun**; no relevant source/test change justified a repeated general run.
+The 1233 Scoutro tests, UI/live/bridge/image smoke and package checks above
+were also **not rerun** in this step. Additional final distribution attribution
+checks are reported separately; none replaces published-image acceptance.
+Package #9/#10/#11 heads, bases and contents remain untouched. #11's older
+stack description must be reconciled only after actual image publication.
 
 Publication, actual published OCI labels/digest, final package/fingerprint,
 published-image runtime/upgrade, production full backup/restore and owner

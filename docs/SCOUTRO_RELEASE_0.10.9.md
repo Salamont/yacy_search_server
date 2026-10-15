@@ -2,12 +2,14 @@
 
 Prepared versions: **0.10.9 / 1.942-scoutro.33**. Numeric YaCy peer version
 **1.942** stays unchanged. **Not published, no registry digest, no rollout.**
-The release branch `release/scoutro-0.10.9` is stacked on application
-[PR #73](https://github.com/Salamont/yacy_search_server/pull/73), base branch
-`fix/kg-offer-evidence`. It must not bypass that PR's review or be merged into
-its base branch as a way to publish. After a separately authorized #73 merge,
-retarget the release PR to main, reconcile the base, review the release diff
-and validate the resulting candidate before a separate release decision.
+Application [PR #73](https://github.com/Salamont/yacy_search_server/pull/73)
+was merged under separate explicit authorization on 15 October 2026, with
+merge commit `7263ac5ca9154dd9800456644429de508a6fa3dc`. Release
+[PR #74](https://github.com/Salamont/yacy_search_server/pull/74), branch
+`release/scoutro-0.10.9`, now targets `main` at that commit. Main was merged
+into the release branch without changing its file tree; the resulting
+candidate was rebuilt and its focused regressions rerun. **#74 is not merged;
+its release merge/publication still requires a separate decision.**
 
 ## Checked baseline and version availability
 
@@ -19,12 +21,21 @@ merged #71 (quality evaluation/diagnosis) and #72 (0.10.8/.32). Published
 price finding. Source and application tests are identical to the reviewed
 fix. No additional semantic fix or refactoring is in this release delta.
 
+Current main after #73 is `7263ac5ca9154dd9800456644429de508a6fa3dc`.
+Its tree equals reviewed #73 head `432a2ad02`; source and Java tests also
+equal the reviewed `7ba5fcb6c` tree. The release diff against main contains
+only the prepared version/release files, release-test tooling and evidence.
+
 At **2026-10-14 19:46:25 UTC**, both GHCR aliases `0.10.9` and
 `1.942-scoutro.33` answered **404 / MANIFEST_UNKNOWN**. Matching Git tags and
 GitHub release entries were absent; the repository PR search found no
 separate release using these versions. This is a time-specific check, not a
 reservation. Repeat immediately before publishing. The main workflow retains
 its refusal to overwrite either existing tag.
+
+Repeated at **2026-10-15 06:03:13 UTC**: no matching remote Git tags or
+GitHub release entries, both registry aliases still **404 / MANIFEST_UNKNOWN**.
+Availability is not a publication authorization or reservation.
 
 Existing package stack, unchanged:
 
@@ -136,7 +147,7 @@ method references in `NetworkGraphTest`. This is not a fully green general
 repository test run. Details and earlier checks:
 [service evidence validation](SCOUTRO_SERVICE_OFFER_EVIDENCE.md).
 
-New release-candidate checks on `bb57c86a4` passed: clean Ant build, 60 Jetty
+Earlier release checks on 14 October, candidate `bb57c86a4`, passed: clean Ant build, 60 Jetty
 and 108 focused tests, 198 UI/65 live quality checks with a fake model, 4 Solr
 bridge tests and dependency guard, 58 original attribution files verified in
 distribution and actual exported local image, and 21 image assertions with
@@ -147,6 +158,18 @@ commands and identifiers are in the
 [handoff](OPENCODE_SCOUTRO_0.10.9_HANDOFF.md) and
 [`validation-0.10.9.json`](validation-0.10.9.json).
 
+**New post-merge checks on 15 October**, candidate
+`f9e6480963e3546d3b7de40c3a395fb64ea03601`: `ant clean all dist
+scoutro-kg-offer-evidence-test` succeeded, including 18 relocation packaging
+checks, **60 Jetty tests and 108 focused tests (38/38 offer regressions)**.
+Main was included without any file change from `74870648f`; subsequent
+updates only record the merge, checks and handoff. The final documentation
+distribution is rebuilt separately and identified in #74's description.
+General `compileTest` was not rerun: its 15 existing compilation errors above
+remain a separately reported limitation. The 1233-test suite, UI/live, bridge
+and image smoke checks were not repeated in this step. Package #9/#10/#11
+remain unchanged; no new package lint/runtime acceptance is claimed.
+
 Historical checks are not relabelled as rerun. A local container configuration
 ID is not a published digest, and a source/JUnit check is not packaged-image
 acceptance. No registry image, package fingerprint or production acceptance
@@ -155,5 +178,6 @@ for 0.10.9 exists at this preparation stage.
 Only a **later authorized release merge into main** may trigger the existing
 publication workflow once, with `.33`/`0.10.9` and the actual merge revision.
 No extra manual dispatch. Capture the successful run, verify immutable aliases
-and pulled OCI labels, then prepare and test the package. This task performs
-no merge, image publication or rollout.
+and pulled OCI labels, then prepare and test the package. Only #73's merge was
+authorized and performed in this step; no #74 merge, image publication or
+rollout was performed.
