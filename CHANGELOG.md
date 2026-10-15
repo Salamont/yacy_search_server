@@ -2,6 +2,24 @@
 
 Scoutro is an independent community project based on YaCy (GPL-2.0-or-later).
 
+## Unreleased
+
+- Service names proposed by the LLM need independent source offer evidence;
+  flat navigation and boilerplate no longer inherit arbitrary earlier offer
+  headings or type themselves through words in their names. Explicit menu
+  offer lists and services supported by content remain valid.
+- `offers` additionally checks the named provider's offer. Publication
+  preparation applies the same checks to cached subsets and omits dependents
+  of rejected services. New diagnostic: `claim_offer_not_stated`.
+  See [service offer evidence](docs/SCOUTRO_SERVICE_OFFER_EVIDENCE.md).
+  Prompt, model selection, extractor version and existing graph data are unchanged;
+  no automatic re-examination or rollout is included.
+- Offer lists require the heading's provider binding and inherit its negation;
+  mentions of third-party offers and denied lists cannot publish a positive
+  operator offer. Prices in a denied list cannot bypass the check. Genuine
+  positive lists remain supported. This is not included in published 0.10.8;
+  see the [next release/package handoff](docs/SCOUTRO_SERVICE_OFFER_RELEASE_HANDOFF.md).
+
 ## 0.10.8 / 1.942-scoutro.32 — patch: the quality check with a fixed baseline and a diagnosis of each reference page
 
 Patch of the installed 0.10.7. See the

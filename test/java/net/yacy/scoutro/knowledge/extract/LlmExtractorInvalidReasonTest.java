@@ -154,6 +154,8 @@ public class LlmExtractorInvalidReasonTest {
         // grounded and of the right types, but the quote names a client of an intermediary, not the employer
         m.put("claim_employer_unresolved", answer(E1 + "," + E2, c + "{\"subject\":\"kj\",\"predicate\":\"hiring_organization\",\"object\":\"k1\","
                 + "\"quote\":\"im Auftrag unseres Kunden eine Pflegefachkraft (m/w/d) für die Muster Pflege gGmbH\"}", V1));
+        m.put("claim_offer_not_stated", answer(E1 + "," + E2, c + "{\"subject\":\"k1\",\"predicate\":\"offers\",\"object\":\"e2\","
+                + "\"quote\":\"Die Muster Pflege gGmbH betreibt das Haus Lindenhof in Berlin. Das Haus Lindenhof bietet Tagespflege an\"}", V1));
         // values
         final String v = V1 + ",";
         m.put("value_not_object", answer(E1 + "," + E2, C1, v + "42"));

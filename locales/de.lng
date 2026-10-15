@@ -6193,6 +6193,7 @@ Settings are stored in Scoutro's configuration (keys==Die Einstellungen stehen i
 >Statement: subject type does not fit the relation<==>Aussage: Subjekttyp passt nicht zur Beziehung<
 >Statement: object type does not fit the relation<==>Aussage: Objekttyp passt nicht zur Beziehung<
 >Statement: employer unresolved (posting on behalf of a client)<==>Aussage: Arbeitgeber ungeklärt (Ausschreibung im Kundenauftrag)<
+>Statement: no offer by the named provider of this service<==>Aussage: kein Angebot dieses Dienstes durch den genannten Anbieter<
 >Value: not a JSON object<==>Wert: kein JSON-Objekt<
 >Value: unexpected field<==>Wert: unerwartetes Feld<
 >Value: subject missing<==>Wert: Subjekt fehlt<

@@ -21,6 +21,11 @@ Upstream tests: `ant test` (unit tests), `ant jetty12-server-test`, and the
 shell smoke tests in `test/` (e.g. `sh test/jetty-smoke-test.sh <url>`).
 Scoutro UI tests: see `test/scoutro-ui/README.md`.
 
+`ant scoutro-kg-offer-evidence-test` checks service offer evidence through the
+shared validator and publication path, with synthetic pages and mock answers,
+plus the fixed quality baseline and per-item diagnosis regressions. It makes no
+real model requests and uses disposable Solr/SQLite fixtures.
+
 `ant citation-postprocessing-test` tests Citation-only reference finalization
 against temporary index/DATA, including LocalParams, Collection scopes,
 missing response times, restart and schema persistence failures. See

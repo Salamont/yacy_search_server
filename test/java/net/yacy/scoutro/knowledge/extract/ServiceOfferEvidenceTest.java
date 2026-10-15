@@ -1,0 +1,413 @@
+package net.yacy.scoutro.knowledge.extract;
+
+import static org.junit.Assert.*;
+
+import java.util.List;
+import java.util.Set;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.junit.Test;
+
+/** Synthetic pages and answers: a name's occurrence does not establish an offered service. */
+public class ServiceOfferEvidenceTest {
+    private static final String ORG = "Beispiel Dienste GmbH";
+    private static final String PRIVACY = "Wir speichern keine personenbezogenen Daten unserer Webseitenbesucher.";
+
+    private static List<LlmExtractor.Known> known() {
+        final Mention m = new Mention("operator", Vocabulary.ORGANIZATION, 1);
+        m.name = ORG;
+        return List.of(new LlmExtractor.Known("k1", m));
+    }
+
+    public static JSONObject entity(final String id, final String name, final String quote) throws Exception {
+        return new JSONObject().put("id", id).put("type", "service").put("name", name).put("quote", quote);
+    }
+
+    public static JSONObject claim(final String subject, final String object, final String quote) throws Exception {
+        return new JSONObject().put("subject", subject).put("predicate", "offers").put("object", object).put("quote", quote);
+    }
+
+    public static JSONObject answer(final JSONArray entities, final JSONArray claims, final JSONArray values) throws Exception {
+        return new JSONObject().put("entities", entities).put("claims", claims).put("values", values);
+    }
+
+    private static LlmExtractor.Result check(final String text, final JSONObject answer) {
+        return LlmExtractor.validate(answer.toString(), new LlmExtractor.Chunk(text, 0), known(), Set.of(), 120);
+    }
+
+    @Test
+    public void flatNavigationAndPrivacyAreNotAnOffer() throws Exception {
+        final String text = ORG + "\nLeistungen\nTagespflege\nKontakt\nNews\nDownloads\nJobangebote\n" + PRIVACY;
+        final JSONArray entities = new JSONArray();
+        for (final String name : List.of("News", "Downloads", "Jobangebote", PRIVACY)) {
+            entities.put(entity("e" + (entities.length() + 1), name, name));
+        }
+        final LlmExtractor.Result r = check(text, answer(entities, new JSONArray(), new JSONArray()));
+        assertNull(r.refused);
+        assertEquals("a menu heading cannot establish unrelated labels or a privacy sentence as services", 0, r.entities);
+        assertEquals(Integer.valueOf(4), r.droppedInvalidByReason.get("entity_service_not_offered"));
+        for (int i = 0; i < r.samples.size(); i++) {
+            assertEquals(i, r.samples.get(i).getInt("index"));
+        }
+    }
+
+    @Test
+    public void aServiceNameCannotProveItsOwnOffer() throws Exception {
+        for (final String name : List.of("Jobangebote", "Serviceangebote", "Cloud Services", PRIVACY)) {
+            final LlmExtractor.Result r = check("Information\n" + name,
+                    answer(new JSONArray().put(entity("e1", name, name)), new JSONArray(), new JSONArray()));
+            assertEquals(name, 0, r.entities);
+        }
+    }
+
+    @Test
+    public void aMentionOnlyOffersClaimDoesNotSurviveForAKnownService() throws Exception {
+        final Mention m = new Mention("existing-service", "service", 1);
+        m.name = "Tagespflege";
+        final List<LlmExtractor.Known> known = List.of(known().get(0), new LlmExtractor.Known("k2", m));
+        final String quote = ORG + "\nNavigation\nTagespflege";
+        final JSONObject a = answer(new JSONArray(), new JSONArray().put(claim("k1", "k2", quote)), new JSONArray());
+        final LlmExtractor.Result r = LlmExtractor.validate(a.toString(), new LlmExtractor.Chunk(quote, 0), known, Set.of());
+        assertEquals("correct types and both names do not prove an offer", 0, r.claims);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+    }
+
+    @Test
+    public void anOfferAboutAnotherServiceDoesNotTypeAMenuLabel() throws Exception {
+        final String quote = ORG + " bietet Tagespflege an.\nNavigation: News";
+        final LlmExtractor.Result r = check(quote, answer(new JSONArray().put(entity("e1", "News", "News")),
+                new JSONArray().put(claim("k1", "e1", quote)), new JSONArray()));
+        assertEquals(0, r.entities);
+        assertEquals(0, r.claims);
+    }
+
+    @Test
+    public void aPriceOfAnotherServiceCannotSupplyTheMissingOfferContext() throws Exception {
+        final String text = "Navigation: Downloads. Tagespflege: 30 EUR pro Tag.";
+        final JSONArray values = new JSONArray().put(new JSONObject().put("subject", "e1").put("predicate", "price")
+                .put("quote", "Tagespflege: 30 EUR pro Tag"));
+        final LlmExtractor.Result r = check(text, answer(new JSONArray().put(entity("e1", "Downloads", "Downloads")),
+                new JSONArray(), values));
+        assertEquals(0, r.entities);
+        assertEquals("no value on a rejected service", 0, r.values);
+    }
+
+    @Test
+    public void contentOffersKeepNamesAlsoPresentInTheNavigation() throws Exception {
+        for (final String name : List.of("Tagespflege", "Network", "VoIP", "Web&Mail", "News", "Downloads", "Jobangebote")) {
+            final String quote = ORG + " bietet " + name + " für Kunden an";
+            final String text = "Navigation\n" + name + "\nKontakt\n" + quote + ".";
+            final LlmExtractor.Result r = check(text, answer(new JSONArray().put(entity("e1", name, name)),
+                    new JSONArray().put(claim("k1", "e1", quote)), new JSONArray()));
+            assertEquals(name, 1, r.entities);
+            assertEquals(name, 1, r.claims);
+        }
+    }
+
+    @Test
+    public void explicitlyScopedMenuOffersStay() throws Exception {
+        final String quote = ORG + " – Unsere Leistungen: Network, VoIP, Web&Mail";
+        final JSONArray entities = new JSONArray(), claims = new JSONArray();
+        for (final String name : List.of("Network", "VoIP", "Web&Mail")) {
+            final String id = "e" + (entities.length() + 1);
+            entities.put(entity(id, name, name));
+            claims.put(claim("k1", id, quote));
+        }
+        final LlmExtractor.Result r = check(quote + "\nKontakt\nNews\nDownloads", answer(entities, claims, new JSONArray()));
+        assertEquals(3, r.entities);
+        assertEquals(3, r.claims);
+    }
+
+    @Test
+    public void aGroundedPriceForTheNamedServiceStillSuppliesContext() throws Exception {
+        final String quote = "Web&Mail: 12 EUR pro Monat";
+        final JSONArray values = new JSONArray().put(new JSONObject().put("subject", "e1").put("predicate", "price").put("quote", quote));
+        final LlmExtractor.Result r = check(quote, answer(new JSONArray().put(entity("e1", "Web&Mail", "Web&Mail")),
+                new JSONArray(), values));
+        assertEquals(1, r.entities);
+        assertEquals(1, r.values);
+    }
+
+    @Test
+    public void anOlderAcceptedResultCannotPublishAnUnsupportedServiceOrItsDependents() throws Exception {
+        final JSONObject cached = answer(new JSONArray().put(entity("e1", "Jobangebote", "Jobangebote")),
+                new JSONArray().put(claim("k1", "e1", ORG + " Jobangebote")),
+                new JSONArray().put(new JSONObject().put("subject", "e1").put("predicate", "category").put("quote", "Tagespflege")));
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(cached, known(), ex);
+        assertFalse(ex.mentions().stream().anyMatch(m -> Vocabulary.SERVICE.equals(m.type)));
+        assertTrue("dependent statements must not be retargeted to the operator", ex.claims().isEmpty());
+    }
+
+    @Test
+    public void aProviderMentionInAnotherSentenceIsNoOfferByThatProvider() throws Exception {
+        final Mention m = new Mention("existing-service", "service", 1);
+        m.name = "Tagespflege";
+        final List<LlmExtractor.Known> known = List.of(known().get(0), new LlmExtractor.Known("k2", m));
+        final String quote = ORG + " stellt sich vor. Andere Pflege GmbH bietet Tagespflege an";
+        final LlmExtractor.Result r = LlmExtractor.validate(
+                answer(new JSONArray(), new JSONArray().put(claim("k1", "k2", quote)), new JSONArray()).toString(),
+                new LlmExtractor.Chunk(quote, 0), known, Set.of());
+        assertEquals(0, r.claims);
+    }
+
+    @Test
+    public void anotherActorInTheSameSentenceDoesNotMakeTheMentionedCompanyTheProvider() throws Exception {
+        final String quote = ORG + " besucht Andere Pflege GmbH, die Tagespflege bietet";
+        final LlmExtractor.Result r = check(quote, answer(new JSONArray().put(entity("e1", "Tagespflege", quote)),
+                new JSONArray().put(claim("k1", "e1", quote)), new JSONArray()));
+        assertEquals("a service is actually offered by someone", 1, r.entities);
+        assertEquals("the named subject is not that provider", 0, r.claims);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+    }
+
+    @Test
+    public void markedOfferListsEndBeforeUnmarkedNavigationAndBoilerplate() throws Exception {
+        final String text = "Unsere Leistungen:\n- Tagespflege\n- Kurzzeitpflege\nKontakt\nNews\nDownloads\n" + PRIVACY;
+        final JSONArray entities = new JSONArray();
+        for (final String name : List.of("Tagespflege", "Kurzzeitpflege", "News", "Downloads", PRIVACY)) {
+            entities.put(entity("e" + (entities.length() + 1), name, name));
+        }
+        final LlmExtractor.Result r = check(text, answer(entities, new JSONArray(), new JSONArray()));
+        assertEquals(2, r.entities);
+        assertEquals(Integer.valueOf(3), r.droppedInvalidByReason.get("entity_service_not_offered"));
+    }
+
+    @Test
+    public void bareMenuNamesAreNotBannedButNeedAnIndependentOffer() throws Exception {
+        final String text = "Navigation\nTagespflege\nNetwork\nVoIP\nWeb&Mail\nKontakt";
+        final JSONArray entities = new JSONArray();
+        for (final String name : List.of("Tagespflege", "Network", "VoIP", "Web&Mail")) {
+            entities.put(entity("e" + (entities.length() + 1), name, name));
+        }
+        assertEquals(0, check(text, answer(entities, new JSONArray(), new JSONArray())).entities);
+    }
+
+    @Test
+    public void offersInEnglishAndWithGermanInversionKeepTheProvider() throws Exception {
+        for (final String quote : List.of(ORG + " offers VoIP to customers", "VoIP is offered by " + ORG,
+                "VoIP bietet die " + ORG + " an")) {
+            final LlmExtractor.Result r = check(quote, answer(new JSONArray().put(entity("e1", "VoIP", quote)),
+                    new JSONArray().put(claim("k1", "e1", quote)), new JSONArray()));
+            assertEquals(quote, 1, r.entities);
+            assertEquals(quote, 1, r.claims);
+        }
+    }
+
+    @Test
+    public void aNegatedOfferIsNotAnOffer() throws Exception {
+        final String quote = ORG + " bietet keine Tagespflege an";
+        assertEquals(0, check(quote, answer(new JSONArray().put(entity("e1", "Tagespflege", quote)),
+                new JSONArray().put(claim("k1", "e1", quote)), new JSONArray())).entities);
+    }
+
+    @Test
+    public void aDirectProviderLabelBindsTheFollowingOwnOffer() throws Exception {
+        for (final String quote : List.of("Kontakt zur " + ORG + ". Unsere Leistungen: VoIP und Web&Mail",
+                "Leistungen der " + ORG + ". Wir bieten VoIP für Unternehmen an")) {
+            final LlmExtractor.Result r = check(quote, answer(new JSONArray().put(entity("e1", "VoIP", "VoIP")),
+                    new JSONArray().put(claim("k1", "e1", quote)), new JSONArray()));
+            assertEquals(quote, 1, r.entities);
+            assertEquals(quote, 1, r.claims);
+        }
+        final String other = "Kontakt zur " + ORG + " und Andere Firma. Unsere Leistungen: VoIP";
+        final LlmExtractor.Result r = check(other, answer(new JSONArray().put(entity("e1", "VoIP", "VoIP")),
+                new JSONArray().put(claim("k1", "e1", other)), new JSONArray()));
+        assertEquals(1, r.entities);
+        assertEquals(0, r.claims);
+    }
+
+    @Test
+    public void flattenedNavigationDoesNotBorrowTheContentsOfferingVerb() throws Exception {
+        final String quote = ORG + " bietet Tagespflege für Kunden an";
+        final String text = "Navigation Tagespflege News Downloads Jobangebote Kontakt " + quote + ".";
+        final JSONArray entities = new JSONArray();
+        for (final String name : List.of("Tagespflege", "News", "Downloads", "Jobangebote")) {
+            entities.put(entity("e" + (entities.length() + 1), name, name));
+        }
+        final LlmExtractor.Result r = check(text, answer(entities, new JSONArray(), new JSONArray()));
+        assertEquals("the actual object of the offer stays; earlier menu labels do not inherit its verb", 1, r.entities);
+        assertEquals("Tagespflege", r.accepted.getJSONArray("entities").getJSONObject(0).getString("name"));
+        assertEquals(Integer.valueOf(3), r.droppedInvalidByReason.get("entity_service_not_offered"));
+    }
+
+    private static JSONObject listAnswer(final String quote) throws Exception {
+        return answer(new JSONArray().put(entity("e1", "Tagespflege", quote)),
+                new JSONArray().put(claim("k1", "e1", quote)),
+                new JSONArray().put(new JSONObject().put("subject", "e1").put("predicate", "price").put("quote", quote)));
+    }
+
+    @Test
+    public void aThirdPartysInlineOfferListDoesNotBindTheMentionedProvider() throws Exception {
+        final String quote = ORG + " verweist auf Andere Pflege GmbH, deren Leistungen: Tagespflege";
+        final LlmExtractor.Result r = check(quote, listAnswer(quote));
+        assertEquals("the other provider's service stays", 1, r.entities);
+        assertEquals("co-occurrence is not provider ownership of the list", 0, r.claims);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+        assertEquals(0, r.samples.stream().filter(s -> "claim_offer_not_stated".equals(s.optString("reason")))
+                .findFirst().orElseThrow().getInt("index"));
+    }
+
+    @Test
+    public void aThirdPartysMarkedOfferListDoesNotBindTheMentionedProvider() throws Exception {
+        final String quote = ORG + " verweist auf Andere Pflege GmbH, deren Leistungen:\n- Tagespflege";
+        final LlmExtractor.Result r = check(quote, listAnswer(quote));
+        assertEquals(1, r.entities);
+        assertEquals(0, r.claims);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+    }
+
+    @Test
+    public void aNegatedInlineHeadingDoesNotEstablishAServiceOrItsDependents() throws Exception {
+        for (final String quote : List.of(ORG + " – Nicht angebotene Leistungen: Tagespflege",
+                ORG + " – Nicht angebotene Leistungen: Tagespflege, 12 EUR pro Tag")) {
+            final LlmExtractor.Result r = check(quote, listAnswer(quote));
+            assertEquals(quote, 0, r.entities);
+            assertEquals(0, r.claims);
+            assertEquals(0, r.values);
+            assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("entity_service_not_offered"));
+            assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_entity_dropped"));
+            assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("value_unresolved_subject"));
+        }
+    }
+
+    @Test
+    public void aNegatedMarkedListDoesNotEstablishAServiceEvenWithAPrice() throws Exception {
+        for (final String quote : List.of(ORG + " – Nicht angebotene Leistungen:\n- Tagespflege",
+                ORG + " – Nicht angebotene Leistungen:\n- Tagespflege, 12 EUR pro Tag",
+                ORG + " – Unsere Leistungen:\n- keine Tagespflege, 12 EUR pro Tag")) {
+            final LlmExtractor.Result r = check(quote, listAnswer(quote));
+            assertEquals(quote, 0, r.entities);
+            assertEquals(0, r.claims);
+            assertEquals(0, r.values);
+        }
+    }
+
+    @Test
+    public void headingChecksAlsoApplyToOffersOfAKnownService() throws Exception {
+        final Mention m = new Mention("existing-service", Vocabulary.SERVICE, 1);
+        m.name = "Tagespflege";
+        final List<LlmExtractor.Known> known = List.of(known().get(0), new LlmExtractor.Known("k2", m));
+        for (final String quote : List.of(ORG + " verweist auf Andere Pflege GmbH, deren Leistungen: Tagespflege",
+                ORG + " – Nicht angebotene Leistungen: Tagespflege",
+                ORG + " – Nicht angebotene Leistungen:\n- Tagespflege")) {
+            final LlmExtractor.Result r = LlmExtractor.validate(answer(new JSONArray(),
+                    new JSONArray().put(claim("k1", "k2", quote)), new JSONArray()).toString(),
+                    new LlmExtractor.Chunk(quote, 0), known, Set.of());
+            assertEquals(quote, 0, r.claims);
+            assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+        }
+    }
+
+    @Test
+    public void acceptedLegacyListsAreGuardedWithoutAStoredPageContext() throws Exception {
+        for (final String quote : List.of(ORG + " verweist auf Andere Pflege GmbH, deren Leistungen: Tagespflege, 12 EUR pro Tag",
+                ORG + " – Nicht angebotene Leistungen: Tagespflege, 12 EUR pro Tag",
+                ORG + " – Nicht angebotene Leistungen:\n- Tagespflege, 12 EUR pro Tag")) {
+            final Extraction ex = new Extraction(100);
+            LlmExtractor.apply(listAnswer(quote), known(), ex);
+            assertFalse(quote, ex.claims().stream().anyMatch(c -> Vocabulary.OFFERS.equals(c.predicate)));
+            if (quote.contains("Nicht")) {
+                assertFalse(ex.mentions().stream().anyMatch(m -> Vocabulary.SERVICE.equals(m.type)));
+                assertTrue("no orphan name or value, and no retargeting to the provider", ex.claims().isEmpty());
+            } else {
+                assertEquals(1L, ex.mentions().stream().filter(m -> Vocabulary.SERVICE.equals(m.type)).count());
+                assertTrue("the actual service's price survives", ex.claims().stream().anyMatch(c -> Vocabulary.PRICE.equals(c.predicate)));
+            }
+        }
+    }
+
+    @Test
+    public void positiveOwnedListsKeepTheirOffersAndValues() throws Exception {
+        for (final String quote : List.of(ORG + " – Unsere Leistungen: Tagespflege, 12 EUR pro Tag",
+                ORG + " – Unsere Leistungen:\n- Tagespflege, 12 EUR pro Tag",
+                "Kontakt zur " + ORG + ". Unsere Leistungen: Tagespflege, 12 EUR pro Tag")) {
+            final LlmExtractor.Result r = check(quote, listAnswer(quote));
+            assertEquals(quote, 1, r.entities);
+            assertEquals(quote, 1, r.claims);
+            assertEquals(quote, 1, r.values);
+            final Extraction ex = new Extraction(100);
+            LlmExtractor.apply(r.accepted, known(), ex);
+            assertTrue(quote, ex.claims().stream().anyMatch(c -> Vocabulary.OFFERS.equals(c.predicate)));
+            assertTrue(quote, ex.claims().stream().anyMatch(c -> Vocabulary.PRICE.equals(c.predicate)));
+        }
+    }
+
+    @Test
+    public void aDeniedListDoesNotPoisonALaterRealOfferOfTheSameName() throws Exception {
+        final String denied = ORG + " – Nicht angebotene Leistungen:\n- Tagespflege";
+        final String offered = ORG + " – Unsere Leistungen:\n- Tagespflege, 12 EUR pro Tag";
+        final String text = denied + "\n\n" + offered;
+        final JSONObject a = listAnswer(offered);
+        a.getJSONArray("entities").getJSONObject(0).put("quote", "Tagespflege");
+        a.getJSONArray("claims").put(claim("k1", "e1", denied));
+        final LlmExtractor.Result r = check(text, a);
+        assertEquals(1, r.entities);
+        assertEquals("only the positive list supplies the relation", 1, r.claims);
+        assertEquals(1, r.values);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+        assertEquals(1, r.samples.get(0).getInt("index"));
+        assertEquals(LlmExtractor.normal(offered.substring(0, offered.indexOf(", 12"))),
+                r.accepted.getJSONArray("entities").getJSONObject(0).getString("quote"));
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(a, known(), ex, ExtractContext.none().withServiceText(text));
+        assertEquals(1L, ex.claims().stream().filter(c -> Vocabulary.OFFERS.equals(c.predicate)).count());
+        assertTrue(ex.claims().stream().filter(c -> Vocabulary.OFFERS.equals(c.predicate))
+                .allMatch(c -> c.object.equals("llm:service:tagespflege")));
+        assertTrue(ex.claims().stream().filter(c -> Vocabulary.PRICE.equals(c.predicate))
+                .allMatch(c -> c.subject.equals("llm:service:tagespflege")));
+    }
+
+    @Test
+    public void aShortPriceQuoteCannotHideItsNegatedSourceHeading() throws Exception {
+        final String price = "Tagespflege, 12 EUR pro Tag";
+        for (final String text : List.of(ORG + " – Nicht angebotene Leistungen: " + price,
+                ORG + " – Nicht angebotene Leistungen:\n- " + price)) {
+            for (final String entityQuote : List.of("Tagespflege", price)) {
+                final JSONObject a = listAnswer(text);
+                a.getJSONArray("entities").getJSONObject(0).put("quote", entityQuote);
+                a.getJSONArray("values").getJSONObject(0).put("quote", price);
+                final LlmExtractor.Result r = check(text, a);
+                assertEquals(entityQuote + " in " + text, 0, r.entities);
+                assertEquals(0, r.claims);
+                assertEquals(0, r.values);
+                final Extraction ex = new Extraction(100);
+                LlmExtractor.apply(a, known(), ex, ExtractContext.none().withServiceText(text));
+                assertFalse(ex.mentions().stream().anyMatch(m -> Vocabulary.SERVICE.equals(m.type)));
+                assertTrue(ex.claims().isEmpty());
+            }
+        }
+    }
+
+    @Test
+    public void aShortOfferQuoteForAKnownServiceCannotHideItsDeniedList() throws Exception {
+        final Mention m = new Mention("existing-service", Vocabulary.SERVICE, 1);
+        m.name = "Tagespflege";
+        final List<LlmExtractor.Known> known = List.of(known().get(0), new LlmExtractor.Known("k2", m));
+        final String quote = ORG + " bietet Tagespflege an";
+        final String text = "Nicht angebotene Leistungen:\n- " + quote;
+        final JSONObject a = answer(new JSONArray(), new JSONArray().put(claim("k1", "k2", quote)), new JSONArray());
+        final LlmExtractor.Result r = LlmExtractor.validate(a.toString(), new LlmExtractor.Chunk(text, 0), known, Set.of());
+        assertEquals(0, r.claims);
+        assertEquals(Integer.valueOf(1), r.droppedInvalidByReason.get("claim_offer_not_stated"));
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(a, known, ex, ExtractContext.none().withServiceText(text));
+        assertTrue(ex.claims().isEmpty());
+        assertEquals("the trusted service itself is not removed", 1L,
+                ex.mentions().stream().filter(x -> Vocabulary.SERVICE.equals(x.type)).count());
+    }
+
+    @Test
+    public void navigationBeforeAnOwnedHeadingDoesNotBreakTheDirectProviderBinding() throws Exception {
+        final String quote = ORG + " – Unsere Leistungen: Tagespflege, 12 EUR pro Tag";
+        final String text = "Navigation Tagespflege News Kontakt " + quote;
+        final LlmExtractor.Result r = check(text, listAnswer(quote));
+        assertEquals(1, r.entities);
+        assertEquals(1, r.claims);
+        assertEquals(1, r.values);
+        final Extraction ex = new Extraction(100);
+        LlmExtractor.apply(r.accepted, known(), ex, ExtractContext.none().withServiceText(text));
+        assertEquals(1L, ex.claims().stream().filter(c -> Vocabulary.OFFERS.equals(c.predicate)).count());
+    }
+}

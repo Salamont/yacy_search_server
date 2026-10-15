@@ -426,6 +426,14 @@ memory; every restart resets them, so they are no long-term statistics.
   Each item counts once, under the first rule it breaks; the counts add up to
   **Dropped as invalid**. The codes and their rules:
   `docs/SCOUTRO_KNOWLEDGE_GRAPH.md`, section 6.3.
+- A service needs a source passage that states an offer independently of its
+  name (`entity_service_not_offered`). An `offers` statement also needs an
+  offer of that service by its named provider (`claim_offer_not_stated`).
+  Flat navigation and a privacy sentence do not inherit an earlier offer
+  heading. Explicit offer lists and content offers remain valid, including
+  names also used in navigation. Dependents of a rejected entity are dropped
+  with it; these diagnostics do not remove existing graph data. See section 34
+  of `docs/SCOUTRO_KNOWLEDGE_GRAPH.md` for examples and limits.
 - These are diagnostic counters. For diagnosis, up to 500 samples of dropped
   items and refused answers are kept in memory only (20 per reason, 128 KiB,
   seven days; a restart clears them): reason, item, predicate, types, page

@@ -127,17 +127,6 @@ public final class LlmExtractor {
     /** A person (salutation or title first) or contact data instead of a name: never an entity (O7). */
     private static final Pattern PERSON_OR_CONTACT = Pattern.compile("(?iu)^(?:herr|frau|hr\\.|fr\\.|dr\\.|prof\\.|mr\\.?|mrs\\.?|ms\\.?)\\s"
             + "|@|https?://|(?:\\d[\\s/().-]*){6,}");
-    /**
-     * Words that state an offer (0.10.7): a service of the answer needs one in its quote, in the heading its quote stands
-     * under ({@link #underHeading}), in an {@code offers} statement about it, or a price of it. A tool of the page (a spell
-     * check, an image list, a print view), a product used internally or a menu label without such a heading is no service.
-     */
-    static final Pattern OFFER = Pattern.compile("(?iu)\\b(?:(?:an)?biete[nt]?|bietet|anbieten|angeboten|offer(?:s|ed|ing)?"
-            + "|provide[sd]?|providing|kaufen|bestellen|buchen|beauftragen|vertreiben|verkaufen|vermieten|mieten|buy|purchase"
-            // the inflected forms of a seller's verbs: "Die … GmbH verkauft MusterText Pro" (0.10.7, found by the quality check)
-            + "|verkauft|vertreibt|vermietet|sells?|selling|sold"
-            + "|book(?:ing)?|subscribe|pricing|prices|services|products|solutions|portfolio|sortiment)\\b"
-            + "|\\p{L}*(?:leistung(?:en)?|angebot(?:e|en|s)?|produkte?n?|l(?:ö|oe)sung(?:en)?|lizenz(?:en)?|preise?|preisliste|tarife?)\\b");
     /** A team, a department or staff: the name of a group of people, no service (0.10.7). */
     static final Pattern TEAM = Pattern.compile("(?iu)(?:team|teams|abteilung|department|staff|crew|mitarbeiter(?:in|innen)?"
             + "|ansprechpartner(?:in|innen)?|belegschaft|kollegium)$");
@@ -368,7 +357,7 @@ public final class LlmExtractor {
             "entity_quote_too_long", // over MAX_QUOTE characters
             // the type needs the context that states it, not only a quote with the name (0.10.7, checked after grounding)
             "entity_service_team_or_role", // a "service" named as a team, a department or staff ("Service team", "Vertriebsteam")
-            "entity_service_not_offered", // a "service" no offer states: not its quote, its heading, an offer or a price of the answer
+            "entity_service_not_offered", // no independent, bounded source offer or named price evidence for this service
             "entity_job_not_advertised", // a "job" no advertisement states: no vacancy, no gender marker, no hiring statement
             // claims
             "claim_not_object",
@@ -384,6 +373,7 @@ public final class LlmExtractor {
             "claim_entity_dropped", // an end is an entity of the answer that was dropped (its own reason counts it)
             "claim_subject_type_mismatch", "claim_object_type_mismatch", // the type rules of the relation
             "claim_employer_unresolved", // hiring_organization quoted on behalf of a client (an intermediary, not the employer)
+            "claim_offer_not_stated", // both names occur, but no offer by this provider of this service is stated
             // values
             "value_not_object",
             "value_extra_field", // a field other than subject, predicate, quote
@@ -633,7 +623,7 @@ public final class LlmExtractor {
             final String id = string(e, "id");
             final String type = string(e, "type");
             final String name = Normalizers.clip(string(e, "name"), MAX_STRING);
-            final String quote = string(e, "quote");
+            String quote = string(e, "quote");
             final String invalid = invalidEntity(e, id, type, name, quote, names);
             if (invalid != null) {
                 r.invalid(invalid);
@@ -663,6 +653,10 @@ public final class LlmExtractor {
                 r.sample(untyped, "entity", null, type, null, null, null, quote);
                 dropped.putIfAbsent(id, untyped);
                 continue;
+            }
+            if (Vocabulary.SERVICE.equals(type) && !alias.containsKey(id)) {
+                // Publish the actual offer evidence, even if the model quoted the name's first (navigation) occurrence.
+                quote = serviceProof(id, name, quote, text, chunk.text, context);
             }
             String kind = string(e, "kind");
             kind = kind == null ? null : kind.toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
@@ -718,6 +712,13 @@ public final class LlmExtractor {
                 r.droppedUngrounded++;
                 r.sample("ungrounded", "claim", predicate, s[0], state(rawSubject, names, dropped), ob[0], state(rawObject, names, dropped),
                         quote);
+                continue;
+            }
+            if (Vocabulary.OFFERS.equals(predicate)
+                    && ServiceEvidence.evidence(chunk.text, quote, ob[1], s[1]) == null) {
+                r.invalid("claim_offer_not_stated");
+                r.sample("claim_offer_not_stated", "claim", predicate, s[0], state(rawSubject, names, dropped), ob[0],
+                        state(rawObject, names, dropped), quote);
                 continue;
             }
             if(Vocabulary.HIRING_ORGANIZATION.equals(predicate)&&BusinessSignals.INTERMEDIARY.matcher(quote).find()) {
@@ -792,6 +793,10 @@ public final class LlmExtractor {
      * it. Read before the entities are checked; each quote still has to be grounded and to state what it is used for.
      */
     private static Map<String, List<String>> context(final JSONArray claims, final JSONArray values) {
+        return context(claims, values, false);
+    }
+
+    private static Map<String, List<String>> context(final JSONArray claims, final JSONArray values, final boolean prepared) {
         final Map<String, List<String>> out = new LinkedHashMap<>();
         for (int i = 0; i < claims.length(); i++) {
             final JSONObject c = claims.optJSONObject(i);
@@ -808,8 +813,10 @@ public final class LlmExtractor {
         }
         for (int i = 0; i < values.length(); i++) {
             final JSONObject v = values.optJSONObject(i);
-            if (v != null && Vocabulary.PRICE.equals(v.optString("predicate")) && v.opt("subject") instanceof String
-                    && v.opt("quote") instanceof String) {
+            if (v != null && onlyKeys(v, prepared ? Set.of("subject", "predicate", "quote", "at") : VALUE_KEYS)
+                    && Vocabulary.PRICE.equals(v.optString("predicate"))
+                    && string(v, "subject") != null && string(v, "quote") != null
+                    && invalidQuote(v, string(v, "quote"), "missing", "malformed", "long") == null) {
                 out.computeIfAbsent("price:" + v.optString("subject"), k -> new ArrayList<>()).add(v.optString("quote"));
             }
         }
@@ -820,10 +827,8 @@ public final class LlmExtractor {
      * Why a new service or job of the answer is dropped although its quote holds its name, or null (0.10.7). A quote that
      * only contains the name proves the name, not the type:
      * <ul>
-     * <li>a service named as a team, a department or staff is none ("Our service team is looking forward to providing any
-     * support"); a service needs an offer: in its quote, in the heading its quote stands under ("Leistungen" above the entries
-     * of a navigation, {@link #underHeading}), in an {@code offers} statement about it whose quote holds its name and an
-     * offer, or in a price of it whose quote holds an amount;</li>
+     * <li>a service named as a team, a department or staff is none. An independent offer cue must name it in a bounded
+     * source passage ({@link ServiceEvidence}); answer claims and values cannot supply missing source context;</li>
      * <li>a job needs an advertisement: a vacancy or a gender marker in its name, its quote or the heading its quote stands
      * under, or a hiring statement about it that advertises it. The role of a team member is no job.</li>
      * </ul>
@@ -835,20 +840,7 @@ public final class LlmExtractor {
             if (TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
                 return "entity_service_team_or_role";
             }
-            if (OFFER.matcher(quote).find() || underHeading(raw, quote, OFFER)) {
-                return null;
-            }
-            for (final String q : context.getOrDefault("offer:" + id, List.of())) {
-                if (OFFER.matcher(q).find() && groundedAt(text, q, List.of(name)) >= 0) {
-                    return null;
-                }
-            }
-            for (final String q : context.getOrDefault("price:" + id, List.of())) {
-                if (groundedAt(text, q, List.of()) >= 0 && !Values.prices(q, 0, q.length()).isEmpty()) {
-                    return null;
-                }
-            }
-            return "entity_service_not_offered";
+            return serviceProof(id, name, quote, text, raw, context) == null ? "entity_service_not_offered" : null;
         }
         if (Vocabulary.JOB.equals(type)) {
             if (POSTING.matcher(name).find() || POSTING.matcher(quote).find() || underHeading(raw, quote, POSTING)) {
@@ -860,6 +852,28 @@ public final class LlmExtractor {
                 }
             }
             return "entity_job_not_advertised";
+        }
+        return null;
+    }
+
+    private static String serviceProof(final String id, final String name, final String quote, final String text,
+            final String raw, final Map<String, List<String>> context) {
+        final String original = groundedAt(text, quote, List.of(name)) < 0 ? null
+                : ServiceEvidence.pricedEvidence(raw, quote, name);
+        if (original != null) {
+            return original;
+        }
+        final String offered = ServiceEvidence.evidence(raw, name);
+        if (offered != null) {
+            return offered;
+        }
+        for (final String q : context.getOrDefault("price:" + id, List.of())) {
+            if (groundedAt(text, q, List.of(name)) >= 0) {
+                final String priced = ServiceEvidence.pricedEvidence(raw, q, name);
+                if (priced != null) {
+                    return priced;
+                }
+            }
         }
         return null;
     }
@@ -1052,6 +1066,8 @@ public final class LlmExtractor {
             knownByName.put(k.mention.type + "\u0000" + Normalizers.key(k.mention.name), k.mention.ref);
         }
         final JSONArray entities = accepted.optJSONArray("entities");
+        final Map<String, List<String>> context = context(accepted.optJSONArray("claims") == null ? new JSONArray() : accepted.optJSONArray("claims"),
+                accepted.optJSONArray("values") == null ? new JSONArray() : accepted.optJSONArray("values"), true);
         final Set<String> named = new HashSet<>();
         for (int i = 0; entities != null && i < entities.length(); i++) {
             final JSONObject e = entities.optJSONObject(i);
@@ -1060,6 +1076,29 @@ public final class LlmExtractor {
             final String key = Normalizers.key(name);
             final String same = knownByName.get(type + "\u0000" + key);
             final String ref = same != null ? same : "llm:" + type + ":" + key;
+            String quote = e.optString("quote");
+            String location = locator(e);
+            if (Vocabulary.SERVICE.equals(type) && same == null) {
+                final String raw = ctx == null || ctx.serviceText == null ? quote : ctx.serviceText;
+                String proof = serviceProof(e.optString("id"), name, quote, normal(raw), raw, context);
+                if (proof == null && (ctx == null || ctx.serviceText == null)) {
+                    proofSearch:
+                    for (final String kind : List.of("offer:", "price:")) {
+                        for (final String q : context.getOrDefault(kind + e.optString("id"), List.of())) {
+                            if ((proof = "price:".equals(kind) ? ServiceEvidence.pricedEvidence(raw, q, name) : ServiceEvidence.evidence(q, name)) != null) {
+                                break proofSearch;
+                            }
+                        }
+                    }
+                }
+                if (proof == null || TEAM.matcher(name.trim().replaceAll("[\\s.:;,!?)]+$", "")).find()) {
+                    continue; // old accepted/cache entries pass the same evidence rule; their dependents have no ref
+                }
+                if (ctx != null && ctx.serviceText != null) {
+                    location = "text:" + rawOffset(ctx.serviceText, proof) + "+" + normal(proof).length();
+                }
+                quote = normal(proof);
+            }
             if (Vocabulary.JOB.equals(type) && (ctx == null || !ctx.jobs)) {
                 continue; // jobs are switched on per collection
             }
@@ -1078,7 +1117,7 @@ public final class LlmExtractor {
                 }
             }
             if (named.add(ref)) {
-                out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, locator(e), e.optString("quote")));
+                out.add(new Claim(ref, Vocabulary.NAME, null, name, TIER, Claim.KIND_LLM, false, location, quote));
             }
         }
         final JSONArray claims = accepted.optJSONArray("claims");
@@ -1088,6 +1127,13 @@ public final class LlmExtractor {
             final String o = refs.get(c.optString("object"));
             if (s == null || o == null || s.equals(o)) {
                 continue;
+            }
+            if (Vocabulary.OFFERS.equals(c.optString("predicate"))) {
+                final String raw = ctx == null ? null : ctx.serviceText;
+                if (raw != null && !quoteInText(raw, c.optString("quote")) || ServiceEvidence.evidence(
+                        raw, c.optString("quote"), out.mention(o).name, out.mention(s).name) == null) {
+                    continue;
+                }
             }
             out.add(new Claim(s, c.optString("predicate"), o, null, TIER, Claim.KIND_LLM, c.optBoolean("hedged"), locator(c),
                     c.optString("quote")));

@@ -283,30 +283,26 @@ public class QualityDiagnosisTest {
     }
 
     /**
-     * A price whose quote holds no amount: the price is dropped, and so is its service, whose only context of an offer was
-     * that price (a service needs an offer, #68). Both are told apart, each with the reason of exactly that item.
+     * A price whose quote holds no amount is dropped. The service's own quote names it and its amount, so the service
+     * remains. The diagnosis attributes the price's own reason, independently of the entity's evidence.
      */
     @Test
-    public void aPriceWithoutItsAmountIsDroppedAndTakesItsServiceAlong() throws Exception {
+    public void aPriceWithoutItsAmountIsDroppedWhileItsGroundedServiceStays() throws Exception {
         answering("price_with_service", a -> answer(List.of(
                 QualityFixture.entity("e1", "service", "Unterhaltsreinigung", "Für die Unterhaltsreinigung berechnen wir 28,50 € pro Stunde zzgl. MwSt."),
                 QualityFixture.entity("e2", "service", "Glasreinigung", "die Glasreinigung kostet 4,20 € pro Stunde zzgl. MwSt.")),
                 List.of(), List.of(QualityFixture.value("e1", "price", "Für die Unterhaltsreinigung berechnen wir 28,50 € pro Stunde zzgl. MwSt."),
                         QualityFixture.value("e2", "price", "die Glasreinigung kostet"))));
         final JSONObject c = caseResult(run(), "price_with_service");
-        final JSONObject service = deviation(c, QualityEvaluator.MISSING, "service “Glasreinigung”").optJSONObject("where");
-        assertEquals(service.toString(2), QualityEvaluator.DROPPED_BY_VALIDATOR, service.optString("why"));
-        assertEquals("entity_service_not_offered", service.optJSONArray("reasons").optString(0));
-        assertTrue(service.optJSONObject("checks").optBoolean("quoteOnPage"));
+        assertEquals(c.toString(2), 2, c.optJSONObject("diagnosis").optJSONArray("answers").optJSONObject(0)
+                .optJSONObject("validator").optJSONObject("accepted").optInt("entities"));
         final JSONObject price = deviation(c, QualityEvaluator.MISSING, "4.20").optJSONObject("where");
         assertEquals(price.toString(2), QualityEvaluator.DROPPED_BY_VALIDATOR, price.optString("why"));
         assertTrue(price.toString(2), price.optBoolean("reasonAttributed"));
-        // the price's own reason, and the sample says its subject was the service the validator dropped before
-        assertEquals(price.toString(2), "value_unresolved_subject", price.optJSONArray("reasons").optString(0));
-        assertEquals("dropped_entity:entity_service_not_offered", price.optJSONObject("drop").optString("subject"));
+        assertEquals(price.toString(2), "no_amount", price.optJSONArray("reasons").optString(0));
         assertFalse("the expected amount is not in its evidence", price.optJSONObject("checks").optBoolean("evidencePassage"));
         // the first service keeps its price
-        assertEquals(c.toString(2), 2, c.optJSONObject("counts").optInt("missing"));
+        assertEquals(c.toString(2), 1, c.optJSONObject("counts").optInt("missing"));
     }
 
     /** A price assigned to the wrong service is kept by the validator; the evaluation rates it as the other service's price. */
