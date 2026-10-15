@@ -1,0 +1,170 @@
+{
+  "status": "release_review_prepared_on_main_not_published",
+  "tested_candidate": "bb57c86a403a796dc334e00671c1ab3c6435acb0",
+  "fix_pr": 73,
+  "release_pr": 74,
+  "package_preparation_pr": 11,
+  "base_fix_head": "432a2ad026304a4bc7aa55c26c00eeb02d115c2b",
+  "versions": {
+    "alias": "0.10.9",
+    "full": "1.942-scoutro.33",
+    "yacy_numeric": "1.942"
+  },
+  "application_source_and_java_tests_unchanged_from": "7ba5fcb6c4faa77007861feb5b4a64a3ce713b82",
+  "deferred_finding": {
+    "standalone_price_provider_binding": "open_explicitly_deferred",
+    "additional_fix_included": false
+  },
+  "historical_validation": {
+    "head": "7ba5fcb6c4faa77007861feb5b4a64a3ce713b82",
+    "offer_regressions": 38,
+    "focused_tests": 108,
+    "scoutro_tests": 1233,
+    "rerun_full_scoutro_suite_in_release_preparation": false
+  },
+  "new_validation": {
+    "ant_clean_all_dist_offer_target": "passed",
+    "jetty_tests": 60,
+    "focused_tests": 108,
+    "included_offer_regressions": 38,
+    "quality_smoke_ui": 198,
+    "quality_smoke_live": 65,
+    "solr_bridge_tests": 4,
+    "dependency_guard": "passed",
+    "attribution_original_files": 58,
+    "attribution_distribution": "passed",
+    "attribution_actual_exported_local_image": "passed",
+    "image_smoke_checks": 21,
+    "image_smoke_network": "none",
+    "image_smoke_uid_gid": "1000:1000",
+    "image_smoke_assertions": "existing kg-image-smoke.py unchanged; loopback transport adapter"
+  },
+  "general_compileTest": {
+    "status": "failed_existing_backlog",
+    "errors": 15,
+    "HostBalancerTest": 1,
+    "NetworkGraphTest": 14,
+    "fully_green_repository_wide_run": false,
+    "last_executed_date": "2026-10-14",
+    "rerun_on_2026_10_15": false
+  },
+  "initial_distribution": {
+    "path": "RELEASE/yacy_v1.942_202610141910_bb57c86a4.tar.gz",
+    "sha256": "627e56353c969fd403d18f9fbe9887dfd09a0b582f7716b6b88303ba6c7cf0cf"
+  },
+  "local_image": {
+    "tag": "scoutro:0.10.9-rc-bb57c86a4-readable",
+    "configuration_id": "sha256:91a8330d09670df79e098a25c440b96394ce8ddac388556a554f20126c7eef8a",
+    "platform": "linux/amd64",
+    "oci_version": "1.942-scoutro.33",
+    "oci_revision": "bb57c86a403a796dc334e00671c1ab3c6435acb0",
+    "source": "https://github.com/Salamont/yacy_search_server",
+    "licenses": "GPL-2.0-or-later",
+    "configured_user": "yacy",
+    "registry_manifest_digest": null
+  },
+  "version_availability": {
+    "checkedAt": "2026-10-15T06:03:13.520922+00:00",
+    "matching_git_tags": [],
+    "matching_github_releases": [],
+    "checks": [
+      {
+        "tag": "0.10.9",
+        "http": 404,
+        "code": "MANIFEST_UNKNOWN"
+      },
+      {
+        "tag": "1.942-scoutro.33",
+        "http": 404,
+        "code": "MANIFEST_UNKNOWN"
+      }
+    ],
+    "available": true
+  },
+  "package_preparation": {
+    "base_pr": 10,
+    "base_head": "f165c538fd08f1df5851998be77f1f0402608c72",
+    "chart_manifest_values_scripts_runbook_unchanged": true,
+    "static_checks_of_preserved_0_10_8_baseline": 39,
+    "validate_sh_status": "stops_at_missing_olares_cli",
+    "olares_lint_passed": false,
+    "new_package_fingerprint": null,
+    "new_image_pin": null
+  },
+  "remaining_gates": [
+    "separate release merge/publication decision",
+    "actual published merge revision and immutable alias digest with pulled OCI labels",
+    "next package pin/versions and member fingerprint",
+    "published-image isolated runtime/upgrade/restart/return",
+    "full DATA/configuration backup and isolated restore gate",
+    "separate owner OpenCode rollout assignment"
+  ],
+  "performed": {
+    "merge": true,
+    "image_publication": false,
+    "production_access_or_change": false,
+    "real_model_call": false,
+    "model_or_prompt_switch": false,
+    "existing_graph_reextraction_or_cleanup": false,
+    "rollout": false,
+    "merged_pr": 73,
+    "release_pr_74_merge": false
+  },
+  "initial_release_validation_date": "2026-10-14",
+  "initial_new_validation_scope": "new_validation below describes the initial 14 October candidate, not the 15 October rerun",
+  "post_merge_preparation": {
+    "date": "2026-10-15",
+    "fix_pr_merged": 73,
+    "reviewed_fix_head": "432a2ad026304a4bc7aa55c26c00eeb02d115c2b",
+    "merge_method": "merge",
+    "merge_commit": "7263ac5ca9154dd9800456644429de508a6fa3dc",
+    "merge_parents": [
+      "da72b55867f9f11f663cad8aa41b1097596405a3",
+      "432a2ad026304a4bc7aa55c26c00eeb02d115c2b"
+    ],
+    "main": "7263ac5ca9154dd9800456644429de508a6fa3dc",
+    "main_tree_equals_reviewed_fix_head": true,
+    "release_pr": 74,
+    "release_base": "main",
+    "expected_previous_release_head": "74870648f523dc833e2ae879156af6abd6981b20",
+    "tested_candidate": "f9e6480963e3546d3b7de40c3a395fb64ea03601",
+    "main_incorporation_changed_files": false,
+    "feature_branch_preserved": true,
+    "further_release_changes": "documentation and evidence only",
+    "application_source_and_java_tests_unchanged": true,
+    "new_validation": {
+      "command": "JAVA_HOME=/tmp/scoutro-jdk ANT_OPTS=<proxy and CA options documented in handoff> /tmp/apache-ant-1.10.15/bin/ant -Divy.default.ivy.user.dir=/tmp/scoutro-ivy clean all dist scoutro-kg-offer-evidence-test",
+      "status": "BUILD SUCCESSFUL",
+      "relocation_packaging_checks": 18,
+      "jetty_tests": 60,
+      "focused_tests": 108,
+      "included_offer_regressions": 38,
+      "models": "mocks only",
+      "data": "fresh isolated fixtures only",
+      "build_log_sha256": "f3ddce24cc3eebf623cb70f34c2453ddc2e4a310ade5d5b22d68e00deec331b3",
+      "distribution": {
+        "path": "RELEASE/yacy_v1.942_202610150610_f9e648096.tar.gz",
+        "sha256": "51dac03afefe6b97340a5bba10d3217786d3b88eb7e4e3898fd7915360f41bf4"
+      },
+      "final_documentation_distribution": "rebuilt separately; exact archive/hash and attribution recorded in PR #74 description",
+      "not_rerun": [
+        "general compileTest",
+        "full 1233-test Scoutro suite",
+        "UI/live quality smoke",
+        "standalone bridge smoke",
+        "Docker image smoke",
+        "package validation"
+      ]
+    },
+    "ci": {
+      "pr_workflows": "skipped in fork",
+      "main_push_workflow_run": 38690043932,
+      "main_push_workflow_name": "Build Docker Image",
+      "main_push_workflow_conclusion": "skipped",
+      "scoutro_publication_triggered": false
+    },
+    "package_prs_9_10_11_unchanged": true,
+    "release_pr_merged": false,
+    "publication_authorized": false
+  }
+}

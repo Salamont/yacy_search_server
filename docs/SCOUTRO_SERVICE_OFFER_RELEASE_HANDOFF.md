@@ -6,6 +6,19 @@ negation and old accepted cache entries. It is **not in published 0.10.8**.
 This document prepares the next handoff; it does not authorize or perform a
 merge, image publication, package update or rollout.
 
+Application #73 was merged under explicit authorization on 15 October 2026
+as `7263ac5ca9154dd9800456644429de508a6fa3dc`; reviewed head `432a2ad02`
+and source/Java tests from `7ba5fcb6c` are preserved. Separate preparation
+now exists as application release PR
+[#74](https://github.com/Salamont/yacy_search_server/pull/74), branch
+`release/scoutro-0.10.9` retargeted to `main`, and documentation-only package draft
+[#11](https://github.com/Salamont/YaCy-Search-Community/pull/11) stacked on #10.
+Versions 0.10.9/.33 are prepared but not published. The new image/digest and
+the actual next-version package remain pending; #11 does not change the chart
+or its 0.10.8 pin. Complete current instructions:
+[application handoff](OPENCODE_SCOUTRO_0.10.9_HANDOFF.md) and package
+`docs/PREPARE-0.10.9.md` at the exact #11 head supplied in the final handoff.
+
 **Known limitation, expressly deferred:** the standalone price branch can
 accept a price-based `offers` passage with co-occurring provider/service names
 without establishing that provider's ownership of the priced offer. This
@@ -15,11 +28,13 @@ Details: [deferred price branch](SCOUTRO_SERVICE_OFFER_EVIDENCE.md#deferred-prov
 
 ## Verified existing release/package state
 
-Read-only GitHub inspection on 14 October 2026:
+GitHub identities checked again on 15 October 2026; published 0.10.8 and
+the package PRs are unchanged:
 
 | Item | Identity / state |
 | --- | --- |
-| Application #71 and release #72 | Merged; main `da72b55867f9f11f663cad8aa41b1097596405a3` |
+| Application #71 and release #72 | Merged; main before #73 was `da72b55867f9f11f663cad8aa41b1097596405a3` |
+| Application #73 / current main | Merged as `7263ac5ca9154dd9800456644429de508a6fa3dc`; tree equals reviewed #73 head `432a2ad02` |
 | Published 0.10.8 / `1.942-scoutro.32` | Source `da72b5586`, without #73 |
 | 0.10.8 image pin recorded by package #10 | `ghcr.io/salamont/scoutro:1.942-scoutro.32@sha256:ca4e87bbaa93122f5d16e34d7f07e83489b331db00b773e7f5f0537e7108e372` |
 | Package [#9](https://github.com/Salamont/YaCy-Search-Community/pull/9), 0.10.7 | Open; head `55f01e296c431b91919e61fd1eb2595b2ac95c43` |
@@ -37,14 +52,17 @@ for 0.10.8 only.
 
 ## Required next handoff, after review and a separate release decision
 
-1. Review and merge application #73 only under a separate authorization.
-   Record the final reviewed head and resulting main revision. Preserve #71's
-   fixed evaluation baseline, indexed diagnosis and key scrubbing.
-2. Prepare a new application release on a revision containing that merge.
-   The next expected versions are **0.10.9 / 1.942-scoutro.33**, subject to
-   checking that they are still unused when preparing the release. No version
-   was allocated or changed by this PR. Include the service-evidence fix and
-   its cache/data limits in the release notes.
+1. Completed under explicit authorization: #73 merged as recorded above,
+   #74 retargeted to main and main incorporated without changing its tree.
+   Build/focused regressions rerun. #71's fixed evaluation baseline, indexed
+   diagnosis and key scrubbing remain intact. No additional price fix.
+2. Review the separate release PR #74; **do not merge without a separate
+   release decision**, as its merge can trigger publication.
+   Versions **0.10.9 / 1.942-scoutro.33** are prepared by #74 (not by
+   #73). Both GHCR aliases were free at 2026-10-15 06:03:13 UTC, but must be
+   checked again before publication. Keep the service-evidence fix, the
+   explicitly deferred price/provider finding and cache/data limits in the
+   release notes.
 3. After the separately authorized release merge/publication, capture the
    successful publish run, exact source revision, new immutable manifest
    digest, platform and OCI version/revision labels. Verify both new aliases
