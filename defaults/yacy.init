@@ -1469,3 +1469,7 @@ ai.shield.all.per-day = 480
 ai.rag.synonyms.blocked_pairs = beratung=besprechung;besprechung=beratung
 # Daily report time in the server/log timezone; retain hourly reports.
 ai.logreport.daily_time = 00:00
+# Automatic long-question fallback still requires a tldr model role.
+ai.tldr.enabled = true
+# Explicitly enabled administrator content diagnostics expire after 15 minutes.
+ai.tldr.diagnostics_until = 0

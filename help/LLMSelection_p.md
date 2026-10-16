@@ -262,3 +262,41 @@ Never switch the knowledge usage automatically from a result.
 - Related quality work usually continues on ranking settings, content analysis, LLM selection, RAG configuration, or a representative search result page.
 
 On narrow screens the Services, Available Models and Production Models Matrix use labelled cards from the same table cells and controls. Existing model/usage/context-window save handlers are reused; resizing does not create a second model list or save path.
+
+## TLDR: search-query fallback, controls and manual test
+
+`tldr-shortener` is a search-query role, not a stored web-page summarizer. Automatic
+use requires **all** of: `ai.tldr.enabled=true` (new, compatibility default true), an
+assigned `tldr` model, a question longer than 40 words, and no selected sources from
+the first RAG retrieval. The switch is independent of the model-role assignment:
+assigning a model makes manual tests available, while the switch controls only
+automatic use. No other model role or ordinary retrieval is changed.
+
+**TLDR testen** explicitly makes one bounded model request even when automation is
+off. It does not search, crawl, index or mutate the graph. Review possible API
+charges before clicking. The result displays the original input, actual instruction,
+original response content, parsed terms, effective query, validity/error, duration
+and token usage if returned. Invalid output is not used as a query. Model-produced
+collection/site operators cannot change the existing authorized retrieval scope.
+Manual source comparison is not performed (`sourcesBefore/After=-1`). Automatic
+calls report selected source counts before/after retry.
+
+The operator history includes only administrator/local administrator-owned calls.
+Other accounts' content is not available through this page; their own chat may
+receive TLDR metadata in `scoutro-retrieval.tldr`. History is memory-only, at most
+32 records for 30 minutes. Full question/instruction/response content is omitted
+unless the operator explicitly enables diagnostics for 15 minutes. The new
+`ai.tldr.diagnostics_until` is an expiry timestamp, not stored chat content. Content
+expires at that deadline and is purged on access; history is cleared on restart
+and can be cleared manually. Known credential patterns are redacted in retained
+content; configured API keys never enter it.
+
+All settings, model-matrix writes and manual tests require administrator access,
+POST and the existing `transactionToken` obtained from this page. The model matrix
+JSON body remains unchanged; send the token as a request parameter. Additional
+form actions: `saveTldrSettings` with optional `tldrEnabled`/`tldrDiagnostics`,
+`testTldr` with `tldrQuestion` (1–16000 characters and within the model context
+budget), and `clearTldrHistory`. Automatic output remains capped at 200 tokens,
+the manual test shares that path, and calls have a 30-second read timeout and a
+16 KiB response cap. A configured model is not a guarantee of endpoint health;
+loading this page does not probe it with a paid inference request.

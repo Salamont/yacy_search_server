@@ -681,6 +681,13 @@ public class LLM {
     public String chatWithResponseFormat(final String model, final Context context, final JSONObject response_format,
             final int max_tokens, final int readTimeoutMillis, final int maxResponseChars,
             final java.util.function.Consumer<JSONObject> usage) throws IOException {
+        return chatWithResponseFormat(model, context, response_format, max_tokens, readTimeoutMillis, maxResponseChars, usage, false);
+    }
+
+    /** Operator diagnostics may inspect the original content; all existing callers retain think-block filtering. */
+    public String chatWithResponseFormat(final String model, final Context context, final JSONObject response_format,
+            final int max_tokens, final int readTimeoutMillis, final int maxResponseChars,
+            final java.util.function.Consumer<JSONObject> usage, final boolean preserveRawContent) throws IOException {
         final JSONObject data = new JSONObject();
         
         try {
@@ -730,7 +737,7 @@ public class LLM {
                 if (responseObject.has("provider")) out.put("servedProvider", responseObject.optString("provider", ""));
                 usage.accept(out);
             }
-            return stripThinkBlocks(content);
+            return preserveRawContent ? content : stripThinkBlocks(content);
         } catch (JSONException | URISyntaxException e) {
             throw new IOException(e.getMessage());
         }

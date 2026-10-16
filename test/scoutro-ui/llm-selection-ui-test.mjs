@@ -36,7 +36,7 @@ try {
         const saves = [];
         page.on('pageerror', error => errors.push(error.message));
         // Exercise serialization without changing even the disposable peer's settings.
-        await page.route('**/LLMSelection_p.html', route => {
+        await page.route('**/LLMSelection_p.html*', route => {
           if (route.request().method() !== 'POST') return route.continue();
           saves.push(route.request().postDataJSON());
           return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });

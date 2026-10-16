@@ -29,6 +29,9 @@ import org.json.JSONObject;
 import org.json.JSONTokener;
 
 import net.yacy.cora.protocol.RequestHeader;
+import net.yacy.data.TransactionManager;
+import net.yacy.ai.TldrService;
+import net.yacy.ai.LLM;
 import net.yacy.search.Switchboard;
 import net.yacy.server.serverObjects;
 import net.yacy.server.serverSwitch;
@@ -170,7 +173,52 @@ public class LLMSelection_p {
         // return variable that accumulates replacements
         final Switchboard sb = (Switchboard) env;
 
-        final serverObjects prop = new serverObjects();
+        final net.yacy.server.servletProperties prop = new net.yacy.server.servletProperties();
+        final net.yacy.cora.protocol.ResponseHeader responseHeaders = new net.yacy.cora.protocol.ResponseHeader(200);
+        responseHeaders.put("Cache-Control", "no-store");
+        prop.setOutgoingHeader(responseHeaders);
+        if (header == null || !sb.verifyAuthentication(header)) { prop.authenticationRequired(); return prop; }
+        prop.put(TransactionManager.TRANSACTION_TOKEN_PARAM, TransactionManager.getTransactionToken(header));
+        if (post != null && (post.containsKey("BODY") || post.containsKey("saveTldrSettings") || post.containsKey("testTldr") || post.containsKey("clearTldrHistory")))
+            AiSettingsTransaction.check(header, post);
+        prop.putHTML("tldrMessage", "");
+        if (post != null && post.containsKey("saveTldrSettings")) {
+            sb.setConfig(TldrService.ENABLED, post.containsKey("tldrEnabled"));
+            sb.setConfig(TldrService.DIAGNOSTICS_UNTIL, post.containsKey("tldrDiagnostics") ? System.currentTimeMillis() + TldrService.DIAGNOSTICS_MS : 0);
+            if (!post.containsKey("tldrDiagnostics")) TldrService.clearHistory();
+            prop.putHTML("tldrMessage", "TLDR-Einstellungen gespeichert.");
+        }
+        if (post != null && post.containsKey("clearTldrHistory")) TldrService.clearHistory();
+        final LLM.LLMModel tldrModel = LLM.llmFromUsageQuiet(LLM.LLMUsage.tldr);
+        prop.put("tldrEnabled", TldrService.automaticEnabled(sb));
+        prop.put("tldrAvailable", tldrModel != null);
+        prop.putHTML("tldrModel", tldrModel == null ? "Kein Modell zugewiesen" : tldrModel.model);
+        prop.putHTML("tldrState", tldrModel == null ? "Nicht verfügbar: Modellrolle zuweisen" : TldrService.automaticEnabled(sb) ? "Automatischer Fallback aktiv" : "Automatischer Fallback aus; manuelle Tests möglich");
+        final long until = sb.getConfigLong(TldrService.DIAGNOSTICS_UNTIL, 0);
+        prop.put("tldrDiagnostics", until > System.currentTimeMillis());
+        prop.putHTML("tldrDiagnosticsUntil", until > System.currentTimeMillis()
+                ? java.time.Instant.ofEpochMilli(until).atZone(java.time.ZoneId.systemDefault()).toString() : "Aus");
+        prop.put("tldrResult", "0");
+        if (post != null && post.containsKey("testTldr")) {
+            final TldrService.Attempt attempt = TldrService.execute(tldrModel, post.get("tldrQuestion", ""),
+                    sb.getConfig("ai.llm-query-generator-prefix", TldrService.DEFAULT_INSTRUCTION), true);
+            TldrService.finish(sb, attempt, -1, -1, true);
+            prop.put("tldrResult", "1");
+            for (final String key : new String[] {"input", "instruction", "raw", "effectiveQuery", "model", "error", "durationMs", "terms", "usage"})
+                prop.putHTML("tldrResult_" + key, attempt.details.optString(key, "Nicht verfügbar"));
+            prop.putHTML("tldrResult_state", attempt.valid() ? "Gültig" : "Fehler");
+        }
+        final JSONArray tldrHistory = TldrService.history();
+        prop.putHTML("tldrHistory", tldrHistory.toString());
+        for (int i = 0; i < tldrHistory.length(); i++) {
+            final JSONObject entry = tldrHistory.optJSONObject(i);
+            final String prefix = "tldrHistoryEntries_" + i + "_";
+            for (final String key : new String[] {"timestamp", "model", "inputWords", "outputTerms", "terms", "durationMs", "usage", "sourcesBefore", "sourcesAfter", "error"})
+                prop.putHTML(prefix + key, entry.optString(key, "Nicht verfügbar"));
+            prop.putHTML(prefix + "trigger", entry.optBoolean("manual") ? "Manuell: Testklick" : "Automatisch: lange Frage ohne Quellen");
+            prop.putHTML(prefix + "state", entry.optBoolean("valid") ? "Erfolgreich" : "Fehler");
+        }
+        prop.put("tldrHistoryEntries", tldrHistory.length());
         String body = post == null ? "" : post.get("BODY", "");
         JSONObject bodyj = new JSONObject();
         if (body.length() > 0) {

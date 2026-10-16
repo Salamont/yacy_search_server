@@ -130,3 +130,11 @@ concept counts per selected candidate URL. A synonym is a search lead, not a
 provider/service claim; negations and third-party attribution remain in the source
 and must be preserved in answers. Candidate/source budgets and collection checks
 are unchanged.
+
+`scoutro-retrieval.tldr`, when a fallback was actually attempted, describes its
+trigger, assigned model, input/output word counts, generated terms, effective
+query, validity/error, duration, available token usage and source counts before/
+after retry. It contains no full original question, instruction or raw model reply.
+It is returned only to the requesting chat, under the existing access policy.
+Administrator-only TLDR controls and expiring own-content diagnostics are on
+`LLMSelection_p.html`; ordinary RAG retrieval continues with the fallback off.
