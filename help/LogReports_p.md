@@ -74,7 +74,7 @@ Expect observations: counts, logs, queues, timing, network rows, thread states, 
 
 ## Flexible situation reports
 
-The existing scheduler checks one plan every 30 seconds. Each due interval produces
+While enabled, the existing scheduler checks one plan every 30 seconds. When disabled, its periodic task is cancelled; no automatic report task, log reading, collection or checkpoint runs. Manual generation remains available. Each due interval produces
 **one aggregate report with at most one `logreport` model call**, never a fan-out of
 hourly calls. There is no automatic daily compression in parallel.
 
@@ -124,43 +124,50 @@ days; old manual requests require the explicit recreation flag. Existing report
 files still prevent duplicates. Existing matching legacy hour/day files are also
 recognized. This provides at-most-once automatic attempts, not automatic retries.
 
-### Historical availability and bounded statistics
+### Standard log source and incomplete history
 
-The former source was the volatile `GuiHandler` buffer (default 100,000 entries).
-The default persistent FileHandler rotates 20 files of about 1 MiB each. Neither
-provides guaranteed weekly/monthly history. The new report source is a local compact
-statistics handler on the existing Java root logger, checkpointed by the existing
-scheduler every five minutes and on clean shutdown. No additional service/database
-or raw-log archive is introduced. Collection continues while report automation is
-off and itself makes no model calls.
+New reports use **only the same standard source as the existing hourly report**:
+`LogReportService.readRuntimeLogLines()` reads the existing `GuiHandler` runtime
+buffer. It retains its standard size, logging setup and lifecycle. The normal
+FileHandler logs/rotation also remain unchanged; the report service does not import
+or start reading additional raw-log files. Existing hourly/daily reports and their
+original generation/read paths remain available.
 
-`.operational-statistics.gz` in the report directory retains **65 days**, capped at
-1,561 hourly buckets. Each bucket has minute counters for entries, warnings, errors,
-and monitored milliseconds, plus at most three error, three warning, and one other
-redacted/truncated event samples. Samples are representative, not a complete error
-listing. Stack traces and full raw logs are not archived. The uncompressed counter
-payload is bounded to about 3 MiB, plus bounded samples. Checkpoints are replaced
-atomically. Abrupt shutdown loses uncheckpointed statistics, normally up to five minutes; a long-running model call can delay the shared scheduler and extend this window.
+There is no additional log handler, statistic collection, heartbeat, retention
+policy, statistics file, or periodic checkpoint. Any obsolete
+`.operational-statistics.gz` left by the earlier development version is ignored,
+never loaded, updated or automatically deleted. No report is deleted as cleanup.
 
-No old rotating logs are imported or guessed. Initial installation, offline time,
-restart gaps, missing checkpoints, and history outside retention stay unknown. Every
-report starts with deterministic requested/evaluated boundaries, available entry and
-warning/error counts, observed coverage bounds, monitored seconds, and a conservative
-unknown-coverage duration. Zero events are distinguished from absent monitoring.
-Heartbeat gaps over 90 seconds count as unknown coverage, including a scheduler delayed by a long model call. Time resolution is one
-minute; report start/end require whole minutes. A long interval remains one report.
+The buffer is volatile and can discard older records or be cleared at restart.
+Therefore weekly/monthly history is **not guaranteed**. Report-time filtering uses
+only currently available entries in the requested interval, with no reconstruction
+of missing periods. Counts and metadata are calculated on demand and are not
+persisted as a separate collection.
 
-The LLM receives counters and only samples fitting the existing model context/output
-budget, prioritized errors then warnings then other events. Omitted samples are
-counted. If no counters or monitored coverage exist, a data-gap report is written
-without a paid call. The trusted Scoutro operating context remains in the prompt;
-log samples are untrusted evidence and cannot override operating instructions.
+Every report states the requested interval, standard source and server log timezone,
+number of available/assigned entries, oldest/newest available buffer timestamps,
+unassignable timestamps and ambiguous DST timestamps. It explicitly says that the
+data are incomplete or completeness cannot be established. Gaps between timestamps
+do not prove inactivity, and no duration of complete monitoring is invented.
+
+Standard log timestamps lack an offset. An entry in a repeated local hour is kept
+if either possible instant falls in the interval, counted once within that report,
+and identified as a possible/ambiguous assignment. Such an entry can legitimately
+appear as uncertain evidence in both adjoining repeated-hour reports. Invalid or
+nonexistent local times are counted as unassignable and omitted from model evidence.
+The schedule timezone does not reinterpret the source's server timezone.
+
+The existing YaCy report sections, noise classification, model context/output budget,
+priority selection of warnings/errors, and trusted Scoutro operating context are
+reused for the selected interval. Secrets are redacted. Omitted lines are disclosed.
+Without matching standard-log entries, a clearly labelled data-gap report is written
+without a model call. Logs remain evidence and never operating instructions.
 
 ## Manual generation and protected writes
 
 Choose start and exclusive end in the displayed schedule timezone, review the shown
 period, and click **run report now**. The period must be past, minute-aligned, positive,
-and at most 65 days. Invalid intervals return HTTP 400 without starting a job or making a model call. Manual reports work with automation off. An explicit recreation
+with no artificial history-retention limit. Actual data availability still depends on the standard buffer. Invalid intervals return HTTP 400 without starting a job or making a model call. Manual reports work with automation off. An explicit recreation
 checkbox permits another model call for an already attempted/completed period.
 API charges are possible. During DST overlap local manual times use the earlier
 offset; use a nonambiguous boundary when selecting a repeated hour.

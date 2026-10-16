@@ -109,7 +109,7 @@ public class LogReports_p {
                 }
             } catch (final RuntimeException e) {
                 throw new net.yacy.http.servlets.TemplateProcessingException(
-                        "Ungültiger Berichtszeitraum. Vergangenen Zeitraum von höchstens 65 Tagen mit Minutengenauigkeit wählen.",400);
+                        "Ungültiger Berichtszeitraum. Vergangenen Zeitraum mit Minutengenauigkeit wählen.",400);
             }
         }
         final boolean reportRunning = LogReportService.isManualReportJobRunning();

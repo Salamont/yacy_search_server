@@ -228,7 +228,7 @@
         <dt>Last success</dt><dd>#[scheduled_success]#</dd><dt>Last failure</dt><dd>#[scheduled_failure]#</dd>
       </dl>
       <p>Last result: #[scheduled_message]#</p>
-      <p>Local counters retain 65 days and limited redacted event samples. No historical coverage is invented. Statistics collection makes no model calls.</p>
+      <p>Reports use only the available YaCy standard logs. Weekly and monthly history is not guaranteed. No additional log collection runs.</p>
       <script type="text/javascript">
         (function () {
           document.querySelectorAll('#reportScheduleForm select[data-current]').forEach(function (field) { field.value = field.dataset.current; });
@@ -251,7 +251,7 @@
       <p><label for="manualReportEnd">Period end (exclusive)</label> <input type="datetime-local" name="reportEnd" id="manualReportEnd" step="60" max="#[reportEnd]#" value="#[reportEnd]#" required="required" /></p>
       <p>Period: <span id="manualReportPeriod">#[reportPeriod]#</span> (#[reportZone]#).</p>
       <p><label><input type="checkbox" name="recreateReport" /> Explicitly recreate an already processed period</label></p>
-      <p>Manual generation works while automation is off. A model call may incur API charges. Select a past period of at most 65 days; coverage gaps are shown.</p>
+      <p>Manual generation works while automation is off. A model call may incur API charges. Select a past period; unavailable logs and uncertain coverage are shown.</p>
       <button type="submit" name="runReportNow" value="1" class="btn btn-primary" id="runReportButton" #(reportRunning)#::disabled="disabled"#(/reportRunning)#>run report now</button>
     </form>
 

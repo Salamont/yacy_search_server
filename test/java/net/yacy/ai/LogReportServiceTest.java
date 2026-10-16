@@ -22,6 +22,8 @@ public class LogReportServiceTest {
     private serverSwitch config;
     private LogReportService service;
     private final AtomicInteger calls = new AtomicInteger();
+    private final AtomicInteger logReads = new AtomicInteger();
+    private java.util.concurrent.ScheduledExecutorService scheduler;
     private List<String> lines = List.of();
     private volatile boolean failModel;
     private volatile java.util.concurrent.CountDownLatch entered, release;
@@ -44,10 +46,10 @@ public class LogReportServiceTest {
         this.config.setConfig(LogReportService.CONFIG_REPORT_DIR, "reports");
         final LLM.LLMModel model = new LLM.LLMModel(new LLM("http://127.0.0.1:" + this.endpoint.getAddress().getPort(), "", 1024, 8192, LLM.LLMType.OPENAI), "fixture", false, false);
         this.service = new LogReportService(this.config, (run, caller) -> model) {
-            @Override public List<String> readRuntimeLogLines() { return lines; }
+            @Override public List<String> readRuntimeLogLines() { logReads.incrementAndGet(); return lines; }
         };
     }
-    @After public void close() { this.endpoint.stop(0); }
+    @After public void close() { LogReportService.stopScheduler(scheduler); this.endpoint.stop(0); }
     private String line(final LocalDateTime at) {
         return "W " + at.format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")) + " TEST synthetic observed failure";
     }
@@ -64,9 +66,10 @@ public class LogReportServiceTest {
         final serverSwitch restarted = new serverSwitch(this.tmp.getRoot(), new File("."), "defaults/yacy.init", "settings.conf");
         assertFalse(restarted.getConfigBool(LogReportService.CONFIG_ENABLED, true));
     }
-    private void event(Instant at, String text) throws Exception {
-        java.util.logging.LogRecord record=new java.util.logging.LogRecord(java.util.logging.Level.WARNING,text);
-        record.setLoggerName("FIXTURE"); record.setInstant(at); service.statistics().publish(record);
+    private void event(Instant at, String text) {
+        java.util.ArrayList<String> available = new java.util.ArrayList<>(lines);
+        available.add("W " + at.atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss")) + " FIXTURE " + text);
+        lines = available;
     }
     @Test public void weeklyScheduleMakesOneCallAndDoesNotFanOutIntoHourlyReports() throws Exception {
         LogReportSchedule plan=new LogReportSchedule("weekly",1,"08:00",1,0,"Europe/Berlin");
@@ -83,7 +86,7 @@ public class LogReportServiceTest {
         assertEquals("one weekly model call, zero hourly fan-out",1,calls.get());
         File file=new File(service.getReportDirectory(),LogReportService.periodReportFilename(start,end));
         String report=Files.readString(file.toPath()); assertTrue(report.contains("167"));
-        assertTrue(report.contains("Datenlücke")); assertTrue(report.contains(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm XXX").withZone(plan.zone).format(start)));
+        assertTrue(report.contains("Vollständigkeit nicht nachweisbar")); assertTrue(report.contains(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss XXX").withZone(plan.zone).format(start)));
         assertEquals(1,service.discoverReports(100).size());
         Files.delete(file.toPath());
         service.control().initialize(plan,end.plusSeconds(86400),false);
@@ -113,20 +116,55 @@ public class LogReportServiceTest {
         serverSwitch restarted=new serverSwitch(tmp.getRoot(),new File("."),"defaults/yacy.init","settings.conf");
         assertEquals("off",LogReportSchedule.load(restarted).mode);
     }
-    @Test public void compactStatisticsSurviveRestartAreBoundedAndDescribeGapsWithoutInventingHistory() throws Exception {
+    @Test public void offHasNoScheduledWorkLogReadsOrWritesAndKeepsStandardHandlers() throws Exception {
+        service.saveSchedule(new LogReportSchedule("off",1,"00:00",1,0,"Europe/Berlin"));
+        java.util.logging.Handler[] handlers=java.util.logging.Logger.getLogger("").getHandlers();
+        // A leftover from an earlier development version is not consumed, overwritten or deleted.
+        java.nio.file.Path obsolete=service.getReportDirectory().toPath().resolve(".operational-statistics.gz");
+        Files.writeString(obsolete,"ignored old file");
+        scheduler=LogReportService.startScheduler(service);
+        java.util.concurrent.ScheduledThreadPoolExecutor executor=(java.util.concurrent.ScheduledThreadPoolExecutor)scheduler;
+        assertTrue(executor.getQueue().isEmpty()); assertFalse(LogReportService.isSchedulerRunning());
+        byte[] journal=Files.readAllBytes(service.getReportDirectory().toPath().resolve(".generation-state.properties"));
+        for(int i=0;i<100;i++) service.schedulerTick(Instant.now().plusSeconds(i*3600));
+        Thread.sleep(1100); // past the normal first scheduler tick, still no task is queued or executed
+        assertEquals(0,executor.getCompletedTaskCount()); assertEquals(0,logReads.get()); assertEquals(0,calls.get());
+        assertArrayEquals(journal,Files.readAllBytes(service.getReportDirectory().toPath().resolve(".generation-state.properties")));
+        assertEquals("ignored old file",Files.readString(obsolete));
+        assertArrayEquals(handlers,java.util.logging.Logger.getLogger("").getHandlers());
+        service.saveSchedule(new LogReportSchedule("weekly",1,"08:00",1,0,"Europe/Berlin"));
+        assertEquals(1,executor.getQueue().size()); assertTrue(LogReportService.isSchedulerRunning());
+        service.saveSchedule(new LogReportSchedule("off",1,"08:00",1,0,"Europe/Berlin"));
+        assertTrue(executor.getQueue().isEmpty()); assertFalse(LogReportService.isSchedulerRunning());
+        assertEquals(0,logReads.get()); assertEquals(0,calls.get());
+        assertArrayEquals(handlers,java.util.logging.Logger.getLogger("").getHandlers());
+    }
+    @Test public void standardSourceUsesOnlyMatchingEntriesAndMakesNoCompletenessClaim() throws Exception {
         Instant start=Instant.now().minusSeconds(7200).truncatedTo(java.time.temporal.ChronoUnit.MINUTES),end=start.plusSeconds(3600);
-        LogReportStatistics statistics=service.statistics();
-        statistics.checkpoint(start,true); event(start.plusSeconds(1),"api_key=secret-sentinel observed warning");
-        statistics.checkpoint(start.plusSeconds(30),false); statistics.checkpoint(start.plusSeconds(60),true);
-        LogReportStatistics loaded=new LogReportStatistics(service.getReportDirectory().toPath());
-        LogReportStatistics.Snapshot data=loaded.snapshot(start,end);
-        assertEquals(1,data.entries); assertEquals(1,data.warnings); assertEquals(60000,data.coveredMillis);
-        assertFalse(data.samples.toString().contains("secret-sentinel"));
-        assertTrue(data.metadata(start,end,ZoneId.of("Europe/Berlin")).contains("3540"));
-        loaded.checkpoint(end,true); loaded.checkpoint(end.plusSeconds(30),true);
-        assertEquals("restart gap is not treated as monitored",60000,loaded.snapshot(start,end).coveredMillis);
-        loaded.checkpoint(start.plusSeconds(67*86400),true);
-        assertEquals(0,loaded.snapshot(start,end).entries);
+        event(start.minusSeconds(1),"outside-before"); event(start,"inside-at-start api_key=secret-sentinel");
+        event(end.minusSeconds(1),"inside-before-end"); event(end,"outside-at-end");
+        java.util.ArrayList<String> available=new java.util.ArrayList<>(lines); available.add("unparseable line"); lines=available;
+        File report=service.generatePeriodReport(start,end,false,"manual",null);
+        String saved=Files.readString(report.toPath());
+        assertEquals(1,calls.get()); assertTrue(saved.contains("davon dem Zeitraum zugeordnet: 2"));
+        assertTrue(saved.contains("Nicht zeitlich zuordenbare Einträge: 1"));
+        assertTrue(saved.contains("Vollständigkeit nicht nachweisbar"));
+        assertTrue(lastRequest.contains("inside-at-start")); assertTrue(lastRequest.contains("inside-before-end"));
+        assertFalse(lastRequest.contains("outside-before")); assertFalse(lastRequest.contains("outside-at-end"));
+        assertFalse(lastRequest.contains("secret-sentinel")); assertFalse(saved.contains("Überwachte Sekunden"));
+        assertFalse(Files.exists(service.getReportDirectory().toPath().resolve(".operational-statistics.gz")));
+    }
+    @Test public void standardTimestampAmbiguitiesAreVisibleAndEntriesAreCountedOnce() {
+        ZoneId berlin=ZoneId.of("Europe/Berlin");
+        List<String> source=List.of("W 2026/10/25 02:30:00 TEST repeated hour", "W 2026/03/29 02:30:00 TEST nonexistent hour");
+        Instant start=Instant.parse("2026-10-25T00:00:00Z"),end=start.plusSeconds(7200);
+        assertEquals(1,LogReportService.periodLogLines(source,start,end,berlin).size());
+        assertEquals(1,LogReportService.periodLogLines(source,start,start.plusSeconds(3600),berlin).size());
+        assertEquals(1,LogReportService.periodLogLines(source,start.plusSeconds(3600),end,berlin).size());
+        String metadata=LogReportService.standardLogMetadata(source,1,start,end,berlin,berlin);
+        assertTrue(metadata.contains("mehrdeutige Ortszeiten im Puffer: 1"));
+        assertTrue(metadata.contains("Nicht zeitlich zuordenbare Einträge: 1"));
+        assertTrue(metadata.contains("mögliche Treffer"));
     }
     @Test public void noAvailableHistoryProducesExplicitGapReportWithoutModelCall() throws Exception {
         Instant end=Instant.now().minusSeconds(86400).truncatedTo(java.time.temporal.ChronoUnit.MINUTES),start=end.minusSeconds(7*86400);
@@ -185,21 +223,17 @@ public class LogReportServiceTest {
         failModel=false; service.schedulerTick(end.plusSeconds(60)); assertEquals(1,calls.get());
         try { service.generatePeriodReport(start,end,false,"manual",null); fail(); } catch(java.io.IOException expected) { }
         assertEquals(1,calls.get()); service.generatePeriodReport(start,end,true,"manual",null); assertEquals(2,calls.get());
-        assertTrue(lastRequest.contains("Trusted Scoutro configuration")); assertTrue(lastRequest.contains("Datenlücke"));
+        assertTrue(lastRequest.contains("Trusted Scoutro configuration")); assertTrue(lastRequest.contains("Vollständigkeit nicht nachweisbar"));
     }
-    @Test public void statisticsSamplesHaveHardLimitsAndPrioritizeErrorsWithinContext() throws Exception {
+    @Test public void standardLogPromptReusesBudgetNoiseAndPrioritySelection() throws Exception {
         Instant at=Instant.now().minusSeconds(7200).truncatedTo(java.time.temporal.ChronoUnit.HOURS);
-        for(int i=0;i<1000;i++) {
-            java.util.logging.LogRecord record=new java.util.logging.LogRecord(i%3==0?java.util.logging.Level.SEVERE:i%3==1?java.util.logging.Level.WARNING:java.util.logging.Level.INFO,"x".repeat(1000));
-            record.setLoggerName("FIXTURE"); record.setInstant(at.plusSeconds(i)); service.statistics().publish(record);
-        }
-        LogReportStatistics.Snapshot snapshot=service.statistics().snapshot(at,at.plusSeconds(3600));
-        assertEquals(1000,snapshot.entries); assertEquals(7,snapshot.samples.size());
-        assertTrue(snapshot.samples.get(0).startsWith("E "));
-        assertTrue(snapshot.samples.stream().allMatch(v->v.length()<360));
+        for(int i=0;i<1000;i++) event(at.plusSeconds(i),"x".repeat(1000));
+        event(at.plusSeconds(1200),"unique-newest-warning");
         service.generatePeriodReport(at,at.plusSeconds(3600),false,"manual",null);
-        assertEquals(1,calls.get()); assertTrue(lastRequest.length()<10000);
-        assertFalse(lastRequest.contains("x".repeat(500)));
+        assertEquals(1,calls.get()); assertTrue(lastRequest.length()<26000);
+        assertTrue(lastRequest.contains("unique-newest-warning"));
+        assertTrue(lastRequest.contains("log lines omitted to fit"));
+        assertTrue(lastRequest.contains("Noise classification"));
     }
     @Test public void dailyConsolidationPreservesHourlyFilesAndNeverChargesTwice() throws Exception {
         final LocalDateTime hour = LocalDate.now().minusDays(1).atTime(10,0);

@@ -27,6 +27,8 @@ try {
       assert(!overflow, `page overflow ${name} ${width}`); checks++;
       assert.equal(errors.length, 0, errors.join('; ')); checks++;
       if (name === 'LogReports_p') {
+        assert((await controls.innerText()).includes('YaCy-Standardlogs')); checks++;
+        assert(!(await controls.innerText()).includes('65 Tage')); checks++;
         for (const mode of ['hourly', 'daily', 'weekly', 'monthly', 'off']) {
           await page.locator('#scheduleMode').selectOption(mode);
           assert.equal(await page.locator('[data-schedule="hourly"]').isVisible(), mode === 'hourly'); checks++;
