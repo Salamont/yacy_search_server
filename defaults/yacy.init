@@ -1464,3 +1464,6 @@ ai.shield.limit-all = false
 ai.shield.all.per-minute = 16
 ai.shield.all.per-hour = 240
 ai.shield.all.per-day = 480
+
+# Scoped RAG synonym exclusions, directional query=alternative pairs.
+ai.rag.synonyms.blocked_pairs = beratung=besprechung;besprechung=beratung

@@ -35,6 +35,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import net.yacy.ai.rag.RagCandidate;
+import net.yacy.ai.rag.RagQuery;
+import net.yacy.ai.rag.RagSynonyms;
+import net.yacy.cora.language.synonyms.SynonymLibrary;
 import net.yacy.cora.document.analysis.Classification;
 import net.yacy.cora.document.id.DigestURL;
 import net.yacy.cora.document.id.MultiProtocolURL;
@@ -123,6 +126,15 @@ public final class RAGAugmentor {
         final QueryParams theQuery = buildTextQueryParams(query, count,
                 global ? QueryParams.Searchdom.GLOBAL : QueryParams.Searchdom.LOCAL, collection);
         final long start = System.currentTimeMillis();
+        RagSynonyms synonymResolver = null;
+        if (!global && sb.index.fulltext().connectedLocalSolr() && !sb.index.fulltext().connectedRemoteSolr()) {
+            final net.yacy.cora.federate.solr.connector.EmbeddedSolrConnector connector = sb.index.fulltext().getDefaultEmbeddedConnector();
+            if (connector != null) {
+                final org.apache.solr.client.solrj.SolrQuery solr = theQuery.solrQuery(Classification.ContentDomain.ALL, false, false, false);
+                synonymResolver = new RagSynonyms(connector.getCore().getLatestSchema(), solr.get("qf", ""), RagQuery.prepare(theQuery.getQueryGoal().getIncludeString()),
+                        SynonymLibrary::getSynonyms, sb.getConfig(RagSynonyms.BLOCKED_CONFIG, RagSynonyms.DEFAULT_BLOCKED));
+            }
+        }
         final SearchEvent theSearch = startSearch(sb, theQuery);
         final long timeout = sb.getConfigLong(
                 SwitchboardConstants.REMOTESEARCH_MAXTIME_USER,
@@ -147,9 +159,11 @@ public final class RAGAugmentor {
             final List<String> collections = new ArrayList<>();
             final Collection<Object> values = node.getFieldValues(CollectionSchema.collection_sxt.getSolrFieldName());
             if (values != null) for (final Object value : values) if (value != null) collections.add(value.toString());
-            candidates.add(new RagCandidate(node.urlstring(), node.title(),
-                    firstFieldString(node.getFieldValue(CollectionSchema.description_txt.getSolrFieldName())),
-                    text, node.url().getHost(), collections, index));
+            final String description = firstFieldString(node.getFieldValue(CollectionSchema.description_txt.getSolrFieldName()));
+            candidates.add(new RagCandidate(node.urlstring(), node.title(), description,
+                    text, node.url().getHost(), collections, index, synonymResolver == null ? java.util.Collections.emptyMap()
+                            : synonymResolver.forDocument(node.title(), description, text,
+                                    node.getFieldValues(CollectionSchema.synonyms_sxt.getSolrFieldName()))));
             index++;
         }
         ConcurrentLog.info("RAGProxy", prefix(runId) + "event=rag-search phase=candidates global=" + global + " collection=" + (collection != null)

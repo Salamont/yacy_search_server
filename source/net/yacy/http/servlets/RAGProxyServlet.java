@@ -384,6 +384,12 @@ public class RAGProxyServlet extends HttpServlet {
                 retrieval.put("collection", scope == null ? JSONObject.NULL : scope);
                 retrieval.put("global", result.global);
                 retrieval.put("candidates", result.candidates);
+                final JSONArray matches = new JSONArray();
+                for (final RagRetriever.Scored scored : result.selected) {
+                    matches.put(new JSONObject().put("url", scored.candidate.url).put("concepts", scored.strong)
+                            .put("original", scored.exactStrong).put("expanded", scored.expanded));
+                }
+                retrieval.put("matches", matches);
                 retrieval.put("contextChars", contextText.length());
                 retrieval.put("contextTokens", RagContext.tokens(contextText.length()));
                 retrieval.put("numCtx", llm4Chat.llm.num_ctx);

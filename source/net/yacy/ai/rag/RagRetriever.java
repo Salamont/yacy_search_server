@@ -39,12 +39,20 @@ public final class RagRetriever {
         public final int strong;
         public final int all;
         public final int title;
+        public final int exactStrong;
+        public final int expanded;
 
         Scored(final RagCandidate candidate, final int strong, final int all, final int title) {
+            this(candidate, strong, all, title, strong, 0);
+        }
+
+        Scored(final RagCandidate candidate, final int strong, final int all, final int title, final int exactStrong, final int expanded) {
             this.candidate = candidate;
             this.strong = strong;
             this.all = all;
             this.title = title;
+            this.exactStrong = exactStrong;
+            this.expanded = expanded;
         }
     }
 
@@ -106,7 +114,11 @@ public final class RagRetriever {
             int strong = 0;
             for (final RagQuery.Term term : matched) if (onlyWeak || !term.weak) strong++;
             if (strong == 0) continue;
-            scored.add(new Scored(candidate, strong, matched.size(), candidate.matchedInTitle(query).size()));
+            final Set<RagQuery.Term> exact = candidate.exact(query);
+            int exactStrong = 0;
+            for (final RagQuery.Term term : exact) if (onlyWeak || !term.weak) exactStrong++;
+            scored.add(new Scored(candidate, strong, matched.size(), candidate.matchedInTitle(query).size(), exactStrong,
+                    matched.size() - exact.size()));
         }
         final String[] stages = {"all", "majority", "any"};
         final int[] needs = {strongTotal, Math.max(1, (strongTotal + 1) / 2), 1};
@@ -116,7 +128,7 @@ public final class RagRetriever {
             final List<Scored> accepted = new ArrayList<>();
             for (final Scored candidate : scored) if (candidate.strong >= need) accepted.add(candidate);
             if (accepted.isEmpty()) continue;
-            accepted.sort(Comparator.comparingInt((Scored c) -> -c.strong).thenComparingInt(c -> -c.all)
+            accepted.sort(Comparator.comparingInt((Scored c) -> -c.strong).thenComparingInt(c -> -c.exactStrong).thenComparingInt(c -> c.expanded).thenComparingInt(c -> -c.all)
                     .thenComparingInt(c -> -c.title).thenComparingInt(c -> c.candidate.rank));
             return new Result(query, searchQuery, collection, remote, stages[s], candidates.size(), foreign,
                     new ArrayList<>(accepted.subList(0, Math.min(Math.max(1, maxSources), accepted.size()))));

@@ -122,3 +122,11 @@ whole index and the network: it is neither offered to nor run for a chat
 without all collections (also an AI Shield guest); the other released tools
 stay available.
 See [SCOUTRO_USERS_ACCESS.md](../docs/SCOUTRO_USERS_ACCESS.md) for roles, permissions and the protected access mode.
+
+### Synonym matches and query shortening
+
+The existing retrieval metadata now includes `matches` with original and expanded
+concept counts per selected candidate URL. A synonym is a search lead, not a
+provider/service claim; negations and third-party attribution remain in the source
+and must be preserved in answers. Candidate/source budgets and collection checks
+are unchanged.
